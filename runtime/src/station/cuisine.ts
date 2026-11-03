@@ -10,6 +10,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
+import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "../brigade-github.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { leconsDeLEtageCommun } from "../commun/installation.ts";
@@ -65,6 +66,9 @@ export type Cuisine = {
   // Arrête la cuisine comme un signal arrêtait le runtime du projet : son
   // journal le dit, son verrou est rendu, ses cooks relayés lui survivent.
   arreter(motif: string): void;
+  // Résolue une fois la cuisine arrêtée et son tour GitHub seul en cours,
+  // s'il y en a un, fini.
+  arretee?(): Promise<void>;
 };
 
 export type OptionsCuisine = {
@@ -141,6 +145,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   let identites: Identites | null = null;
   let socle: Runtime | null = null;
   let ouverte: Runtime | null = null;
+  // Non nul : le projet est servi sur l'état GitHub seul (`brigade-github.ts`).
+  let projetGitHub: { arreter(): Promise<void> } | null = null;
   try {
     identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
     let republierReseau = () => {};
@@ -175,9 +181,42 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire }), { repertoireEtat, station: nomDeclare(envProjet), dire });
     const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(decide).expirationPromue } } : {}) });
     const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
+    // L'interrupteur de l'état GitHub seul (#2060), lu sur la branche
+    // d'intégration à l'ouverture, comme le runtime d'un seul projet le lisait
+    // (`main.ts`). Éteint, la station est l'ancienne, telle quelle. Allumé,
+    // elle ne lance plus aucun cook — ni déclaré, ni relu des décisions — et
+    // c'est la station GitHub seul qui prend, cuisine, relit et merge, sous
+    // l'identité de la pass et au nom de la station déclarée sur cette machine.
+    const ici = stations.find((declaree) => !declaree.distante);
+    const ouvert = brancherBrigadeGithub({
+      reglages: duDepot.reglages,
+      ancien: () => ({ stations, decisions }),
+      station: () =>
+        ici === undefined
+          ? { refus: "the project declares no station on this machine" }
+          : stationDuDepot({
+              nom: ici.nom,
+              places: ici.cooks,
+              base: station.base,
+              depotGitHub: rail.depot,
+              github: githubs.pass,
+              depot,
+              prise: priseDeLaStation,
+              claude: station.bin,
+              env,
+              cloison,
+              bacASable,
+              plafonds: reglages.plafonds,
+              graceMs: reglages.graceMs,
+              reviewer: reviewer.calibrage,
+              flux: join(repertoireEtat, "github-seul"),
+              avertir: dire,
+            }),
+      avertir: dire,
+    });
+    if (ouvert.chemin === "github") projetGitHub = ouvert;
     const servie = brancherStation(fermee, {
-      stations,
-      decisions,
+      ...(ouvert.chemin === "ancien" ? ouvert.ancien : { stations: [], decisions: { ...decisions, stations: () => [] } }),
       repertoireEtat,
       worktrees,
       depot,
@@ -241,6 +280,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire, ouvertes });
   } catch (erreur) {
     identites?.fermer();
+    void projetGitHub?.arreter();
     try {
       (ouverte ?? socle)?.arreter("refus");
     } catch {
@@ -293,6 +333,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
 
   const fermer = identites;
   const runtime = ouverte;
+  const servieSurGitHub = projetGitHub;
+  let finDuTour: Promise<void> = Promise.resolve();
   return {
     projet,
     repertoireEtat,
@@ -304,7 +346,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       if (arretee) return;
       arretee = true;
       fermer?.fermer();
+      if (servieSurGitHub !== null) finDuTour = servieSurGitHub.arreter();
       runtime.arreter(motif);
     },
+    arretee: () => finDuTour,
   };
 }
