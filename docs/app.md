@@ -1819,6 +1819,18 @@ is not a message of the conversation: the role stays in force after a compaction
 and updating the app updates it, with no plugin to install. You keep control: open shells, do what
 you want with the session.
 
+**The exception: the second may take a cook's task.** The kitchen stays the default — a ticket goes on
+the rail and a cook serves it. Not routine use: the second writes code or does a cook's task itself
+only when the work is **urgent** (a blocker now), **needs a human** (the chef's presence or machine, which
+a cook on the box lacks), or **unblocks a situation the kitchen cannot unblock** (the fix is for the very
+thing that is broken: CI loops, cooks without `gh`, rate limits). A ticket that is neither urgent nor
+blocked still goes on the rail. The second names the case to the chef in one line before starting, then
+works in its own worktree on a branch, runs the gates, opens a pull request that closes the issue
+(which goes through the pass like any delivery) and comments on the issue that the second took it, and
+why. What stays forbidden, exception or not: **merging** (the chef or the pass does; the second only
+gives the command) and **reading the chef's secrets** (`.env.local`, the Max token). The text is in
+`app/src/second/role.md`; the V1 role (`commands/po.md`, with its Codex mirror) carries the same rule (#2178).
+
 **The role exists only in the Second tab.** The role and the settings of the launch (`--settings`, the
 hooks the app gives the second) are arguments of the command the tab runs, and nothing else: the app
 writes nothing into the project's `.claude/`, nor into any file another session reads. A `claude` you
