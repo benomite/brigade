@@ -138,6 +138,15 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   absent outside a limit). Both read the pause on the counter, read-only, through `BRIGADE_STATION_DIR`
   (ssh does not depend on GitHub); the text of `gh` never appears. The app shows a line in each
   project's alert band, in the chef's local time.
+- **Which limit (#2144).** A refusal seen by `github.ts` also names the limit, per account, in
+  `<BRIGADE_STATION_DIR>/appels-github/limites.db`: `primary` (hourly quota at zero, "API rate limit
+  exceeded"), `secondary-writes` ("content creation", or a secondary limit hit by a write) or
+  `secondary-concurrency` ("concurrent", or a secondary limit hit by a read). `since` is the response's
+  `date` header, `backAt` its `retry-after` (seconds or HTTP date), else `x-ratelimit-reset`, else the
+  box's pause. Every project of the station reads it: `faits` carries `github: {limit, since, backAt}`
+  (ISO), absent when calls pass, and the `status` line becomes `GitHub is rate-limiting calls:
+  secondary limit (writes per minute), since HH:MM, back around HH:MM`. The entry stays until `backAt`
+  has passed and a call of that account succeeds (HTTP below 400).
 
 ## Adding a project to a station from the app, without a terminal
 

@@ -5,9 +5,13 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { principal as faits } from "../src/faits.ts";
 import { ouvrirGitHub } from "../src/github.ts";
+import { limitesDeLaStation, lireLaLimite, ouvrirLimitesDuCompte, type LimitesDuCompte } from "../src/github-limite.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { ATTENTE_PAR_DEFAUT_MS, LimiteGitHubAtteinte, ouvrirLimite } from "../src/limite-github.ts";
-import { DEPOT, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { principal as status } from "../src/status.ts";
+import { appeler, DEPOT, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -61,14 +65,16 @@ function uneHorloge() {
 
 const LIMITE_PRIMAIRE = { message: "API rate limit exceeded for user ID 1.", documentation_url: "https://docs.github.com/rest/overview/rate-limits-for-the-rest-api" };
 
-function sondage(t: TestContext) {
+function sondage(t: TestContext, limitesDuCompte?: (maintenant: () => number) => LimitesDuCompte) {
   const gh = unGh(t);
   const horloge = uneHorloge();
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
-  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
+  const limites = (limitesDuCompte ?? ((maintenant) => ouvrirLimitesDuCompte({ maintenant })))(horloge.maintenant);
+  t.after(() => limites.fermer());
+  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, limitesDuCompte: limites, maintenant: horloge.maintenant });
   t.after(() => github.fermer());
-  return { gh, horloge, limite, github };
+  return { gh, horloge, limite, limites, github };
 }
 
 test("un 403 « rate limit » ou un 429 au sondage met les appels en attente jusqu'à x-ratelimit-reset, et aucun ne part pendant l'attente", async (t) => {
@@ -148,4 +154,88 @@ test("un refus pour limite n'est pas pris pour un refus de merge, et un vrai ref
   horloge.avancer(MINUTE);
   await assert.rejects(github.merger(7, "abc"), LimiteGitHubAtteinte);
   assert.equal(gh.appels().length, 3);
+});
+
+// Les trois limites, telles que GitHub les dit : la primaire (quota à zéro), la
+// secondaire des écritures (« content creation »), celle des requêtes simultanées.
+const DATE_DU_REFUS = new Date(DEPART).toUTCString();
+const ECRITURES = { message: "You have exceeded a secondary rate limit and have been temporarily blocked from content creation. Please retry your request again later." };
+const SIMULTANEES = { message: "You have exceeded a secondary rate limit: too many concurrent requests. Please retry your request again later." };
+const iso = (ms: number) => new Date(ms).toISOString();
+
+test("la limite primaire, celle des écritures à la minute et celle des requêtes simultanées se nomment chacune, depuis l'en-tête date jusqu'à retry-after ou x-ratelimit-reset", async (t) => {
+  const reset = DEPART + 25 * MINUTE;
+  const cas = [
+    { statut: 403, entetes: { date: DATE_DU_REFUS, "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset / SECONDE) }, corps: LIMITE_PRIMAIRE, limit: "primary", backAt: reset },
+    { statut: 403, entetes: { date: DATE_DU_REFUS, "retry-after": "60", "x-ratelimit-remaining": "4653" }, corps: ECRITURES, limit: "secondary-writes", backAt: DEPART + MINUTE },
+    { statut: 429, entetes: { date: DATE_DU_REFUS, "retry-after": "120", "x-ratelimit-remaining": "4653" }, corps: SIMULTANEES, limit: "secondary-concurrency", backAt: DEPART + 2 * MINUTE },
+  ] as const;
+  const vus = new Set<string>();
+  for (const { statut, entetes, corps, limit, backAt } of cas) {
+    const { gh, horloge, limites, github } = sondage(t);
+    // L'horloge de la box a dix secondes d'avance sur GitHub : l'instant est celui de sa réponse.
+    horloge.avancer(10 * SECONDE);
+    assert.equal(limites.courante(), null);
+    gh.repondre(statut, entetes, corps);
+    await assert.rejects(github.tickets(), LimiteGitHubAtteinte);
+    assert.deepEqual(limites.courante(), { limit, since: iso(DEPART), backAt: iso(backAt) });
+    vus.add(limites.courante()?.limit ?? "");
+  }
+  assert.equal(vus.size, 3);
+});
+
+test("une limite secondaire que le message ne précise pas se lit sur la requête, et sans en-tête la reprise est la pause de la box", async (t) => {
+  const { gh, limites, github } = sondage(t);
+  gh.repondre(403, { "retry-after": "30" }, { message: "You have exceeded a secondary rate limit." });
+  await assert.rejects(github.merger(7, "abc"), LimiteGitHubAtteinte);
+  assert.deepEqual(limites.courante(), { limit: "secondary-writes", since: iso(DEPART), backAt: iso(DEPART + 30 * SECONDE) });
+
+  const secondaire = { statut: 429, entetes: new Map<string, string>(), corps: "slow down" };
+  assert.deepEqual(lireLaLimite(secondaire, { maintenant: DEPART }), { sorte: "secondary-concurrency", depuis: DEPART, reprise: DEPART + ATTENTE_PAR_DEFAUT_MS });
+  assert.deepEqual(lireLaLimite(secondaire, { maintenant: DEPART, ecriture: true, repli: DEPART + 7 * MINUTE }), { sorte: "secondary-writes", depuis: DEPART, reprise: DEPART + 7 * MINUTE });
+  // `retry-after` en date HTTP.
+  const enDate = { statut: 403, entetes: new Map([["retry-after", new Date(DEPART + 3 * MINUTE).toUTCString()]]), corps: JSON.stringify(SIMULTANEES) };
+  assert.equal(lireLaLimite(enDate, { maintenant: DEPART }).reprise, DEPART + 3 * MINUTE);
+});
+
+test("la limite du compte est dans `faits` et `status` de chaque projet de la station tant qu'elle dure ; la reprise passée, un appel qui aboutit la lève", async (t) => {
+  const station = repertoireTemporaire(t);
+  const projets = [repertoireTemporaire(t), repertoireTemporaire(t)];
+  for (const projet of projets) ouvrirJournal(projet).fermer();
+  const { gh, horloge, github } = sondage(t, (maintenant) => limitesDeLaStation(station, { maintenant }));
+  const lire = async (commande: typeof status, projet: string) => {
+    const rendu = appeler(commande, [], { BRIGADE_STATE_DIR: projet, BRIGADE_STATION_DIR: station });
+    assert.equal(await rendu.fin, 0);
+    return rendu.sortie();
+  };
+  const hhmm = (ms: number) => `${String(new Date(ms).getHours()).padStart(2, "0")}:${String(new Date(ms).getMinutes()).padStart(2, "0")}`;
+
+  for (const projet of projets) assert.equal(JSON.parse(await lire(faits, projet)).github, undefined);
+
+  gh.repondre(403, { date: DATE_DU_REFUS, "retry-after": "1920" }, ECRITURES);
+  await assert.rejects(github.merger(7, "abc"), LimiteGitHubAtteinte);
+  const attendue = { limit: "secondary-writes", since: iso(DEPART), backAt: iso(DEPART + 32 * MINUTE) };
+  for (const projet of projets) {
+    assert.deepEqual(JSON.parse(await lire(faits, projet)).github, attendue);
+    const lignes = (await lire(status, projet)).split("\n").filter((ligne) => ligne.startsWith("github "));
+    assert.deepEqual(lignes, [`github     GitHub is rate-limiting calls: secondary limit (writes per minute), since ${hhmm(DEPART)}, back around ${hhmm(DEPART + 32 * MINUTE)}`]);
+  }
+
+  // Un geste qui aboutit avant la reprise ne lève rien : GitHub n'a pas rendu les appels.
+  const [compteur, limitesDuGeste] = [ouvrirLimite({ maintenant: horloge.maintenant }), limitesDeLaStation(station, { maintenant: horloge.maintenant })];
+  const geste = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, usage: "geste", limite: compteur, limitesDuCompte: limitesDuGeste, maintenant: horloge.maintenant });
+  t.after(() => [geste.fermer(), compteur.fermer(), limitesDuGeste.fermer()]);
+  horloge.avancer(5 * MINUTE);
+  gh.repondre(200, { etag: '"a"' }, []);
+  await geste.tickets();
+  for (const projet of projets) assert.deepEqual(JSON.parse(await lire(faits, projet)).github, attendue);
+
+  // La reprise passée, le premier appel qui aboutit lève la limite, pour tous les projets.
+  horloge.avancer(27 * MINUTE);
+  gh.repondre(200, { etag: '"b"' }, []);
+  await github.tickets();
+  for (const projet of projets) {
+    assert.equal(JSON.parse(await lire(faits, projet)).github, undefined);
+    assert.doesNotMatch(await lire(status, projet), /rate-limiting/);
+  }
 });
