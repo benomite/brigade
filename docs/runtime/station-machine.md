@@ -120,6 +120,12 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   gesture still tries, and fails on GitHub's refusal). The log says it once (`brigade : station — GitHub
   a atteint sa limite d'appels : …`). The resumption is automatic. During the wait the station does not
   write its state on GitHub, and the app says it offline after 2 × `cadenceMs` + 30 s.
+- **Writes are paced (#2145).** GitHub's secondary limits cap writes (about 80 a minute and 500 an
+  hour per account). Every kitchen write (`gh api` with a method other than GET, or with fields) goes
+  through the same counter, per account and for all the station's projects together: at most
+  `ECRITURES_PAR_MINUTE` (30) in any sliding minute and `ECRITURES_PAR_HEURE` (300) in any sliding hour
+  (`runtime/src/limite-github.ts`). A write over budget does not fail and is not counted: it waits for
+  the oldest write of the full window to leave it, then goes. Reads and the chef's gestures are never paced.
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
   (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind (`issue-comments`,
   `pull-requests`, `issues`, `gist`, `gesture`, `board` for the Kitchen board's refresh, `other`) over the
