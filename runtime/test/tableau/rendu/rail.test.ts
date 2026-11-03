@@ -41,7 +41,7 @@ function projet(t: TestContext) {
   const tableau = tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT, corrections: cartesDeCorrection(journal, DEPOT) });
   const lu = lireLeTableau(rendreLeTableau(tableau, GENERE_LE));
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
-  return { etat, status: decrireEtat(etat, LU_LE), tableau, publie: lu.tableau, faits: lu.tableau.faits as FaitsDuTableau };
+  return { etat, status: decrireEtat(etat, LU_LE, undefined, null, null, null, null, true), tableau, publie: lu.tableau, faits: lu.tableau.faits as FaitsDuTableau };
 }
 
 test("pour chaque ticket du rail, le tableau publié porte son état et ce que sa carte dessine : les faits de `facts`, sa priorité et sa ligne de `status`", (t) => {
@@ -65,7 +65,7 @@ test("pour chaque ticket du rail, le tableau publié porte son état et ce que s
   assert.deepEqual([de(30)?.etat, de(30)?.raison, ligneDe(30)?.priorite], ["en attente", "machine saturated", 0]);
   assert.match(ligneDe(30)?.ligne ?? "", /^ {2}#30 {2}queued {2}prio:0 {2}machine saturated/);
   assert.deepEqual([de(31)?.etat, de(31)?.activite?.fait, de(31)?.activite?.cible], ["pris", "lit", "runtime/src/etat.ts"]);
-  assert.match(ligneDe(23)?.ligne ?? "", /by box\/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left/);
+  assert.match(ligneDe(23)?.ligne ?? "", /by box\/claude since 2026-10-12 09:59 UTC, STUCK: no progress since 2026-10-12 09:59 UTC, lease until 2026-10-12 10:09 UTC/);
   assert.equal(de(17)?.etat, "en pass");
   // #19 attend #21, fermé sans avoir été servi : la cuisine ne l'attend plus, il est en attente (#1834).
   assert.equal(de(19)?.etat, "en attente");
@@ -73,7 +73,7 @@ test("pour chaque ticket du rail, le tableau publié porte son état et ce que s
   assert.deepEqual([de(35)?.tiers?.quoi, de(35)?.tiers?.qui], ["the customer's answer", "the customer"]);
   assert.equal(de(41)?.etat, "servi");
   assert.equal(ligneDe(18)?.priorite, null);
-  assert.match(ligneDe(18)?.ligne ?? "", /^ {2}#18 {2}86 {2}- {2}since 2 h 04 \(pass:returns-exhausted\)/);
+  assert.match(ligneDe(18)?.ligne ?? "", /^ {2}#18 {2}86 {2}- {2}since 2026-10-12 08:00 UTC \(pass:returns-exhausted\)/);
   // L'état du projet et ses compteurs, comme `facts` les donne.
   assert.equal(publies.etat, "retenue");
   assert.deepEqual(publies.compteurs, faits(etat, LU_LE, DEPOT).compteurs);

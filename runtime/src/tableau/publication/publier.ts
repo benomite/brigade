@@ -56,7 +56,7 @@ export const VERIFIER_L_EPINGLE_MS = 3_600_000;
 const DUREE = /\b\d+ (?:s|min|h \d{2}|d)\b/g;
 
 // La ligne du tick dans la rubrique « runtime » de `status` (etat.ts, `decrireRuntime`).
-const LIGNE_DU_TICK = /^(?:last tick .* ago \(cadence: .*\)|no tick since startup)$/;
+const LIGNE_DU_TICK = /^(?:last tick .* (?:ago )?\(cadence: .*\)|no tick since startup)$/;
 
 // Ce qui part vers GitHub est masqué (identifiants.ts) : le corps se compare tel qu'il y est.
 const masquer = (corps: string) => masquerIdentifiants(corps).texte;

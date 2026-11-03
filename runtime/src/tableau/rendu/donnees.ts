@@ -10,7 +10,7 @@
 import { direPauseEn, direSansGrantEn, decisionDe, nommerEn, direAttenteEn, TETE_AWAITING, FIN_AWAITING, type Attente } from "../../attend.ts";
 import { carteDeLAttente } from "../../carte-todo/cartes.ts";
 import type { CarteDeCorrection } from "../../correctif/cartes.ts";
-import { AGE_MAX_SAUVEGARDE_MS, coince, decrireEtat, dureeEn, faits, type EtatCuisine, type Faits } from "../../etat.ts";
+import { AGE_MAX_SAUVEGARDE_MS, coince, decrireEtat, faits, heureEn, type EtatCuisine, type Faits } from "../../etat.ts";
 import type { Repartition } from "../../limite-github.ts";
 import type { CarteDeProfil } from "../../profils/cartes.ts";
 import type { Refus } from "../../projets/refus.ts";
@@ -141,13 +141,13 @@ export function tableauDeLaCuisine(
   maintenant: Date,
   { ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub = null, retenue = null, appels = null, depot, refus = null, corrections = [], profils = [] }: OptionsDuTableau = {},
 ): Tableau {
-  const depuisEn = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
+  const depuisEn = (instant: string) => heureEn(instant);
   const { session, tick, gardeFous, base, reparation, urgence } = etat;
-  const status = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels, retenue);
+  const status = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels, retenue, null, true);
   const tenus = new Map(etat.rail.filter((ticket) => ticket.state === "taken").map((ticket) => [ticket.ticket, ticket]));
   const stationDe = new Map(etat.auxFourneaux.flatMap(({ station, ticket }) => (ticket === null ? [] : [[ticket, station] as const])));
   const bilans = [
-    ...(etat.pause === null ? [] : [direPauseEn(etat.pause, depuisEn)]),
+    ...(etat.pause === null ? [] : [direPauseEn(etat.pause, depuisEn).replace("— for ", "— since ")]),
     ...[direSansGrantEn(etat.sansGrant)].flatMap((bilan) => (bilan === null ? [] : [bilan])),
     ...(etat.passage === null ? [] : [etat.passage.ligne]),
   ];
