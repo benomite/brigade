@@ -140,7 +140,7 @@ class FauxGitHub {
     return priseDeLaStation(github, station);
   }
 
-  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger } = {}): StationGitHub {
+  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
@@ -159,8 +159,18 @@ class FauxGitHub {
           this.relectures.push({ station: nom, pr: pr.number });
           return { verdict: "approve", motif: "" };
         }),
-      avertir: (texte) => assert.fail(texte),
+      avertir: options.avertir ?? ((texte) => assert.fail(texte)),
     });
+  }
+
+  // Les tickets qui portent `taken` en ce moment.
+  pris(): number[] {
+    return [...this.tickets.values()].filter((t) => t.labels.has(LABEL_TAKEN)).map((t) => t.number);
+  }
+
+  // Les commentaires de prise postés par la station, tous tickets confondus.
+  prisesDe(station: string): number {
+    return [...this.commentaires.values()].flat().filter((c) => c.station === station && c.body.startsWith("<!-- brigade:prise")).length;
   }
 }
 
@@ -280,6 +290,55 @@ test("a cook that delivers nothing gives the ticket back on the issue, which ano
   await b.tour();
   await b.calme();
   assert.deepEqual(faux.cuissons, [{ station: "B", issue: 6 }]);
+});
+
+test("a station with 3 places never holds more than 3 tickets, even when its cooks throw at once (GitHub limiting its calls, #2179)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 13; n += 1) faux.feu(n);
+  const avertis: string[] = [];
+  const a = faux.station("A", {
+    places: 3,
+    cuisiner: async () => {
+      throw new Error("GitHub a atteint sa limite d'appels");
+    },
+    avertir: (texte) => avertis.push(texte),
+  });
+  await a.tour();
+  await a.calme();
+  // Trois prises, pas treize : un cook qui lève garde sa place.
+  assert.equal(faux.prisesDe("A"), 3);
+  assert.equal(faux.pris().length, 3);
+  // Le tour suivant rend les trois sur l'issue avant d'en prendre d'autres.
+  await a.tour();
+  await a.calme();
+  assert.ok(faux.pris().length <= 3, `taken: ${faux.pris().join(", ")}`);
+  const lachers = [...faux.commentaires.values()].flat().filter((c) => c.body.startsWith("<!-- brigade:lache station=A")).length;
+  assert.equal(lachers, 3);
+  assert.ok(avertis.some((texte) => /limite d'appels/.test(texte)));
+});
+
+test("a restarted station gives back, at its first turn, the tickets it held with no cook, then takes only what its places allow (#2179)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 5; n += 1) faux.feu(n);
+  // Un runtime d'avant a pris les cinq, puis s'est arrêté sans les rendre.
+  const avant = faux.station("A", { places: 5, cuisiner: () => new Promise(() => {}) });
+  void avant.tour();
+  await jusqua(() => faux.pris().length === 5);
+  // Un sixième, pris par une autre station : il n'est pas à A de le rendre.
+  faux.feu(6);
+  const b = faux.station("B", { cuisiner: () => new Promise(() => {}) });
+  void b.tour();
+  await jusqua(() => faux.pris().includes(6));
+  const apres = faux.station("A", { places: 2, cuisiner: () => new Promise(() => {}) });
+  await apres.tour();
+  await apres.calme();
+  const lachersDeA = [...faux.commentaires.values()].flat().filter((c) => c.body.startsWith("<!-- brigade:lache station=A")).length;
+  assert.equal(lachersDeA, 5);
+  assert.ok(faux.ticket(6).labels.has(LABEL_TAKEN), "#6 stays B's");
+  // Rendus à ce tour, ils ne sont repris qu'au suivant, et pas plus que ses places.
+  assert.deepEqual(faux.pris(), [6]);
+  await apres.tour();
+  assert.deepEqual(faux.pris(), [1, 2, 6]);
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {

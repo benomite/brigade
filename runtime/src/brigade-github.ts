@@ -113,6 +113,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const enVol = new Map<number, Promise<void>>();
+  // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
+  // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
+  // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
+  // rende sur l'issue : un échec ne libère jamais une place pour un autre.
+  const aRendre = new Map<number, TicketLu>();
+  let premierTour = true;
 
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
@@ -132,6 +138,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — ${message(erreur)}`);
+      aRendre.set(issue, ticket);
     } finally {
       enVol.delete(issue);
     }
@@ -158,14 +165,36 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
       if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN)) libres.push(ticket);
+      // Au premier tour, un `taken` sans cook ici est peut-être une prise
+      // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
+      if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);
+    }
+    premierTour = false;
+    for (const [numero, ticket] of aRendre) {
+      try {
+        await prise.lacher({ number: numero, labels: [...new Set([...ticket.labels, LABEL_TAKEN])] });
+        aRendre.delete(numero);
+      } catch (erreur) {
+        // GitHub refuse encore : le ticket garde sa place, le tour suivant réessaie.
+        avertir(`brigade : rendre #${numero} sur ${nom} — ${message(erreur)}`);
+        break;
+      }
     }
     for (const ticket of libres) {
-      if (enVol.size >= places) break;
+      if (enVol.size + aRendre.size >= places) break;
       if (enVol.has(ticket.number)) continue;
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
-      if (!(await prise.prendre(ticket)).prise) continue;
+      let pris: { prise: boolean };
+      try {
+        pris = await prise.prendre(ticket);
+      } catch (erreur) {
+        // La prise a pu partir avant le refus : le ticket est à rendre, et le tour s'arrête là.
+        aRendre.set(ticket.number, ticket);
+        throw erreur;
+      }
+      if (!pris.prise) continue;
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
   };
