@@ -7,15 +7,14 @@
 # finit par ses échecs, ses tests sautés et ses comptes en annotations du check, lisibles par l'API de
 # GitHub sans le journal du job (runtime/test/support/annotations.ts) :
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
-# Le job tourne aussi à chaque push sur `main`, sans condition de chemin : la base a ainsi un statut
-# Windows pour chacun de ses commits (#1859).
+# Le job tourne à chaque push sur `main`, sans condition de chemin : la base a ainsi un statut
+# Windows pour chacun de ses commits (#1859). Il ne tourne plus sur `pull_request` (#2087) : une part
+# rouge pour une cause de charge ou de test (station enregistrée en 60 s, `jusqua` de stations.test.ts)
+# bloquait la fusion de PR qui ne touchaient pas ce code, et la suite prend 9 à 15 min par part, sans
+# marge sous un plafond de 15 min. Un contributeur le lance à la main (`workflow_dispatch`) sur sa branche.
 name: runtime-windows
 
 on:
-  pull_request:
-    paths:
-      - "runtime/**"
-      - ".github/workflows/runtime-windows.yml"
   push:
     branches:
       - main
@@ -24,17 +23,17 @@ on:
 permissions:
   contents: read
 
-# Une PR remplace son run en cours. Un push sur la base a son groupe par commit et n'est jamais annulé :
-# avec un groupe par ref, GitHub écarterait le run en attente et un commit de `main` resterait sans statut.
+# Un push sur la base a son groupe par commit et n'est jamais annulé : avec un groupe par ref,
+# GitHub écarterait le run en attente et un commit de `main` resterait sans statut.
 concurrency:
-  group: runtime-windows-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: runtime-windows-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   tests:
     name: tests (${{ matrix.part }}/4)
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
     strategy:
       # Une part rouge n'arrête pas les autres : le job dit tout ce qui casse sous Windows, en un run.
       fail-fast: false
