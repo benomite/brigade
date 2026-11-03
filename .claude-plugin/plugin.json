@@ -14,7 +14,8 @@
     "./commands/manager.md",
     "./commands/dev.md",
     "./commands/designer.md",
-    "./commands/sync.md"
+    "./commands/sync.md",
+    "./commands/ask.md"
   ],
   "agents": [
     "./agents/dev-teammate.md",
