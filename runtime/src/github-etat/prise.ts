@@ -16,6 +16,7 @@
 //
 // Une station qui perd n'écrit rien de plus : sa prise, postée après la
 // gagnante, ne compte pas, et le prochain lâcher l'annule avec les autres.
+import { DE_CONFIANCE } from "../alimenter.ts";
 import { LABEL, type Issue } from "../github.ts";
 
 // Le label que porte un ticket pris : l'issue dit au chef qu'une station le tient.
@@ -23,11 +24,6 @@ export const PRIS = "taken";
 
 // Les labels dont le retrait lâche la prise.
 const LABELS_QUI_LACHENT = [PRIS, LABEL];
-
-// Ceux dont un commentaire fait foi : la liste de `DE_CONFIANCE`
-// (`alimenter.ts`). Tout le monde peut commenter une issue publique ; seul le
-// dépôt prend ses tickets.
-const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 // Le nom d'une station, tel qu'il s'écrit dans le marqueur.
 const NOM_DE_STATION = /^[A-Za-z0-9._-]+$/;
@@ -74,6 +70,7 @@ type Fait = { instant: number; rang: number; genre: "prise"; station: string; co
 export function tenant(commentaires: CommentaireDePrise[], retraits: RetraitDeLabel[]): Tenant | null {
   const faits: Fait[] = [];
   for (const commentaire of commentaires) {
+    // Tout le monde peut commenter une issue publique ; seul le dépôt prend ses tickets.
     if (!DE_CONFIANCE.includes(commentaire.association)) continue;
     const instant = Date.parse(commentaire.createdAt);
     if (Number.isNaN(instant)) continue;

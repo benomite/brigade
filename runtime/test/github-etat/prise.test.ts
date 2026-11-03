@@ -8,7 +8,8 @@ const NUMERO = 42;
 
 // Une issue sur GitHub, que plusieurs stations lisent et écrivent : chaque
 // commentaire reçoit l'id suivant et l'instant de l'horloge, que le test
-// avance — et que le commentaire d'une station avance d'une seconde. `ordre` dit dans quel ordre l'issue rend ses commentaires.
+// avance — et que le commentaire d'une station avance d'une seconde. `ordre`
+// dit dans quel ordre l'issue rend ses commentaires.
 function issueSurGitHub() {
   let horloge = Date.parse("2026-11-02T10:00:00Z");
   let id = 1000;
@@ -206,6 +207,8 @@ test("un nom de station qui casserait le marqueur est refusé, sans rien écrire
 test("`prise.ts` ne lit et n'écrit que par le client de GitHub : il n'importe ni le relais, ni la boîte, ni le journal", () => {
   const source = readFileSync(join(import.meta.dirname, "../../src/github-etat/prise.ts"), "utf8");
   const imports = [...source.matchAll(/^import .* from "(.+)";$/gm)].map((ligne) => ligne[1]);
-  assert.deepEqual(imports, ["../github.ts"]);
+  // `alimenter.ts` ne lui donne que la liste de ceux dont un commentaire fait foi.
+  assert.deepEqual(imports, ["../alimenter.ts", "../github.ts"]);
+  for (const module of imports) assert.doesNotMatch(module, /relais|boite|journal/);
   assert.doesNotMatch(source, /from "node:/);
 });
