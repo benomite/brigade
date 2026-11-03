@@ -87,7 +87,7 @@ function joue(t: TestContext, faux: "tmux" | "screen" | "aucun"): { appels: stri
   symlinkSync(execFileSync("/bin/sh", ["-c", "command -v grep"], { encoding: "utf8" }).trim(), join(racine, "grep"));
   if (faux !== "aucun") {
     // `has-session`, `screen -ls` : rien n'existe.
-    writeFileSync(join(racine, faux), `#!/bin/sh\nprintf '${faux} %s\\n' "$*" >> '${racine}/appels'\ncase "$1" in has-session|-ls) exit 1;; esac\nexit 0\n`);
+    writeFileSync(join(racine, faux), `#!/bin/sh\nprintf '${faux} %s\\n' "$*" >> '${racine}/appels'\n[ "$1" = -u ] && shift\ncase "$1" in has-session|-ls) exit 1;; esac\nexit 0\n`);
     chmodSync(join(racine, faux), 0o755);
   }
   const sortie = execFileSync("/bin/sh", ["-c", scriptDeRattachement("brigade-essai-1")], { cwd: racine, encoding: "utf8", env: { PATH: racine, HOME: racine, SHELL: "/bin/true" } });
@@ -101,15 +101,15 @@ function joue(t: TestContext, faux: "tmux" | "screen" | "aucun"): { appels: stri
 describe("la configuration appliquée à la session", () => {
   test("avec `tmux` : ni souris, ni préfixe, ni barre — et rien qui active un mode de copie", { skip: SANS_POSIX }, (t) => {
     const { appels } = joue(t, "tmux");
-    const racine = appels.find((appel) => appel.startsWith("tmux new-session"))?.match(/-c (\S+)$/)?.[1];
+    const racine = appels.find((appel) => appel.startsWith("tmux -u new-session"))?.match(/-c (\S+)$/)?.[1];
     assert.deepEqual(appels, [
-      "tmux has-session -t =brigade-essai-1",
-      `tmux new-session -d -s brigade-essai-1 -c ${racine}`,
-      "tmux set-option -t =brigade-essai-1 mouse off",
-      "tmux set-option -t =brigade-essai-1 prefix None",
-      "tmux set-option -t =brigade-essai-1 prefix2 None",
-      "tmux set-option -t =brigade-essai-1 status off",
-      "tmux attach-session -t =brigade-essai-1",
+      "tmux -u has-session -t =brigade-essai-1",
+      `tmux -u new-session -d -s brigade-essai-1 -c ${racine}`,
+      "tmux -u set-option -t =brigade-essai-1 mouse off",
+      "tmux -u set-option -t =brigade-essai-1 prefix None",
+      "tmux -u set-option -t =brigade-essai-1 prefix2 None",
+      "tmux -u set-option -t =brigade-essai-1 status off",
+      "tmux -u attach-session -t =brigade-essai-1",
     ]);
     assert.deepEqual(REGLAGES_TMUX, ["mouse off", "prefix None", "prefix2 None", "status off"]);
     assert.ok(!appels.some((appel) => /mouse on|copy-mode|set-clipboard|mode-keys/.test(appel)), appels.join("\n"));
@@ -119,11 +119,11 @@ describe("la configuration appliquée à la session", () => {
     const { appels } = joue(t, "screen");
     assert.deepEqual(appels, [
       "screen -ls",
-      "screen -dmS brigade-essai-1",
+      "screen -U -dmS brigade-essai-1",
       "screen -S brigade-essai-1 -X defmousetrack off",
       "screen -S brigade-essai-1 -X mousetrack off",
       "screen -S brigade-essai-1 -X escape ",
-      "screen -x brigade-essai-1",
+      "screen -U -x brigade-essai-1",
     ]);
     assert.deepEqual(REGLAGES_SCREEN, ["defmousetrack off", "mousetrack off", 'escape ""']);
     assert.ok(!appels.some((appel) => /mousetrack on|copy/.test(appel)), appels.join("\n"));
@@ -238,5 +238,19 @@ describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" 
   test("détruire une session qui n'existe pas n'est pas un échec : il n'y avait rien à détruire", async (t) => {
     const { session, env } = poste(t);
     assert.deepEqual(await detruire(session, { env }), { detruite: true });
+  });
+});
+
+describe("la locale d'un shell persistant", () => {
+  const locale = (env: Record<string, string>) =>
+    execFileSync("/bin/sh", ["-c", `${scriptDeRattachement("brigade-essai-1").split("\nif command")[0]}\nprintf %s "$LANG"`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...env } });
+
+  test("sans locale (app lancée depuis le Dock), le shell reçoit une locale UTF-8", () => {
+    assert.match(locale({}), /UTF-8$/);
+    assert.match(locale({ LANG: "C" }), /UTF-8$/);
+  });
+
+  test("une locale UTF-8 du chef n'est pas touchée", () => {
+    assert.equal(locale({ LANG: "fr_FR.UTF-8" }), "fr_FR.UTF-8");
   });
 });
