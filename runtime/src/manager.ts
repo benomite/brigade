@@ -196,6 +196,9 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Un ticket né d'un découpage est déjà jugé et calibré.
     if (ticketDEpique(base, issue.number)?.index != null || neDUnDecoupage(issue.body)) return { quoi: "fini" };
     if (fired && complet(calibragePose(issue.labels))) return { quoi: "rien" };
+    // Sorti du rail par la cuisine sans être servi, il attend la réponse du
+    // chef (#2118) : le manager ne le remet pas sur le rail à sa place.
+    if (!fired && ticketDuRail(base, issue.number) === null && abandonsAuChef(base, issue.number).length > 0) return { quoi: "fini" };
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };

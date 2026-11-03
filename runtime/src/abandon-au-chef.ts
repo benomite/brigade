@@ -45,17 +45,19 @@ const REPONSES = ["todo.answered", "ticket.arrived", "manager.closed", "merge.do
 const texte = (valeur: unknown): string | null => (typeof valeur === "string" && valeur.trim() !== "" ? valeur : null);
 
 // Les tickets que la cuisine a sortis du rail sans les servir, et dont le chef
-// n'a pas encore tranché le sort, du plus ancien au plus récent. Un ticket
-// encore sur le rail y est aussi : c'est au lecteur de l'écarter.
-export function abandonsAuChef(base: Base): Abandon[] {
+// n'a pas encore tranché le sort, du plus ancien au plus récent — ou ce seul
+// `ticket`. Un ticket encore sur le rail y est aussi : c'est au lecteur de
+// l'écarter.
+export function abandonsAuChef(base: Base, ticket: number | null = null): Abandon[] {
   const lignes = base.lire<{ seq: number; at: string; ticket: number; type: string; payload: string }>(
     `SELECT seq, at, ticket, type, payload FROM events
-     WHERE ticket IS NOT NULL
+     WHERE ${ticket === null ? "ticket IS NOT NULL" : "ticket = ?"}
        AND ((type = 'pass.kitchen-took-over' AND json_extract(payload, '$.move') = 'drop')
          OR type = 'ticket.dropped-with'
          OR (type = 'todo.triaged' AND json_extract(payload, '$.action') = 'remove')
          OR type IN (${REPONSES.map(() => "?").join(", ")}))
      ORDER BY seq`,
+    ...(ticket === null ? [] : [ticket]),
     ...REPONSES,
   );
   const abandons = new Map<number, Omit<Abandon, "title">>();

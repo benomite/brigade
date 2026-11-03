@@ -702,6 +702,23 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
   });
 
+  test("un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118)", async (t) => {
+    const c = brigade(t, { eteint: true, issues: [issue(31, ["model:opus", "effort:high"])] });
+    // Calibré par le chef, lancé, puis abandonné par la cuisine : le sondage, qui n'y voit plus `fire`, le sort du rail.
+    c.journal.ajouter({ project: "brigade", ticket: 31, author: "github", type: "ticket.arrived", payload: { title: "Ticket 31", priority: 1, createdAt: "2026-10-01T00:00:31Z", url: "https://exemple.test/31", card: null } });
+    c.journal.ajouter({ project: "brigade", ticket: 31, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });
+    const enTodo = () => attentesDuChef(c.journal.base, lireRail(c.journal.base)).some((attente) => attente.ticket === 31 && attente.quoi === "abandon");
+    await jusqua(enTodo);
+
+    chef(c.repertoire, "manager.enabled");
+    await c.laisserTourner();
+
+    assert.deepEqual(c.jugements(), []);
+    assert.deepEqual(c.labels(31), ["model:opus", "effort:high"]);
+    assert.deepEqual(c.faits(31).filter((e) => e.type !== "manager.enabled"), []);
+    assert.equal(enTodo(), true);
+  });
+
   test("le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118)", async (t) => {
     const { gh, journal, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => faits(30).length === 2);

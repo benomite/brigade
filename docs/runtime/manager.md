@@ -315,8 +315,12 @@ line says the same: `taken off the rail by the kitchen without being served — 
 **The card stays until you answer**: time, the rail moving or a card answered elsewhere never take it
 away. Only your answer does — on the card (`todo.answered`), `fire` set back by hand (`ticket.arrived`),
 the issue closed (the manager sees it leave the list of open issues and writes `manager.closed`), or
-its PR merged by hand (`merge.done`). Taking a ticket off the rail yourself (`rail drop`, a card's
+its PR merged by hand (`merge.done`). The manager does not judge such an issue again nor set `fire` on
+it in your place, whoever calibrated it. Taking a ticket off the rail yourself (`rail drop`, a card's
 `drop`, a human's job) opens no card: the decision is yours.
+
+On the Kitchen board, its line carries the card's numbered choices, and the mention gives
+`/brigade choose #N <n>` and `/brigade answer #N <answer>`.
 
 ### What it leaves on the issue
 

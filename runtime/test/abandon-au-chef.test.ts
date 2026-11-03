@@ -15,6 +15,8 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { ticketDuRail, lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { REMONTE } from "../src/reaction.ts";
+import { tableauDeLaCuisine } from "../src/tableau/rendu/donnees.ts";
+import { rendreLeTableau } from "../src/tableau/rendu/rendre.ts";
 import { raisonDAbandon } from "../src/remontee-a-la-cuisine.ts";
 import { repondreALaCarte } from "../src/reponse-carte.ts";
 import { fauxGitHub, issue, montre } from "./aides/cuisine.ts";
@@ -90,6 +92,25 @@ describe("#2056 : la cuisine abandonne un ticket, et le chef le voit", () => {
     // La ligne du bloc `awaiting` de `status` le nomme, et dit ses gestes.
     const [, ligne] = decrireAttentes(attentesDuChef(c.journal.base, lireRail(c.journal.base)), () => "1 min");
     assert.match(ligne ?? "", /^ {2}#2056 {2}for 1 min {2}taken off the rail by the kitchen without being served — its delivery stayed blocked \(manager-escalated\) .* — to decide: set `fire` again; or take it in a dev session; or close the issue — .*Switch brigade to GitHub-only state$/);
+  });
+
+  test("le Kitchen board le porte aussi, ses choix numérotés comme `/brigade choose` les prend", (t) => {
+    const c = atelier(t);
+    c.abandonner();
+    c.sortir(N);
+    const tableau = tableauDeLaCuisine(lireEtat(c.journal, c.heure.maintenant()), c.heure.maintenant());
+    const [ligne] = tableau.file.filter(({ ticket }) => ticket === N);
+    assert.deepEqual(ligne?.carte, {
+      type: "abandon",
+      question: "What becomes of #2056?",
+      choix: [
+        { texte: "Put it back on the rail", suite: "resume" },
+        { texte: "I take it in a dev session", suite: "drop" },
+        { texte: "Close it", suite: "close" },
+      ],
+    });
+    const corps = rendreLeTableau(tableau, c.heure.maintenant());
+    assert.match(corps, /1\. Put it back on the rail \(resume\)[\s\S]*2\. I take it in a dev session \(drop\)[\s\S]*3\. Close it \(close\)/);
   });
 
   test("la carte reste dans TODO jusqu'à la réponse du chef : ni le temps, ni le rail qui tourne, ni une autre réponse ne l'ôtent", (t) => {
