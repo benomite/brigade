@@ -204,6 +204,20 @@ test("un nom de station qui casserait le marqueur est refusé, sans rien écrire
   assert.deepEqual(issue.ecrits, []);
 });
 
+test("les noms déclarés `<machine>/<moteur>` signent une prise, que l'autre station relit telle quelle", async () => {
+  const issue = issueSurGitHub();
+  const mac = await prendre(issue.lue(), { github: issue.github, station: "macbook-air-de-benoit/claude" });
+  assert.equal(mac.prise, true);
+  assert.equal(issue.commentaires[0]?.body, "<!-- brigade:prise station=macbook-air-de-benoit/claude -->\nTaken by station `macbook-air-de-benoit/claude`.");
+  const box = await prendre(issue.lue(), { github: issue.github, station: "box/claude" });
+  assert.equal(box.prise, false);
+  assert.equal(box.tenant?.station, "macbook-air-de-benoit/claude");
+  // Lâché par la tenante, le ticket est repris par l'autre.
+  await lacher(issue.lue(), { github: issue.github, station: "macbook-air-de-benoit/claude" });
+  issue.avancer(1_000);
+  assert.equal((await prendre(issue.lue(), { github: issue.github, station: "box/claude" })).tenant?.station, "box/claude");
+});
+
 test("`prise.ts` ne lit et n'écrit que par le client de GitHub : il n'importe ni le relais, ni la boîte, ni le journal", () => {
   const source = readFileSync(join(import.meta.dirname, "../../src/github-etat/prise.ts"), "utf8");
   const imports = [...source.matchAll(/^import .* from "(.+)";$/gm)].map((ligne) => ligne[1]);
