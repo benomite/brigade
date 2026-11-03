@@ -11,11 +11,15 @@ import { describe, test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../../src/events/remote.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
+import { configRail } from "../../src/alimenter.ts";
+import type { Arret } from "../../src/superviseur.ts";
+import { lireReglages } from "../../src/plafonds.ts";
 import { lireStations } from "../../src/stations-declarees.ts";
+import { superviserADistance } from "../../src/superviseur-distant.ts";
 import { superviser, type Fin, type Supervise } from "../../src/superviseur.ts";
 import type { ClientDuTableau, IssueDuTableau } from "../../src/tableau/publication/client.ts";
 import { publierLeTableau, tableauDuJournal } from "../../src/tableau/publication/publier.ts";
-import { cuisinerPourLaPrincipale, cuisinerUneMission, tenirLesCuisinesRejointes, type CuisinePourLaPrincipale } from "../../src/tirer-par-github/cuisiner.ts";
+import { cuisinerPourLaPrincipale, cuisinerUneMission, entreDeuxRenouvellementsMs, tenirLesCuisinesRejointes, type CuisinePourLaPrincipale } from "../../src/tirer-par-github/cuisiner.ts";
 import { lecteurDuTableau } from "../../src/tirer-par-github/demander.ts";
 import { relayerLesDemandes } from "../../src/tirer-par-github/relayer.ts";
 import { chef, cuisine, issue, PLAFONDS, pousserSurLOrigine } from "../aides/cuisine.ts";
@@ -231,6 +235,89 @@ test("la principale a arrêté le cook — son bail est tombé : la station l'ar
   assert.deepEqual(issue, { abandonnee: "the lease ran out: the ticket went back to the rail" });
   assert.deepEqual(demandes.map((demande) => demande.verb), ["renew"]);
   assert.deepEqual(ranges, ["/nulle-part/run-21"]);
+});
+
+// #2095 : sur la station du Mac, chaque cook de plus de dix minutes finissait
+// `guard:idle` à 0 tour et 0 token, alors que son flux montrait des dizaines de
+// messages. La chronologie est celle de #2078 et #2085 : la box prête le
+// ticket, la station lit la mission et prépare le worktree (un peu plus d'une
+// minute), le cook travaille ; chaque renouvellement passe par le gist, que la
+// box lit toutes les trente secondes, et sa réponse revient par le tableau. Les
+// réglages sont ceux de la box par défaut. L'horloge est simulée : le test ne
+// dépend pas de la vitesse de la machine.
+test("sous les réglages par défaut de la box, le cook d'une station qui travaille plus de dix minutes lui rapporte sa mesure avant qu'elle ne le tienne pour inactif", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const attendre = (ms: number) => new Promise<void>((resoudre) => setTimeout(resoudre, ms));
+  const { plafonds } = lireReglages({});
+  const mission: Mission = { ...MISSION, leaseMs: configRail({ BRIGADE_GITHUB_REPO: "acme/brigade" }).dureeBailMs, limits: plafonds };
+  const [REMISE_MS, RELAIS_MS, RETOUR_MS] = [90_000, 60_000, 60_000];
+  const TRAVAIL_MS = 30 * 60_000;
+
+  // La box : son cook distant, lancé au prêt du ticket.
+  const arrets: Arret[] = [];
+  const box = superviserADistance({ plafonds, surArret: (arret) => void arrets.push(arret) });
+
+  // Le cook de la station : il travaille, chaque mesure en compte un tour de plus.
+  let tours = 0;
+  let finir: (fin: Fin) => void = () => {};
+  const cook: Supervise = {
+    pid: undefined,
+    mesure: () => ({ turns: ++tours, tokens: tours * 1_000 }),
+    arreter: () => finir({ code: null, signal: "SIGTERM", turns: tours, tokens: tours * 1_000, durationMs: 1, arret: { reason: "stop", limit: null, observed: null }, erreur: null }),
+    abandonner: () => {},
+    fin: new Promise<Fin>((resoudre) => void (finir = resoudre)),
+  };
+  let empreintes = 0;
+  const issue = cuisinerUneMission({
+    mission,
+    worktree: "/nulle-part/run-21",
+    clone: "/nulle-part/clone",
+    claude: "claude",
+    env: {},
+    gh: "gh",
+    demander: async (demande) => {
+      if (demande.verb !== "renew") {
+        box.rendre(1);
+        return { ok: true, verb: "deliver", ending: "failed", reason: null };
+      }
+      await attendre(RELAIS_MS);
+      box.mesurer({ turns: demande.turns, tokens: demande.tokens });
+      await attendre(RETOUR_MS);
+      const arret = arrets[0];
+      if (arret) return { ok: false, verb: "renew", refusal: "stopped", said: `stopped on the box (${arret.reason})`, stop: arret.reason };
+      return { ok: true, verb: "renew", leaseUntil: "2026-10-27T12:00:00.000Z" };
+    },
+    dire: () => {},
+    preparer: () => attendre(REMISE_MS),
+    lancer: () => cook,
+    empreinte: async () => `empreinte-${++empreintes}`,
+    pousser: async () => {},
+    ranger: async () => {},
+  });
+
+  const vider = async () => {
+    for (let i = 0; i < 20; i += 1) await new Promise((resoudre) => setImmediate(resoudre));
+  };
+  for (let ecoule = 0; ecoule < TRAVAIL_MS && arrets.length === 0; ecoule += 5_000) {
+    t.mock.timers.tick(5_000);
+    await vider();
+  }
+  const mesure = box.mesure();
+  cook.arreter();
+  for (let i = 0; i < 10; i += 1) {
+    t.mock.timers.tick(RELAIS_MS + RETOUR_MS);
+    await vider();
+  }
+  await issue;
+
+  assert.deepEqual(arrets, [], `la box a arrêté le cook à ${mesure.turns} tour(s) et ${mesure.tokens} token(s)`);
+  assert.ok(mesure.turns > 0 && mesure.tokens > 0, JSON.stringify(mesure));
+});
+
+test("un bail plus court que quatre fois l'inactivité se renouvelle à son tiers, comme avant", () => {
+  assert.equal(entreDeuxRenouvellementsMs({ leaseMs: 600_000, limits: PLAFONDS }), PLAFONDS.idleMs / 4);
+  assert.equal(entreDeuxRenouvellementsMs({ leaseMs: 30_000, limits: PLAFONDS }), 10_000);
+  assert.equal(entreDeuxRenouvellementsMs({ leaseMs: 1_200, limits: PLAFONDS }), 1_000);
 });
 
 test("une boucle par cuisine rejointe : ouverte, rouverte quand ce qu'elle en dit change, fermée quand elle ne la rejoint plus", async () => {

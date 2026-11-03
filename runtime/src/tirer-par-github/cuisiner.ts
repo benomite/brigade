@@ -56,6 +56,20 @@ export async function empreinteDuWorktree(worktree: string): Promise<string | nu
   }
 }
 
+// Entre deux renouvellements. La principale ne sait du cook que ce que ses
+// renouvellements lui rapportent — ses tours et ses jetons — et l'arrête pour
+// inactivité quand cette mesure n'a pas bougé depuis `idleMs`, comptés dès
+// qu'elle a prêté le ticket (`superviseur-distant.ts`). Le bail par défaut vaut
+// trois fois ce délai (`alimenter.ts`) : renouveler au tiers du bail, c'était
+// rapporter la première mesure à l'instant même où elle arrête le cook, qui
+// finissait `guard:idle` à 0 tour et 0 token après 10 minutes de travail
+// (#2095). Elle part donc au quart du délai d'inactivité — au tiers du bail
+// s'il est plus court —, ce qui laisse à la remise de la mission, à la
+// préparation du worktree et au relais par GitHub le temps de passer.
+export function entreDeuxRenouvellementsMs(mission: Pick<Mission, "leaseMs" | "limits">): number {
+  return Math.max(1_000, Math.floor(Math.min(mission.leaseMs / 3, mission.limits.idleMs / 4)));
+}
+
 export type OptionsDuCook = {
   mission: Mission;
   // `<worktrees>/<run>` : là où le bac à sable de la mission le laisse écrire.
@@ -76,6 +90,7 @@ export type OptionsDuCook = {
   lancer?: (mission: Mission, worktree: string, flux: string) => Supervise;
   pousser?: (worktree: string, branche: string) => Promise<void>;
   ranger?: (worktree: string) => Promise<void>;
+  empreinte?: (worktree: string) => Promise<string | null>;
 };
 
 // Ce que la station a fait d'une mission : rendue (la réponse de la
@@ -107,6 +122,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
       await git(clone, "worktree", "remove", "--force", ici).catch(() => {});
       rmSync(ici, { recursive: true, force: true });
     });
+  const empreinte = options.empreinte ?? empreinteDuWorktree;
   const rendre = async (ending: "delivered" | "failed", reason: string | null, dernier: string | null, mesure: { turns: number; tokens: number }): Promise<IssueDuCook> => ({
     rendue: await demander({ verb: "deliver", run, ending, reason, message: dernier, ...mesure }),
   });
@@ -132,21 +148,22 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
     options.signal?.addEventListener("abort", surArret, { once: true });
 
     // Le bail, tant que le cook travaille : renouvelé sur l'empreinte de son
-    // worktree. Une principale qui l'a arrêté — bail tombé, garde-fou, chef —
+    // worktree, avec ce qu'il a consommé — la seule mesure de son travail que
+    // la principale reçoive. Une principale qui l'a arrêté — bail tombé, garde-fou, chef —
     // le dit à la demande suivante : le cook s'arrête ici aussi.
     let fini = false;
     let reveiller = () => {};
     const renouvellement = (async () => {
       while (!fini) {
         await new Promise<void>((resoudre) => {
-          const minuteur = setTimeout(resoudre, options.renouvelerToutesLesMs ?? Math.max(1_000, Math.floor(mission.leaseMs / 3)));
+          const minuteur = setTimeout(resoudre, options.renouvelerToutesLesMs ?? entreDeuxRenouvellementsMs(mission));
           reveiller = () => {
             clearTimeout(minuteur);
             resoudre();
           };
         });
         if (fini) return;
-        const reponse = await demander({ verb: "renew", run, proof: await empreinteDuWorktree(worktree), ...cook.mesure() }).catch((erreur: unknown) => {
+        const reponse = await demander({ verb: "renew", run, proof: await empreinte(worktree), ...cook.mesure() }).catch((erreur: unknown) => {
           dire(`brigade : station — #${mission.ticket} : son bail n'a pas pu être renouvelé, elle réessaie : ${message(erreur)}`);
           return null;
         });

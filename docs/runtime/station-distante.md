@@ -49,7 +49,10 @@ The values `livre` and `echec` of `--end` stay French until the runtime is trans
   `limits`), with no process here: the box can neither signal it nor read its stream. It holds the four
   caps on what it has: **turns and tokens** on the measure reported at each renewal, **duration** on
   its own clock since the launch, **idleness** when that measure stops moving or arriving. The
-  reading, "stop", end and breaker's count are those of any cook.
+  reading, "stop", end and breaker's count are those of any cook. Since the measure only arrives with
+  a renewal, and the idleness clock starts when the ticket is lent, the station renews every quarter
+  of the idleness cap (a third of the lease when that is shorter): at a third of the default lease,
+  which is three times that cap, the first measure came exactly when the box stopped the cook (#2095).
 - **The lease is only renewed on a proof of work**: `--proof` is the fingerprint of the cook's
   worktree (the head of its branch and the state of its files, which the station reads itself). With
   no proof, or the **same** fingerprint as before, the renewal is refused (`no-progress`); the lease
