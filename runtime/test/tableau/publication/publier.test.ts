@@ -145,6 +145,21 @@ test("un corps inchangé ne fait aucun appel d'écriture — même quand l'heure
   assert.deepEqual(ecritures.slice(avant), [{ geste: "ecrire", numero: 1 }]);
 });
 
+test("le corps ne porte aucune durée écoulée : des heures, que l'horloge qui avance ne change pas (ticket 2153)", (t) => {
+  const lire = exemple(t);
+  const corps = (minutes: number) => rendreLeTableau(lire(apres(minutes)), apres(minutes));
+  // Ni « 4 min ago », ni « for 2 h 04 », ni « lease 3 min left », ni « back in … » : à 0, 1, 5 minutes.
+  for (const minutes of [0, 1, 5]) {
+    const texte = corps(minutes).replace(/"genereLe":"[^"]*"/, "");
+    assert.doesNotMatch(texte, /\b\d+ (?:s|min|h \d{2}|d) (?:ago|left)\b|\b(?:for|in) \d+ (?:s|min|h \d{2}|d)\b/, `à ${minutes} min`);
+    assert.doesNotMatch(texte, /\bago\b/, `à ${minutes} min`);
+  }
+  // Ce qui ne bouge pas ne change pas : à 1 et à 5 minutes (avant l'échéance du bail de #23), le corps est le même
+  // aux seules lignes qui disent l'heure de la lecture et du dernier tick.
+  const sansLHeure = (minutes: number) => corps(minutes).replace(/"genereLe":"[^"]*"/, "").replace(/ read on [^.]*\./, "").replace(/last tick at [^(]*/g, "").replace(/"(?:lu|dernierTick)":"[^"]*"/g, "");
+  assert.equal(sansLHeure(5), sansLHeure(1));
+});
+
 test("ce qui change dans la cuisine réécrit le corps, et lui seul : ni titre, ni labels, ni commentaire", async (t) => {
   const base = exemple(t);
   let bilans: string[] = [];

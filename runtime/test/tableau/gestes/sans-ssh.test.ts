@@ -364,7 +364,9 @@ describe("ce que l'app faisait par ssh se joue depuis le tableau de la cuisine",
     const awaiting = status.slice(tete, status.indexOf("end awaiting", tete) + 1);
     assert.match(awaiting[0] ?? "", /^awaiting {3}1 decision awaits the chef/);
     assert.ok(awaiting.some((ligne) => ligne.startsWith("  breaker  ")), awaiting.join("\n"));
-    assert.ok(lue.texte.startsWith(`${awaiting.join("\n")}\n\n`), lue.texte);
+    // Le tableau écrit l'heure là où `status` écrit la durée (ticket 2153) : le reste est le même mot pour mot.
+    const quand = (texte: string) => texte.replace(/\b(?:for \d+ (?:s|min|h \d{2}|d)|since \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC)/g, "@");
+    assert.ok(quand(lue.texte).startsWith(`${quand(awaiting.join("\n"))}\n\n`), lue.texte);
     // Puis l'état de la cuisine que le tableau porte, dans la forme de `status`.
     assert.match(lue.texte, /\nswitch {5}/);
     assert.match(lue.texte, /\ncooks {6}/);

@@ -4,7 +4,7 @@
 // mentionne personne, et il ne change d'un rendu à l'autre que par son heure.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { decrireEtat, dureeEn, lireEtat } from "../../../src/etat.ts";
+import { decrireEtat, heureEn, lireEtat } from "../../../src/etat.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { FERMETURE_DU_BLOC, lireLeTableau, OUVERTURE_DU_BLOC, VERSION_DU_TABLEAU, type Tableau } from "../../../src/tableau/rendu/bloc.ts";
 import { tableauDeLaCuisine } from "../../../src/tableau/rendu/donnees.ts";
@@ -20,7 +20,7 @@ function exemple(t: TestContext) {
   const journal = ouvrirJournal(copieDeLExempleDuBas(t), { lectureSeule: true });
   aArreter(t, () => journal.fermer());
   const etat = lireEtat(journal, LU_LE);
-  return { etat, status: decrireEtat(etat, LU_LE), tableau: tableauDeLaCuisine(etat, LU_LE) };
+  return { etat, status: decrireEtat(etat, LU_LE, undefined, null, null, null, null, true), tableau: tableauDeLaCuisine(etat, LU_LE) };
 }
 
 // Le markdown tel qu'il se lit : sans ses échappements, sans gluon, les blancs ramenés à un.
@@ -40,7 +40,7 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
   for (const [rang, ligne] of tableau.file.entries()) {
     const deStatus = awaiting[rang] ?? "";
     // La ligne de `status` : son nom, depuis quand, ce qui attend et son geste, son titre.
-    const depuis = `for ${dureeEn(LU_LE.getTime() - Date.parse(ligne.depuis))}`;
+    const depuis = `since ${heureEn(ligne.depuis)}`;
     assert.equal(resserre(deStatus), resserre(`${ligne.nom}  ${depuis}  ${ligne.ligne}${ligne.titre === null ? "" : `  ${ligne.titre}`}`));
     assert.ok(lu.includes(resserre(`${ligne.nom} · ${depuis}${ligne.titre === null ? "" : ` · ${ligne.titre}`}`)), `${ligne.nom} : sa tête`);
     assert.ok(lu.includes(resserre(ligne.ligne)), `${ligne.nom} : ce qui attend et son geste`);
@@ -51,7 +51,7 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
   assert.ok(lu.includes("`brigade <projet> guardrails resume`"));
   // Le bilan sans grant, qui n'est pas une décision, et la tête du bloc.
   assert.ok(lu.includes("without a grant, 1 green delivery stopped"));
-  assert.ok(lu.includes("Awaiting the chef — 3 decisions, the oldest for 4 min"));
+  assert.ok(lu.includes(`Awaiting the chef — 3 decisions, the oldest since ${heureEn(etat.attend[0]?.since ?? "")}`));
 });
 
 test("le tableau montre l'état de la cuisine comme `status` l'écrit : cooks, machine, quota, base, alertes, plafonds", (t) => {
@@ -64,22 +64,22 @@ test("le tableau montre l'état de la cuisine comme `status` l'écrit : cooks, m
   };
   // Les alertes, en tête : rien ne cuit, la connexion Max tombée, le setup bloqué, la mise de côté.
   cherche("nothing cooks: base red");
-  cherche("Max EXPIRED for 4 min on box/claude");
-  cherche("BLOCKED for 4 min on ba5e000");
+  cherche("Max EXPIRED since 2026-10-12 10:00 UTC on box/claude");
+  cherche("BLOCKED since 2026-10-12 10:00 UTC on ba5e000");
   // La base, rouge, et son geste.
-  cherche("RED since 4 min ago on abc1234");
+  cherche("RED since 2026-10-12 10:00 UTC on abc1234");
   cherche("replay its gates without waiting for a commit");
   // Le runtime, la cuisine et son disjoncteur, le grant, la sauvegarde.
   cherche("running according to the log");
   cherche("open · breaker OPEN");
   cherche("merge ACTIVE");
-  cherche("2 min ago (2026-10-09T10-00-00Z");
+  cherche("at 2026-10-12 10:02 UTC (2026-10-09T10-00-00Z");
   // Les cooks et le plafond de la station, la machine qui sature, la station qui se retient, l'arbitre.
   cherche("3 running — box/claude: 2 at most");
   cherche("#23  STUCK  23-bb");
   cherche("#31  31-aa  opus / high");
   cherche("manager  juge-9-cc");
-  cherche("MACHINE SATURATED for 2 min on CPU");
+  cherche("MACHINE SATURATED since 2026-10-12 10:02 UTC on CPU");
   cherche("box/claude WITHHOLDING");
   cherche("ARBITER UNREACHABLE");
   // Le quota : ce que les cooks ont consommé, par fenêtre — celle de 5 h est celle du quota Max.

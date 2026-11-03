@@ -34,7 +34,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | Field | What it holds |
 |---|---|
 | `projet` | The project's name, as the log knows it; `null` for an empty log |
-| `lu` | When the state was read. Every duration in the lines counts up to it |
+| `lu` | When the state was read. No line counts a duration up to it: the body writes absolute times (`since 2026-10-12 10:00 UTC`, `lease until …`), and the app computes « 4 min ago » itself |
 | `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` |
 | `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed |
 | `cuisine` | The kitchen's state |
@@ -245,5 +245,6 @@ change. A reading of the stations holds for 5 minutes.
 
 The box rewrites the body only when what it says changes. Not a change: the reading time (`lu`,
 `faits.lu`, `avantLeRail.lu`), the runtime's last tick (`cuisine.runtime.dernierTick`,
-`faits.dernierTick`, its line in `rubriques`), the log's last event (`faits.dernierEvenement`) and the
-durations in the lines. A lease that expires, a cook that gets stuck, a ticket that moves: a change.
+`faits.dernierTick`, its line in `rubriques`) and the log's last event (`faits.dernierEvenement`). The
+body holds no elapsed time (« 7 min ago », « for 12 min »), so a quiet project's body is the same from one
+minute to the next; the old durations are still ignored when comparing with a body written before. A lease that expires, a cook that gets stuck, a ticket that moves: a change.

@@ -8,7 +8,7 @@
 // Hors du code, chaque `@` est suivi d'un gluon invisible (U+2060), qui le
 // sépare du nom qui le suit ; dans le code, GitHub ne mentionne pas ; dans le
 // bloc, il est écrit `@`.
-import { dureeEn } from "../../etat.ts";
+import { heureEn } from "../../etat.ts";
 import { ecrireLeBloc, type LigneDeLaFile, type Resserre, type RubriqueDuTableau, type Tableau } from "./bloc.ts";
 
 // La longueur au-delà de laquelle GitHub refuse le corps d'une issue.
@@ -31,13 +31,13 @@ const heure = (instant: string) => `${instant.slice(0, 10)} ${instant.slice(11, 
 function teteDeLaFile({ file }: Tableau, depuis: (instant: string) => string): string {
   const [premiere] = file;
   if (premiere === undefined) return "## Awaiting the chef — nothing";
-  return file.length === 1 ? `## Awaiting the chef — 1 decision, for ${depuis(premiere.depuis)}` : `## Awaiting the chef — ${file.length} decisions, the oldest for ${depuis(premiere.depuis)}`;
+  return file.length === 1 ? `## Awaiting the chef — 1 decision, since ${depuis(premiere.depuis)}` : `## Awaiting the chef — ${file.length} decisions, the oldest since ${depuis(premiere.depuis)}`;
 }
 
 // Une ligne de la file : ce qui la nomme, depuis quand, son titre, puis ce qui
 // attend et le geste du chef ; sous une carte, ses choix numérotés.
 function ligneDeLaFile(ligne: LigneDeLaFile, depuis: (instant: string) => string, compacte: boolean): string[] {
-  const tete = [`**${enMarkdown(ligne.nom)}**`, `for ${depuis(ligne.depuis)}`, ...(ligne.titre === null || ligne.titre === "" ? [] : [enMarkdown(ligne.titre)])].join(" · ");
+  const tete = [`**${enMarkdown(ligne.nom)}**`, `since ${depuis(ligne.depuis)}`, ...(ligne.titre === null || ligne.titre === "" ? [] : [enMarkdown(ligne.titre)])].join(" · ");
   if (compacte) return [`- ${tete}`];
   const choix = ligne.carte?.choix.map(({ texte, suite }, rang) => `   ${rang + 1}. ${enMarkdown(texte)} (${enMarkdown(suite)})`) ?? [];
   return [`- ${tete}\\`, `  ${enMarkdown(ligne.ligne)}`, ...choix];
@@ -51,7 +51,7 @@ function rubrique({ titre, lignes }: RubriqueDuTableau, compacte: boolean): stri
 }
 
 function partieLisible(tableau: Tableau, compacte: boolean): string[] {
-  const depuis = (instant: string) => dureeEn(Date.parse(tableau.lu) - Date.parse(instant));
+  const depuis = heureEn;
   const rangDuProjet = tableau.cuisine.rubriques.findIndex(({ titre }) => titre === RUBRIQUE_DU_PROJET);
   // Ce que `status` écrit au-dessus du projet — l'urgence, rien ne cuit — vient en tête du tableau.
   const alertes = rangDuProjet === -1 ? [] : tableau.cuisine.rubriques.slice(0, rangDuProjet);
