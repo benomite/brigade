@@ -45,7 +45,6 @@ import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
 import { brancherLeTableau, ouvertesDuDepot } from "./tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
 import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
-import { secondDuProjet } from "./tableau/gestes/second.ts";
 import { mentionsDuTableau } from "./tableau/mention/mention.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
@@ -280,8 +279,6 @@ try {
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
     // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
     githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
-    // La demande d'un `ask` part dans le second du projet, quand cette box le tient (BRIGADE_SECOND_DIR).
-    second: secondDuProjet(process.env),
   });
   // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
   const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));

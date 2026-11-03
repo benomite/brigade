@@ -38,7 +38,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` |
 | `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed |
 | `cuisine` | The kitchen's state |
-| `gestes` | The chef's latest gestures read under the board, oldest first. An `ask` that was played carries `demande` (the request for the second, word for word) and, when the box holds the project's second, `second`: its answer, or why there is none ([`../tableau-gestes.md`](../tableau-gestes.md), "The second's answer") |
+| `gestes` | The chef's latest gestures read under the board, oldest first ([`../tableau-gestes.md`](../tableau-gestes.md), "What the apps read") |
 | `faits` | The rail view's facts: the object of `facts` |
 | `lignesDuRail` | Each rail ticket's line of `status` |
 | `fileDeStatus` | The queue for the second: the `awaiting` block of `status`, word for word, head line to `end awaiting` included |
