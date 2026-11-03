@@ -1,0 +1,67 @@
+[
+ {
+  "number": 100,
+  "merged_at": "2026-10-10T10:00:00Z",
+  "merge_commit_sha": "sha0"
+ },
+ {
+  "number": 101,
+  "merged_at": "2026-10-11T10:00:00Z",
+  "merge_commit_sha": "sha1"
+ },
+ {
+  "number": 102,
+  "merged_at": "2026-10-12T10:00:00Z",
+  "merge_commit_sha": "sha2"
+ },
+ {
+  "number": 103,
+  "merged_at": "2026-10-13T10:00:00Z",
+  "merge_commit_sha": "sha3"
+ },
+ {
+  "number": 104,
+  "merged_at": "2026-10-14T10:00:00Z",
+  "merge_commit_sha": "sha4"
+ },
+ {
+  "number": 105,
+  "merged_at": "2026-10-15T10:00:00Z",
+  "merge_commit_sha": "sha5"
+ },
+ {
+  "number": 106,
+  "merged_at": "2026-10-16T10:00:00Z",
+  "merge_commit_sha": "sha6"
+ },
+ {
+  "number": 107,
+  "merged_at": "2026-10-17T10:00:00Z",
+  "merge_commit_sha": "sha7"
+ },
+ {
+  "number": 108,
+  "merged_at": "2026-10-18T10:00:00Z",
+  "merge_commit_sha": "sha8"
+ },
+ {
+  "number": 109,
+  "merged_at": "2026-10-19T10:00:00Z",
+  "merge_commit_sha": "sha9"
+ },
+ {
+  "number": 110,
+  "merged_at": "2026-10-20T10:00:00Z",
+  "merge_commit_sha": "sha10"
+ },
+ {
+  "number": 111,
+  "merged_at": "2026-10-21T10:00:00Z",
+  "merge_commit_sha": "sha11"
+ },
+ {
+  "number": 99,
+  "merged_at": null,
+  "merge_commit_sha": "x"
+ }
+]
