@@ -216,13 +216,14 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.match(ligne.prix, /start again at once/);
   });
 
-  test("le disjoncteur ouvert : la ligne de `status` mot pour mot, et reprendre", (t) => {
+  test("le disjoncteur ouvert : la ligne de `status` mot pour mot, et « Resume », par GitHub (#2140)", (t) => {
     const { noter, bande } = saine(t);
     noter({ type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
 
     const ligne = enPanne(bande(), "cuisine");
     assert.equal(ligne.releve, "breaker OPEN for 1 h 00 (0 failures in a row)");
-    assert.deepEqual(ligne.appel, { geste: "reprendre" });
+    assert.deepEqual(ligne.appel, { reprise: "disjoncteur" });
+    assert.equal(ligne.bouton, "Resume");
   });
 
   test("runtime arrêté : rien ne tourne — le geste se joue sur la box, il est une demande au second", (t) => {

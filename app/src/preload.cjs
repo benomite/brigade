@@ -115,6 +115,7 @@ const pont = {
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),
   repondreCarte: (projet, ticket, reponse) => ipcRenderer.invoke("repondreCarte", projet, ticket, reponse),
   trancherLeProfil: (projet, proposition, reponse) => ipcRenderer.invoke("trancherLeProfil", projet, proposition, reponse),
+  reprendreLeDisjoncteur: (projet) => ipcRenderer.invoke("reprendreLeDisjoncteur", projet),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
   ouvrirLecon: (projet, id) => ipcRenderer.invoke("ouvrirLecon", projet, id),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
