@@ -280,8 +280,9 @@ project's log, and the chef is mentioned there. Its calls are counted to that
 project in the station's counter, the one `status` reads for `board cost`.
 
 The issue is found by its label and its block, never by a stored number. Closed, it is reopened;
-deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh, after each creation or reopening, then
-hourly; refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
+deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh and after each creation or reopening, never on a timer
+(#2198: a quiet kitchen costs no call; a board the chef unpins stays unpinned until the next one);
+refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
 at the next tick.
 
 ## The measures reading

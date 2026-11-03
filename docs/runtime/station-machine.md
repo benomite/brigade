@@ -141,9 +141,12 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **Repeated reads cost nothing while nothing changes (#1419).** Every read the kitchen repeats (an
   issue, its comments, its events, a PR list and detail, its CI, a diff, the station's gist) is asked
   again with the ETag of its last answer (`If-None-Match`). While nothing changed GitHub answers 304,
-  which it does not count: the box takes the call out of its counter and uses the answer it kept. The
-  last page of a full list and `issuesDepuis` (`since=`) stay unconditional. Two identical simultaneous
-  reads make one call. Kept answers live in memory, bounded to 32 MB.
+  which it does not count: the box takes the call out of its counter and uses the answer it kept. A
+  polled list of several pages (the open issues past 100) is asked again page by page, each under its
+  own ETag, and is "unchanged" when every page is (#2198); `issuesDepuis` (`since=`) is conditional
+  too, so the open breaker's tick, which asks the same instant again, costs nothing. Only the last page
+  of a full list stays unconditional. Two identical simultaneous reads make one call. Kept answers live
+  in memory, bounded to 32 MB.
 - **What the chef sees.** During the pause, `status` writes a head line `github     GitHub is
   rate-limiting calls, back around HH:MM`, and `faits` carries `limiteGithub` (resumption instant, ISO;
   absent outside a limit). Both read the pause on the counter, read-only, through `BRIGADE_STATION_DIR`
