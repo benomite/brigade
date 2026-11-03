@@ -74,7 +74,34 @@ The slowest files, before and after. Each file is played alone, eight at a time 
 
 Across the whole suite, the launcher saves what the files repeat. 316 short files run in 37 processes and cost 106 s of CPU, where alone each one pays its start. The suite still costs 616 s.
 
+### Then, fewer real processes per test (#2085, on `origin/main` `2958c14`)
+
+The chef chose to keep the target on this box by having the tests start fewer real processes, knowing some of them then prove less of the real process. What changed:
+- **The runtime, the station and the CLIs start in the test's process** where the test only reads what they say (`appeler`, `demarrerIci`, `jouerLaStation` in `runtime/test/outils.ts`). What depends on the process (start by its file, exit code, a real signal, a lock another process holds) is still proven with `lancer`.
+- **The test kitchen starts its cooks without `relais.ts`** (`sansRelais`), except where the cook outliving the runtime is the subject.
+- **Two tests prove less**, and their names say so:
+  - `lectures-sous-condition.test.ts`: the hour of ticks plays the 1st, 2nd and 60th ticks and moves the clock over the other 57. The 60 ticks cost 2,760 processes of the fake `gh`.
+  - `mise-a-jour/machine.test.ts`: two published versions instead of three. The third took the same path as the first. The first package is built with gzip instead of xz (`paquet.test.ts` still builds the real one).
+
+Same box, other worktrees busy on it. Both runs on the same tree and in the same hour: before is `origin/main` at `2958c14` played by `SUITE_RUNTIME_AVANT=1 suite-runtime.sh` (the exact command of `npm test`), after is this branch rebased on it, played by `suite-runtime.sh`.
+
+| Whole runtime suite | Before (`npm test`, `2958c14`) | After (`suite-runtime.sh`) |
+|---|---|---|
+| Wall clock | 175.8 s | **93.3 s** |
+| CPU (user + system) | 815.4 s | **480.0 s** |
+| Tests run | 4347 | **4348** |
+| Passed / failed / skipped | 4341 / 0 / 6 | 4342 / 0 / 6 |
+| Load at the start | 14.73 | 8.19 |
+
+`diff` of the two `tests.txt`: one test more (`npm run` on an old script name). Four tests carry a new name, the two above and the two in `commandes.test.ts`. No test is gone.
+
+The slowest files after, in the suite: `0-en-premier/recette.test.ts` 39.0 s (waits on purpose for the 30 s cadence), `installation.test.ts` 29.0 s, `pass.test.ts` 20.8 s, `mise-a-jour/machine.test.ts` 19.4 s, `depot.test.ts` 18.9 s, `station.test.ts` 17.9 s, `desinstallateur.test.ts` 17.2 s, `closing/run.test.ts` 15.0 s, `bac-a-sable/configuration.test.ts` 11.8 s, `bascule/machine.test.ts` 11.3 s.
+
+**The bound the chef accepted.** The chef accepted the suite as measured here, about 95 s on this box, with under 60 s left to a later, heavier ticket. At 480 s of CPU, the floor on 8 threads is 60 s, even on an idle box. Going under it needs the CPU lowered again: lazy imports in the runtime's core, see below.
+
 ### Where the CPU goes, and the bound
+
+Measured before the step above, at 616 s of CPU. The proportions still say where the next seconds are.
 
 Profiled by recording `process.cpuUsage()` and `argv` in every Node process the suite starts (a module preloaded through `NODE_OPTIONS`; that pass cost 663 s, the recording included):
 
@@ -102,4 +129,4 @@ The wall clock cannot go below **CPU ÷ threads**: 616 ÷ 8 = 77 s, even on an i
 ### Reading the number
 
 The wall clock is bounded below by **CPU ÷ threads** and by **the longest file**. Read both before blaming a test:
-`suite-runtime.sh` prints the CPU, `profil-runtime.sh` says which files spend it. The longest file in the suite is now `test/lectures-sous-condition.test.ts` (about 44 s under load), then `test/0-en-premier/recette.test.ts` (40 s, mostly waiting on purpose).
+`suite-runtime.sh` prints the CPU, `profil-runtime.sh` says which files spend it. The longest file in the suite is now `test/0-en-premier/recette.test.ts` (39 s, mostly waiting on purpose), then `test/installation.test.ts` (29 s).
