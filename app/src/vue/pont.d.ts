@@ -224,6 +224,11 @@ export type Pont = {
   surAvisDeVersion(recevoir: (avis: AvisDeVersion | undefined) => void): void;
   telechargerVersion(url: string): Promise<boolean>;
   refuserVersion(version: string): Promise<boolean>;
+  // Le statut de la station de cet ordinateur (le ticket 2191, épique 2182 ; le contrat du runtime, ticket 2189) : la version
+  // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
+  // alors sa version inconnue (station-version/station-version.js).
+  statutDeLaStation?(): Promise<unknown>;
+  surStatutDeLaStation?(recevoir: (statut: unknown) => void): void;
   // L'app Android seule (le ticket 1161) : le téléphone s'appaire au guichet d'une station qui tourne
   // (runtime/src/telephone/guichet.ts) avec le code qu'elle montre — `POST /pairing`. Appairé, le pont
   // garde son jeton, que la vue ne voit jamais, et `telephone` le dit au lancement suivant. Refusé ou

@@ -1288,6 +1288,23 @@ names it is refused (`pixel does not cook: choose a station that does.`). The st
 publishing `cuisine: false` in its gist (#1158); a station that does not publish it cooks. Screens:
 `docs/captures/1162/`.
 
+**This computer's station version, beside the box's** (#2191, epic #2182). Under the list, one line "Station
+version" puts the versions side by side, each said the same way — the box first, then this computer:
+
+```
+Station version   ● parade-box  version 2.4.0 · up to date    ◆ this Mac  version 2.3.1 · behind — 2.4.0 is out
+```
+
+The box's cell is its version as its gist publishes it, with `up to date` when its update line says so (see "Its
+update line" below); offline, or after a failed update, only its version. This computer's cell reads the status of
+its station — `stationVersion`, `latestStationVersion` and `behind`, the runtime's contract (#2189) — through the
+bridge (`statutDeLaStation`, then `surStatutDeLaStation`): behind, it says so in yellow with the latest version; up to
+date, in green. With no status — a bridge that does not read it yet, or a status that does not keep the contract —
+it says `version unknown`, grey, the reason on hover: never an error, never an empty cell. With no box read yet, the
+box's cell says `version unknown` too. The phone shows no such line. The view is `app/src/vue/station-version/`, its
+tests `app/test/vue-station-version/`; screens: `docs/captures/2191/` (`scripts/capture-ecran` screens
+`stations-version-en-retard`, `stations-version-a-jour`, `stations-version-inconnue`).
+
 **A click on its line opens the station's page**: at the top, its name, its dot and its state in
 one sentence (#877); below, its faults with their button, the projects the app added to it and the
 "add a project" flow (see "Add a project to your stations, without a terminal").

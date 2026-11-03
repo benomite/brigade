@@ -7500,3 +7500,26 @@ button.recommande {
 #rail .panne-du-rail .signaler {
   margin-left: auto;
 }
+/* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
+   dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
+#accueil-stations .versions-des-stations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--texte-doux);
+}
+#accueil-stations .versions-des-stations > .titre {
+  flex: 0 0 auto;
+  color: var(--discret);
+}
+#accueil-stations .version-d-une-station {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+#accueil-stations .version-d-une-station[data-ton="jaune"] .phrase {
+  color: var(--jaune);
+}
