@@ -7,6 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
@@ -147,6 +148,9 @@ export type OptionsGitHub = {
   // Le compteur que prend chaque `gh api`, et où chaque réponse laisse le
   // quota que GitHub a dit. Par défaut, celui du process (`limite-github.ts`).
   limite?: Limite;
+  // Où se dit la limite que GitHub impose au compte, pour `status` et `faits`.
+  // Par défaut, celle du process (`github-limite.ts`).
+  limitesDuCompte?: LimitesDuCompte;
   // `geste` : ce GitHub sert un geste du chef — la box ne retient aucun de ses
   // appels, seul un refus de GitHub les arrête. Par défaut, `cuisine` : ses
   // appels se règlent sur le quota réel du compte.
@@ -260,6 +264,14 @@ function lire(brute: IssueBrute): Issue {
   };
 }
 
+// Vrai si `gh api` écrit : une méthode autre que GET, ou des champs sans
+// méthode dite — `gh` envoie alors un POST.
+function estUneEcriture(args: readonly string[]): boolean {
+  const methode = args.findIndex((arg) => arg === "-X" || arg === "--method");
+  if (methode !== -1) return (args[methode + 1] ?? "GET").toUpperCase() !== "GET";
+  return args.some((arg) => ["-f", "-F", "--field", "--raw-field", "--input"].includes(arg));
+}
+
 // `gh api -i` imprime la ligne de statut, les en-têtes, une ligne vide, puis
 // le corps. Rend null si la sortie ne commence pas par une réponse HTTP.
 export function decouper(sortie: string): Reponse | null {
@@ -315,8 +327,18 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           if (reponse?.statut === 304) limite.rendre(appel);
           // La limite de GitHub atteinte n'est pas une réponse comme les autres :
           // elle suspend les appels, et ne passe jamais pour un refus (de merge).
-          if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
-          else if (reponse) resoudre(reponse);
+          // Et elle se nomme au compte : laquelle, depuis quand, jusqu'à quand. Un appel
+          // qui aboutit la lève, une fois sa reprise passée.
+          const limites = options.limitesDuCompte ?? limitesDuProcess();
+          if (reponse && refusPourLimite(reponse)) {
+            constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then((atteinte) => {
+              limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
+              rejeter(atteinte);
+            }, rejeter);
+          } else if (reponse) {
+            if (reponse.statut < 400) limites.aboutir(compte);
+            resoudre(reponse);
+          }
           else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
         },
       );

@@ -98,7 +98,7 @@ instant. It holds:
 | `corrections[]`, `profils[]` | The proposed corrections and profiles, TODO cards that belong to no ticket; absent when none |
 
 It does **not** hold the other `facts` objects (`plafondDeCalibrage`, `triage`, `activiteCuisine`,
-`cadence`, `rolesCuisine`, `coutDesGates`, `reculs`, `apprentissage`) nor `appelsGithub`, which the
+`cadence`, `rolesCuisine`, `coutDesGates`, `reculs`, `apprentissage`, `github`) nor `appelsGithub`, which the
 `gh calls` section of `cuisine.rubriques` gives.
 
 ### `lignesDuRail[]` — each ticket's line of `status`

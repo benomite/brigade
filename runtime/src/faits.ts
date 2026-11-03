@@ -12,6 +12,7 @@ import { cartesDeCorrection } from "./correctif/cartes.ts";
 import { reculDesCorrections } from "./correctif/recul.ts";
 import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
+import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
 import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
@@ -99,8 +100,11 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // ne l'a vu fermé — null sinon.
     const projetDesGates = projet || projetDuJournal || "";
     const posees = decisionsPosees(journal.base);
+    // La limite que GitHub impose au compte, la même pour tous les projets de la station :
+    // absente quand les appels passent.
+    const github = limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR);
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
-    return { ...forme, plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
+    return { ...forme, plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

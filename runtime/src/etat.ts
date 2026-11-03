@@ -27,6 +27,7 @@ import { livraisonsCoincees } from "./file-de-la-pass.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { direLeCoutDuTableau } from "./tableau/budget/cout.ts";
+import { direLaLimiteDuCompte, type LimiteDuCompte } from "./github-limite.ts";
 import { direLaLimite, direLaRetenue, direLesAppels, type Repartition } from "./limite-github.ts";
 import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
@@ -713,7 +714,7 @@ const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(
 const lusEn = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLuEn(ticket) === nom).length;
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
-export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null, retenue: number | null = null): string[] {
+export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null, retenue: number | null = null, limiteDuCompte: LimiteDuCompte | null = null): string[] {
   const depuisEn = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, lusEn(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
@@ -738,10 +739,11 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireRienNeCuit(etat, depuisEn),
     ...decrirePanne(etat, depuisEn),
     ligne("project", etat.projet ?? "unknown — empty log"),
-    // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
-    ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
+    // Quand GitHub limite les appels du compte : une ligne — la limite, depuis quand, l'heure
+    // de reprise ; à défaut de la limite nommée, la pause seule.
+    ...(limiteDuCompte !== null ? [ligne("github", direLaLimiteDuCompte(limiteDuCompte))] : limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
     // Quand la box retient ses propres appels à la réserve des gestes : GitHub n'a rien refusé.
-    ...(retenue === null || limiteGithub !== null ? [] : [ligne("github", direLaRetenue(retenue))]),
+    ...(retenue === null || limiteGithub !== null || limiteDuCompte !== null ? [] : [ligne("github", direLaRetenue(retenue))]),
     // Les appels de la box à GitHub sur l'heure écoulée, quand son compteur existe.
     ...(appels === null ? [] : direLesAppels(appels).map((texte, i) => ligne(i === 0 ? "gh calls" : "", texte))),
     // Le coût du tableau de la cuisine dans ce budget : à zéro sans activité, tant que le compteur existe.
