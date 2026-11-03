@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { attentesDuChef, REFUSER_LA_PAUSE } from "../src/attend.ts";
+import { attentesDuChef } from "../src/attend.ts";
 import type { Depot } from "../src/depot.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
@@ -68,7 +68,7 @@ describe("la pause du renommage, lue au journal", () => {
     const bloc = blocAttend(decrireEtat(lireEtat(journal, new Date(`${JOUR_HORLOGE}T10:05:00.000Z`)), new Date(`${JOUR_HORLOGE}T10:05:00.000Z`)));
     assert.equal(
       bloc[1],
-      `  rename  for 5 min  the code rename failed: the pass judged it red: red gates — nothing was merged, the kitchen went on by itself — its PR stays open, unmerged, to close: ${PR} — once read: \`${REFUSER_LA_PAUSE}\``,
+      `  rename  for 5 min  the code rename failed: the pass judged it red: red gates — nothing was merged, the kitchen went on by itself — its PR stays open, unmerged, to close: ${PR} — once read: lifting the pause has no app button for it yet`,
     );
     sansMotFrancais(bloc);
 
