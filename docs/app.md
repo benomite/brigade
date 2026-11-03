@@ -364,11 +364,42 @@ Open one of your projects on this PC: one click, no folder to choose.
 The Rail tab reads the Kitchen board on GitHub every 30 seconds, with no gesture. Above the columns, one quiet line
 says how old the rail shown is — `rail as the box read it 50 min ago, at 7:35 AM` — counted from the time the box read
 the state it published, not from the app's own reading (which is always recent). A rail the box has stopped
-republishing therefore shows its age without hovering. When the board cannot be read again, the old columns are not
-kept: the tab says `the rail is not drawn` with the reason (offline is the one exception: the last rail stays dimmed,
-marked `offline since`).
+republishing therefore shows its age without hovering. When the board cannot be read again, the old columns are kept
+(#2151, below); offline, the last rail stays dimmed, marked `offline since` (#1818).
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
+
+### Cards never vanish while GitHub holds them (#2151)
+
+The chef's main screen does not lose a card because a reading went wrong:
+
+- **A failed reading never empties a column.** When GitHub answers but does not give the board — rate limit, a refusal,
+  no answer in time, a board the app cannot read, a box restarting —, the rail keeps the last reading that drew it,
+  whole, and one line takes the place of its age: `stale since 4:15 PM — the rail shown was read at 4:14 PM, and the
+  readings since have failed`, the reason of the last failure on hover. The time is that of the first failed reading
+  of the series; the line goes with the first reading that draws the rail again. This holds for a project no station
+  of this computer serves: the stations' gist (`not-served`, `rail-du-projet.ts`) no longer takes the place of its
+  columns. The main process keeps its last facts and `status` too (`estRateeDuTableau` in `app/src/faits.ts`), so the
+  cards' sheets and addresses still open. With nothing read before, the failure is said as before.
+- **The TODO card the chef is answering does not move under his hands.** While the keyboard is in a TODO card — its
+  field, its choices, its buttons —, no reading redraws the rail of that project: the card is not removed, re-rendered
+  or moved, and what is typed stays where it is. What arrives meanwhile is kept and drawn when the keyboard leaves the
+  card (at once when it goes outside the rail; at the next reading when it goes to another element of the rail, so the
+  element just touched is not replaced). Answering — a choice, `send`, `ask the second` — ends the hold. If a reading
+  shows the card left TODO meanwhile, the card says so beside the text, without erasing it: `resolved meanwhile: #21 is
+  now in Taken — your text is kept here, nothing was sent`.
+- **A typed text outlives its card.** When the card has left TODO and the chef had typed something, TODO keeps a
+  resolved card at its foot: the ticket's number, what the card asked, what became of it, and the text, editable, with
+  `dismiss` to forget it. An empty draft goes with its card, as before.
+- **Each column that goes from cards to none is logged** by the main process (`app/src/colonnes-videes.ts`), on the
+  app's standard error and in `rail-columns.log` next to the projects file (`~/.config/brigade/`): the column, the
+  cards it held and where each one is now (another column, outside the columns, or not in the reading), the time of the
+  reading that emptied it and of the box's publication it read, the same for the reading before, and the count of every
+  column now. Most lines are ordinary — a cook finishing empties Taken —; they are what explains the next time cards
+  vanish while GitHub still holds them. A failed reading empties nothing, and logs nothing.
+
+*Code: `surFaits`, `signePerime`, `garderLaCarteEnMain`, `poserLesCartesResolues` in `app/src/vue/vue.js`;
+`app/src/colonnes-videes.ts`. Tests: `app/test/rail-sous-les-mains.test.ts`, `app/test/colonnes-videes.test.ts`.*
 
 ### The project opened there: its Rail and its Second never stay blank (#1435)
 

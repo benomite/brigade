@@ -96,7 +96,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
-import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
+import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
@@ -925,9 +925,19 @@ const reponsesAuxCorrections = new Map();
 // porte plus l'oublie. Ce n'est qu'un relais : ce que la carte dit après un redémarrage vient du tableau (ticket 1841).
 /** @type {Map<string, { question: string | null, etat: import("./carte-todo.js").Etat }>} */
 const reponsesAuxCartes = new Map();
-// Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend.
+// Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend. Une carte
+// partie de TODO ne l'emporte pas (ticket 2151) : un brouillon non vide y reste, sur une carte résolue, jusqu'à ce que le
+// chef l'écarte — avec ce que sa carte demandait (`questionsDesBrouillons`).
 /** @type {Map<string, string>} */
 const brouillonsDeCartes = new Map();
+/** @type {Map<string, string | null>} */
+const questionsDesBrouillons = new Map();
+// La carte de TODO où le chef répond (ticket 2151) : tant que le clavier est dans sa carte — son champ, ses choix —, aucune
+// lecture ne redessine le rail du projet. La carte n'est ni retirée, ni reposée, ni déplacée, et ce qu'il tape reste sous
+// ses doigts. Ce qui arrive entre-temps est tenu (`gele`) et posé quand le clavier quitte la carte ; une carte que la
+// lecture ne porte plus le dit à côté de son texte. `bon` : la carte posée ; `carte` : sa partie de TODO.
+/** @type {{ projet: string, ticket: number, question: string | null | undefined, bon: HTMLElement, carte: HTMLElement, gele: boolean } | undefined} */
+let carteEnMain;
 // La réponse du chef en route sur un profil de cook proposé (profil/carte.js), tenue de même.
 /** @type {Map<string, import("./correction/carte.js").Etat>} */
 const reponsesAuxProfils = new Map();
@@ -975,6 +985,17 @@ const tenus = new Map();
 // première lecture qui joint GitHub.
 /** @type {Map<string, string>} */
 const horsLignes = new Map();
+// Le dernier rail lu, gardé quand les lectures qui l'ont suivi ont raté en ligne (ticket 2151) : depuis quand, d'après la
+// première de la série, et la raison de la dernière. Il part à la première lecture qui dessine le rail.
+/** @type {Map<string, { depuis: string, raison: string }>} */
+const perimes = new Map();
+// Ce qu'une lecture ratée dit d'elle-même, en une ligne.
+/** @param {Dessinable} recue */
+function raisonDeLEchec(recue) {
+  if ("tableau" in recue) return "";
+  const dit = "informe" in recue ? recue.informe : recue.erreur;
+  return dit.trim().split("\n")[0] ?? "";
+}
 const heureCourte = (/** @type {number | string} */ instant) => new Date(instant).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 let demandeFaits = 0;
 // Les projets dont une lecture des faits est partie de la vue — la première, ou une relecture — et n'a pas encore de
@@ -3003,7 +3024,10 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
   }
   // Une carte de TODO entrée par la porte du runtime : sa question, ses captures, un bouton par choix et
   // un champ pour répondre dans tes mots — tranchée sur la carte même, sans ouvrir sa fiche.
-  if (attendu && carte.todo !== undefined) bon.append(...poserLaCarteDeTodo(projet, ticket, carte.todo));
+  if (attendu && carte.todo !== undefined) {
+    const question = carte.todo.question;
+    bon.append(...poserLaCarteDeTodo(projet, ticket, carte.todo).map((posee) => tenirEnMain(projet, ticket, question, bon, posee)));
+  }
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
   if (carte.repere === true) {
     const repere = bloc("small", "…");
@@ -3910,6 +3934,7 @@ async function demanderAuSecond(projet, ticket, contexte = commentaires.get(`${p
   const cle = `${projet.nom}#${ticket}`;
   const avant = demandesAuSecond.get(cle);
   if (avant !== undefined && "envoi" in avant) return;
+  lacherLaCarteDe(projet.nom, ticket);
   const reposer = () => {
     if (ficheDe(projet, ticket)) poserFiche();
     if (courant?.nom === projet.nom) poserRail(projet);
@@ -4256,6 +4281,15 @@ function ageDuRail(publieLe, lu) {
   dit.className = "age-du-rail";
   dit.title = "The box publishes its rail on GitHub, and the app reads it every 30 seconds: this is the age of what the box published, not of the app's reading.";
   return dit;
+}
+// Le rail gardé d'une lecture ratée en ligne (ticket 2151), à la place de son âge : périmé, depuis quand, et l'heure de la
+// lecture montrée. La raison de la dernière lecture ratée est au survol.
+/** @param {{ depuis: string, raison: string }} perime @param {string} lu */
+function signePerime({ depuis, raison }, lu) {
+  const signe = bloc("p", `stale since ${heureCourte(depuis)} — the rail shown was read at ${heureCourte(lu)}, and the readings since have failed`);
+  signe.className = "fraicheur perime";
+  signe.title = `${raison === "" ? "The last reading of the Kitchen board failed." : raison} The cards stay as long as nothing shows they left: the rail is read again every 30 seconds.`;
+  return signe;
 }
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} depuis */
@@ -4715,6 +4749,8 @@ function poserCuisineEtroite(projet, tenu) {
 // dit ce qui a été obtenu.
 /** @param {Projet} projet */
 function poserRail(projet) {
+  // Le chef répond sur une carte de TODO (ticket 2151) : rien du rail ne bouge sous ses mains — ni la ligne du disjoncteur.
+  if (garderLaCarteEnMain(projet)) return;
   // La ligne du disjoncteur passe de la bande à TODO, ou l'inverse : la bande se repose, elle ne la dit qu'une fois.
   const avant = disjoncteursEnTodo.delete(projet.nom);
   poserLeRail(projet);
@@ -4728,6 +4764,7 @@ function poserLeRail(projet) {
   rail.dataset.onglet = cuisine ? CUISINE : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : "The rail";
   const horsLigne = horsLignes.get(projet.nom);
+  const perime = perimes.get(projet.nom);
   delete rail.dataset.horsLigne;
   marquerLecture(projet);
   arreterCuisine.hidden = true;
@@ -4839,9 +4876,14 @@ function poserLeRail(projet) {
         colonne.dataset.actif = "";
         colonne.append(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, () => void reprendreLeDisjoncteur(projet)));
       }
+      // Les réponses que le chef tapait sur une carte partie de TODO entre-temps restent dans TODO, résolues (ticket 2151).
+      const resolues = nom === COLONNE_QUI_T_ATTEND && muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
       // Sous la ligne du disjoncteur, une colonne sans carte ne dit pas que rien ne t'attend.
-      if (cartes.length > 0) colonne.append(bons(cartes, ton, tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass")));
-      else if (!avecDisjoncteur) colonne.append(bloc("p", vide));
+      if (cartes.length > 0 || resolues.length > 0) {
+        const liste = bons(cartes, ton, tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass"));
+        liste.append(...resolues);
+        colonne.append(liste);
+      } else if (!avecDisjoncteur) colonne.append(bloc("p", vide));
       return colonne;
     }),
   );
@@ -4874,7 +4916,7 @@ function poserLeRail(projet) {
   // Hors ligne, le rail lu en dernier est atténué, et le signe dit depuis quand à la place de son âge (ticket 1818).
   if (horsLigne !== undefined) rail.dataset.horsLigne = "";
   poser(
-    ...(horsLigne === undefined ? fraicheur(tenu.a) : [signeHorsLigne(horsLigne)]),
+    ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? [signePerime(perime, tenu.a)] : fraicheur(tenu.a)),
     ...(cuisine || tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
     ...(cuisine
       ? []
@@ -4928,11 +4970,145 @@ function rendreLeClavier(reprise) {
 // pose une autre question — est oubliée, et son brouillon avec.
 /** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
 function oublierLesReponsesPerimees(projet, colonnes) {
-  const portees = new Map(colonnes.flatMap(({ cartes }) => cartes).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
-  for (const tenues of [reponsesAuxCartes, brouillonsDeCartes]) {
-    for (const cle of tenues.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) tenues.delete(cle);
+  const portees = cartesPortees(projet, colonnes);
+  for (const cle of reponsesAuxCartes.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) reponsesAuxCartes.delete(cle);
+  // Un brouillon vide part avec sa carte ; un autre reste, sur une carte résolue (ticket 2151).
+  for (const [cle, texte] of brouillonsDeCartes) {
+    if (!cle.startsWith(`${projet.nom}#`) || portees.has(cle) || texte.trim() !== "") continue;
+    brouillonsDeCartes.delete(cle);
+    questionsDesBrouillons.delete(cle);
   }
   for (const [cle, { question }] of reponsesAuxCartes) if (cle.startsWith(`${projet.nom}#`) && portees.get(cle) !== question) reponsesAuxCartes.delete(cle);
+}
+
+// Les cartes de TODO que des colonnes portent, par projet et ticket, et la question de chacune.
+/** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes @returns {Map<string, string | null>} */
+const cartesPortees = (projet, colonnes) => new Map(colonnes.flatMap(({ cartes }) => cartes).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
+
+// Ce qu'une lecture dit d'une carte de TODO où le chef a tapé (ticket 2151) : rien, si elle est encore dans TODO avec la
+// même question — n'importe laquelle, `question` indéfinie ; sinon, en une ligne, ce qu'elle est devenue — son texte, lui,
+// reste.
+/** @param {import("../faits.ts").Rail} lu @param {number} ticket @param {string | null | undefined} question @returns {string | undefined} */
+function resolueEntreTemps(lu, ticket, question) {
+  const colonne = lu.colonnes.find(({ cartes }) => cartes.some((carte) => carte.ticket === ticket));
+  const sienne = colonne?.cartes.find((carte) => carte.ticket === ticket);
+  if (colonne?.nom === COLONNE_QUI_T_ATTEND && sienne?.todo !== undefined) return question === undefined || sienne.todo.question === question ? undefined : `its question changed meanwhile — ${TEXTE_GARDE}`;
+  const devenue =
+    colonne === undefined
+      ? lu.hors.some((carte) => carte.ticket === ticket)
+        ? "is now outside the columns"
+        : "has left the rail"
+      : colonne.nom === COLONNE_QUI_T_ATTEND
+        ? "no longer takes an answer on its card"
+        : `is now in ${colonne.nom}`;
+  return `resolved meanwhile: #${ticket} ${devenue} — ${TEXTE_GARDE}`;
+}
+const TEXTE_GARDE = "your text is kept here, nothing was sent";
+
+// La ligne d'une carte tenue que la lecture ne porte plus, à côté du champ du chef — retirée quand elle la porte de nouveau.
+/** @param {HTMLElement} carte @param {string | undefined} dit */
+function direLaCarteResolue(carte, dit) {
+  const avant = [...carte.children].find(({ className }) => className === "resolue-entre-temps");
+  if (dit === undefined) return avant?.remove();
+  if (avant !== undefined) return void (avant.textContent = dit);
+  const ligne = bloc("p", dit);
+  ligne.className = "resolue-entre-temps";
+  const phrase = [...carte.children].find(({ className }) => className === "phrase");
+  if (phrase === undefined) carte.append(ligne);
+  else phrase.after(ligne);
+}
+
+// Le rail d'un projet dont le chef tient une carte de TODO (ticket 2151) ne se redessine pas : la lecture est tenue, et la
+// carte dit seulement si elle ne la porte plus. Une lecture ratée n'en dit rien. Faux : rien n'est tenu dans ce rail.
+/** @param {Projet} projet */
+function garderLaCarteEnMain(projet) {
+  const enMain = carteEnMain;
+  if (enMain === undefined || enMain.projet !== projet.nom || ongletDe(projet) === CUISINE || !rail.contains(enMain.bon)) return false;
+  rail.hidden = false;
+  enMain.gele = true;
+  const tenu = tenus.get(projet.nom);
+  if (tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom)) direLaCarteResolue(enMain.carte, resolueEntreTemps(tenu.tableau.rail, enMain.ticket, enMain.question));
+  return true;
+}
+
+// Une carte de TODO posée se tient tant que le clavier y est : son champ, ses choix, ses boutons (ticket 2151).
+// `question` : celle de la carte — indéfinie pour une carte résolue, qui n'en attend plus aucune.
+/** @param {Projet} projet @param {number} ticket @param {string | null | undefined} question @param {HTMLElement} bon @param {HTMLElement} carte */
+function tenirEnMain(projet, ticket, question, bon, carte) {
+  carte.addEventListener("focusin", () => {
+    if (carteEnMain?.carte !== carte) carteEnMain = { projet: projet.nom, ticket, question, bon, carte, gele: false };
+  });
+  carte.addEventListener("focusout", (evenement) => {
+    const vers = /** @type {HTMLElement | null | undefined} */ (evenement.relatedTarget);
+    if (vers != null && carte.contains(vers)) return;
+    // Le clavier part ailleurs dans le rail : la lecture tenue attend la suivante, pour ne pas reposer l'élément que le
+    // chef vient de toucher.
+    lacherLaCarte(carte, vers == null || !rail.contains(vers));
+  });
+  return carte;
+}
+
+// Le clavier quitte la carte tenue : ce qui est arrivé entre-temps se pose, si `redessiner`. Un geste de la carte la
+// lâche sans redessiner : il redessine lui-même.
+/** @param {HTMLElement} carte @param {boolean} redessiner */
+function lacherLaCarte(carte, redessiner) {
+  if (carteEnMain?.carte !== carte) return;
+  const { projet, gele } = carteEnMain;
+  carteEnMain = undefined;
+  if (redessiner && gele && courant?.nom === projet && !rail.hidden) poserRail(courant);
+}
+/** @param {string} projet @param {number} ticket */
+function lacherLaCarteDe(projet, ticket) {
+  if (carteEnMain?.projet === projet && carteEnMain.ticket === ticket) lacherLaCarte(carteEnMain.carte, false);
+}
+
+// Les cartes de TODO parties entre-temps dont le chef a gardé un texte (ticket 2151), en bas de TODO : son numéro, ce que
+// la carte demandait, ce qu'elle est devenue, et son texte — à recopier, ou à écarter.
+/** @param {Projet} projet @param {import("../faits.ts").Rail} lu */
+function poserLesCartesResolues(projet, lu) {
+  const portees = cartesPortees(projet, lu.colonnes);
+  return [...brouillonsDeCartes].flatMap(([cle, texte]) => {
+    if (!cle.startsWith(`${projet.nom}#`) || portees.has(cle) || texte.trim() === "") return [];
+    const ticket = Number(cle.slice(projet.nom.length + 1));
+    const bon = document.createElement("li");
+    bon.className = "bon";
+    bon.dataset.resolue = "";
+    const tete = document.createElement("div");
+    const numero = bloc("span", `#${ticket}`);
+    numero.className = "ticket mono";
+    tete.append(numero);
+    const carte = document.createElement("section");
+    carte.className = "carte-todo";
+    carte.dataset.resolue = "";
+    carte.ariaLabel = `your answer to #${ticket}, kept after its card left TODO`;
+    const demandait = questionsDesBrouillons.get(cle);
+    if (demandait != null) {
+      const question = bloc("p", demandait);
+      question.className = "question-carte";
+      carte.append(question);
+    }
+    const phrase = document.createElement("div");
+    phrase.className = "phrase";
+    const saisie = document.createElement("textarea");
+    saisie.value = texte;
+    saisie.rows = 2;
+    saisie.ariaLabel = `your text for #${ticket}`;
+    saisie.dataset.cle = cle;
+    saisie.dataset.champ = CHAMP_DE_CARTE;
+    saisie.addEventListener("input", () => void brouillonsDeCartes.set(cle, saisie.value));
+    const ecarter = bouton("dismiss", () => {
+      brouillonsDeCartes.delete(cle);
+      questionsDesBrouillons.delete(cle);
+      lacherLaCarte(carte, false);
+      if (courant?.nom === projet.nom) poserRail(projet);
+    });
+    ecarter.title = "forget this text: nothing was sent, and nothing will be";
+    phrase.append(saisie, ecarter);
+    carte.append(phrase);
+    direLaCarteResolue(carte, resolueEntreTemps(lu, ticket, undefined));
+    bon.append(tete, tenirEnMain(projet, ticket, undefined, bon, carte));
+    return [bon];
+  });
 }
 
 // Le geste en route d'ici sur la carte de TODO d'un ticket, pour la question qu'elle montre — au repos sinon.
@@ -4958,7 +5134,10 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
     { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), brouillon: brouillonsDeCartes.get(cle) ?? "", cle, ...(second === undefined ? {} : { second }) },
     {
       repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
-      ecrire: (texte) => void brouillonsDeCartes.set(cle, texte),
+      ecrire: (texte) => {
+        brouillonsDeCartes.set(cle, texte);
+        questionsDesBrouillons.set(cle, todo.question ?? todo.resume ?? null);
+      },
       demander: () => void demanderAuSecond(projet, ticket, brouillonsDeCartes.get(cle) ?? ""),
     },
   );
@@ -4971,6 +5150,8 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
 async function repondreALaCarte(projet, ticket, reponse) {
   const cle = `${projet.nom}#${ticket}`;
   if (reponsesAuxCartes.get(cle)?.etat.etape === "envoi") return;
+  // Répondre est le geste qui finit la saisie : la carte n'est plus tenue, elle dit où en est sa réponse.
+  lacherLaCarteDe(projet.nom, ticket);
   /** @param {import("./carte-todo.js").Etat} etat */
   const poser = (etat) => {
     reponsesAuxCartes.set(cle, { question: reponse.question, etat });
@@ -7858,8 +8039,14 @@ brigade.surFaits((recue) => {
   if (horsLigne) horsLignes.set(recue.projet, horsLignes.get(recue.projet) ?? recue.a);
   else horsLignes.delete(recue.projet);
   const gardee = tenus.get(recue.projet);
+  // Une lecture ratée en ligne — GitHub qui limite les appels, refuse, ne répond pas à temps, une box qui redémarre et
+  // publie un tableau illisible — ne vide aucune colonne (ticket 2151) : le dernier rail lu reste, et une ligne dit depuis
+  // quand il est périmé, la raison au survol. Sans rail lu avant, elle se dit comme avant.
+  const ratee = !("tableau" in recue) && !muette && !horsLigne;
+  if ("tableau" in recue) perimes.delete(recue.projet);
+  else if (ratee && gardee !== undefined && "tableau" in gardee) perimes.set(recue.projet, { depuis: perimes.get(recue.projet)?.depuis ?? recue.a, raison: raisonDeLEchec(recue) });
   if (horsLigne && (gardee === undefined || !("tableau" in gardee))) tenus.delete(recue.projet);
-  else if (!((muette || horsLigne) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
+  else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
   if (courant?.nom === recue.projet) {
     dessiner();
