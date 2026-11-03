@@ -964,14 +964,15 @@ describe("la pass", { concurrency: 8 }, () => {
     }
     assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 5);
     // Aucun des trois ne disparaît : chacun attend le chef dans TODO, et ceux qui sont sortis avec #17 le nomment (#2118).
-    const abandons = () =>
-      attentesDuChef(journal.base, lireRail(journal.base)).flatMap((attente) => (attente.quoi === "abandon" ? [[attente.ticket, attente.voie, attente.root]] : []));
+    const cartes = () => attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.quoi === "abandon");
+    const abandons = () => cartes().map((attente) => (attente.quoi === "abandon" ? [attente.ticket, attente.voie, attente.root] : []));
     await jusqua(() => abandons().length === 3);
     assert.deepEqual(abandons(), [
       [17, "pass", null],
       [18, "chain", 17],
       [19, "chain", 17],
     ]);
+    const avant = cartes().map(({ ticket, since }) => `${ticket}@${since}`);
 
     // Le chef remet `fire` sur #17 : #18 et #19 le suivent d'eux-mêmes.
     gh.poser(issue(17, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T12:00:00Z" }));
@@ -980,8 +981,9 @@ describe("la pass", { concurrency: 8 }, () => {
       [18, ["fire"]],
       [19, ["fire"]],
     ]);
-    // Revenus sur le rail : la réponse du chef a ôté leurs cartes.
-    assert.deepEqual(abandons(), []);
+    // Revenus sur le rail : la réponse du chef a ôté leurs cartes. Si la cuisine les abandonne de nouveau,
+    // c'est un nouvel abandon, avec sa propre carte.
+    assert.deepEqual(cartes().filter(({ ticket, since }) => avant.includes(`${ticket}@${since}`)), []);
   });
 
   test("un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne", async (t) => {
