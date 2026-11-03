@@ -41,6 +41,7 @@ import { tableauDeLaCuisine } from "../rendu/donnees.ts";
 import type { GestesDuTableau } from "../gestes/gestes.ts";
 import type { MentionsDuTableau } from "../mention/mention.ts";
 import { rendreLeTableau, TITRE_DU_TABLEAU } from "../rendu/rendre.ts";
+import { noterLaTaille } from "../rendu/taille.ts";
 import type { ClientDuTableau, IssueDuTableau } from "./client.ts";
 
 // Le label par lequel le tableau se retrouve dans son dépôt.
@@ -102,6 +103,8 @@ export type OptionsPublication = {
   dire?: (ligne: string) => void;
   // Ce qui n'a pas pu se faire sans empêcher le reste : l'épinglage refusé.
   avertir?: (ligne: string) => void;
+  // Le corps qui vient d'être rendu, à chaque rafraîchissement : de quoi dire sa taille à `status`.
+  corpsRendu?: (corps: string) => void;
 };
 
 export type Publication = {
@@ -154,6 +157,7 @@ export function publierLeTableau(options: OptionsPublication): Publication {
     connu: () => numero,
     async rafraichir(maintenant) {
       const corps = masquer(rendreLeTableau(lire(maintenant), maintenant));
+      options.corpsRendu?.(corps);
       const gestes: Geste[] = [];
       const trouve = await retrouver();
       if (trouve === null) {
@@ -258,7 +262,8 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
   let ouvertes: OuvertesLues | null = null;
   const lire = options.lire ?? ((instant: Date) => tableauDuJournal(runtime.journal, runtime.projet, instant, { depot: options.depot, station, gestes, ouvertes }));
   const avertir = options.avertir ?? ((ligne: string) => console.error(ligne));
-  const publication = publierLeTableau({ ...options, lire, avertir });
+  const corpsRendu = options.corpsRendu ?? (station === undefined ? undefined : (corps: string) => noterLaTaille(station, runtime.projet, corps));
+  const publication = publierLeTableau({ ...options, lire, avertir, ...(corpsRendu === undefined ? {} : { corpsRendu }) });
   let enCours = false;
   let dernierEchec: string | null = null;
   let dernierEchecDesGestes: string | null = null;

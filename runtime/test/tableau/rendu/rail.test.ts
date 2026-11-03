@@ -14,6 +14,7 @@ import { contenuDuCorps } from "../../../src/tableau/publication/publier.ts";
 import { lireLeTableau, type LigneDuRail, type Tableau } from "../../../src/tableau/rendu/bloc.ts";
 import { tableauDeLaCuisine, type FaitsDuTableau } from "../../../src/tableau/rendu/donnees.ts";
 import { LONGUEUR_MAX_DU_CORPS, rendreLeTableau } from "../../../src/tableau/rendu/rendre.ts";
+import { direLaTailleDuCorps, noterLaTaille, tailleNotee } from "../../../src/tableau/rendu/taille.ts";
 import { LU_LE } from "../../aides/haut-de-status.ts";
 import { copieDeLExempleDuBas } from "../../aides/opt-A-etat.ts";
 import { aArreter, horloge, repertoireTemporaire } from "../../outils.ts";
@@ -194,23 +195,52 @@ test("trop long pour GitHub, le corps retire du bloc les relectures des livrés 
   assert.equal(entier.tableau.resserre, undefined);
 });
 
-test("en dernier recours, le corps retire les faits et les lignes du rail entiers : la file et l'état de la cuisine, eux, restent", (t) => {
+test("même un rail énorme n'est jamais retiré du bloc : la file, TODO et l'état de la cuisine restent aussi", (t) => {
   const { tableau } = projet(t);
-  // Un rail que rien d'autre que lui ne fait déborder : ses titres, dans les faits comme dans les lignes.
   const lesFaits = tableau.faits as FaitsDuTableau;
   const long = "t".repeat(4_000);
   const gros: Tableau = { ...tableau, faits: { ...lesFaits, rail: lesFaits.rail.map((ticket) => ({ ...ticket, titre: long })) }, lignesDuRail: tableau.lignesDuRail?.map((ligne) => ({ ...ligne, ligne: `${ligne.ligne}${long}` })) };
+  const lu = lireLeTableau(rendreLeTableau(gros, GENERE_LE));
+  assert.ok(lu.lu);
+  assert.ok(!lu.tableau.resserre?.includes("faits" as never));
+  assert.deepEqual((lu.tableau.faits as FaitsDuTableau).rail, (gros.faits as FaitsDuTableau).rail);
+  assert.deepEqual(lu.tableau.lignesDuRail, gros.lignesDuRail);
+  assert.deepEqual(lu.tableau.file, tableau.file);
+  assert.deepEqual(lu.tableau.cuisine, tableau.cuisine);
+});
+
+test("trop long, le corps écarte d'abord le relais des stations distantes, les gestes et les activités, garde le rail, et le dit en une ligne", (t) => {
+  const { tableau } = projet(t);
+  const lourd = "x".repeat(40_000);
+  const gros: Tableau = {
+    ...tableau,
+    distantes: { attributions: [], reponses: [{ demande: "d", station: "s", geste: "claim", run: null, le: "2026-10-12T10:00:00Z", reponse: { ok: true, texte: lourd } }] },
+    gestes: [{ commentaire: 1, url: "u", le: "2026-10-12T10:00:00Z", geste: "merge", ticket: 1, etat: "pris", traiteLe: "2026-10-12T10:00:00Z", reponse: lourd }],
+  };
   const corps = rendreLeTableau(gros, GENERE_LE);
   assert.ok(corps.length <= LONGUEUR_MAX_DU_CORPS, `${corps.length}`);
   const lu = lireLeTableau(corps);
   assert.ok(lu.lu);
-  // Chaque étape qui a eu quelque chose à retirer, dans l'ordre : aucune décision de l'exemple n'a de livraison.
-  assert.deepEqual(lu.tableau.resserre, ["faits.livres.relecture", "faits.corrections.diff", "faits", "lignesDuRail"]);
-  assert.equal(lu.tableau.faits, undefined);
-  assert.equal(lu.tableau.lignesDuRail, undefined);
-  assert.deepEqual(lu.tableau.file, tableau.file);
-  assert.deepEqual(lu.tableau.cuisine, tableau.cuisine);
+  assert.deepEqual(lu.tableau.resserre, ["distantes"]);
+  assert.deepEqual(lu.tableau.faits, tableau.faits);
+  assert.deepEqual(lu.tableau.lignesDuRail, tableau.lignesDuRail);
+  assert.ok(corps.includes("Left out of the block to fit: distantes."));
   assert.equal(rendreLeTableau(lu.tableau, GENERE_LE), corps);
+});
+
+test("la taille notée par la publication se relit pour `status`, par projet", (t) => {
+  const { tableau } = projet(t);
+  const station = repertoireTemporaire(t);
+  assert.equal(tailleNotee(station, "brigade"), null);
+  noterLaTaille(station, "brigade", rendreLeTableau(tableau, GENERE_LE));
+  assert.match(tailleNotee(station, "brigade") ?? "", /chars \(\d+%\)/);
+  assert.equal(tailleNotee(station, "autre"), null);
+});
+
+test("la taille du corps se dit bloc par bloc, avec ce qui a été retiré", (t) => {
+  const { tableau } = projet(t);
+  const ligne = direLaTailleDuCorps(rendreLeTableau({ ...tableau, resserre: ["distantes"] }, GENERE_LE));
+  assert.match(ligne ?? "", /^[\d,]+ of 65,536 chars \(\d+%\) · readable \d+% · .*faits \d+%.* · left out: distantes$/);
 });
 
 // Le reste du rail attend une capacité qu'aucune station ne fournit : #12 mis de côté `no-station`, #15 qui l'attend.

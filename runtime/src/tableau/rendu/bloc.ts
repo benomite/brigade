@@ -130,8 +130,8 @@ export type LigneDuRail = { ticket: number; priorite: number | null; ligne: stri
 
 // Ce que la box a prêté aux stations distantes, et ce qu'elle a répondu à
 // celles qui le lui demandent par GitHub (#1793, tirer-par-github/) : c'est ici
-// qu'une station sans ssh vers la box lit sa réponse. Jamais retiré d'un corps
-// trop long : c'est l'arbitrage même, et il est borné (tirer-par-github/tableau.ts).
+// qu'une station sans ssh vers la box lit sa réponse. Retiré en premier d'un
+// corps trop long (rendre.ts) : le chemin que l'épique #2053 supprime, et il est borné (tirer-par-github/tableau.ts).
 // `attributions` : chaque ticket qu'une station distante tient — son run, et
 // l'échéance de son bail, qui avance à chaque renouvellement.
 export type AttributionPubliee = { ticket: number; station: string; run: string | null; bailJusqua: string | null };
@@ -187,11 +187,12 @@ export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite:
 export type AvantLeRailPublie = { lu: string; issues: IssueAvantLeRailPubliee[] };
 
 // Ce qu'un corps trop long pour GitHub a retiré du bloc, dans l'ordre où il l'a
-// retiré (rendre.ts) : les étapes passées des cooks, les relectures des livrés,
-// les livraisons qui attendent, les diffs des corrections, ce qui retient
-// chaque issue avant le rail, puis ces issues, et enfin les faits et les lignes
-// du rail entiers.
-export type Resserre = "activites.etapes" | "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "avantLeRail.dit" | "avantLeRail" | "faits" | "lignesDuRail";
+// retiré (rendre.ts) : le relais des stations distantes, les étapes passées des
+// cooks, les relectures des livrés, les gestes du chef, les activités des cooks,
+// les diffs des corrections, les livraisons qui attendent, ce qui retient chaque
+// issue avant le rail, puis ces issues. `faits` et `lignesDuRail` ne sont plus
+// retirés : ils restent dans le type pour lire un bloc écrit avant (ticket 2157).
+export type Resserre = "distantes" | "gestes" | "activites" | "activites.etapes" | "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "avantLeRail.dit" | "avantLeRail" | "faits" | "lignesDuRail";
 
 // `lu` : l'heure de la lecture de l'état — les durées que les lignes disent se
 // comptent jusqu'à elle. `bilans` : ce que le bloc `awaiting` de `status` dit

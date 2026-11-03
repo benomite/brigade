@@ -71,6 +71,7 @@ function partieLisible(tableau: Tableau, compacte: boolean): string[] {
     "",
     ...etat.flatMap((dite) => rubrique(dite, compacte)),
     ...(compacte ? ["", "_Shortened to fit in an issue: the whole state is in the box's `status`._"] : []),
+    ...(tableau.resserre === undefined || tableau.resserre.length === 0 ? [] : ["", `_Left out of the block to fit: ${tableau.resserre.join(", ")}. The rail and the queue are kept._`]),
     "",
   ];
 }
@@ -89,20 +90,30 @@ const sansLesEtapesPassees = (tableau: Tableau): Tableau =>
 const sansCeQuiRetient = (tableau: Tableau): Tableau =>
   tableau.avantLeRail === undefined ? tableau : { ...tableau, avantLeRail: { ...tableau.avantLeRail, issues: tableau.avantLeRail.issues.map((issue) => ({ ...issue, dit: "" })) } };
 
+const sans = (champ: "distantes" | "gestes" | "activites") => (tableau: Tableau): Tableau => {
+  const { [champ]: _retire, ...reste } = tableau;
+  return reste;
+};
+
 // Ce qu'un corps encore trop long retire du bloc, dans cet ordre, jusqu'à tenir :
-// le plus lourd et le moins utile au rail d'abord — les étapes passées des
-// cooks, le texte des relectures des livrés, les livraisons qui attendent, les
-// diffs des corrections —, puis ce qui retient chaque issue avant le rail, ces
-// issues, et enfin les faits et les lignes du rail entiers. Ce que dit l'état,
-// lui, n'est jamais retiré, ni ce que fait chaque cook en ce moment.
+// l'historique et les blocs secondaires d'abord — le relais des stations
+// distantes (`distantes`, le plus lourd), les étapes passées des cooks, le texte
+// des relectures des livrés, les gestes du chef déjà joués, les activités des
+// cooks, les livraisons qui attendent, les diffs des corrections —, puis ce qui
+// retient chaque issue avant le rail, et ces issues. Le rail (`faits`,
+// `lignesDuRail`), la file du chef avec ses cartes (TODO) et l'état de la cuisine
+// ne sont jamais retirés (ticket 2157) : si le corps ne tient pas encore, il
+// reste trop long plutôt que d'écarter ce que le chef lit d'abord.
 const RESSERREMENTS: Array<{ quoi: Resserre[]; retirer(tableau: Tableau): Tableau }> = [
+  { quoi: ["distantes"], retirer: sans("distantes") },
   { quoi: ["activites.etapes"], retirer: sansLesEtapesPassees },
   { quoi: ["faits.livres.relecture"], retirer: (tableau) => dansLesFaits(tableau, "livres", "relecture") },
+  { quoi: ["gestes"], retirer: sans("gestes") },
+  { quoi: ["activites"], retirer: sans("activites") },
   { quoi: ["faits.attend.livraison"], retirer: (tableau) => dansLesFaits(tableau, "attend", "livraison") },
   { quoi: ["faits.corrections.diff"], retirer: (tableau) => dansLesFaits(tableau, "corrections", "diff") },
   { quoi: ["avantLeRail.dit"], retirer: sansCeQuiRetient },
   { quoi: ["avantLeRail"], retirer: ({ avantLeRail: _avant, ...reste }) => reste },
-  { quoi: ["faits", "lignesDuRail"], retirer: ({ faits: _faits, lignesDuRail: _lignes, ...reste }) => reste },
 ];
 
 // Le corps de l'issue, généré à `genereLe`. Trop long pour GitHub, la partie
