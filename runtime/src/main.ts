@@ -39,6 +39,7 @@ import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { lireLesProfils } from "./profils/preference.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
+import { unSeulEcrivainSurGitHub } from "./board-single-writer.ts";
 import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
 import { brancherLeTableau, ouvertesDuDepot } from "./tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
@@ -259,7 +260,8 @@ try {
   const alertee = brancherAlerteUrgence(datee);
   // Le tableau de la cuisine ne lance rien non plus : il publie, dans le dépôt
   // du projet, ce que `status` dit — sous l'identité du manager, s'il en a une.
-  const tableau = clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) });
+  // Il n'écrit que le tableau d'un projet que cette station sert (board-single-writer.ts).
+  const tableau = unSeulEcrivainSurGitHub(clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }), { depot: rail.depot, gh: rail.gh, env: process.env });
   // Les gestes que le chef y poste se lisent et se répondent sous la même
   // identité ; ils se jouent comme ses gestes locaux, sous celle de la pass —
   // qui merge et commente les tickets —, sans que la box retienne leurs appels.

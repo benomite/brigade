@@ -212,6 +212,29 @@ A removed field is **absent**, not `null`. `file` and `cuisine` are never remove
 `faits` (or `avantLeRail`) named in `resserre` says it could not be published, rather than showing an
 empty rail.
 
+3. **The writer's signature**, after the block: one more HTML comment, which names the station
+   whose kitchen wrote the body and its machine's host. An app ignores it (`lireLeTableau` reads
+   only the block).
+
+```
+<!-- brigade:board-writer {"station":"box","host":"box.example"} -->
+```
+
+## One writer per board
+
+A board is written by one kitchen only: the kitchen of the station that serves the project
+(`runtime/src/board-single-writer.ts`, epic #2108). Before a runtime rewrites or reopens a board
+signed by **another** station, it reads the account's paired stations
+(`appairage/stations-du-chef.ts`). If the signing station is online, cooks, and publishes the
+repository among its projects, it serves the project: the write is refused, the board stays as that
+station wrote it, and the refusal names it, in the error and once in the service log
+(`brigade : Kitchen board de <repo> non rafraîchi — board write refused: <repo> is served by station
+box (host box.example), …`). A runtime that cannot read the stations refuses too, and says why. If the
+signing station is stopped, no longer serves the repository, or is no longer on the account, the
+writing station takes the board over and signs it. A board signed by the writing station, or not
+signed at all, is written as before, with no extra reading: a project served by one station sees no
+change. A reading of the stations holds for 5 minutes.
+
 ## What changes the body
 
 The box rewrites the body only when what it says changes. Not a change: the reading time (`lu`,
