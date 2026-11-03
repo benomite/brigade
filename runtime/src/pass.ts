@@ -900,7 +900,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           "",
           `**Pourquoi.** ${raison.charAt(0).toUpperCase()}${raison.slice(1)}.`,
           "",
-          `Plutôt que de le laisser de côté sur le rail, la cuisine retire son label \`${LABEL}\` : il sort du rail, et aucun cook n'y repart. Son issue reste ouverte, et il n'entre pas dans TODO — ce n'est pas un choix de produit. Remettre \`${LABEL}\` le ramène sur le rail${connu.pr ? " ; mergée à la main, sa PR le sert" : ""}.`,
+          `Plutôt que de le laisser de côté sur le rail, la cuisine retire son label \`${LABEL}\` : il sort du rail, et aucun cook n'y repart. Son issue reste ouverte, et sa carte attend le chef dans TODO jusqu'à sa réponse : le remettre sur le rail, le prendre en session de dev, ou fermer l'issue. Remettre \`${LABEL}\` le ramène sur le rail${connu.pr ? " ; mergée à la main, sa PR le sert" : ""}.`,
           "",
           `Les tickets qui l'attendent, directement ou de proche en proche, sortent du rail avec lui, pour la même raison : chacun le dit sur son issue. Ils y reviennent d'eux-mêmes quand \`${LABEL}\` revient sur celui-ci — c'est le seul chemin du retour.`,
         ].join("\n"),
@@ -913,7 +913,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     cuisineButee.delete(ticket);
     if (arrete) return false;
     noter(ticket, { type: "pass.kitchen-took-over", payload: { cause, move: "drop", reason: raison } });
-    avertir(`brigade : la cuisine abandonne le ticket #${ticket} (${cause}) : ${raison} — il sort du rail, hors de TODO`);
+    avertir(`brigade : la cuisine abandonne le ticket #${ticket} (${cause}) : ${raison} — il sort du rail, et sa carte attend le chef dans TODO`);
     await retirerFire(ticket, null);
     return false;
   };

@@ -848,7 +848,10 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(gh.delabellisations.filter(([numero]) => numero === 17), [[17, "fire"]]);
     assert.notEqual(etat(17), "86");
     assert.equal(gh.lire(17)?.state, "open");
-    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
+    // Sorti du rail sans être servi, il n'est pas perdu : sa carte attend le chef dans TODO (#2118).
+    const [enTodo] = attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17);
+    assert.deepEqual(enTodo && { quoi: enTodo.quoi, ...("voie" in enTodo ? { voie: enTodo.voie, cause: enTodo.cause } : {}) }, { quoi: "abandon", voie: "pass", cause: "wrong-base" });
+    assert.deepEqual(carteDuTicket(journal.base, 17)?.carte.choix.map(({ suite }) => suite), ["resume", "drop", "close"]);
   });
 
   test("ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut au lieu d'être mis de côté ; au plus haut calibrage permis, la cuisine l'abandonne en disant pourquoi sur l'issue", { timeout: 600_000 }, async (t) => {
@@ -905,7 +908,10 @@ describe("la pass", { concurrency: 8 }, () => {
     // Jamais `xhigh` ni `max`, et un seul ticket `fix` : la montée n'en ouvre pas d'autre.
     assert.ok(!gh.labellisations.some(([, labels]) => labels.some((label) => /^effort:(xhigh|max)$/.test(label))));
     assert.equal(compter("pass.kitchen-fix-opening"), 1);
-    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
+    // Abandonné au plus haut calibrage, il attend le chef dans TODO : quel ticket, pourquoi, ses trois gestes (#2118).
+    const carte = carteDuTicket(journal.base, 17)?.carte;
+    assert.equal(carte?.resume, "The kitchen took #17 off the rail without serving it. Its delivery stayed blocked (review-unreadable) after everything the kitchen could try, up to the highest calibration it sets.");
+    assert.deepEqual(carte?.choix.map(({ texte }) => texte), ["Put it back on the rail", "I take it in a dev session", "Close it"]);
   });
 
   test("au moment d'abandonner un ticket, la cuisine le réessaie une fois si un merge a atterri sur la base depuis son dernier rouge ; abandonné ensuite, ceux qui l'attendent sortent du rail avec lui, et le suivent quand `fire` lui revient (#1902)", { timeout: 600_000 }, async (t) => {
@@ -957,6 +963,15 @@ describe("la pass", { concurrency: 8 }, () => {
       assert.ok(gh.commentaires.some(([sur, corps]) => sur === numero && corps.startsWith("**Cuisine — ticket abandonné avec #17 (`wrong-base`).**")));
     }
     assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 5);
+    // Aucun des trois ne disparaît : chacun attend le chef dans TODO, et ceux qui sont sortis avec #17 le nomment (#2118).
+    const abandons = () =>
+      attentesDuChef(journal.base, lireRail(journal.base)).flatMap((attente) => (attente.quoi === "abandon" ? [[attente.ticket, attente.voie, attente.root]] : []));
+    await jusqua(() => abandons().length === 3);
+    assert.deepEqual(abandons(), [
+      [17, "pass", null],
+      [18, "chain", 17],
+      [19, "chain", 17],
+    ]);
 
     // Le chef remet `fire` sur #17 : #18 et #19 le suivent d'eux-mêmes.
     gh.poser(issue(17, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T12:00:00Z" }));
@@ -965,6 +980,8 @@ describe("la pass", { concurrency: 8 }, () => {
       [18, ["fire"]],
       [19, ["fire"]],
     ]);
+    // Revenus sur le rail : la réponse du chef a ôté leurs cartes.
+    assert.deepEqual(abandons(), []);
   });
 
   test("un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne", async (t) => {

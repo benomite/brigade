@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { abandonsAuChef } from "./abandon-au-chef.ts";
 import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
@@ -35,6 +36,7 @@ import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/spli
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
 import { labelsMontes } from "./projections/reactions.ts";
+import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
 import { ouvrirRequalification } from "./requalifier.ts";
@@ -616,6 +618,11 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     ]);
     for (const [numero, closed] of attendues) {
       if (closed === presentes.has(numero)) noter(numero, { type: closed ? "manager.reopened" : "manager.closed", payload: {} });
+    }
+    // Un ticket que la cuisine a sorti du rail attend le chef jusqu'à sa
+    // réponse : l'issue qu'il ferme en est une (abandon-au-chef.ts).
+    for (const { ticket } of abandonsAuChef(base)) {
+      if (!attendues.has(ticket) && !presentes.has(ticket) && ticketDuRail(base, ticket) === null) noter(ticket, { type: "manager.closed", payload: {} });
     }
   };
 

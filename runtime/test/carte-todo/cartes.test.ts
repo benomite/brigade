@@ -65,6 +65,12 @@ const EXEMPLES = {
       },
     },
   ],
+  abandon: [
+    { ...ticket(31), quoi: "abandon", voie: "pass", cause: "manager-escalated", root: null },
+    { ...ticket(32), quoi: "abandon", voie: "pass", cause: "wrong-base", root: null },
+    { ...ticket(33), quoi: "abandon", voie: "chain", cause: "wrong-base", root: 32 },
+    { ...ticket(34), quoi: "abandon", voie: "triage", cause: null, root: null },
+  ],
 } satisfies { [Q in AttenteDeTicket["quoi"]]: Array<Extract<AttenteDeTicket, { quoi: Q }>> };
 
 const TOUTES: AttenteDeTicket[] = Object.values(EXEMPLES).flat();
@@ -109,13 +115,41 @@ describe("every kind of TODO card is built with the single shape", () => {
   });
 
   // Ce que la cuisine a mis de côté n'attend pas le chef (#1834) : il reste sur
-  // le rail avec sa raison, et y repart seul quand elle tombe.
-  test("no card asks the chef to put a ticket back on the rail", () => {
-    for (const attente of TOUTES) {
+  // le rail avec sa raison, et y repart seul quand elle tombe. Seul ce qu'elle
+  // a sorti du rail sans le servir le demande (#2118).
+  test("no card asks the chef to put a ticket back on the rail, but the one of a ticket the kitchen took off it", () => {
+    for (const attente of TOUTES.filter(({ quoi }) => quoi !== "abandon")) {
       const carte = carteDeLAttente(attente);
       assert.doesNotMatch(carte.question ?? "", /back on the rail/);
       assert.ok(!carte.choix.some(({ texte }) => /back on the rail/.test(texte)));
     }
+  });
+});
+
+describe("a ticket the kitchen took off the rail without serving it (#2118)", () => {
+  test("its card says which ticket, why in one sentence, and offers its three gestures", () => {
+    const carte = carteDeLAttente(exemple(31));
+    assert.equal(carte.type, "abandon");
+    assert.equal(
+      carte.resume,
+      "The kitchen took #31 off the rail without serving it. Its delivery stayed blocked (manager-escalated) after everything the kitchen could try, up to the highest calibration it sets.",
+    );
+    assert.equal(carte.question, "What becomes of #31?");
+    assert.deepEqual(carte.choix, [
+      { texte: "Put it back on the rail", suite: "resume" },
+      { texte: "I take it in a dev session", suite: "drop" },
+      { texte: "Close it", suite: "close" },
+    ]);
+    assert.equal(carte.reponseLibre, true);
+  });
+
+  test("the reason follows the way it left: a cause no cook lifts, the chain of a dropped ticket, the triage", () => {
+    assert.match(carteDeLAttente(exemple(32)).resume, /\. Its cause \(wrong-base\) is not one a cook can lift, and the fix ticket the kitchen could open on it was tried\.$/);
+    const chaine = carteDeLAttente(exemple(33));
+    assert.match(chaine.resume, /\. It waits for #32, which the kitchen dropped \(wrong-base\), and it left the rail with it\.$/);
+    // Sorti avec #32, il n'y revient qu'avec lui : c'est #32 que le geste remet.
+    assert.deepEqual(chaine.choix[0], { texte: "Put #32 back on the rail, and this ticket with it", suite: "resume" });
+    assert.match(carteDeLAttente(exemple(34)).resume, /\. The triage took it off the rail instead of asking you\.$/);
   });
 });
 

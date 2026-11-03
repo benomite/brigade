@@ -190,6 +190,11 @@ delivery by hand) has a null question: it shows that one button, filled, and no 
 second`, a small underlined word set back under the field, never one of its choices: it writes into the second a
 request about the ticket with what is typed in the card's field, as the sheet's does, and the card is answered from its
 choices without it.
+**A ticket the kitchen took off the rail without serving it waits in Todo** (#2118): its card (`type` `abandon`) says
+which ticket and why, and offers `Put it back on the rail`, `I take it in a dev session` and `Close it`; it stays until
+you answer (`docs/runtime/manager.md`, "A ticket the kitchen takes off the rail without serving it"). Each choice's
+price follows its gesture (`app/src/carte-todo.ts`): `drop` says the ticket stays off the rail, `close` that its issue is
+closed — neither says a cook is launched.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the

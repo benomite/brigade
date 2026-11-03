@@ -80,6 +80,9 @@ export function attenduDe(decision: Decision | undefined): Attendu {
       return { phrase: motif === "design" ? "Validate its screen: answer its question." : "A product choice is yours: answer its question.", gestes: [] };
     case "repris":
       return { phrase: "Back from WAITING, it waits for you: send it back to the kitchen, or take it off the rail.", gestes: ["cuisine", "retirer"] };
+    case "abandon":
+      // Sorti du rail par la cuisine sans être servi (#2118) : ses trois gestes sont les choix de sa carte.
+      return { phrase: "The kitchen took it off the rail without serving it: put it back, take it in a dev session, or close it — its card says why.", gestes: [] };
     default:
       return { phrase: SANS_DECISION, gestes: [] };
   }

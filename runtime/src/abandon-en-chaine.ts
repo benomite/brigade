@@ -106,7 +106,7 @@ export function corpsDeSortieAvec({ root, cause, reason }: AbandonEnChaine): str
     "",
     `Ce ticket attend #${root}, directement ou de proche en proche, et la cuisine vient d'abandonner #${root}. **Pourquoi.** ${majuscule(reason)}.`,
     "",
-    `Plutôt que de le laisser attendre un ticket qui ne partira plus, la cuisine retire son label \`${LABEL}\` : il sort du rail avec #${root}. Son issue reste ouverte, et il n'entre pas dans TODO — ce n'est pas un choix de produit. Il revient sur le rail de lui-même quand \`${LABEL}\` revient sur #${root} : c'est le seul chemin du retour.`,
+    `Plutôt que de le laisser attendre un ticket qui ne partira plus, la cuisine retire son label \`${LABEL}\` : il sort du rail avec #${root}. Son issue reste ouverte, et sa carte attend le chef dans TODO jusqu'à sa réponse. Il revient sur le rail de lui-même quand \`${LABEL}\` revient sur #${root} : c'est le seul chemin du retour.`,
   ].join("\n");
 }
 
@@ -148,7 +148,7 @@ export async function abandonnerEnChaine(journal: Journal, github: GitHub, proje
         await github.commenter(ticket, corpsDeSortieAvec(abandon));
         const { root, cause, reason } = abandon;
         journal.ajouter({ project: projet, ticket, author: "runtime", type: "ticket.dropped-with", payload: { root, cause, reason } });
-        console.error(`brigade : la cuisine abandonne le ticket #${ticket} avec #${root}, qu'il attend (${cause}) — il sort du rail, hors de TODO`);
+        console.error(`brigade : la cuisine abandonne le ticket #${ticket} avec #${root}, qu'il attend (${cause}) — il sort du rail, et sa carte attend le chef dans TODO`);
         faits++;
       }
       // Déjà absent, le label n'est pas à retirer : redemandé, il ne coûte rien.

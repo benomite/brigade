@@ -7,7 +7,9 @@ import type { Evenement, Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { empreinte, MARQUEUR_MANAGER } from "../src/juger.ts";
 import { configManager, MANAGER } from "../src/manager.ts";
+import { attentesDuChef } from "../src/attend.ts";
 import { issueDuManager } from "../src/projections/manager.ts";
+import { lireRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
@@ -698,6 +700,21 @@ describe("le manager", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
+  });
+
+  test("le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118)", async (t) => {
+    const { gh, journal, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
+    await jusqua(() => faits(30).length === 2);
+    // La cuisine l'avait pris, puis abandonné : le sondage, qui n'y voit pas `fire`, le sort du rail.
+    journal.ajouter({ project: "brigade", ticket: 30, author: "github", type: "ticket.arrived", payload: { title: "Ticket 30", priority: 1, createdAt: "2026-10-01T00:00:30Z", url: "https://exemple.test/30", card: null } });
+    journal.ajouter({ project: "brigade", ticket: 30, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });
+    const enTodo = () => attentesDuChef(journal.base, lireRail(journal.base)).some((attente) => attente.ticket === 30 && attente.quoi === "abandon");
+    await jusqua(enTodo);
+
+    gh.poser(issue(30, [], { state: "closed" }));
+    await jusqua(() => faits(30).some((e) => e.type === "manager.closed"));
+    assert.equal(enTodo(), false);
+    assert.equal(faits(30).filter((e) => e.type === "manager.closed").length, 1);
   });
 
   test("un journal écrit avant ce fait se rejoue : au premier tour, les issues écartées puis fermées depuis sont constatées fermées", async (t) => {

@@ -263,8 +263,8 @@ The TODO gate (`runtime/src/carte-todo.ts`) admits **two kinds of cards**: a cho
 product (`product`) and a design validation (`design`). Each says **what happens in at most two plain
 sentences** (`resume`: one line, no Markdown), asks **exactly one question** (one line, its only "?") and
 offers **at least two choices**, one line each, with the gesture it plays: `resume` (the kitchen takes the
-ticket up again with your answer), `merge` (the green delivery waiting is merged) or `drop` (the ticket
-leaves the rail). The shape is judged in `runtime/src/carte-todo/forme.ts`. A `design` card shows **the
+ticket up again with your answer), `merge` (the green delivery waiting is merged), `drop` (the ticket
+leaves the rail, or stays off it) or `close` (its issue is closed, the ticket is not cooked). The shape is judged in `runtime/src/carte-todo/forme.ts`. A `design` card shows **the
 captures its ticket delivered** (see "It splits epics"), without which it does not enter; a `product` card
 shows them when there are some. Anything else (a `gesture`, no question or choice) is refused
 (`todo.refused`, with the reason) and **sent back to the triage**, held; the agent reads the reason at its
@@ -274,7 +274,8 @@ next turn. A card sent back three times after an agent answer is no longer taken
 Every ticket in `attend` has a card of the same shape (`runtime/src/carte-todo/cartes.ts`), built from
 what it waits for when no gate card stands for it: a green delivery the pass does not merge, an
 escalation that stays the chef's, a PR closed unmerged, a ticket blocked by one that left the rail, an
-issue the manager set aside or could not read, the manager's question before splitting. A card with a
+issue the manager set aside or could not read, the manager's question before splitting, a ticket the
+kitchen took off the rail without serving it (below). A card with a
 single gesture (merging a green delivery without a grant, a delivery to review — `pass.md`, "The merge
 card of a delivery to review" —, taking a blocked ticket off the rail, handing an issue back) shows that
 one button and asks no question. Every card offers the free answer, and "ask the second" beside its
@@ -296,6 +297,26 @@ moves on: a delivery waiting for you goes back to a cook who reads your answer i
 the rail; an issue held by `blocked-on-human` loses its label and is judged again. What cannot be done
 (no card, a choice out of range, a `merge` with no green delivery, a cook at work) is refused before
 anything is written.
+
+#### A ticket the kitchen takes off the rail without serving it
+
+It never vanishes silently (#2118, `runtime/src/abandon-au-chef.ts`). Three ways lead off the rail
+unserved: the pass's kitchen drops it (`pass.kitchen-took-over` `drop`, [`pass.md`](pass.md)), it leaves
+with a dropped ticket it awaits (`ticket.dropped-with`, [`journal-et-rail.md`](journal-et-rail.md)), or
+the triage removes it instead of asking you (`todo.triaged` `remove`). Once the poll has seen `fire`
+gone, the ticket enters TODO with a card (`type` `abandon`; `decision`: `quoi` `abandon`, `motif` the
+way — `pass`, `chain`, `triage` —, `cause` the dropped escalation's): which ticket, why in one sentence
+of fixed words, and three choices — **Put it back on the rail** (`resume`: `fire` is set again; left
+with a dropped root, it is the root that gets `fire`, and the ticket follows it), **I take it in a dev
+session** (`drop`: it stays off the rail, its issue open, yours by hand), **Close it** (`close`: its
+issue is closed). A free answer puts it back on the rail, with your words on the issue. The `awaiting`
+line says the same: `taken off the rail by the kitchen without being served — <why> — to decide: …`.
+
+**The card stays until you answer**: time, the rail moving or a card answered elsewhere never take it
+away. Only your answer does — on the card (`todo.answered`), `fire` set back by hand (`ticket.arrived`),
+the issue closed (the manager sees it leave the list of open issues and writes `manager.closed`), or
+its PR merged by hand (`merge.done`). Taking a ticket off the rail yourself (`rail drop`, a card's
+`drop`, a human's job) opens no card: the decision is yours.
 
 ### What it leaves on the issue
 

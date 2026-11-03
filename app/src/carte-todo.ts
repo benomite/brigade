@@ -14,7 +14,7 @@ import type { EnvoiDeCarte } from "./tableau/envois.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
 // au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
-// runtime d'avant elle), sa question, ses choix — chacun son texte et sa suite (`resume`, `merge`), dans
+// runtime d'avant elle), sa question, ses choix — chacun son texte et sa suite (`resume`, `merge`, `drop`, `close`), dans
 // l'ordre que `rail choose` numérote à partir de 1 —, et ses captures, nulles sur une carte sans écran.
 // Une carte à un seul geste n'a rien à demander : sa question est nulle.
 export type ChoixLu = { texte: string; suite: string };
@@ -47,6 +47,8 @@ const ECRITE = "your answer is written on the issue in your name";
 const PRIX_DE_SUITE: Readonly<Record<string, string>> = {
   merge: `${ECRITE}, and the green delivery is merged into the integration branch under the station's GitHub account — a merge is not undone from the app`,
   resume: `${ECRITE}, and the kitchen takes the ticket up again with it — a cook may be launched on the project's quota`,
+  drop: `${ECRITE}, and the ticket is off the rail: no cook takes it, its issue stays open`,
+  close: `${ECRITE}, and its issue is closed: the ticket is not cooked`,
 };
 export const PRIX_DU_TEXTE = PRIX_DE_SUITE.resume as string;
 

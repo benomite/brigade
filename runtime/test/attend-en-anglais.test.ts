@@ -125,6 +125,12 @@ const EXEMPLES = {
       },
     },
   ],
+  abandon: [
+    { ...ticket(48), quoi: "abandon", voie: "pass", cause: "manager-escalated", root: null },
+    { ...ticket(49), quoi: "abandon", voie: "pass", cause: "wrong-base", root: null },
+    { ...ticket(50), quoi: "abandon", voie: "chain", cause: "wrong-base", root: 49 },
+    { ...ticket(51), quoi: "abandon", voie: "triage", cause: null, root: null },
+  ],
   connexion: [
     { ...horsTicket, quoi: "connexion", station: "box/claude", reason: "not-logged-in" },
     { ...horsTicket, quoi: "connexion", station: "mac/claude", reason: null },

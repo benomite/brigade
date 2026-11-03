@@ -136,7 +136,7 @@ describe("the validation refuses an incomplete card, saying why", () => {
     assert.match(sans, /resume or merge/);
     assert.match(refusee(validerCarte({ ...UN_GESTE, choix: [{ texte: "Merge.", suite: " " }] })), /choice 1 .* names no gesture/);
     assert.match(refusee(validerCarte({ ...UN_GESTE, choix: [{ texte: "Merge.", suite: null }] })), /names no gesture/);
-    assert.match(refusee(validerCarte({ ...UN_GESTE, choix: [{ texte: "Close it.", suite: "close" }] })), /unknown gesture “close”/);
+    assert.match(refusee(validerCarte({ ...UN_GESTE, choix: [{ texte: "Archive it.", suite: "archive" }] })), /unknown gesture “archive”/);
   });
 
   test("“ask the second” offered as a choice", () => {
