@@ -306,6 +306,30 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.changes(branche), ["docs/notes du chef.md", "docs/équipe.md"]);
   });
 
+  test("un cook coupé en route a laissé son worktree et sa branche : le run repart de la base au lieu d'échouer", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-github");
+    commiter(worktree, "reste.txt");
+    writeFileSync(join(worktree, "traine.txt"), "pas commité");
+
+    const neuf = await depot.preparer("15-github");
+
+    assert.deepEqual(neuf, { worktree, branche });
+    assert.deepEqual([existsSync(join(worktree, "reste.txt")), existsSync(join(worktree, "traine.txt"))], [false, false]);
+    assert.equal(depot.commits(branche), 0);
+  });
+
+  test("un cook coupé en route a laissé son worktree : le cook qui reprend la branche s'y accroche quand même", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-github");
+    commiter(worktree, "reste.txt");
+
+    const repris = await depot.reprendre("15-github", branche);
+
+    assert.equal(repris, worktree);
+    assert.equal(existsSync(join(repris, "reste.txt")), true);
+  });
+
   test("une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station", async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");

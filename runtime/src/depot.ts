@@ -515,6 +515,24 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     if (dirname(resolve(worktree)) !== worktrees || resolve(worktree) === essais) throw new Error(`« ${worktree} » est hors du répertoire des worktrees (${worktrees}) : rien n'y est retiré`);
   };
 
+  // Le reste d'un cook coupé en route : son worktree traîne au même chemin, et
+  // git refuse d'en accrocher un second. Il part, avec ce qu'il portait sans
+  // l'avoir commité ; la branche, elle, n'est pas touchée. Rend vrai s'il y en
+  // avait un.
+  const liberer = (worktree: string): boolean => {
+    const reste = existsSync(worktree);
+    if (reste) {
+      try {
+        git("worktree", "remove", "--force", worktree);
+      } catch {
+        // Plus un worktree de ce clone (ou un dossier quelconque) : on le jette.
+        rmSync(worktree, { recursive: true, force: true });
+      }
+    }
+    git("worktree", "prune");
+    return reste;
+  };
+
   return {
     rapatrier: () =>
       aSonTour(async () => {
@@ -612,12 +630,16 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const worktree = join(worktrees, run);
         const branche = `cook/${run}`;
         await rapatrier();
-        await gitAsync("worktree", "add", "--quiet", "-b", branche, worktree, `origin/${base}`);
+        // Un cook coupé en route a pu laisser son worktree, et sa branche avec :
+        // le run repart de la base.
+        const reste = liberer(worktree);
+        await gitAsync("worktree", "add", "--quiet", reste ? "-B" : "-b", branche, worktree, `origin/${base}`);
         return { worktree, branche };
       }),
     reprendre: (run, branche) =>
       aSonTour(async () => {
         const worktree = join(worktrees, run);
+        liberer(worktree);
         // La base rapatriée : le cook du renvoi peut avoir à s'y rebaser.
         await rapatrier();
         // La branche, telle que l'origine la porte à cet instant : un humain a
