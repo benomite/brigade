@@ -28,6 +28,8 @@ import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { LABEL } from "./github.ts";
+import { allureDuProcess, estUneEcriture } from "./github-allure.ts";
+import { PROJET_DE_LA_STATION } from "./limite-github.ts";
 import { POSABLES } from "./poser-decisions.ts";
 import { ETAPES } from "./etapes.ts";
 import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions, type Decision } from "./decisions.ts";
@@ -130,9 +132,11 @@ function lancer(bin: string, args: string[], options: { cwd?: string; env: NodeJ
 type Reponse = { statut: number; corps: string; suivant: string | null };
 
 // `gh api -i` : la réponse HTTP fait foi, pas le code de sortie — `gh` sort en
-// erreur sur un 404.
+// erreur sur un 404. Un geste du chef : il prend sa place à l'allure du compte
+// (`github-allure.ts`), sans que la limite du compte le retienne.
 async function appelerGh(bin: string, env: NodeJS.ProcessEnv, args: string[]): Promise<Reponse> {
-  const { stdout, stderr } = await lancer(bin, ["api", "-i", ...args], { env });
+  const passage = { projet: process.env.BRIGADE_PROJECT || PROJET_DE_LA_STATION, ecriture: estUneEcriture(args), geste: true, bailMs: DELAI_MS + 30_000 };
+  const { stdout, stderr } = await allureDuProcess().passer(passage, () => lancer(bin, ["api", "-i", ...args], { env }));
   const [tete = "", ...reste] = stdout.split(/\r?\n\r?\n/);
   const statut = /^HTTP\/\S+ (\d{3})/.exec(tete)?.[1];
   if (!statut) throw new Error(stderr.trim() || "unreadable response");

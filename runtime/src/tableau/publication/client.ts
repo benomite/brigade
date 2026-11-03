@@ -12,6 +12,8 @@ import { masquerIdentifiants } from "../../identifiants.ts";
 import { LECTURE_DU_TABLEAU } from "../budget/cout.ts";
 import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
 import { execFile } from "../../sans-invite.ts";
+import { allureDuProcess, estUneEcriture, retenueDuCompte } from "../../github-allure.ts";
+import { limitesDuProcess } from "../../github-limite.ts";
 
 // Une issue telle que le tableau la lit.
 export type IssueDuTableau = { numero: number; ouverte: boolean; titre: string; corps: string; labels: string[] };
@@ -104,9 +106,14 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
     const limite = options.limite ?? limiteDuProcess();
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
-    await environnement();
-    return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    const projet = options.projet ?? (process.env.BRIGADE_PROJECT || depot);
+    // Sa place d'abord, à l'allure du compte (`github-allure.ts`).
+    const passage = { compte, projet, ecriture: entree !== undefined || estUneEcriture(args), geste: usage === "geste", retenue: retenueDuCompte(limitesDuProcess(), options.maintenant), bailMs: (options.delaiMs ?? 30_000) + 30_000 };
+    return allureDuProcess().passer(passage, async () => {
+      const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet, lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
+      await environnement();
+      return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    });
   };
 
   const exiger = (reponse: ReponseHttp, chemin: string, attendu = 200): ReponseHttp => {

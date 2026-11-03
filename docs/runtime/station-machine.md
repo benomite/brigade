@@ -111,6 +111,20 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   divided among projects; what grows with projects is the consumption.
 - **Tuning**: no environment variable; the reserve (`RESERVE_DES_GESTES`) is a constant of
   `runtime/src/limite-github.ts`.
+- **The pace under the secondary limits (#2145).** Every `gh api` call of the runtime takes a place in
+  one queue per account, shared by the station and all its projects
+  (`<BRIGADE_STATION_DIR>/appels-github/allure.db`; in memory outside a station;
+  `runtime/src/github-allure.ts`). Writes leave spaced: the first 10 of a quiet minute at once, then one
+  every 60 s / N, never more than N on a sliding minute (default 60) nor than the hourly budget
+  (default 400). Every request, read or write, holds an in-flight place until its answer (default 10
+  at once); reads are paced by nothing else. A freed place goes to the project served least recently,
+  so a busy project does not starve the others; a chef's gesture goes first. While GitHub limits the
+  account (the `github` entry of `faits`), kitchen writes are held until `backAt`, then leave by
+  themselves; a gesture is not held. The defaults stay under GitHub's documented limits (80 writes a
+  minute, 500 an hour, 100 concurrent requests); station settings `BRIGADE_GITHUB_WRITES_PER_MINUTE`,
+  `BRIGADE_GITHUB_WRITES_PER_HOUR` and `BRIGADE_GITHUB_CONCURRENT_REQUESTS` change them, up to those
+  limits — a value beyond, or unreadable, is refused. A test of `github-allure.test.ts` reads the
+  sources and fails if a module launches `gh api` and writes without the pace.
 - **The hourly line**: the log writes `brigade : N appels GitHub sur l'heure écoulée` (all processes),
   plus `— GitHub en dit R restants sur 5000` when GitHub has said its quota.
 - **GitHub's limit reached** (its 429, or its 403 "rate limit"; a 403 on a forbidden merge stays a

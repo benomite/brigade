@@ -4,6 +4,8 @@
 // machine : ce qu'elle a à dire, elle l'écrit là.
 import { execFile } from "../sans-invite.ts";
 import { decouper } from "../github.ts";
+import { allureDuProcess, estUneEcriture, retenueDuCompte } from "../github-allure.ts";
+import { limitesDuProcess } from "../github-limite.ts";
 import { constaterLimite, COMPTE_DE_LA_MACHINE, limiteDuProcess, noterLesEntetes, PROJET_DE_LA_STATION, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
 
 export type Fichiers = Record<string, string>;
@@ -36,7 +38,13 @@ const lus = new Map<string, { etag: string; corps: string }>();
 export function canalGitHub(options: OptionsCanal): Canal {
   const env = { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
   // Le corps de la réponse, ou `inchange` si GitHub a répondu 304.
-  const appeler = async (args: string[], entree?: unknown): Promise<{ corps: string; etag: string | null } | "inchange"> => {
+  // Sa place d'abord, à l'allure du compte de la machine (`github-allure.ts`).
+  const appeler = (args: string[], entree?: unknown): Promise<{ corps: string; etag: string | null } | "inchange"> =>
+    allureDuProcess().passer(
+      { projet: PROJET_DE_LA_STATION, ecriture: entree !== undefined || estUneEcriture(args), retenue: retenueDuCompte(limitesDuProcess(), options.maintenant), bailMs: (options.delaiMs ?? 30_000) + 30_000 },
+      () => lancer(args, entree),
+    );
+  const lancer = async (args: string[], entree?: unknown): Promise<{ corps: string; etag: string | null } | "inchange"> => {
     // Un appel que le quota réel retient ne part pas.
     const limite = options.limite ?? limiteDuProcess();
     const appel = await prendreUnAppel(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist" }, gh: options.gh, env: async () => env, maintenant: options.maintenant });

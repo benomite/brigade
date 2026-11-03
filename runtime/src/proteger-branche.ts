@@ -22,6 +22,8 @@
 // n'a pas forcément, et la station reste alors la seule barrière.
 import { execFile } from "./sans-invite.ts";
 import { existsSync } from "node:fs";
+import { allureDuProcess } from "./github-allure.ts";
+import { PROJET_DE_LA_STATION } from "./limite-github.ts";
 import { configRail } from "./alimenter.ts";
 import { Sortie, type Appel } from "./appel.ts";
 import { ETAPES, installationDe, noterEtape } from "./etapes.ts";
@@ -46,9 +48,13 @@ export type ClientGitHub = (requete: RequeteGitHub) => Promise<ReponseGitHub>;
 
 // `gh api -i` : la réponse HTTP fait foi, pas le code de sortie — `gh` sort en
 // erreur sur un 404. Le corps d'une écriture passe par l'entrée standard.
+// Un geste du chef : chaque requête prend sa place à l'allure du compte
+// (`github-allure.ts`), sans que la limite du compte la retienne.
 export function clientGh(bin: string, env: NodeJS.ProcessEnv): ClientGitHub {
-  return (requete) =>
-    new Promise((resoudre, rejeter) => {
+  const passage = (requete: RequeteGitHub) => ({ projet: env.BRIGADE_PROJECT || PROJET_DE_LA_STATION, ecriture: requete.methode !== "GET", geste: true, bailMs: DELAI_MS + 30_000 });
+  return (requete) => allureDuProcess().passer(passage(requete), () => lancer(requete));
+  function lancer(requete: RequeteGitHub): Promise<ReponseGitHub> {
+    return new Promise((resoudre, rejeter) => {
       // Une lecture part sans `-X` : rien, dans ses arguments, ne ressemble à une écriture.
       const methode = requete.methode === "GET" ? [] : ["-X", requete.methode];
       const args = ["api", "-i", ...methode, ...(requete.corps === undefined ? [] : ["--input", "-"]), requete.chemin];
@@ -70,6 +76,7 @@ export function clientGh(bin: string, env: NodeJS.ProcessEnv): ClientGitHub {
       enfant.stdin?.on("error", () => {});
       enfant.stdin?.end(requete.corps === undefined ? undefined : JSON.stringify(requete.corps));
     });
+  }
 }
 
 // La protection que le runtime suppose, telle que GitHub la reçoit.

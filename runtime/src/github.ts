@@ -7,6 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { allureDuProcess, estUneEcriture, retenueDuCompte, type Allure } from "./github-allure.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
@@ -151,6 +152,9 @@ export type OptionsGitHub = {
   // Où se dit la limite que GitHub impose au compte, pour `status` et `faits`.
   // Par défaut, celle du process (`github-limite.ts`).
   limitesDuCompte?: LimitesDuCompte;
+  // L'allure que prend chaque `gh api`, partagée par tout le compte. Par
+  // défaut, celle du process (`github-allure.ts`).
+  allure?: Allure;
   // `geste` : ce GitHub sert un geste du chef — la box ne retient aucun de ses
   // appels, seul un refus de GitHub les arrête. Par défaut, `cuisine` : ses
   // appels se règlent sur le quota réel du compte.
@@ -264,14 +268,6 @@ function lire(brute: IssueBrute): Issue {
   };
 }
 
-// Vrai si `gh api` écrit : une méthode autre que GET, ou des champs sans
-// méthode dite — `gh` envoie alors un POST.
-function estUneEcriture(args: readonly string[]): boolean {
-  const methode = args.findIndex((arg) => arg === "-X" || arg === "--method");
-  if (methode !== -1) return (args[methode + 1] ?? "GET").toUpperCase() !== "GET";
-  return args.some((arg) => ["-f", "-F", "--field", "--raw-field", "--input"].includes(arg));
-}
-
 // `gh api -i` imprime la ligne de statut, les en-têtes, une ligne vide, puis
 // le corps. Rend null si la sortie ne commence pas par une réponse HTTP.
 export function decouper(sortie: string): Reponse | null {
@@ -306,15 +302,24 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // Chaque page, chaque requête conditionnelle est un appel : un appel de la
   // cuisine que le quota réel retient ne part pas. Chaque réponse dit le quota
   // qui reste ; un 304, que GitHub ne compte pas, sort du compte de la box.
+  // Chaque appel prend d'abord sa place à l'allure du compte (`github-allure.ts`) :
+  // les écritures s'espacent, les requêtes en vol sont bornées, et tant que
+  // GitHub limite le compte, les écritures de la cuisine attendent sa reprise.
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
-  const appeler = async (brut: string[]): Promise<Reponse> => {
+  const projet = options.projet ?? (process.env.BRIGADE_PROJECT || depot);
+  const appeler = (brut: string[]): Promise<Reponse> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
+    const limites = options.limitesDuCompte ?? limitesDuProcess();
+    const passage = { compte, projet, ecriture: estUneEcriture(args), geste: options.usage === "geste", retenue: retenueDuCompte(limites, options.maintenant), bailMs: (options.delaiMs ?? 30_000) + 30_000, signal: abandon.signal };
+    return (options.allure ?? allureDuProcess()).passer(passage, () => lancer(args, limites));
+  };
+  const lancer = async (args: string[], limites: LimitesDuCompte): Promise<Reponse> => {
     const limite = options.limite ?? limiteDuProcess();
     // `GH_TOKEN` l'emporte sur la connexion du compte, et ne se lit pas dans
     // la liste des process.
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet, lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       execFile(
@@ -329,7 +334,6 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           // elle suspend les appels, et ne passe jamais pour un refus (de merge).
           // Et elle se nomme au compte : laquelle, depuis quand, jusqu'à quand. Un appel
           // qui aboutit la lève, une fois sa reprise passée.
-          const limites = options.limitesDuCompte ?? limitesDuProcess();
           if (reponse && refusPourLimite(reponse)) {
             constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then((atteinte) => {
               limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
