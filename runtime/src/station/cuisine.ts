@@ -39,6 +39,7 @@ import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
 import { nomDeclare } from "./nom.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
+import { lireRail } from "../projections/rail.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
 import { retenirSansDecision } from "../onboarding/attente.ts";
 import { attendreLaPreparation } from "../preparation-depot/attendre.ts";
@@ -360,6 +361,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       runtime.arreter(motif);
     },
     arretee: () => finDuTour,
-    enCuisine: () => servieSurGitHub?.enCuisine() ?? [],
+    // Ses cooks en vol, pour la mise à jour de la station (#2189) : ceux du
+    // chemin GitHub seul, ou, sur l'ancien chemin, les tickets pris de son
+    // journal. L'ancien chemin ne se retient pas pendant le drain : tant qu'il a
+    // un cook, la station ne demande pas sa relance — elle tarde, sans rien couper.
+    enCuisine: () => (servieSurGitHub !== null ? servieSurGitHub.enCuisine() : arretee ? [] : lireRail(annoncee.journal.base).filter((ticket) => ticket.state === "taken").map((ticket) => ticket.ticket)),
   };
 }
