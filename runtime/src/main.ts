@@ -199,6 +199,7 @@ try {
         : stationDuDepot({
             nom: ici.nom,
             places: ici.cooks,
+            capacites: ici.fournit,
             base: station.base,
             depotGitHub: rail.depot,
             github: githubs.pass,

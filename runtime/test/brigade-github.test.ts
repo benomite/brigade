@@ -140,11 +140,12 @@ class FauxGitHub {
     return priseDeLaStation(github, station);
   }
 
-  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
+  station(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
       places: options.places ?? 1,
+      ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",
       github,
       prise: this.prise(github, nom),
@@ -571,4 +572,23 @@ test("the switch is on for brigade, in its project settings file, and off for a 
     () => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: "yes" })),
     (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.cle === "githubOnlyState",
   );
+});
+
+test("a station never claims a ticket that needs a capability it lacks, and claims it once it has every one (#2187)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, [...CALIBRE, "needs:mac"]);
+  faux.feu(2, [...CALIBRE, "needs:mac", "needs:android"]);
+  faux.feu(3);
+  const sans = faux.station("A", { places: 3 });
+  await sans.tour();
+  await sans.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 3 }]);
+  const partielle = faux.station("B", { places: 3, capacites: ["mac"] });
+  await partielle.tour();
+  await partielle.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [3, 1]);
+  const complete = faux.station("C", { places: 3, capacites: ["mac", "android"] });
+  await complete.tour();
+  await complete.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [3, 1, 2]);
 });
