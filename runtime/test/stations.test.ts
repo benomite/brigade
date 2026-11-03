@@ -17,6 +17,10 @@ const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:1:code+raisonnement,bo
 const [CLAUDE, PLAYWRIGHT] = ["box/claude", "box/playwright"];
 
 // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
+// Les cooks qui doivent tenir tout le test, quelle que soit la charge du runner : aux 60 s des
+// plafonds par défaut, un cook d'attente est arrêté pour durée, rend sa place, et un ticket de trop part.
+const PLAFONDS_DU_TEST = { durationMs: 120_000, idleMs: 120_000 };
+
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
 describe("les stations que le projet déclare", { concurrency: 8 }, () => {
@@ -54,8 +58,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   // deux minutes du faux `claude`, et leurs plafonds de durée et d'inactivité sont de deux
   // minutes aussi.
   test("le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend", async (t) => {
-    const plafonds = { durationMs: 120_000, idleMs: 120_000 };
-    const { journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "attend", plafonds, issues: [issue(14), issue(15), issue(16), issue(17)] });
+    const { journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "attend", plafonds: PLAFONDS_DU_TEST, issues: [issue(14), issue(15), issue(16), issue(17)] });
     await jusqua(() => lancements().length === 3);
     await laisserServir();
 
@@ -256,9 +259,12 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
 
   test("le quota est celui du compte : épuisé pour le cook d'une station, il retient toutes les stations du projet", async (t) => {
     // Trois places, quatre tickets : le premier cook lancé bute sur le quota et
-    // rend sa place ; les deux autres tournent, et ne rendent pas la leur.
+    // rend sa place ; les deux autres tournent, et ne rendent pas la leur. Sous
+    // Windows chargé, ce test passait la minute des plafonds par défaut : les deux
+    // cooks d'attente étaient arrêtés pour durée, le quatrième ticket partait, et
+    // « trois lancés » n'était plus jamais vrai (`jusqua` : condition jamais remplie).
     const numeros = [14, 15, 16, 17];
-    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota-quand-lances"], issues: numeros.map((numero) => issue(numero)) });
+    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota-quand-lances"], plafonds: PLAFONDS_DU_TEST, issues: numeros.map((numero) => issue(numero)) });
     const etats = () => numeros.map(etat);
     await jusqua(() => etats().includes("86") && types().filter((type) => type === "cook.launched").length === 3);
     await jusqua(() => etatStation(journal.base, PLAYWRIGHT)?.heldReason === "quota");
