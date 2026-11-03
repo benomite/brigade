@@ -11,6 +11,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
+import { direLeReleveGitHub, releveGitHubDeLaStation } from "./mesures-github.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { ciDurationSection } from "./measures/ci-duration.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
@@ -53,6 +54,10 @@ try {
   for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) console.log(ligne);
   console.log("");
   for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) console.log(ligne);
+  // Rien de relevé, c'est aucune minute limitée et aucune écriture.
+  const github = releveGitHubDeLaStation(process.env.BRIGADE_STATION_DIR, Date.now()) ?? { minutesLimitees: 0, pointEcritures: 0 };
+  console.log("");
+  for (const ligne of direLeReleveGitHub(github)) console.log(ligne);
   const ci = await ciDurationSection(process.env.BRIGADE_GITHUB_REPO);
   if (ci.length > 0) console.log("");
   for (const ligne of ci) console.log(ligne);

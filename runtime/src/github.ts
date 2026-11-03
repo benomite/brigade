@@ -7,6 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
@@ -316,6 +317,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
     const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
+    // Une écriture qui part est comptée à la minute, une fois la pause passée.
+    if (estUneEcriture(args)) mesuresGitHubDuProcess().noterEcriture();
     return new Promise((resoudre, rejeter) => {
       execFile(
         bin,
@@ -332,7 +335,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           const limites = options.limitesDuCompte ?? limitesDuProcess();
           if (reponse && refusPourLimite(reponse)) {
             constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then((atteinte) => {
-              limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
+              const lue = lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua });
+              limites.constater(compte, lue);
+              mesuresGitHubDuProcess().noterLimite(lue.depuis, lue.reprise);
               rejeter(atteinte);
             }, rejeter);
           } else if (reponse) {
