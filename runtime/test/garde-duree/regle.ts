@@ -3,12 +3,15 @@
 // gardes écrites. Les fautes d'aujourd'hui sont dans `exceptions.ts`, et une exception inutile est elle-même
 // une faute : la liste ne peut pas rancir.
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const LIMITE_MS = 2000;
 export type Exception = { file: string; test: string } | { file: string; garde: string };
 export type Garde = { file: string; garde: string; ms: number; line: number };
+
+// Le chemin d'un fichier depuis la racine du runtime, toujours en `/` (sous Windows le système écrit `\`).
+export const chemin = (racine: string, fichier: string): string => relative(racine, fichier).split(sep).join("/");
 
 const RACINE_RUNTIME = fileURLToPath(new URL("../..", import.meta.url));
 const ICI = fileURLToPath(new URL(".", import.meta.url));
@@ -103,7 +106,7 @@ export function gardesDuFichier(texte: string, file: string): Garde[] {
 }
 
 export function gardesDuDepot(racine = RACINE_RUNTIME): Garde[] {
-  return fichiersDeTest(racine).flatMap((f) => gardesDuFichier(readFileSync(f, "utf8"), relative(racine, f)));
+  return fichiersDeTest(racine).flatMap((f) => gardesDuFichier(readFileSync(f, "utf8"), chemin(racine, f)));
 }
 
 const nomme = (e: Exception): string => ("test" in e ? `test « ${e.test} »` : `garde ${e.garde}`);
@@ -146,7 +149,7 @@ export function fichiersDuTitre(titre: string, sources: Map<string, string>): st
 
 export function sourcesDesTests(racine = RACINE_RUNTIME): Map<string, string> {
   const sources = new Map<string, string>();
-  for (const f of [...fichiersDeTest(racine), ...fichiersDeTestsDuRepertoire(join(racine, "test-hang-guard"))]) sources.set(relative(racine, f), readFileSync(f, "utf8"));
+  for (const f of [...fichiersDeTest(racine), ...fichiersDeTestsDuRepertoire(join(racine, "test-hang-guard"))]) sources.set(chemin(racine, f), readFileSync(f, "utf8"));
   return sources;
 }
 
@@ -159,7 +162,9 @@ const sert = (m: Mesure, e: { file: string }): boolean => m.fichiers.includes(e.
 // Les durées mesurées, moins les tests que la liste excuse ; puis les excuses d'un fichier qui a tourné et
 // dont le test n'a pas paru. Un test redevenu rapide reste excusé : sa durée suit la charge de la machine, et
 // une exception ne doit pas clignoter selon qu'elle est quiète ou chargée. Un fichier qui n'a pas tourné (suite partielle) ne juge rien.
-export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichiersJoues: Set<string>): string[] {
+// `ecrit(fichier, titre)` dit si ce titre est encore écrit dans ce fichier : un test sauté sur cette machine
+// (Windows, pas de pwsh) ne paraît pas, sans avoir disparu du code.
+export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichiersJoues: Set<string>, ecrit: (fichier: string, titre: string) => boolean = () => false): string[] {
   const excuses = exceptions.filter((e): e is { file: string; test: string } => "test" in e);
   const fautes = mesures
     .filter((m) => m.ms > LIMITE_MS && !excuses.some((e) => e.test === m.test && sert(m, e)))
@@ -167,7 +172,7 @@ export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichi
   for (const e of excuses) {
     if (!fichiersJoues.has(e.file)) continue;
     const vus = mesures.filter((m) => m.test === e.test && sert(m, e));
-    if (vus.length === 0) fautes.push(`exception périmée : ${nomme(e)} dans ${e.file} — ce test n'existe plus ; retire-le de exceptions.ts`);
+    if (vus.length === 0 && !ecrit(e.file, e.test)) fautes.push(`exception périmée : ${nomme(e)} dans ${e.file} — ce test n'existe plus ; retire-le de exceptions.ts`);
   }
   return fautes;
 }

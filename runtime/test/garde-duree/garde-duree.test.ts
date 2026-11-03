@@ -1,11 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXCEPTIONS } from "./exceptions.ts";
-import { gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, racineDuRuntime, valeur } from "./regle.ts";
-import { relative } from "node:path";
+import { chemin, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, racineDuRuntime, valeur } from "./regle.ts";
 
 test("aucune garde de plus de 2 s hors de la liste d'exceptions, et aucune exception de garde périmée", () => {
-  const lus = new Set(fichiersDeTest().map((f) => relative(racineDuRuntime, f)));
+  const lus = new Set(fichiersDeTest().map((f) => chemin(racineDuRuntime, f)));
   const fautes = jugerLesGardes(gardesDuDepot(), EXCEPTIONS, lus);
   assert.deepEqual(fautes, []);
 });
@@ -64,6 +63,11 @@ test("un test de plus de 2 s qui est listé passe ; le même test disparu rend l
   const disparu = jugerLesDurees([], [exception], joues("test/z.test.ts"));
   assert.equal(disparu.length, 1);
   assert.match(disparu[0] ?? "", /périmée.*lent.*test\/z\.test\.ts/);
+});
+
+test("un test sauté ici mais encore écrit dans son fichier ne rend pas son exception périmée", () => {
+  const exception = { file: "test/z.test.ts", test: "lent" };
+  assert.deepEqual(jugerLesDurees([], [exception], joues("test/z.test.ts"), () => true), []);
 });
 
 test("une suite partielle ne juge pas les exceptions des fichiers qu'elle n'a pas joués", () => {
