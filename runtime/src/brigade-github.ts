@@ -305,7 +305,7 @@ export type OptionsDuDepot = {
   depotGitHub: string;
   github: GitHub;
   // Le dépôt de la station, d'où partent les worktrees de ses cooks.
-  depot: Pick<Depot, "preparer" | "reprendre" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff">;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff">;
   // La prise de #2056, liée à la station ; null tant que son module n'est pas
   // dans ce runtime.
   prise: ((github: GitHubDuTour, station: string) => Prise) | null;
@@ -340,8 +340,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
     let lieu: { worktree: string; branche: string };
+    // Le run d'un ticket est toujours le même : la branche d'un cook précédent
+    // (livrée, ou refusée par la pass) est encore là, et `preparer` ne sait pas
+    // la recréer. Le cook en repart, comme d'un renvoi — et elle n'est pas à
+    // jeter s'il échoue : elle porte une livraison.
+    const reprise = depot.connait(brancheDuTicket(ticket.number));
     try {
-      lieu = await depot.preparer(run);
+      lieu = reprise ? { worktree: await depot.reprendre(run, brancheDuTicket(ticket.number)), branche: brancheDuTicket(ticket.number) } : await depot.preparer(run);
     } catch (erreur) {
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }
@@ -352,7 +357,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const fin = await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(flux), fin.code);
     if (conclusion !== "done") {
-      depot.retirer(worktree, branche);
+      depot.retirer(worktree, reprise ? undefined : branche);
       return { echec: fin.erreur ?? conclusion };
     }
     await depot.ranger(worktree, branche);

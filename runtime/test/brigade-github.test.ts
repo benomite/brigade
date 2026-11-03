@@ -456,6 +456,7 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
     depotGitHub: "faux/depot",
     github: fauxClient(faux),
     depot: {
+      connait: () => false,
       preparer: async (run) => {
         fait.push(`preparer ${run}`);
         return { worktree: join(repertoire, run), branche: `cook/${run}` };
@@ -504,6 +505,54 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Remark \(`a\.ts`\): a nit/);
 });
 
+test("a ticket whose branch a previous cook left in the clone is resumed from that branch, not prepared anew, and a failed resume keeps the branch", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(13);
+  const fait: string[] = [];
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, fluxQuiConclut("done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: { reason: "tokens", limit: 1, observed: 2 }, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: (branche) => branche === "cook/13-github",
+      preparer: async () => assert.fail("`git worktree add -b` cannot recreate a branch the clone already has"),
+      reprendre: async (run, branche) => {
+        fait.push(`reprendre ${run} ${branche}`);
+        return join(repertoire, run);
+      },
+      retirer: (worktree, branche) => void fait.push(`retirer ${worktree.slice(repertoire.length + 1)} ${branche ?? "-"}`),
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => [],
+      diff: () => "",
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(fait, ["reprendre 13-github cook/13-github", "retirer 13-github -"]);
+});
+
 test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {
   const refus = stationDuDepot({ prise: null } as unknown as Parameters<typeof stationDuDepot>[0]);
   assert.deepEqual(refus, { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" });
@@ -526,6 +575,7 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
       depotGitHub: "faux/depot",
       github: fauxClient(faux, nom),
       depot: {
+        connait: () => false,
         preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
         reprendre: async (run) => join(repertoire, run),
         retirer: () => {},
