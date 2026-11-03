@@ -33,6 +33,7 @@ import { execFile } from "./sans-invite.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
+import { alerteAEmettre, categorieDe, categorieDeLaLecture, direLAlerte, instantaneDe, preparerLeRegistre, ticketDe, type AlerteDeBudget, type Categorie, type InstantaneDuBudget } from "./github/budget-appels.ts";
 
 export const FENETRE_MS = 60 * 60_000;
 // Le compteur partagé, dans le répertoire de la station : une base et ses
@@ -93,7 +94,9 @@ export class CuisineRalentie extends LimiteGitHubAtteinte {
 // fait (`LECTURES`). Sans lui, l'appel est compté sous le projet « station ».
 // `ecriture` : l'appel écrit sur GitHub (un commentaire, un label, une PR) —
 // c'est ce que les limites secondaires de GitHub plafonnent (#2145).
-export type Etiquette = { projet: string; lecture: Lecture; ecriture?: boolean };
+// `categorie` et `ticket` : ce que le budget par projet en retient (#2196) ;
+// sans elles, la catégorie se déduit de la lecture, et le ticket n'est pas su.
+export type Etiquette = { projet: string; lecture: Lecture; ecriture?: boolean; categorie?: Categorie; ticket?: number | null };
 
 // Le rythme des écritures de la cuisine, par compte et pour tous les projets de
 // la station ensemble (#2145). GitHub dit, pour ses limites secondaires, au plus
@@ -144,6 +147,11 @@ export function lectureDe(args: readonly string[], usage: Usage = "cuisine"): Le
   return "other";
 }
 
+// L'étiquette entière d'un appel `gh api`, lue dans ses arguments.
+export function etiquetteDe(args: readonly string[], options: { projet: string; usage?: Usage }): Etiquette {
+  return { projet: options.projet, lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args), categorie: categorieDe(args), ticket: ticketDe(args) };
+}
+
 // Les appels comptés sur l'heure écoulée : leur total, et leur répartition par
 // projet et par sorte de lecture, le plus gros d'abord (à égalité, par nom).
 export type Repartition = {
@@ -177,6 +185,8 @@ export type Limite = {
   appels(): number;
   // Les mêmes appels, répartis par projet et par sorte de lecture.
   repartition(): Repartition;
+  // Le budget de l'heure d'horloge en cours, par projet (#2196).
+  budget(): InstantaneDuBudget;
   fermer(): void;
 };
 
@@ -185,6 +195,9 @@ export type OptionsLimite = {
   fichier?: string;
   // En millisecondes. Par défaut, l'horloge du système.
   maintenant?: () => number;
+  // Un projet a passé son budget horaire : une fois par projet et par heure,
+  // pour tous ceux qui tiennent ce compteur. Par défaut, une ligne au journal.
+  alerter?: (alerte: AlerteDeBudget) => void;
 };
 
 // Le temps qu'un autre process tienne le compteur : une transaction y dure
@@ -207,6 +220,8 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
   for (const colonne of ["projet", "lecture", "compte"]) if (!colonnes.includes(colonne)) base.script(`ALTER TABLE appels ADD COLUMN ${colonne} TEXT;`);
   if (!colonnes.includes("ecriture")) base.script("ALTER TABLE appels ADD COLUMN ecriture INTEGER NOT NULL DEFAULT 0;");
+  preparerLeRegistre(base);
+  const alerter = options.alerter ?? ((alerte: AlerteDeBudget) => console.error(direLAlerte(alerte)));
 
   const quotaDe = (compte: string, instant: number): Quota | null => {
     const [lu] = base.lire<QuotaLu>("SELECT restant, plafond, reset, vu FROM quota WHERE compte = ?", compte);
@@ -219,7 +234,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number } | number => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number } | { appel: number; alerte: AlerteDeBudget | null } => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -243,16 +258,29 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
             }
           }
         }
-        return base.executer(
-          "INSERT INTO appels (instant, projet, lecture, compte, ecriture) VALUES (?, ?, ?, ?, ?)",
+        const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
+        const lecture = etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other");
+        const appel = base.executer(
+          "INSERT INTO appels (instant, projet, lecture, compte, ecriture, categorie, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)",
           instant,
-          etiquette?.projet ?? PROJET_DE_LA_STATION,
-          etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other"),
+          projet,
+          lecture,
           compte,
           etiquette?.ecriture === true ? 1 : 0,
+          etiquette?.categorie ?? categorieDeLaLecture(lecture),
+          etiquette?.ticket ?? null,
         ).dernierId;
+        return { appel, alerte: alerteAEmettre(base, projet, etiquette?.ecriture === true, instant) };
       });
-      if (typeof refus === "number") return refus;
+      if ("appel" in refus) {
+        // Une alerte qui ne se dit pas ne retient jamais l'appel.
+        if (refus.alerte !== null) {
+          try {
+            alerter(refus.alerte);
+          } catch {}
+        }
+        return refus.appel;
+      }
       if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()));
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
@@ -297,6 +325,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
       return compte?.n ?? 0;
     },
     repartition: () => repartitionDe(base, maintenant()),
+    budget: () => instantaneDe(base, maintenant()),
     fermer: () => base.fermer(),
   };
 }
@@ -322,6 +351,24 @@ export function appelsDeLaStation(racine: string | undefined, maintenant: number
   try {
     base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
     return repartitionDe(base, maintenant);
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// Le budget de l'heure de la station dont `racine` est le répertoire, lu sans
+// rien écrire ni rien créer : null si elle n'a pas de compteur, ou s'il ne se
+// lit pas — un compteur d'avant le registre n'a pas ses colonnes.
+export function budgetDeLaStation(racine: string | undefined, maintenant: number): InstantaneDuBudget | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    return instantaneDe(base, maintenant);
   } catch {
     return null;
   } finally {
