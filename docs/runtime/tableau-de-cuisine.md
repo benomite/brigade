@@ -200,17 +200,23 @@ GitHub refuses a body over 65,536 characters. Too long, the body first shortens 
 then removes from the block, in this order, until it fits; each step that removed something is named
 in `resserre`:
 
-1. `activites.etapes` — each cook's past steps: what it does right now stays;
-2. `faits.livres.relecture` — the reviews of the served tickets;
-3. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
-4. `faits.corrections.diff` — the proposed corrections' diffs;
-5. `avantLeRail.dit` — each `dit` becomes `""`, the issues and their state stay;
-6. `avantLeRail` — the issues before the rail, whole;
-7. `faits`, `lignesDuRail` — the rail view's facts and lines, whole.
+1. `distantes` — the remote stations' relay (the old path epic #2053 removes);
+2. `activites.etapes` — each cook's past steps: what it does right now stays;
+3. `faits.livres.relecture` — the reviews of the served tickets;
+4. `gestes` — the chef's gestures already played;
+5. `activites` — what each cook does, whole;
+6. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
+7. `faits.corrections.diff` — the proposed corrections' diffs;
+8. `avantLeRail.dit` — each `dit` becomes `""`, the issues and their state stay;
+9. `avantLeRail` — the issues before the rail, whole.
 
-A removed field is **absent**, not `null`. `file` and `cuisine` are never removed. An app that finds
-`faits` (or `avantLeRail`) named in `resserre` says it could not be published, rather than showing an
-empty rail.
+The rail (`faits`, `lignesDuRail`), the queue with its cards (TODO) and `cuisine` are **never** removed
+(`faits` and `lignesDuRail` stay in the type only to read a block written before). The readable part
+says in one line what was left out. `brigade <project> status` prints a `board` line: the body's size,
+its share of the 65,536 limit, and the share of each block.
+
+A removed field is **absent**, not `null`. An app that finds `faits` (an old block) or `avantLeRail`
+named in `resserre` says it could not be published, rather than showing an empty rail.
 
 3. **The writer's signature**, after the block: one more HTML comment, which names the station
    whose kitchen wrote the body and its machine's host. An app ignores it (`lireLeTableau` reads
