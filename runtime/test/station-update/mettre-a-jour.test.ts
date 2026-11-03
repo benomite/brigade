@@ -112,6 +112,9 @@ test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend
   let tickets: TicketLu[] = [{ number: 7, title: "sept", labels: ["fire", "model:opus", "effort:high"], state: "open" }];
   const github = {
     checksDeLaBase: async () => [],
+    ci: async () => [],
+    corpsDuTicket: async () => "",
+    prsOuvertes: async () => [],
     fires: async () => tickets,
     prDuTicket: async () => null,
     ouvrirPR: async ({ branche }: { branche: string }) => void ecrits.push(`pr ${branche}`),

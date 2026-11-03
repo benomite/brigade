@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "../brigade-github.ts";
+import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { leconsDeLEtageCommun } from "../commun/installation.ts";
@@ -71,6 +72,8 @@ export type Cuisine = {
   // Résolue une fois la cuisine arrêtée et son tour GitHub seul en cours,
   // s'il y en a un, fini.
   arretee?(): Promise<void>;
+  // Les tickets que ses cooks GitHub seul cuisinent en ce moment.
+  enCuisine?(): number[];
 };
 
 export type OptionsCuisine = {
@@ -85,6 +88,9 @@ export type OptionsCuisine = {
   // Entre deux ticks de son runtime — ce qui relit, entre autres, la décision
   // du chef de cuire sans bac à sable : une minute, à défaut.
   intervalleTickMs?: number;
+  // Vrai tant que la station se vide pour sa mise à jour (#2189) : sa cuisine
+  // GitHub seul ne prend plus aucun ticket (`retenirLaPrise`).
+  retenue?: () => boolean;
 };
 
 // Ouvre la cuisine d'un projet. Toute sa configuration est lue avant de rien
@@ -148,7 +154,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   let socle: Runtime | null = null;
   let ouverte: Runtime | null = null;
   // Non nul : le projet est servi sur l'état GitHub seul (`brigade-github.ts`).
-  let projetGitHub: { arreter(): Promise<void> } | null = null;
+  let projetGitHub: { arreter(): Promise<void>; enCuisine(): number[] } | null = null;
   try {
     identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
     let republierReseau = () => {};
@@ -205,7 +211,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               depotGitHub: rail.depot,
               github: githubs.pass,
               depot,
-              prise: priseDeLaStation,
+              prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
               claude: station.bin,
               env,
               cloison,
@@ -354,5 +360,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       runtime.arreter(motif);
     },
     arretee: () => finDuTour,
+    enCuisine: () => servieSurGitHub?.enCuisine() ?? [],
   };
 }
