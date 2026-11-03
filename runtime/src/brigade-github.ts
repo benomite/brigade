@@ -7,7 +7,9 @@
 //
 // Un interrupteur par projet le choisit : `githubOnlyState` dans les réglages
 // de son dépôt (`.claude/brigade/projet.json`), lu à l'ouverture de la cuisine
-// (`main.ts`). Absent ou éteint, la cuisine ouvre l'ancien chemin, tel quel.
+// — celle d'un runtime par projet (`main.ts`) comme celle de chaque projet
+// d'une station (`station/cuisine.ts`), qui est ce que la box fait tourner.
+// Absent ou éteint, la cuisine ouvre l'ancien chemin, tel quel.
 // Allumé, ses stations ne lancent plus aucun cook de l'ancien chemin, et c'est
 // le tour d'ici qui prend, cuisine et merge.
 //
@@ -21,6 +23,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
+import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
@@ -280,6 +283,8 @@ export type OptionsDuDepot = {
   claude: string;
   env: NodeJS.ProcessEnv;
   cloison: Cloison | null;
+  // Le bac à sable de Claude Code, quand la cuisine est sur le poste du chef.
+  bacASable?: BacASableLocal | null;
   plafonds: Plafonds;
   graceMs: number;
   reviewer: Calibrage;
@@ -314,7 +319,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const { worktree, branche } = lieu;
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base });
-    const lancement = envelopper(cloison, { commande: options.claude, args: argumentsClaude(texte, calibrage) }, { cwd: worktree, depot: "ecriture" });
+    const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const fin = await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(flux), fin.code);
     if (conclusion !== "done") {
@@ -340,7 +345,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
       const texte = consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
-      const lancement = envelopper(cloison, { commande: options.claude, args: argumentsReviewer(texte, options.reviewer) }, { cwd: worktree, depot: "lecture" });
+      const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
       await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
       const lue = lireRelecture(lireLeFlux(flux).message);
       if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
