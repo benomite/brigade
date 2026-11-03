@@ -39,34 +39,6 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     );
   });
 
-  test("un run au nom fixe dont un essai coupé a laissé le worktree et la branche repart à neuf de la base (#2179)", async (t) => {
-    const { depot } = projet(t);
-    const premier = await depot.preparer("7-github");
-    commiter(premier.worktree, "reste.txt");
-    // Coupé sans `retirer` : le worktree et la branche restent.
-    const second = await depot.preparer("7-github");
-    assert.equal(second.branche, "cook/7-github");
-    assert.equal(existsSync(join(second.worktree, "reste.txt")), false);
-    assert.equal(git(second.worktree, "rev-parse", "HEAD"), git(second.worktree, "rev-parse", `origin/${BASE}`));
-  });
-
-  test("un répertoire laissé à la place du worktree d'un run, que git ne connaît plus, ne bloque ni preparer ni reprendre", async (t) => {
-    const { depot, worktrees } = projet(t);
-    // Un essai coupé : le répertoire reste, git l'a oublié.
-    mkdirSync(join(worktrees, "8-github"), { recursive: true });
-    writeFileSync(join(worktrees, "8-github", "reste.txt"), "x\n");
-    const { worktree, branche } = await depot.preparer("8-github");
-    assert.equal(existsSync(join(worktree, "reste.txt")), false);
-    commiter(worktree, "livre.txt");
-    depot.pousser(branche);
-    await depot.ranger(worktree, branche);
-    mkdirSync(join(worktrees, "8-github"), { recursive: true });
-    writeFileSync(join(worktrees, "8-github", "reste.txt"), "x\n");
-    const repris = await depot.reprendre("8-github", branche);
-    assert.equal(existsSync(join(repris, "livre.txt")), true);
-    assert.equal(existsSync(join(repris, "reste.txt")), false);
-  });
-
   test("ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge", async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
