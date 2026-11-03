@@ -1,13 +1,11 @@
 // L'issue d'un ticket et sa discussion, sur sa fiche — quelle que soit sa carte : ce que le runtime
 // en dit par `pass <ticket> issue` (runtime/src/issue-ticket.ts) — le corps, puis les commentaires
 // du plus ancien au plus récent, chacun avec son auteur et sa date —, le markdown rendu (markdown.ts).
-// Et le commentaire que le chef y ajoute, et la demande au second : postés sur le tableau de la cuisine
-// du projet (`/brigade comment #<ticket> <texte>`, `/brigade ask #<ticket> [contexte]`,
-// docs/tableau-gestes.md, #1845), au clic et seulement au clic. La box les
-// joue à son tick, comme `pass <ticket> comment` et `pass <ticket> ask` : le commentaire part sous le
-// `gh` de son compte, celui du chef ; la demande, elle la compose et la rend dans le bloc machine du
-// tableau. Aucun LLM, aucune reformulation : le texte part tel qu'il est écrit. Le geste se compose
-// ici, jamais dans la vue.
+// Et le commentaire que le chef y ajoute : posté sur le tableau de la cuisine du projet
+// (`/brigade comment #<ticket> <texte>`, docs/tableau-gestes.md, #1845), au clic et seulement au clic. La box
+// le joue à son tick, comme `pass <ticket> comment` : il part sous le `gh` de son compte, celui du chef. Aucun
+// LLM, aucune reformulation : le texte part tel qu'il est écrit. Le geste se compose ici, jamais dans la vue.
+// La demande au second, elle, ne quitte pas le poste : `/brigade:ask <ticket> ` est écrit dans son second, sans Entrée.
 import { echecDe, type Rendu } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { instant } from "./histoire.ts";
@@ -70,11 +68,6 @@ export function discussionDe({ lance, erreur, sortie, erreurs }: Rendu, delaiMs:
   return { titre: title, ouverte: state !== "closed", messages, liens: [...new Set(messages.flatMap(({ blocs }) => liensDe(blocs)))] };
 }
 
-// Ce que la demande au second est devenue : celle que l'app écrit dans le second, sans Entrée ; ou,
-// quand la box tient le second du projet, qu'elle la lui a envoyée (`auSecond`) — sa réponse vient sous
-// le geste, sur le tableau ; ou pourquoi il n'y en a pas.
-export type Demandee = { demande: string } | { auSecond: string } | { refus: string };
-
 // Ce qui poste une décision sur le tableau de ce projet et la suit jusqu'à la réponse de la box (main.ts).
 export type AuTableau = (decision: DecisionDuChef) => Promise<EtatDuGeste>;
 
@@ -94,20 +87,20 @@ export async function commenter(auTableau: AuTableau, projet: Projet, ticket: un
   return { poste: false, refus: "not posted yet: it is on the Kitchen board, and the box posts it on the issue at its next tick — the discussion is read again, check it before posting again", peutEtre: true };
 }
 
-// La demande au second pour ce ticket, composée par la box de ce projet d'après le contexte saisi, depuis
-// son tableau. Un contexte vide est permis : la demande nomme l'issue seule. Rien n'est composé d'un projet
-// qui ne s'ouvre pas ; et rien n'est écrit ici : c'est l'appelant qui inscrit la demande.
-export async function demanderAuSecond(auTableau: AuTableau, projet: Projet, ticket: unknown, contexte: unknown): Promise<Demandee> {
+// « ask the second » : `/brigade:ask <ticket> ` — une espace au bout — écrit dans le second du projet, sans Entrée :
+// le chef tape sa question à la suite, et c'est son Entrée qui la fait partir. Rien ne part sur le tableau ni sur la
+// box : la commande ne tient qu'au numéro, quelle que soit la station du projet. `inscrire` écrit dans le second de ce
+// projet (main.ts, `terminaux.inscrire`). Rien n'est écrit sans ticket, ni dans un projet qui ne s'ouvre pas.
+export function demanderAuSecond<Ecrit>(inscrire: (commande: string) => Ecrit, projet: Projet, ticket: unknown): Ecrit | { refus: string } {
   if (!numero(ticket)) return { refus: "nothing was written: the sheet names no ticket" };
-  if (contexte !== undefined && !texte(contexte)) return { refus: "nothing was written: the context is not a text" };
-  const saisi = (contexte ?? "").trim();
-  if (saisi.includes("\0")) return { refus: "nothing was written: the context carries a NUL character" };
   if (projet.refus !== undefined) return { refus: `nothing was written: “${projet.nom}” does not open — ${projet.refus}` };
-  const etat = await auTableau({ geste: "ask", ticket, contexte: saisi.replace(/\r\n?/g, "\n") });
-  if (etat.etat === "failed") return { refus: `nothing was written: ${enSuite(etat.raison)}` };
-  if (etat.etat === "pending") return { refus: "nothing was written: the request is posted on the Kitchen board, and the box has not composed it yet — it does at its next tick" };
-  if (etat.etat === "refused") return { refus: `nothing was written: ${ditParLaBox(etat.reponse).dit || "the box does not say why"}` };
-  if (etat.lu.second !== undefined) return { auSecond: "the box holds the project's second and sent it the request: its answer comes under your gesture, on the Kitchen board" };
-  const demande = etat.lu.demande ?? "";
-  return demande.trim() === "" ? { refus: "nothing was written: the box did not return the request in the expected shape" } : { demande };
+  return inscrire(`/brigade:ask ${ticket} `);
+}
+
+// Ce que la note du second dit quand la demande y est écrite. L'avertissement ne vient que si le second était devant
+// un dialogue (une permission, un choix) : ces caractères y sont des touches.
+export function noteDeLaQuestion(devantUnDialogue = false): string {
+  return devantUnDialogue
+    ? "`/brigade:ask` written into the second, which is waiting for an answer to a dialogue: these characters are keystrokes there — look at the second before pressing Enter"
+    : "`/brigade:ask` written into the second, without Enter — type your question after it, then press Enter";
 }

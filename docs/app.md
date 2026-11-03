@@ -2497,14 +2497,16 @@ section laid, `right now` is not repeated under it.
   `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
   tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
   above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
-  GitHub: there is nothing to read`. Posting a comment and "ask the second" go through the Kitchen board (#1845,
+  GitHub: there is nothing to read`. Posting a comment goes through the Kitchen board (#1845,
   `docs/tableau-gestes.md`), with this computer's `gh`: `/brigade comment #<n> <text>`, which
-  the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`);
-  `/brigade ask #<n> [context]`, whose request the box composes and publishes in the board's machine block, and the
-  app writes it into the second, without Enter. When the box holds the project's second, it sends it the request
-  itself: nothing is written here, and the sheet says its answer comes under the gesture on the board. The app reads
-  the board again every five seconds until the box has answered, two and a half minutes at most; a gesture the box
-  has not read by then is said posted, not done — the discussion is read again before you post the same comment.
+  the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`).
+  The app reads the board again every five seconds until the box has answered, two and a half minutes at most; a
+  comment the box has not read by then is said posted, not done — the discussion is read again before you post it
+  again. **"ask the second" writes `/brigade:ask <ticket> ` into the project's Second tab** (#2167) — the ticket
+  number and a trailing space, the cursor at the end, and no Enter: you type your question after it, and your Enter
+  sends it. Nothing goes to the board or to the box, whichever station serves the project; what is in the comment
+  field is not part of it. A Second that is not running is launched first, and nothing is written into it — click
+  again when it is ready.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
   changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
   `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,
