@@ -15,7 +15,7 @@ export type Appel = { methode: string; chemin: string; statut: number };
 type IssueFausse = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed"; created_at: string; updated_at: string };
 type CommentaireFaux = { id: number; body: string; author_association: string; user: { login: string }; created_at: string };
 type EvenementFaux = { event: string; created_at: string; label?: { name: string }; commit_id?: string };
-type PRFausse = { number: number; head: string; sha: string; base: string; title: string; body: string; state: "open" | "closed"; merged: boolean; merged_by: string | null; updated_at: string };
+type PRFausse = { number: number; head: string; sha: string; base: string; title: string; body: string; state: "open" | "closed"; merged: boolean; merged_by: string | null; updated_at: string; fichiers: string[] };
 
 export class FauxGitHub {
   readonly appels: Appel[] = [];
@@ -45,9 +45,9 @@ export class FauxGitHub {
     return this.appels.slice(depuis).filter((appel) => appel.statut !== 304);
   }
 
-  feu(number: number, labels: string[], title = `ticket ${number}`): void {
+  feu(number: number, labels: string[], title = `ticket ${number}`, body = `the body of ${number}`): void {
     const instant = this.instant();
-    this.issues.set(number, { number, title, body: `the body of ${number}`, labels: [...labels], state: "open", created_at: instant, updated_at: instant });
+    this.issues.set(number, { number, title, body, labels: [...labels], state: "open", created_at: instant, updated_at: instant });
     this.suivant = Math.max(this.suivant, number + 1);
   }
 
@@ -61,10 +61,10 @@ export class FauxGitHub {
     return this.prs.findLast((pr) => pr.head === `cook/${issue}-github`);
   }
 
-  // La PR qu'une station a ouverte pour le ticket.
-  livrer(issue: number): PRFausse {
+  // La PR qu'une station a ouverte pour le ticket, et les fichiers qu'elle change.
+  livrer(issue: number, fichiers = ["a.ts"]): PRFausse {
     const head = `cook/${issue}-github`;
-    const pr: PRFausse = { number: this.suivant++, head, sha: createHash("sha1").update(head).digest("hex"), base: "main", title: `#${issue}`, body: `Closes #${issue}`, state: "open", merged: false, merged_by: null, updated_at: this.instant() };
+    const pr: PRFausse = { number: this.suivant++, head, sha: createHash("sha1").update(head).digest("hex"), base: "main", title: `#${issue}`, body: `Closes #${issue}`, state: "open", merged: false, merged_by: null, updated_at: this.instant(), fichiers: [...fichiers] };
     this.prs.push(pr);
     return pr;
   }
@@ -164,13 +164,17 @@ export class FauxGitHub {
       return { statut: 201, corps: JSON.stringify({ number: pr.number, html_url: `https://github.com/${this.depot}/pull/${pr.number}` }) };
     }
     if (route === "pulls" && methode === "GET") {
-      const tete = (params.get("head") ?? "").split(":")[1];
-      return lu(this.prs.filter((pr) => pr.head === tete).reverse().slice(0, Number(params.get("per_page") ?? 30)).map((pr) => this.prBrute(pr)));
+      // Les PR d'une branche, ou les PR ouvertes.
+      const tete = params.has("head") ? (params.get("head") ?? "").split(":")[1] : null;
+      const lues = this.prs.filter((pr) => (tete === null ? params.get("state") !== "open" || pr.state === "open" : pr.head === tete));
+      // Comme GitHub, la liste ne dit pas si la PR est mergeable : seule sa fiche le dit.
+      return lu(lues.reverse().slice(0, Number(params.get("per_page") ?? 30)).map((pr) => ({ ...this.prBrute(pr), mergeable_state: undefined })));
     }
     if (segments[0] === "pulls" && segments.length >= 2) {
       const pr = this.prs.find((p) => p.number === Number(segments[1]));
       if (pr === undefined) return { statut: 404, corps: "{}" };
       if (segments[2] === undefined && methode === "GET") return lu(this.prBrute(pr));
+      if (segments[2] === "files" && methode === "GET") return lu(pr.fichiers.map((filename) => ({ filename })));
       if (segments[2] === "merge" && methode === "PUT") {
         if (pr.state !== "open" || champ("sha") !== pr.sha) return { statut: 409, corps: JSON.stringify({ message: "Head branch was modified" }) };
         if (this.bloquee(pr)) return { statut: 405, corps: JSON.stringify({ message: 'Required status check "tests" is expected.' }) };

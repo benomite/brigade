@@ -64,6 +64,7 @@ function station(t: TestContext, faux: FauxGitHub, cuisson: () => Promise<void> 
     depot: {
       preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
       reprendre: async (run) => join(repertoire, run),
+      connait: () => false,
       retirer: () => {},
       ranger: async () => null,
       pousser: () => {},
@@ -179,7 +180,8 @@ test("an empty kitchen left an hour on a fake clock costs no counted GitHub call
   assert.deepEqual(comptes, [], dire(comptes));
 });
 
-test("waiting tickets left an hour on a fake clock cost no counted GitHub call: waiting, not calibrated, taken by another station, changes requested in pass", async (t) => {
+// Un ticket refusé à la relecture n'attend pas : il repart à un cook (#2209).
+test("waiting tickets left an hour on a fake clock cost no counted GitHub call: waiting, not calibrated, taken by another station, its zone held by an open PR, its delivery waiting for the chef", async (t) => {
   const faux = new FauxGitHub(DEPOT);
   // Il attend : le label `waiting`.
   faux.feu(5, [...CALIBRE, "waiting"]);
@@ -188,17 +190,21 @@ test("waiting tickets left an hour on a fake clock cost no counted GitHub call: 
   // Une autre station le cuisine.
   faux.feu(7, [...CALIBRE, "taken"]);
   faux.commenterCommeLeDepot(7, corpsDePrise("mac/claude"));
-  // Livré, et refusé à la relecture : il attend une livraison nouvelle.
-  faux.feu(8, [...CALIBRE, "in-pass"]);
-  const pr = faux.livrer(8);
-  faux.commenterCommeLeDepot(pr.number, corpsDeVerdict("mac/claude", pr.sha, { verdict: "request-changes", motif: "Not yet." }));
+  // Sa zone est tenue par une PR ouverte d'un autre ticket.
+  faux.feu(8, CALIBRE, "ticket 8", "## Zone\n\n- `runtime/src`\n");
+  faux.livrer(99, ["runtime/src/a.ts"]);
+  // Approuvée, mais elle change ce qui la juge : elle attend le chef.
+  faux.feu(10, [...CALIBRE, "in-pass", "blocked-on-human"]);
+  const pr = faux.livrer(10, [".claude/brigade/gates.sh"]);
+  faux.commenterCommeLeDepot(pr.number, corpsDeVerdict("mac/claude", pr.sha, { verdict: "approve", motif: "" }));
   const { comptes, tours, lus } = await uneHeure(t, faux);
   assert.equal(tours, 1 + HEURE_MS / TOUR_MS);
   assert.ok(lus >= HEURE_MS / TOUR_MS);
   assert.deepEqual(comptes, [], dire(comptes));
   // Rien n'a bougé sur eux.
-  assert.equal(faux.prDe(8)?.merged, false);
+  assert.equal(faux.prDe(10)?.merged, false);
   assert.deepEqual(faux.issue(7).labels, [...CALIBRE, "taken"]);
+  assert.deepEqual(faux.issue(8).labels, CALIBRE);
 });
 
 test("an approved PR waiting on its required CI costs one refused merge, then nothing for an hour, and is merged at the tour after its CI turns green", async (t) => {
