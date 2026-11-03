@@ -1,35 +1,34 @@
 // La commande par laquelle le chef voit le manager et le tient :
 // `npm run manager -- [return <n°> | backlog | upstream]` — `on` et `off` sont refusées :
-// il suit l'interrupteur du projet (#1406). Elle se joue dans le process du test ;
-// depuis le sien, là où c'est lui qu'on regarde — un refus rendu par son code. `backlog` lit GitHub :
-// un faux `gh` lui dicte un backlog connu.
+// il suit l'interrupteur du projet (#1406). Elle se joue dans le process du test, sur un
+// journal posé, sans runtime qui tourne : elle ne lit et n'écrit que le journal. Qu'elle
+// se lance par son fichier, refus compris, est éprouvé avec toutes les commandes
+// (commandes.test.ts). `backlog` lit GitHub : un faux `gh` lui dicte un backlog connu.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { principal as manager } from "../src/manager-cli.ts";
-import { demarrer } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire } from "./outils.ts";
-
-const CLI = join(import.meta.dirname, "../src/manager-cli.ts");
+import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, poserJournalVide, repertoireTemporaire } from "./outils.ts";
 
 function cuisine(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
-  const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
-  t.after(() => runtime.arreter("test"));
-  const { journal } = runtime;
+  poserJournalVide(repertoire);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, ticket: number | null, author = "manager") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
-  const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
-  const commande = (...args: string[]) => rendre(appeler(manager, args, { BRIGADE_STATE_DIR: repertoire }));
-  // Par son fichier, dans son propre process : comme `npm run` la lance.
-  const lancee = (...args: string[]) => rendre(lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire }));
+  const commande = async (...args: string[]) => {
+    const cli = appeler(manager, args, { BRIGADE_STATE_DIR: repertoire });
+    return { code: await cli.fin, sortie: cli.sortie() };
+  };
   const commandes = () => journal.tout().filter((e) => e.type === "manager.enabled" || e.type === "manager.disabled");
-  return { repertoire, journal, noter, commande, lancee, commandes };
+  return { repertoire, journal, noter, commande, commandes };
 }
 
-describe("la commande manager", { concurrency: 8 }, () => {
+describe("la commande manager", () => {
   test("sans argument et sans rien au journal, le manager est éteint et le chef lit ce que cela veut dire", async (t) => {
     const { commande, journal } = cuisine(t);
     const avant = journal.tout();
@@ -44,19 +43,17 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
   // Le manager n'a plus d'interrupteur à lui (#1406) : il suit celui du projet (`switch`).
   test("allumer ou éteindre le manager seul est refusé : la commande nomme l'interrupteur du projet, et n'écrit rien", async (t) => {
-    const { lancee, commandes, journal } = cuisine(t);
+    const { commande, commandes, journal } = cuisine(t);
     const avant = journal.tout().length;
 
-    const [allumer, eteindre] = [await lancee("on"), await lancee("off")];
+    const [allumer, eteindre] = [await commande("on"), await commande("off")];
 
     assert.equal(allumer.code, 1);
     assert.match(allumer.sortie, /the manager has no switch of its own any more: it follows the project switch, which also takes the tickets and merges the green deliveries — `brigade <projet> switch on`\. Nothing is written/);
     assert.equal(eteindre.code, 1);
     assert.match(eteindre.sortie, /`brigade <projet> switch off`\. Nothing is written/);
     assert.deepEqual(commandes(), []);
-    // Le battement du runtime n'est pas la commande : deux Node lancés coup sur
-    // coup passent la minute d'un tick sur une machine chargée (Windows).
-    assert.deepEqual(journal.tout().slice(avant).filter((e) => e.type !== "runtime.ticked").map((e) => e.type), []);
+    assert.equal(journal.tout().length, avant);
   });
 
   test("la ligne `manager` suit l'interrupteur du projet, dès qu'il est posé — l'ancien interrupteur n'y compte plus", async (t) => {
@@ -280,10 +277,11 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
   test("sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien", async (t) => {
     const vide = repertoireTemporaire(t);
-    const sansVariable = lancer(t, CLI, []);
+    const sansVariable = appeler(manager, [], {});
     const sansJournal = appeler(manager, ["return", "30"], { BRIGADE_STATE_DIR: vide });
 
     assert.equal(await sansVariable.fin, 2);
+    assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR/);
     assert.equal(await sansJournal.fin, 1);
     assert.match(sansJournal.sortie(), /no log in/);
     assert.equal(existsSync(join(vide, "log.db")), false);
@@ -371,16 +369,6 @@ describe("la commande manager", { concurrency: 8 }, () => {
       assert.equal(await deTrop.fin, 2);
       assert.match(deTrop.sortie(), /usage: /);
       assert.deepEqual(gh.appels(), []);
-    });
-
-    test("lancée par son fichier, comme `npm run` la lance, elle rend la même ligne et sort en 0", async (t) => {
-      const gh = fauxGh(t);
-      gh.repondre(OUVERTES, { corps: CONNU });
-
-      const cli = lancer(t, CLI, ["backlog"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
-
-      assert.equal(await cli.fin, 0);
-      assert.match(cli.sortie(), /^backlog\s+5 open issues, of which 2 carry `blocked-on-human`/);
     });
   });
   // Ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive.
