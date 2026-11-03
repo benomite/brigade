@@ -32,14 +32,13 @@ import {
   reserveDes,
   type Limite,
 } from "../src/limite-github.ts";
-import { aArreter, DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { aArreter, DEPOT, jouerLaStation, jusqua, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 import { FAUX_GH_GISTS } from "./appairage/doublure-des-gists.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const MODULE = join(import.meta.dirname, "../src/limite-github.ts");
-const STATION = join(import.meta.dirname, "../src/station/main.ts");
 const DEPART = Date.parse("2026-10-22T12:00:00Z");
 const SECONDE = 1000;
 const MINUTE = 60_000;
@@ -205,8 +204,10 @@ test("la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'h
   const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
   t.after(() => github.fermer());
 
+  // Trois sondages : chacun part au-delà des 2 500 de l'ancien budget de la box,
+  // par le même chemin — trente n'en prouvaient pas plus.
   const messages: string[] = [];
-  for (let tour = 0; tour < 30; tour++) {
+  for (let tour = 0; tour < 3; tour++) {
     horloge.avancer(10 * SECONDE);
     try {
       assert.equal((await github.tickets()).inchange, false);
@@ -215,9 +216,9 @@ test("la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'h
     }
   }
   assert.deepEqual(messages, []);
-  assert.equal(gh.appels().length, 30);
-  assert.equal(gh.restant(), 3570);
-  assert.deepEqual(limite.quota(), { restant: 3570, plafond: 5000, reset: DEPART + 40 * MINUTE, vu: horloge.maintenant() });
+  assert.equal(gh.appels().length, 3);
+  assert.equal(gh.restant(), 3597);
+  assert.deepEqual(limite.quota(), { restant: 3597, plafond: 5000, reset: DEPART + 40 * MINUTE, vu: horloge.maintenant() });
   assert.ok(limite.appels() > 2500);
 });
 
@@ -225,7 +226,8 @@ test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réser
   const gh = unGitHubQuiCompte(t);
   const horloge = uneHorloge();
   const reset = DEPART + 10 * MINUTE;
-  gh.quota(540, reset);
+  // Trois appels au-dessus de la réserve des gestes (500 sur 5000).
+  gh.quota(503, reset);
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
@@ -247,22 +249,22 @@ test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réser
   // GitHub n'a jamais eu à refuser : la box s'est arrêtée à la réserve des gestes.
   assert.equal(gh.refus(), 0);
   assert.equal(gh.restant(), 500);
-  assert.equal(partis.length, 40);
+  assert.equal(partis.length, 3);
   // Aucun sondage retenu avant la réserve : un par tour jusqu'à elle.
-  assert.deepEqual(partis, Array.from({ length: 40 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
+  assert.deepEqual(partis, Array.from({ length: 3 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
   assert.ok(![...messages].some((message) => message.startsWith("quota GitHub entamé")));
   assert.ok([...messages].some((message) => message.startsWith("quota GitHub bas : 500 appels restants sur 5000")));
   assert.ok(![...messages].some((message) => /budget GitHub épuisé/.test(message)));
-  assert.equal(gh.appels().length, 40, "un sondage retenu ne lance pas `gh`");
+  assert.equal(gh.appels().length, 3, "un sondage retenu ne lance pas `gh`");
 
   // La fenêtre passée, GitHub a rendu son quota : les sondages reprennent seuls.
   horloge.poser(reset);
   gh.quota(4999, reset + FENETRE_MS);
-  for (let tour = 0; tour < 5; tour++) {
+  for (let tour = 0; tour < 2; tour++) {
     horloge.avancer(5 * SECONDE);
     assert.equal((await github.tickets()).inchange, false);
   }
-  assert.equal(gh.appels().length, 45);
+  assert.equal(gh.appels().length, 5);
 });
 
 test("un merge du chef part sur un compte au plus bas et une heure chargée côté box, et n'échoue que si GitHub refuse", async (t) => {
@@ -401,13 +403,16 @@ test("une fois par heure, la ligne « N appels GitHub sur l'heure écoulée » v
   assert.equal(lignes.length, 3);
 });
 
-test("la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire", { skip: posixOnly("starts the real station on a fake gh that notes its gist calls, stops it on SIGTERM and expects its own call counter to match them; on Windows kill('SIGTERM') ends the station without running its handler, and the station did not even print its pairing code there, a cause not traced yet") }, async (t) => {
+// Jouée dans le process du test (`jouerLaStation`), elle y pose le compteur du
+// process comme le sien : son démarrage par son fichier et un vrai SIGTERM se
+// prouvent dans `station/main.test.ts`.
+test("la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire", { skip: posixOnly("plays the real station on a fake gh that notes its gist calls, stops it as on SIGTERM and expects its own call counter to match them; the fake gh of the gists is a shell script, which the station reaches through a sh wrapper, and on Windows the station did not even print its pairing code, a cause not traced yet") }, async (t) => {
   const gists = repertoireTemporaire(t);
   const racine = join(repertoireTemporaire(t), "station");
   mkdirSync(racine);
-  const station = lancer(t, STATION, [], { BRIGADE_STATION_DIR: racine, BRIGADE_GH_BIN: FAUX_GH_GISTS, FAUX_GISTS: gists, BRIGADE_STATION_NOM: "box", BRIGADE_STATION_VERSION: "1.4.0" });
+  const station = jouerLaStation(t, { BRIGADE_STATION_DIR: racine, BRIGADE_GH_BIN: FAUX_GH_GISTS, FAUX_GISTS: gists, BRIGADE_STATION_NOM: "box", BRIGADE_STATION_VERSION: "1.4.0" });
   await station.attendre("station à appairer");
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 
   assert.ok(existsSync(join(racine, REPERTOIRE_COMPTEUR)));

@@ -83,6 +83,27 @@ const faits = (etatDuProjet: string, type: string) => {
   }
 };
 
+// Le premier paquet, construit depuis ce dépôt par la commande de la
+// publication, mais compressé en gzip comme ceux que `deriverPaquet` refait :
+// le xz de la publication coûtait deux secondes de processeur au fichier
+// (#2085), et rien ici ne dépend de la compression — paquet.test.ts construit
+// le vrai. Un `dpkg-deb` devant le vrai ajoute `-Zgzip` à la construction, le
+// temps de la construire (le `before`, synchrone : aucun test ne tourne encore).
+function construireEnGzip(dossier: string, version: string): string {
+  const reel = spawnSync("sh", ["-c", "command -v dpkg-deb"], { encoding: "utf8" }).stdout.trim();
+  const bin = join(dossier, "dpkg-deb-gzip");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "dpkg-deb"), `#!/bin/sh\ncase " $* " in *" --build "*) exec "${reel}" -Zgzip "$@" ;; esac\nexec "${reel}" "$@"\n`);
+  chmodSync(join(bin, "dpkg-deb"), 0o755);
+  const path = process.env.PATH ?? "";
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    return construirePaquet(dossier, version);
+  } finally {
+    process.env.PATH = path;
+  }
+}
+
 // La station tourne, en `version`, sous le pid que systemd lui donne.
 // Le pid rendu est celui que systemd vient de donner : chaque question à
 // systemd est un process de la doublure, il n'est pas reposé.
@@ -119,11 +140,14 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
   };
   before(() => {
     dossier = mkdtempSync(join(tmpdir(), "brigade-mise-a-jour-test-"));
-    premier = construirePaquet(dossier, "1.0.0");
+    premier = construireEnGzip(dossier, "1.0.0");
   });
   after(() => rmSync(dossier, { recursive: true, force: true }));
 
-  test("trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage", SCENARIO, async (t) => {
+  // Deux versions, pas trois : une troisième reprenait le chemin de la
+  // première — une version de plus, la même station — pour une installation,
+  // une bascule et une station de plus (#2085).
+  test("deux versions publiées l'une après l'autre passent seules — la seconde change l'unité de la station —, et la file dit chaque passage", SCENARIO, async (t) => {
     const machine = machineAvecUnProjet(t);
     await machine.installer(premier);
     assert.equal(machine.installee(), "1.0.0");
@@ -167,26 +191,20 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
       appels.slice(installation).filter((a) => /daemon-reload|restart brigade-station\.service/.test(a)),
       ["systemctl daemon-reload", "systemctl restart brigade-station.service"],
     );
-
-    // 1.3.0 : la troisième.
-    machine.publier("1.3.0", porteA("1.3.0"));
-    assert.equal(await machine.declencher(), 0);
-    assert.equal(machine.installee(), "1.3.0");
-    await enService(machine, "1.3.0");
-    await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 3);
+    await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 2);
     assert.deepEqual(
       faits(machine.etatDuProjet, "update.installed").map((p) => p.version),
-      ["1.1.0", "1.2.0", "1.3.0"],
+      ["1.1.0", "1.2.0"],
     );
     const dernier = faits(machine.etatDuProjet, "update.installed").at(-1);
-    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.3.0 at ${heure(String(dernier?.at))}`]);
+    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.2.0 at ${heure(String(dernier?.at))}`]);
     // Le projet n'a jamais cessé d'être servi, et seule la station a été relancée.
     assert.deepEqual(lireEnService(machine.station)?.servis, ["brigade"]);
     assert.deepEqual(
       machine.appels().filter((a) => /^systemctl (stop|restart|start) brigade-station\.service/.test(a)),
-      ["systemctl restart brigade-station.service", "systemctl restart brigade-station.service", "systemctl restart brigade-station.service"],
+      ["systemctl restart brigade-station.service", "systemctl restart brigade-station.service"],
     );
-    assert.equal(lireEtatMiseAJour(machine.miseAJour)?.installee, "1.3.0");
+    assert.equal(lireEtatMiseAJour(machine.miseAJour)?.installee, "1.2.0");
   });
 
   test("une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée", SCENARIO, async (t) => {

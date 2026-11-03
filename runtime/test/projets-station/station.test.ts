@@ -3,6 +3,8 @@
 // service dit qu'elle ne sert aucun projet ; un dépôt choisi, elle le prend en
 // main et en publie le suivi dans le même gist. GitHub est la doublure des
 // gists du compte ; `SIGHUP` lui fait relire tout de suite, sans attendre sa cadence.
+// Elle est jouée dans le process du test (`jouerLaStation`) : son démarrage par
+// son fichier et un vrai signal reçu se prouvent dans `station/main.test.ts`.
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,24 +14,21 @@ import { FICHIER_LOCAL } from "../../src/enregistrement-station/enregistrer.ts";
 import { FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { AUCUN_PROJET } from "../../src/projets-station/source.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
-import { ENV_GIT, FAUX_CLAUDE, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { ENV_GIT, FAUX_CLAUDE, jouerLaStation, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-
 type Gist = { files: Record<string, { filename: string; content: string }> };
 
-// SIGHUP n'existe pas sous Windows : la relecture y attend sa cadence.
-test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main et le suit dans son enregistrement", { skip: posixOnly("starts the real station without a selection, then selects a repository in the app and expects the station, made to reread at once by SIGHUP, to take it in hand and follow it in its registration; Windows cannot send SIGHUP to a process") }, async (t) => {
+test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main et le suit dans son enregistrement", { skip: posixOnly("plays the real station without a selection, then selects a repository in the app and expects the station, made to reread at once as on SIGHUP, to take it in hand and follow it in its registration; the fake gh of the gists is a shell script, and the station's gh receives its environment through a sh wrapper") }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");
   const gists = repertoireTemporaire(t);
   mkdirSync(racine);
   mkdirSync(compte);
-  const station = lancer(t, STATION, [], {
+  const station = jouerLaStation(t, {
     ...ENV_GIT,
     BRIGADE_GH_BIN: FAUX_GH_GISTS,
     FAUX_GISTS: gists,
@@ -47,7 +46,7 @@ test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un d�
   const fichier = join(gists, `${id}.gist.json`);
   const lire = () => JSON.parse(readFileSync(fichier, "utf8")) as Gist;
 
-  station.process.kill("SIGHUP");
+  station.signaler("SIGHUP");
   await station.attendre(AUCUN_PROJET);
   assert.doesNotMatch(station.sortie(), /refus de démarrer/);
 
@@ -56,15 +55,17 @@ test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un d�
   gist.files[FICHIER_SELECTION] = { filename: FICHIER_SELECTION, content: JSON.stringify({ brigade: "station-selection", format: 1, repositories: ["acme/shop"], updatedAt: new Date().toISOString() }) };
   writeFileSync(`${fichier}.test`, JSON.stringify(gist));
   renameSync(`${fichier}.test`, fichier);
-  station.process.kill("SIGHUP");
+  station.signaler("SIGHUP");
   await station.attendre("projet choisi pour elle dans l'app : acme/shop");
 
   // Ce qu'elle en fait, elle le publie à côté de son enregistrement : la doublure
   // ne clone rien, mais le projet est le sien.
+  let finie = false;
+  void station.fin.then(() => (finie = true));
   for (;;) {
     const suivi = lire().files[FICHIER_SUIVI]?.content;
     if (suivi !== undefined && (JSON.parse(suivi) as { projets: Array<{ nom: string }> }).projets.some(({ nom }) => nom === "shop")) break;
-    assert.equal(station.process.exitCode, null, station.sortie());
+    assert.equal(finie, false, station.sortie());
     await new Promise((resoudre) => setTimeout(resoudre, 50));
   }
   // La sélection reste celle de l'app.

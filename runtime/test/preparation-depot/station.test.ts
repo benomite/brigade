@@ -1,7 +1,9 @@
-// Le ticket qui prépare le dépôt, sur une vraie station — un seul process,
-// `station/main.ts` —, dont GitHub est un faux `gh` : tant qu'il n'est pas
-// servi, la cuisine du projet ne prend que lui, même quand un ticket plus
-// ancien attend ; servi, elle prend les autres.
+// Le ticket qui prépare le dépôt, sur une vraie station — `station/main.ts`,
+// jouée dans le process du test (`jouerLaStation`) —, dont GitHub est un faux
+// `gh` : tant qu'il n'est pas servi, la cuisine du projet ne prend que lui,
+// même quand un ticket plus ancien attend ; servi, elle prend les autres. Son
+// démarrage par son fichier, un vrai signal et le code de sa sortie se prouvent
+// dans `station/main.test.ts`.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,13 +11,12 @@ import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
-import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
+import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jouerLaStation, jusqua, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const DEPOT = "acme/shop";
 // Le ticket du chef, plus ancien : sans préparation, c'est lui qui partirait le premier.
 const DU_CHEF = 15;
@@ -61,7 +62,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   const suite = join(repertoireTemporaire(t), "suite.txt");
   ecrireSuite(suite, ["commite-puis-attend", "commite-puis-attend"]);
   const gists = repertoireTemporaire(t);
-  const station = lancer(t, STATION, [], {
+  const station = jouerLaStation(t, {
     ...ENV_GIT,
     BRIGADE_GH_BIN: FAUX_GH_GISTS,
     FAUX_GISTS: gists,
@@ -85,7 +86,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   return { station, faits };
 }
 
-test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("starts the real station with the repository-preparation ticket #20 open and checks only it is taken while the older #15 waits, then expects exit code 0 on SIGTERM; on Windows kill('SIGTERM') terminates the station outright, before its handler runs, so the exit code is null") }, async (t) => {
+test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("plays the real station with the repository-preparation ticket #20 open and checks only it is taken while the older #15 waits, then expects a clean stop on SIGTERM; its cook is the fake claude, a bash script, and the fake gh of the gists a shell script") }, async (t) => {
   const { station, faits } = uneStation(t, "ouverte");
   await station.attendre("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   await jusqua(() => faits("cook.launched").length === 1);
@@ -99,18 +100,18 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
     faits("ticket.arrived").map((evenement) => evenement.ticket).sort(),
     [DU_CHEF, PREPARATION],
   );
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 });
 
-test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("starts the real station with the repository-preparation ticket already served and checks #15 is taken next, then expects a clean exit on SIGTERM; on Windows kill('SIGTERM') ends the station at once without running its handler, so it exits with no code") }, async (t) => {
+test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("plays the real station with the repository-preparation ticket already served and checks #15 is taken next, then expects a clean stop on SIGTERM; its cook is the fake claude, a bash script, and the fake gh of the gists a shell script") }, async (t) => {
   const { station, faits } = uneStation(t, "servie");
   await jusqua(() => faits("cook.launched").length === 1);
   assert.deepEqual(
     faits("ticket.taken").map((evenement) => evenement.ticket),
     [PREPARATION, DU_CHEF],
   );
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 });
 

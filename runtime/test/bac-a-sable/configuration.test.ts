@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
+import { estUneVerification, viseUneVerification } from "../../src/bac-a-sable/verification.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
 import { CACHE_DE_COMPILATION } from "../outils.ts";
 
@@ -301,13 +302,10 @@ test("sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance 
     assert.match(sans.stderr, /ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE|Refusing to run pnpm@10\.0\.0: its npm registry signature could not be verified \(.*could not be consulted either/);
     assert.equal(vus.includes("GET http://registre.invalid/pnpm"), true, vus.join("\n"));
 
-    // Avec l'`env` des réglages : `--version`, `install` puis un script, sans une requête pour pnpm lui-même.
+    // Avec l'`env` des réglages : `install` puis un script, sans une requête pour
+    // pnpm lui-même. `install` démarre par le même contrôle de version que
+    // `--version` ci-dessus : qu'il passe le prouve, sans un pnpm de plus (#2085).
     vus.length = 0;
-    const version = await lancer(["--version"], reglages.env);
-    assert.equal(version.status, 0, version.stderr);
-    assert.match(version.stdout, /^\d+\.\d+\.\d+/);
-    assert.equal(vus.length, 0, vus.join("\n"));
-
     const installation = await lancer(["install"], reglages.env);
     assert.equal(installation.status, 0, installation.stderr + installation.stdout);
     assert.equal(existsSync(join(projetDir, "node_modules", "leaf", "package.json")), true);
@@ -344,14 +342,30 @@ test("un fichier remis au cook (son ticket) est lisible par ses outils, lui seul
 // Pourquoi un crochet et non des règles `Bash(…)` : le `*` d'un motif couvre
 // n'importe quoi, espaces comprises (`Bash(VAR=* ./node_modules/.bin/*)`
 // laisserait passer `VAR=a curl x ./node_modules/.bin/y`) — établi avec `claude`.
-function sortieDuCrochet(commande: string): { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string } | null {
+type SortieDuCrochet = { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string } | null;
+function sortieDuCrochet(commande: string): SortieDuCrochet {
   const crochet = configurer(projet()).reglages.hooks.PreToolUse[0]?.hooks[0]?.command ?? "";
   const [, node, script] = /^"([^"]+)" "([^"]+)"$/.exec(crochet) ?? [];
   const sortie = spawnSync(node ?? "", [script ?? ""], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: commande } }), encoding: "utf8" });
   assert.equal(sortie.status, 0, sortie.stderr);
   return sortie.stdout === "" ? null : (JSON.parse(sortie.stdout) as { hookSpecificOutput: object }).hookSpecificOutput;
 }
-const autorise = (commande: string) => sortieDuCrochet(commande)?.permissionDecision === "allow";
+// Ce que le crochet décide d'une commande, lu sur les jugements qu'il appelle
+// (crochet-bash.ts) : autorisée si c'est une vérification, refusée avec la
+// consigne si elle en vise une sans en être une, la consigne en contexte sinon.
+// Un process par commande coûtait un Node chacune, soixante-dix par passage
+// (#2085) : les listes se jugent dans le process du test, et le vrai crochet
+// est joué sur une commande de chaque sorte, qui doit rendre ce jugement-là.
+function decisionDuCrochet(commande: string): "allow" | "deny" | "contexte" {
+  if (estUneVerification(commande)) return "allow";
+  return viseUneVerification(commande) ? "deny" : "contexte";
+}
+function jouerLeCrochet(commande: string): SortieDuCrochet {
+  const sortie = sortieDuCrochet(commande);
+  assert.equal(sortie?.permissionDecision ?? "contexte", decisionDuCrochet(commande), commande);
+  return sortie;
+}
+const autorise = (commande: string) => decisionDuCrochet(commande) === "allow";
 
 test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert", () => {
   const permises = [
@@ -431,6 +445,11 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
   ];
   for (const commande of permises) assert.equal(autorise(commande), true, commande);
   for (const commande of refusees) assert.equal(autorise(commande), false, commande);
+  // Le vrai crochet, tel que `claude` le lance, sur une permise, une refusée,
+  // et une chaîne dont un maillon est refusé.
+  assert.equal(jouerLeCrochet("pnpm test")?.permissionDecision, "allow");
+  assert.equal(jouerLeCrochet("curl https://example.com")?.permissionDecision, undefined);
+  assert.equal(jouerLeCrochet("pnpm test; curl https://example.com")?.permissionDecision, "deny");
   // Aucune règle `Bash(…)` : le droit tient dans le crochet, jamais dans un motif.
   assert.deepEqual(
     configurer(projet()).reglages.permissions.allow.filter((regle) => regle.startsWith("Bash")),
@@ -441,19 +460,22 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
 test("une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus", () => {
   // Vise une vérification sans en être une : le crochet la refuse lui-même, avec la raison.
   for (const commande of ["pnpm install", "VAR=a curl https://example.com ./node_modules/.bin/x", "./node_modules/.bin/../../usr/bin/curl x", "./node_modules/.bin/eslint -c/tmp/evil.js src", "pnpm test && pnpm lint", "npx vitest run"]) {
-    const sortie = sortieDuCrochet(commande);
-    assert.equal(sortie?.permissionDecision, "deny", commande);
-    assert.equal(sortie?.permissionDecisionReason, CONSIGNE_DE_REFUS, commande);
+    assert.equal(decisionDuCrochet(commande), "deny", commande);
   }
   // Une autre commande : pas de décision (dontAsk tranche, et lit déjà `git status` seul), la consigne en contexte.
   for (const commande of ["curl https://example.com", "git status", "rm -rf src"]) {
-    const sortie = sortieDuCrochet(commande);
-    assert.equal(sortie?.permissionDecision, undefined, commande);
-    assert.equal(sortie?.additionalContext, CONSIGNE_DE_REFUS, commande);
+    assert.equal(decisionDuCrochet(commande), "contexte", commande);
   }
+  // Ce que le vrai crochet écrit, pour une commande de chaque sorte.
+  const refus = jouerLeCrochet("pnpm install");
+  assert.equal(refus?.permissionDecision, "deny");
+  assert.equal(refus?.permissionDecisionReason, CONSIGNE_DE_REFUS);
+  const autre = jouerLeCrochet("git status");
+  assert.equal(autre?.permissionDecision, undefined);
+  assert.equal(autre?.additionalContext, CONSIGNE_DE_REFUS);
   assert.match(CONSIGNE_DE_REFUS, /pnpm test/);
   // Une vérification acceptée n'est pas refusée.
-  assert.equal(sortieDuCrochet("pnpm test")?.permissionDecision, "allow");
+  assert.equal(jouerLeCrochet("pnpm test")?.permissionDecision, "allow");
 });
 
 test("un refus de dontAsk dit au cook quoi lancer à la place, dans les arguments de tout `claude` du bac à sable", () => {

@@ -174,13 +174,16 @@ test("rejouée, la bascule ne trouve plus rien à faire : la machine reste telle
   assert.deepEqual(m.photo(), apres);
 });
 
-test("une machine sans ancienne installation : rien à basculer, rien d'écrit", (t) => {
+test("une machine sans ancienne installation : rien à basculer, rien d'écrit", async (t) => {
   const racine = repertoireTemporaire(t);
   assert.deepEqual(lireAncienneInstallation(lieux(racine)), { plan: null, refus: [] });
-  const rendu = spawnSync(process.execPath, [MAIN, "--racine", racine], { encoding: "utf8" });
+  // Jouées dans le process du test : le code que rend une bascule lancée par
+  // son fichier se prouve sur le refus « sans dépôt », plus bas ; `attendre`
+  // lancé par son fichier, sur l'installation de test (`machine.test.ts`).
+  const rendu = await jouerLaBascule(["--racine", racine]);
   assert.equal(rendu.status, 0, rendu.stderr);
   assert.equal(rendu.stdout + rendu.stderr, "");
-  const attendu = spawnSync(process.execPath, [MAIN, "attendre", "--racine", racine], { encoding: "utf8" });
+  const attendu = await jouerLaBascule(["attendre", "--racine", racine]);
   assert.equal(attendu.status, 0, attendu.stderr);
   assert.equal(attendu.stdout + attendu.stderr, "");
 });

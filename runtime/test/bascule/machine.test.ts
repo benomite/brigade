@@ -6,7 +6,7 @@
 // joue la bascule, puis démarre la station (`../mise-a-jour/aides/machine.ts`).
 // Personne ne tape d'autre commande.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,12 +30,33 @@ function issuesDe(gh: FauxGh, depot: string, liste: ReturnType<typeof issueGitHu
   gh.repondre(`repos/${depot}/issues?labels=fire&state=open&per_page=100`, { corps: liste });
 }
 
+// Le paquet, construit depuis ce dépôt par la commande de la publication, mais
+// compressé en gzip : le xz de la publication coûtait deux secondes de
+// processeur au fichier (#2085), et la bascule ne dépend pas de la compression
+// — paquet.test.ts construit le vrai. Un `dpkg-deb` devant le vrai ajoute
+// `-Zgzip` à la construction, le temps de la construire (le `before`,
+// synchrone : aucun test ne tourne encore).
+function construireEnGzip(dossier: string, version: string): string {
+  const reel = spawnSync("sh", ["-c", "command -v dpkg-deb"], { encoding: "utf8" }).stdout.trim();
+  const bin = join(dossier, "dpkg-deb-gzip");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "dpkg-deb"), `#!/bin/sh\ncase " $* " in *" --build "*) exec "${reel}" -Zgzip "$@" ;; esac\nexec "${reel}" "$@"\n`);
+  chmodSync(join(bin, "dpkg-deb"), 0o755);
+  const path = process.env.PATH ?? "";
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    return construirePaquet(dossier, version);
+  } finally {
+    process.env.PATH = path;
+  }
+}
+
 describe("la bascule d'une machine servie à l'ancienne, sur une installation de test", { skip: sansDpkgDeb }, () => {
   let dossier = "";
   let paquet = "";
   before(() => {
     dossier = mkdtempSync(join(tmpdir(), "bascule-machine-test-"));
-    paquet = construirePaquet(dossier, "1.0.0");
+    paquet = construireEnGzip(dossier, "1.0.0");
   });
   after(() => rmSync(dossier, { recursive: true, force: true }));
 
