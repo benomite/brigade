@@ -60,6 +60,10 @@ export type PR = {
   merged: boolean;
   enRetard: boolean;
   mergeePar: string | null;
+  // Ce qui change dès que GitHub change quoi que ce soit à la PR — sa tête, sa
+  // base, ce qu'il dit de sa fusion — : l'ETag de sa fiche. Absent s'il n'en
+  // donne pas.
+  version?: string;
 };
 
 // `fait: false` : GitHub a refusé, et dit pourquoi. Une panne — rien ne dit
@@ -166,7 +170,25 @@ export type OptionsGitHub = {
   projet?: string;
   // En millisecondes ; par défaut, l'horloge du système. Les tests y mettent la leur.
   maintenant?: () => number;
+  // Ce qui porte chaque appel jusqu'à GitHub. Par défaut, `gh api -i` ; un
+  // test y met son faux GitHub, qui répond sans process ni réseau.
+  transport?: Transport;
 };
+
+// Un appel tel qu'il part : les arguments de `gh api -i`, et ce que `gh` en
+// imprime. `erreur` : `gh` est sorti en erreur — ce qu'il fait aussi sur un
+// 304 ou un 404, que la sortie dit quand même.
+export type Transport = (
+  args: string[],
+  options: { bin: string; env: NodeJS.ProcessEnv | undefined; signal: AbortSignal; delaiMs: number },
+) => Promise<{ erreur: Error | null; stdout: string; stderr: string }>;
+
+const parGh: Transport = (args, { bin, env, signal, delaiMs }) =>
+  new Promise((resoudre) => {
+    execFile(bin, ["api", "-i", ...args], { maxBuffer: 64 * 1024 * 1024, timeout: delaiMs, signal, env }, (erreur, stdout, stderr) =>
+      resoudre({ erreur, stdout: String(stdout), stderr: String(stderr) }),
+    );
+  });
 
 // Combien de commits de la base la pass relit pour savoir si un job y a été vert.
 const COMMITS_DE_LA_BASE = 10;
@@ -287,12 +309,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
-  // Cache, pas état : le perdre coûte une requête pleine, rien de plus. Un
-  // ETag par liste sondée.
+  // Cache, pas état : le perdre coûte une requête pleine, rien de plus.
+  // L'empreinte confirmée de chaque liste sondée.
   const etags = new Map<string, string>();
-  // La dernière liste lue par chemin, sous son ETag : rendue sur un 304 tant
-  // qu'elle n'est pas confirmée.
-  const lues = new Map<string, { etag: string; issues: Issue[] }>();
 
   // Une réponse HTTP, quel que soit son statut. `gh` sort en erreur sur un 304
   // ou un 404 : c'est la réponse qui fait foi, pas le code de sortie.
@@ -312,33 +331,23 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
     const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
-    return new Promise((resoudre, rejeter) => {
-      execFile(
-        bin,
-        ["api", "-i", ...args],
-        { maxBuffer: 64 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, signal: abandon.signal, env },
-        (erreur, stdout, stderr) => {
-          const reponse = decouper(stdout);
-          if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
-          if (reponse?.statut === 304) limite.rendre(appel);
-          // La limite de GitHub atteinte n'est pas une réponse comme les autres :
-          // elle suspend les appels, et ne passe jamais pour un refus (de merge).
-          // Et elle se nomme au compte : laquelle, depuis quand, jusqu'à quand. Un appel
-          // qui aboutit la lève, une fois sa reprise passée.
-          const limites = options.limitesDuCompte ?? limitesDuProcess();
-          if (reponse && refusPourLimite(reponse)) {
-            constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then((atteinte) => {
-              limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
-              rejeter(atteinte);
-            }, rejeter);
-          } else if (reponse) {
-            if (reponse.statut < 400) limites.aboutir(compte);
-            resoudre(reponse);
-          }
-          else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
-        },
-      );
-    });
+    const { erreur, stdout, stderr } = await (options.transport ?? parGh)(args, { bin, env, signal: abandon.signal, delaiMs: options.delaiMs ?? 30_000 });
+    const reponse = decouper(stdout);
+    if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
+    if (reponse?.statut === 304) limite.rendre(appel);
+    if (!reponse) throw new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`);
+    // La limite de GitHub atteinte n'est pas une réponse comme les autres :
+    // elle suspend les appels, et ne passe jamais pour un refus (de merge).
+    // Et elle se nomme au compte : laquelle, depuis quand, jusqu'à quand. Un appel
+    // qui aboutit la lève, une fois sa reprise passée.
+    const limites = options.limitesDuCompte ?? limitesDuProcess();
+    if (refusPourLimite(reponse)) {
+      const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
+      limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
+      throw atteinte;
+    }
+    if (reponse.statut < 400) limites.aboutir(compte);
+    return reponse;
   };
 
   // Une lecture, sous condition si elle a déjà été faite : sur un 304, la
@@ -389,29 +398,26 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // Une liste lue de sa première page à sa dernière, sous condition.
   const lireLaListe = async (chemin: string): Promise<Reponse[]> => feuilleter(await lireSousCondition([chemin], true), chemin);
 
-  // Une liste d'issues, toujours sous l'ETag de sa dernière lecture. Confirmée,
-  // un 304 dit « inchangé ». Non confirmée — le consommateur a encore à faire
-  // sur elle —, un 304 rend la liste gardée : le travail reste à refaire, mais
-  // GitHub ne compte pas l'appel, et la liste n'est pas relue en entier.
+  // Une liste d'issues, chacune de ses pages sous l'ETag de sa dernière
+  // lecture : tant que rien n'a changé, chaque page coûte un 304, que GitHub
+  // ne compte pas — sur une page comme sur plusieurs (#2198). L'empreinte de
+  // la liste est celle de ses pages. Confirmée, une empreinte qui revient dit
+  // « inchangé ». Non confirmée — le consommateur a encore à faire sur elle —,
+  // la liste gardée est rendue : le travail reste à refaire, sans relecture
+  // pleine. Une page sans ETag laisse l'empreinte inconnue : jamais « inchangé ».
+  // Sa dernière page pleine se relit sans condition, comme celle de toute
+  // liste : une issue ancienne rouverte, ou qui prend le label, s'y range à sa
+  // date de création, et peut tomber sur une page que son ETag ne dit pas.
   const sonder = async <I extends Issue>(chemin: string, lireIssue: (brute: IssueBrute) => I): Promise<Sondage<I>> => {
-    const lue = lues.get(chemin) as { etag: string; issues: I[] } | undefined;
-    const premiere = await appeler([...(lue ? ["-H", `If-None-Match: ${lue.etag}`] : []), chemin]);
-    if (lue && premiere.statut === 304) {
-      if (etags.get(chemin) === lue.etag) return { inchange: true };
-      return { inchange: false, issues: lue.issues, confirmer: () => void etags.set(chemin, lue.etag) };
-    }
-    etags.delete(chemin);
-    lues.delete(chemin);
-    const pages = await feuilleter(premiere, chemin);
+    const pages = await lireLaListe(chemin);
+    const etagsDesPages = pages.map((page) => page.entetes.get("etag") ?? "");
+    const empreinte = etagsDesPages.includes("") ? null : etagsDesPages.join("\n");
+    if (empreinte !== null && etags.get(chemin) === empreinte) return { inchange: true };
     const issues = pages
       .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
       .filter((brute) => brute.pull_request === undefined)
       .map(lireIssue);
-    // Au-delà d'une page, un changement en page 2 ne se verrait pas dans
-    // l'ETag de la première : le sondage reste alors inconditionnel.
-    const empreinte = pages.length === 1 ? (premiere.entetes.get("etag") ?? null) : null;
-    if (empreinte !== null && empreinte !== "") lues.set(chemin, { etag: empreinte, issues });
-    return { inchange: false, issues, confirmer: () => void (empreinte === null || empreinte === "" ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
+    return { inchange: false, issues, confirmer: () => void (empreinte === null ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
   };
 
   const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE" });
@@ -439,9 +445,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       return numero as number;
     },
     async issuesDepuis(instant) {
-      // Sans condition : son chemin change avec `instant`, aucune lecture ne s'y redemande.
+      // Sous condition, comme toute lecture : le même `instant` se redemande à
+      // chaque tick tant que le disjoncteur est ouvert (`breaker-resume-github.ts`),
+      // et ne coûte rien tant que rien n'a bougé depuis (#2198).
       const chemin = `repos/${depot}/issues?state=all&since=${instant}&per_page=100`;
-      const pages = await feuilleter(await appeler([chemin]), chemin);
+      const pages = await lireLaListe(chemin);
       return pages
         .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
         .filter((lue) => lue.pull_request === undefined)
@@ -506,7 +514,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       if (!trouvee) return null;
       // La liste ne dit ni si la branche est en retard, ni qui a mergé : sa fiche, si.
       const chemin = `repos/${depot}/pulls/${trouvee.number}`;
-      const brute = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as PRBrute;
+      const fiche = exiger(await lireSousCondition([chemin]), chemin);
+      const brute = JSON.parse(fiche.corps) as PRBrute;
+      const version = fiche.entetes.get("etag");
       return {
         number: brute.number,
         url: brute.html_url,
@@ -516,6 +526,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
         enRetard: brute.mergeable_state === "behind",
         mergeePar: brute.merged_by?.login || null,
+        ...(version ? { version } : {}),
       };
     },
     async prsOuvertes() {

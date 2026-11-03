@@ -69,7 +69,7 @@ test("un sondage non confirmé se redemande sous condition : un 304 rend la list
   assert.deepEqual(await github.tickets(), { inchange: true });
 });
 
-test("au-delà d'une page, toutes les pages sont lues et le sondage reste inconditionnel", async (t) => {
+test("au-delà d'une page, toutes les pages sont lues ; une page sans ETag laisse le sondage inconditionnel", async (t) => {
   const { gh, github } = sonde(t);
   const suite = `https://api.github.com/repositories/1/issues?labels=fire&page=2`;
   gh.repondre(suite, { corps: [issueGitHub(15)] });

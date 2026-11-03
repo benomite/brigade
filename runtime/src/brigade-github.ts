@@ -32,7 +32,7 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { lacher, prendre } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
-import { HORS_CUISINE, type GitHub, type Issue } from "./github.ts";
+import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -65,10 +65,11 @@ export type GitHubDuTour = GitHubDeLaFusion &
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
-    // La PR qui livre le ticket, ou null.
-    prDuTicket(issue: number): Promise<PRAFusionner | null>;
+    // La PR qui livre le ticket, ou null. `version` change avec tout ce que
+    // GitHub change à la PR.
+    prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
     // Les checks du dernier commit de la branche d'intégration.
-    checksDeLaBase(): Promise<Pick<Check, "outcome">[]>;
+    checksDeLaBase(): Promise<Array<Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>>>;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
@@ -162,6 +163,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // rende sur l'issue : un échec ne libère jamais une place pour un autre.
   const aRendre = new Map<number, TicketLu>();
   let premierTour = true;
+  // Les PR dont la fusion n'a pas abouti — GitHub a refusé le merge, ou la
+  // mise à jour de la branche est demandée —, et ce qu'elles étaient alors :
+  // leur tête, leur version et la base. Elle ne se retente qu'une fois l'une
+  // d'elles changée (#2198) : une PR approuvée dont la CI tourne encore ne
+  // coûte pas un merge refusé à chaque tour.
+  const tentees = new Map<number, string>();
 
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
@@ -206,7 +213,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   const tour = async () => {
-    const etatBase = etatDeLaBase(await github.checksDeLaBase());
+    const checksDeLaBase = await github.checksDeLaBase();
+    const etatBase = etatDeLaBase(checksDeLaBase);
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -233,11 +241,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         try {
           const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
-          const fusion = await fusionner(pr, github);
-          // Rouge, ou refusée par la relecture sur sa tête : la livraison repart à
-          // un cook, avec pourquoi (#2209).
-          if (fusion.issue === "ci-rouge") await renvoyer(ticket, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
-          else if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
+          const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
+          if (tentees.get(pr.number) !== tentee) {
+            const fusion = await fusionner(pr, github);
+            if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
+            else tentees.delete(pr.number);
+            if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
+            // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
+          }
+          // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
+          if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
