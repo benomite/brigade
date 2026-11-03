@@ -22,7 +22,7 @@ const PRISE = "<!-- brigade:prise station=box/claude -->\nTaken by station `box/
 // `v2` ; `githubOnlyState` est ce que porte son `projet.json`.
 function ouvrir(t: TestContext, githubOnlyState: boolean | undefined) {
   const racine = repertoireTemporaire(t);
-  projetSurGit(t, { reglages: { version: 1, integrationBranch: "v2", ...(githubOnlyState === undefined ? {} : { githubOnlyState }) }, clone: join(racine, CLONES, "brigade") });
+  projetSurGit(t, { reglages: { integrationBranch: "v2", ...(githubOnlyState === undefined ? {} : { githubOnlyState }) }, clone: join(racine, CLONES, "brigade") });
   const [projet] = lireConfiguration(`brigade ${DEPOT}`).projets;
   assert.ok(projet);
   // Le `gh` du projet : un ticket calibré, que personne ne tient, sur une base verte.
