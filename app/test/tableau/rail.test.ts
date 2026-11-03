@@ -142,7 +142,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
 
 test("le rail tiré du tableau est celui que la station rendait, du même état au même instant", async (t) => {
   sansProcessus(t);
-  const { corps, facts, status } = projetPublie(t);
+  const { corps, facts, statusDuRail: status } = projetPublie(t);
   const publie = await lu(corps);
   const parLeTableau = lectureDuTableau(publie, "brigade", 1, ["facts", "status"]);
   const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: sortie(parLeTableau, "status") }] });
@@ -198,7 +198,7 @@ function railSansStation(t: TestContext, { libre = false }: { libre?: boolean } 
   if (libre) arriver(18, []);
   ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 }).quatreVingtSix(12, { motif: "no-station: macos" });
   const etat = lireEtat(journal, LU_LE);
-  return { corps: rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE), status: decrireEtat(etat, LU_LE).join("\n") };
+  return { corps: rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE), status: decrireEtat(etat, LU_LE, undefined, null, null, null, null, true).join("\n") };
 }
 
 test("la cuisine au repos faute de station : le bloc `awaiting` refait du tableau ne porte plus de ligne « kitchen idle », comme celui de `status`", async (t) => {

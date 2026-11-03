@@ -67,7 +67,10 @@ export function lignesDuRail(status: string): Map<number, string[]> | undefined 
 // français, `d` en anglais.
 const duree = (jours: string) => String.raw`\d+ (?:s|min|${jours}|h \d\d)`;
 const DUREE = duree("j");
-const DUREE_EN = duree("d");
+// En anglais, `status` écrit la durée ; le tableau (runtime/src/tableau/rendu/) écrit l'heure à la place
+// (`2026-10-12 10:00 UTC`), pour que son corps ne change pas à chaque minute (ticket 2153).
+const HEURE_EN = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d UTC`;
+const DUREE_EN = `(?:${duree("d")}|${HEURE_EN})`;
 type Lu = { tient?: string; depuis: string; bail?: string; bloque?: string; cuisine?: string };
 // Le détail d'une ligne, par état : la forme que le runtime écrit pour lui, et ce
 // qu'elle donne. Un état qui n'est pas ici — `86`, un mot inconnu — n'en a pas.
@@ -83,7 +86,7 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
   {
     // `by <station> since <duration>, [STUCK: ][no progress since <duration>, ]lease <duration> left` — or `lease expired since`.
     etats: ["taken"],
-    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN}), ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|expired since ${DUREE_EN}))$`),
+    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN}), ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|until ${HEURE_EN}|expired since ${DUREE_EN}))$`),
     lire: ([, tient = "", depuis = "", bail = ""]) => ({ tient, depuis, bail }),
   },
   {

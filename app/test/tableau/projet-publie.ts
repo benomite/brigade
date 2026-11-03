@@ -67,6 +67,17 @@ function proposer(journal: Journal): { correction: number; profil: number } {
   return { correction: correction.seq, profil: profil.seq };
 }
 
+// Ce que `status` écrit, sauf les lignes du rail : le tableau les porte en heures (ticket 2153), alors que son bloc
+// `awaiting`, l'app le refait en durées.
+function statusDeLaStation(etat: ReturnType<typeof lireEtat>): string {
+  const lignes = decrireEtat(etat, LU_LE);
+  const absolues = decrireEtat(etat, LU_LE, undefined, null, null, null, null, true);
+  const rang = lignes.findIndex((l) => /^rail\s/.test(l)) + 1;
+  let fin = rang;
+  while (lignes[fin]?.startsWith("  #") === true) fin++;
+  return [...lignes.slice(0, rang), ...absolues.slice(rang, fin), ...lignes.slice(fin)].join("\n");
+}
+
 export function projetPublie(t: TestContext, { propositions = false }: { propositions?: boolean } = {}) {
   const journal = ouvrirJournal(copieDeLExempleDuBas(t), { maintenant: () => new Date("2026-10-12T10:03:00.000Z") });
   // Fermé avant que son répertoire ne soit retiré : sous Windows, un journal encore ouvert ne se retire pas (EPERM).
@@ -82,7 +93,9 @@ export function projetPublie(t: TestContext, { propositions = false }: { proposi
     corps,
     // Ce que la station rend, du même état, au même instant.
     facts: JSON.stringify(faits(etat, LU_LE, DEPOT)),
-    status: decrireEtat(etat, LU_LE).join("\n"),
+    // Ce que `status` écrit en heures, comme le tableau (ticket 2153) ; `statusDuRail` : avec le bloc `awaiting` en durées.
+    status: decrireEtat(etat, LU_LE, undefined, null, null, null, null, true).join("\n"),
+    statusDuRail: statusDeLaStation(etat),
     issue: { number: NUMERO, title: "Kitchen board", body: corps, html_url: `https://github.com/${DEPOT}/issues/${NUMERO}`, labels: [{ name: "kitchen-board" }] },
   };
 }
