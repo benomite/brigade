@@ -126,6 +126,11 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   `ECRITURES_PAR_MINUTE` (60) in any sliding minute and `ECRITURES_PAR_HEURE` (450) in any sliding hour
   (`runtime/src/limite-github.ts`). A write over budget does not fail and is not counted: it waits for
   the oldest write of the full window to leave it, then goes. Reads and the chef's gestures are never paced.
+  While writes wait, the pacer says it (#2226): `status` carries a `github` line, `held by the GitHub write
+  budget — N of 450 in the last hour, next write at HH:MM` (N counts the account's writes of the hour;
+  the time is the earliest the next write can go), the app's project view shows the same line, and the
+  station's service log says it once when the hold starts (`brigade : écritures GitHub retenues par le
+  budget — …`) and once when the last waiting write goes (`brigade : écritures GitHub reprises …`).
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
   (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind (`issue-comments`,
   `pull-requests`, `issues`, `gist`, `gesture`, `board` for the Kitchen board's refresh, `other`) over the

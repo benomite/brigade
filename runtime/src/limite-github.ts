@@ -108,11 +108,31 @@ const MINUTE_MS = 60_000;
 // `prendreUnAppel` attend, puis la reprend.
 export class EcritureEspacee extends Error {
   readonly jusqua: number;
-  constructor(jusqua: number, dansMs: number) {
+  // Les écritures du compte comptées sur l'heure écoulée.
+  readonly ecrites: number;
+  constructor(jusqua: number, dansMs: number, ecrites = 0) {
     super(`écritures GitHub espacées : ${ECRITURES_PAR_MINUTE} par minute et ${ECRITURES_PAR_HEURE} par heure au plus — la suivante part dans ${Math.ceil(dansMs / 1000)} s`);
     this.name = "EcritureEspacee";
     this.jusqua = jusqua;
+    this.ecrites = ecrites;
   }
+}
+
+type Lire = <T>(sql: string, ...params: Array<string | number>) => T[];
+
+// L'instant où la prochaine écriture du compte peut partir : la sortie de la
+// fenêtre de la plus ancienne des écritures, pour la fenêtre pleine — null si
+// aucune ne l'est, la prochaine part tout de suite.
+function prochaineEcriture(lire: Lire, compte: string, instant: number): number | null {
+  for (const [fenetre, plafond] of [
+    [MINUTE_MS, ECRITURES_PAR_MINUTE],
+    [FENETRE_MS, ECRITURES_PAR_HEURE],
+  ] as const) {
+    const ecrites = lire<{ instant: number }>("SELECT instant FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ? ORDER BY instant DESC LIMIT ?", compte, instant - fenetre, plafond);
+    const plusAncienne = ecrites[plafond - 1];
+    if (plusAncienne !== undefined) return plusAncienne.instant + fenetre;
+  }
+  return null;
 }
 
 // Vrai si l'appel `gh api` écrit : une méthode autre que GET, ou des champs sans
@@ -219,7 +239,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number } | number => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | number => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -233,14 +253,8 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           // Le rythme des écritures du compte, tous projets ensemble : la
           // suivante part quand la plus ancienne de la fenêtre pleine en sort.
           if (etiquette?.ecriture === true) {
-            for (const [fenetre, plafond] of [
-              [MINUTE_MS, ECRITURES_PAR_MINUTE],
-              [FENETRE_MS, ECRITURES_PAR_HEURE],
-            ] as const) {
-              const ecrites = base.lire<{ instant: number }>("SELECT instant FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ? ORDER BY instant DESC LIMIT ?", compte, instant - fenetre, plafond);
-              const plusAncienne = ecrites[plafond - 1];
-              if (plusAncienne !== undefined) return { espacer: plusAncienne.instant + fenetre };
-            }
+            const espacer = prochaineEcriture((sql, ...params) => base.lire(sql, ...params), compte, instant);
+            if (espacer !== null) return { espacer, ecrites: base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ?", compte, instant - FENETRE_MS)[0]?.n ?? 0 };
           }
         }
         return base.executer(
@@ -253,7 +267,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         ).dernierId;
       });
       if (typeof refus === "number") return refus;
-      if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()));
+      if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()), refus.ecrites);
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
@@ -484,14 +498,76 @@ export async function prendreUnAppel(
   // Une écriture que le rythme retient attend son tour, puis repart : elle ne
   // rate pas, elle part plus tard (#2145).
   const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
-  for (;;) {
-    try {
-      return limite.prendre(usage, compte, options.etiquette);
-    } catch (erreur) {
-      if (!(erreur instanceof EcritureEspacee)) throw erreur;
-      await attendre(Math.max(50, erreur.jusqua - (options.maintenant ?? Date.now)()));
+  let retenue = false;
+  try {
+    for (;;) {
+      try {
+        return limite.prendre(usage, compte, options.etiquette);
+      } catch (erreur) {
+        if (!(erreur instanceof EcritureEspacee)) throw erreur;
+        if (!retenue) {
+          retenue = true;
+          commencerLaRetenue(erreur);
+        }
+        await attendre(Math.max(50, erreur.jusqua - (options.maintenant ?? Date.now)()));
+      }
     }
+  } finally {
+    if (retenue) finirLaRetenue();
   }
+}
+
+// Le journal de la station dit la retenue des écritures une fois quand elle
+// commence et une fois quand elle finit, quel que soit le nombre d'écritures qui
+// attendent : la première qui attend ouvre, la dernière qui repart ferme (#2226).
+let direLaRetenueDansLeJournal: ((ligne: string) => void) | null = null;
+let enAttente = 0;
+
+export function journaliserLaRetenue(dire: (ligne: string) => void): void {
+  direLaRetenueDansLeJournal = dire;
+}
+
+function commencerLaRetenue(erreur: EcritureEspacee): void {
+  enAttente += 1;
+  if (enAttente === 1) direLaRetenueDansLeJournal?.(`brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`);
+}
+
+function finirLaRetenue(): void {
+  enAttente -= 1;
+  if (enAttente === 0) direLaRetenueDansLeJournal?.("brigade : écritures GitHub reprises, le budget ne retient plus la cuisine");
+}
+
+// Ce que le budget des écritures retient sur le compteur de la station dont
+// `racine` est le répertoire : les écritures de l'heure et l'instant de la
+// prochaine, pour le compte dont la prochaine part le plus tôt. Lu sans rien
+// écrire ni rien créer, comme `pauseDeLaStation`. Null si rien n'est retenu.
+export function ecrituresRetenuesDeLaStation(racine: string | undefined, maintenant: number): { ecrites: number; reprise: number } | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    const lire: Lire = (sql, ...params) => base!.lire(sql, ...params);
+    const comptes = lire<{ compte: string }>("SELECT DISTINCT compte FROM appels WHERE ecriture = 1 AND instant > ?", maintenant - FENETRE_MS);
+    let plusTot: { ecrites: number; reprise: number } | null = null;
+    for (const { compte } of comptes) {
+      const reprise = prochaineEcriture(lire, compte, maintenant);
+      if (reprise === null || (plusTot !== null && reprise >= plusTot.reprise)) continue;
+      const ecrites = lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ?", compte, maintenant - FENETRE_MS)[0]?.n ?? 0;
+      plusTot = { ecrites, reprise };
+    }
+    return plusTot;
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// La ligne de `status` : ce qui retient les écritures, combien l'heure en compte, et quand la suivante part.
+export function direLesEcrituresRetenues({ ecrites, reprise }: { ecrites: number; reprise: number }): string {
+  return `held by the GitHub write budget — ${ecrites} of ${ECRITURES_PAR_HEURE} in the last hour, next write at ${heure(reprise)}`;
 }
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
@@ -550,6 +626,12 @@ export function retenueDeLaStation(racine: string | undefined, maintenant: numbe
     base?.fermer();
   }
 }
+
+// L'heure de ce process, en HH:MM.
+const heure = (instant: number): string => {
+  const d = new Date(instant);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
 
 // La ligne qui le dit, en une phrase, l'heure étant celle de ce process.
 export function direLaLimite(jusqua: number): string {
