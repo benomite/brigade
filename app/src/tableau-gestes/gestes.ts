@@ -8,16 +8,15 @@ import { lireLeTableau, type GesteDuTableau } from "../../../runtime/src/tableau
 // Les quatre décisions du chef, plus le choix d'une carte (`choose`, que la grammaire connaît aussi) et « c'est arrivé »
 // (`arrived`), qui renvoie en cuisine un ticket de WAITING, ou revenu de WAITING ; et le « yes » ou le « no » à une
 // correction ou à un profil proposés de la file (`correction`, `profile`), qui portent le numéro de leur proposition, pas
-// un ticket. Et ce qui partait sur la box (#1845) : le commentaire du chef sur l'issue d'une carte (`comment`),
-// la demande au second (`ask`, son contexte facultatif), le plafond de cooks (`cooks`, un nombre ou `auto`) et la cuisine
-// d'une station, arrêtée ou relancée (`station`) — ces deux-là sans ticket.
+// un ticket. Et ce qui partait sur la box (#1845) : le commentaire du chef sur l'issue d'une carte (`comment`), le
+// plafond de cooks (`cooks`, un nombre ou `auto`) et la cuisine d'une station, arrêtée ou relancée (`station`) — ces
+// deux-là sans ticket. La demande au second ne passe plus par le tableau : l'app l'écrit dans le second (discussion.ts).
 export type DecisionDuChef =
   | { geste: "merge" | "set-aside" | "arrived"; ticket: number }
   | { geste: "send-back"; ticket: number; raison?: string }
   | { geste: "answer"; ticket: number; reponse: string }
   | { geste: "choose"; ticket: number; choix: number }
   | { geste: "comment"; ticket: number; commentaire: string }
-  | { geste: "ask"; ticket: number; contexte?: string }
   | { geste: "correction" | "profile"; proposition: number; reponse: "yes" | "no" }
   | { geste: "cooks"; plafond: string }
   | { geste: "station"; action: "stop" | "start"; station: string };
@@ -31,8 +30,7 @@ export type ClientDesGestes = {
   gestesDuTableau: (depot: string, tableau: number) => Promise<GesteDuTableau[] | null>;
 };
 
-// `lu` : le geste tel que le bloc machine le porte — la demande au second d'un `ask` (`demande`), et ce qu'il en est quand
-// la box tient le second (`second`).
+// `lu` : le geste tel que le bloc machine le porte.
 export type EtatDuGeste =
   | { etat: "failed"; raison: string }
   | { etat: "pending"; commentaire: CommentairePoste }
@@ -84,10 +82,6 @@ export function corpsDuGeste(d: DecisionDuChef): string {
       const commentaire = d.commentaire.trim();
       if (commentaire === "") throw new Error("A comment needs words.");
       return `/brigade comment #${d.ticket} ${commentaire}`;
-    }
-    case "ask": {
-      const contexte = (d.contexte ?? "").trim();
-      return contexte === "" ? `/brigade ask #${d.ticket}` : `/brigade ask #${d.ticket} ${contexte}`;
     }
   }
 }

@@ -1,10 +1,12 @@
 // L'issue d'un ticket et sa discussion, sur la fiche de toute carte (#684) : le corps puis les
 // commentaires dans l'ordre, chacun avec son auteur et sa date, le markdown rendu ; et le
 // commentaire du chef, posté sur l'issue par la box (`/brigade comment #<ticket> <texte>` sur le
-// tableau de la cuisine, #1845) — au clic, et seulement au clic. Le commentaire et la demande au
-// second sont joués contre un tableau doublé, que la box lit avec sa grammaire ; la vue, telle qu'elle est,
-// devant un faux document.
+// tableau de la cuisine, #1845) — au clic, et seulement au clic. Le commentaire est joué contre un
+// tableau doublé, que la box lit avec sa grammaire ; la demande au second, `/brigade:ask <ticket> `, contre
+// un second doublé ; la vue, telle qu'elle est, devant un faux document.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
@@ -12,7 +14,7 @@ import type { Rendu } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { commenter, demanderAuSecond, discussionDe, type AuTableau, type Commente, type Discussion } from "../src/discussion.ts";
+import { commenter, demanderAuSecond, discussionDe, noteDeLaQuestion, type AuTableau, type Commente, type Discussion } from "../src/discussion.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -29,6 +31,7 @@ import { lireLeGeste } from "../../runtime/src/tableau/gestes/grammaire.ts";
 import type { GesteDuTableau } from "../../runtime/src/tableau/rendu/bloc.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
+const RACINE = resolve(import.meta.dirname, "..", "..");
 const PARADE = "parade";
 const PROJET = { nom: PARADE, dossier: "/tmp/parade" };
 const DELAI = 60_000;
@@ -102,7 +105,7 @@ describe("la discussion de l'issue, telle que `pass <ticket> issue` la rend", ()
 // Le tableau de la cuisine du projet, doublé : ce que l'app y poste est noté, et la box le lit avec sa grammaire
 // (runtime/src/tableau/gestes/grammaire.ts) ; `repondre` dit ce qu'elle en fait — le geste tel que son bloc machine
 // le porte, ou rien tant qu'elle ne l'a pas lu. Le geste est suivi le temps d'une relecture.
-type Joue = Pick<GesteDuTableau, "etat" | "reponse"> & Partial<Pick<GesteDuTableau, "demande" | "second">>;
+type Joue = Pick<GesteDuTableau, "etat" | "reponse">;
 function tableau(repondre: (lu: ReturnType<typeof lireLeGeste>) => Joue | null) {
   const postes: string[] = [];
   const lus = new Map<number, GesteDuTableau>();
@@ -345,51 +348,57 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
   });
 });
 
-// « ask the second » (#686) : la box compose la demande (`/brigade ask #<ticket> [<texte>]` sur le tableau, #1845),
-// l'app l'écrit dans le second sans Entrée — au clic, et seulement au clic.
-const DEMANDE = "Je te demande à propos de l'issue #21 (« L'export du journal »). Voici le contexte que je viens d'écrire : « le CSV d'abord ».";
-const DEMANDEE: Joue = { etat: "pris", reponse: `**Done** — [ask #21](…): the request for the second is “${DEMANDE}” — cost: none`, demande: DEMANDE };
+// « ask the second » (#686, #2167) : `/brigade:ask <ticket> ` — une espace au bout — écrit dans le second du projet,
+// sans Entrée ; le chef tape sa question à la suite. Rien ne part sur le tableau ni sur la box.
+describe("demander au second depuis la fiche : `/brigade:ask <ticket> ` écrit dans le second, sans Entrée (#2167)", () => {
+  const inscrit = () => {
+    const ecrites: string[] = [];
+    return { ecrites, inscrire: (commande: string) => (ecrites.push(commande), SECOND_ECRIT) };
+  };
 
-describe("demander au second depuis la fiche, par le tableau (#686, #1845)", () => {
-  test("`/brigade ask #<ticket> <contexte>` : le contexte part tel qu'il est écrit, la box le lit mot pour mot ; la demande qu'elle a composée est rendue", async () => {
-    const lus: unknown[] = [];
-    const { auTableau } = tableau((geste) => (lus.push(geste), DEMANDEE));
-    const rendu = await demanderAuSecond(auTableau, PROJET, 21, "  le CSV d'abord\n$(touch /tmp/pas-ca)  ");
-    assert.deepEqual(rendu, { demande: DEMANDE });
-    assert.deepEqual(lus, [{ verbe: "ask", ticket: 21, contexte: "le CSV d'abord\n$(touch /tmp/pas-ca)" }]);
+  test("le ticket 2087 : exactement `/brigade:ask 2087 `, rien d'autre — ni Entrée, ni retour à la ligne — et le second écrit est rendu", () => {
+    const { ecrites, inscrire } = inscrit();
+    assert.equal(demanderAuSecond(inscrire, PROJET, 2087), SECOND_ECRIT);
+    assert.deepEqual(ecrites, ["/brigade:ask 2087 "]);
+    assert.doesNotMatch(ecrites[0] ?? "", /[\r\n]/);
   });
 
-  test("un contexte vide est permis : `/brigade ask #<ticket>`, sans rien après", async () => {
-    const { postes, auTableau } = tableau(() => DEMANDEE);
-    assert.deepEqual(await demanderAuSecond(auTableau, PROJET, 21, "  "), { demande: DEMANDE });
-    assert.deepEqual(postes, ["/brigade ask #21"]);
+  test("le même geste pour toute carte qui a un numéro, quelle que soit la station du projet", () => {
+    for (const projet of [PROJET, { ...PROJET, depot: "chef/parade" }, { nom: "ailleurs", dossier: "/tmp/ailleurs", depot: "chef/ailleurs", base: "main" }]) {
+      for (const ticket of [1, 21, 2087]) {
+        const { ecrites, inscrire } = inscrit();
+        demanderAuSecond(inscrire, projet, ticket);
+        assert.deepEqual(ecrites, [`/brigade:ask ${ticket} `]);
+      }
+    }
   });
 
-  test("la box tient le second du projet : elle lui a envoyé la demande, rien n'est à écrire ici", async () => {
-    const { auTableau } = tableau(() => ({ ...DEMANDEE, second: { etat: "attendu" } }));
-    const rendu = await demanderAuSecond(auTableau, PROJET, 21, "x");
-    assert.ok("auSecond" in rendu && /its answer comes under your gesture, on the Kitchen board/.test(rendu.auSecond));
+  test("le clic ne poste rien sur le tableau : ni geste, ni lecture de son bloc machine", () => {
+    // Le geste ne reçoit pas de quoi joindre le tableau : seulement ce qui écrit dans le second, le projet et le ticket.
+    assert.equal(demanderAuSecond.length, 3);
+    // Le canal du process principal n'appelle que lui : ni `auTableau`, ni `jouerAuTableau`, ni le tableau lu.
+    const canal = /ipcMain\.handle\("demanderAuSecond"[\s\S]*?\n\}\);/.exec(readFileSync(join(RACINE, "app/src/main.ts"), "utf8"))?.[0] ?? assert.fail("pas de canal « demanderAuSecond »");
+    assert.match(canal, /demanderAuSecond\(\(commande\) => terminaux\.inscrire\(vise, commande, noteDeLaQuestion\), vise, ticket\)/);
+    assert.doesNotMatch(canal, /auTableau|jouerAuTableau|tableaux|brigade ask/);
   });
 
-  test("une box qui refuse, ou qui ne l'a pas encore lue : rien n'est écrit, et pourquoi est dit", async () => {
-    const refus = tableau(() => ({ etat: "refuse", reponse: "**Not done** — [ask #21](…): #21 has no GitHub issue" }));
-    assert.deepEqual(await demanderAuSecond(refus.auTableau, PROJET, 21, "x"), { refus: "nothing was written: #21 has no GitHub issue" });
-    const muette = tableau(() => null);
-    const rendu = await demanderAuSecond(muette.auTableau, PROJET, 21, "x");
-    assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: the request is posted on the Kitchen board"));
-  });
-
-  test("ni ticket, ni projet qui s'ouvre : rien n'est posté", async () => {
-    const { postes, auTableau } = tableau(() => assert.fail("rien ne devait partir"));
+  test("ni ticket, ni projet qui s'ouvre : rien n'est écrit, et pourquoi est dit", () => {
+    const { ecrites, inscrire } = inscrit();
     for (const [projet, ticket] of [
       [PROJET, "21"],
       [PROJET, 0],
+      [PROJET, 1.5],
       [{ ...PROJET, refus: "illisible" }, 21],
     ] as const) {
-      const rendu = await demanderAuSecond(auTableau, projet, ticket, "x");
-      assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: "));
+      const rendu = demanderAuSecond(inscrire, projet, ticket);
+      assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: "), JSON.stringify(rendu));
     }
-    assert.deepEqual(postes, []);
+    assert.deepEqual(ecrites, []);
+  });
+
+  test("la note du second dit d'écrire la question à la suite, et avertit devant un dialogue", () => {
+    assert.match(noteDeLaQuestion(), /without Enter — type your question after it/);
+    assert.match(noteDeLaQuestion(true), /keystrokes/);
   });
 });
 

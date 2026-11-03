@@ -111,10 +111,9 @@ export async function reponseDeCarte(lu: TableauLu | undefined, reponse: Reponse
   return "fait" in dit ? { repondue: true, dit: dit.fait, commentaire: dit.commentaire } : dit;
 }
 
-// Un geste qui partait sur la box (#1845) — le plafond, la cuisine d'une station, le commentaire d'une carte,
-// la demande au second —, posté sur le dernier tableau lu du projet et suivi jusqu'à ce que la box l'ait joué ou
-// refusé, le temps de l'attente. Rien ne part sans tableau lu. Les écrans le disent dans leurs mots (plafond.ts,
-// cuisson.ts, discussion.ts).
+// Un geste qui partait sur la box (#1845) — le plafond, la cuisine d'une station, le commentaire d'une carte —,
+// posté sur le dernier tableau lu du projet et suivi jusqu'à ce que la box l'ait joué ou refusé, le temps de l'attente.
+// Rien ne part sans tableau lu. Les écrans le disent dans leurs mots (plafond.ts, cuisson.ts, discussion.ts).
 export async function jouerAuTableau(lu: TableauLu | undefined, decision: DecisionDuChef, client: ClientDesGestes, attente: Attente): Promise<EtatDuGeste> {
   if (lu === undefined) return { etat: "failed", raison: "The Kitchen board of this project has not been read yet — read it again." };
   const gestes = gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client });

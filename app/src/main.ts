@@ -21,7 +21,7 @@ import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { reponseLue } from "./carte-todo.ts";
 import { situationDe } from "./histoire.ts";
-import { commenter, demanderAuSecond } from "./discussion.ts";
+import { commenter, demanderAuSecond, noteDeLaQuestion } from "./discussion.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
@@ -867,9 +867,9 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
 // Le commentaire du chef part par `/brigade comment #<ticket> <texte>` sur le tableau de la cuisine, au clic : la vue
 // nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
 const liensLus = new Map<string, readonly string[]>();
-// Les gestes qui partaient sur la box (#1845) — le commentaire, la demande au second, le plafond, la cuisine
-// d'une station — sont postés sur le dernier tableau lu du projet par l'accès GitHub de ce poste, comme ceux du rail, et
-// suivis jusqu'à ce que la box y ait répondu : elle lit le tableau à chaque tick, une fois la minute. Deux minutes et
+// Les gestes qui partaient sur la box (#1845) — le commentaire, le plafond, la cuisine d'une station — sont postés
+// sur le dernier tableau lu du projet par l'accès GitHub de ce poste, comme ceux du rail, et suivis jusqu'à ce que la
+// box y ait répondu : elle lit le tableau à chaque tick, une fois la minute. Deux minutes et
 // demie au plus, une relecture toutes les cinq secondes ; joué ou refusé, le tableau est relu de GitHub au prochain coup.
 const ATTENTE_DE_LA_BOX = { essais: 30, dormir: () => attendre(5_000) };
 const auTableau = (nom: string) => async (decision: DecisionDuChef) => {
@@ -888,16 +888,12 @@ ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) =
   const vise = connu(nom);
   return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(auTableau(vise.nom), vise, ticket, texte);
 });
-// « ask the second », au clic : `/brigade ask #<ticket> [contexte]` part sur le tableau, la box compose la demande —
-// l'issue et le contexte du champ — et la rend dans son bloc machine ; l'app l'écrit dans le second sans Entrée (comme
-// `demander`). Quand la box tient le second du projet, c'est elle qui la lui envoie : rien n'est écrit ici, et la fiche
-// dit où vient sa réponse. Pas jouée, rien n'est écrit.
-ipcMain.handle("demanderAuSecond", async (_, nom: unknown, ticket: unknown, contexte: unknown) => {
+// « ask the second », au clic : `/brigade:ask <ticket> ` est écrit dans le second du projet, sans Entrée — le chef tape
+// sa question à la suite (discussion.ts). Rien ne part sur le tableau ni sur la box, quelle que soit la station du
+// projet. Le contexte que la vue passe encore n'est pas lu.
+ipcMain.handle("demanderAuSecond", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
-  if (vise === undefined) return { refus: parti(nom).refus };
-  const composee = await demanderAuSecond(auTableau(vise.nom), vise, ticket, contexte);
-  if ("refus" in composee) return composee;
-  return "auSecond" in composee ? { refus: composee.auSecond } : terminaux.inscrire(vise, composee.demande, noteDeLaDemande);
+  return vise === undefined ? { refus: parti(nom).refus } : demanderAuSecond((commande) => terminaux.inscrire(vise, commande, noteDeLaQuestion), vise, ticket);
 });
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
