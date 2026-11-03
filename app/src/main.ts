@@ -70,6 +70,7 @@ import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.
 import { roleDe } from "./poste/role.ts";
 import { ceQueFournitCetOrdinateur } from "./stations/fournit.ts";
 import { tenirStationLocale } from "./poste/station.ts";
+import { garderUneSeuleCuisine } from "./station-embarquee-cuisine-unique.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
@@ -593,6 +594,17 @@ const stationLocale =
         env: process.env,
         dire: (ligne) => console.error(ligne),
         appairer: async (code) => stations.appairer(code, await ceQueFournitIci()),
+        // Un projet qu'une autre station sert déjà n'ouvre pas de seconde cuisine ici (#2110).
+        avantLancement: () =>
+          garderUneSeuleCuisine({
+            racine: racineDeLaStation,
+            lire: async () => {
+              const { lireLesStationsDuChef } = (await import(pathToFileURL(join(emplacements.runtime, "src", "appairage", "stations-du-chef.ts")).href)) as typeof import("../../runtime/src/appairage/stations-du-chef.ts");
+              return lireLesStationsDuChef({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env });
+            },
+            soi: () => ({ gist: gistLocal(racineDeLaStation), nom: process.env.BRIGADE_STATION_NOM ?? "" }),
+            dire: (ligne) => console.error(ligne),
+          }),
         // Lancée ou arrêtée : la page d'un projet qui cuit ici le dit, ou cesse de le dire.
         surChangement: () => dire("configuration", affichee(), []),
       })
