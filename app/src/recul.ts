@@ -7,6 +7,7 @@
 //   - la lecture du champ `reculs` de `facts`, champ pour champ (`reculsLus`) ;
 //   - la section, prête à poser (`reculDe`) : chaque côté en pourcents entiers, ses derniers tickets
 //     atteints, et le numéro de la PR de la correction.
+import { entier, estInforme, liste, objet, refuser, texte } from "./correction.ts";
 // Ce que la cause a fait sur un côté du merge (runtime/src/correctif/recul.ts, `Releve`).
 export type ReleveLu = { tickets: number; atteints: number[]; essais: number; part: number };
 type Commun = { proposition: number; cause: string; titre: string; pr: string | null };
@@ -31,15 +32,6 @@ export type Recul = { proposition: number; titre: string; pr: number | null } & 
 // Les tickets atteints d'un côté qui s'ouvrent : les plus récents, comme les causes de la page.
 export const DERNIERS = 3;
 
-class Informe extends Error {}
-const refuser = (champ: string, attendu: string): never => {
-  throw new Informe(`${champ}: expected ${attendu}`);
-};
-const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
-  typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : refuser(champ, "an object");
-const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
-const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
-const liste = (valeur: unknown, champ: string): unknown[] => (Array.isArray(valeur) ? valeur : refuser(champ, "a list"));
 const heure = (valeur: unknown, champ: string): string => {
   const lue = texte(valeur, champ);
   return Number.isNaN(Date.parse(lue)) ? refuser(champ, "a time") : lue;
@@ -88,7 +80,7 @@ export function reculsLus(brut: unknown): ReculLu[] {
 }
 
 // L'erreur que `reculsLus` lève sur une forme qui n'est pas la sienne : faits.ts la rend comme les siennes.
-export const reculInforme = (erreur: unknown): erreur is Error => erreur instanceof Informe;
+export const reculInforme = estInforme;
 
 const cote = ({ tickets, atteints, part }: ReleveLu): Cote => ({ tickets, atteints: atteints.length, pourcent: Math.round(part * 100), derniers: atteints.slice(-DERNIERS).reverse() });
 // Le numéro d'une PR, lu dans son adresse (`…/pull/41`).

@@ -9,6 +9,7 @@
 // motif dit, jamais un verdict deviné.
 import { EFFORTS, type Calibrage } from "./calibrage.ts";
 import { VERDICTS_DU_SECOND_JUGE, type VerdictDuSecondJuge } from "./events/pass.ts";
+import { premierObjetJson } from "./reviewer.ts";
 
 // Le nom sous lequel ses jugements figurent au journal, à la place d'une
 // station : distinct de celui du reviewer, c'est par lui que le chef voit
@@ -117,21 +118,6 @@ export function consigneDuSecondJuge(mission: SecondJugement): string {
   ].join("\n");
 }
 
-// Le premier objet JSON que porte le texte : le modèle l'entoure volontiers de
-// prose ou d'un bloc de code.
-function objet(texte: string): Record<string, unknown> | null {
-  const fin = texte.lastIndexOf("}");
-  for (let debut = texte.indexOf("{"); debut !== -1 && debut < fin; debut = texte.indexOf("{", debut + 1)) {
-    try {
-      const lu: unknown = JSON.parse(texte.slice(debut, fin + 1));
-      if (lu !== null && typeof lu === "object" && !Array.isArray(lu)) return lu as Record<string, unknown>;
-    } catch {
-      // Pas ici : l'accolade suivante.
-    }
-  }
-  return null;
-}
-
 const LUS = new Map<string, VerdictDuSecondJuge>(VERDICTS_DU_SECOND_JUGE.map((verdict) => [DIRE_VERDICT[verdict], verdict]));
 
 // Lit le verdict dans le dernier message du second juge. Rien n'y est deviné :
@@ -140,7 +126,7 @@ const LUS = new Map<string, VerdictDuSecondJuge>(VERDICTS_DU_SECOND_JUGE.map((ve
 // ligne : sans lui, la carte le dit en mots fixes (carte-todo/cartes.ts).
 export function lireSecondJugement(message: string | null): { verdict: VerdictDuSecondJuge; raison: string; change?: string } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
-  const lu = objet(message);
+  const lu = premierObjetJson(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
   const verdict = typeof lu.verdict === "string" ? LUS.get(lu.verdict.trim()) : undefined;
   if (!verdict) return { illisible: `verdict inconnu : ${JSON.stringify(lu.verdict)} — attendu ${VERDICTS_DU_SECOND_JUGE.map((v) => DIRE_VERDICT[v]).join(", ")}` };

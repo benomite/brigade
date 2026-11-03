@@ -6,8 +6,8 @@
 // chef sont ensemble le geste du chef : ni un quota bas ni la pause de la box
 // ne les retiennent, sans quoi un geste posté resterait sans réponse.
 import { masquerIdentifiants } from "../../identifiants.ts";
-import { COMPTE_DE_LA_MACHINE, estUneEcriture, lectureDe, limiteDuProcess, prendreUnAppel, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
-import { lancerGhApi } from "../publication/client.ts";
+import { COMPTE_DE_LA_MACHINE, estUneEcriture, lectureDe, limiteDuProcess, prendreUnAppel, type ReponseHttp, type Usage } from "../../limite-github.ts";
+import { lancerGhApi, type OptionsClient } from "../publication/client.ts";
 
 // Un commentaire du tableau. `id` : celui de GitHub, croissant d'un commentaire
 // au suivant. `le` : son heure de création.
@@ -22,21 +22,6 @@ export type ClientDesGestes = {
   // Le compte GitHub du chef : celui du `gh` de la machine, sous lequel la box
   // a été installée — jamais celui d'une App de rôle.
   compteDuChef(): Promise<string>;
-};
-
-export type OptionsClient = {
-  // `<owner>/<repo>`
-  depot: string;
-  // Le binaire `gh`. Surchargé par les tests, jamais sur la box.
-  bin?: string;
-  delaiMs?: number;
-  // Le jeton du rôle qui lit et répond, demandé à chaque appel ; absent, `gh` s'authentifie seul.
-  jeton?: () => Promise<string>;
-  // Le compte dont ce client dépense le quota : par défaut, celui de la machine.
-  compte?: string;
-  projet?: string;
-  limite?: Limite;
-  maintenant?: () => number;
 };
 
 type CommentaireBrut = { id?: unknown; body?: unknown; created_at?: unknown; html_url?: unknown; user?: { login?: unknown } | null };

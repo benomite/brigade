@@ -14,8 +14,7 @@
 // en échec : `listed`, `sign-in-required`, `unavailable` — jamais une liste
 // vide sans raison.
 import { enProcess, Sortie, type Appel } from "../appel.ts";
-import { echecDeGh, type StationsDuChef } from "../appairage/stations-du-chef.ts";
-import { execFile } from "../sans-invite.ts";
+import { Absent, appelDeGhApi, etatDeLEchec, parcourirLesGists, texte, type OptionsDeLecture, type StationsDuChef } from "../appairage/stations-du-chef.ts";
 import { disponible, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, selectionLue, type Plateforme } from "./contrat.ts";
 
 export type StationEnregistree = {
@@ -42,31 +41,6 @@ export type StationsDuCompte =
   | { state: "listed"; stations: StationEnregistree[]; unreadable: Array<{ id: string; reason: string }>; reason?: string }
   | Echec;
 
-export type OptionsDeLecture = {
-  gh: string;
-  delaiMs?: number;
-  env?: NodeJS.ProcessEnv;
-  maintenant?: () => number;
-};
-
-const PAR_PAGE = 100;
-const PAGES_MAX = 30;
-export const DELAI_MS = 30_000;
-const ABSENT = /\(HTTP 404\)/;
-
-class EchecDeGh extends Error {
-  readonly etat: Echec;
-
-  constructor(etat: Echec) {
-    super(etat.reason);
-    this.etat = etat;
-  }
-}
-
-class Absent extends Error {}
-
-const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
-
 // Une station enregistrée, telle que son gist la dit — ou pourquoi elle ne se lit pas.
 export function stationDuGist(id: string, fichiers: Record<string, string>, proprietaire: string | null, instant: number): StationEnregistree | { illisible: string } {
   const brut = fichiers[FICHIER_ENREGISTREMENT];
@@ -92,36 +66,15 @@ export function stationDuGist(id: string, fichiers: Record<string, string>, prop
 
 // Lit les stations du compte sur GitHub. Ne lève pas : un échec est un état.
 export async function lireLesStationsDuCompte(options: OptionsDeLecture): Promise<StationsDuCompte> {
-  const { gh } = options;
-  const delaiMs = options.delaiMs ?? DELAI_MS;
   const maintenant = options.maintenant ?? Date.now;
-  const env = { ...(options.env ?? process.env), GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
-  const appeler = (chemin: string): Promise<string> =>
-    new Promise((resoudre, rejeter) => {
-      execFile(gh, ["api", chemin], { timeout: delaiMs, maxBuffer: 16 * 1024 * 1024, env }, (erreur, sortie, erreurs) => {
-        if (erreur === null) return resoudre(sortie);
-        if (ABSENT.test(erreurs)) return rejeter(new Absent());
-        const etat = echecDeGh(gh, delaiMs, erreur, erreurs);
-        rejeter(new EchecDeGh(etat.state === "sign-in-required" ? { ...etat, reason: "This computer is not signed in to GitHub, so brigade cannot read the stations registered under your account." } : etat));
-      });
-    });
+  const appeler = appelDeGhApi(options, (etat) => (etat.state === "sign-in-required" ? { ...etat, reason: "This computer is not signed in to GitHub, so brigade cannot read the stations registered under your account." } : etat));
 
   try {
     const enregistrees: string[] = [];
-    for (let page = 1; page <= PAGES_MAX; page++) {
-      let lus: unknown;
-      try {
-        lus = JSON.parse(await appeler(`/gists?per_page=${PAR_PAGE}&page=${page}`));
-      } catch (erreur) {
-        if (erreur instanceof SyntaxError) return { state: "unavailable", cause: "github", reason: "GitHub answered the list of your gists with something that is not JSON, so your stations could not be read." };
-        throw erreur;
-      }
-      if (!Array.isArray(lus)) return { state: "unavailable", cause: "github", reason: "GitHub answered the list of your gists with something that is not a list, so your stations could not be read." };
-      for (const gist of lus as Array<{ id?: unknown; files?: Record<string, unknown> } | null>) {
-        if (texte(gist?.id) && gist.files !== null && typeof gist.files === "object" && FICHIER_ENREGISTREMENT in gist.files) enregistrees.push(gist.id);
-      }
-      if (lus.length < PAR_PAGE) break;
-    }
+    const illisible = await parcourirLesGists(appeler, (id, fichiers) => {
+      if (FICHIER_ENREGISTREMENT in fichiers) enregistrees.push(id);
+    });
+    if (illisible !== null) return illisible;
     const instant = maintenant();
     const stations: StationEnregistree[] = [];
     const unreadable: Array<{ id: string; reason: string }> = [];
@@ -158,9 +111,7 @@ export async function lireLesStationsDuCompte(options: OptionsDeLecture): Promis
           : "No station is registered under this GitHub account yet: install brigade's station on a machine, and sign it in to this account.",
     };
   } catch (erreur) {
-    if (erreur instanceof EchecDeGh) return erreur.etat;
-    if (erreur instanceof Absent) return { state: "unavailable", cause: "github", reason: "GitHub did not find the list of your gists, so your stations could not be read." };
-    throw erreur;
+    return etatDeLEchec(erreur);
   }
 }
 

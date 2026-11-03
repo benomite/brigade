@@ -356,8 +356,6 @@ function consigneDeCorrection(mission: Relecture & { diff: NonNullable<Relecture
 // Ce que la pass retient d'une relecture lisible.
 export type Lue = { verdict: "green" | "red"; summary: string; findings: Finding[] };
 
-// Le premier objet JSON que porte le texte. Le LLM l'entoure volontiers de
-// prose ou d'un bloc de code : seul ce qui se lit comme un objet compte.
 // La relecture de la PR du carnet des leçons : le runtime y écrit ce que
 // l'histoire des rétros décide — promotion, rétrogradation, disparition,
 // retrait constaté après un revert —, sans que le chef l'ait vue avant. Elle
@@ -405,7 +403,10 @@ function consigneDuCarnet(mission: Relecture & { diff: NonNullable<Relecture["di
   ].join("\n");
 }
 
-function objet(texte: string): Record<string, unknown> | null {
+// Le premier objet JSON que porte le texte. Le LLM l'entoure volontiers de
+// prose ou d'un bloc de code : seul ce qui se lit comme un objet compte. Le
+// second juge le lit de même (second-juge.ts).
+export function premierObjetJson(texte: string): Record<string, unknown> | null {
   const fin = texte.lastIndexOf("}");
   for (let debut = texte.indexOf("{"); debut !== -1 && debut < fin; debut = texte.indexOf("{", debut + 1)) {
     try {
@@ -432,7 +433,7 @@ const VERDICTS: Record<string, Lue["verdict"]> = { vert: "green", rouge: "red" }
 // rouge qui ne tient qu'à une suppression : il est vert.
 export function lireRelecture(message: string | null, captures: CapturesARelire | null = null): { relecture: Lue } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
-  const lu = objet(message);
+  const lu = premierObjetJson(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
   let verdict = typeof lu.verdict === "string" ? VERDICTS[lu.verdict] : undefined;
   if (!verdict) return { illisible: `verdict inconnu : ${JSON.stringify(lu.verdict)} — attendu vert ou rouge` };

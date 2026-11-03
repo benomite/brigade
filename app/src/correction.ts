@@ -55,15 +55,17 @@ export const OUI = "yes";
 export const NON = "no";
 export type Reponse = typeof OUI | typeof NON;
 
+// La lecture d'une forme, champ pour champ : un champ qui n'a pas sa forme la refuse entière, en
+// disant lequel. Le recul (recul.ts) et l'apprentissage (apprentissage.ts) se lisent de même.
 class Informe extends Error {}
-const refuser = (champ: string, attendu: string): never => {
+export const refuser = (champ: string, attendu: string): never => {
   throw new Informe(`${champ}: expected ${attendu}`);
 };
-const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
+export const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
   typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : refuser(champ, "an object");
-const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
-const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
-const liste = (valeur: unknown, champ: string): unknown[] => (Array.isArray(valeur) ? valeur : refuser(champ, "a list"));
+export const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
+export const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
+export const liste = (valeur: unknown, champ: string): unknown[] => (Array.isArray(valeur) ? valeur : refuser(champ, "a list"));
 const ouRien = <T>(valeur: unknown, lire: () => T): T | null => (valeur === null ? null : lire());
 
 // Le champ `corrections` de `facts`, champ pour champ. Un champ qui manque ou qui n'a pas sa forme
@@ -93,8 +95,8 @@ export function correctionsLues(brut: unknown): CorrectionLue[] {
   });
 }
 
-// L'erreur que `correctionsLues` lève sur une forme qui n'est pas la sienne : faits.ts la rend comme
-// les siennes.
+// L'erreur que `correctionsLues` lève sur une forme qui n'est pas la sienne — et `reculsLus`,
+// `apprentissageLu`, qui la lisent par les mêmes lecteurs : faits.ts la rend comme les siennes.
 export const estInforme = (erreur: unknown): erreur is Error => erreur instanceof Informe;
 
 // Le chemin d'un fichier, d'après la tête de sa section : `+++ b/<chemin>`, sinon `diff --git a/… b/<chemin>`.

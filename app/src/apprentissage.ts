@@ -7,6 +7,7 @@
 //   - la lecture du champ `apprentissage` de `facts`, champ pour champ (`apprentissageLu`) ;
 //   - la section, prête à poser (`apprentissageDe`) : l'adresse d'une leçon promue n'y passe pas — la vue
 //     nomme la leçon, le process principal ouvre la ligne du carnet que la box a donnée (`faits.ts`, `lecon`).
+import { entier, estInforme, liste, objet, refuser, texte } from "./correction.ts";
 // La livraison d'un côté de la date d'entrée (runtime/src/apprentissage/progres.ts, `Livraison`) : `null`,
 // aucun ticket mergé de ce côté.
 export type Livraison = { retenus: number; premiers: number; premierCoup: number; essaisMoyens: number };
@@ -26,15 +27,6 @@ export type Lecon = Omit<LeconLue, "url"> & { lien?: { ouvrable: boolean } };
 // La section, telle que la vue la pose : vide, la page le dit en une phrase.
 export type Apprentissage = { lecons: Lecon[]; profils: ProfilApprisLu[] };
 
-class Informe extends Error {}
-const refuser = (champ: string, attendu: string): never => {
-  throw new Informe(`${champ}: expected ${attendu}`);
-};
-const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
-  typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : refuser(champ, "an object");
-const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
-const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
-const liste = (valeur: unknown, champ: string): unknown[] => (Array.isArray(valeur) ? valeur : refuser(champ, "a list"));
 const textes = (valeur: unknown, champ: string): string[] => liste(valeur, champ).map((un, n) => texte(un, `${champ}[${n}]`));
 const tickets = (valeur: unknown, champ: string): number[] => liste(valeur, champ).map((ticket, n) => entier(ticket, `${champ}[${n}]`));
 // Un nombre fini qui n'est pas négatif : jamais NaN, jamais infini.
@@ -116,7 +108,7 @@ export function apprentissageLu(brut: unknown): ApprentissageLu {
 }
 
 // L'erreur que `apprentissageLu` lève sur une forme qui n'est pas la sienne : faits.ts la rend comme les siennes.
-export const apprentissageInforme = (erreur: unknown): erreur is Error => erreur instanceof Informe;
+export const apprentissageInforme = estInforme;
 
 // La seule adresse qu'une leçon promue ouvre : la ligne de son carnet sur GitHub, en https.
 export const ligneOuvrable = (url: string | undefined): url is string => url !== undefined && /^https:\/\/github\.com\/[^\s]+$/.test(url);

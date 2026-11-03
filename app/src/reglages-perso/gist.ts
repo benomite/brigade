@@ -2,7 +2,7 @@
 // poste — celui des gists des stations (../stations/github.ts), avec la même authentification et
 // les mêmes appels. Il porte un seul fichier, `FICHIER_PREFERENCES`, à quoi on le reconnaît dans la
 // liste des gists du compte : un autre appareil du chef le retrouve ainsi, sans rien en savoir d'avance.
-import { execFile, type ExecFileException } from "node:child_process";
+import { Absent, appelDeGhApi } from "../stations/github.ts";
 
 export const FICHIER_PREFERENCES = "brigade-preferences.json";
 export const DESCRIPTION = "brigade — the chef's personal preferences";
@@ -22,28 +22,9 @@ export type GistDesPreferences = {
 
 const PAR_PAGE = 100;
 const PAGES_MAX = 30;
-const ABSENT = /\(HTTP 404\)/;
-
-class Absent extends Error {}
-
-function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): string {
-  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this machine: the app keeps your preferences on GitHub with your own \`gh\``;
-  if (erreur.killed === true) return `GitHub gave no answer within ${Math.round(reglages.delaiMs / 1000)} s`;
-  return erreurs.trim().split("\n").at(-1) || erreur.message;
-}
 
 export function gistDesPreferences(reglages: Reglages): GistDesPreferences {
-  const appeler = (args: string[], entree?: unknown): Promise<string> =>
-    new Promise((resoudre, rejeter) => {
-      const enfant = execFile(reglages.gh, ["api", ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
-        if (erreur === null) return resoudre(sortie);
-        if (ABSENT.test(erreurs)) return rejeter(new Absent());
-        rejeter(new Error(echec(reglages, erreur, erreurs)));
-      });
-      // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
-      enfant.stdin?.on("error", () => {});
-      enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
-    });
+  const appeler = appelDeGhApi(reglages, "keeps your preferences");
   const fichiers = (contenu: string) => ({ [FICHIER_PREFERENCES]: { content: contenu } });
 
   return {

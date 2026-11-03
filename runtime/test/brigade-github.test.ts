@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type OptionsDuDepot, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
@@ -538,6 +538,21 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
 // Un flux de `claude` qui conclut sur `texte`.
 const fluxQuiConclut = (texte: string) => `${JSON.stringify({ type: "result", is_error: false, result: texte })}\n`;
 
+// Ce que les stations du dépôt de ces tests ont en commun : la prise de #2056,
+// des plafonds larges, le reviewer en sonnet, leurs flux sous `repertoire`, et
+// `lancer` à la place de `claude`.
+const optionsDeTest = (repertoire: string, lancer: Lancer): Pick<OptionsDuDepot, "prise" | "claude" | "env" | "cloison" | "plafonds" | "graceMs" | "reviewer" | "flux" | "lancer"> => ({
+  prise: priseDeLaStation,
+  claude: "claude",
+  env: {},
+  cloison: null,
+  plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+  graceMs: 1,
+  reviewer: { model: "sonnet", effort: "medium" },
+  flux: repertoire,
+  lancer,
+});
+
 test("the station of this runtime: a ticket is cooked in the station's repository, reviewed by the reviewer and merged, through the real GitHub client", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
@@ -577,15 +592,7 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
       changes: () => ["a.ts"],
       diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...optionsDeTest(repertoire, lancer),
     avertir: (texte) => assert.fail(texte),
   });
   assert.ok(!("refus" in station));
@@ -637,15 +644,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
       changes: () => [],
       diff: () => "",
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...optionsDeTest(repertoire, lancer),
     avertir: () => {},
   });
   assert.ok(!("refus" in station));
@@ -687,15 +686,7 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
         changes: () => ["a.ts"],
         diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
       },
-      prise: priseDeLaStation,
-      claude: "claude",
-      env: {},
-      cloison: null,
-      plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-      graceMs: 1,
-      reviewer: { model: "sonnet", effort: "medium" },
-      flux: repertoire,
-      lancer,
+      ...optionsDeTest(repertoire, lancer),
       avertir: (texte) => assert.fail(texte),
     });
     assert.ok(!("refus" in station), "refus" in station ? station.refus : "");

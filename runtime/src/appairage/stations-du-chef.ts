@@ -91,7 +91,10 @@ const CODE_NON_CONNECTE = 4;
 const LIMITE = /rate limit|HTTP 429/i;
 const RESEAU = /error connecting|could not resolve|no such host|dial tcp|network is unreachable|connection refused|connection reset|i\/o timeout|TLS handshake|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i;
 
-class EchecDeGh extends Error {
+// L'échec d'un appel à `gh`, tel qu'il se dit en état ; et le 404 d'un gist,
+// qu'une lecture écarte. Les stations du compte (`enregistrement-station/
+// stations-du-compte.ts`) lisent leurs gists de même.
+export class EchecDeGh extends Error {
   readonly etat: Exclude<StationsDuChef, { state: "listed" }>;
 
   constructor(etat: Exclude<StationsDuChef, { state: "listed" }>) {
@@ -100,7 +103,7 @@ class EchecDeGh extends Error {
   }
 }
 
-class Absent extends Error {}
+export class Absent extends Error {}
 
 // Ce qu'un lancement de `gh` en échec dit de lui (l'erreur d'`execFile`) :
 // `code`, son code de sortie, ou celle du système (`ENOENT`) ; `killed`, arrêté au délai.
@@ -132,7 +135,7 @@ export function echecDeGh(gh: string, delaiMs: number, erreur: ErreurDeLancement
   return { state: "unavailable", cause: "github", reason: `GitHub refused to list your stations: ${dit.replace(/[.\s]+$/, "")}.`, detail };
 }
 
-const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
+export const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 const date = (valeur: unknown): valeur is string => texte(valeur) && !Number.isNaN(Date.parse(valeur));
 
 // Le jugement de l'app (`app/src/stations/stations.ts`, `etatDe`) : hors ligne
@@ -193,39 +196,63 @@ export async function lireLesStationsEtLeursGists(options: OptionsDeLecture): Pr
   return { etat, gists };
 }
 
-async function lireEtRanger(options: OptionsDeLecture, gists: Map<string, Record<string, string>>): Promise<StationsDuChef> {
+// `gh api <chemin>`, par le `gh` de la lecture : sa sortie ; `Absent` sur un
+// 404 ; sinon `EchecDeGh`, l'état que `echecDeGh` en dit, que `redire` peut
+// reformuler.
+export function appelDeGhApi(options: OptionsDeLecture, redire: (etat: Exclude<StationsDuChef, { state: "listed" }>) => Exclude<StationsDuChef, { state: "listed" }> = (etat) => etat): (chemin: string) => Promise<string> {
   const { gh } = options;
   const delaiMs = options.delaiMs ?? DELAI_MS;
-  const maintenant = options.maintenant ?? Date.now;
   const env = { ...(options.env ?? process.env), GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
-  const appeler = (chemin: string): Promise<string> =>
+  return (chemin) =>
     new Promise((resoudre, rejeter) => {
       execFile(gh, ["api", chemin], { timeout: delaiMs, maxBuffer: 16 * 1024 * 1024, env }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre(sortie);
         if (ABSENT.test(erreurs)) return rejeter(new Absent());
-        rejeter(new EchecDeGh(echecDeGh(gh, delaiMs, erreur, erreurs)));
+        rejeter(new EchecDeGh(redire(echecDeGh(gh, delaiMs, erreur, erreurs))));
       });
     });
+}
 
+// Les gists du compte, page à page : chacun qui a un id et des fichiers est
+// rendu à `voir`. Rend l'état `unavailable` quand GitHub répond à la liste
+// autre chose qu'une liste en JSON, null sinon.
+export async function parcourirLesGists(appeler: (chemin: string) => Promise<string>, voir: (id: string, fichiers: object) => void): Promise<Exclude<StationsDuChef, { state: "listed" }> | null> {
+  for (let page = 1; page <= PAGES_MAX; page++) {
+    let lus: unknown;
+    try {
+      lus = JSON.parse(await appeler(`/gists?per_page=${PAR_PAGE}&page=${page}`));
+    } catch (erreur) {
+      if (erreur instanceof SyntaxError) return { state: "unavailable", cause: "github", reason: "GitHub answered the list of your gists with something that is not JSON, so your stations could not be read." };
+      throw erreur;
+    }
+    if (!Array.isArray(lus)) return { state: "unavailable", cause: "github", reason: "GitHub answered the list of your gists with something that is not a list, so your stations could not be read." };
+    for (const gist of lus as Array<{ id?: unknown; files?: unknown } | null>) {
+      if (texte(gist?.id) && gist.files !== null && typeof gist.files === "object") voir(gist.id, gist.files);
+    }
+    if (lus.length < PAR_PAGE) break;
+  }
+  return null;
+}
+
+// L'état que dit l'échec d'une lecture des gists ; toute autre erreur est relevée.
+export function etatDeLEchec(erreur: unknown): Exclude<StationsDuChef, { state: "listed" }> {
+  if (erreur instanceof EchecDeGh) return erreur.etat;
+  if (erreur instanceof Absent) return { state: "unavailable", cause: "github", reason: "GitHub did not find the list of your gists, so your stations could not be read." };
+  throw erreur;
+}
+
+async function lireEtRanger(options: OptionsDeLecture, gists: Map<string, Record<string, string>>): Promise<StationsDuChef> {
+  const maintenant = options.maintenant ?? Date.now;
+  const appeler = appelDeGhApi(options);
   try {
     const appairees: string[] = [];
     let enAttente = 0;
-    for (let page = 1; page <= PAGES_MAX; page++) {
-      let lus: unknown;
-      try {
-        lus = JSON.parse(await appeler(`/gists?per_page=${PAR_PAGE}&page=${page}`));
-      } catch (erreur) {
-        if (erreur instanceof SyntaxError) return { state: "unavailable", cause: "github", reason: "GitHub answered the list of your gists with something that is not JSON, so your stations could not be read." };
-        throw erreur;
-      }
-      if (!Array.isArray(lus)) return { state: "unavailable", cause: "github", reason: "GitHub answered the list of your gists with something that is not a list, so your stations could not be read." };
-      for (const gist of lus as Array<{ id?: unknown; files?: Record<string, unknown> } | null>) {
-        if (!texte(gist?.id) || gist.files === undefined || gist.files === null || !(FICHIER_STATION in gist.files)) continue;
-        if (FICHIER_APPAIRAGE in gist.files) appairees.push(gist.id);
-        else enAttente += 1;
-      }
-      if (lus.length < PAR_PAGE) break;
-    }
+    const illisible = await parcourirLesGists(appeler, (id, fichiers) => {
+      if (!(FICHIER_STATION in fichiers)) return;
+      if (FICHIER_APPAIRAGE in fichiers) appairees.push(id);
+      else enAttente += 1;
+    });
+    if (illisible !== null) return illisible;
     const instant = maintenant();
     const stations: StationAppairee[] = [];
     const unreadable: Array<{ id: string; reason: string }> = [];
@@ -257,9 +284,7 @@ async function lireEtRanger(options: OptionsDeLecture, gists: Map<string, Record
     if (stations.length > 0) return { state: "listed", stations, unreadable };
     return { state: "listed", stations, unreadable, reason: pourquoiAucune(unreadable.length, enAttente) };
   } catch (erreur) {
-    if (erreur instanceof EchecDeGh) return erreur.etat;
-    if (erreur instanceof Absent) return { state: "unavailable", cause: "github", reason: "GitHub did not find the list of your gists, so your stations could not be read." };
-    throw erreur;
+    return etatDeLEchec(erreur);
   }
 }
 

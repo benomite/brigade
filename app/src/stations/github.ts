@@ -30,27 +30,33 @@ const PAR_PAGE = 100;
 const PAGES_MAX = 30;
 const ABSENT = /\(HTTP 404\)/;
 
-class Absent extends Error {}
+export class Absent extends Error {}
 
-// Ce qu'un `gh` en échec a dit, en une ligne.
-function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): string {
-  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this machine: the app reads its stations on GitHub with your own \`gh\``;
+// Ce qu'un `gh` en échec a dit, en une ligne ; `pourquoi`, ce que l'app fait avec lui, dit s'il manque.
+function echec(reglages: Reglages, pourquoi: string, erreur: ExecFileException, erreurs: string): string {
+  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this machine: the app ${pourquoi} on GitHub with your own \`gh\``;
   if (erreur.killed === true) return `GitHub gave no answer within ${Math.round(reglages.delaiMs / 1000)} s`;
   return erreurs.trim().split("\n").at(-1) || erreur.message;
 }
 
-export function githubDesStations(reglages: Reglages): GitHubDesStations {
-  const appeler = (args: string[], entree?: unknown): Promise<string> =>
+// `gh api` par le `gh` du poste, `entree` sur son entrée : sa sortie ; `Absent` sur un 404 ; sinon
+// l'erreur de ce que `gh` a dit. Le gist des préférences (../reglages-perso/gist.ts) appelle par lui.
+export const appelDeGhApi =
+  (reglages: Reglages, pourquoi: string) =>
+  (args: string[], entree?: unknown): Promise<string> =>
     new Promise((resoudre, rejeter) => {
       const enfant = execFile(reglages.gh, ["api", ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre(sortie);
         if (ABSENT.test(erreurs)) return rejeter(new Absent());
-        rejeter(new Error(echec(reglages, erreur, erreurs)));
+        rejeter(new Error(echec(reglages, pourquoi, erreur, erreurs)));
       });
       // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
       enfant.stdin?.on("error", () => {});
       enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
     });
+
+export function githubDesStations(reglages: Reglages): GitHubDesStations {
+  const appeler = appelDeGhApi(reglages, "reads its stations");
 
   const patcher = async (id: string, files: Record<string, { content: string } | null>) => {
     try {

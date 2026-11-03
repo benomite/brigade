@@ -288,21 +288,26 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(vivant(pid), false);
   });
 
-  test("le motif est remis avant que le signal parte : le cook vit encore quand on le note", async (t) => {
-    let vivaitEncore: boolean | null = null;
-    const flux = join(repertoireTemporaire(t), "run.jsonl");
+  // Un cook bavard, arrêté pour ses tokens, dont l'arrêt est remis à `surArret`.
+  const bavardArreteAuxTokens = (t: TestContext, surArret: () => void) => {
     const supervise = superviser({
       commande: FAUX_CLAUDE,
       args: [],
       env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
       plafonds: { ...LARGES, tokens: 5 },
       graceMs: 2000,
-      flux,
-      surArret: () => {
-        vivaitEncore = vivant(supervise.pid);
-      },
+      flux: join(repertoireTemporaire(t), "run.jsonl"),
+      surArret,
     });
     aArreter(t, () => supervise.abandonner());
+    return supervise;
+  };
+
+  test("le motif est remis avant que le signal parte : le cook vit encore quand on le note", async (t) => {
+    let vivaitEncore: boolean | null = null;
+    const supervise = bavardArreteAuxTokens(t, () => {
+      vivaitEncore = vivant(supervise.pid);
+    });
 
     await supervise.fin;
 
@@ -310,19 +315,9 @@ describe("superviser", { concurrency: true }, () => {
   });
 
   test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", async (t) => {
-    const flux = join(repertoireTemporaire(t), "run.jsonl");
-    const supervise = superviser({
-      commande: FAUX_CLAUDE,
-      args: [],
-      env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
-      plafonds: { ...LARGES, tokens: 5 },
-      graceMs: 2000,
-      flux,
-      surArret: () => {
-        throw new Error("journal en panne");
-      },
+    const supervise = bavardArreteAuxTokens(t, () => {
+      throw new Error("journal en panne");
     });
-    aArreter(t, () => supervise.abandonner());
 
     const resultat = await supervise.fin;
 
