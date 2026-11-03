@@ -250,7 +250,7 @@ const viderLesPromesses = async () => {
   for (let tour = 0; tour < 20; tour++) await new Promise((resoudre) => setImmediate(resoudre));
 };
 
-test("aux réglages de la box — bail de 30 min, 10 min d'inactivité —, la station rapporte la mesure de son cook bien avant le plafond : la principale ne l'arrête plus à 0 tour et 0 token (#2095)", async (t) => {
+test("aux réglages de la box — bail de 30 min, 10 min d'inactivité —, la station rapporte la mesure de son cook bien avant le plafond d'inactivité, et la principale ne l'arrête plus à 0 tour et 0 token (#2095)", async (t) => {
   // Au tiers du bail seul, le premier renouvellement partait à 10 min : le plafond même.
   const mission: Mission = { ...MISSION, leaseMs: 1_800_000, limits: { ...PLAFONDS, idleMs: 600_000 } };
   assert.ok(intervalleDeRenouvellement(mission) <= mission.limits.idleMs / 4, `${intervalleDeRenouvellement(mission)} ms entre deux renouvellements`);
