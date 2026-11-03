@@ -223,6 +223,14 @@ the request`, which writes it without sending it); an action without a price goe
 for word** and the reason **are behind "detail"**, at the end of the line: one click unfolds them below,
 a second folds them back, and a re-read of the band does not fold them. The action itself is never
 written there — no command to copy and no instructions: the only action shown is the button of the line.
+**When GitHub limits the account's calls, every project of the account says it at once** (#2147): the box's `facts`
+carries a `github` entry `{limit, since, backAt}` (the runtime's contract, #2144), shared by every project of the
+account, and each project's band shows one yellow line — which limit in plain words, since when, back around what
+time, at your local time: `GitHub is rate-limiting calls: too many writes per minute, since 15:22, back around 15:54`
+(`the hourly quota is spent`, `too many requests at once` for the two others). GitHub's own name of the limit is behind
+"detail". Nothing is asked of you, so the line has no button; it leaves by itself at the first `facts` without the
+entry, with no reload. A limit name the app does not know still makes the line, without its plain words
+(`app/src/vue/bandeau-limite-github.ts`).
 **One switch for the whole project** (#1406), in place of the manager's switch and the `merge` grant's
 (#906, #907): it is not a line of the band, it is at the head of the space, to the right of the tabs —
 `project on`, green slider on the right, or `project off`, grey on the left —, always in view, and one
