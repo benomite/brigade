@@ -22,7 +22,7 @@
 // partageraient garde une issue par cuisine.
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
-import { COMPTE_DE_LA_MACHINE, estUneEcriture, lectureDe, limiteDuProcess, prendreUnAppel, type ReponseHttp } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, estUneEcriture, lectureDe, limiteDuProcess, type ReponseHttp } from "./limite-github.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
 import type { CauseReveil, Runtime } from "./runtime.ts";
 import { lancerGhApi, type OptionsClient } from "./tableau/publication/client.ts";
@@ -206,9 +206,10 @@ export function clientGitHubDuDisjoncteur(options: OptionsClient): ClientDuDisjo
     const limite = options.limite ?? limiteDuProcess();
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage: "cuisine", compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant });
-    await environnement();
-    return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    return appelerGitHub(limite, { usage: "cuisine", compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant }, async (appel) => {
+      await environnement();
+      return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    });
   };
 
   const exiger = (reponse: ReponseHttp, chemin: string, ...attendus: number[]): ReponseHttp => {
