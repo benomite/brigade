@@ -876,11 +876,13 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
   test("un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué", { timeout: 300_000 }, async (t) => {
     const lieu = service(t, {
       aLaMain: true, essais: { base: "rouge" }, depot: (depot) => ({ jeter: menageEnPanne(depot, () => lieu.essai("base")) }) });
-    const { journal, avertissements, dernier } = lieu;
+    const { journal, avertissements } = lieu;
     // Le contrôle qui compte est celui d'après le merge de la livraison : un premier, joué avant lui, ne la nomme pas.
-    await jusqua(() => (dernier("base.checked")?.tickets as number[] | undefined)?.includes(17) === true);
+    // Ni le rejeu que la pass fait aussitôt d'une base rouge : il peut tomber avant qu'on regarde, et c'est alors le dernier.
+    const controle = () => journal.tout().find((e) => e.type === "base.checked" && (e.payload.tickets as number[] | undefined)?.includes(17) === true)?.payload as Record<string, unknown> | undefined;
+    await jusqua(() => controle() !== undefined);
 
-    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, dernier("base.checked")?.reason], ["red", [17], undefined]);
+    assert.deepEqual([controle()?.outcome, controle()?.tickets, controle()?.reason], ["red", [17], undefined]);
     assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["red", null]);
     assert.match(avertissements.join("\n"), /v2 est ROUGE \(base-1 — merges à vérifier : #17\)/);
     assert.match(avertissements.join("\n"), /le worktree jetable du contrôle de v2 n'a pas pu être retiré — git worktree : fatal: prune impossible/);
