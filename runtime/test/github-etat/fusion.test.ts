@@ -216,3 +216,11 @@ test("un nom de station qui ne s'écrit pas dans le marqueur est refusé avant t
   await assert.rejects(relire(pr.lue(), { github: pr.github, station: "box --> x", ...juge("approve") }), /station name not usable/);
   assert.deepEqual(pr.appels, []);
 });
+
+test("une station nommée <machine>/<moteur> signe son verdict et le relit", async () => {
+  const pr = prSurGitHub();
+  const rendu = await relire(pr.lue(), { github: pr.github, station: "box/claude", ...juge("approve") });
+  assert.equal(rendu?.station, "box/claude");
+  assert.match(pr.commentaires[0]?.body ?? "", /^<!-- brigade:verdict station=box\/claude verdict=approve sha=a1 -->/);
+  assert.equal(approuvee(pr.commentaires), true);
+});

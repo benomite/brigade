@@ -294,7 +294,7 @@ const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileS
 // La station GitHub seul de ce runtime, ou pourquoi elle ne peut pas tourner.
 export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus: string } {
   if (options.prise === null) return { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" };
-  if (!/^[A-Za-z0-9._-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
+  if (!/^[A-Za-z0-9._/-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
   if (options.github.retraitsDeLabels === undefined) return { refus: "the GitHub client cannot read the label removals of an issue" };
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
   const { nom, base, depot, depotGitHub, cloison } = options;

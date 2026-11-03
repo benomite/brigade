@@ -352,8 +352,8 @@ test("switch on: a ticket goes from fire to merged with no call to the relay, th
 });
 
 // Le client GitHub du runtime, réduit à ce que la station GitHub seul appelle.
-function fauxClient(faux: FauxGitHub): GitHub {
-  const bas = faux.pour("box");
+function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
+  const bas = faux.pour(station);
   const client: Partial<GitHub> = {
     tickets: async () => ({ inchange: false, issues: (await bas.fires()).map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
     prDeBranche: async (branche) => {
@@ -449,6 +449,54 @@ test("without the claim module of #2056, the station of this runtime refuses to 
   const refus = stationDuDepot({ prise: null } as unknown as Parameters<typeof stationDuDepot>[0]);
   assert.deepEqual(refus, { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" });
 });
+
+for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
+  test(`the station declared \`${nom}\` runs on GitHub only: it takes the ticket, signs its verdict and merges, under its name as declared`, async (t) => {
+    const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+    t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+    const faux = new FauxGitHub();
+    faux.feu(12);
+    const lancer: Lancer = ({ args, flux }) => {
+      writeFileSync(flux, fluxQuiConclut(args.includes("--tools") ? JSON.stringify({ verdict: "vert", resume: "Looks right.", constats: [] }) : "done"));
+      return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    };
+    const station = stationDuDepot({
+      nom,
+      places: 1,
+      base: "main",
+      depotGitHub: "faux/depot",
+      github: fauxClient(faux, nom),
+      depot: {
+        preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
+        reprendre: async (run) => join(repertoire, run),
+        retirer: () => {},
+        ranger: async () => null,
+        pousser: () => {},
+        commits: () => 1,
+        changes: () => ["a.ts"],
+        diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+      },
+      prise: priseDeLaStation,
+      claude: "claude",
+      env: {},
+      cloison: null,
+      plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+      graceMs: 1,
+      reviewer: { model: "sonnet", effort: "medium" },
+      flux: repertoire,
+      lancer,
+      avertir: (texte) => assert.fail(texte),
+    });
+    assert.ok(!("refus" in station), "refus" in station ? station.refus : "");
+    if ("refus" in station) return;
+    await station.tour();
+    await station.calme();
+    for (let tour = 0; tour < 3 && faux.mergee(12) === undefined; tour += 1) await station.tour();
+    assert.ok((faux.commentaires.get(12) ?? []).some((c) => c.body.endsWith(`Taken by station \`${nom}\`.`)));
+    assert.match(verdictDe(faux, faux.mergee(12)?.number ?? 0)[0]?.body ?? "", new RegExp(`^<!-- brigade:verdict station=${nom} verdict=approve `));
+    assert.equal(faux.mergee(12)?.mergeePar, nom);
+  });
+}
 
 test("the switch is on for brigade, in its project settings file, and off for a project whose file does not set it", () => {
   const texte = readFileSync(join(import.meta.dirname, "../../.claude/brigade/projet.json"), "utf8");

@@ -24,8 +24,8 @@ import type { Merge, PR } from "../github.ts";
 export type Verdict = "approve" | "request-changes";
 
 // Le nom d'une station, tel qu'il s'écrit dans le marqueur.
-const NOM_DE_STATION = /^[A-Za-z0-9._-]+$/;
-const MARQUE_DE_VERDICT = /^<!-- brigade:verdict station=([A-Za-z0-9._-]+) verdict=(approve|request-changes) sha=([0-9a-f]+) -->/;
+const NOM_DE_STATION = /^[A-Za-z0-9._/-]+$/;
+const MARQUE_DE_VERDICT = /^<!-- brigade:verdict station=([A-Za-z0-9._/-]+) verdict=(approve|request-changes) sha=([0-9a-f]+) -->/;
 
 // Un commentaire de la PR tel que la relecture le lit : `id` est celui que
 // GitHub lui donne, croissant avec l'ordre où il les reçoit.
