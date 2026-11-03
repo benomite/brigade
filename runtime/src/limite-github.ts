@@ -99,8 +99,8 @@ export type Etiquette = { projet: string; lecture: Lecture; ecriture?: boolean }
 // la station ensemble (#2145). GitHub dit, pour ses limites secondaires, au plus
 // 80 écritures par minute et 500 par heure ; le compte de la machine est
 // partagé avec le Mac du chef, d'où la marge. Un geste du chef n'est jamais espacé.
-export const ECRITURES_PAR_MINUTE = 30;
-export const ECRITURES_PAR_HEURE = 300;
+export const ECRITURES_PAR_MINUTE = 60;
+export const ECRITURES_PAR_HEURE = 450;
 const MINUTE_MS = 60_000;
 
 // Une écriture de la cuisine que le rythme retient : elle ne part pas, n'est pas

@@ -123,7 +123,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **Writes are paced (#2145).** GitHub's secondary limits cap writes (about 80 a minute and 500 an
   hour per account). Every kitchen write (`gh api` with a method other than GET, or with fields) goes
   through the same counter, per account and for all the station's projects together: at most
-  `ECRITURES_PAR_MINUTE` (30) in any sliding minute and `ECRITURES_PAR_HEURE` (300) in any sliding hour
+  `ECRITURES_PAR_MINUTE` (60) in any sliding minute and `ECRITURES_PAR_HEURE` (450) in any sliding hour
   (`runtime/src/limite-github.ts`). A write over budget does not fail and is not counted: it waits for
   the oldest write of the full window to leave it, then goes. Reads and the chef's gestures are never paced.
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
