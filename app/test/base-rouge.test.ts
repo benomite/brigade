@@ -51,7 +51,7 @@ function cuisine(t: TestContext) {
 
 const lue = (texte: string): Lecture => ({ projet: PARADE, demande: 1, a: "2026-10-14T10:00:00.000Z", sorties: [{ commande: "status", texte }] });
 // La ligne de la base dans un texte : à deux espaces, nommée `base`, puis ce qu'elle dit.
-const LIGNE = /^ {2}base {2}for 3 h 00 {2}BASE RED on ba5e000, failing: tests du runtime en échec — its repair #501 left the rail without being served — to repair: .*`brigade \S+ base replay`$/m;
+const LIGNE = /^ {2}base {2}for 3 h 00 {2}BASE RED on ba5e000, failing: tests du runtime en échec — its repair #501 left the rail without being served — to repair: .*no app button for it yet$/m;
 const lignesDeBase = (texte: string) => texte.split("\n").filter((ligne) => ligne.startsWith("  base  "));
 
 describe("une base rouge dont la réparation a échoué : la même ligne dans ce que l'app met à part et dans le second", () => {
