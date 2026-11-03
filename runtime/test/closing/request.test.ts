@@ -49,7 +49,7 @@ test("une demande qui attend se lit dans la file : depuis quand, et ce qui la re
   assert.match(bloc, /^awaiting {3}1 decision awaits the chef — for 1 min\n/);
   assert.match(
     bloc,
-    /\n {2}closing {2}for 1 min {2}closing pass requested on \d{4}-\d\d-\d\dT[\d:.]+Z, it waits — start condition not met: 1 cook in flight for a threshold of 1 — the pass leaves when there are fewer than the threshold, or when the rail is empty \(it carries 1 unserved ticket\); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it: no app button for it yet\n/,
+    /\n {2}closing {2}for 1 min {2}closing pass requested on \d{4}-\d\d-\d\dT[\d:.]+Z, it waits — start condition not met: 1 cook in flight for a threshold of 1 — the pass leaves when there are fewer than the threshold, or when the rail is empty \(it carries 1 unserved ticket\); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it with the `Cancel the cleanup` button in the closer section of the project's Cooks tab\n/,
   );
 
   // Et là où le chef observe.
@@ -132,7 +132,7 @@ test("une demande qui attend depuis deux heures est dite sans issue — une fois
   const dit = /PASSE DE FERMETURE SANS ISSUE : demandée le 2026-10-08T10:00:00\.000Z, elle attend depuis plus de 2 h — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 .* ; le rail ne se vide pas seul — à trancher : relever le seuil \(`brigade <projet> station closer-cooks <N>`\), éteindre l'interrupteur du projet le temps que le rail se vide \(`brigade <projet> switch off`\), ou y renoncer : `brigade <projet> closing cancel`/;
   assert.match(avertissements.join("\n"), dit);
   // La file, elle, le dit en anglais.
-  assert.match(attend(cuisine), /CLOSING PASS WITH NO WAY OUT: requested on 2026-10-08T10:00:00\.000Z, it has waited for more than 2 h — start condition not met: 1 cook in flight for a threshold of 1 .*; the rail does not empty on its own — to decide: raise the closer's start threshold with the `propose` button on the `closer's start threshold \(cooks in flight\)` line of the project's Settings, switch the project off while the rail empties \(the `project off` switch at the head of the space\), or withdraw it: no app button for it yet/);
+  assert.match(attend(cuisine), /CLOSING PASS WITH NO WAY OUT: requested on 2026-10-08T10:00:00\.000Z, it has waited for more than 2 h — start condition not met: 1 cook in flight for a threshold of 1 .*; the rail does not empty on its own — to decide: raise the closer's start threshold with the `propose` button on the `closer's start threshold \(cooks in flight\)` line of the project's Settings, switch the project off while the rail empties \(the `project off` switch at the head of the space\), or withdraw it with the `Cancel the cleanup` button in the closer section of the project's Cooks tab/);
 
   // Dit une fois, et elle attend toujours : rien n'est refusé, rien n'est parti.
   heure.avancer(SANS_ISSUE_MS);

@@ -263,6 +263,7 @@ const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
   "closer's start threshold (cooks in flight)": ["reglages-du-projet.ts", `"closer-cooks": "closer's start threshold (cooks in flight)"`],
   merge: ["gestes.ts", 'GRANTS: readonly string[] = ["merge"]'],
   "project off": ["vue/vue.js", '"project off"'],
+  "Cancel the cleanup": ["vue/closer/lancement/lancement.js", 'ANNULER = "Cancel the cleanup"'],
 };
 const NOMMES_DE_L_APP = [/the `([^`]+)` (?:button|switch)\b/g, /on the `([^`]+)` line of the project's Settings/g, /the switch on the `([^`]+)` grant's line/g];
 
