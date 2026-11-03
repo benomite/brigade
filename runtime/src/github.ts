@@ -113,6 +113,10 @@ export type GitHub = {
   remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
   // Merge la PR, à condition que sa tête soit encore `sha`.
   merger(numero: number, sha: string): Promise<Merge>;
+  // Demande à GitHub de mettre la branche de la PR à jour de sa base, à
+  // condition que sa tête soit encore `sha` (`brigade-github.ts`). Facultatif :
+  // seul le client réel le porte.
+  mettreAJour?(numero: number, sha: string): Promise<void>;
   fermerIssue(numero: number): Promise<void>;
   // La PR mergée qui a fermé cette issue (`Closes #n`), ou null si rien ne dit
   // qu'une PR l'ait fermée.
@@ -530,6 +534,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const edition = `repos/${depot}/issues/comments/${trouve.id}`;
       exiger(await appeler(["-X", "PATCH", "-f", `body=${nouveau}`, edition]), edition);
       return true;
+    },
+    async mettreAJour(numero, sha) {
+      const chemin = `repos/${depot}/pulls/${numero}/update-branch`;
+      exiger(await appeler(["-X", "PUT", "-f", `expected_head_sha=${sha}`, chemin]), chemin, 202);
     },
     async merger(numero, sha) {
       const chemin = `repos/${depot}/pulls/${numero}/merge`;

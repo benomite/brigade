@@ -1,0 +1,493 @@
+// Un projet servi sur l'état GitHub seul (`brigade-github.ts`, #2060) : deux
+// stations égales sur un faux GitHub, l'interrupteur par projet, et ce que le
+// chemin d'avant garde quand il est éteint.
+//
+// L'état des tickets, la relecture et le merge sont les vrais modules de
+// l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`) : seul le client
+// GitHub est faux, plus bas qu'eux. La prise (#2056) n'est pas encore dans le
+// runtime : la doublure d'ici suit son protocole — un commentaire de prise
+// sur l'issue, le plus ancien l'emporte, un commentaire de lâcher l'annule.
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test, type TestContext } from "node:test";
+import { brancherBrigadeGithub, brancheDuTicket, stationDuDepot, stationGitHub, surGitHubSeul, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
+import type { GitHub } from "../src/github.ts";
+import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
+import { jusqua } from "./outils.ts";
+
+const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
+
+type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed" };
+type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; mergeePar: string | null };
+
+// Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
+// de la station qui le fait, et rend la main avant de répondre, pour que deux
+// stations s'entrelacent comme sur le vrai.
+class FauxGitHub {
+  tickets = new Map<number, Ticket>();
+  prs: PR[] = [];
+  commentaires = new Map<number, Array<CommentaireDeVerdict & { station: string }>>();
+  appels: Array<{ station: string; quoi: string }> = [];
+  cuissons: Array<{ station: string; issue: number }> = [];
+  relectures: Array<{ station: string; pr: number }> = [];
+  base: "green" | "red" = "green";
+  private horloge = 0;
+
+  feu(number: number, labels: string[] = CALIBRE): void {
+    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open" });
+  }
+
+  ticket(number: number): Ticket {
+    const ticket = this.tickets.get(number);
+    if (ticket === undefined) throw new Error(`#${number} inconnu`);
+    return ticket;
+  }
+
+  pr(number: number): PR {
+    const trouvee = this.prs.find((p) => p.number === number);
+    if (trouvee === undefined) throw new Error(`PR ${number} inconnue`);
+    return trouvee;
+  }
+
+  mergee(issue: number): PR | undefined {
+    return this.prs.find((p) => p.issue === issue && p.merged);
+  }
+
+  appelsDe(station: string): number {
+    return this.appels.filter((appel) => appel.station === station).length;
+  }
+
+  private sha(): string {
+    this.horloge += 1;
+    return this.horloge.toString(16).padStart(40, "0");
+  }
+
+  private poster(numero: number, station: string, body: string): void {
+    this.horloge += 1;
+    const liste = this.commentaires.get(numero) ?? [];
+    liste.push({ id: this.horloge, body, association: "OWNER", createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString(), station });
+    this.commentaires.set(numero, liste);
+  }
+
+  pour(station: string): GitHubDuTour {
+    const noter = async (quoi: string) => {
+      this.appels.push({ station, quoi });
+      await new Promise((suite) => setImmediate(suite));
+    };
+    return {
+      fires: async () => {
+        await noter("fires");
+        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state }));
+      },
+      prDuTicket: async (issue) => {
+        await noter("prDuTicket");
+        const pr = this.prs.findLast((p) => p.issue === issue);
+        return pr === undefined ? null : { ...pr };
+      },
+      checksDeLaBase: async () => {
+        await noter("checksDeLaBase");
+        return [{ outcome: this.base }];
+      },
+      commentaires: async (numero) => {
+        await noter("commentaires");
+        return (this.commentaires.get(numero) ?? []).map(({ station: _station, ...commentaire }) => commentaire);
+      },
+      commenter: async (numero, corps) => {
+        await noter("commenter");
+        this.poster(numero, station, corps);
+      },
+      labelliser: async (issue, labels) => {
+        await noter("labelliser");
+        for (const label of labels) this.ticket(issue).labels.add(label);
+      },
+      delabelliser: async (issue, label) => {
+        await noter("delabelliser");
+        this.ticket(issue).labels.delete(label);
+      },
+      ouvrirPR: async ({ branche, corps }) => {
+        await noter("ouvrirPR");
+        const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
+        const number = 1000 + this.prs.length;
+        // En retard sur sa base dès l'ouverture : la mise à jour se joue.
+        this.prs.push({ number, issue: Number(ferme), branche, sha: this.sha(), state: "open", merged: false, enRetard: true, mergeePar: null });
+        return `https://github.com/faux/depot/pull/${number}`;
+      },
+      mettreAJour: async (numero, sha) => {
+        await noter("mettreAJour");
+        const pr = this.pr(numero);
+        if (pr.sha !== sha) return;
+        pr.enRetard = false;
+        pr.sha = this.sha();
+      },
+      merger: async (numero, sha) => {
+        await noter("merger");
+        const pr = this.pr(numero);
+        if (pr.merged) return { fait: false, motif: "HTTP 405 — Pull Request is not mergeable" };
+        if (pr.sha !== sha) return { fait: false, motif: "HTTP 409 — Head branch was modified" };
+        if (pr.enRetard) return { fait: false, motif: "HTTP 405 — Head branch is out of date" };
+        Object.assign(pr, { merged: true, state: "closed", mergeePar: station });
+        this.ticket(pr.issue).state = "closed";
+        return { fait: true };
+      },
+    };
+  }
+
+  // La prise selon le protocole de #2056.
+  prise(github: GitHubDuTour, station: string): Prise {
+    const tenant = async (issue: number) => {
+      let tient: string | null = null;
+      for (const { body } of [...(await github.commentaires(issue))].sort((a, b) => a.id - b.id)) {
+        const prise = /^<!-- brigade:prise station=([\w.-]+) -->/.exec(body);
+        if (prise && tient === null) tient = prise[1] ?? null;
+        if (/^<!-- brigade:lache station=/.test(body)) tient = null;
+      }
+      return tient;
+    };
+    return {
+      prendre: async (issue) => {
+        let tient = await tenant(issue.number);
+        if (tient === null) {
+          await github.commenter(issue.number, `<!-- brigade:prise station=${station} -->`);
+          tient = await tenant(issue.number);
+        }
+        const prise = tient === station;
+        if (prise && !issue.labels.includes(LABEL_TAKEN)) await github.labelliser(issue.number, [LABEL_TAKEN]);
+        return { prise };
+      },
+      lacher: async (issue) => {
+        if ((await tenant(issue.number)) !== station) return false;
+        await github.commenter(issue.number, `<!-- brigade:lache station=${station} -->`);
+        if (issue.labels.includes(LABEL_TAKEN)) await github.delabelliser(issue.number, LABEL_TAKEN);
+        return true;
+      },
+    };
+  }
+
+  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger } = {}): StationGitHub {
+    const github = this.pour(nom);
+    return stationGitHub({
+      nom,
+      places: options.places ?? 1,
+      base: "main",
+      github,
+      prise: this.prise(github, nom),
+      cuisiner: async (ticket) => {
+        if (options.cuisiner) return options.cuisiner(ticket.number);
+        this.cuissons.push({ station: nom, issue: ticket.number });
+        return { branche: brancheDuTicket(ticket.number) };
+      },
+      juger:
+        options.juger ??
+        (async (_ticket, pr) => {
+          this.relectures.push({ station: nom, pr: pr.number });
+          return { verdict: "approve", motif: "" };
+        }),
+      avertir: (texte) => assert.fail(texte),
+    });
+  }
+}
+
+const verdictDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?? []).filter((c) => c.body.startsWith("<!-- brigade:verdict"));
+
+// Un projet ouvert sur le chemin GitHub seul, arrêté en fin de test.
+function ouvrir(t: TestContext, station: StationGitHub) {
+  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("l'ancien chemin ne doit pas s'ouvrir"), station: () => station, intervalleMs: 5, avertir: () => {} });
+  assert.equal(ouvert.chemin, "github");
+  if (ouvert.chemin !== "github") throw new Error("inaccessible");
+  t.after(() => ouvert.arreter());
+  return ouvert;
+}
+
+test("two stations claim the same ticket at once: the earliest claim cooks it, the other lets go", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1);
+  const [a, b] = [faux.station("A"), faux.station("B")];
+  await Promise.all([a.tour(), b.tour()]);
+  await Promise.all([a.calme(), b.calme()]);
+  const premiere = faux.commentaires.get(1)?.find((c) => c.body.startsWith("<!-- brigade:prise"))?.station;
+  assert.deepEqual(faux.cuissons, [{ station: premiere, issue: 1 }]);
+  assert.deepEqual([...faux.ticket(1).labels].sort(), [...CALIBRE, LABEL_IN_PASS].sort());
+  assert.equal(faux.prs.length, 1);
+});
+
+for (const [arretee, restante] of [
+  ["A", "B"],
+  ["B", "A"],
+] as const) {
+  test(`two stations on a fake GitHub: station ${arretee} stops, station ${restante} still takes, cooks and merges a ticket`, async (t) => {
+    const faux = new FauxGitHub();
+    faux.feu(1);
+    const stations = { A: faux.station("A"), B: faux.station("B") };
+    const ouverts = { A: ouvrir(t, stations.A), B: ouvrir(t, stations.B) };
+    await jusqua(() => faux.mergee(1) !== undefined);
+
+    await ouverts[arretee].arreter();
+    await stations[arretee].calme();
+    const avant = faux.appelsDe(arretee);
+
+    faux.feu(2);
+    await jusqua(() => faux.mergee(2) !== undefined);
+    assert.deepEqual(
+      faux.cuissons.filter((cuisson) => cuisson.issue === 2),
+      [{ station: restante, issue: 2 }],
+    );
+    const pr = faux.mergee(2);
+    assert.equal(pr?.mergeePar, restante);
+    // Le verdict qui l'a approuvée est un commentaire de la PR, signé de la restante.
+    assert.match(verdictDe(faux, pr?.number ?? 0)[0]?.body ?? "", new RegExp(`station=${restante} verdict=approve`));
+    assert.equal(faux.ticket(2).state, "closed");
+    // L'arrêtée n'a plus rien lu ni écrit.
+    assert.equal(faux.appelsDe(arretee), avant);
+  });
+
+  test(`station ${arretee} delivers a ticket and stops before it is reviewed: station ${restante} reviews and merges it`, async (t) => {
+    const faux = new FauxGitHub();
+    faux.feu(3);
+    const stations = { A: faux.station("A"), B: faux.station("B") };
+    // Elle prend, cuisine et livre en pass, puis ne tourne plus.
+    await stations[arretee].tour();
+    await stations[arretee].calme();
+    assert.ok(faux.ticket(3).labels.has(LABEL_IN_PASS));
+    assert.ok(!faux.ticket(3).labels.has(LABEL_TAKEN));
+    const avant = faux.appelsDe(arretee);
+
+    ouvrir(t, stations[restante]);
+    await jusqua(() => faux.mergee(3) !== undefined);
+    assert.equal(faux.mergee(3)?.mergeePar, restante);
+    assert.deepEqual(faux.relectures, [{ station: restante, pr: faux.mergee(3)?.number }]);
+    assert.deepEqual(faux.cuissons, [{ station: arretee, issue: 3 }]);
+    assert.equal(faux.appelsDe(arretee), avant);
+  });
+}
+
+test("a branch behind its base is updated, never merged on that turn, then merged once up to date", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(4);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  await a.tour();
+  assert.equal(faux.mergee(4), undefined, "en retard : la mise à jour est demandée");
+  assert.deepEqual(
+    faux.appels.filter((appel) => ["mettreAJour", "merger"].includes(appel.quoi)).map((appel) => appel.quoi),
+    ["mettreAJour"],
+  );
+  await a.tour();
+  assert.equal(faux.mergee(4)?.mergeePar, "A");
+  // Une seule relecture : l'approbation tient après la mise à jour.
+  assert.equal(faux.relectures.length, 1);
+});
+
+test("a review that requests changes keeps the PR unmerged", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(5);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "tests missing" }) });
+  for (let tour = 0; tour < 4; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(5), undefined);
+  assert.ok(!faux.appels.some((appel) => appel.quoi === "merger"));
+  assert.match(verdictDe(faux, 1000)[0]?.body ?? "", /verdict=request-changes[\s\S]*tests missing/);
+});
+
+test("a cook that delivers nothing gives the ticket back on the issue, which another station then takes", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(6);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "gates red" }) });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual([...faux.ticket(6).labels].sort(), [...CALIBRE].sort());
+  assert.match((faux.commentaires.get(6) ?? []).map((c) => c.body).join("\n"), /Station `A`: the cook stopped without a delivery — gates red/);
+  const b = faux.station("B");
+  await b.tour();
+  await b.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "B", issue: 6 }]);
+});
+
+test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(7, [...CALIBRE, "waiting"]);
+  faux.feu(8, [...CALIBRE, "hors-cuisine"]);
+  faux.feu(9, ["fire"]);
+  faux.feu(10);
+  const a = faux.station("A", { places: 4 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 10 }]);
+  faux.base = "red";
+  await a.tour();
+  await a.tour();
+  assert.deepEqual(faux.relectures, []);
+  assert.equal(faux.mergee(10), undefined);
+  faux.base = "green";
+  await a.tour();
+  await a.tour();
+  assert.equal(faux.mergee(10)?.mergeePar, "A");
+});
+
+test("switch off: the old path opens as is, and the GitHub-only station is never built", () => {
+  for (const reglages of [null, {}, { githubOnlyState: false }]) {
+    const ancien = { stations: ["box"], decisions: "les décisions" };
+    const ouvert = brancherBrigadeGithub({ reglages, ancien: () => ancien, station: () => assert.fail("rien du chemin GitHub seul ne se construit"), avertir: () => assert.fail("rien à dire") });
+    assert.deepEqual(ouvert, { chemin: "ancien", ancien });
+    // Le même objet, pas une copie : l'ancien chemin reçoit ce qu'il recevait.
+    assert.equal(ouvert.chemin === "ancien" && ouvert.ancien, ancien);
+  }
+});
+
+test("switch on, but this runtime cannot serve it: it says why, and the old path opens", () => {
+  const dits: string[] = [];
+  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => "ancien", station: () => ({ refus: "no claim module" }), avertir: (texte) => dits.push(texte) });
+  assert.deepEqual(ouvert, { chemin: "ancien", ancien: "ancien" });
+  assert.match(dits.join("\n"), /GitHub-only state is on .* no claim module; the old path is kept/);
+});
+
+test("switch on: a ticket goes from fire to merged with no call to the relay, the mailbox or the log", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(1);
+  // L'ancien chemin, tel que la station l'ouvre : le relais de prise, la boîte
+  // aux lettres du Kitchen board et le journal.
+  const appels = { relais: 0, boite: 0, journal: 0 };
+  const ouvert = brancherBrigadeGithub({
+    reglages: { githubOnlyState: true },
+    ancien: () => {
+      appels.relais += 1;
+      appels.boite += 1;
+      appels.journal += 1;
+    },
+    station: () => faux.station("A"),
+    intervalleMs: 5,
+    avertir: () => {},
+  });
+  t.after(() => ouvert.chemin === "github" && ouvert.arreter());
+  await jusqua(() => faux.mergee(1) !== undefined);
+  assert.deepEqual(appels, { relais: 0, boite: 0, journal: 0 });
+
+  // Et le module n'en importe aucun.
+  const source = readFileSync(join(import.meta.dirname, "../src/brigade-github.ts"), "utf8");
+  const imports = [...source.matchAll(/^import .* from "([^"]+)";$/gm)].map(([, module]) => module ?? "");
+  assert.ok(imports.includes("./github-etat/etats.ts") && imports.includes("./github-etat/fusion.ts"));
+  assert.deepEqual(
+    imports.filter((module) => /relais|tirer-par-github|tableau|distantes|journal|porte-journal|base\.ts|rail\.ts|alimenter/.test(module)),
+    [],
+  );
+});
+
+// Le client GitHub du runtime, réduit à ce que la station GitHub seul appelle.
+function fauxClient(faux: FauxGitHub): GitHub {
+  const bas = faux.pour("box");
+  const client: Partial<GitHub> = {
+    tickets: async () => ({ inchange: false, issues: (await bas.fires()).map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
+    prDeBranche: async (branche) => {
+      const pr = faux.prs.findLast((p) => p.branche === branche);
+      return pr === undefined ? null : { number: pr.number, url: "", base: "main", sha: pr.sha, state: pr.state, merged: pr.merged, enRetard: pr.enRetard, mergeePar: pr.mergeePar };
+    },
+    ci: async () => [{ name: "tests", conclusion: "success", outcome: "green", url: null }] as never,
+    commentaires: async (numero) => (await bas.commentaires(numero)).map(({ body, association, createdAt }) => ({ body, author: "brigade", association, createdAt })),
+    commenter: bas.commenter,
+    mettreAJour: bas.mettreAJour,
+    merger: bas.merger,
+    labelliser: bas.labelliser,
+    delabelliser: bas.delabelliser,
+    ouvrirPR: bas.ouvrirPR,
+    issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
+  };
+  return client as GitHub;
+}
+
+// Un flux de `claude` qui conclut sur `texte`.
+const fluxQuiConclut = (texte: string) => `${JSON.stringify({ type: "result", is_error: false, result: texte })}\n`;
+
+test("the station of this runtime: a ticket is cooked in the station's repository, reviewed by the reviewer and merged, through the real GitHub client", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(11, ["fire", "model:opus", "effort:high"]);
+  const fait: string[] = [];
+  const lancements: Array<{ args: string[]; cwd: string }> = [];
+  const lancer: Lancer = ({ args, cwd, flux }) => {
+    lancements.push({ args, cwd });
+    const reviewer = args.includes("--tools");
+    writeFileSync(flux, fluxQuiConclut(reviewer ? JSON.stringify({ verdict: "vert", resume: "Looks right.", constats: [{ gravite: "remarque", fichier: "a.ts", constat: "a nit" }] }) : "done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      preparer: async (run) => {
+        fait.push(`preparer ${run}`);
+        return { worktree: join(repertoire, run), branche: `cook/${run}` };
+      },
+      reprendre: async (run, branche) => {
+        fait.push(`reprendre ${run} ${branche}`);
+        return join(repertoire, run);
+      },
+      retirer: (worktree) => void fait.push(`retirer ${worktree.slice(repertoire.length + 1)}`),
+      ranger: async (_worktree, branche) => {
+        fait.push(`ranger ${branche}`);
+        return null;
+      },
+      pousser: (branche) => void fait.push(`pousser ${branche}`),
+      commits: () => 1,
+      changes: () => ["a.ts"],
+      diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+    },
+    prise: (github, nom) => faux.prise(github, nom),
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: (texte) => assert.fail(texte),
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  for (let tour = 0; tour < 3 && faux.mergee(11) === undefined; tour += 1) await station.tour();
+  assert.equal(faux.mergee(11)?.mergeePar, "box");
+  assert.equal(faux.mergee(11)?.branche, "cook/11-github");
+  assert.deepEqual(fait, ["preparer 11-github", "ranger cook/11-github", "pousser cook/11-github", "reprendre review-11-github cook/11-github", "retirer review-11-github"]);
+  // Le cook part sous son calibrage, la relecture sous celui du reviewer.
+  assert.deepEqual(
+    lancements.map(({ args }) => args.slice(args.indexOf("--model"), args.indexOf("--model") + 4)),
+    [
+      ["--model", "opus", "--effort", "high"],
+      ["--model", "sonnet", "--effort", "medium"],
+    ],
+  );
+  assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Remark \(`a\.ts`\): a nit/);
+});
+
+test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {
+  const refus = stationDuDepot({ prise: null } as unknown as Parameters<typeof stationDuDepot>[0]);
+  assert.deepEqual(refus, { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" });
+});
+
+test("the switch is on for brigade, in its project settings file, and off for a project whose file does not set it", () => {
+  const texte = readFileSync(join(import.meta.dirname, "../../.claude/brigade/projet.json"), "utf8");
+  const brigade = reglagesDuTexte(texte);
+  assert.equal(surGitHubSeul(brigade), true);
+  // Le fichier de brigade est tel que l'écriture le rendrait.
+  assert.equal(texteDuFichier(brigade), texte);
+
+  assert.equal(surGitHubSeul(reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main" }))), false);
+  assert.equal(surGitHubSeul(null), false);
+  assert.equal(surGitHubSeul(reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: false }))), false);
+  assert.throws(
+    () => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: "yes" })),
+    (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.cle === "githubOnlyState",
+  );
+});
