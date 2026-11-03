@@ -27,7 +27,8 @@ The section title and the bold labels of the bindings below stay in French on pu
 
 - **In the plugin zone, the Codex mirror is not optional.** Every change to a `commands/<role>.md` must be carried into `codex/skills/<role>/`; the gates turn red otherwise. They see that the mirror moved, not that it says the same thing. A change that only touches `runtime/` or `app/` owes nothing to the mirror.
 - **The gates play the runtime tests, then the app's**, and the type check if declared. They play only the tests the change touches (CI), or close to it (station, dev workstation): the rule is in the header of `.claude/brigade/tests-touches.mjs`, and `BRIGADE_GATES_TOUT=1` plays everything. A missing zone is not a failure. No network, no real `claude`, no screen: **no test launches Electron**; the view stays thin.
-- **A test never races the clock**: several suites run at once and each takes three to four times as long. It waits for a fact (`jusqua`, a file written, a dead process); a timeout is only a wide guard.
+- **A test never races the clock**: several suites run at once and each takes three to four times as long. It waits for a fact (`jusqua`, a file written, a dead process).
+- **The 2 s rule**: no test takes more than 2 s and no guard in a test exceeds 2 s, and the gates refuse it (details in `docs/runtime/exploitation.md`).
 - **Never kill a process by its name** (`pkill -f src/main.ts`): you would fail another worktree's suite. Kill a stuck test by its pid. The gates' clock guard and the stuck-test rules are in `docs/runtime/exploitation.md`.
 - **A runtime or app test failing in the gates is read without replaying**: its name and error are in the gates output, and the whole suite output is kept in `.brigade-state/gates/` of the worktree (one week).
 - **An added role must be declared** in `commands` of `.claude-plugin/plugin.json`, or it never loads. The gates catch the omission.
