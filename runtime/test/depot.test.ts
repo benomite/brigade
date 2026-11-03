@@ -39,6 +39,17 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     );
   });
 
+  test("un run au nom fixe dont un essai coupé a laissé le worktree et la branche repart à neuf de la base (#2179)", async (t) => {
+    const { depot } = projet(t);
+    const premier = await depot.preparer("7-github");
+    commiter(premier.worktree, "reste.txt");
+    // Coupé sans `retirer` : le worktree et la branche restent.
+    const second = await depot.preparer("7-github");
+    assert.equal(second.branche, "cook/7-github");
+    assert.equal(existsSync(join(second.worktree, "reste.txt")), false);
+    assert.equal(git(second.worktree, "rev-parse", "HEAD"), git(second.worktree, "rev-parse", `origin/${BASE}`));
+  });
+
   test("ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge", async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
