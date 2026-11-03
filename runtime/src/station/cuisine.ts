@@ -47,6 +47,7 @@ import { configSecrets, DECLARATION } from "../secrets.ts";
 import { brancherStation, configStation } from "../station.ts";
 import { direStations } from "../stations-declarees.ts";
 import { ouvrirGitHub } from "../github.ts";
+import { unSeulEcrivainSurGitHub } from "../board-single-writer.ts";
 import { clientGitHubDuTableau } from "../tableau/publication/client.ts";
 import { brancherLeTableau, ouvertesDuDepot } from "../tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "../tableau/gestes/client.ts";
@@ -214,7 +215,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // station ne porte aucun projet : chaque appel est compté au sien.
     const roles = identites;
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
-    const tableau = clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager });
+    // Seule la cuisine de la station qui sert le projet écrit son tableau (board-single-writer.ts).
+    const tableau = unSeulEcrivainSurGitHub(clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), { depot: rail.depot, gh: rail.gh, env: envProjet });
     const clientDesGestes = clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager });
     const gestes = gestesDuTableau({
       client: clientDesGestes,
