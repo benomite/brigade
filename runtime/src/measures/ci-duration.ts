@@ -1,7 +1,7 @@
 // The CI duration of the last merges, for the `measures` report: from the start of the first
 // check of the merge commit to the end of the last. Read-only; the GitHub read is injected,
 // so the tests replay recorded answers and never touch the network.
-import { execFile } from "node:child_process";
+import { execFile } from "../sans-invite.ts";
 
 export const CI_TARGET_S = 60;
 export const CI_MERGES = 10;
@@ -68,9 +68,11 @@ export function describeCiDuration(result: CiDuration, count = CI_MERGES): strin
   ];
 }
 
-export function ghGet(path: string): Promise<unknown> {
+// Through the shared launcher, which runs `gh` without a prompt; the binary is
+// the one the kitchen names (`BRIGADE_GH_BIN`), as everywhere else.
+export function ghGet(path: string, bin = process.env.BRIGADE_GH_BIN || "gh"): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    execFile("gh", ["api", path], { maxBuffer: 64 * 1024 * 1024, timeout: 30_000 }, (error, stdout, stderr) => {
+    execFile(bin, ["api", path], { maxBuffer: 64 * 1024 * 1024, timeout: 30_000 }, (error, stdout, stderr) => {
       if (error) return reject(new Error(`gh api failed: ${stderr.trim() || error.message}`));
       try { resolve(JSON.parse(stdout)); } catch { reject(new Error("unreadable answer from GitHub")); }
     });
