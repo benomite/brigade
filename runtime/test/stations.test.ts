@@ -17,6 +17,11 @@ const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:1:code+raisonnement,bo
 const [CLAUDE, PLAYWRIGHT] = ["box/claude", "box/playwright"];
 
 // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
+// Les cooks d'attente ne s'arrêtent jamais d'eux-mêmes pendant un test : leurs plafonds de durée et
+// d'inactivité (six heures) sont hors de portée, et seule la fin du test les arrête. Aux 60 s par défaut,
+// ou à une marge de plus, la réussite dépendrait encore de la vitesse du runner.
+const PLAFONDS_DU_TEST = { durationMs: 6 * 3_600_000, idleMs: 6 * 3_600_000 };
+
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
 describe("les stations que le projet déclare", { concurrency: 8 }, () => {
@@ -54,8 +59,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   // deux minutes du faux `claude`, et leurs plafonds de durée et d'inactivité sont de deux
   // minutes aussi.
   test("le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend", async (t) => {
-    const plafonds = { durationMs: 120_000, idleMs: 120_000 };
-    const { journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "attend", plafonds, issues: [issue(14), issue(15), issue(16), issue(17)] });
+    const { journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "attend", plafonds: PLAFONDS_DU_TEST, issues: [issue(14), issue(15), issue(16), issue(17)] });
     await jusqua(() => lancements().length === 3);
     await laisserServir();
 
@@ -256,13 +260,17 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
 
   test("le quota est celui du compte : épuisé pour le cook d'une station, il retient toutes les stations du projet", async (t) => {
     // Trois places, quatre tickets : le premier cook lancé bute sur le quota et
-    // rend sa place ; les deux autres tournent, et ne rendent pas la leur.
+    // rend sa place ; les deux autres tournent, et ne rendent pas la leur. Sous
+    // Windows chargé, ce test passait la minute des plafonds par défaut : les deux
+    // cooks d'attente étaient arrêtés pour durée, le quatrième ticket partait, et
+    // « trois lancés » n'était plus jamais vrai (`jusqua` : condition jamais remplie).
     const numeros = [14, 15, 16, 17];
-    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota-quand-lances"], issues: numeros.map((numero) => issue(numero)) });
+    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota-quand-lances"], plafonds: PLAFONDS_DU_TEST, issues: numeros.map((numero) => issue(numero)) });
     const etats = () => numeros.map(etat);
     await jusqua(() => etats().includes("86") && types().filter((type) => type === "cook.launched").length === 3);
     await jusqua(() => etatStation(journal.base, PLAYWRIGHT)?.heldReason === "quota");
     await laisserServir();
+    // Aucun cook d'attente n'a rendu sa place : le quatrième ticket n'a pas pu partir.
 
     assert.deepEqual(
       journal.tout().filter((e) => e.type === "station.86").map((e) => [e.author, e.payload.station, e.payload.until]),
@@ -274,7 +282,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     // Une place est libre, et le quatrième ticket ne part pas : ni l'une ni
     // l'autre station ne prend tant que le quota n'est pas revenu.
     assert.deepEqual(etats().sort(), ["86", "taken", "taken", "waiting"]);
-    assert.equal(types().filter((type) => type === "cook.launched").length, 3);
+    assert.equal(types().filter((type) => type === "cook.launched").length, 3, "cook.launched ne dépasse pas 3");
     assert.deepEqual([etatStation(journal.base, CLAUDE)?.heldReason, etatStation(journal.base, PLAYWRIGHT)?.heldReason], ["quota", "quota"]);
   });
 

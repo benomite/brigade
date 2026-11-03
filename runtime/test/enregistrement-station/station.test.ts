@@ -54,17 +54,17 @@ const plateforme = process.platform === "darwin" ? "macos" : process.platform ==
 const GARDE_MS = 90_000;
 // Les attentes d'avant : sous Windows (job « tests (4/4) », runs 40777165597 et 40773811989), ce test restait muet
 // jusqu'à ses 120 s, sans dire laquelle de ses attentes ne venait pas. Chacune nomme maintenant ce qu'elle attendait.
-const ATTENTE_MS = 60_000;
-
-async function avecGarde<T>(attente: Promise<T>, quoi: string, station: { sortie: () => string }): Promise<T> {
-  let minuteur: NodeJS.Timeout | undefined;
-  const garde = new Promise<never>((_, rejeter) => {
-    minuteur = setTimeout(() => rejeter(new Error(`${quoi} : rien en ${ATTENTE_MS / 1000} s\n${station.sortie()}`)), ATTENTE_MS);
-  });
+// Elle ne le dit pas au bout d'un délai : une garde de 60 s de vraie horloge échouait (runs 41488425275, 41487125966,
+// 41495763603) sur un runner Windows chargé, où la station mettait plus d'une minute à démarrer sans être en faute.
+// L'attente finit par un fait — la ligne attendue, ou la mort de la station, que `attendre` rejette — ou, à défaut, par
+// le délai du test, qui interrompt `t.signal` : la garde dit alors ce qu'elle attendait, avec la sortie de la station.
+async function avecGarde<T>(t: TestContext, attente: Promise<T>, quoi: string, station: { sortie: () => string }): Promise<T> {
+  const interrompu = () => console.error(`${quoi} : rien avant la fin du délai du test\n${station.sortie()}`);
+  t.signal.addEventListener("abort", interrompu, { once: true });
   try {
-    return await Promise.race([attente, garde]);
+    return await attente;
   } finally {
-    clearTimeout(minuteur);
+    t.signal.removeEventListener("abort", interrompu);
   }
 }
 
@@ -83,7 +83,7 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
   const { racine, env, stations } = uneMachine(t);
 
   const premiere = lancer(t, STATION, [], env);
-  await avecGarde(premiere.attendre("station enregistrée sous le compte GitHub de sa machine"), "la première station ne dit pas qu'elle est enregistrée", premiere);
+  await avecGarde(t, premiere.attendre("station enregistrée sous le compte GitHub de sa machine"), "la première station ne dit pas qu'elle est enregistrée", premiere);
   const [enregistree, ...autres] = await stations();
   assert.deepEqual(autres, []);
   assert.ok(enregistree);
@@ -97,10 +97,10 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
 
   // Tuée net — sur toute plateforme : elle n'écrit rien de son arrêt.
   premiere.process.kill("SIGKILL");
-  await avecGarde(premiere.fin, "la première station tuée ne ferme pas ses tuyaux", premiere);
+  await avecGarde(t, premiere.fin, "la première station tuée ne ferme pas ses tuyaux", premiere);
 
   const seconde = lancer(t, STATION, [], env);
-  await avecGarde(seconde.attendre("station démarrée"), "la seconde station ne dit pas qu'elle a démarré", seconde);
+  await avecGarde(t, seconde.attendre("station démarrée"), "la seconde station ne dit pas qu'elle a démarré", seconde);
   // Elle ne s'annonce pas de nouveau : elle reprend son gist, et le rafraîchit.
   const reprise = await attendreStation(stations, (station) => station.lastSeen !== enregistree.lastSeen, seconde);
   assert.equal(reprise.id, enregistree.id);
