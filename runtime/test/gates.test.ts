@@ -224,7 +224,12 @@ describe("les gates", { concurrency: 8 }, () => {
     const gates = await jouer(racine);
 
     assert.equal(gates.outcome, "green");
-    assert.equal(gates.tail, `setup 17 ${racine}\nvu=base du ticket 17`);
+    // Git Bash on Windows prefixes the output with its own `could not find /tmp` warnings and
+    // may hand the worktree back in another spelling (8.3 short name, backslashes): neither is
+    // what is verified here.
+    const lignes = gates.tail.split("\n").filter((ligne) => !/^bash\.exe: warning: /.test(ligne));
+    const sansSeparateurs = (chemin: string) => chemin.replaceAll("\\", "/");
+    assert.deepEqual(lignes.map(sansSeparateurs), [sansSeparateurs(`setup 17 ${racine}`), "vu=base du ticket 17"]);
   });
 
   test("un setup en échec rend les gates rouges sans les jouer", async (t) => {
