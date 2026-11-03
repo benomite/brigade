@@ -515,6 +515,14 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     if (dirname(resolve(worktree)) !== worktrees || resolve(worktree) === essais) throw new Error(`« ${worktree} » est hors du répertoire des worktrees (${worktrees}) : rien n'y est retiré`);
   };
 
+  // Voir `preparer` : la place du worktree d'un run, libérée de ce qu'un essai coupé y a laissé.
+  const liberer = async (worktree: string) => {
+    if (!existsSync(worktree)) return;
+    await gitAsync("worktree", "remove", "--force", worktree).catch(() => undefined);
+    await gitAsync("worktree", "prune").catch(() => undefined);
+    if (existsSync(worktree)) rmSync(worktree, { recursive: true, force: true });
+  };
+
   return {
     rapatrier: () =>
       aSonTour(async () => {
@@ -607,6 +615,10 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       if (nom !== undefined) return jeter(nom);
       if (existsSync(essais)) for (const reste of readdirSync(essais)) jeter(reste);
     },
+    // La place d'un worktree, rendue libre : ce qu'un essai coupé y a laissé —
+    // un worktree que git connaît, ou un répertoire qu'il ne connaît plus —
+    // part, pour qu'un run au nom fixe (`<n>-github`) ne bute pas en boucle sur
+    // « already exists ». Ce répertoire est celui du run, sous `worktrees`.
     preparer: (run) =>
       aSonTour(async () => {
         const worktree = join(worktrees, run);
@@ -616,14 +628,14 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // appels, un runtime arrêté), a pu laisser le worktree et la branche
         // d'un run au nom fixe (`<n>-github`) : le cook repart de la base, à
         // neuf, au lieu d'échouer en boucle sur « a branch named … already exists ».
-        if (existsSync(worktree)) await gitAsync("worktree", "remove", "--force", worktree).catch(() => undefined);
-        await gitAsync("worktree", "prune").catch(() => undefined);
+        await liberer(worktree);
         await gitAsync("worktree", "add", "--quiet", "-B", branche, worktree, `origin/${base}`);
         return { worktree, branche };
       }),
     reprendre: (run, branche) =>
       aSonTour(async () => {
         const worktree = join(worktrees, run);
+        await liberer(worktree);
         // La base rapatriée : le cook du renvoi peut avoir à s'y rebaser.
         await rapatrier();
         // La branche, telle que l'origine la porte à cet instant : un humain a
