@@ -47,7 +47,8 @@ export type Sujet = "urgence" | "github" | "manager" | "cuisine" | "grant" | "st
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
 // `relire` : relire la box tout de suite, au lieu d'attendre le tour de la veille (#728).
-export type Appel = { geste: string; grant?: string } | { demande: true } | { onglet: string } | { relire: true };
+// `reprise` : la reprise du disjoncteur, d'un clic, par GitHub (#2140, github/breaker-resume.ts) — jamais par la box.
+export type Appel = { geste: string; grant?: string } | { demande: true } | { onglet: string } | { relire: true } | { reprise: "disjoncteur" };
 // Une ligne de la bande. `verifie` faux : la box ne dit pas cet état, et la ligne le dit.
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
@@ -285,7 +286,7 @@ function causesDeRetenue(status: string): Alerte[] {
           dit: "breaker open: the latest launches failed in a row, no cook goes any more",
           releve: valeur.slice(valeur.search(DISJONCTEUR)),
           geste: "resume the kitchen, once you have read why they fail",
-          appel: { geste: "reprendre" },
+          appel: { reprise: "disjoncteur" },
           prix: `the breaker closes: ${REPRENDRE}`,
         },
       ];
@@ -615,6 +616,7 @@ export function boutonDe({ geste, appel }: Pick<Alerte, "geste" | "appel">): str
   if ("demande" in appel) return "ask the second";
   if ("onglet" in appel) return appel.onglet === "parametres" ? "open Settings" : `open the ${appel.onglet} tab`;
   if ("relire" in appel) return "try again now";
+  if ("reprise" in appel) return "Resume";
   if (appel.geste === "grant-activer" && appel.grant !== undefined) return `enable ${appel.grant} again`;
   return BOUTONS_DE_GESTE[appel.geste] ?? (geste.split(/[:,—`]/)[0] ?? geste).trim();
 }

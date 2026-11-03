@@ -364,6 +364,10 @@ export type Pont = {
   // `/brigade profile yes|no <proposition>` sur le tableau de la cuisine. Le « yes », joué par la box,
   // écrit la définition du profil dans le dépôt du projet. Rend la réponse postée, ou pourquoi rien ne l'a été.
   trancherLeProfil(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
+  // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
+  // `brigade:breaker-open` du dépôt du projet. Rend la reprise demandée, ou pourquoi rien n'est parti ; rien pour un
+  // projet que l'app ne connaît plus.
+  reprendreLeDisjoncteur(projet: string): Promise<import("../github/breaker-resume.ts").RenduDeLaReprise | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
   // La ligne d'une leçon promue dans le carnet du projet, sur GitHub, ouverte dans le navigateur du poste
   // (apprentissage.ts) : la vue nomme le projet et la leçon, l'adresse est celle que ses derniers faits lus

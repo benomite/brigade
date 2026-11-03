@@ -195,6 +195,18 @@ which ticket and why, and offers `Put it back on the rail`, `I take it in a dev 
 you answer (`docs/runtime/manager.md`, "A ticket the kitchen takes off the rail without serving it"). Each choice's
 price follows its gesture (`app/src/carte-todo.ts`): `drop` says the ticket stays off the rail, `close` that its issue is
 closed — neither says a cook is launched.
+**A kitchen held by its breaker is resumed in one click, from the head of Todo** (#2140, epic #2134): while the
+`kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
+failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
+its price on hover. No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
+`/resume` on the repository's open issue labeled `brigade:breaker-open` (the station publishes it when the breaker opens,
+#2138, and its watcher closes the breaker when it reads the comment, #2139), with the GitHub sign-in of
+this computer's `gh` (`app/src/github/breaker-resume.ts`). While it is posted, the button waits and the line says
+`requesting the resume on GitHub…`; posted, it says `Resume requested` (the comment's address on hover) and offers no
+button to click twice, until the reading that no longer says the breaker open takes the line away. GitHub refusing, or no
+labeled issue being open, the line says why in one line (`resume not requested: …`), GitHub's answer on hover, and gives
+`Resume` back to try again. On Rail the alert band does not repeat the line; on the other tabs, where there is no Todo,
+the band carries it with the same `Resume` (`app/src/vue/todo-breaker-line.js`). Captures: `docs/captures/2140/`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the

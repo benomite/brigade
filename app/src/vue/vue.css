@@ -2725,6 +2725,61 @@ main > header,
   background: var(--rouge);
   border-radius: 3px;
 }
+/* La ligne du disjoncteur, en tête de TODO (ticket 2140) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
+   de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol, puis son seul
+   bouton, « Resume », le recommandé. Ce qui part, ce qui a été demandé ou pourquoi rien, à voix basse à côté. */
+#rail .ligne-disjoncteur {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--attend);
+  border: 1px solid var(--rouge);
+  border-left-width: 6px;
+  border-radius: var(--rayon-bouton);
+}
+#rail .ligne-disjoncteur p.dit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+#rail .ligne-disjoncteur p.dit strong {
+  color: var(--rouge-clair);
+  font-weight: 600;
+  line-height: 1.35;
+}
+#rail .ligne-disjoncteur .controle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#rail .ligne-disjoncteur .action > button:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+#rail .ligne-disjoncteur .en-route {
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .ligne-disjoncteur .reprise-demandee,
+#rail .ligne-disjoncteur .refus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+#rail .ligne-disjoncteur .reprise-demandee {
+  color: var(--vert);
+}
+#rail .ligne-disjoncteur .refus {
+  color: var(--jaune);
+}
 /* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
    de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */
 #rail .arret-manager {
