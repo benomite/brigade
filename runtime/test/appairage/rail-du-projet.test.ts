@@ -18,12 +18,10 @@ import type { Fait } from "../../src/evenements.ts";
 import { principal as facts } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirRail } from "../../src/rail.ts";
-import { aArreter, appeler, horloge, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { aArreter, appeler, horloge, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { FAUX_GH_GISTS as FAUX_GH } from "./doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
-
-const COMMANDE = join(import.meta.dirname, "../../src/appairage/rail-du-projet.ts");
 
 type Gist = { id: string; files: Record<string, { filename: string; content: string }> };
 type Panne = "panne" | "deconnecte" | "jeton-refuse" | "limite";
@@ -130,8 +128,10 @@ test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets 
     [[14, "pris"], [15, "en pass"], [16, "en attente"], [17, "86"], [19, "servi"], [18, "en attente"]],
   );
 
-  // La commande, dans un process neuf : ni HOME, ni état, ni variable de brigade — rien que son `gh`.
-  const commande = lancer(t, COMMANDE, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
+  // La commande, avec l'environnement d'un process neuf : ni HOME, ni état, ni
+  // variable de brigade — rien que son `gh`. Elle ne lit que celui qu'on lui
+  // donne : jouée dans le process du test, elle n'en voit pas davantage.
+  const commande = appeler(principal, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
   assert.equal(await commande.fin, 0, commande.sortie());
   const lu = JSON.parse(commande.sortie()) as RailDuProjet;
   assert.ok(lu.state === "listed", commande.sortie());
@@ -232,7 +232,7 @@ test("sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pou
   assert.equal(sansReseau.reason, "GitHub cannot be reached from this computer, so the rail of brigade could not be read: check its network connection.");
   assert.match(sansReseau.detail ?? "", /error connecting to api\.github\.com/);
 
-  const commande = lancer(t, COMMANDE, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
+  const commande = appeler(principal, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
   assert.equal(await commande.fin, 1);
   assert.equal((JSON.parse(commande.sortie()) as RailDuProjet).state, "unavailable");
 });

@@ -2,16 +2,15 @@
 // lus du journal, puis mesurés sur les derniers tickets servis. Le journal est
 // écrit à la main : aucune cuisine ne tourne ici.
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as mesures } from "../src/montrer-mesures.ts";
 import { parcoursDesTickets } from "../src/parcours-des-tickets.ts";
 import { decrireRenvois, derivePremierCoup, DERNIERS_PAR_DEFAUT, direDerivePremierCoupEn, mesurerRenvois, type Parcours } from "../src/renvois.ts";
-import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
 
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}:00.000Z`;
 const essais = (combien: number) => Array.from({ length: combien }, (_, i) => ({ run: `run-${i}`, at: a("10:00"), outcome: "ok", verdict: i === combien - 1 ? ("green" as const) : ("red" as const) }));
@@ -141,9 +140,9 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   prendre(5);
   cuire(5);
 
-  const commande = lancer(t, MESURES, ["--last", "4", "--by", "2"], { BRIGADE_STATE_DIR: repertoire });
-  const nul = lancer(t, MESURES, ["--last", "0"], { BRIGADE_STATE_DIR: repertoire });
-  const double = lancer(t, MESURES, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(mesures, ["--last", "4", "--by", "2"], { BRIGADE_STATE_DIR: repertoire });
+  const nul = appeler(mesures, ["--last", "0"], { BRIGADE_STATE_DIR: repertoire });
+  const double = appeler(mesures, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^report {5}brigade — 4 merges in the log, in slices of 2\n/);
@@ -160,7 +159,7 @@ test("`measures` sur un journal où aucun ticket n'a été servi le dit, sans pl
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire).fermer();
 
-  const commande = lancer(t, MESURES, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(mesures, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /\n\nretries {4}no served ticket in the log: nothing to measure \(N = 20\)\n\nfailures/);

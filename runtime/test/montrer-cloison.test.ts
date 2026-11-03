@@ -5,19 +5,21 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
+import { principal as cloison } from "../src/montrer-cloison.ts";
 import { demarrer } from "../src/runtime.ts";
-import { FAUX_BWRAP, FAUX_CLAUDE, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, ENV_ENFANT, FAUX_BWRAP, FAUX_CLAUDE, horloge, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
-
-const CLOISON = join(import.meta.dirname, "../src/montrer-cloison.ts");
 
 function projet(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
   t.after(() => runtime.arreter("test"));
   const noter = (fait: Fait, author = "runtime") => runtime.journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
+  // Jouée dans le process du test, avec l'environnement qu'un process lancé
+  // aurait reçu : les sondes en lancent de vrais, qui cherchent leurs outils au
+  // PATH. Son lancement par son fichier est prouvé par `commandes.test.ts`.
   const commande = async (args: string[] = [], env: Record<string, string> = {}) => {
-    const enfant = lancer(t, CLOISON, args, { BRIGADE_STATE_DIR: repertoire, ...env });
+    const enfant = appeler(cloison, args, { ...ENV_ENFANT, BRIGADE_STATE_DIR: repertoire, ...env });
     return { code: await enfant.fin, sortie: enfant.sortie() };
   };
   return { repertoire, noter, commande };

@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal as base } from "../src/base-cli.ts";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
+import { principal as arbitre } from "../src/arbitre-cli.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { principal as grant } from "../src/grant-cli.ts";
 import { decisionsDansLEnvironnement, decisionsPosees, environnementDecide } from "../src/decisions.ts";
@@ -20,11 +21,10 @@ import { lireStations } from "../src/stations-declarees.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { etatDAvant, STATION } from "./aides/haut-de-status.ts";
-import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, DEPOT, fauxGh, horloge, issueGitHub, repertoireTemporaire } from "./outils.ts";
 
 type Commande = Parameters<typeof appeler>[0];
 
-const ARBITRE = join(import.meta.dirname, "../src/arbitre-cli.ts");
 
 // L'état d'exemple du bas de `status`, et le répertoire où son journal vit.
 function etat(t: TestContext) {
@@ -128,7 +128,7 @@ test("`arbiter` : l'état, weight, remove et les refus ne portent aucun mot fran
   });
   ouvert.dire("compta", { cooks: 3, demande: true, machine: false, nonArbitres: 1, consommation: { jour: 10, semaine: 20 } });
   const dans = async (env: Record<string, string>, ...args: string[]) => {
-    const cli = lancer(t, ARBITRE, args, env);
+    const cli = appeler(arbitre, args, env);
     const code = await cli.fin;
     const lignes = cli.sortie().trimEnd().split("\n");
     sansMotFrancais(lignes);

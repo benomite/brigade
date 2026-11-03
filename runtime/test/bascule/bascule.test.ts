@@ -10,12 +10,23 @@ import { join, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 import { lieux, lireAncienneInstallation } from "../../src/bascule/ancienne.ts";
 import { attendreLaReprise, basculer, BasculeEnEchec, lireNote, type Systemctl } from "../../src/bascule/basculer.ts";
+import { principal as bascule } from "../../src/bascule/main.ts";
 import { lireConfiguration } from "../../src/station/configuration.ts";
 import { lirePortes } from "../../src/station/portes.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { appeler, repertoireTemporaire } from "../outils.ts";
 import { ancienneMachine, enUnite, GESTES_ANCIENS, TROIS } from "./aides.ts";
 
 const MAIN = join(import.meta.dirname, "../../src/bascule/main.ts");
+
+// La commande de la bascule jouée dans le process du test, avec un systemd
+// qui fait échouer le test s'il est appelé : rien de ce qu'elle fait ici ne
+// doit toucher une unité. Sa sortie standard et sa sortie d'erreur à part.
+async function jouerLaBascule(args: string[]): Promise<{ status: number; stdout: string; stderr: string }> {
+  const [stdout, stderr]: [string[], string[]] = [[], []];
+  const systemctl: Systemctl = (lus) => assert.fail(`systemctl ${lus.join(" ")} a été appelé`);
+  const { fin } = appeler((appel) => bascule({ ...appel, dire: (ligne) => stdout.push(`${ligne}\n`), redire: (ligne) => stderr.push(`${ligne}\n`) }, { systemctl }), args);
+  return { status: await fin, stdout: stdout.join(""), stderr: stderr.join("") };
+}
 
 // Un systemd qui fait ce qu'on lui demande, et le note. `actives` : les unités
 // qui tournent encore ; `refuse` : ce qu'il refuse de faire.
@@ -152,12 +163,12 @@ test("ce que l'ancienne installation avait posé part — unités, portes, drop-
   assert.equal(apres["usr/local/bin/brigade"], `-> ${m.sous("usr/lib/brigade-station/brigade")}`);
 });
 
-test("rejouée, la bascule ne trouve plus rien à faire : la machine reste telle quelle", (t) => {
+test("rejouée, la bascule ne trouve plus rien à faire : la machine reste telle quelle", async (t) => {
   const m = machine(t);
   basculerTout(m);
   const apres = m.photo();
   assert.deepEqual(lireAncienneInstallation(lieux(m.racine)), { plan: null, refus: [] });
-  const rejouee = spawnSync(process.execPath, [MAIN, "--racine", m.racine], { encoding: "utf8" });
+  const rejouee = await jouerLaBascule(["--racine", m.racine]);
   assert.equal(rejouee.status, 0, rejouee.stderr);
   assert.equal(rejouee.stdout, "");
   assert.deepEqual(m.photo(), apres);
@@ -179,10 +190,12 @@ for (const [cas, projet, motif] of [
   ["avec une valeur à blancs", { nom: "espace", depot: "acme/espace", base: "main", environnement: { BRIGADE_SECRETS_FILE: "/srv/mes secrets.env" } }, /brigade@espace\.service : BRIGADE_SECRETS_FILE : sa valeur contient un blanc/],
   ["avec une variable hors BRIGADE_", { nom: "espace", depot: "acme/espace", base: "main", environnement: { NODE_OPTIONS: "--max-old-space-size=4096" } }, /brigade@espace\.service : NODE_OPTIONS : la configuration de la station ne porte que des réglages BRIGADE_…/],
 ] as const) {
-  test(`un projet ${cas} : la bascule est refusée en le disant, et rien ne change sur la machine`, (t) => {
+  test(`un projet ${cas} : la bascule est refusée en le disant, et rien ne change sur la machine`, async (t) => {
     const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "acme/brigade", base: "v2" }, projet]);
     const avant = m.photo();
-    const rendu = spawnSync(process.execPath, [MAIN, "--racine", m.racine], { encoding: "utf8", env: { ...process.env, PATH: "/nulle/part" } });
+    // Le premier refus est lancé par son fichier, sans rien dans le PATH : le
+    // code que son process rend ; les autres, joués dans le process du test.
+    const rendu = cas === "sans dépôt" ? spawnSync(process.execPath, [MAIN, "--racine", m.racine], { encoding: "utf8", env: { ...process.env, PATH: "/nulle/part" } }) : await jouerLaBascule(["--racine", m.racine]);
     assert.equal(rendu.status, 1);
     assert.match(rendu.stderr, /^bascule refusée — rien n'a changé : les anciennes unités servent toujours leurs projets, la station n'en sert aucun/);
     assert.match(rendu.stderr, motif);

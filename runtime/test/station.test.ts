@@ -1296,7 +1296,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook mort pendant que le runtime était arrêté — son relais tué avec lui : au redémarrage son ticket est en attente, et un cook neuf le reprend", async (t) => {
-    const premiere = cuisine(t, { scenario: "bavard", issues: [issue(15)] });
+    const premiere = cuisine(t, { scenario: "bavard", issues: [issue(15)], relais: true });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
     await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${run}.cook.pid`)));
@@ -2051,7 +2051,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", { skip: posixOnly("kills a cook with its runtime after it wrote a draft in its worktree, and expects the next runtime to harvest and remove that worktree first; the draft is written under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, where that directory does not exist") }, async (t) => {
-    const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
+    const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)], relais: true });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
     const pidDe = (quoi: string) => join(premiere.repertoire, "runs", `${run}.${quoi}`);

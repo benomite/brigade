@@ -1,15 +1,12 @@
 // La commande par laquelle le chef lit le rail : `npm run rail`.
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { appeler, DEPOT, fauxGh, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
-
-const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
+import { appeler, DEPOT, fauxGh, horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son état", async (t) => {
   const repertoire = repertoireTemporaire(t);
@@ -33,7 +30,7 @@ test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son
   rail.servir(16);
   rail.quatreVingtSix(17, { motif: "quota", retour: new Date(`${JOUR_HORLOGE}T15:00:00.000Z`) });
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
@@ -180,7 +177,7 @@ test("un rail sans ticket le dit", async (t) => {
 });
 
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
-  const sansVariable = lancer(t, MONTRER, []);
+  const sansVariable = appeler(montrerRail, []);
   const sansJournal = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   const avecArgument = appeler(montrerRail, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 

@@ -13,6 +13,7 @@ import { DECISIONS, decisionsPosees, OBLIGATOIRES, verifierDecision } from "../s
 import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as installation } from "../src/installation-cli.ts";
 import { POSABLES, principal } from "../src/poser-decisions.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, lancer, repertoireTemporaire } from "./outils.ts";
@@ -256,7 +257,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni drop-
 test("la commande du chef, en texte : l'étape, puis chaque décision avec sa question, ses options, la recommandée et ce qui arrive si on la saute", async (t) => {
   const etat = repertoireTemporaire(t);
 
-  const commande = lancer(t, INSTALLATION, ["decisions"], env(etat));
+  const commande = appeler(installation, ["decisions"], env(etat));
 
   assert.equal(await commande.fin, 0, commande.sortie());
   const sortie = commande.sortie();

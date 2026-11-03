@@ -1,7 +1,8 @@
 // La commande par laquelle le chef voit et commande les garde-fous :
 // `npm run guardrails -- [stop | resume]`. Elle se joue dans le process du
-// test ; depuis le sien, là où c'est lui qu'on regarde — un `stop` qui arrête
-// les cooks d'un runtime qui tourne ailleurs, un refus rendu par son code.
+// test, refus compris : un `stop` n'atteint le runtime que par le journal, où
+// elle l'écrit par sa propre connexion. Son lancement par son fichier est
+// prouvé par `commandes.test.ts`.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -11,9 +12,7 @@ import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { appeler, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
-
-const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
+import { appeler, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : le plafond de jetons n'est atteint qu'après 200 s. Celui qui
@@ -35,10 +34,8 @@ function cuisine(t: TestContext, reglages: Partial<Reglages> = {}) {
     runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });
   const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
   const commande = (...args: string[]) => rendre(appeler(gardeFous, args, { BRIGADE_STATE_DIR: repertoire }));
-  // Par son fichier, dans son propre process : comme `npm run` la lance.
-  const lancee = (...args: string[]) => rendre(lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire }));
   const commandes = () => runtime.journal.tout().filter((e) => e.type.startsWith("kitchen."));
-  return { runtime, repertoire, cook, commande, lancee, commandes };
+  return { runtime, repertoire, cook, commande, commandes };
 }
 
 test("sans argument, le chef voit les plafonds, la cuisine ouverte, le disjoncteur fermé et aucun cook", async (t) => {
@@ -93,10 +90,10 @@ test("un jugement du manager arrêté par un garde-fou se lit comme tel dans les
 });
 
 test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate", async (t) => {
-  const { runtime, cook, lancee, commandes } = cuisine(t);
+  const { runtime, cook, commande, commandes } = cuisine(t);
   const [premier, second] = [cook(7, "bavard"), cook(8, "muet")];
 
-  const stop = await lancee("stop");
+  const stop = await commande("stop");
   assert.equal(stop.code, 0);
   const fins = await Promise.all([premier.fin, second.fin]);
 
@@ -105,7 +102,7 @@ test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le 
   assert.deepEqual(commandes().map((e) => [e.type, e.author, e.project, e.ticket]), [["kitchen.stopped", "chef", "brigade", null]]);
   assert.throws(() => cook(9, "fini"), /cuisine arrêtée/);
 
-  const { sortie } = await lancee();
+  const { sortie } = await commande();
   assert.match(sortie, /kitchen\s+STOPPED by the chef on \d{4}-\d{2}-\d{2}T.* — `resume` to restart/);
   assert.match(sortie, /cooks running\s+none/);
   assert.match(sortie, new RegExp(`#7\\s+${premier.run}\\s+the chef's \`stop\``));
@@ -221,8 +218,8 @@ test("devant un journal d'avant les garde-fous, la commande dit de redémarrer l
   assert.doesNotMatch(cli.sortie(), /at .*\.ts/);
 });
 
-test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async (t) => {
-  const cli = lancer(t, CLI, ["stop"]);
+test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async () => {
+  const cli = appeler(gardeFous, ["stop"], {});
 
   assert.equal(await cli.fin, 2);
   assert.match(cli.sortie(), /BRIGADE_STATE_DIR/);

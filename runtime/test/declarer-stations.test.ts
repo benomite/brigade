@@ -8,6 +8,7 @@ import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
+import { principal as installation } from "../src/installation-cli.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
@@ -171,7 +172,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien 
 test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare", async (t) => {
   const etat = repertoireTemporaire(t);
 
-  const commande = lancer(t, INSTALLATION, ["stations"], env(etat));
+  const commande = appeler(installation, ["stations"], env(etat));
 
   assert.equal(await commande.fin, 0, commande.sortie());
   const sortie = commande.sortie();
@@ -223,7 +224,7 @@ test("de bout en bout : sur un runtime qui tourne sans station, l'action déclar
   assert.ok(evenements(etat).some((e) => e.type === "stations.undeclared"));
   assert.deepEqual(readdirSync(temoin), []);
 
-  const commande = lancer(t, INSTALLATION, ["stations", "box/claude:1:code+raisonnement"], env(etat));
+  const commande = appeler(installation, ["stations", "box/claude:1:code+raisonnement"], env(etat));
   assert.equal(await commande.fin, 0, commande.sortie());
 
   await jusqua(() => evenements(etat).some((e) => e.type === "cook.launched"));

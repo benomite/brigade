@@ -11,13 +11,16 @@ import { signalerLArbre } from "../src/arbre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as interrupteur } from "../src/interrupteur-cli.ts";
+import { demarrerLeRuntime } from "../src/main.ts";
+import { principal as manager } from "../src/manager-cli.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { proposerAuRuntime } from "../src/reglages-projet/au-runtime.ts";
 import { FICHIER } from "../src/reglages-projet/reglages.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
 import { demander } from "./aides/demander.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
-import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
+import { aArreter, appeler, BASE, demarrerIci, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -216,7 +219,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite", async (t) => {
     const repertoire = repertoireTemporaire(t);
     const app = join(repertoireTemporaire(t), "config/app.json");
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_APP_CONFIG: app });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_APP_CONFIG: app });
     await runtime.attendre("démarré");
 
     assert.deepEqual(JSON.parse(readFileSync(app, "utf8")), { projets: [] });
@@ -246,7 +249,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       writeFileSync(join(transcripts, nom), "{}\n");
       utimesSync(join(transcripts, nom), new Date(Date.now() - age), new Date(Date.now() - age));
     }
-    const runtime = lancer(t, MAIN, [], env);
+    const runtime = demarrerIci(t, demarrerLeRuntime, env);
     await runtime.attendre("démarré");
 
     assert.match(runtime.sortie(), new RegExp(`brigade : cloison — every launch \\(setup, cook, gates, reviewer, judges\\) runs in \`${FAUX_BWRAP}\` — hidden: ${join(racine, "etats")}`));
@@ -264,7 +267,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
   test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", { skip: posixOnly("starts the runtime with BRIGADE_MAX_TOKENS=2000000 and reads the ceilings of its guard.configured fact; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "2000000" });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "2000000" });
     await runtime.attendre("démarré");
 
     assert.deepEqual(relire(repertoire).find((e) => e.type === "guard.configured")?.payload, {
@@ -276,7 +279,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
   test("un plafond illisible est un refus de démarrer, avant d'avoir rien écrit", async (t) => {
     const repertoire = join(repertoireTemporaire(t), "etat");
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "beaucoup" });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "beaucoup" });
 
     assert.equal(await runtime.fin, REFUS);
     assert.match(runtime.sortie(), /refus de démarrer.*BRIGADE_MAX_TOKENS/);
@@ -288,7 +291,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     ["BRIGADE_PROJECT", { BRIGADE_STATE_DIR: "/chemin/jamais/cree" }],
   ] as const) {
     test(`sans ${variable}, le runtime refuse de démarrer et nomme la variable`, async (t) => {
-      const runtime = lancer(t, MAIN, [], env);
+      const runtime = demarrerIci(t, demarrerLeRuntime, env);
 
       assert.equal(await runtime.fin, REFUS);
       assert.match(runtime.sortie(), new RegExp(`refus de démarrer[\\s\\S]*${variable} is not set`));
@@ -326,7 +329,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   ] as const) {
     test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
       const repertoire = repertoireTemporaire(t);
-      const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), ...variables });
+      const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), ...variables });
 
       assert.equal(await runtime.fin, REFUS);
       assert.match(runtime.sortie(), /refus de démarrer/);
@@ -341,7 +344,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
   test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", { skip: posixOnly("starts the runtime with two declared stations and checks each station.announced fact and the stations line, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless" });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless" });
     await runtime.attendre("démarré");
 
     assert.deepEqual(
@@ -353,7 +356,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       ],
     );
     assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\)/);
-    runtime.process.kill("SIGTERM");
+    runtime.arreter("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -455,7 +458,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const ouvertes = `repos/${DEPOT}/issues?state=open&per_page=100`;
     gh.repondre(ouvertes, { corps: [{ ...issueGitHub(1, { labels: ["tech"] }), author_association: "OWNER" }] });
     const sondees = () => gh.appels().filter((appel) => appel.at(-1) === ouvertes).length;
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_ROADMAP_ISSUE: "1" });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire, gh), BRIGADE_ROADMAP_ISSUE: "1" });
     await runtime.attendre("interrupteur du projet allumé par défaut");
 
     await jusqua(() => relire(repertoire).some((e) => e.type === "manager.set-aside"));
@@ -468,12 +471,12 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     ]);
 
     // Le manager seul ne s'éteint plus : la commande nomme l'interrupteur du projet.
-    const eteindre = lancer(t, join(import.meta.dirname, "../src/manager-cli.ts"), ["off"], { BRIGADE_STATE_DIR: repertoire });
+    const eteindre = appeler(manager, ["off"], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await eteindre.fin, 1);
-    const projet = lancer(t, join(import.meta.dirname, "../src/interrupteur-cli.ts"), ["off"], { BRIGADE_STATE_DIR: repertoire });
+    const projet = appeler(interrupteur, ["off"], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await projet.fin, 0);
     assert.ok(relire(repertoire).some((e) => e.type === "project.switched-off" && e.author === "chef"));
-    runtime.process.kill("SIGTERM");
+    runtime.arreter("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -662,19 +665,19 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
     const fichier = join(repertoireTemporaire(t), "secrets.env");
     writeFileSync(fichier, "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
-    const avec = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), BRIGADE_SECRETS_FILE: fichier });
+    const avec = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoireTemporaire(t)), BRIGADE_SECRETS_FILE: fichier });
     await avec.attendre("démarré");
     assert.ok(avec.sortie().includes(`secrets du projet — ${fichier}, relu à chaque lancement`), avec.sortie());
     assert.equal(avec.sortie().includes("une-valeur-de-dev"), false);
   });
 
   test("avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude`", { skip: posixOnly("starts the runtime with CLAUDE_CODE_OAUTH_TOKEN in its environment and checks it says it passes it to no `claude`, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement" });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoireTemporaire(t)), CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement" });
     await runtime.attendre("démarré");
 
     assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\); CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
     assert.equal(runtime.sortie().includes("sk-ant-oat01-pose-dans-l-environnement"), false);
-    runtime.process.kill("SIGTERM");
+    runtime.arreter("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -689,7 +692,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: posixOnly("writes the claude token file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the file as readable by others before it looks at where it lies") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     writeFileSync(join(repertoire, "jeton-claude"), "sk-ant-oat01-range-dans-l-etat\n", { mode: 0o600 });
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_CLAUDE_TOKEN_FILE: join(repertoire, "jeton-claude") });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_CLAUDE_TOKEN_FILE: join(repertoire, "jeton-claude") });
 
     assert.equal(await runtime.fin, REFUS);
     assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_CLAUDE_TOKEN_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
@@ -700,7 +703,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: posixOnly("writes the secrets file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the secrets as readable by others before it looks at where they lie") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     writeFileSync(join(repertoire, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_SECRETS_FILE: join(repertoire, "secrets.env") });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_SECRETS_FILE: join(repertoire, "secrets.env") });
 
     assert.equal(await runtime.fin, REFUS);
     assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_SECRETS_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
@@ -711,7 +714,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const repertoire = repertoireTemporaire(t);
     const apps = await fauxGitHubApps(t);
     rmSync(join(apps.repertoire, "manager.pem"));
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_GITHUB_APPS_DIR: apps.repertoire, BRIGADE_GITHUB_API_URL: apps.url });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_GITHUB_APPS_DIR: apps.repertoire, BRIGADE_GITHUB_API_URL: apps.url });
 
     assert.equal(await runtime.fin, REFUS);
     assert.ok(runtime.sortie().includes(`refus de démarrer — BRIGADE_GITHUB_APPS_DIR invalide : « ${join(apps.repertoire, "manager.pem")} »`), runtime.sortie());
@@ -820,7 +823,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
   test("un délai de la pass illisible fait refuser de démarrer, sans laisser de journal", async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_GATES_TIMEOUT_SECONDS: "longtemps" });
+    const runtime = demarrerIci(t, demarrerLeRuntime, { ...environnement(t, repertoire), BRIGADE_GATES_TIMEOUT_SECONDS: "longtemps" });
 
     assert.equal(await runtime.fin, REFUS);
     assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_GATES_TIMEOUT_SECONDS invalide/);
@@ -901,7 +904,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await sansLui.fin, 0);
 
     // Sans arbitre désigné : une ligne au démarrage, et le mode dégradé d'avant est levé.
-    const seul = lancer(t, MAIN, [], environnement(t, repertoire));
+    const seul = demarrerIci(t, demarrerLeRuntime, environnement(t, repertoire));
     await seul.attendre("démarré");
     assert.match(seul.sortie(), /brigade : arbitre — aucun \(BRIGADE_ARBITER_PORT n'est pas défini\) : ce projet se tient pour seul sur la machine et sur le compte/);
     assert.doesNotMatch(seul.sortie(), /mode dégradé/);

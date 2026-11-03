@@ -530,6 +530,11 @@ export type Options = {
   // échec. Par défaut, rien : aucun test ne dépend de ce que le poste a
   // installé, ni n'y lance rien.
   sonde?: Sonde;
+  // Les cooks partent par un relais, comme en service, et survivent au
+  // runtime. Par défaut, le runtime les tient lui-même : un relais est un
+  // process Node de plus par cook, et seul le test dont la survie du cook est
+  // le sujet — sa reprise, son arrêt ou sa fin par le relais — le demande.
+  relais?: boolean;
 };
 
 // Une machine qui n'a rien de ce qu'un projet peut demander.
@@ -554,7 +559,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     heure: montre(),
   };
   const { repertoire, origine, clone, gh, heure } = lieux;
-  // Les cooks survivent au runtime : la fin du test les tue, après lui.
+  // Les cooks relayés survivent au runtime : la fin du test les tue, après lui.
   finDuTest(t, () => tuerLesRelais(repertoire));
   // Ce que la station aurait imprimé pour journald.
   const avertissements: string[] = [];
@@ -692,6 +697,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     profils: options.profils,
     commun: options.commun,
     sonde: options.sonde ?? SONDE_VIDE,
+    sansRelais: !options.relais,
   });
   const runtime = options.manager
     ? brancherManager(servie, {

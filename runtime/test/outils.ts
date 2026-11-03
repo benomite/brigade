@@ -1,6 +1,7 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -9,10 +10,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
-import { Sortie, type Commande } from "../src/appel.ts";
+import { format } from "node:util";
+import { Sortie, type Appel, type Commande } from "../src/appel.ts";
 import { signalerLArbre } from "../src/arbre.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
+import { masquerIdentifiants } from "../src/identifiants.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
 
@@ -286,7 +289,8 @@ export function poserJournalVide(repertoire: string): void {
 // Ce que le journal porte déjà n'est pas écrasé, et la variable reste alors à
 // l'environnement : le runtime l'ignore et le dit.
 // `BRIGADE_TEST_SANS_DECISIONS=1` laisse les variables où elles sont.
-function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
+// Un runtime démarré dans le process du test y passe aussi.
+export function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
   const { BRIGADE_TEST_SANS_DECISIONS: sans, ...reste } = env;
   const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
   const etat = reste.BRIGADE_STATE_DIR;
@@ -375,6 +379,78 @@ export function appeler(commande: Commande, args: string[] = [], env: Record<str
     }
   };
   return { sortie: () => sortie, fin: jouer() };
+}
+
+// Ce que les modules d'un runtime démarré dans le process du test disent sur
+// la console, sans passer par son `dire`, revient à ce runtime : chaque
+// démarrage a son contexte, dont héritent ses minuteries et ses process. La
+// console n'est détournée qu'au premier démarrage.
+const consoleDuRuntime = new AsyncLocalStorage<(ligne: string) => void>();
+let consoleDetournee = false;
+function detournerLaConsole(): void {
+  if (consoleDetournee) return;
+  consoleDetournee = true;
+  for (const methode of ["log", "info", "warn", "error"] as const) {
+    const ecrire = console[methode].bind(console);
+    console[methode] = (...valeurs: unknown[]) => {
+      const noter = consoleDuRuntime.getStore();
+      if (noter) noter(format(...valeurs));
+      else ecrire(...valeurs);
+    };
+  }
+}
+
+export type RuntimeIci = Pick<Enfant, "sortie" | "attendre"> & {
+  // Ce que le process rendrait : le code de son refus de démarrer, sinon 0
+  // une fois arrêté sans erreur, comme sur un signal.
+  fin: Promise<number>;
+  arreter: (signal: NodeJS.Signals) => void;
+};
+
+// Démarre le runtime dans le process du test — `demarrerLeRuntime`, que le
+// test passe : ce fichier ne charge pas tout le runtime —, sur l'environnement
+// qu'on lui donne plus ENV_ENFANT, les décisions posées au journal comme
+// `lancer` les pose. Ses lignes sont masquées comme sa console masque celles du
+// process. Démarré, il est arrêté à la fin du test. Sans le Node qui démarre,
+// une demi-seconde de processeur à chaque fois ; ce qui tient au process (le
+// démarrage par son fichier, la sortie du process, un vrai signal, un verrou
+// qu'un autre tient) se prouve avec `lancer`.
+export function demarrerIci(
+  t: TestContext,
+  demarrer: (appel: Omit<Appel, "args">) => { arreter(signal: NodeJS.Signals): void },
+  env: Record<string, string> = {},
+): RuntimeIci {
+  detournerLaConsole();
+  let sortie = "";
+  const ecrire = (ligne: string) => void (sortie += `${masquerIdentifiants(ligne).texte}\n`);
+  let demarre: { arreter(signal: NodeJS.Signals): void };
+  try {
+    demarre = consoleDuRuntime.run(ecrire, () => demarrer({ env: { ...ENV_ENFANT, ...decisionsAuJournal("main.ts", env) }, dire: ecrire, redire: ecrire }));
+  } catch (erreur) {
+    if (!(erreur instanceof Sortie)) throw erreur;
+    // Refusé, il ne dira plus rien.
+    const attendre = async (texte: string) => {
+      if (!sortie.includes(texte)) throw new Error(`refus de démarrer sans « ${texte} » : ${sortie}`);
+    };
+    return { sortie: () => sortie, attendre, fin: Promise.resolve(erreur.code), arreter: () => {} };
+  }
+  const { promise: fin, resolve: finir, reject: echouer } = Promise.withResolvers<number>();
+  let arrete = false;
+  const arreter = (signal: NodeJS.Signals) => {
+    if (arrete) return;
+    arrete = true;
+    try {
+      consoleDuRuntime.run(ecrire, () => demarre.arreter(signal));
+      finir(0);
+    } catch (erreur) {
+      echouer(erreur);
+    }
+  };
+  aArreter(t, async () => {
+    arreter("SIGTERM");
+    await fin;
+  });
+  return { sortie: () => sortie, attendre: (texte) => jusqua(() => sortie.includes(texte)), fin, arreter };
 }
 
 // Un port libre à l'instant où il est tiré — et rien de plus : sous Linux, un
@@ -638,4 +714,100 @@ export function commiter(arbre: string, fichier = "travail.txt"): void {
   writeFileSync(join(arbre, fichier), `${fichier}\n`);
   git(arbre, "add", ".");
   git(arbre, "commit", "-q", "-m", `ajoute ${fichier}`);
+}
+
+// La station jouée dans le process du test : ses lignes, son pid — celui du
+// test —, ce que ses signaux y font, et sa fin : le code de son refus, ou 0
+// quand tout ce qui s'écrit de son arrêt l'est.
+export type StationIci = Pick<Enfant, "sortie" | "attendre"> & {
+  pid: number;
+  signaler: (signal: "SIGTERM" | "SIGINT" | "SIGHUP") => void;
+  fin: Promise<number>;
+};
+
+let stationIci = false;
+
+// Joue la station (`demarrerLaStation`, chargée au premier appel : ce fichier
+// ne charge pas tout le runtime) dans le process du test, sur l'environnement
+// qu'on lui donne plus ENV_ENFANT, comme `lancer` — sans le Node qui démarre ni
+// les trois cents modules qu'il relit, près d'une seconde de processeur à
+// chaque fois. Une seule à la fois par process : elle y pose le compteur
+// d'appels à GitHub du process (`installerLimite`), et ses tests se jouent l'un
+// après l'autre. Le `gh` de son environnement, que son canal lance avec celui
+// du process, reçoit le sien par une enveloppe. Arrêtée à la fin du test si elle
+// tourne encore, puis rendue. Ce qui tient au process (le démarrage par son
+// fichier, un signal reçu, sa sortie) se prouve avec `lancer`.
+export function jouerLaStation(t: TestContext, env: Record<string, string> = {}): StationIci {
+  if (stationIci) throw new Error("une station joue déjà dans ce process : ses tests se jouent l'un après l'autre");
+  stationIci = true;
+  let sortie = "";
+  const attentes = new Set<() => void>();
+  const ecrire = (ligne: string) => {
+    sortie += `${ligne}\n`;
+    for (const verifier of attentes) verifier();
+  };
+  const sienne: Record<string, string> = { ...ENV_ENFANT, ...env };
+  if (process.platform !== "win32" && sienne.BRIGADE_GH_BIN) {
+    const enveloppe = join(repertoireTemporaire(t), "gh");
+    const cite = (mot: string) => `'${mot.replaceAll("'", `'\\''`)}'`;
+    writeFileSync(enveloppe, ["#!/bin/sh", ...Object.entries(sienne).map(([nom, valeur]) => `export ${nom}=${cite(valeur)}`), `exec ${cite(sienne.BRIGADE_GH_BIN)} "$@"`, ""].join("\n"), { mode: 0o755 });
+    sienne.BRIGADE_GH_BIN = enveloppe;
+  }
+  let demarree: import("../src/station/main.ts").StationDemarree | null = null;
+  let arretee = false;
+  let enAttente: "SIGTERM" | "SIGINT" | "SIGHUP" | null = null;
+  let finir: (code: number) => void = () => {};
+  const fin = new Promise<number>((resoudre) => (finir = resoudre));
+  const rendre = (code: number) => {
+    demarree?.rendre();
+    stationIci = false;
+    finir(code);
+  };
+  const echec = (erreur: unknown) => {
+    ecrire(erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur));
+    return 1;
+  };
+  const signaler = (signal: "SIGTERM" | "SIGINT" | "SIGHUP") => {
+    if (demarree === null) return void (enAttente ??= signal);
+    if (signal === "SIGHUP") return demarree.relire();
+    if (arretee) return;
+    arretee = true;
+    void demarree.arreter(signal).then(() => 0, echec).then(rendre);
+  };
+  const demarrage = (async () => {
+    const { demarrerLaStation } = await import("../src/station/main.ts");
+    try {
+      await demarrerLaStation(sienne, {
+        sortie: { dire: ecrire, redire: ecrire },
+        branche: (station) => {
+          demarree = station;
+          if (enAttente !== null) signaler(enAttente);
+        },
+      });
+    } catch (erreur) {
+      rendre(erreur instanceof Sortie ? erreur.code : echec(erreur));
+    }
+  })();
+  aArreter(t, async () => {
+    await demarrage;
+    signaler("SIGTERM");
+    await fin;
+  });
+  return {
+    sortie: () => sortie,
+    pid: process.pid,
+    signaler,
+    fin,
+    attendre: (texte) =>
+      new Promise<void>((resoudre, rejeter) => {
+        const verifier = () => {
+          if (sortie.includes(texte)) resoudre();
+        };
+        attentes.add(verifier);
+        verifier();
+        void fin.then(() => {
+          if (!sortie.includes(texte)) rejeter(new Error(`station finie sans « ${texte} » : ${sortie}`));
+        });
+      }),
+  };
 }

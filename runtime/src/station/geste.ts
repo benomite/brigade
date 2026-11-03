@@ -12,35 +12,58 @@
 import { spawnSync } from "../sans-invite.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { CONFIGURATION, environnementDeLaCommande, lireFichierDeConfiguration } from "./configuration.ts";
 
 const PROJET_INCONNU = 65;
 const PAS_DU_RUNTIME = 66;
 const SYSTEMD_MUET = 67;
 
-function refuser(code: number, motif: string): never {
-  console.error(`brigade : ${motif}`);
-  process.exit(code);
+// Ce qui fait partir la commande : son fichier (relatif au dossier du runtime),
+// ses arguments, l'environnement du projet ; rend son code de sortie, ou lève
+// si elle ne part pas.
+export type LancerLaCommande = (fichier: string, args: string[], env: Record<string, string | undefined>) => number | Promise<number>;
+
+// Dans son propre process, sur les sorties du geste : un signal qui la tue
+// tue le geste du même signal.
+function dansSonProcess(fichier: string, args: string[], env: Record<string, string | undefined>): number {
+  const rendu = spawnSync(process.execPath, [fichier, ...args], { env, stdio: "inherit" });
+  if (rendu.error) throw rendu.error;
+  if (rendu.signal !== null) process.kill(process.pid, rendu.signal);
+  return rendu.status ?? 1;
 }
 
-const [projet = "", commande = "", ...args] = process.argv.slice(2);
-const racine = process.env.BRIGADE_STATION_DIR || refuser(SYSTEMD_MUET, "l'unité de la station ne donne pas BRIGADE_STATION_DIR : ses projets ne se trouvent pas");
-const fichier = join(racine, CONFIGURATION);
-const lu = lireFichierDeConfiguration(fichier).projets.find((ligne) => ligne.nom === projet);
-if (lu === undefined) refuser(PROJET_INCONNU, `projet inconnu sur cette station — « ${projet} » n'a pas de ligne dans sa configuration (${fichier})`);
+// `lancerLaCommande` : la commande part dans son propre process, hors des tests.
+export async function principal({ args: tapes, env: recu, redire }: Appel, lancerLaCommande: LancerLaCommande = dansSonProcess): Promise<void> {
+  function refuser(code: number, motif: string): never {
+    redire(`brigade : ${motif}`);
+    throw new Sortie(code);
+  }
 
-const scripts = Object.entries((JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> }).scripts ?? {}).filter(
-  ([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script),
-);
-const script = scripts.find(([nom]) => nom === commande)?.[1];
-if (script === undefined) {
-  const connues = scripts.filter(([, s]) => s !== "node src/ancien-nom.ts").map(([nom]) => nom);
-  refuser(PAS_DU_RUNTIME, `« ${commande} » n'est pas une commande du runtime — celles de cette station : ${connues.join(", ")}`);
+  const [projet = "", commande = "", ...args] = tapes;
+  const racine = recu.BRIGADE_STATION_DIR || refuser(SYSTEMD_MUET, "l'unité de la station ne donne pas BRIGADE_STATION_DIR : ses projets ne se trouvent pas");
+  const fichier = join(racine, CONFIGURATION);
+  const lu = lireFichierDeConfiguration(fichier).projets.find((ligne) => ligne.nom === projet);
+  if (lu === undefined) refuser(PROJET_INCONNU, `projet inconnu sur cette station — « ${projet} » n'a pas de ligne dans sa configuration (${fichier})`);
+
+  const scripts = Object.entries((JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> }).scripts ?? {}).filter(
+    ([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script),
+  );
+  const script = scripts.find(([nom]) => nom === commande)?.[1];
+  if (script === undefined) {
+    const connues = scripts.filter(([, s]) => s !== "node src/ancien-nom.ts").map(([nom]) => nom);
+    refuser(PAS_DU_RUNTIME, `« ${commande} » n'est pas une commande du runtime — celles de cette station : ${connues.join(", ")}`);
+  }
+
+  // `npm run` donnait son nom à la commande : `ancien-nom.ts` le lit pour dire le nouveau.
+  const env = { ...environnementDeLaCommande(racine, lu, recu), npm_lifecycle_event: commande };
+  let code: number;
+  try {
+    code = await lancerLaCommande(script.slice("node ".length), args, env);
+  } catch (erreur) {
+    refuser(1, `la commande ${commande} ne part pas — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
+  if (code !== 0) throw new Sortie(code);
 }
 
-// `npm run` donnait son nom à la commande : `ancien-nom.ts` le lit pour dire le nouveau.
-const env = { ...environnementDeLaCommande(racine, lu, process.env), npm_lifecycle_event: commande };
-const rendu = spawnSync(process.execPath, [script.slice("node ".length), ...args], { env, stdio: "inherit" });
-if (rendu.error) refuser(1, `la commande ${commande} ne part pas — ${rendu.error.message}`);
-if (rendu.signal !== null) process.kill(process.pid, rendu.signal);
-process.exitCode = rendu.status ?? 1;
+if (import.meta.main) await enProcess(principal);

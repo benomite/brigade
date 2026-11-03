@@ -7,13 +7,13 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/etapes-cli.ts";
+import { principal as installation } from "../src/installation-cli.ts";
 import { ETAPES, installationDe, noterEtape } from "../src/etapes.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
-const INSTALLATION = join(import.meta.dirname, "../src/installation-cli.ts");
 const ORDRE = ["ajout", "init", "verification", "stations", "protection", "decisions", "demarrage"];
 
 async function lire(repertoire: string) {
@@ -182,13 +182,13 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   await troisieme.attendre("démarré");
   assert.deepEqual(await lire(repertoire), avant);
 
-  // Lue par la commande du chef, dans son propre process : `installation etapes`.
-  const commande = lancer(t, INSTALLATION, ["etapes", "--json"], { BRIGADE_STATE_DIR: repertoire });
+  // Lue par la commande du chef, hors du runtime qui tourne : `installation etapes`.
+  const commande = appeler(installation, ["etapes", "--json"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await commande.fin, 0, commande.sortie());
   assert.deepEqual(JSON.parse(commande.sortie()), avant);
 
   // Le chef reprend où il en était : l'étape en attente faite, la courante avance.
-  const reprise = lancer(t, INSTALLATION, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
+  const reprise = appeler(installation, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await reprise.fin, 0, reprise.sortie());
   troisieme.process.kill("SIGTERM");
   assert.equal(await troisieme.fin, 0, troisieme.sortie());

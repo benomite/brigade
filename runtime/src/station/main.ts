@@ -2,9 +2,12 @@
 // tous les projets de sa configuration (`<BRIGADE_STATION_DIR>/projets`, une
 // ligne chacun). Ajouter ou retirer un projet n'écrit que cette ligne : la
 // station la relit seule, sans redémarrer.
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { format } from "node:util";
+import { Sortie, type Appel } from "../appel.ts";
 import { canalGitHub } from "../appairage/canal.ts";
 import { lireSeuilCommun } from "../commun/etage.ts";
 import { detecter, sondesDeLaMachine } from "../bac-a-sable/detection.ts";
@@ -14,8 +17,9 @@ import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { lireLesStationsEtLeursGists } from "../appairage/stations-du-chef.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
+import { masquerIdentifiants } from "../identifiants.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
-import { installerLimite, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
+import { installerLimite, journaliserLesAppels, limiteDeLaStation, ouvrirLimite } from "../limite-github.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { machineDe } from "../projets/preparer.ts";
@@ -39,229 +43,306 @@ import { nomDeLaStation } from "./nom.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
-// Ce que la station dit à journald est masqué, avant même son premier mot.
-masquerLaConsole();
-
 // Code de sortie d'un refus de démarrer : réessayer ne changerait rien.
 const REFUS = 2;
 
-function refuser(motif: string): never {
-  console.error(`brigade : refus de démarrer la station — ${motif}`);
-  process.exit(REFUS);
-}
+// La station démarrée : ce que font ses signaux.
+export type StationDemarree = {
+  // SIGTERM, SIGINT : tout s'arrête. Rend quand ce qui s'écrit de l'arrêt —
+  // son heure sur GitHub, le guichet fermé — l'est.
+  arreter(signal: "SIGTERM" | "SIGINT"): Promise<void>;
+  // SIGHUP : relire tout de suite, sans attendre la relecture suivante — la
+  // configuration, et ce que l'app demande.
+  relire(): void;
+  // Rend au process ce que la station y a posé pour elle seule : ses
+  // minuteries de fond, et le compteur d'appels à GitHub du process, fermé et
+  // remplacé par un compteur en mémoire. Le process d'une station n'en a pas
+  // besoin, il sort ; un test qui l'a jouée dans le sien la rend, arrêtée.
+  rendre(): void;
+};
 
-const brut = process.env.BRIGADE_STATION_DIR || refuser("BRIGADE_STATION_DIR n'est pas défini");
-const racine = resolve(brut);
-
-let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
-// Les portes que tient `brigade-station-porte` : celle de la station, et
-// celle de chaque projet.
-let portes: string | null;
-// Le guichet des téléphones, s'il en a un : l'adresse où il écoute, et le
-// registre des stations où un téléphone appairé entre.
-let guichet: { hote: string; port: number; registre: string } | null = null;
-try {
-  fichiersDeLaConnexion = configVeille(process.env, racine);
-  // Le seuil de l'étage commun, lu ici pour qu'une valeur mal écrite refuse
-  // le démarrage ; la commande du chef le relit (`commun/commun-cli.ts`).
-  lireSeuilCommun(process.env);
-  portes = configPortes(process.env);
-  // Sans elles, la porte de la station, si son environnement en nomme une : ce
-  // que son process joint lui-même — GitHub, Anthropic — passe par elle.
-  // Chaque projet peut avoir la sienne pour ce qu'il lance
-  // (`BRIGADE_PROXY_PORT` sur sa ligne).
-  const porte = configReseau(process.env);
-  if (porte !== null && portes !== null) refuser(`BRIGADE_PROXY_PORT et ${VARIABLE_PORTES} sont définis ensemble : sous les portes de la station, la sienne est celle qu'elles ouvrent`);
-  if (porte !== null) passerParLaPorte(porte);
-  const adresse = configGuichet(process.env);
-  if (adresse !== null) guichet = { ...adresse, registre: repertoireDuRegistre(process.env) };
-} catch (erreur) {
-  if (erreur instanceof ConfigInvalide || erreur instanceof DemandeInvalide) refuser(erreur.message);
-  throw erreur;
-}
-// L'écart minimal entre deux écritures de son gist, et l'intervalle entre deux
-// ticks du runtime de ses projets, en secondes entières : une minute chacun, à
-// défaut. Une station de test les règle plus courts (recette.test.ts).
-const ecartS = process.env.BRIGADE_STATION_ECART_S;
-if (ecartS !== undefined && !/^[1-9]\d*$/.test(ecartS)) refuser(`BRIGADE_STATION_ECART_S=${ecartS} — attendu un nombre entier de secondes`);
-const tickS = process.env.BRIGADE_STATION_TICK_S;
-if (tickS !== undefined && !/^[1-9]\d*$/.test(tickS)) refuser(`BRIGADE_STATION_TICK_S=${tickS} — attendu un nombre entier de secondes`);
-mkdirSync(racine, { recursive: true });
-// Son nom, retenu à son premier démarrage — avant qu'aucun projet ne s'ouvre,
-// qui le relit (`cuisine.ts`) : la machine renommée par macOS reste la même
-// station (nom.ts).
-const nomRetenu = nomDeLaStation(racine, process.env);
-
-const dire = (ligne: string) => console.log(ligne);
-// Sous les portes de la station, son unité ne joint que la boucle locale :
-// rien ne part avant que sa porte ne soit ouverte. Un port qui change — la
-// porte relancée n'a pas retrouvé le sien — est repris.
-if (portes !== null) {
-  const fichierDesPortes = portes;
-  let porteDeLaStation = await attendrePorteDeLaStation(fichierDesPortes, { dire });
-  passerParLaPorte(porteDeLaStation);
-  setInterval(() => {
-    const { station } = lirePortes(fichierDesPortes);
-    if (station === null || station === porteDeLaStation) return;
-    dire(`brigade : la porte de la station a changé de port (${porteDeLaStation} → ${station}) : la station sort par la nouvelle`);
-    porteDeLaStation = station;
-    passerParLaPorte(station);
-  }, 2000).unref();
-}
-
-// Le budget d'appels à GitHub, partagé par la station et tous ses projets :
-// un compteur dans son répertoire (limite-github.ts), posé avant qu'aucun
-// projet ne s'ouvre. Une fois par heure, son compte va au journal de service.
-const limite = installerLimite(limiteDeLaStation(racine));
-journaliserLesAppels(limite, { dire });
+// La sortie d'une station qu'un test joue dans son process : ses lignes vont à
+// la sienne. Sans elle — la station lancée sur son fichier —, à la console du
+// process, c'est-à-dire au journal de service.
+const sortieEnCours = new AsyncLocalStorage<Pick<Appel, "dire" | "redire">>();
+let consoleTenue = false;
 
 // Un seul journal de service pour tous les projets : ce que le code d'un
-// projet y écrit de lui-même porte son nom, comme ce que la station dit pour lui.
-for (const sortie of ["log", "error"] as const) {
-  const ecrire = console[sortie].bind(console);
-  console[sortie] = (premier?: unknown, ...suite: unknown[]) => {
-    const projet = projetEnCours();
-    ecrire(projet !== null && typeof premier === "string" && !premier.startsWith("brigade [") ? nommer(projet, premier) : premier, ...suite);
-  };
-}
-// La connexion Max de la machine : une seule veille, pour tous les projets.
-const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
-const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
-// Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
-// état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
-// pannes y vont aussi : sa mise à jour, que son unité lui fait lire
-// (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
-const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
-const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomRetenu });
-const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
-const presence = tenirPresence({
-  racine,
-  canal,
-  identite,
-  projets: () => station.projets(),
-  depots: () => station.depots(),
-  rails: () => station.rails(),
-  etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
-  ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
-  dire,
-});
-// Son enregistrement sous le compte GitHub de la machine, sans code : l'app
-// connectée au même compte la trouve (enregistrement-station/).
-const enregistrement = tenirEnregistrement({ racine, canal, identite, dire });
-// Les projets que le chef lui ajoute depuis l'app, par le même gist : la
-// station les prépare et leur écrit leur ligne (projets/tenir.ts) — et les
-// déménage, d'elle vers une autre ou d'une autre vers elle. Sur l'ordinateur du
-// chef, elle ne reprend aucun projet sans bac à sable : la vérification est
-// celle de `bac-a-sable/verifier.ts`.
-const locale = process.platform === PLATEFORME_LOCALE;
-// Les cuisines qu'elle a rejointes — un projet qu'une autre station servait
-// déjà quand le chef le lui a ajouté (projets/rejoindre.ts) : elle y cuit
-// comme une station de plus, par GitHub seulement (tirer-par-github/cuisiner.ts).
-const gh = process.env.BRIGADE_GH_BIN || "gh";
-const claude = process.env.BRIGADE_CLAUDE_BIN || "claude";
-const maison = process.env.HOME ?? homedir();
-const rejointes = tenirLesCuisinesRejointes((rejointe: CuisineRejointe, gist: string) => {
-  const { clone, worktrees } = lieuxDuProjet(racine, rejointe.nom, maison);
-  return cuisinerPourLaPrincipale({
-    station: `${machineDe(identite.nom)}/claude`,
-    depot: rejointe.depot,
-    gist,
-    canal,
-    lireLeTableau: lecteurDuTableau(clientGitHubDuTableau({ depot: rejointe.depot, bin: gh, projet: rejointe.nom })),
-    cooks: rejointe.cooks,
-    clone,
-    worktrees,
-    claude,
-    env: process.env,
-    gh,
-    bacASable: () => pourLaBox(detecter(sondesDeLaMachine(claude)), { home: maison, worktrees, caches: lireCaches(process.env) }),
-    dire,
-  });
-});
-const projetsDeLApp = tenirProjetsDeLApp({
-  racine,
-  canal,
-  station: identite.nom,
-  env: process.env,
-  locale,
-  ...(locale ? { verifierBacASable: () => verifier(sondesDeLaMachine(process.env.BRIGADE_CLAUDE_BIN || "claude"), { home: process.env.HOME ?? homedir(), worktrees: worktreesDeLaStation(racine, process.env.HOME ?? homedir()), caches: lireCaches(process.env) }) } : {}),
-  servis: station,
-  // Les projets choisis pour elle dans l'app, lus dans le gist de son
-  // enregistrement — à défaut, ce que l'app demande par l'appairage (projets-station/).
-  source: sourceDesProjets({ racine, canal, gist: () => enregistrement.gist(), env: process.env, dire }),
-  // Les stations que l'app appaire à ses projets en plus d'elle, lues dans les
-  // gists appairés du compte de son `gh` (projets/secondaires.ts).
-  lireLesAppairees: () => lireLesStationsEtLeursGists({ gh: process.env.BRIGADE_GH_BIN || "gh" }),
-  surLesRejointes: (lues, gist) => rejointes.tenir(lues, gist),
-  apresEcriture: () => {
-    station.relire();
-    void presence.publier();
-  },
-  dire,
-});
-
-// Le guichet où le téléphone du chef s'appaire, sans terminal, puis lit les
-// stations, les projets de celle-ci et la file de chacun, y fait les gestes de
-// la file et parle au second de chaque projet (telephone/guichet.ts,
-// telephone/projets.ts, telephone/gestes.ts, telephone/second.ts) :
-// le code se tire par sa commande
-// (telephone/appairage-cli.ts), dans le même registre.
-let fermerLeGuichet = async () => {};
-if (guichet !== null) {
-  const telephones = ouvrirTelephones(guichet.registre);
-  try {
-    const projets = projetsDeLaStation({ racine, env: process.env, station });
-    const gestes = gestesDeLaStation({ racine, env: process.env });
-    const seconds = secondsDeLaStation({ racine, env: process.env });
-    const ouvert = await ouvrirGuichet({ telephones, projets, gestes, seconds, hote: guichet.hote, port: guichet.port });
-    dire(`brigade : guichet des téléphones à l'écoute sur ${guichet.hote}:${ouvert.port} — registre ${guichet.registre}`);
-    fermerLeGuichet = async () => {
-      seconds.arreter();
-      await ouvert.fermer();
-      telephones.fermer();
+// projet y écrit de lui-même porte son nom, comme ce que la station dit pour
+// lui. Posé une fois par process ; ce qu'une station jouée dans un test y
+// écrit — elle, ses minuteries, ses process — va à sa sortie, masqué comme la
+// console du process l'est.
+function tenirLaConsole(): void {
+  if (consoleTenue) return;
+  consoleTenue = true;
+  for (const [methode, vers] of [
+    ["log", "dire"],
+    ["error", "redire"],
+  ] as const) {
+    const ecrire = console[methode].bind(console);
+    console[methode] = (premier?: unknown, ...suite: unknown[]) => {
+      const projet = projetEnCours();
+      const nomme = projet !== null && typeof premier === "string" && !premier.startsWith("brigade [") ? nommer(projet, premier) : premier;
+      const sortie = sortieEnCours.getStore();
+      if (sortie === undefined) ecrire(nomme, ...suite);
+      else sortie[vers](masquerIdentifiants(format(nomme, ...suite)).texte);
     };
-  } catch (erreur) {
-    // Les projets servis n'en dépendent pas : la station cuit sans guichet, et le dit.
-    telephones.fermer();
-    console.error(`brigade : le guichet des téléphones n'a pu écouter sur ${guichet.hote}:${guichet.port}, aucun téléphone ne s'y appaire — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
 }
 
-for (const signal of ["SIGTERM", "SIGINT"] as const) {
-  process.on(signal, () => {
-    void fermerLeGuichet();
-    projetsDeLApp.arreter();
-    // Ses cooks pour une cuisine rejointe s'arrêtent : leur bail tombe chez la principale.
-    void rejointes.arreter();
-    station.arreter(signal);
-    connexion.arreter();
-    console.log(`brigade : station arrêtée (${signal})`);
-    // L'heure de l'arrêt, écrite sur GitHub : l'app la dit hors ligne sans attendre.
-    void presence.arreter();
-    // Et sur son enregistrement : l'app la dit indisponible à sa lecture suivante.
-    void enregistrement.arreter();
-  });
+// Démarre la station sur l'environnement qu'on lui donne. Un refus de démarrer
+// est dit, puis levé (`Sortie`, de code REFUS). Lancée sur son fichier, le
+// process la joue sur le sien (plus bas) ; un test la joue dans le sien, avec
+// sa `sortie`, sans repayer le chargement de tout le runtime à chaque
+// démarrage. `branche` reçoit la station dès que tout est branché, avant la
+// ligne qui la dit démarrée : qui la lit peut déjà l'arrêter.
+export async function demarrerLaStation(
+  env: NodeJS.ProcessEnv,
+  options: { sortie?: Pick<Appel, "dire" | "redire">; branche?: (station: StationDemarree) => void } = {},
+): Promise<StationDemarree> {
+  tenirLaConsole();
+  const { sortie } = options;
+  const dans = <T>(jouer: () => T): T => (sortie === undefined ? jouer() : sortieEnCours.run(sortie, jouer));
+  return dans(() => demarrer(env, options.branche ?? (() => {}), dans));
 }
-// Relire tout de suite, sans attendre la relecture suivante — la configuration,
-// et ce que l'app demande.
-process.on("SIGHUP", () => {
-  station.relire();
-  void projetsDeLApp.relire();
-});
 
-// Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :
-// c'est ce qu'une mise à jour attend pour garder sa version. La cause de chaque
-// refus y est aussi : `facts` d'un projet refusé la lit (`refusDuProjet`).
-annoncerEnService(
-  racine,
-  () => {
-    const refuses = station.refuses();
-    return { servis: station.projets(), refuses, causes: Object.fromEntries(Object.keys(refuses).map((nom) => [nom, station.cause(nom) ?? "unexpected"])) };
-  },
-  { dire },
-);
+async function demarrer(env: NodeJS.ProcessEnv, branche: (station: StationDemarree) => void, dans: <T>(jouer: () => T) => T): Promise<StationDemarree> {
+  const refuser = (motif: string): never => {
+    console.error(`brigade : refus de démarrer la station — ${motif}`);
+    throw new Sortie(REFUS);
+  };
 
-const servis = station.projets();
-console.log(
-  `brigade : station démarrée — pid ${process.pid}, configuration ${join(racine, CONFIGURATION)} ; ${servis.length === 0 ? "aucun projet servi" : `${servis.length} projet${servis.length > 1 ? "s" : ""} servi${servis.length > 1 ? "s" : ""} : ${servis.join(", ")}`}`,
-);
+  const brut = env.BRIGADE_STATION_DIR || refuser("BRIGADE_STATION_DIR n'est pas défini");
+  const racine = resolve(brut);
+
+  let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
+  // Les portes que tient `brigade-station-porte` : celle de la station, et
+  // celle de chaque projet.
+  let portes: string | null;
+  // Le guichet des téléphones, s'il en a un : l'adresse où il écoute, et le
+  // registre des stations où un téléphone appairé entre.
+  let guichet: { hote: string; port: number; registre: string } | null = null;
+  try {
+    fichiersDeLaConnexion = configVeille(env, racine);
+    // Le seuil de l'étage commun, lu ici pour qu'une valeur mal écrite refuse
+    // le démarrage ; la commande du chef le relit (`commun/commun-cli.ts`).
+    lireSeuilCommun(env);
+    portes = configPortes(env);
+    // Sans elles, la porte de la station, si son environnement en nomme une : ce
+    // que son process joint lui-même — GitHub, Anthropic — passe par elle.
+    // Chaque projet peut avoir la sienne pour ce qu'il lance
+    // (`BRIGADE_PROXY_PORT` sur sa ligne).
+    const porte = configReseau(env);
+    if (porte !== null && portes !== null) refuser(`BRIGADE_PROXY_PORT et ${VARIABLE_PORTES} sont définis ensemble : sous les portes de la station, la sienne est celle qu'elles ouvrent`);
+    if (porte !== null) passerParLaPorte(porte);
+    const adresse = configGuichet(env);
+    if (adresse !== null) guichet = { ...adresse, registre: repertoireDuRegistre(env) };
+  } catch (erreur) {
+    if (erreur instanceof ConfigInvalide || erreur instanceof DemandeInvalide) refuser(erreur.message);
+    throw erreur;
+  }
+  // L'écart minimal entre deux écritures de son gist, et l'intervalle entre deux
+  // ticks du runtime de ses projets, en secondes entières : une minute chacun, à
+  // défaut. Une station de test les règle plus courts (recette.test.ts).
+  const ecartS = env.BRIGADE_STATION_ECART_S;
+  if (ecartS !== undefined && !/^[1-9]\d*$/.test(ecartS)) refuser(`BRIGADE_STATION_ECART_S=${ecartS} — attendu un nombre entier de secondes`);
+  const tickS = env.BRIGADE_STATION_TICK_S;
+  if (tickS !== undefined && !/^[1-9]\d*$/.test(tickS)) refuser(`BRIGADE_STATION_TICK_S=${tickS} — attendu un nombre entier de secondes`);
+  mkdirSync(racine, { recursive: true });
+  // Son nom, retenu à son premier démarrage — avant qu'aucun projet ne s'ouvre,
+  // qui le relit (`cuisine.ts`) : la machine renommée par macOS reste la même
+  // station (nom.ts).
+  const nomRetenu = nomDeLaStation(racine, env);
+
+  const dire = (ligne: string) => console.log(ligne);
+  // Sous les portes de la station, son unité ne joint que la boucle locale :
+  // rien ne part avant que sa porte ne soit ouverte. Un port qui change — la
+  // porte relancée n'a pas retrouvé le sien — est repris.
+  let veilleDeLaPorte: NodeJS.Timeout | undefined;
+  if (portes !== null) {
+    const fichierDesPortes = portes;
+    let porteDeLaStation = await attendrePorteDeLaStation(fichierDesPortes, { dire });
+    passerParLaPorte(porteDeLaStation);
+    veilleDeLaPorte = setInterval(() => {
+      const { station } = lirePortes(fichierDesPortes);
+      if (station === null || station === porteDeLaStation) return;
+      dire(`brigade : la porte de la station a changé de port (${porteDeLaStation} → ${station}) : la station sort par la nouvelle`);
+      porteDeLaStation = station;
+      passerParLaPorte(station);
+    }, 2000);
+    veilleDeLaPorte.unref();
+  }
+
+  // Le budget d'appels à GitHub, partagé par la station et tous ses projets :
+  // un compteur dans son répertoire (limite-github.ts), posé avant qu'aucun
+  // projet ne s'ouvre. Une fois par heure, son compte va au journal de service.
+  const limite = installerLimite(limiteDeLaStation(racine));
+  const arreterLeCompte = journaliserLesAppels(limite, { dire });
+
+  // La connexion Max de la machine : une seule veille, pour tous les projets.
+  const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
+  const station = ouvrirStation({ racine, env, dire, connexion, portes, ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
+  // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
+  // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
+  // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
+  // (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
+  const canal = canalGitHub({ gh: env.BRIGADE_GH_BIN || "gh" });
+  const identite = identiteDeLaStation({ ...env, BRIGADE_STATION_NOM: nomRetenu });
+  const dossierMiseAJour = env.BRIGADE_MISE_A_JOUR_DIR || null;
+  const presence = tenirPresence({
+    racine,
+    canal,
+    identite,
+    projets: () => station.projets(),
+    depots: () => station.depots(),
+    rails: () => station.rails(),
+    etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
+    ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
+    dire,
+  });
+  // Son enregistrement sous le compte GitHub de la machine, sans code : l'app
+  // connectée au même compte la trouve (enregistrement-station/).
+  const enregistrement = tenirEnregistrement({ racine, canal, identite, dire });
+  // Les projets que le chef lui ajoute depuis l'app, par le même gist : la
+  // station les prépare et leur écrit leur ligne (projets/tenir.ts) — et les
+  // déménage, d'elle vers une autre ou d'une autre vers elle. Sur l'ordinateur du
+  // chef, elle ne reprend aucun projet sans bac à sable : la vérification est
+  // celle de `bac-a-sable/verifier.ts`.
+  const locale = process.platform === PLATEFORME_LOCALE;
+  // Les cuisines qu'elle a rejointes — un projet qu'une autre station servait
+  // déjà quand le chef le lui a ajouté (projets/rejoindre.ts) : elle y cuit
+  // comme une station de plus, par GitHub seulement (tirer-par-github/cuisiner.ts).
+  const gh = env.BRIGADE_GH_BIN || "gh";
+  const claude = env.BRIGADE_CLAUDE_BIN || "claude";
+  const maison = env.HOME ?? homedir();
+  const rejointes = tenirLesCuisinesRejointes((rejointe: CuisineRejointe, gist: string) => {
+    const { clone, worktrees } = lieuxDuProjet(racine, rejointe.nom, maison);
+    return cuisinerPourLaPrincipale({
+      station: `${machineDe(identite.nom)}/claude`,
+      depot: rejointe.depot,
+      gist,
+      canal,
+      lireLeTableau: lecteurDuTableau(clientGitHubDuTableau({ depot: rejointe.depot, bin: gh, projet: rejointe.nom })),
+      cooks: rejointe.cooks,
+      clone,
+      worktrees,
+      claude,
+      env,
+      gh,
+      bacASable: () => pourLaBox(detecter(sondesDeLaMachine(claude)), { home: maison, worktrees, caches: lireCaches(env) }),
+      dire,
+    });
+  });
+  const projetsDeLApp = tenirProjetsDeLApp({
+    racine,
+    canal,
+    station: identite.nom,
+    env,
+    locale,
+    ...(locale ? { verifierBacASable: () => verifier(sondesDeLaMachine(env.BRIGADE_CLAUDE_BIN || "claude"), { home: env.HOME ?? homedir(), worktrees: worktreesDeLaStation(racine, env.HOME ?? homedir()), caches: lireCaches(env) }) } : {}),
+    servis: station,
+    // Les projets choisis pour elle dans l'app, lus dans le gist de son
+    // enregistrement — à défaut, ce que l'app demande par l'appairage (projets-station/).
+    source: sourceDesProjets({ racine, canal, gist: () => enregistrement.gist(), env, dire }),
+    // Les stations que l'app appaire à ses projets en plus d'elle, lues dans les
+    // gists appairés du compte de son `gh` (projets/secondaires.ts).
+    lireLesAppairees: () => lireLesStationsEtLeursGists({ gh: env.BRIGADE_GH_BIN || "gh" }),
+    surLesRejointes: (lues, gist) => rejointes.tenir(lues, gist),
+    apresEcriture: () => {
+      station.relire();
+      void presence.publier();
+    },
+    dire,
+  });
+
+  // Le guichet où le téléphone du chef s'appaire, sans terminal, puis lit les
+  // stations, les projets de celle-ci et la file de chacun, y fait les gestes de
+  // la file et parle au second de chaque projet (telephone/guichet.ts,
+  // telephone/projets.ts, telephone/gestes.ts, telephone/second.ts) :
+  // le code se tire par sa commande
+  // (telephone/appairage-cli.ts), dans le même registre.
+  let fermerLeGuichet = async () => {};
+  if (guichet !== null) {
+    const telephones = ouvrirTelephones(guichet.registre);
+    try {
+      const projets = projetsDeLaStation({ racine, env, station });
+      const gestes = gestesDeLaStation({ racine, env });
+      const seconds = secondsDeLaStation({ racine, env });
+      const ouvert = await ouvrirGuichet({ telephones, projets, gestes, seconds, hote: guichet.hote, port: guichet.port });
+      dire(`brigade : guichet des téléphones à l'écoute sur ${guichet.hote}:${ouvert.port} — registre ${guichet.registre}`);
+      fermerLeGuichet = async () => {
+        seconds.arreter();
+        await ouvert.fermer();
+        telephones.fermer();
+      };
+    } catch (erreur) {
+      // Les projets servis n'en dépendent pas : la station cuit sans guichet, et le dit.
+      telephones.fermer();
+      console.error(`brigade : le guichet des téléphones n'a pu écouter sur ${guichet.hote}:${guichet.port}, aucun téléphone ne s'y appaire — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  }
+
+  // Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :
+  // c'est ce qu'une mise à jour attend pour garder sa version. La cause de chaque
+  // refus y est aussi : `facts` d'un projet refusé la lit (`refusDuProjet`).
+  const arreterLAnnonce = annoncerEnService(
+    racine,
+    () => {
+      const refuses = station.refuses();
+      return { servis: station.projets(), refuses, causes: Object.fromEntries(Object.keys(refuses).map((nom) => [nom, station.cause(nom) ?? "unexpected"])) };
+    },
+    { dire },
+  );
+
+  const demarree: StationDemarree = {
+    arreter: (signal) =>
+      dans(async () => {
+        const fermeture = fermerLeGuichet();
+        projetsDeLApp.arreter();
+        // Ses cooks pour une cuisine rejointe s'arrêtent : leur bail tombe chez la principale.
+        const rejointesArretees = rejointes.arreter();
+        station.arreter(signal);
+        connexion.arreter();
+        console.log(`brigade : station arrêtée (${signal})`);
+        // L'heure de l'arrêt, écrite sur GitHub : l'app la dit hors ligne sans attendre.
+        // Et sur son enregistrement : l'app la dit indisponible à sa lecture suivante.
+        await Promise.all([fermeture, rejointesArretees, presence.arreter(), enregistrement.arreter()]);
+      }),
+    relire: () =>
+      dans(() => {
+        station.relire();
+        void projetsDeLApp.relire();
+      }),
+    rendre: () => {
+      clearInterval(veilleDeLaPorte);
+      arreterLeCompte();
+      arreterLAnnonce();
+      installerLimite(ouvrirLimite());
+      limite.fermer();
+    },
+  };
+  branche(demarree);
+
+  const servis = station.projets();
+  console.log(
+    `brigade : station démarrée — pid ${process.pid}, configuration ${join(racine, CONFIGURATION)} ; ${servis.length === 0 ? "aucun projet servi" : `${servis.length} projet${servis.length > 1 ? "s" : ""} servi${servis.length > 1 ? "s" : ""} : ${servis.join(", ")}`}`,
+  );
+  return demarree;
+}
+
+if (import.meta.main) {
+  // Ce que la station dit à journald est masqué, avant même son premier mot.
+  masquerLaConsole();
+  try {
+    await demarrerLaStation(process.env, {
+      branche: (station) => {
+        for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, () => void station.arreter(signal));
+        process.on("SIGHUP", () => station.relire());
+      },
+    });
+  } catch (erreur) {
+    // Un refus sort sur-le-champ, avec son code.
+    if (erreur instanceof Sortie) process.exit(erreur.code);
+    throw erreur;
+  }
+}

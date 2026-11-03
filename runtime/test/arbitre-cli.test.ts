@@ -6,11 +6,12 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
+import { principal as arbitre } from "../src/arbitre-cli.ts";
+import { connexionRefusee } from "./aides/connexion-refusee.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
+import { appeler, horloge, lancer, lancerSurPortPose, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
-const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
 const TENIR = join(import.meta.dirname, "../src/tenir-arbitre.ts");
 const mot = (cooks: number, autres: Partial<Mot> = {}): Mot => ({ cooks, demande: true, machine: false, nonArbitres: 0, consommation: { jour: 0, semaine: 0 }, ...autres });
 
@@ -23,7 +24,7 @@ async function servi(t: TestContext, plafond = 10) {
     ouvert.fermer();
   });
   const commande = async (...args: string[]) => {
-    const cli = lancer(t, CLI, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
+    const cli = appeler(arbitre, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   return { ouvert, repertoire, serveur, commande };
@@ -63,7 +64,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     });
     revenu.dire("compta", mot(9));
     revenu.dire("brigade", mot(0, { machine: true }));
-    const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
+    const cli = appeler(arbitre, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
     assert.equal(await cli.fin, 0);
     const sortie = cli.sortie();
     assert.match(sortie, /^machine\s+SATURATED according to brigade — the effective cap is what is running \(9\): only a project under its share launches again$/m);
@@ -95,14 +96,13 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
   });
 
   test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles", async (t) => {
-    // Le refus est joué dans le process de la commande, où toute connexion est
-    // refusée : le port d'un arbitre qu'on vient de fermer n'est pas muet pour
-    // autant, un voisin peut l'avoir repris. Celui du test écoute encore — joint,
-    // il répondrait.
+    // Le refus est joué par la connexion que la commande ouvre, refusée : le port
+    // d'un arbitre qu'on vient de fermer n'est pas muet pour autant, un voisin
+    // peut l'avoir repris. Celui du test écoute encore — joint, il répondrait.
     const { ouvert, repertoire, serveur } = await servi(t);
     ouvert.dire("compta", mot(1));
 
-    const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` });
+    const cli = appeler((appel) => arbitre(appel, connexionRefusee), [], { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
     const [code, sortie] = [await cli.fin, cli.sortie()];
     assert.equal(code, 1);
     assert.match(sortie, new RegExp(String.raw`^arbiter\s+UNREACHABLE — connection refused on 127\.0\.0\.1:${serveur.port}$`, "m"));
@@ -123,7 +123,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     assert.deepEqual(reglages.projets(), []);
 
     const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
+      const cli = appeler(arbitre, args, env);
       return { code: await cli.fin, sortie: cli.sortie() };
     };
     assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT is not set/);
@@ -158,9 +158,10 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
       assert.notEqual(refus.code, 0, args.join(" "));
       sansMotFrancais(lignes(refus.sortie));
     }
-    // Sans port, avec un port illisible, sans répertoire, sans réglages, arbitre injoignable.
+    // Sans port, avec un port illisible, sans répertoire, sans réglages, arbitre injoignable — sa connexion refusée.
+    const injoignable: Record<string, string> = { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire };
     const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
+      const cli = appeler(env === injoignable ? (appel) => arbitre(appel, connexionRefusee) : arbitre, args, env);
       return { code: await cli.fin, lignes: lignes(cli.sortie()) };
     };
     for (const [env, args] of [
@@ -168,9 +169,9 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
       [{ BRIGADE_ARBITER_PORT: "pas-un-port" }, []],
       [{}, ["weight", "compta", "2"]],
       [{ BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) }, ["weight", "compta", "2"]],
-      [{ BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` }, []],
+      [injoignable, []],
     ] as const) {
-      const refus = await sans({ ...env }, ...args);
+      const refus = await sans(env, ...args);
       assert.notEqual(refus.code, 0, JSON.stringify(env));
       sansMotFrancais(refus.lignes);
     }

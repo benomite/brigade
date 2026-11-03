@@ -1,12 +1,9 @@
 // La commande par laquelle le chef relit le journal : `npm run journal -- <ticket>`.
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { test } from "node:test";
 import { principal as relire } from "../src/relire.ts";
 import { demarrer } from "../src/runtime.ts";
-import { appeler, faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
-
-const RELIRE = join(import.meta.dirname, "../src/relire.ts");
+import { appeler, faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 // Un runtime qui tourne, et deux tickets qui traversent la cuisine.
 function cuisine(repertoire: string) {
@@ -25,7 +22,9 @@ test("le journal d'un ticket se relit en entier et dans l'ordre, pendant que le 
   const runtime = cuisine(repertoire);
   t.after(() => runtime.arreter("test"));
 
-  const commande = lancer(t, RELIRE, ["7"], { BRIGADE_STATE_DIR: repertoire });
+  // Jouée dans le process du test, qui tient le runtime : elle relit le journal
+  // par sa propre connexion, comme le ferait la sienne.
+  const commande = appeler(relire, ["7"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
@@ -79,8 +78,8 @@ test("sans journal dans le répertoire d'état, la commande échoue et le dit", 
   assert.match(commande.sortie(), /no log in/);
 });
 
-test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async (t) => {
-  const commande = lancer(t, RELIRE, ["7"]);
+test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async () => {
+  const commande = appeler(relire, ["7"], {});
 
   assert.equal(await commande.fin, 2);
   assert.match(commande.sortie(), /BRIGADE_STATE_DIR/);
