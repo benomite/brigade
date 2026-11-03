@@ -177,6 +177,9 @@ const SUR_LE_RAIL = "On the rail";
 const COLONNES_ACTIVES = new Set([COLONNE_QUI_T_ATTEND, "Taken", "Pass"]);
 // Les projets dont la rangée des colonnes a déjà été placée à l'ouverture : ensuite, la lecture suivante garde le défilement du chef.
 const rangeesPlacees = new Set();
+// Le projet et l'onglet que le rail montrait à sa dernière pose : redessiné pour le même, il garde le défilement de la
+// page — un clic sur une carte (« Give it to a station ») ne la ramène pas en haut (ticket 2133).
+let railPoseDe = "";
 // La dernière rangée posée de chaque projet : c'est d'elle que la lecture suivante reprend le défilement.
 /** @type {Map<string, HTMLElement>} */
 const rangees = new Map();
@@ -4836,6 +4839,9 @@ function poserRail(projet) {
   const reprise = repriseDuClavier();
   const ancienne = rangees.get(projet.nom);
   const defile = ancienne === undefined ? undefined : { gauche: ancienne.scrollLeft, haut: ancienne.scrollTop };
+  const memeRail = railPoseDe === `${projet.nom}#${cuisine}`;
+  const hautDuRail = rail.scrollTop;
+  railPoseDe = `${projet.nom}#${cuisine}`;
   // Hors ligne, le rail lu en dernier est atténué, et le signe dit depuis quand à la place de son âge (ticket 1818).
   if (horsLigne !== undefined) rail.dataset.horsLigne = "";
   poser(
@@ -4855,6 +4861,7 @@ function poserRail(projet) {
   );
   rendreLeClavier(reprise);
   if (!cuisine) placerLaRangee(projet, grille, defile);
+  if (memeRail) rail.scrollTop = hautDuRail;
 }
 
 // La rangée des colonnes, une fois posée : la lecture qui suit garde le défilement du chef ; à l'ouverture du rail, la
