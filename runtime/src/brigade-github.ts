@@ -65,6 +65,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
+    // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui
+    // sont encore ouvertes : tant qu'il y en a, le ticket n'est pas à prendre.
+    dependancesOuvertes(issue: number): Promise<number[]>;
     // La PR qui livre le ticket, ou null.
     prDuTicket(issue: number): Promise<PRAFusionner | null>;
     // Les checks du dernier commit de la branche d'intégration.
@@ -106,6 +109,16 @@ export type StationGitHub = {
   // Attend que ses cooks en vol aient fini.
   calme(): Promise<void>;
 };
+
+// Les issues dont un corps dit dépendre : les numéros d'une ligne `Depends on
+// #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`).
+export function dependancesDuCorps(corps: string): number[] {
+  const numeros = new Set<number>();
+  for (const [, liste = ""] of corps.matchAll(/^[ \t>*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) {
+    for (const [, numero] of liste.matchAll(/#(\d+)/g)) numeros.add(Number(numero));
+  }
+  return [...numeros];
+}
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -186,6 +199,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
+      // Une dépendance ouverte retient le ticket ; sans lecture de GitHub, il attend aussi.
+      try {
+        if ((await github.dependancesOuvertes(ticket.number)).length > 0) continue;
+      } catch (erreur) {
+        avertir(`brigade : dépendances de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        continue;
+      }
       let pris: { prise: boolean };
       try {
         pris = await prise.prendre(ticket);
@@ -278,6 +298,11 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
       derniers = sonde.issues.filter((issue) => !issue.pr);
       sonde.confirmer();
       return derniers;
+    },
+    dependancesOuvertes: async (numero) => {
+      const dependances = dependancesDuCorps((await github.issue(numero))?.body ?? "").filter((dependance) => dependance !== numero);
+      const etats = await Promise.all(dependances.map(async (dependance) => (await github.issue(dependance))?.state));
+      return dependances.filter((_, rang) => etats[rang] === "open");
     },
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
     checksDeLaBase: () => github.ci(base),
