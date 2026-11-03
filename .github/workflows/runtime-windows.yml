@@ -2,20 +2,22 @@
 # tickets de port de la station sur un PC. `npm test` suppose un shell POSIX : le job passe par
 # runtime/test/support/windows.ts, qui joue tous les fichiers. Les tests propres à Linux ou à macOS se
 # sautent eux-mêmes, avec leur raison dans le journal (runtime/test/support/plateforme.ts). Entière, la
-# suite dépasse sous Windows l'heure d'un job (run 40080634237, annulé à 60 min) : elle se joue en
+# suite est trop longue pour un seul job sous Windows : elle se joue en
 # quatre parts, une par runner, qui ensemble couvrent chaque fichier une fois (`--part`). Chaque part
 # finit par ses échecs, ses tests sautés et ses comptes en annotations du check, lisibles par l'API de
 # GitHub sans le journal du job (runtime/test/support/annotations.ts) :
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
-# Le job tourne à chaque push sur `main`, sans condition de chemin : la base a ainsi un statut
-# Windows pour chacun de ses commits (#1859). Il ne tourne plus sur `pull_request` (#2087) : une part
-# rouge pour une cause de charge ou de test (station enregistrée en 60 s, `jusqua` de stations.test.ts)
-# bloquait la fusion de PR qui ne touchaient pas ce code, et la suite prend 9 à 15 min par part, sans
-# marge sous un plafond de 15 min. Un contributeur le lance à la main (`workflow_dispatch`) sur sa branche.
+# Le job tourne aussi à chaque push sur `main`, sans condition de chemin : la base a ainsi un statut
+# Windows pour chacun de ses commits (#1859). Le job ne bloque pas la fusion (#2087) : `continue-on-error`
+# garde le signal (la part rouge se lit dans le run et ses annotations) sans que la pass l'attende en vert.
 # Les causes restantes et la condition pour le rendre à nouveau bloquant : #2112.
 name: runtime-windows
 
 on:
+  pull_request:
+    paths:
+      - "runtime/**"
+      - ".github/workflows/runtime-windows.yml"
   push:
     branches:
       - main
@@ -24,17 +26,20 @@ on:
 permissions:
   contents: read
 
-# Un push sur la base a son groupe par commit et n'est jamais annulé : avec un groupe par ref,
-# GitHub écarterait le run en attente et un commit de `main` resterait sans statut.
+# Une PR remplace son run en cours. Un push sur la base a son groupe par commit et n'est jamais annulé :
+# avec un groupe par ref, GitHub écarterait le run en attente et un commit de `main` resterait sans statut.
 concurrency:
-  group: runtime-windows-${{ github.sha }}
-  cancel-in-progress: false
+  group: runtime-windows-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   tests:
     name: tests (${{ matrix.part }}/4)
     runs-on: windows-latest
     timeout-minutes: 15
+    # GitHub rend la conclusion `success` à un job en échec sous `continue-on-error` : la pass, qui lit les
+    # conclusions des check-runs (runtime/src/github.ts), ne le voit plus comme un rouge. Voir #2112.
+    continue-on-error: true
     strategy:
       # Une part rouge n'arrête pas les autres : le job dit tout ce qui casse sous Windows, en un run.
       fail-fast: false
