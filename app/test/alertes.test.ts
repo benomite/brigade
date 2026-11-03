@@ -614,3 +614,17 @@ describe("la limite d'appels de GitHub", () => {
     assert.deepEqual(du(levee?.alertes ?? [], "github"), []);
   });
 });
+
+describe("le budget d'écritures de la box (#2226)", () => {
+  const LIGNE = "held by the GitHub write budget — 450 of 450 in the last hour, next write at 10:20";
+  const status = (avec: boolean) => `project     parade\n${avec ? `github      ${LIGNE}\n` : ""}kitchen     open\n`;
+
+  test("la ligne `github` de `status` se dit mot pour mot dans la bande, et tombe avec elle", (t) => {
+    const { rendre } = saine(t);
+    const faits = JSON.parse(rendre("10:00:00").faits) as Faits;
+    const manager = { sans: MANAGER_PAS_DIT };
+    const dite = alertes({ projet: "parade", faits, status: status(true), manager });
+    assert.deepEqual(du(dite, "github").map(({ dit, ton, verifie }) => ({ dit, ton, verifie })), [{ dit: LIGNE, ton: "jaune", verifie: true }]);
+    assert.deepEqual(du(alertes({ projet: "parade", faits, status: status(false), manager }), "github"), []);
+  });
+});

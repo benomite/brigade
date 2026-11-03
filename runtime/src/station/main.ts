@@ -15,7 +15,7 @@ import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { lireLesStationsEtLeursGists } from "../appairage/stations-du-chef.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
-import { installerLimite, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
+import { installerLimite, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { machineDe } from "../projets/preparer.ts";
@@ -114,6 +114,7 @@ if (portes !== null) {
 // projet ne s'ouvre. Une fois par heure, son compte va au journal de service.
 const limite = installerLimite(limiteDeLaStation(racine));
 journaliserLesAppels(limite, { dire });
+journaliserLaRetenue(dire);
 
 // Un seul journal de service pour tous les projets : ce que le code d'un
 // projet y écrit de lui-même porte son nom, comme ce que la station dit pour lui.
