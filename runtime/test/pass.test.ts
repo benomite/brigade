@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
+import { abandonsAuChef } from "../src/abandon-au-chef.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
@@ -972,7 +973,10 @@ describe("la pass", { concurrency: 8 }, () => {
       [18, "chain", 17],
       [19, "chain", 17],
     ]);
-    const avant = cartes().map(({ ticket, since }) => `${ticket}@${since}`);
+    // Chaque carte tient à son abandon (`seq`) : l'horloge du test ne bouge pas, `since` ne les distingue pas.
+    const abandonsEnCarte = () => abandonsAuChef(journal.base).filter(({ ticket }) => ticketDuRail(journal.base, ticket) === null).map(({ seq }) => seq);
+    const avant = abandonsEnCarte();
+    assert.equal(avant.length, 3);
 
     // Le chef remet `fire` sur #17 : #18 et #19 le suivent d'eux-mêmes.
     gh.poser(issue(17, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T12:00:00Z" }));
@@ -983,7 +987,7 @@ describe("la pass", { concurrency: 8 }, () => {
     ]);
     // Revenus sur le rail : la réponse du chef a ôté leurs cartes. Si la cuisine les abandonne de nouveau,
     // c'est un nouvel abandon, avec sa propre carte.
-    assert.deepEqual(cartes().filter(({ ticket, since }) => avant.includes(`${ticket}@${since}`)), []);
+    assert.deepEqual(abandonsEnCarte().filter((seq) => avant.includes(seq)), []);
   });
 
   test("un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne", async (t) => {
