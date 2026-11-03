@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { brancherBrigadeGithub, brancheDuTicket, checksQuiJugentLaBase, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
@@ -440,6 +440,15 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
     await a.calme();
   }
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
+});
+
+test("red Windows tests on the base do not freeze the kitchen: only the other checks say the base's state (#2087)", () => {
+  const checks = [
+    { name: "windows tests (2/4)", outcome: "red" as const },
+    { name: "tests runtime (1/16)", outcome: "green" as const },
+    { name: "gates", outcome: "green" as const },
+  ];
+  assert.deepEqual(checksQuiJugentLaBase(checks).map((c) => c.name), ["tests runtime (1/16)", "gates"]);
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
