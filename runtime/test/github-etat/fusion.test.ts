@@ -41,7 +41,7 @@ function prSurGitHub() {
       pr.enRetard = false;
     },
     async ci() {
-      return [{ outcome: ci.etat }];
+      return [{ name: "tests", outcome: ci.etat }];
     },
     async merger(_numero, sha): Promise<Merge> {
       appels.push(`merge ${sha}`);

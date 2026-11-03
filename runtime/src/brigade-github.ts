@@ -136,6 +136,13 @@ export type StationGitHub = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Combien de fois une livraison repart au cook avant de sortir de la cuisine.
+export const RENVOIS_MAX = 2;
+const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
+
+// Le motif d'un verdict, sous son marqueur et sa ligne « Changes requested ».
+const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number) => commentaires.find((c) => c.id === id)?.body.split("\n").slice(2).join("\n").trim() || "see the PR";
+
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
@@ -154,7 +161,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     try {
       const fait = await cuisiner(ticket, calibrage);
       if ("branche" in fait) {
-        await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+        // Un renvoi pousse sur la branche d'une PR encore ouverte : elle porte
+        // déjà la livraison, il n'en faut pas une seconde.
+        const ouverte = await github.prDuTicket(issue);
+        if (ouverte === null || ouverte.state !== "open") await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
         // `in-pass` avant le retrait de `taken` : entre les deux, aucune
         // station ne lit le ticket libre.
         await github.labelliser(issue, [LABEL_IN_PASS]);
@@ -171,6 +181,21 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
   };
 
+  // Renvoie au cook une livraison rouge ou refusée : la raison s'écrit sur
+  // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
+  // la station qui le prend reprend sa branche, sous sa PR. Au-delà de
+  // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
+  const renvoyer = async (ticket: TicketLu, raison: string) => {
+    const deja = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).length;
+    if (deja >= RENVOIS_MAX) {
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
+      await github.labelliser(ticket.number, [HORS_CUISINE]);
+    } else {
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
+    }
+    await github.delabelliser(ticket.number, LABEL_IN_PASS);
+  };
+
   const tour = async () => {
     const etatBase = etatDeLaBase(await github.checksDeLaBase());
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
@@ -183,8 +208,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null) {
         try {
-          await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
-          await fusionner(pr, github);
+          const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
+          const fusion = await fusionner(pr, github);
+          // Rouge, ou refusée par la relecture sur sa tête : la livraison repart à
+          // un cook, avec pourquoi (#2209).
+          if (fusion.issue === "ci-rouge") await renvoyer(ticket, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
+          else if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }

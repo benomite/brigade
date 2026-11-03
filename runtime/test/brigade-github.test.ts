@@ -68,7 +68,7 @@ class FauxGitHub {
     return this.appels.filter((appel) => appel.station === station).length;
   }
 
-  private sha(): string {
+  sha(): string {
     this.horloge += 1;
     return this.horloge.toString(16).padStart(40, "0");
   }
@@ -135,7 +135,7 @@ class FauxGitHub {
       ci: async (sha) => {
         await noter("ci");
         const pr = this.prs.find((p) => p.sha === sha);
-        return [{ outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }];
+        return [{ name: "tests", outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }];
       },
       mettreAJour: async (numero, sha) => {
         await noter("mettreAJour");
@@ -173,6 +173,9 @@ class FauxGitHub {
       cuisiner: async (ticket) => {
         if (options.cuisiner) return options.cuisiner(ticket.number);
         this.cuissons.push({ station: nom, issue: ticket.number });
+        // Un renvoi : le cook pousse sur la branche de la PR ouverte, sa tête change.
+        const ouverte = this.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
+        if (ouverte !== undefined) ouverte.sha = this.sha();
         return { branche: brancheDuTicket(ticket.number) };
       },
       juger:
@@ -365,7 +368,7 @@ test("a restarted station gives back, at its first turn, the tickets it held wit
   assert.deepEqual(faux.pris(), [1, 2, 6]);
 });
 
-test("a delivery whose CI is red is never merged, even approved", async () => {
+test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then off the kitchen after 2 sends back (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(31);
   const a = faux.station("A");
@@ -374,11 +377,38 @@ test("a delivery whose CI is red is never merged, even approved", async () => {
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 4; i += 1) await a.tour();
+  for (let i = 0; i < 12; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
   assert.equal(faux.mergee(31), undefined);
-  faux.ciRouge.delete(pr.number);
-  for (let i = 0; i < 3; i += 1) await a.tour();
-  assert.equal(faux.mergee(31)?.mergeePar, "A");
+  const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.equal(renvois.length, 3);
+  assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
+  assert.match(renvois[2]?.body ?? "", /Taken off the kitchen/);
+  assert.ok(faux.ticket(31).labels.has("hors-cuisine"));
+  // Recuisiné deux fois, sous la même PR : aucune seconde PR.
+  assert.equal(faux.cuissons.filter((c) => c.issue === 31).length, 3);
+  assert.equal(faux.prs.filter((p) => p.issue === 31).length, 1);
+});
+
+test("a delivery the review refuses goes back to a cook with the review's reason (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(32);
+  let refus = true;
+  const a = faux.station("A", { juger: async () => (refus ? { verdict: "request-changes", motif: "tests missing for the empty case" } : { verdict: "approve", motif: "" }) });
+  for (let i = 0; i < 3; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvoi = (faux.commentaires.get(32) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /the review requested changes: tests missing for the empty case/);
+  refus = false;
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(32)?.mergeePar, "A");
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {

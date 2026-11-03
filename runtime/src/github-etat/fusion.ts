@@ -45,7 +45,7 @@ export type GitHubDeLaFusion = {
   // Merge la PR, à condition que sa tête soit encore `sha`.
   merger(numero: number, sha: string): Promise<Merge>;
   // Les checks de la CI sur le commit `sha`.
-  ci(sha: string): Promise<Pick<Check, "outcome">[]>;
+  ci(sha: string): Promise<Pick<Check, "outcome" | "name">[]>;
 };
 
 // La PR telle que la relecture et le merge la lisent.
