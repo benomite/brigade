@@ -8,18 +8,21 @@
 // Le cook est celui que la principale décrit dans sa mission : la consigne et
 // les arguments de `claude` d'un cook de la box — pour un ticket ordinaire,
 // la configuration du bac à sable —, lancés tels quels dans son worktree,
-// `<worktrees>/<run>`, le lieu que la station a dit à sa réclamation. Il est
-// tenu sous les plafonds de la mission (`superviseur.ts`) ; la principale tient
-// les siens de son côté, sur ce que la station lui rapporte.
+// `<worktrees>/<run>`, le lieu que la station a dit à sa réclamation. Dans le
+// bac à sable, il n'a aucun accès à GitHub : la station lui remet son ticket,
+// lu par son propre `gh`, dans le fichier que la mission nomme. Il est tenu
+// sous les plafonds de la mission (`superviseur.ts`) ; la principale tient les
+// siens de son côté, sur ce que la station lui rapporte — ses renouvellements.
 //
 // Rien ici n'ouvre le journal du projet : la station n'a pas de cuisine pour
 // lui. Son clone ne sert qu'à poser les worktrees de ses cooks.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Canal } from "../appairage/canal.ts";
-import { lireFlux, verdict } from "../claude.ts";
+import { lireFlux, ticketRemis, verdict } from "../claude.ts";
 import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../events/remote.ts";
+import { ouvrirGitHub } from "../github.ts";
 import { clonerEnReparant } from "../installation/clone/clone.ts";
 import { envSansInvite, execFile } from "../sans-invite.ts";
 import { superviser, type Supervise } from "../superviseur.ts";
@@ -32,6 +35,28 @@ export const ENTRE_DEUX_RECLAMATIONS_MS = 60_000;
 const GRACE_MS = 10_000;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
+
+// Entre deux renouvellements du bail : son tiers, et au plus le quart du
+// plafond d'inactivité de la mission. La principale ne voit le cook que dans
+// ce que ses renouvellements rapportent, et l'arrête quand sa mesure n'a pas
+// bougé depuis ce plafond. Au seul tiers d'un bail de 30 min, le premier
+// renouvellement partait à 10 min — le plafond même, sans compter le trajet
+// par GitHub : la principale arrêtait tout cook de plus de 10 min avant d'en
+// avoir reçu une mesure, à 0 tour et 0 token (#2095). Au quart, il en reste
+// quatre dans le plafond : un renouvellement perdu ou lent n'arrête personne.
+export function intervalleDeRenouvellement(mission: Pick<Mission, "leaseMs" | "limits">): number {
+  return Math.max(1_000, Math.min(Math.floor(mission.leaseMs / 3), Math.floor(mission.limits.idleMs / 4)));
+}
+
+// Le ticket de la mission et ses commentaires, lus par le `gh` de la station
+// — hors du bac à sable du cook —, tels qu'un cook de la box les reçoit en
+// fichier (`claude.ts`).
+async function lireLeTicketParGitHub(mission: Mission, gh: string): Promise<string> {
+  const github = ouvrirGitHub({ depot: mission.repository, bin: gh });
+  const [lue, commentaires] = await Promise.all([github.issue(mission.ticket), github.commentaires(mission.ticket)]);
+  if (lue === null) throw new Error(`issue #${mission.ticket} no longer exists on ${mission.repository}`);
+  return ticketRemis({ number: mission.ticket, title: lue.title, body: lue.body ?? "", commentaires });
+}
 
 export type Demander = (demande: Demande) => Promise<Reponse>;
 
@@ -73,6 +98,7 @@ export type OptionsDuCook = {
   renouvelerToutesLesMs?: number;
   // Surchargés par les tests.
   preparer?: (mission: Mission, worktree: string) => Promise<void>;
+  lireLeTicket?: (mission: Mission) => Promise<string>;
   lancer?: (mission: Mission, worktree: string, flux: string) => Supervise;
   pousser?: (worktree: string, branche: string) => Promise<void>;
   ranger?: (worktree: string) => Promise<void>;
@@ -97,6 +123,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
       // de ce que l'origine en porte ; une neuve, de la base.
       await git(clone, "worktree", "add", "--quiet", "-B", branch, worktree, `origin/${mission.resumes === null ? mission.base : branch}`);
     });
+  const lireLeTicket = options.lireLeTicket ?? ((lue: Mission) => lireLeTicketParGitHub(lue, options.gh));
   const lancer =
     options.lancer ??
     ((_mission: Mission, ici: string, flux: string) => superviser({ commande: options.claude, args: mission.args, cwd: ici, env: options.env, plafonds: mission.limits, graceMs: GRACE_MS, flux }));
@@ -119,6 +146,18 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
     return rendre("failed", `worktree: ${message(erreur)}`.slice(0, 200), null, { turns: 0, tokens: 0 });
   }
   try {
+    // Le ticket que la mission dit de lui remettre : là où sa consigne le
+    // nomme, à côté de son worktree, et nulle part ailleurs. Illisible, aucun
+    // cook ne part : il s'arrêterait sur une lecture refusée.
+    if (mission.ticketFile !== undefined) {
+      try {
+        if (mission.ticketFile !== `${worktree}.ticket.md`) throw new Error(`the mission hands the ticket in ${mission.ticketFile}, not beside the cook's worktree (${worktree}.ticket.md)`);
+        writeFileSync(mission.ticketFile, await lireLeTicket(mission));
+      } catch (erreur) {
+        dire(`brigade : station — #${mission.ticket} : son ticket n'a pas pu être remis à son cook, elle le rend à la principale : ${message(erreur)}`);
+        return await rendre("failed", `ticket: ${message(erreur)}`.slice(0, 200), null, { turns: 0, tokens: 0 });
+      }
+    }
     const flux = join(dirname(worktree), `${run}.flux.jsonl`);
     const cook = lancer(mission, worktree, flux);
     dire(`brigade : station — #${mission.ticket} : son cook est lancé ici (run ${run}, branche ${branch})`);
@@ -139,7 +178,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
     const renouvellement = (async () => {
       while (!fini) {
         await new Promise<void>((resoudre) => {
-          const minuteur = setTimeout(resoudre, options.renouvelerToutesLesMs ?? Math.max(1_000, Math.floor(mission.leaseMs / 3)));
+          const minuteur = setTimeout(resoudre, options.renouvelerToutesLesMs ?? intervalleDeRenouvellement(mission));
           reveiller = () => {
             clearTimeout(minuteur);
             resoudre();
@@ -175,6 +214,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
     }
     return rendre("delivered", null, lecture.message, mesure);
   } finally {
+    if (mission.ticketFile === `${worktree}.ticket.md`) rmSync(mission.ticketFile, { force: true });
     await ranger(worktree);
   }
 }
