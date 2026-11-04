@@ -706,6 +706,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/station/main.test.ts", test: "deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service" },
   { file: "test/station/main.test.ts", test: "la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie" },
   { file: "test/station/main.test.ts", test: "sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet" },
+  { file: "test/station/main.test.ts", test: "sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre" },
   { file: "test/station/main.test.ts", test: "un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658)" },
   { file: "test/station/main.test.ts", test: "un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela" },
   { file: "test/station/main.test.ts", test: "une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station" },
