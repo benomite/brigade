@@ -87,7 +87,7 @@ import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { type Propositions, type ReponseDuChef, tenirLesPropositions } from "./second/propositions.ts";
 import { tenirRetraits } from "./retrait.ts";
-import { DOSSIER as DOSSIER_DU_PLUGIN, lancerVraiment, tenirLePluginApp } from "./plugin-app.ts";
+import { DOSSIER as DOSSIER_DU_PLUGIN, lancerVraiment, sansPluginApp, tenirLePluginApp } from "./plugin-app.ts";
 import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
@@ -438,15 +438,18 @@ const controles = setInterval(controlerTout, CONTROLE_MS);
 
 // Le plugin de l'app (plugin-app.ts, #2160) : `/brigade:dev` et `/brigade:ask` dans chaque projet qu'elle ouvre, en
 // scope local de son dossier, à la version qu'elle porte — posé dès le lancement, et pour chaque projet qui entre dans
-// le fichier ; retiré du dossier d'un projet retiré de l'app.
-const pluginApp = tenirLePluginApp({
-  lancer: lancerVraiment(process.env),
-  claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
-  marketplace: join(dirname(cheminConfiguration()), DOSSIER_DU_PLUGIN),
-  commandes: emplacements.commandes,
-  versionDeLApp: app.getVersion(),
-  dire: (ligne) => console.error(ligne),
-});
+// le fichier ; retiré du dossier d'un projet retiré de l'app. Un essai lancé avec un `claude` de remplacement
+// (`BRIGADE_CLAUDE_BIN`) ne le pose nulle part : ce remplaçant est une session, pas le gestionnaire de plugins.
+const pluginApp = process.env.BRIGADE_CLAUDE_BIN
+  ? sansPluginApp((ligne) => console.error(ligne))
+  : tenirLePluginApp({
+      lancer: lancerVraiment(process.env),
+      claude: "claude",
+      marketplace: join(dirname(cheminConfiguration()), DOSSIER_DU_PLUGIN),
+      commandes: emplacements.commandes,
+      versionDeLApp: app.getVersion(),
+      dire: (ligne) => console.error(ligne),
+    });
 // Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
 // désinstalle le plugin de l'app de son dossier.
 const retraits = tenirRetraits({

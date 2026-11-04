@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Projet } from "../src/config.ts";
-import { COMMANDES, ESPACE, ID, lancerVraiment, MARKETPLACE, poserLeMarketplace, REGLAGES_LOCAUX, tenirLePluginApp, versionDuPlugin, type Lancer } from "../src/plugin-app.ts";
+import { COMMANDES, ESPACE, ID, lancerVraiment, MARKETPLACE, poserLeMarketplace, REGLAGES_LOCAUX, sansPluginApp, tenirLePluginApp, versionDuPlugin, type Lancer } from "../src/plugin-app.ts";
 
 const COMMANDES_DU_DEPOT = join(import.meta.dirname, "..", "..", "commands");
 const CLAUDE = "claude-doublure";
@@ -224,4 +224,24 @@ test("poser le marketplace remet une commande changée à celle que l'app porte,
 
   assert.equal(readFileSync(manifeste, "utf8"), avant);
   assert.equal(readFileSync(join(marketplace, "commands", "dev.md"), "utf8"), readFileSync(join(COMMANDES_DU_DEPOT, "dev.md"), "utf8"));
+});
+
+test("une commande lancée pour le plugin a son entrée fermée : elle n'attend rien de ce qu'on ne lui tapera pas", async () => {
+  // `cat` lit son entrée jusqu'au bout : ouverte, il attendrait le délai, et le rendu ne serait pas un succès.
+  const rendu = await lancerVraiment(process.env, 1_500)("cat", []);
+  assert.deepEqual(rendu, { code: 0, sortie: "", erreur: "" });
+});
+
+test("lancée avec un `claude` de remplacement, l'app ne pose ni ne retire le plugin nulle part, et le dit une fois", async (t) => {
+  const { clone, statut } = essai(t);
+  const calculus = clone("calculus");
+  const dits: string[] = [];
+  const pluginApp = sansPluginApp((ligne) => dits.push(ligne));
+
+  await pluginApp.suivre([calculus]);
+  await pluginApp.retirer(calculus);
+
+  assert.equal(existsSync(join(calculus.dossier, REGLAGES_LOCAUX)), false);
+  assert.equal(statut(calculus), "");
+  assert.deepEqual(dits, ["brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask) is installed in no project"]);
 });

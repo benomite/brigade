@@ -94,10 +94,12 @@ export const lancerVraiment =
   (env: Record<string, string | undefined>, delaiMs = 60_000): Lancer =>
   (commande, args, dossier) =>
     new Promise((resoudre) => {
-      execFile(commande, [...args], { cwd: dossier, env, timeout: delaiMs, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 }, (erreur, sortie, sortieErreur) => {
+      // Rien ne lui sera tapé : son entrée est fermée, une question n'attend pas jusqu'au délai.
+      const enfant = execFile(commande, [...args], { cwd: dossier, env, timeout: delaiMs, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 }, (erreur, sortie, sortieErreur) => {
         const code = erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : null;
         resoudre({ code, sortie: sortie ?? "", erreur: `${sortieErreur ?? ""}${erreur !== null && code === null ? erreur.message : ""}` });
       });
+      enfant.stdin?.end();
     });
 
 // Une installation du plugin, telle que `claude plugin list --json` la rend.
@@ -231,6 +233,13 @@ export function tenirLePluginApp(options: OptionsPluginApp) {
 }
 
 export type PluginApp = ReturnType<typeof tenirLePluginApp>;
+
+// L'app lancée avec un `claude` de remplacement (`BRIGADE_CLAUDE_BIN`, un essai) : le plugin n'est posé ni retiré
+// nulle part, et l'app le dit une fois.
+export function sansPluginApp(dire: (ligne: string) => void): PluginApp {
+  dire("brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask) is installed in no project");
+  return { suivre: async () => {}, retirer: async () => {} };
+}
 
 function reel(chemin: string): string {
   try {

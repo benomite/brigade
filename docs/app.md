@@ -2011,6 +2011,8 @@ stations replace them.
 - A failure (`claude` missing, not logged in) installs nothing and is said in the terminal that launched the
   app (`brigade: the app's plugin was not installed in “calculus” — …`); the next launch tries again.
 - A session already open keeps the commands it started with: Claude Code loads plugins at startup.
+- **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
+  stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
 
 *Code: `app/src/plugin-app.ts`; test: `app/test/plugin-app.test.ts`, against the real `git` and a stand-in
 `claude` that keeps its registry like the real one (claude 2.1.300).*
