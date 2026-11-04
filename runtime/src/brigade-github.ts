@@ -34,6 +34,7 @@ import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
+import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -125,6 +126,9 @@ export type OptionsDeStation = {
   prise: Prise;
   cuisiner: Cuisiner;
   juger: Juger;
+  // Les garde-fous de l'ancien chemin (#2213) : le « stop », le disjoncteur,
+  // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
+  gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
 };
@@ -137,6 +141,8 @@ export type StationGitHub = {
   enCuisine(): number[];
   // Attend que ses cooks en vol aient fini.
   calme(): Promise<void>;
+  // Le tour ne reprendra pas : ce qu'il tient chez l'arbitre est rendu.
+  quitter?(): Promise<void>;
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -158,7 +164,7 @@ const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number) => commentaires.find((c) => c.id === id)?.body.split("\n").slice(2).join("\n").trim() || "see the PR";
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
-  const { nom, places, base, github, prise, cuisiner, juger } = options;
+  const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const enVol = new Map<number, Promise<void>>();
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
@@ -329,6 +335,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (!complet(calibrage)) continue;
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       if (await tenue(ticket)) continue;
+      // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
+      if (gardes !== undefined && (await gardes.retenue(enVol.size)) !== null) break;
       let pris: { prise: boolean };
       try {
         pris = await prise.prendre(ticket);
@@ -340,6 +348,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (!pris.prise) continue;
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
+    await gardes?.redire(enVol.size);
   };
 
   return {
@@ -347,6 +356,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     enCuisine: () => [...enVol.keys()],
     calme: async () => {
       while (enVol.size > 0) await Promise.all(enVol.values());
+    },
+    quitter: async () => {
+      await gardes?.quitter();
     },
   };
 }
@@ -404,6 +416,7 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
       arrete = true;
       clearTimeout(minuterie);
       await enCours;
+      await station.quitter?.();
     },
   };
 }
@@ -447,7 +460,8 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
 }
 
 // Un lancement de `claude` sous supervision : le cook, ou le reviewer.
-export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin">;
+// `flux` rendu : là où son flux s'est écrit, s'il ne l'a pas été où demandé.
+export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin"> & { flux?: string };
 
 export type OptionsDuDepot = {
   nom: string;
@@ -472,6 +486,9 @@ export type OptionsDuDepot = {
   // Où s'écrit le flux de chaque lancement.
   flux: string;
   lancer?: Lancer;
+  // Les garde-fous de l'ancien chemin (#2213), dont le lancement gardé des
+  // cooks et des relectures.
+  gardes?: GardesDuTour;
   avertir?: (message: string) => void;
 };
 
@@ -486,7 +503,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   if (options.github.prsOuvertes === undefined) return { refus: "the GitHub client cannot list the files of the open PRs" };
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });
-  const lancer: Lancer = options.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
+  const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
@@ -520,8 +537,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
-    const fin = await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
-    const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(flux), fin.code);
+    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+    const fin = await lance.fin;
+    const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
       depot.retirer(worktree, reprise ? undefined : branche);
       return { echec: fin.erreur ?? conclusion };
@@ -546,8 +564,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
-      await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
-      const lue = lireRelecture(lireLeFlux(flux).message);
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      await lance.fin;
+      const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message);
       if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
       const { verdict: couleur, summary, findings } = lue.relecture;
       const constats = findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Remark"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
@@ -557,5 +576,5 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
+  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
 }
