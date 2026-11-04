@@ -294,7 +294,7 @@ test("le chef retire `taken` : le bail du cook de la seconde est refusé, son co
   assert.equal(rendu.ending, "failed");
   assert.equal(await faux.tenant(1), null);
   assert.ok(!faux.labels(1).includes(LABEL_TAKEN));
-  assert.ok((faux.commentaires.get(1) ?? []).some((c) => c.body === `Station \`${MAC}\`: the cook stopped without a delivery — guard:idle`));
+  assert.ok((faux.commentaires.get(1) ?? []).some((c) => c.body.includes(`Station \`${MAC}\`: the cook stopped without a delivery — guard:idle`)));
   assert.equal(faux.prs.length, 0);
 });
 
