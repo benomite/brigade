@@ -20,7 +20,7 @@ type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url"
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 // Le run de GitHub Actions d'un check rouge, ou undefined.
-const runRouge = (check: CheckDeLaBase) => (check.outcome === "red" ? jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run : undefined);
+export const runRouge = (check: CheckDeLaBase) => (check.outcome === "red" ? jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run : undefined);
 
 export type GitHubDeLaRelance = {
   // La tentative en cours d'un run (1 tant que personne ne l'a relancé), et si

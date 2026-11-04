@@ -122,3 +122,37 @@ test("branchée, le check échoue encore : la retenue s'écrit une fois, avec le
   assert.equal(c.transitions.length, 1);
   assert.deepEqual(appels.relances, [7]);
 });
+
+test("un run déjà relancé (tentative 2) et encore rouge : aucune relance, la retenue s'annonce", async () => {
+  const appels: number[] = [];
+  const github: GitHubDeLaRelanceDeLaBase = {
+    checksDeLaBase: async () => [{ outcome: "red", name: "test (windows)", url: url(7) }],
+    etatDuRun: async () => ({ tentative: 2, termine: true }),
+    relancerLesEchecs: async (run) => void appels.push(run),
+  };
+  const { filtre, fini } = porte(github);
+  assert.equal(filtre.filtrer(BASE_ROUGE), null);
+  await fini();
+  assert.deepEqual(filtre.filtrer(BASE_ROUGE), BASE_ROUGE);
+  assert.deepEqual(appels, []);
+});
+
+test("un run encore en cours ne se relance pas ; il se relance une fois fini", async () => {
+  const appels: number[] = [];
+  let lectures = 0;
+  let relance = false;
+  const github: GitHubDeLaRelanceDeLaBase = {
+    checksDeLaBase: async () => [{ outcome: relance ? "green" : "red", name: "test (windows)", url: url(7) }],
+    etatDuRun: async () => (++lectures, { tentative: relance ? 2 : 1, termine: lectures > 2 || relance }),
+    relancerLesEchecs: async (run) => {
+      relance = true;
+      appels.push(run);
+      assert.ok(lectures > 2);
+    },
+  };
+  const { filtre, fini } = porte(github);
+  assert.equal(filtre.filtrer(BASE_ROUGE), null);
+  await fini();
+  assert.deepEqual(appels, [7]);
+  assert.equal(filtre.filtrer(BASE_ROUGE), null);
+});

@@ -15,7 +15,8 @@
 // `etatDuRun`). Un check qui n'est pas un job de GitHub Actions ne se relance
 // pas : la base reste rouge pour lui.
 import type { Check } from "../events/pass.ts";
-import { jobDuCheck } from "../github.ts";
+import { LimiteGitHubAtteinte } from "../limite-github.ts";
+import { runRouge } from "../relance-main-rouge.ts";
 import { cleDeCause, type Retenue } from "./retenue.ts";
 
 type CheckLu = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
@@ -46,7 +47,6 @@ export type PorteDeLaRelance = {
 };
 
 const rouges = (checks: CheckLu[]) => checks.filter(({ outcome }) => outcome === "red");
-const runDe = (check: CheckLu) => jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run;
 
 export function relanceDeLaRetenue(github: GitHubDeLaRelanceDeLaBase, options: OptionsRelance = {}): PorteDeLaRelance {
   const avertir = options.avertir ?? (() => {});
@@ -54,31 +54,43 @@ export function relanceDeLaRetenue(github: GitHubDeLaRelanceDeLaBase, options: O
   // Par retenue vue : la relance tourne, la base est restée rouge, ou elle est levée.
   const etats = new Map<string, "en-cours" | "rouge" | "levee">();
 
+  // Les runs que cette porte a relancés : jamais une seconde fois, même quand
+  // GitHub dit encore la première tentative juste après la relance.
+  const relances = new Set<number>();
+
   // Relance une fois les runs rouges de la base, attend qu'ils finissent, dit
-  // si la base est encore rouge.
+  // si la base est encore rouge. Seul un run terminé à sa première tentative se
+  // relance : au-delà, quelqu'un (la station, #2323) l'a déjà relancé, et la
+  // base rouge reste rouge. Un run en cours se suit, puis se relance fini.
   const relancer = async (): Promise<boolean> => {
     const encore = rouges(await github.checksDeLaBase());
     if (encore.length === 0) return false;
-    const runs = [...new Set(encore.map(runDe))];
+    const runs = [...new Set(encore.map(runRouge))];
     if (runs.some((run) => run === undefined)) return true;
-    const aSuivre: number[] = [];
-    for (const run of runs as number[]) {
-      const { termine } = await github.etatDuRun(run);
-      // Un run encore en cours ne se relance pas : GitHub le refuserait.
-      if (!termine) {
-        aSuivre.push(run);
-        continue;
-      }
-      await github.relancerLesEchecs(run);
-      aSuivre.push(run);
-    }
-    avertir(`brigade : base red — the failed jobs of run ${aSuivre.join(", ")} are re-run once before the hold alerts`);
+    const attendus = new Set(runs as number[]);
+    let annonce = false;
     for (let lecture = 0; lecture < LECTURES_DE_LA_RELANCE; lecture++) {
+      for (const run of [...attendus]) {
+        const { tentative, termine } = await github.etatDuRun(run);
+        if (!termine) continue;
+        if (tentative > 1) {
+          attendus.delete(run);
+        } else if (!relances.has(run)) {
+          relances.add(run);
+          await github.relancerLesEchecs(run);
+          annonce = true;
+        }
+      }
+      if (annonce) {
+        avertir(`brigade : base red — the failed jobs of run ${[...relances].join(", ")} are re-run once before the hold alerts`);
+        annonce = false;
+      }
+      if (attendus.size === 0) break;
       await pause(ATTENTE_DE_LA_RELANCE_MS);
-      const etats = await Promise.all(aSuivre.map((run) => github.etatDuRun(run)));
-      if (etats.every(({ termine, tentative }) => termine && tentative > 1)) return rouges(await github.checksDeLaBase()).length > 0;
     }
-    return true;
+    // Un run jamais fini, ou dont la relance n'a pas fini, laisse la base rouge.
+    if (attendus.size > 0) return true;
+    return rouges(await github.checksDeLaBase()).length > 0;
   };
 
   return {
@@ -100,6 +112,11 @@ export function relanceDeLaRetenue(github: GitHubDeLaRelanceDeLaBase, options: O
         })
         // Une relance qui échoue ne retient pas l'alerte.
         .catch((erreur) => {
+          // GitHub qui limite ses appels : rien n'est jugé, la retenue se relit.
+          if (erreur instanceof LimiteGitHubAtteinte) {
+            etats.delete(cle);
+            return;
+          }
           avertir(`brigade : base red — re-run failed, the hold alerts: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
           if (etats.get(cle) === "en-cours") etats.set(cle, "rouge");
         })
