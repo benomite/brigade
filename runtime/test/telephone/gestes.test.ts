@@ -126,7 +126,7 @@ for (const { gesture, args, ticket, fait, merges } of [
     const ordinateur = await station(t);
 
     const reponse = await telephone.geste(gesture, ticket);
-    const lance = await ordinateur.commeLOrdinateur(...args);
+    const lance = await ordinateur.commeLOrdinateur(...(args as [string, ...string[]]));
 
     assert.equal(reponse.statut, 200, JSON.stringify(reponse.corps));
     assert.equal(lance.code, 0, lance.sortie);
