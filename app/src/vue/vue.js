@@ -3028,6 +3028,18 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
     const question = carte.todo.question;
     bon.append(...poserLaCarteDeTodo(projet, ticket, carte.todo).map((posee) => tenirEnMain(projet, ticket, question, bon, posee)));
   }
+  // Une carte du chef lue de GitHub (projet GitHub seul, ticket 2221) : le texte du commentaire du runtime sous la phrase de sa
+  // sorte. Rien à y répondre : le chef lève le label sur l'issue, dont le numéro est le lien.
+  if (attendu && carte.chef !== undefined) {
+    const duChef = document.createElement("section");
+    duChef.className = "carte-todo";
+    duChef.dataset.sorte = carte.chef.sorte;
+    duChef.dataset.source = "github";
+    const texte = bloc("p", carte.chef.texte);
+    texte.className = "resume-carte";
+    duChef.append(texte);
+    bon.append(duChef);
+  }
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
   if (carte.repere === true) {
     const repere = bloc("small", "…");
