@@ -91,6 +91,7 @@
 2.0	test/commandes.test.ts
 2.0	test/projets/ajout-depuis-le-projet.test.ts
 1.9	test/projets/copie-locale.test.ts
+1.9	test/station-sans-demarrage.test.ts
 1.8	test/closing/observer.test.ts
 1.8	test/installation/besoins/setup.test.ts
 1.8	test/pass/jugements-de-front.test.ts
@@ -108,6 +109,7 @@
 1.5	test/station/atelier.test.ts
 1.5	test/board-single-writer.test.ts
 1.5	test/breaker-resume-github.test.ts
+1.5	test/cout-par-ticket/cout-par-ticket.test.ts
 1.4	test/appairage/canal.test.ts
 1.4	test/tableau/publication/publier.test.ts
 1.4	test/budget-des-gates.test.ts
@@ -150,6 +152,7 @@
 1.0	test/tirer-par-github/station-par-github.test.ts
 1.0	test/brigade-github.test.ts
 1.0	test/github-etat/prise.test.ts
+1.0	test/depot-place.test.ts
 0.9	test/capacite-libre/capacite-libre.test.ts
 0.9	test/enregistrement-station/enregistrer.test.ts
 0.9	test/identites.test.ts
@@ -160,6 +163,7 @@
 0.9	test/sorties-de-ticket-en-anglais.test.ts
 0.9	test/station-en-anglais.test.ts
 0.9	test/connexion-max/connecter.test.ts
+0.9	test/cout-par-ticket/sans-minuterie.test.ts
 0.8	test/grant.test.ts
 0.8	test/installation/blocages/blocages.test.ts
 0.8	test/mesures-des-gates.test.ts
@@ -193,6 +197,7 @@
 0.5	test/test-bloque.test.ts
 0.5	test/urgence.test.ts
 0.5	test/ci-duration.test.ts
+0.5	test/github-seul/priorite-bail/priorite-bail.test.ts
 0.4	test/abandon-en-chaine.test.ts
 0.4	test/activite-cuisine/cadence.test.ts
 0.4	test/alerte-urgence.test.ts
