@@ -173,6 +173,8 @@ describe("les portes de la station", { concurrency: 3 }, () => {
   test("le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer", { skip: posixOnly("runs the doors process as its unit does and expects it to write its ports, reread its configuration on SIGHUP, close on SIGTERM and refuse to start without a ports file; Windows cannot send SIGHUP, and kill('SIGTERM') ends the process before its handler runs") }, async (t) => {
     const { racine, fichier, configurer } = uneStation(t, { calcul: [], espace: [] });
     configurer(["calcul"]);
+    // Sans fichier des ports : lancé en même temps, il démarre pendant que l'autre s'ouvre.
+    const sans = lancer(t, TENIR, [], { BRIGADE_STATION_DIR: racine });
     const tenues = lancer(t, TENIR, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
     await tenues.attendre("portes de la station ouvertes");
     assert.match(tenues.sortie(), new RegExp(`portes de la station ouvertes — pid ${tenues.process.pid}, ports écrits dans ${fichier} ; 1 projet : calcul`));
@@ -186,7 +188,6 @@ describe("les portes de la station", { concurrency: 3 }, () => {
     // Les ports restent écrits : relancées, les portes les reprennent.
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(fichier, "utf8")).projets), ["calcul", "espace"]);
 
-    const sans = lancer(t, TENIR, [], { BRIGADE_STATION_DIR: racine });
     assert.equal(await sans.fin, 2);
     assert.match(sans.sortie(), /les portes de la station refusent de démarrer — BRIGADE_STATION_PORTES n'est pas défini/);
   });
