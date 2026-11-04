@@ -53,7 +53,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/installation.test.ts", test: "`setup` mesure le setup et dit si un worktree neuf par cook tient" },
   { file: "test/installation.test.ts", test: "`setup` sur un setup en échec sort en 1 avec ce qu'il a dit" },
   { file: "test/installation.test.ts", test: "après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste" },
-  { file: "test/lectures-sous-condition.test.ts", test: "une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus" },
   { file: "test/main.test.ts", test: "avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN" },
   { file: "test/main.test.ts", test: "désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne" },
   { file: "test/main.test.ts", test: "le manager est branché, et suit l'interrupteur du projet : allumé par défaut au premier démarrage, il sonde les issues ouvertes sans geste du chef" },
@@ -96,5 +95,4 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/deploy/installer-station-windows.test.ts", test: "une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
   { file: "test/0-en-premier/recette.test.ts", garde: "timeout: 300_000" },
-  { file: "test/lectures-sous-condition.test.ts", garde: "timeout: 600_000" },
 ];
