@@ -127,7 +127,10 @@ member or a collaborator. A comment posted by an App (`<app>[bot]`) is likely to
 so trusting the project's own Apps there is the next step.
 
 At start the runtime states its mode: `GitHub — une identité par rôle (cook, pass, manager) …` or
-`GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). A badly
+`GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). `status` says
+the same mode, `GitHub — one identity per role` or the single-identity line, with the calls counted
+under each identity — cook, pass, manager, the chef's account (see "Calls by identity" in
+[`station-machine.md`](station-machine.md)). A badly
 installed App does not refuse the start: journald says so from the first tick (`identité « pass » :
 son App (…) n'est pas installée sur <owner>/<repo>`), and nothing leaves under that role. What
 remains unguaranteed: "What the pass does not guarantee" in [`pass-merge.md`](pass-merge.md).

@@ -33,6 +33,7 @@ import { execFile } from "./sans-invite.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
+import { compteurDuProcess } from "./appels-par-identite.ts";
 import { alerteAEmettre, categorieDe, categorieDeLaLecture, direLAlerte, instantaneDe, preparerLeRegistre, ticketDe, type AlerteDeBudget, type Categorie, type InstantaneDuBudget } from "./github/budget-appels.ts";
 
 export const FENETRE_MS = 60 * 60_000;
@@ -682,6 +683,8 @@ export async function appelerGitHub<T>(limite: Limite, options: OptionsAppel, re
   const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
   const file = fileDe(limite);
   const appel = await file.prendre(usage, compte, options.etiquette, maintenant, attendre);
+  // L'appel part : il se compte à l'identité dont il porte le jeton (#2316).
+  compteurDuProcess().compter(compte);
   try {
     return await requete(appel);
   } finally {
