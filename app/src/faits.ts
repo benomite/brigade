@@ -127,6 +127,39 @@ export type TicketDuBudget = { number: number; openedAt: string };
 export type CoutDeLaBase = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean };
 export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: FenetreDesGates; ticket: TicketDuBudget | null; base?: CoutDeLaBase } & Partial<RecentDesGates>;
 
+// Le budget d'appels GitHub par projet (ticket 2197) : l'instantané du registre des appels du runtime.
+export type CompteDAppels = { total: number; byCategory: Record<string, number> };
+export type BudgetDAppelsDuProjet = { reads: CompteDAppels; writes: CompteDAppels; budget: { reads: number; writes: number }; overBudget: boolean };
+export type BudgetDesAppels = { windowStart?: string; projects: Record<string, BudgetDAppelsDuProjet> };
+
+// Le champ `budgetDesAppels` d'un `facts`. Un projet dont la forme n'est pas celle-là n'est pas repris ; sans projet lu,
+// le champ est absent, comme pour un runtime d'avant lui.
+export function budgetDesAppelsLu(brut: unknown): BudgetDesAppels | undefined {
+  const champs = (valeur: unknown): Record<string, unknown> | undefined => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : undefined);
+  const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0;
+  const compte = (valeur: unknown): CompteDAppels | undefined => {
+    const c = champs(valeur);
+    const parCategorie = champs(c?.byCategory);
+    if (c === undefined || parCategorie === undefined || !nombre(c.total)) return undefined;
+    return { total: c.total, byCategory: Object.fromEntries(Object.entries(parCategorie).filter((entree): entree is [string, number] => nombre(entree[1]))) };
+  };
+  const racine = champs(brut);
+  const projets = champs(racine?.projects);
+  if (racine === undefined || projets === undefined) return undefined;
+  const lus: Record<string, BudgetDAppelsDuProjet> = {};
+  for (const [nom, valeur] of Object.entries(projets)) {
+    const projet = champs(valeur);
+    const budget = champs(projet?.budget);
+    const lectures = compte(projet?.reads);
+    const ecritures = compte(projet?.writes);
+    if (projet === undefined || budget === undefined || lectures === undefined || ecritures === undefined) continue;
+    if (!nombre(budget.reads) || !nombre(budget.writes) || typeof projet.overBudget !== "boolean") continue;
+    lus[nom] = { reads: lectures, writes: ecritures, budget: { reads: budget.reads, writes: budget.writes }, overBudget: projet.overBudget };
+  }
+  if (Object.keys(lus).length === 0) return undefined;
+  return { ...(typeof racine.windowStart === "string" ? { windowStart: racine.windowStart } : {}), projects: lus };
+}
+
 // Le champ `coutDesGates` d'un `facts`. Un champ qui n'a pas cette forme n'est pas lu — la file et l'onglet Cooks se
 // dessinent sans, comme pour un runtime d'avant ce champ. Ce que le runtime y met de plus n'est pas repris.
 export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
@@ -347,6 +380,8 @@ export type Faits = {
   // Ce que coûtent les gates du projet face à son budget, et le ticket que la cuisine a ouvert seule (ticket 1318) ;
   // absent d'un runtime d'avant ce champ.
   coutDesGates?: CoutDesGates;
+  // Le budget d'appels GitHub de chaque projet, lectures et écritures (ticket 2197) ; absent d'un runtime d'avant ce champ.
+  budgetDesAppels?: BudgetDesAppels;
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -454,6 +489,8 @@ export type Tableau = {
   // Ce que coûtent les gates du projet face à son budget : la file le pose en tête, l'onglet Cooks ses 24 h (ticket
   // 1318) — absent d'un runtime qui ne le donne pas.
   coutDesGates?: CoutDesGates;
+  // Le budget d'appels GitHub de chaque projet (ticket 2197) — absent d'un runtime qui ne le donne pas.
+  budgetDesAppels?: BudgetDesAppels;
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -787,6 +824,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(cadenceLue(racine.cadence) === undefined ? {} : { cadence: cadenceLue(racine.cadence) }),
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
+      ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -1310,6 +1348,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
     ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
+    ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };

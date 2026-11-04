@@ -31,6 +31,8 @@ import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigu
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
 import { brancherRenommage } from "./pause/renommage.ts";
+import { brancherRetenue } from "./retenue/brancher.ts";
+import { suivreLeTour } from "./retenue/tour.ts";
 import { brancherReglages } from "./reglages-projet/au-runtime.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
 import { lirePlafondDesLecons } from "./apprentissage/injection.ts";
@@ -197,6 +199,8 @@ try {
   // décisions — et c'est la station GitHub seul qui prend, cuisine, relit et
   // merge, sous l'identité de la pass.
   const ici = stations.find((declaree) => !declaree.distante);
+  // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
+  const suiviDuTour = suivreLeTour();
   const ouvert = brancherBrigadeGithub({
     reglages: duDepot.reglages,
     noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
@@ -224,6 +228,7 @@ try {
             graceMs: reglages.graceMs,
             reviewer: reviewer.calibrage,
             flux: join(repertoireEtat, "github-seul"),
+            observer: suiviDuTour.envelopper,
             // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
             // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
@@ -277,9 +282,13 @@ try {
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
   const datee = brancherJeton(suivie, jeton);
+  // La retenue ne lance rien : rien de servi depuis 30 min alors que des
+  // tickets attendent, elle écrit sa cause et son geste — une fois — dans la
+  // file du chef, et l'en ôte quand la cuisine sert de nouveau.
+  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null });
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
-  const alertee = brancherAlerteUrgence(datee);
+  const alertee = brancherAlerteUrgence(retenue);
   // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts).
   brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
   // Le tableau de la cuisine ne lance rien non plus : il publie, dans le dépôt

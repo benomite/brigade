@@ -30,6 +30,8 @@ export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
   envelopper(github: GitHubDuTour): GitHubDuTour;
+  // Le client enveloppé, une fois le tour ouvert : null avant.
+  client(): GitHubDuTour | null;
   vue(): VueDuTour;
 };
 
@@ -40,6 +42,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   // Les tickets qui attendent, et le tour qui a vu chacun commencer d'attendre.
   let attendent = new Map<number, string>();
   let enPass = new Set<number>();
+  let enveloppe: GitHubDuTour | null = null;
 
   const noterTickets = (tickets: TicketLu[]) => {
     const instant = maintenant().toISOString();
@@ -58,7 +61,8 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   };
 
   return {
-    envelopper: (github) => ({
+    client: () => enveloppe,
+    envelopper: (github) => (enveloppe = {
       ...github,
       fires: async () => {
         const tickets = await github.fires();
