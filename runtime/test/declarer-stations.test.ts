@@ -166,10 +166,12 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien 
   assert.equal(installationDe(etat).etapes.find((etape) => etape.id === "stations")?.etat, "done");
 });
 
+// Lue en mémoire : le seul process de la commande est celui du test précédent,
+// qui éprouve la route de `installation stations` jusqu'à l'action.
 test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare", async (t) => {
   const etat = repertoireTemporaire(t);
 
-  const commande = lancer(t, INSTALLATION, ["stations"], env(etat));
+  const commande = appeler(principal, [], env(etat));
 
   assert.equal(await commande.fin, 0, commande.sortie());
   const sortie = commande.sortie();
@@ -192,7 +194,10 @@ test("de bout en bout : sur un runtime qui tourne sans station, l'action déclar
   const { code, sortie } = await declarer(repertoire, "box/claude:1:code+raisonnement");
   assert.equal(code, 0, sortie);
 
-  await jusqua(() => types(15).includes("cook.launched"));
+  // `cook.launched` est écrit dès que le process est lancé ; le faux `claude`
+  // ne note son lancement qu'une fois démarré : c'est ce fait-là qu'on attend.
+  await jusqua(() => lancements().length > 0);
+  assert.ok(types(15).includes("cook.launched"));
   assert.equal(lancements().length, 1);
   assert.ok(journal.tout().some((e) => e.type === "station.announced" && e.payload.station === "box/claude"));
   assert.deepEqual(journal.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);

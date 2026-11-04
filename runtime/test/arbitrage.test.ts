@@ -39,7 +39,7 @@ const lances = (journal: { tout(): Array<{ type: string; ticket: number | null; 
 describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
   test("la station demande sa place à l'arbitre avant chaque lancement, et lui redit ce qu'elle fait tourner", async (t) => {
     const { joint, projet } = await arbitre(t, 10);
-    const { journal, lancements, types } = cuisine(t, { arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14), issue(15)] });
+    const { journal, lancements, types } = cuisine(t, { tickMs: 25, sansSync: true, arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14), issue(15)] });
     await jusqua(() => lancements().length === 2);
     await jusqua(() => projet("brigade")?.cooks === 2 && projet("brigade")?.demande === false);
 
@@ -50,7 +50,7 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
 
   test("refusée par l'arbitre, la station se retient et le dit ; la place rendue par une fin de cook, le ticket part", async (t) => {
     const { joint, projet } = await arbitre(t, 1);
-    const { journal, etat, dernier, lancements, conclure } = cuisine(t, { arbitre: joint, cooks: 5, scenario: "commite-puis-attend", issues: [issue(14), issue(15)] });
+    const { journal, etat, dernier, lancements, conclure } = cuisine(t, { tickMs: 25, sansSync: true, arbitre: joint, cooks: 5, scenario: "commite-puis-attend", issues: [issue(14), issue(15)] });
     await jusqua(() => dernier("station.held") !== undefined && lancements().length === 1);
 
     assert.deepEqual(dernier("station.held"), { station: STATION, reason: "arbiter" });
@@ -66,7 +66,7 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
   test("arbitre injoignable : le projet lance quand même, un cook à la fois, le journalise et le signale une fois ; au retour, il reprend", async (t) => {
     const { joint, projet, couper, rendre } = await arbitre(t, 10);
     couper();
-    const { journal, etat, dernier, types, lancements, avertissements } = cuisine(t, { arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14), issue(15), issue(16)] });
+    const { journal, etat, dernier, types, lancements, avertissements } = cuisine(t, { tickMs: 25, sansSync: true, arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => dernier("station.held") !== undefined && lancements().length === 1);
     // Le temps de quelques ticks : rien ne se redit.
     await new Promise((resoudre) => setTimeout(resoudre, 80));
@@ -99,7 +99,7 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
     // test écoute encore — joint, il accorderait la place.
     const { serveur } = await arbitre(t, 10);
     const absent = joindreArbitre(serveur.port, { joindre: connexionRefusee });
-    const { journal, dernier, lancements } = cuisine(t, { arbitre: absent, cooks: 5, scenario: "muet", issues: [issue(14)] });
+    const { journal, dernier, lancements } = cuisine(t, { tickMs: 25, sansSync: true, arbitre: absent, cooks: 5, scenario: "muet", issues: [issue(14)] });
     await jusqua(() => lancements().length === 1);
     assert.deepEqual(lances(journal), [[14, true]]);
     assert.deepEqual(dernier("station.unarbitrated"), { station: STATION, reason: "connexion refusée" });
@@ -108,11 +108,11 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
   test("sans arbitre désigné, le projet tourne comme avant : ni mode dégradé, ni avertissement — et il sort de celui d'une vie précédente", async (t) => {
     const { joint, couper } = await arbitre(t, 10);
     couper();
-    const avant = cuisine(t, { arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14)], relais: true });
+    const avant = cuisine(t, { tickMs: 25, sansSync: true, arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14)], relais: true });
     await jusqua(() => avant.types().includes("station.unarbitrated"));
     avant.runtime.arreter("test");
 
-    const { journal, avertissements } = cuisine(t, { lieux: avant.lieux, cooks: 5, scenario: "muet", issues: [issue(14), issue(15)] });
+    const { journal, avertissements } = cuisine(t, { tickMs: 25, sansSync: true, lieux: avant.lieux, cooks: 5, scenario: "muet", issues: [issue(14), issue(15)] });
     avant.lieux.gh.poser(issue(15));
     await jusqua(() => lances(journal).length === 2);
     assert.equal(etatStation(journal.base, STATION)?.unarbitratedAt, null);
@@ -126,7 +126,7 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
     const premier = await arbitre(t, 10);
     let courant = premier.joint;
     const relais: Arbitrage = { port: 0, echanger: (...args) => courant.echanger(...args), quitter: (...args) => courant.quitter(...args), etat: () => courant.etat() };
-    const { runtime, lancements } = cuisine(t, { arbitre: relais, cooks: 5, scenario: "muet", issues: [issue(14)] });
+    const { runtime, lancements } = cuisine(t, { tickMs: 25, sansSync: true, arbitre: relais, cooks: 5, scenario: "muet", issues: [issue(14)] });
     await jusqua(() => premier.projet("brigade")?.cooks === 1 && lancements().length === 1);
 
     // L'arbitre redémarre : il ne sait plus rien, que le nom du projet.
@@ -155,12 +155,12 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
     const plafonds = { durationMs: 120_000, idleMs: 120_000 };
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
-    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "attend", plafonds, issues: [issue(11), issue(12)] });
+    const premier = cuisine(t, { tickMs: 25, sansSync: true, projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "attend", plafonds, issues: [issue(11), issue(12)] });
     await jusqua(() => premier.lancements().length === 2 && projet("compta")?.cooks === 2);
 
     // Le second a un ticket, et sa station se retient : la machine n'en peut plus.
     let machine: Machine = { ...MACHINE_CALME, charge: 16.2 };
-    const second = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, scenario: "attend", plafonds, machine: () => machine, issues: [issue(21)] });
+    const second = cuisine(t, { tickMs: 25, sansSync: true, projet: "brigade", arbitre: joint, cooks: 30, scenario: "attend", plafonds, machine: () => machine, issues: [issue(21)] });
     await jusqua(() => ouvert.etat().saturePar.includes("brigade"));
     assert.deepEqual(second.dernier("station.held"), { station: STATION, reason: "machine" });
 
@@ -192,8 +192,8 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
     const demande: Mot = { cooks: 0, demande: true, machine: false, nonArbitres: 0, consommation: { jour: 0, semaine: 0 } };
     ouvert.dire("compta", demande);
     ouvert.dire("brigade", demande);
-    const lourd = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(11) });
-    const leger = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(21) });
+    const lourd = cuisine(t, { tickMs: 25, sansSync: true, projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(11) });
+    const leger = cuisine(t, { tickMs: 25, sansSync: true, projet: "brigade", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(21) });
     await jusqua(() => leger.lancements().length === 1 && projet("brigade")?.cooks === 1);
     await jusqua(() => lourd.lancements().length === 3 && projet("compta")?.cooks === 3);
     await jusqua(() => lourd.dernier("station.held") !== undefined && leger.dernier("station.held") !== undefined);
@@ -206,13 +206,13 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
     const { joint, projet } = await arbitre(t, 6);
     const issues = (de: number) => [0, 1, 2, 3, 4, 5].map((rang) => issue(de + rang));
     // Le second projet a des tickets, et le chef l'a arrêté avant qu'il ne lance.
-    const arrete = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, session: "absente", issues: issues(21) });
+    const arrete = cuisine(t, { tickMs: 25, sansSync: true, projet: "brigade", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, session: "absente", issues: issues(21) });
     await jusqua(() => projet("brigade")?.presence === "entendu");
     chef(arrete.repertoire, "kitchen.stopped");
     await jusqua(() => arrete.dernier("station.held")?.reason === "stopped" && projet("brigade")?.demande === false);
 
     // Le premier prend tout le compte : rien n'est dû à qui ne peut rien lancer.
-    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
+    const premier = cuisine(t, { tickMs: 25, sansSync: true, projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
     await jusqua(() => premier.lancements().length === 6);
     assert.equal(arrete.lancements().length, 0);
   });
@@ -221,11 +221,11 @@ describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
     const { joint, ouvert, projet } = await arbitre(t, 6);
     const issues = (de: number) => [0, 1, 2, 3, 4, 5].map((rang) => issue(de + rang));
     // Plafond propre : un cook. Il en tient un, et des tickets attendent derrière.
-    const borne = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 1, scenario: "muet", issues: issues(21) });
+    const borne = cuisine(t, { tickMs: 25, sansSync: true, projet: "brigade", arbitre: joint, cooks: 1, scenario: "muet", issues: issues(21) });
     await jusqua(() => borne.lancements().length === 1 && borne.dernier("station.held")?.reason === "cap");
     await jusqua(() => projet("brigade")?.cooks === 1 && projet("brigade")?.demande === false);
 
-    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
+    const premier = cuisine(t, { tickMs: 25, sansSync: true, projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
     await jusqua(() => premier.lancements().length === 5);
     await jusqua(() => premier.dernier("station.held") !== undefined);
     assert.deepEqual([premier.dernier("station.held"), ouvert.etat().cooks, borne.lancements().length], [{ station: STATION, reason: "arbiter" }, 6, 1]);

@@ -18,7 +18,7 @@ const EPIQUE = "Le chef veut voir, partout, combien de tickets attendent.";
 
 // Une cuisine dont le manager est allumé, et qui découpe ce qu'on lui donne.
 function brigade(t: TestContext, options: Options & { decoupage?: string } = {}) {
-  const c = cuisine(t, { ...options, manager: options.manager ?? { jugement: options.decoupage ?? "decoupe-tickets" } });
+  const c = cuisine(t, { tickMs: 25, sansSync: true, ...options, manager: options.manager ?? { jugement: options.decoupage ?? "decoupe-tickets" } });
   if (!options.lieux) chef(c.repertoire, "manager.enabled");
   const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools"));
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);

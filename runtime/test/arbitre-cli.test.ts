@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
+import { DejaEnCours } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { enSerie, type Lancement } from "./aides/serie.ts";
 import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
@@ -199,10 +200,10 @@ describe("la commande de l'arbitre", { concurrency: 3 }, () => {
     assert.deepEqual(await client.echanger("brigade", { ...mot(1), veut: true }), { accorde: true, motif: null });
     assert.deepEqual(await client.echanger("brigade", { ...mot(2), veut: true }), { accorde: false, motif: "compte" });
 
-    // Un second arbitre sur la même machine est refusé, et ne dérange pas le premier.
-    const second = lancer(t, TENIR, [], env);
-    assert.equal(await second.fin, 2);
-    assert.match(second.sortie(), /the arbiter refuses to start — an arbiter already holds/);
+    // Un second arbitre sur la même machine est refusé, et ne dérange pas le
+    // premier. Ouvert par le process du test : ce que le second process en dirait
+    // — son refus, son code — est éprouvé au test suivant, sans un Node de plus.
+    assert.throws(() => ouvrirArbitre({ repertoire: env.BRIGADE_ARBITER_STATE_DIR, plafond: 2 }), (erreur: Error) => erreur instanceof DejaEnCours && /an arbiter already holds/.test(erreur.message));
     assert.equal((await client.etat()).plafond, 2);
 
     tenu.process.kill("SIGTERM");
@@ -215,21 +216,27 @@ describe("la commande de l'arbitre", { concurrency: 3 }, () => {
     await revenu.attendre("share reserved, until they speak again: brigade");
   });
 
-  test("sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi", async (t) => {
+  // Les refus se jouent l'un après l'autre dans un seul process (`enSerie`).
+  test("sans répertoire, sans port, sans plafond, sur un port pris, ou sur un répertoire qu'un arbitre tient, l'arbitre refuse de démarrer et dit pourquoi", async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const sans = async (env: Record<string, string>) => {
-      const tenu = lancer(t, TENIR, [], env);
-      return { code: await tenu.fin, sortie: tenu.sortie() };
-    };
-    assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : the arbiter refuses to start — BRIGADE_ARBITER_STATE_DIR is not set\n" });
-    assert.match((await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: "20900" })).sortie, /BRIGADE_ARBITER_MAX_COOKS is not set/);
-
     const pris = createServer();
     const port = await new Promise<number>((resoudre) => pris.listen(0, "127.0.0.1", () => resoudre((pris.address() as { port: number }).port)));
     t.after(() => pris.close());
-    assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" }), {
-      code: 2,
-      sortie: `brigade : the arbiter refuses to start — port ${port} is already taken (BRIGADE_ARBITER_PORT)\n`,
-    });
+    // Un arbitre tient déjà ce répertoire : celui du process du test.
+    const tenu = repertoireTemporaire(t);
+    const premier = ouvrirArbitre({ repertoire: tenu, plafond: 2 });
+    t.after(() => premier.fermer());
+
+    const [sansRien, sansPlafond, portPris, dejaTenu] = await enSerie(t, TENIR, [
+      { env: {} },
+      { env: { BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: "20900" } },
+      { env: { BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" } },
+      { env: { BRIGADE_ARBITER_STATE_DIR: tenu, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" } },
+    ]);
+    assert.deepEqual(sansRien, { code: 2, sortie: "brigade : the arbiter refuses to start — BRIGADE_ARBITER_STATE_DIR is not set\n" });
+    assert.match(sansPlafond?.sortie ?? "", /BRIGADE_ARBITER_MAX_COOKS is not set/);
+    assert.deepEqual(portPris, { code: 2, sortie: `brigade : the arbiter refuses to start — port ${port} is already taken (BRIGADE_ARBITER_PORT)\n` });
+    assert.equal(dejaTenu?.code, 2);
+    assert.match(dejaTenu?.sortie ?? "", /the arbiter refuses to start — an arbiter already holds/);
   });
 });

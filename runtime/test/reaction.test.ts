@@ -24,9 +24,10 @@ import { posixOnly } from "./support/plateforme.ts";
 type Charge = Record<string, unknown>;
 
 // Une cuisine dont les gates sont rouges et le manager allumé, sauf mention
-// contraire.
+// contraire. Chaque test enchaîne les tours d'un ticket rouge — cook, gates,
+// renvoi, réaction — que seul le tick fait avancer : il est resserré.
 function echec(t: TestContext, options: Options & { eteint?: boolean } = {}) {
-  const c = cuisine(t, { pass: true, ...options, manager: { jugement: "reagit-remonte", ...options.manager } });
+  const c = cuisine(t, { tickMs: 25, sansSync: true, pass: true, ...options, manager: { jugement: "reagit-remonte", ...options.manager } });
   c.gates.regler("rouge");
   if (!options.eteint) chef(c.repertoire, "manager.enabled");
   const { journal } = c;
@@ -181,11 +182,12 @@ describe("le manager réagit à un échec", { concurrency: 3 }, () => {
     assert.equal(c.charges("cook.launched", 17).filter((lance) => lance.station === STATION).length, 3);
   });
 
-  test("remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO", async (t) => {
-    for (const [jugement, type, enonce] of [
-      ["reagit-remonte-produit", "product", "Choisir entre la voie A et la voie B."],
-      ["reagit-remonte-geste", "gesture", "Poser le jeton du compte client."],
-    ] as const) {
+  // Un test par type de carte : chacun joue sa cuisine, de front.
+  for (const [jugement, type, enonce] of [
+    ["reagit-remonte-produit", "product", "Choisir entre la voie A et la voie B."],
+    ["reagit-remonte-geste", "gesture", "Poser le jeton du compte client."],
+  ] as const) {
+    test(`remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO — ${type}`, async (t) => {
       const c = echec(t, { issues: [issue(17)], manager: { jugement } });
       await c.jusquAu("pass.escalated", 17);
       await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
@@ -198,8 +200,8 @@ describe("le manager réagit à un échec", { concurrency: 3 }, () => {
       // La carte parle au chef : la remontée nue ne s'y ajoute pas.
       assert.deepEqual(attentesDuChef(c.journal.base, c.runtime.rail.tickets()).map((attente) => attente.quoi), ["carte"]);
       assert.ok(c.dits(17).some((dit) => dit.includes(`**Carte dans TODO** (${type}). ${enonce}`)));
-    }
-  });
+    });
+  }
 
   test("un rouge sans choix de produit ni geste ne produit jamais de carte : il n'entre pas dans TODO, la cuisine le reprend, et le manager le dit", async (t) => {
     const c = remonteTelQuel(t);
@@ -276,25 +278,6 @@ describe("le manager réagit à un échec", { concurrency: 3 }, () => {
     await c.jusquAu("pass.kitchen-took-over", 17);
     assert.deepEqual([c.gh.creations, c.pass(17)?.cause, c.ticket(17)?.reason], [[501], "manager-escalated", "manager:escalated"]);
     assert.equal(c.charges("pass.kitchen-took-over", 17)[0]?.issue, 501);
-  });
-
-  test("des relances du manager restées rouges n'ouvrent pas le disjoncteur : il monte tant qu'il lui reste de quoi monter", async (t) => {
-    const c = echec(t, {
-      seuilDisjoncteur: 2,
-      issues: [issue(30, [])],
-      manager: { suite: ["juge-ticket"], jugement: "reagit-monte", plafond: { model: "opus", effort: "high" } },
-    });
-    await c.jusquAu("pass.escalated", 30);
-
-    // Trois relances décidées par le manager, marquées et jugées rouges : le disjoncteur reste fermé.
-    assert.deepEqual(c.charges("cook.launched", 30).filter((lance) => lance.station === STATION).map((lance) => lance.relaunch === true), [false, false, false, true, true, true]);
-    assert.deepEqual(c.charges("relaunch.judged", 30).map((juge) => juge.verdict), ["red", "red", "red"]);
-    assert.equal(etatDesGardeFous(c.journal.base).breakerOpenedAt, null);
-    // Il est monté jusqu'à son plafond — `opus` —, puis a remonté le ticket.
-    assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium", "haiku/high", "sonnet/high", "opus/high"]);
-    const reaction = c.charges("manager.reacted", 30).at(-1);
-    assert.equal(reaction?.choice, "escalate");
-    assert.deepEqual([c.ticket(30)?.state, c.ticket(30)?.reason], ["86", "manager:escalated"]);
   });
 
   test("éteint pendant qu'il tenait un ticket, le manager le rend à la pass, qui reprend sa règle d'avant", async (t) => {
@@ -424,5 +407,26 @@ describe("le manager réagit à un échec", { concurrency: 3 }, () => {
       [reaction?.choice, reaction?.returns, reaction?.reason, reaction?.proposal, reaction?.commented],
       ["escalate", 2, "Le critère d'acceptation n° 2 se contredit.", "Trancher le critère n° 2, puis rendre le ticket.", true],
     );
+  });
+
+  // L'un des plus longs du fichier — cinq cooks —, joué en dernier : il ne se
+  // dispute pas le processus avec les autres longs.
+  test("des relances du manager restées rouges n'ouvrent pas le disjoncteur : il monte tant qu'il lui reste de quoi monter", async (t) => {
+    const c = echec(t, {
+      seuilDisjoncteur: 2,
+      issues: [issue(30, [])],
+      manager: { suite: ["juge-ticket"], jugement: "reagit-monte", plafond: { model: "sonnet", effort: "high" } },
+    });
+    await c.jusquAu("pass.escalated", 30);
+
+    // Deux relances décidées par le manager — autant que le seuil —, marquées et jugées rouges : le disjoncteur reste fermé.
+    assert.deepEqual(c.charges("cook.launched", 30).filter((lance) => lance.station === STATION).map((lance) => lance.relaunch === true), [false, false, false, true, true]);
+    assert.deepEqual(c.charges("relaunch.judged", 30).map((juge) => juge.verdict), ["red", "red"]);
+    assert.equal(etatDesGardeFous(c.journal.base).breakerOpenedAt, null);
+    // Il est monté jusqu'à son plafond — `sonnet` / `high` —, puis a remonté le ticket.
+    assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium", "haiku/high", "sonnet/high"]);
+    const reaction = c.charges("manager.reacted", 30).at(-1);
+    assert.equal(reaction?.choice, "escalate");
+    assert.deepEqual([c.ticket(30)?.state, c.ticket(30)?.reason], ["86", "manager:escalated"]);
   });
 });
