@@ -214,7 +214,8 @@ describe("le bilan d'une passe de fermeture", () => {
     ]);
   });
 
-  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non", async (t) => {
+  // Chacune sur sa cuisine : jouées dans un seul test, les deux passes tenaient près de 3 s sous charge.
+  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle a livré", async (t) => {
     // Un merge de deux mille lignes ajoutées pour mille retirées : une ligne de
     // moins n'y change rien qui se lise.
     const lourde = cuisineFermee(t, { histoire: [{ commit: { "stock.txt": lignes(1100) } }, { merge: { "plats/1.txt": lignes(2000), "stock.txt": lignes(100) } }] });
@@ -227,6 +228,9 @@ describe("le bilan d'une passe de fermeture", () => {
     const fr = (valeur: number) => valeur.toLocaleString("en-US");
     assert.ok(suite.includes(`           20 merges   +${fr(2000)} / −${fr(1000)}  2:1  →  +${fr(2000)} / −${fr(1001)}  2:1  did not move — only 1 merge on the branch`), suite.join("\n"));
 
+  });
+
+  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle n'a rien retiré", async (t) => {
     // Un closer qui ne retire rien : aucune PR, et le bilan garde ce qu'il a laissé.
     const prudente = cuisineFermee(t, { histoire: DEUX_MERGES });
     prudente.closer.message("<livrable>\nLAISSÉ M1 : appelé par un script de déploiement hors du dépôt\nLAISSÉ M2 : idem\n</livrable>\n");

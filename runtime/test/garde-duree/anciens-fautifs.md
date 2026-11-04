@@ -1528,7 +1528,7 @@ Rewritten in place: 5.3 s → 0.34 s.
 Kept in place: measured at 0.9 s at most in the full suite on the box at load 5 to 8, or rewritten earlier in this branch (0.4 to 0.8 s alone).
 
 - `test/appairage/rail-du-projet.test.ts` « sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box »
-- `test/closing/report.test.ts` « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non »
+- `test/closing/report.test.ts` « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non » — kept (0.73 s in the full suite at load 6), then split in two in this file, one closing kitchen each, after it took 2.8 s under the gates at load 8: « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle a livré » and « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle n'a rien retiré »
 - `test/closing/run.test.ts` « un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part »
 - `test/commandes.test.ts` « taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé »
 - `test/commandes.test.ts` « un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris »
