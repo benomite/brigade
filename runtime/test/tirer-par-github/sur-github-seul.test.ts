@@ -102,6 +102,8 @@ class FauxGitHub {
         await appel();
         return [{ outcome: "green" as const }];
       },
+      etatDuRun: async () => ({ tentative: 1, termine: true }),
+      relancerLesEchecs: async () => {},
       commentaires: async (numero) => {
         await appel();
         return [...(this.commentaires.get(numero) ?? [])];

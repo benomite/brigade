@@ -74,6 +74,7 @@ function depot(...issues: Issue[]) {
     ciDeLaBase: async () => [],
     diff: async () => "",
     journalDuCheck: async () => null,
+    etatDuRun: async () => ({ tentative: 1, termine: true }),
     relancerLesEchecs: async () => {},
     remplacerCommentaire: async () => false,
     merger: async () => ({ fait: true }),

@@ -560,6 +560,19 @@ test("les jobs en échec d'un run de GitHub Actions se relancent, eux seuls ; un
   await assert.rejects(github.relancerLesEchecs(124), /HTTP 403/);
 });
 
+test("un run de GitHub Actions dit sa tentative et s'il est fini ; un refus de GitHub lève", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/actions/runs/123`;
+  gh.repondre(chemin, { corps: { run_attempt: 2, status: "completed" } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/124`, { corps: { run_attempt: 1, status: "in_progress" } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/125`, { statut: 404, corps: { message: "Not Found" } });
+
+  assert.deepEqual(await github.etatDuRun(123), { tentative: 2, termine: true });
+  assert.deepEqual(gh.appels(), [["api", "-i", chemin]]);
+  assert.deepEqual(await github.etatDuRun(124), { tentative: 1, termine: false });
+  await assert.rejects(github.etatDuRun(125), /HTTP 404/);
+});
+
 test("un check dit son run et son job quand c'est un job de GitHub Actions ; sinon, rien", () => {
   const check = { name: "tests", outcome: "red" as const, conclusion: "failure" };
   assert.deepEqual(jobDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/456` }), { run: 123, job: 456 });

@@ -210,6 +210,7 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     diff: async (numero) => diffs.get(numero) ?? "",
     journalDuCheck: async (check) => journauxDeCI.get(check.name) ?? null,
+    etatDuRun: async () => ({ tentative: 1, termine: true }),
     async relancerLesEchecs(run) {
       if (pannes.relance) throw new Error(`gh api repos/${DEPOT}/actions/runs/${run}/rerun-failed-jobs : HTTP 403`);
       relances.push(run);
