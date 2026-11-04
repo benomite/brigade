@@ -352,7 +352,7 @@ test("un ticket en cours de cuisson sur la station qu'il quitte est repris sur l
   mkdirSync(box, { recursive: true });
   const gh = fauxGitHub(issue(15));
   const heure = montre();
-  const premiere = cuisine(t, { scenario: "commite-puis-attend", lieux: { repertoire: box, origine: "", clone: "", gh, heure } });
+  const premiere = cuisine(t, { scenario: "commite-puis-attend", relais: true, lieux: { repertoire: box, origine: "", clone: "", gh, heure } });
   await jusqua(() => premiere.cooks().length === 1 && premiere.dernier("cook.launched", 15) !== undefined);
   const run = String(premiere.dernier("cook.launched", 15)?.run);
   const fichierDuPid = join(box, "runs", `${run}.cook.pid`);

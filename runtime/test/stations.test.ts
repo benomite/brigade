@@ -211,7 +211,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   });
 
   test("une station que le projet ne déclare plus est retirée au redémarrage : `status` ne la montre plus, et le cook qu'elle faisait tourner est repris — il finit comme il aurait fini, sans qu'elle ne prenne plus rien", async (t) => {
-    const premiere = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", issues: [issue(14), issue(15)] });
+    const premiere = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", issues: [issue(14), issue(15)], relais: true });
     await jusqua(() => premiere.lancements().length === 2);
     assert.equal(prisPar(premiere.journal.base, PLAYWRIGHT), 1);
     const sien = premiere.runtime.rail.tickets().find((ticket) => ticket.station === PLAYWRIGHT)?.ticket ?? 0;

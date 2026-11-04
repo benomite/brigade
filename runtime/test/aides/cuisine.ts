@@ -530,6 +530,9 @@ export type Options = {
   // échec. Par défaut, rien : aucun test ne dépend de ce que le poste a
   // installé, ni n'y lance rien.
   sonde?: Sonde;
+  // Chaque cook part par son relais, comme à la box : pour un test qui
+  // éprouve sa survie au runtime ou sa reprise.
+  relais?: boolean;
 };
 
 // Une machine qui n'a rien de ce qu'un projet peut demander.
@@ -634,10 +637,15 @@ export function cuisine(t: TestContext, options: Options = {}) {
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3, ...(options.jugements === undefined ? {} : { jugements: options.jugements }) },
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
   );
+  // Un cook qui survit au runtime part par un relais : un Node de plus à chaque
+  // lancement, un quart de seconde sous charge. Seul un test qui éprouve la
+  // survie (`relais`) le garde ; ailleurs le cook part sous le runtime, et ce
+  // qu'il dit est masqué par `masquer`, comme celui d'un cook qui ne survit pas.
+  const lanceur: typeof garde = options.relais ? garde : { ...garde, lancer: ({ survivant: _survivant, ...demande }) => garde.lancer(demande) };
   const suiteDuReviewer = join(repertoire, "suite-reviewer.txt");
   if (options.reviewer?.suite) ecrireSuite(suiteDuReviewer, options.reviewer.suite);
   const jugee = options.pass
-    ? brancherPass(garde, {
+    ? brancherPass(lanceur, {
         repertoireEtat: repertoire,
         depot: depotDuTest,
         github: gh.github,
@@ -665,7 +673,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const suiteDuTriage = join(repertoire, "suite-triage.txt");
   const triage = options.manager?.triage;
   if (Array.isArray(triage)) ecrireSuite(suiteDuTriage, triage);
-  const servie = brancherStation(jugee ?? garde, {
+  const servie = brancherStation(jugee ?? lanceur, {
     repertoireEtat: repertoire,
     depot: depotDuTest,
     github: gh.github,

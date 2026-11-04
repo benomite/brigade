@@ -12,7 +12,7 @@ import { BASE, git, jusqua, mort, vivant } from "./outils.ts";
 // Une première vie : un cook part sur #15 et commite, puis attend qu'on le
 // laisse conclure. Le runtime est arrêté pendant qu'il tourne.
 async function premiereVie(t: TestContext, options: Options = {}) {
-  const premiere = cuisine(t, { scenario: "commite-puis-attend", issues: [issue(15)], ...options });
+  const premiere = cuisine(t, { scenario: "commite-puis-attend", issues: [issue(15)], relais: true, ...options });
   await jusqua(() => premiere.cooks().length === 1 && premiere.dernier("cook.launched", 15) !== undefined);
   const lancement = premiere.dernier("cook.launched", 15) ?? {};
   const run = String(lancement.run);

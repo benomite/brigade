@@ -108,7 +108,7 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
   test("sans arbitre désigné, le projet tourne comme avant : ni mode dégradé, ni avertissement — et il sort de celui d'une vie précédente", async (t) => {
     const { joint, couper } = await arbitre(t, 10);
     couper();
-    const avant = cuisine(t, { arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14)] });
+    const avant = cuisine(t, { arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14)], relais: true });
     await jusqua(() => avant.types().includes("station.unarbitrated"));
     avant.runtime.arreter("test");
 
