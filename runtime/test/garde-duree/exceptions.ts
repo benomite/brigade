@@ -823,7 +823,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/cloison.test.ts", garde: "delaiMs: 60_000" },
   { file: "test/closing/kitchen.ts", garde: "delaiGatesMs: 60_000" },
   { file: "test/closing/report.test.ts", garde: "timeout: 600_000" },
-  { file: "test/connexion-max/connecter.test.ts", garde: "delaiMuet: 60_000" },
   { file: "test/correctif/decision.test.ts", garde: "delaiGatesMs: 60_000" },
   { file: "test/cout-des-gates.test.ts", garde: "delaiMs: 120_000" },
   { file: "test/cout-des-gates.test.ts", garde: "delaiMs: 60_000" },
