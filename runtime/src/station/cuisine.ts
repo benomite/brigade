@@ -29,6 +29,7 @@ import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
 import { brancherDerive, lireSeuils } from "../derive.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "../seuils/seuils.ts";
 import { brancherFermeture } from "../closing/run.ts";
+import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "../github-seul/boucles-perimees/boucles-perimees.ts";
 import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
@@ -180,9 +181,12 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // transmet pas la restriction d'une prise.
     // Sur une station sans bac à sable, rien ne part avant que le chef ait
     // choisi — pas même ce ticket : la retenue est la plus extérieure.
-    const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire }), { repertoireEtat, station: nomDeclare(envProjet), dire });
-    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(decide).expirationPromue } } : {}) });
-    const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
+    // Switch on, the old-path loops that read the log stop at their entry (#2218), unless the GitHub-only station is refused below.
+    let stationRefusee = false;
+    const perimee = boucleAncienneArretee(duDepot.reglages, () => stationRefusee);
+    const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail, perimee })), { repertoireEtat, dire }), { repertoireEtat, station: nomDeclare(envProjet), dire });
+    const pass = brancherPass(garde, { ...delais, perimee, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(decide).expirationPromue } } : {}) });
+    const fermee = brancherFermeture(pass, { perimee, reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
     // L'interrupteur de l'état GitHub seul (#2060), lu sur la branche
     // d'intégration à l'ouverture, comme le runtime d'un seul projet le lisait
     // (`main.ts`). Éteint, la station est l'ancienne, telle quelle. Allumé,
@@ -193,7 +197,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const ouvert = brancherBrigadeGithub({
       reglages: duDepot.reglages,
       ancien: () => ({ stations, decisions }),
-      station: () =>
+      station: () => {
+        const ouverte =
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
           : stationDuDepot({
@@ -215,11 +220,15 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               reviewer: reviewer.calibrage,
               flux: join(repertoireEtat, "github-seul"),
               avertir: dire,
-            }),
+            });
+        if ("refus" in ouverte) stationRefusee = true;
+        return ouverte;
+      },
       avertir: dire,
     });
     if (ouvert.chemin === "github") projetGitHub = ouvert;
     const servie = brancherStation(fermee, {
+      perimee,
       ...(ouvert.chemin === "ancien" ? ouvert.ancien : { stations: [], decisions: { ...decisions, stations: () => [] } }),
       repertoireEtat,
       worktrees,
@@ -248,10 +257,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const manage = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
     // Le rôle produit, que le rail vide réveille quand le chef l'a allumé : sous l'identité du manager, par un GitHub à lui.
     const sesRoles = identites;
-    const dirige = brancherCadence(manage, { github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison, bacASable, avertir: dire });
+    const dirige = brancherCadence(manage, { perimee, github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison, bacASable, avertir: dire });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(dirige, session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }), avertir: dire, perimee }), session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     // Le tableau de la cuisine, publié dans le dépôt du projet comme le
     // runtime d'un seul projet le publiait (`main.ts`) : chaque cuisine le
