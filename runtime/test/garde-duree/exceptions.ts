@@ -568,8 +568,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/reprise-de-session.test.ts", test: "un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket" },
   { file: "test/reprise-de-session.test.ts", test: "un renvoi repris livré une seconde fois en rouge : le second renvoi reprend la session bifurquée du premier" },
   { file: "test/reprise-de-session.test.ts", test: "un renvoi repris repasse exactement les gates et la relecture d'un renvoi reparti de zéro : rien n'est sauté, rien n'est assoupli" },
-  { file: "test/reprise-du-renommage.test.ts", test: "elle ne touchait aucun fichier déplacé : rien n'est porté, sa branche ne bouge pas" },
-  { file: "test/reprise-du-renommage.test.ts", test: "elle réécrit ce que le renommage réécrit : le conflit est dit, chemin compris, sa branche ne bouge pas, et rien ne reste" },
   { file: "test/reprise-du-renommage.test.ts", test: "elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier" },
   { file: "test/reprise-du-renommage.test.ts", test: "le renommage mergé, la pause est levée, et la cuisine reprend seule : les tickets retenus sont repris sur le nouvel arbre — zone et branche sur les nouveaux chemins —, celui qui ne se porte pas est nommé dans la file avec la raison, celui qui ne touchait rien est repris tel quel, et un ticket neuf est pris et mergé" },
   { file: "test/reprise.test.ts", test: "aucun cook en vol n'est interrompu pendant le remplacement : ni son processus, ni son worktree, ni sa branche — le rangement de la nouvelle vie passe sans y toucher" },

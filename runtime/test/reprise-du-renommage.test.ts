@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { after, before, describe, test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import { ouvrirDepot, type Depot, type Transposition } from "../src/depot.ts";
 import { MARQUEUR, type Fiche } from "../src/fiche.ts";
@@ -71,6 +71,8 @@ describe("les déplacements de l'outil de renommage", () => {
 // `runtime/src/pause` et `runtime/src/rail.ts`. Les livraisons partent de là ;
 // puis le renommage est mergé sur la base, et la déplace comme le dit
 // `MOUVEMENTS`, en réécrivant la première ligne de `garde-fous.ts`.
+// Bâti une fois pour les trois tests qui suivent : chacun porte une livraison
+// à lui, et aucun ne touche à celle d'un autre.
 async function avantEtApresLeRenommage(t: TestContext) {
   const { clone } = depotGit(t);
   const worktrees = join(repertoireTemporaire(t), "worktrees");
@@ -127,9 +129,23 @@ async function avantEtApresLeRenommage(t: TestContext) {
   return { clone, worktrees, depot, deplacee, intacte, disputee, commit, traduire };
 }
 
-describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", { concurrency: 3 }, () => {
-  test("elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier", async (t) => {
-    const { clone, worktrees, depot, deplacee, commit, traduire } = await avantEtApresLeRenommage(t);
+// Ce que les aides rangent à la fin d'un test se range à la fin de la suite :
+// le dépôt est le même pour ses trois tests.
+function contexteDeSuite() {
+  const fins: Array<() => unknown> = [];
+  const t = { after: (fin: () => unknown) => void fins.push(fin) } as unknown as TestContext;
+  return { t, finir: async () => { for (let fin = fins.shift(); fin !== undefined; fin = fins.shift()) await fin(); } };
+}
+
+// Les trois tests se suivent : ils partagent le clone et ses worktrees jetables.
+describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", () => {
+  const suite = contexteDeSuite();
+  let lieu: Awaited<ReturnType<typeof avantEtApresLeRenommage>>;
+  before(async () => void (lieu = await avantEtApresLeRenommage(suite.t)));
+  after(suite.finir);
+
+  test("elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier", async () => {
+    const { clone, worktrees, depot, deplacee, commit, traduire } = lieu;
 
     const portee = await depot.transposer("jugement-17", deplacee.branche, { commit, traduire });
 
@@ -159,15 +175,15 @@ describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", { co
     assert.deepEqual(await depot.transposer("jugement-17", deplacee.branche, { commit, traduire }), { issue: "deja" });
   });
 
-  test("elle ne touchait aucun fichier déplacé : rien n'est porté, sa branche ne bouge pas", async (t) => {
-    const { clone, depot, intacte, commit, traduire } = await avantEtApresLeRenommage(t);
+  test("elle ne touchait aucun fichier déplacé : rien n'est porté, sa branche ne bouge pas", async () => {
+    const { clone, depot, intacte, commit, traduire } = lieu;
 
     assert.deepEqual(await depot.transposer("jugement-20", intacte.branche, { commit, traduire }), { issue: "intacte" });
     assert.equal(git(clone, "rev-parse", intacte.branche), intacte.sha);
   });
 
-  test("elle réécrit ce que le renommage réécrit : le conflit est dit, chemin compris, sa branche ne bouge pas, et rien ne reste", async (t) => {
-    const { clone, worktrees, depot, disputee, commit, traduire } = await avantEtApresLeRenommage(t);
+  test("elle réécrit ce que le renommage réécrit : le conflit est dit, chemin compris, sa branche ne bouge pas, et rien ne reste", async () => {
+    const { clone, worktrees, depot, disputee, commit, traduire } = lieu;
 
     assert.deepEqual(await depot.transposer("jugement-19", disputee.branche, { commit, traduire }), { issue: "conflit", de: disputee.sha, chemins: ["runtime/src/guardrails.ts"] });
     assert.equal(git(clone, "rev-parse", disputee.branche), disputee.sha);
