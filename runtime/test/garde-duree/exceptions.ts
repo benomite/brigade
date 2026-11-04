@@ -48,7 +48,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/main.test.ts", test: "le manager est branché, et suit l'interrupteur du projet : allumé par défaut au premier démarrage, il sonde les issues ouvertes sans geste du chef" },
   { file: "test/main.test.ts", test: "les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail" },
   { file: "test/main.test.ts", test: "sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée" },
-  { file: "test/main.test.ts", test: "sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici" },
   { file: "test/main.test.ts", test: "tué sans préavis puis relancé, le runtime retrouve son journal et y note l'interruption" },
   { file: "test/main.test.ts", test: "un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée" },
   { file: "test/main.test.ts", test: "une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part" },

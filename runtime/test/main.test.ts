@@ -15,7 +15,6 @@ import { lireRail } from "../src/projections/rail.ts";
 import { proposerAuRuntime } from "../src/reglages-projet/au-runtime.ts";
 import { FICHIER } from "../src/reglages-projet/reglages.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
-import { demander } from "./aides/demander.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
 import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
@@ -338,9 +337,9 @@ describe("le runtime, son process et ses unités", () => {
     return lecteur.lire(repertoire, "rail", (journal) => lireRail(journal.base)).slice();
   }
 
-  test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", { skip: posixOnly("starts the runtime with two declared stations and checks each station.announced fact and the stations line, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
+  test("un projet qui déclare trois stations démarre avec les trois : chacune s'annonce, avec son plafond, la distante comme telle, et le runtime les dit", { skip: posixOnly("starts the runtime with three declared stations and checks each station.announced fact and the stations line, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless" });
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless,mac/claude:1:chrome-connecté:distante" });
     await runtime.attendre("démarré");
 
     assert.deepEqual(
@@ -349,55 +348,17 @@ describe("le runtime, son process et ses unités", () => {
         // Les deux tournent ici : elles annoncent les cœurs de cette machine.
         ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 3, cores: availableParallelism() }],
         ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 1, cores: availableParallelism() }],
+        // La distante ne tourne pas ici : ni les cœurs de cette machine, ni rien de lancé.
+        ["station:mac/claude", { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true }],
       ],
     );
-    assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\)/);
+    assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\) ; mac\/claude \(1 cook at most; provides: chrome-connecté; remote: it pulls its work, the box never reaches it\)/);
     runtime.process.kill("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
-  test("sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", { skip: posixOnly("lends the ticket only a remote station can cook through announce, claim and renew requests written from outside the runtime, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const gh = fauxGh(t);
-    // Sans cloison sur son poste, elle ne prend que ce qui demande ses capacités.
-    gh.commentaires(16, "<!-- brigade:fiche -->\n**Fiche du ticket**\n- requiert : chrome-connecté");
-    gh.issues([issueGitHub(16, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-    const temoin = join(repertoireTemporaire(t), "temoin");
-    mkdirSync(temoin);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante", FAUX_CLAUDE_TEMOIN: temoin });
-    await runtime.attendre("démarré");
-    assert.match(runtime.sortie(), /brigade : stations — mac\/claude \(1 cook at most; provides: chrome-connecté; remote: it pulls its work, the box never reaches it\)/);
-    assert.deepEqual(
-      relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [e.payload] : [])),
-      [{ station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true }],
-    );
-    // Absente, son ticket est 86 : aucun cook ne part.
-    await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "86"));
-    assert.equal(lireLeRail(repertoire)[0]?.reason, "station-absent: mac/claude");
-
-    // La demande de la station, écrite au journal depuis un autre process que le runtime ; la réponse, relue.
-    const tirer = async (demande: Parameters<typeof demander>[2]) => demander(repertoire, "mac/claude", demande);
-    const annonce = await tirer({ verb: "announce" });
-    assert.ok(annonce.ok && annonce.verb === "announce", JSON.stringify(annonce));
-    assert.deepEqual(annonce.provides, ["chrome-connecté"]);
-    await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "waiting"));
-    const prise = await tirer({ verb: "claim" });
-    assert.ok(prise.ok && prise.verb === "claim" && prise.mission !== null, JSON.stringify(prise));
-    const { mission } = prise;
-    assert.deepEqual([mission.ticket, mission.branch, mission.base, mission.model], [16, `cook/${mission.run}`, BASE, "sonnet"]);
-    assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state, ticket.station]), [[16, "taken", "mac/claude"]]);
-    // Sans preuve, le renouvellement est refusé, et le refus se lit.
-    const sansPreuve = await tirer({ verb: "renew", run: mission.run, proof: null, turns: 1, tokens: 10 });
-    assert.ok(!sansPreuve.ok && sansPreuve.refusal === "no-progress", JSON.stringify(sansPreuve));
-    const renouvele = await tirer({ verb: "renew", run: mission.run, proof: "empreinte-1", turns: 1, tokens: 10 });
-    assert.ok(renouvele.ok, JSON.stringify(renouvele));
-    // Rien n'a été lancé sur la box : ni `claude`, ni worktree.
-    assert.deepEqual(lancementsDuFauxClaude(temoin), []);
-    assert.equal(existsSync(join(repertoire, "worktrees")), false);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
-  });
-
+  // Une station distante qui s'annonce, réclame et renouvelle par sa demande au journal, et le ticket qu'elle seule peut
+  // cuisiner prêté sans rien lancer ici : station-distante.test.ts, sur une cuisine complète.
   test("un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part", { skip: posixOnly("starts the runtime with no station declared and checks the ticket stays waiting and the fake claude is never launched, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
