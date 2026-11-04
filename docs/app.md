@@ -747,8 +747,10 @@ earlier "ready"** until it has answered.
 
 The `in your app` line of Settings' `you` group has its value `in the bar` and its one control `Remove from the
 app…`, which asks for a `yes, remove "<name>" from the app` before anything happens: a project is not removed by a
-stray click. It takes the project off the bar and out of the projects file, and nothing else: its open terminals are
-stopped, its folder is not touched, nothing is sent to its station — the project stays installed there, its log
+stray click. It takes the project off the bar and out of the projects file, and uninstalls the app's plugin from
+its folder's local Claude Code settings (see "`/brigade:dev` and `/brigade:ask` in every project the app opens"),
+and nothing else: its open terminals are stopped, nothing else in its folder is touched — a `brigade` plugin you
+installed yourself stays —, nothing is sent to its station — the project stays installed there, its log
 intact — and a notice says so over the screen: `"calculus" is removed from the app.` Uninstalling a project from a
 station is not done from the app: it is done on the station itself (`docs/installer.md`, "Uninstall"). To bring the
 project back, add it again with the **+**.
@@ -1982,6 +1984,38 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
   displayed. Coming back to a project gives you back its second — or the shell you were looking at — as it was.
 - A project's second starts only at the first click on that project.
 - A project whose folder is not there has no second: its column says why, in its place.
+
+### `/brigade:dev` and `/brigade:ask` in every project the app opens (#2160)
+
+Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
+second, a shell of the app, or a terminal of your own — `/brigade:dev <number>` and `/brigade:ask <number>`
+answer, with nothing to install by hand. These two commands, and only these: no V1 role (`/brigade:po`,
+`/brigade:manager`, `/brigade:designer`, `/brigade:sync`, `/brigade:init`) and no agent — the app and the
+stations replace them.
+
+- **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
+  `.claude/settings.local.json` of the project's folder. If git does not already ignore that file, the app adds
+  `/.claude/settings.local.json` to the clone's `.git/info/exclude` — never to a `.gitignore`: `git status`
+  shows nothing new, and nothing gets committed.
+- **Its marketplace is the app's own**, `brigade-app`, written next to the projects file
+  (`~/.config/brigade/plugin-app/`) from the commands the app ships — `commands/dev.md` and `commands/ask.md`,
+  copied into the installed app under `plugin/commands/`. It is declared once in your Claude Code user settings.
+  The V1 marketplace and plugin (`brigade@brigade`) are not touched.
+- **The version is the app's.** The installed app installs its own version; launched from the repository
+  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the two commands. At launch, each
+  project at another version is updated: after an app update, the installed version is the new app's. A
+  project added while the app runs gets it at once.
+- **Removing a project from the app uninstalls `brigade-app`** from its folder's local scope, and nothing
+  else: a `brigade` V1 plugin you installed yourself stays, and the app's marketplace stays declared for the
+  other projects (removing it would uninstall the plugin from all of them).
+- A failure (`claude` missing, not logged in) installs nothing and is said in the terminal that launched the
+  app (`brigade: the app's plugin was not installed in “calculus” — …`); the next launch tries again.
+- A session already open keeps the commands it started with: Claude Code loads plugins at startup.
+- **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
+  stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
+
+*Code: `app/src/plugin-app.ts`; test: `app/test/plugin-app.test.ts`, against the real `git` and a stand-in
+`claude` that keeps its registry like the real one (claude 2.1.300).*
 
 ### A project's colors
 
@@ -3489,6 +3523,9 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
   moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
+  `plugin-app.ts` (the app's plugin: `/brigade:dev` and `/brigade:ask` installed in local scope in each project,
+  at the app's version, `git status` left clean, and uninstalled from a removed project only — against the real
+  `git` and a stand-in `claude`),
   `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
   `lireDemande` of `runtime/src/installateur.ts`), `ajout.ts` (adding a project: the fields
   with no default, the repository and the branch read from the chosen clone, and the project written to the real projects file),
