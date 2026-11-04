@@ -613,11 +613,14 @@ export function cuisine(t: TestContext, options: Options = {}) {
   // Un répertoire neuf reçoit le journal vide que le fichier a fabriqué une
   // fois : poser tout le schéma coûte plus que l'ouvrir, à chaque cuisine.
   if (options.lieux === undefined) poserJournalVide(repertoire);
-  // Chaque réveil relit le rail, les stations et le journal : toutes les 5 ms
-  // (20 ms pour le tick), c'était l'essentiel du processeur des fichiers de
-  // cuisine. Les tests attendent des faits, pas des durées : 20 ms de veille
-  // et 100 ms de tick ne coûtent que quelques millisecondes par fait attendu.
-  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 20, intervalleTickMs: 100, maintenant: heure.maintenant });
+  // Chaque réveil relit le rail, les stations et le journal : toutes les 5 ms,
+  // c'était l'essentiel du processeur des fichiers de cuisine. Mais ce que le
+  // runtime écrit lui-même ne le réveille pas (la veille ne voit que les autres
+  // process) : chaque étape d'un tour — cook fini, pass, manager, renvoi —
+  // attend le tick suivant. À 100 ms, un test de six tours en attendait deux
+  // secondes ; à 20 ms, ses tests jouent l'un après l'autre et le processeur
+  // d'une seule cuisine à la fois suit.
+  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 20, intervalleTickMs: 20, maintenant: heure.maintenant });
   const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
   // Les décisions du chef, posées au journal : leur seul support.
   const decisions = options.decisions

@@ -15,7 +15,6 @@ import { reactionDe } from "../src/projections/reactions.ts";
 import { lireLeDepot } from "../src/reglages-projet/en-vigueur.ts";
 import { texteDuFichier } from "../src/reglages-projet/reglages.ts";
 import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
-import { partagee } from "./aides/opt-C-partage.ts";
 import { projetSurGit } from "./aides/projet-sur-git.ts";
 import { jusqua as jusquaDe } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
@@ -56,9 +55,10 @@ function echec(t: TestContext, options: Options & { eteint?: boolean } = {}) {
 }
 
 describe("le manager réagit à un échec", () => {
-  // Le ticket rouge que le manager remonte tel quel : trois tests le lisent
-  // sans rien y changer — il n'est joué qu'une fois pour eux trois.
-  const remonteTelQuel = partagee(3, (t) => echec(t, { issues: [issue(17)] }));
+  // Le ticket rouge que le manager remonte tel quel. Chaque test a le sien : une
+  // cuisine partagée continuerait entre deux lecteurs — le ticket `fix` servi, la
+  // cuisine reprend #17 —, et le dernier lirait ce qu'elle a fait depuis.
+  const remonteTelQuel = (t: TestContext) => echec(t, { issues: [issue(17)] });
 
   test("éteint, rien ne change : deux renvois au même calibrage, puis la pass remonte au chef", PLUSIEURS_TOURS, async (t) => {
     const c = echec(t, { eteint: true, issues: [issue(17)], manager: { plafond: { model: "opus", effort: "max" } } });
