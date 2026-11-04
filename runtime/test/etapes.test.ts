@@ -8,12 +8,12 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe, noterEtape } from "../src/etapes.ts";
+import { principal as installation } from "../src/installation-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
-const INSTALLATION = join(import.meta.dirname, "../src/installation-cli.ts");
 const ORDRE = ["ajout", "init", "verification", "stations", "protection", "decisions", "demarrage"];
 
 async function lire(repertoire: string) {
@@ -156,7 +156,9 @@ function environnement(t: TestContext, repertoire: string) {
   };
 }
 
-test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("reads the installation steps before, during and after three runs of the runtime and expects the same states each time, the first and last runs stopped with SIGTERM and a clean exit 0; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
+// Le runtime arrêté proprement sur SIGTERM, avec un code 0, se prouve dans main.test.ts (« le runtime démarre, tourne,
+// et s'arrête proprement sur SIGTERM ») : ici, un arrêt net, puis la relance qui rejoue le journal.
+test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("reads the installation steps before, during and after two runs of the runtime and expects the same states each time, the last run stopped with SIGTERM and a clean exit 0; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   // L'installation précède le premier démarrage : le journal naît de la première note.
   await noter(repertoire, "ajout", "faite");
@@ -166,32 +168,26 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   assert.equal(avant.courante, "verification");
 
   const env = environnement(t, repertoire);
+  // Pendant qu'il tourne, la lecture est la même ; arrêté net, puis relancé, rien de ce qui était noté ne s'est perdu.
   const premier = lancer(t, MAIN, [], env);
   await premier.attendre("démarré");
-  // Pendant qu'il tourne, la lecture est la même.
   assert.deepEqual(await lire(repertoire), avant);
-  premier.process.kill("SIGTERM");
-  assert.equal(await premier.fin, 0, premier.sortie());
-
-  // Arrêté net, puis relancé : rien de ce qui était noté ne s'est perdu.
+  premier.process.kill("SIGKILL");
+  await premier.fin;
   const second = lancer(t, MAIN, [], env);
   await second.attendre("démarré");
-  second.process.kill("SIGKILL");
-  await second.fin;
-  const troisieme = lancer(t, MAIN, [], env);
-  await troisieme.attendre("démarré");
   assert.deepEqual(await lire(repertoire), avant);
 
-  // Lue par la commande du chef, dans son propre process : `installation etapes`.
-  const commande = lancer(t, INSTALLATION, ["etapes", "--json"], { BRIGADE_STATE_DIR: repertoire });
+  // Lue par la commande du chef, `installation etapes`, pendant qu'il tourne.
+  const commande = appeler(installation, ["etapes", "--json"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await commande.fin, 0, commande.sortie());
   assert.deepEqual(JSON.parse(commande.sortie()), avant);
 
   // Le chef reprend où il en était : l'étape en attente faite, la courante avance.
-  const reprise = lancer(t, INSTALLATION, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
+  const reprise = appeler(installation, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await reprise.fin, 0, reprise.sortie());
-  troisieme.process.kill("SIGTERM");
-  assert.equal(await troisieme.fin, 0, troisieme.sortie());
+  second.process.kill("SIGTERM");
+  assert.equal(await second.fin, 0, second.sortie());
   const apres = await lire(repertoire);
   assert.equal(apres.courante, "stations");
   assert.deepEqual(apres.etapes.map((etape) => etape.etat), ["faite", "faite", "faite", "à faire", "à faire", "à faire", "à faire"]);
