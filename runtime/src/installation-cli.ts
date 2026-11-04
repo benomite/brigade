@@ -17,7 +17,7 @@
 // `--confirmer`) répondent encore, en disant le nouveau (`commandes.ts`).
 import { configRail } from "./alimenter.ts";
 import { geste } from "./geste.ts";
-import { Sortie } from "./appel.ts";
+import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { principal as declarerStations } from "./declarer-stations.ts";
 import { nommerEtape, principal as etapes } from "./etapes-cli.ts";
@@ -33,13 +33,9 @@ const USAGE = "usage: <service environment> npm --prefix runtime run installatio
 const REFUS = 2;
 const MO = 1024 ** 2;
 
-function echouer(code: number, message: string): never {
-  console.error(`brigade : ${message}`);
-  process.exit(code);
-}
-
-const env = process.env;
-const projet = env.BRIGADE_PROJECT || "<project>";
+type Env = Appel["env"];
+type Dire = Appel["dire"];
+const projetDe = (env: Env) => env.BRIGADE_PROJECT || "<project>";
 const nombre = (valeur: number, decimales = 0) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const duree = (ms: number) => (ms >= 60_000 ? `${nombre(ms / 60_000, 1)} min` : `${nombre(ms / 1000, 1)} s`);
@@ -52,7 +48,7 @@ const MARQUES: Record<Constat["etat"], string> = { ok: "ok", manque: "MISSING", 
 // Ce que la vérification écrit, ligne à ligne, à `console` : la sortie
 // standard, ou la sortie brute jointe au verdict — les mêmes lignes, que l'app
 // lit telles quelles (app/src/service.ts, `manquesDe`).
-function ecrire(constats: Constat[], console: { log: (ligne: string) => void }): number {
+function ecrire(constats: Constat[], projet: string, console: { log: (ligne: string) => void }): number {
   for (const ou of ["machine", "depot", "github"] as const) {
     console.log(`\n${TITRES[ou]}`);
     for (const constat of constats.filter((lu) => lu.ou === ou)) {
@@ -70,29 +66,29 @@ function ecrire(constats: Constat[], console: { log: (ligne: string) => void }):
   return manques === 0 ? 0 : 1;
 }
 
-async function montrer(): Promise<number> {
-  return ecrire(await verifier(env), console);
+async function montrer(env: Env, dire: Dire): Promise<number> {
+  return ecrire(await verifier(env), projetDe(env), { log: dire });
 }
 
 // Le verdict, pour un programme (`verdict.ts`) : jamais une erreur — une
 // vérification qui plante en est un. Le code reste celui du texte : 0 prêt, 1 sinon.
-async function juger(): Promise<number> {
+async function juger(env: Env, dire: Dire): Promise<number> {
   const verdict = await verdictDeVerification(
     () => verifier(env),
     (constats) => {
       let brut = "";
-      ecrire(constats, { log: (ligne) => void (brut += `${ligne}\n`) });
+      ecrire(constats, projetDe(env), { log: (ligne) => void (brut += `${ligne}\n`) });
       return brut;
     },
   );
-  console.log(JSON.stringify(verdict));
+  dire(JSON.stringify(verdict));
   return verdict.verdict === "pret" ? 0 : 1;
 }
 
-async function labelliser(): Promise<number> {
+async function labelliser(env: Env, dire: Dire): Promise<number> {
   const { depot } = configRail(env);
   const { crees, presents } = await poserLabels(env);
-  console.log(
+  dire(
     crees.length === 0
       ? `brigade : nothing to create on ${depot} — the ${pluriel(presents.length, "label")} of the rail are already there`
       : `brigade : ${pluriel(crees.length, "label")} created on ${depot}: ${crees.join(", ")}${presents.length === 0 ? "" : ` (${nombre(presents.length)} were already there)`}`,
@@ -100,30 +96,30 @@ async function labelliser(): Promise<number> {
   return 0;
 }
 
-async function mesurer(cooks: number): Promise<number> {
+async function mesurer(env: Env, { dire, redire }: Pick<Appel, "dire" | "redire">, cooks: number): Promise<number> {
   const station = configStation(env);
   const { dureeBailMs } = configRail(env);
   const mesure = await mesurerSetup(env);
   const sur = `\`${station.base}\` (${mesure.sha.slice(0, 7)})`;
   if (!mesure.pret) {
-    console.error(`brigade : setup failed on ${sur}, after ${duree(mesure.dureeMs)} — the station would launch no cook (86 \`setup-failed\`). What it said:`);
-    console.error(mesure.sortie.trim().split("\n").slice(-20).join("\n"));
+    redire(`brigade : setup failed on ${sur}, after ${duree(mesure.dureeMs)} — the station would launch no cook (86 \`setup-failed\`). What it said:`);
+    redire(mesure.sortie.trim().split("\n").slice(-20).join("\n"));
     return 1;
   }
   const machine = lireMachine(env.BRIGADE_STATE_DIR ?? ".");
   const tenue = tenir(mesure, { cooks, entrees: station.entreesMax, bailMs: dureeBailMs, disqueLibre: machine.disqueLibre, disqueMinOctets: station.seuils.disqueMinMo * MO });
-  const ligne = (titre: string, valeur: string) => console.log(`  ${titre.padEnd(12)}${valeur}`);
-  console.log(
+  const ligne = (titre: string, valeur: string) => dire(`  ${titre.padEnd(12)}${valeur}`);
+  dire(
     mesure.joue
       ? `brigade : setup played in ${duree(mesure.dureeMs)} on ${sur} — once, alone, as a dry run, machine load ${nombre(machine.charge, 1)} on ${nombre(machine.coeurs)} cores`
       : `brigade : the project has no setup on ${sur} — a fresh worktree starts as it is`,
   );
   ligne("worktree", `${taille(mesure.avantOctets)} when created, ${taille(mesure.apresOctets)} once the setup has run`);
   ligne("cap", `${duree(tenue.setup.plafondMs)}, half the lease — beyond it the station stops the setup: ${tient(tenue.setup.tient)}`);
-  console.log(`At ${pluriel(cooks, "cook")}, ${nombre(station.entreesMax)} entering at a time (BRIGADE_MAX_SETUPS)`);
+  dire(`At ${pluriel(cooks, "cook")}, ${nombre(station.entreesMax)} entering at a time (BRIGADE_MAX_SETUPS)`);
   ligne("intake", `${pluriel(tenue.entree.vagues, "wave")} of setups: the last cook starts ${duree(tenue.entree.dernierMs)} after the first, at best — later if the machine saturates`);
   ligne("disk", `${taille(tenue.disque.besoin)} for ${pluriel(cooks, "worktree")}, ${taille(tenue.disque.disponible)} available once the station's reserve is deducted: ${tient(tenue.disque.tient)}`);
-  console.log(
+  dire(
     tenue.tient
       ? `brigade : a fresh worktree per cook holds at ${pluriel(cooks, "cook")} on this machine`
       : `brigade : a fresh worktree per cook DOES NOT HOLD at ${pluriel(cooks, "cook")} on this machine — lower the cooks cap (\`${geste(`station cooks <N>`)}\`), lighten the setup, or share what it installs`,
@@ -131,19 +127,20 @@ async function mesurer(cooks: number): Promise<number> {
   return tenue.tient ? 0 : 1;
 }
 
-function retirer(confirme: boolean): number {
+function retirer(env: Env, dire: Dire, confirme: boolean): number {
+  const projet = projetDe(env);
   const bilan = desinstaller(env, { confirme });
   const etat = env.BRIGADE_STATE_DIR;
   const parts = [bilan.clone === null ? [] : [`the reserved clone ${bilan.clone}`], bilan.worktrees === 0 ? [] : [`${pluriel(bilan.worktrees, "cook worktree")}`]].flat();
   const quoi = parts.join(" and ");
   if (bilan.perdus.length > 0) {
-    console.log(`brigade : the clone carries what the origin does not have — \`--confirm\` will refuse as long as any remains:`);
-    for (const perdu of bilan.perdus) console.log(`  ${perdu}`);
+    dire(`brigade : the clone carries what the origin does not have — \`--confirm\` will refuse as long as any remains:`);
+    for (const perdu of bilan.perdus) dire(`  ${perdu}`);
   }
-  if (bilan.retire) console.log(`brigade : removed — ${quoi}${bilan.clone === null ? " (the reserved clone was already gone)" : ""}`);
-  else if (parts.length === 0) console.log("brigade : nothing to remove — neither a reserved clone nor a worktree");
-  else console.log(`brigade : nothing is removed — \`uninstall --confirm\` would remove ${quoi}`);
-  console.log(
+  if (bilan.retire) dire(`brigade : removed — ${quoi}${bilan.clone === null ? " (the reserved clone was already gone)" : ""}`);
+  else if (parts.length === 0) dire("brigade : nothing to remove — neither a reserved clone nor a worktree");
+  else dire(`brigade : nothing is removed — \`uninstall --confirm\` would remove ${quoi}`);
+  dire(
     [
       "",
       "Left to do by hand, under an account that has `sudo`:",
@@ -157,26 +154,38 @@ function retirer(confirme: boolean): number {
   return 0;
 }
 
-const [commande, ...reste] = enAnglais("installation", process.argv.slice(2), (ligne) => console.error(ligne));
-try {
-  if (commande === undefined) process.exitCode = await montrer();
-  else if (commande === "--json" && reste.length === 0) process.exitCode = await juger();
-  else if (commande === "labels" && reste.length === 0) process.exitCode = await labelliser();
-  // Sans nombre, la mesure se fait pour ce que le projet déclare : tous les
-  // cooks que ses stations peuvent faire tourner à la fois.
-  else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) {
-    process.exitCode = await mesurer(Number(reste[0] ?? Math.max(1, configStation(env).stations.reduce((somme, station) => somme + station.cooks, 0))));
+export async function principal(appel: Appel): Promise<void> {
+  const { env, dire, redire } = appel;
+  const echouer = (code: number, message: string): never => {
+    redire(`brigade : ${message}`);
+    throw new Sortie(code);
+  };
+  const [commande, ...reste] = enAnglais("installation", appel.args, redire);
+  const sous = { env, dire, redire, args: reste };
+  let code = 0;
+  try {
+    if (commande === undefined) code = await montrer(env, dire);
+    else if (commande === "--json" && reste.length === 0) code = await juger(env, dire);
+    else if (commande === "labels" && reste.length === 0) code = await labelliser(env, dire);
+    // Sans nombre, la mesure se fait pour ce que le projet déclare : tous les
+    // cooks que ses stations peuvent faire tourner à la fois.
+    else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) {
+      code = await mesurer(env, { dire, redire }, Number(reste[0] ?? Math.max(1, configStation(env).stations.reduce((somme, station) => somme + station.cooks, 0))));
+    }
+    else if (commande === "uninstall" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirm"))) code = retirer(env, dire, reste.length === 1);
+    else if (commande === "etapes") await etapes(sous);
+    else if (commande === "stations") declarerStations(sous);
+    else if (commande === "protection") await protegerBranche(sous);
+    else if (commande === "decisions") poserDecisions(sous);
+    else echouer(REFUS, USAGE);
+  } catch (erreur) {
+    // `etapes`, `stations`, `protection` et `decisions` ont dit elles-mêmes ce qui les arrête : reste leur code.
+    if (erreur instanceof Sortie) throw erreur;
+    else if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
+    else if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);
+    else echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
-  else if (commande === "uninstall" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirm"))) process.exitCode = retirer(reste.length === 1);
-  else if (commande === "etapes") await etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
-  else if (commande === "stations") declarerStations({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
-  else if (commande === "protection") await protegerBranche({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
-  else if (commande === "decisions") poserDecisions({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
-  else echouer(REFUS, USAGE);
-} catch (erreur) {
-  // `etapes`, `stations`, `protection` et `decisions` ont dit elles-mêmes ce qui les arrête : reste leur code.
-  if (erreur instanceof Sortie) process.exitCode = erreur.code;
-  else if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
-  else if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);
-  else echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
+  if (code !== 0) throw new Sortie(code);
 }
+
+if (import.meta.main) await enProcess(principal);
