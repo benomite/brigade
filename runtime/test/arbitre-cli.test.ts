@@ -127,7 +127,7 @@ describe("la commande de l'arbitre", { concurrency: 3 }, () => {
       { args: ["weight", "compta", "2"], env: { BRIGADE_ARBITER_STATE_DIR: vide } },
     );
     for (const refus of [poidsNul, nomIllisible, inconnue]) {
-      assert.equal(refus?.code, 2, refus?.sortie);
+      assert.equal(refus?.code, 2, refus?.sortie ?? "");
       assert.match(refus?.sortie ?? "", /usage: BRIGADE_ARBITER_PORT=/);
     }
     const reglages = ouvrirReglages(repertoire);
