@@ -30,6 +30,7 @@ import { echecsDesGates } from "../reparation.ts";
 import type { Runtime } from "../runtime.ts";
 import type { FaitRetenue } from "./evenements.ts";
 import { retenueEnCours } from "./lire.ts";
+import { relanceDeLaRetenue, type PorteDeLaRelance } from "./relance-base.ts";
 import { cleDeCause, detecterRetenue, diagnostiquer, direCause, SANS_SIGNAL, type Observation, type Retenue, type Signaux } from "./retenue.ts";
 import type { SuiviDuTour } from "./tour.ts";
 
@@ -126,6 +127,10 @@ export type OptionsRetenue = {
   // Le tour GitHub seul, quand le projet est servi ainsi : c'est lui qui est
   // observé, pas le rail du journal.
   tour?: SuiviDuTour | null;
+  // La porte entre le diagnostic et l'annonce : une base rouge relance ses jobs
+  // en échec avant d'alerter (relance-base.ts). Par défaut, celle du tour
+  // GitHub seul, s'il y en a un ; sans tour, aucune relance.
+  relance?: PorteDeLaRelance | null;
   maintenant?: () => Date;
   // Une ligne du journal de service.
   dire?: (ligne: string) => void;
@@ -152,6 +157,21 @@ export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<Option
 export function brancherRetenue<R extends Runtime>(runtime: R, options: OptionsRetenue = {}): R {
   const maintenant = options.maintenant ?? (() => new Date());
   const dire = options.dire ?? ((ligne: string) => console.error(`brigade : ${ligne}`));
+  const lancer = (): PorteDeLaRelance | null => {
+    const tour = options.tour;
+    if (options.relance !== undefined) return options.relance;
+    if (!tour) return null;
+    const client = () => {
+      const github = tour.client();
+      if (github === null) throw new Error("the GitHub turn is not open yet");
+      return github;
+    };
+    return relanceDeLaRetenue(
+      { checksDeLaBase: () => client().checksDeLaBase(), etatDuRun: (run) => client().etatDuRun(run), relancerLesEchecs: (run) => client().relancerLesEchecs(run) },
+      { avertir: dire, surFin: () => passer() },
+    );
+  };
+  const porte = lancer();
   const passer = () => {
     try {
       const instant = maintenant();
@@ -159,7 +179,9 @@ export function brancherRetenue<R extends Runtime>(runtime: R, options: OptionsR
       // Les signaux ne se lisent que pour une retenue : le compteur de la
       // station n'est pas ouvert à chaque fait écrit au journal.
       const candidate = detecterRetenue(observation, SANS_SIGNAL, instant);
-      const retenue = candidate === null ? null : { ...candidate, ...diagnostiquer(signaux()) };
+      const diagnostiquee = candidate === null ? null : { ...candidate, ...diagnostiquer(signaux()) };
+      // Une base rouge se relance d'abord : rien ne s'annonce avant le verdict.
+      const retenue = porte === null ? diagnostiquee : porte.filtrer(diagnostiquee);
       const transition = annoncerRetenue(runtime.journal, runtime.projet, retenue, observation);
       if (transition === null) return;
       dire(
