@@ -1,10 +1,13 @@
 // Un passage de la mise à jour, sur une machine tenue en mémoire : ce qu'elle
-// installe, ce qu'elle garde, ce qui la retient, et ce qu'elle dit. La machine
-// d'essai complète — vrais paquets, vrai postinst — est dans machine.test.ts.
+// installe, ce qu'elle garde, ce qui la retient, et ce qu'elle dit. Le vrai
+// paquet — son postinst, ses unités relues puis relancées — est dans
+// paquet/paquet.test.ts ; un cook qui survit à la station remplacée, dans
+// station/main.test.ts.
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { decrireEtatMiseAJour } from "../../src/mise-a-jour/dire.ts";
 import { annoncerEnService } from "../../src/mise-a-jour/en-service.ts";
 import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mise-a-jour/etat.ts";
 import { passer } from "../../src/mise-a-jour/mettre-a-jour.ts";
@@ -116,6 +119,10 @@ test("gelée, une version plus récente n'est pas installée, et l'état le dit 
   const { etat } = await passage(m, publiees(["1.0.0", "1.1.0"]));
   assert.deepEqual(m.installations, []);
   assert.deepEqual([etat.gelee, etat.disponible, etat.retenue], [true, "1.1.0", "version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé"]);
+  // Ce que montre la commande `etat` du paquet (`mise-a-jour/main.ts etat`), sur l'état écrit.
+  const lignes = decrireEtatMiseAJour(lireEtatMiseAJour(m.dossier));
+  assert.deepEqual(lignes.slice(0, 3), ["installée   1.0.0", "publiée     1.1.0", "gel         oui — aucune nouvelle version n'est installée"]);
+  assert.ok(lignes.includes("retenue     version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé"), lignes.join("\n"));
   m.reglages("gel=non\n");
   assert.equal((await passage(m, publiees(["1.0.0", "1.1.0"]))).issue?.quoi, "passee");
   assert.deepEqual(m.installations, ["1.1.0"]);
