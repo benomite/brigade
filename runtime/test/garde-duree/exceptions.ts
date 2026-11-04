@@ -8,7 +8,6 @@ import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
   { file: "test-hang-guard/garde.test.ts", test: "a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass" },
-  { file: "test/0-en-premier/recette.test.ts", test: "ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration" },
   { file: "test/appairage/canal.test.ts", test: "la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box" },
@@ -1142,7 +1141,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/deploy/installer-station-windows.test.ts", test: "une station tombée est relancée cinq secondes plus tard" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
-  { file: "test/0-en-premier/recette.test.ts", garde: "timeout: 300_000" },
   { file: "test/aides/cuisine.ts", garde: "delaiGatesMs: 60_000" },
   { file: "test/bac-a-sable/configuration.test.ts", garde: "timeout: 90_000" },
   { file: "test/cloison.test.ts", garde: "delaiMs: 60_000" },

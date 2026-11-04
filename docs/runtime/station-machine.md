@@ -437,9 +437,12 @@ base, which lets only its repair leave, remote stations included. The log says i
 rail attend #<n> (préparer le dépôt) — aucun autre ticket ne part avant son merge`); once served, `le
 rail démarre`. Closed by the chef or gone, it also
 frees the rail; with its `fire` label removed, it still holds it. A project written by hand, or added
-before this ticket, has none: its rail is the usual one. The acceptance test
-(`runtime/test/0-en-premier/recette.test.ts`) bounds the flow's opening to the project's publication at
-ten minutes.
+before this ticket, has none: its rail is the usual one. Each step is tested on its own, without the
+station's real cadence (#2130): the project taken in hand, cloned and served at the next read
+(`runtime/test/projets/tenir.test.ts`, `runtime/test/projets-station/servir.test.ts`), by the real station
+too (`runtime/test/projets-station/station.test.ts`); the rail held for its preparation ticket
+(`runtime/test/preparation-depot/`); the wait for the chef's choice on a machine without a sandbox
+(`runtime/test/onboarding/attente.test.ts`).
 
 ### The onboarding: where a new project stands
 
