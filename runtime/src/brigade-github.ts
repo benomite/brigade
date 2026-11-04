@@ -23,6 +23,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
+import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
@@ -456,11 +457,24 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
-  const env = () => environnementClaude(environnementCook(options.env), options.env);
+  // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
+  // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
+  // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
+  const env = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
   const github = clientDuTour(options.github, base);
 
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
+    // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
+    // identifiant, et `gh issue view` lui serait refusé.
+    let joint: string;
+    try {
+      const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+      if (lue === null) throw new Error("the issue no longer exists");
+      joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
+    } catch (erreur) {
+      return { echec: `its ticket could not be read on GitHub: ${message(erreur)}` };
+    }
     let lieu: { worktree: string; branche: string };
     // Le run d'un ticket est toujours le même : la branche d'un cook précédent
     // (livrée, ou refusée par la pass) est encore là, et `preparer` ne sait pas
@@ -474,7 +488,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const { worktree, branche } = lieu;
     const flux = join(options.flux, `${run}.flux.jsonl`);
-    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base });
+    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const fin = await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(flux), fin.code);
