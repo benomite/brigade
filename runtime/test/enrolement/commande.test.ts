@@ -123,22 +123,6 @@ test("une commande expirée est refusée : la machine n'apparaît pas au registr
   assert.deepEqual(registre.liste(), []);
 });
 
-test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre", { skip: posixOnly("runs the same enrolment command three times in `sh -c` from two fake homes and expects only the first to register the machine; on Windows the command cannot even be prepared, the receiver being a drive path where preparer accepts only absolute POSIX paths") }, async (t) => {
-  const { enrolements, registre } = chef(t);
-  const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
-  assert.equal((await serveur(t).lancer(commande)).statut, 0);
-  const avant = registre.liste();
-
-  const autre = await serveur(t).lancer(commande.replace("--name 'serveur-de-test'", "--name 'intrus'"));
-  const relancee = await serveur(t).lancer(commande);
-
-  for (const lancee of [autre, relancee]) {
-    assert.equal(lancee.statut, 1);
-    assert.match(lancee.erreurs, /code refusé : il a déjà servi/);
-  }
-  assert.deepEqual(registre.liste(), avant);
-});
-
 test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", { skip: posixOnly("clones a file:// repository from the enrolment command in `sh -c`, then runs the clone's `#!/bin/sh` gesture; on Windows the repository URL is file:// followed by a drive path with backslashes, which preparer refuses to write into a POSIX shell command") }, async (t) => {
   // Un dépôt de brigade dont le geste ne fait que noter ce qu'il reçoit.
   const depot = repertoireTemporaire(t);

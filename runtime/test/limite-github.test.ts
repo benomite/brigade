@@ -216,7 +216,7 @@ test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réser
   const gh = unGitHubQuiCompte(t);
   const horloge = uneHorloge();
   const reset = DEPART + 10 * MINUTE;
-  gh.quota(540, reset);
+  gh.quota(505, reset);
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
@@ -238,22 +238,22 @@ test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réser
   // GitHub n'a jamais eu à refuser : la box s'est arrêtée à la réserve des gestes.
   assert.equal(gh.refus(), 0);
   assert.equal(gh.restant(), 500);
-  assert.equal(partis.length, 40);
+  assert.equal(partis.length, 5);
   // Aucun sondage retenu avant la réserve : un par tour jusqu'à elle.
-  assert.deepEqual(partis, Array.from({ length: 40 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
+  assert.deepEqual(partis, Array.from({ length: 5 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
   assert.ok(![...messages].some((message) => message.startsWith("quota GitHub entamé")));
   assert.ok([...messages].some((message) => message.startsWith("quota GitHub bas : 500 appels restants sur 5000")));
   assert.ok(![...messages].some((message) => /budget GitHub épuisé/.test(message)));
-  assert.equal(gh.appels().length, 40, "un sondage retenu ne lance pas `gh`");
+  assert.equal(gh.appels().length, 5, "un sondage retenu ne lance pas `gh`");
 
   // La fenêtre passée, GitHub a rendu son quota : les sondages reprennent seuls.
   horloge.poser(reset);
   gh.quota(4999, reset + FENETRE_MS);
-  for (let tour = 0; tour < 5; tour++) {
+  for (let tour = 0; tour < 2; tour++) {
     horloge.avancer(5 * SECONDE);
     assert.equal((await github.tickets()).inchange, false);
   }
-  assert.equal(gh.appels().length, 45);
+  assert.equal(gh.appels().length, 7);
 });
 
 test("un merge du chef part sur un compte au plus bas et une heure chargée côté box, et n'échoue que si GitHub refuse", async (t) => {

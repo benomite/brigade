@@ -48,7 +48,7 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   assert.ok(Math.abs(Date.parse(lus.limiteGithub) - (avant + 1_200_000)) < 5_000);
 
   // Les appels reprennent : la pause tombe, la ligne aussi.
-  const base = new Base(join(station, REPERTOIRE_COMPTEUR, "compteur.db"), { attenteMs: 5000 });
+  const base = new Base(join(station, REPERTOIRE_COMPTEUR, "compteur.db"), { attenteMs: 2_000 });
   base.executer("DELETE FROM pause");
   base.fermer();
   assert.equal(pauseDeLaStation(station, Date.now()), null);

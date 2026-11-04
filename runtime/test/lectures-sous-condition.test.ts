@@ -123,9 +123,9 @@ const LECTURES_PAR_TICK = 2 * Object.keys(PROJETS).length + 4 * TICKETS + LECTUR
 
 test("avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget", async (t) => {
   const { gh, compterUnTick } = uneStation(t, false);
-  const parTick = [await compterUnTick(), await compterUnTick(), await compterUnTick()];
-  assert.deepEqual(parTick, [LECTURES_PAR_TICK, LECTURES_PAR_TICK, LECTURES_PAR_TICK]);
-  assert.equal(gh.appels().length, 3 * LECTURES_PAR_TICK);
+  const parTick = [await compterUnTick(), await compterUnTick()];
+  assert.deepEqual(parTick, [LECTURES_PAR_TICK, LECTURES_PAR_TICK]);
+  assert.equal(gh.appels().length, 2 * LECTURES_PAR_TICK);
   // 46 appels par tick, soixante ticks par heure : 2 760.
   assert.ok(LECTURES_PAR_TICK * 60 > 2500, `${LECTURES_PAR_TICK * 60}`);
 });

@@ -119,7 +119,7 @@ test(
         dire: (ligne) => lignes.push(ligne),
         maintenant: instant,
         pasMs: 5,
-        attenteMs: 60_000,
+        attenteMs: 2_000,
         entreDeuxReclamationsMs: 10,
         cook: {
           preparer: async (_mission: Mission, worktree: string) => void mkdirSync(worktree, { recursive: true }),
