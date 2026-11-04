@@ -47,16 +47,20 @@ describe("le tour des gates sur une box", () => {
     const premier = jouer(t, a, verrou);
     await jusqua(() => existsSync(signalA));
     const second = jouer(t, b, verrou);
-    // Le second a eu tout le temps de partir : son verrou est tenu par le premier.
-    await jusqua(() => existsSync(join(verrou, "pid")));
-    await new Promise((r) => setTimeout(r, 1500));
+    // Le second en est au tour : la fraîcheur du miroir est la dernière étape dite avant lui, et son
+    // premier essai du verrou la suit sans attendre. Tenu par le premier, il échoue ; il est retenté
+    // toutes les 0,5 s.
+    await jusqua(() => existsSync(join(verrou, "pid")) && /fraîcheur du miroir/.test(second.sortie()));
+    await new Promise((r) => setTimeout(r, 200));
     assert.equal(existsSync(signalB), false, "les tests du second tournent pendant ceux du premier");
 
     writeFileSync(libere, "");
     await Promise.all([premier.fin, second.fin]);
     assert.equal(existsSync(signalB), true);
-    assert.match(second.sortie(), /ok {4}tour des tests : ([1-9][0-9]*) s à attendre son tour, [0-9]+ s d'exécution/);
-    assert.match(premier.sortie(), /ok {4}tour des tests : 0 s à attendre son tour/);
+    // Les gates comptent en secondes entières, d'une seconde de l'horloge à l'autre : une attente
+    // d'un instant se dit 0 ou 1 s. Chacun dit la sienne.
+    assert.match(second.sortie(), /ok {4}tour des tests : [0-9]+ s à attendre son tour, [0-9]+ s d'exécution/);
+    assert.match(premier.sortie(), /ok {4}tour des tests : [0-9]+ s à attendre son tour, [0-9]+ s d'exécution/);
     assert.equal(existsSync(verrou), false, "le verrou n'est pas rendu");
   });
 

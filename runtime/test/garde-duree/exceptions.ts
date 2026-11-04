@@ -7,16 +7,11 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test/duree-des-gates.test.ts", test: "le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage" },
-  { file: "test/duree-des-gates.test.ts", test: "les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond" },
-  { file: "test/garde-des-gates.test.ts", test: "un test en échec avant la coupure garde la ligne d'un rouge" },
-  { file: "test/garde-des-gates.test.ts", test: "une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué" },
   { file: "test/paquet/paquet.test.ts", test: "le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non" },
   { file: "test/sauvegarde.test.ts", test: "restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi" },
   { file: "test/station.test.ts", test: "un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté" },
   { file: "test/telephone/gestes.test.ts", test: "après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine" },
   { file: "test/telephones.test.ts", test: "le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station" },
-  { file: "test/verrou-des-gates.test.ts", test: "le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui" },
