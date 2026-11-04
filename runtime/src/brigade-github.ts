@@ -691,6 +691,9 @@ export type OptionsDuDepot = {
   // cooks et des relectures.
   gardes?: GardesDuTour;
   avertir?: (message: string) => void;
+  // Ce qui regarde le tour par son client GitHub, sans rien y changer : la
+  // retenue de la cuisine (`retenue/tour.ts`).
+  observer?: (github: GitHubDuTour) => GitHubDuTour;
 };
 
 const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileSync(fichier, "utf8") : "");
@@ -709,7 +712,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
   const env = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
-  const github = clientDuTour(options.github, base, options.graphql === false ? undefined : depotGitHub);
+  const github = (options.observer ?? ((client: GitHubDuTour) => client))(
+    clientDuTour(options.github, base, options.graphql === false ? undefined : depotGitHub),
+  );
 
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);

@@ -58,6 +58,7 @@ test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un 
       disjoncteur: "chef-gesture",
       pause: "chef-gesture",
       renommage: "chef-gesture",
+      retenue: "chef-gesture",
     },
   );
   for (const [quoi, { pourquoi }] of Object.entries(QUI_ATTEND)) assert.ok(pourquoi.length > 20, `${quoi} : dire pourquoi c'est au chef`);

@@ -75,12 +75,27 @@ disagreements —, Z still open`. A PR closed without merge is a disagreement. W
 
 A rail with only WAITING cards is empty for the kitchen, and that is normal (`rail       empty — 2 WAITING, normal: nothing on it for a cook`, no `fault` line). Cards a cook could take, with no cook running for 30 min, are a fault.
 
+**A held kitchen enters the block, once** (#2281, `runtime/src/retenue/`). When **nothing has been served for 30 minutes**
+(`RETENUE_APRES_MS`) while tickets wait for the kitchen — claimable, or in pass; not those that wait for you, a third
+party or another ticket —, the runtime writes `kitchen.held` to the log and the block gets one entry:
+`  kitchen  for 42 min  HELD: nothing served while 2 tickets wait (#12, #13) — cause: … — to lift: …`. The 30 minutes
+count from the latest of: the last service, the kitchen's opening (runtime start, project switched back on), and the
+moment the waiting tickets started to wait. The cause is the first that holds of: the breaker (`to lift:` its `Resume`
+button), the GitHub limit or the box's reserve for your gestures, the GitHub write budget (both say `nothing to do: it
+lifts on its own around HH:MM`), the red base with its failing checks named (`to lift: fix the base by hand…`), or
+`cause unknown`, with no gesture. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
+its start. When the kitchen serves again — or nothing waits any more, or you stop the kitchen —, `kitchen.hold-lifted`
+is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
+GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The
+GitHub limit and the write budget are read from the station's call counter (`BRIGADE_STATION_DIR`), not on the dev
+workstation. The station's service log says each transition (`kitchen held — …`, `kitchen no longer held (served)`).
+
 The block starts at the **only line that starts with `awaiting`** and ends at the **only
 line exactly `end awaiting`**, bounds included; between them everything is
 indented — an entry is two spaces in. Whoever presents it separately — the app, the second (`/brigade:po`) — takes it by these two lines. **The app reads one thing besides**, to sort its rail: the
 ticket number **at the head** of an entry — two spaces, `#`, digits, two spaces (`  #12  for 2 d  …`). This
 head does not change without the app changing (`docs/app.md`, "The rail"); an entry
-that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside` or `breaker`, and the tally of stops for lack of a grant, has none. Under `--follow`, later events
+that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside`, `breaker` or `kitchen`, and the tally of stops for lack of a grant, has none. Under `--follow`, later events
 are not part of the block.
 
 **The block is in English** (words of `docs/glossary.md`, §2 and §4); what is between backticks keeps its name. A box from before still writes `attend` … `fin attend` in French: the app and the second read both.
