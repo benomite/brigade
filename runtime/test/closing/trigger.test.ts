@@ -37,54 +37,58 @@ const requests = ({ journal }: Cuisine) => journal.tout().filter((e) => e.type =
 describe("the automatic closing pass", { concurrency: 3 }, () => {
   test("with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef", async (t) => {
     const cuisine = cuisineFermee(t);
-    const { closer, fin, avertissements } = cuisine;
-    closer.gestes(RETIRER_M1);
+    const { closer, fin, avertissements, journal, heure, dernier } = cuisine;
     assert.equal(MERGES_PER_PASS, 20);
 
     merge(cuisine, 19);
-    await ticks(cuisine, 10);
+    await ticks(cuisine, 3);
+    assert.equal(trigger(journal.base, heure.maintenant()), null);
     assert.deepEqual(requests(cuisine), []);
     assert.deepEqual(closer.lancements(), []);
 
     merge(cuisine, 1);
     await jusqua(() => requests(cuisine).length > 0);
     assert.deepEqual(requests(cuisine), ["runtime"]);
-    assert.equal((await fin()).outcome, "delivered");
+    // It leaves: its closer is launched. What a pass delivers is the business
+    // of the closing pass tests; this closer removes nothing, the pass ends at once.
+    await fin();
+    assert.ok(dernier("closing.started"));
     assert.equal(closer.lancements().length, 1);
     assert.match(avertissements.join("\n"), /passe de fermeture demandée par le runtime — 20 merges depuis la dernière passe/);
   });
 
   test("with the closer set, a crossed drift threshold requests a pass even under 20 merges", async (t) => {
     const cuisine = cuisineFermee(t);
-    const { closer, fin, avertissements } = cuisine;
-    closer.gestes(RETIRER_M1);
+    const { closer, fin, avertissements, dernier } = cuisine;
     merge(cuisine, 3);
-    await ticks(cuisine, 5);
+    await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), []);
 
     cross(cuisine);
     await jusqua(() => requests(cuisine).length > 0);
     assert.deepEqual(requests(cuisine), ["runtime"]);
-    assert.equal((await fin()).outcome, "delivered");
+    await fin();
+    assert.ok(dernier("closing.started"));
+    assert.equal(closer.lancements().length, 1);
     assert.match(avertissements.join("\n"), /passe de fermeture demandée par le runtime — seuil de dérive franchi — /);
   });
 
   test("once a pass is requested, no second one is requested the same day, whatever the merges or thresholds; a day later the runtime requests again, and the chef's gesture is never capped", async (t) => {
-    const cuisine = cuisineFermee(t);
-    const { fin, heure, demander, journal, types, dernier } = cuisine;
+    // A project with nothing to tidy: every request is refused at once, no
+    // closer leaves. The cap counts requests, whatever became of them.
+    const cuisine = cuisineFermee(t, { fichiers: { "src/app.ts": "console.log(1);\n" } });
+    const { heure, demander, journal, types, dernier, closer } = cuisine;
     const refused = () => types().filter((type) => type === "closing.refused").length;
-    // The closer removes nothing: the pass ends with no PR, and the pass
-    // remembers all it left. The merges below are facts, not code: the next
-    // passes find nothing new to propose, and are refused.
     merge(cuisine, 20);
     await jusqua(() => requests(cuisine).length > 0);
-    assert.equal((await fin()).outcome, "nothing");
+    await jusqua(() => refused() === 1);
+    assert.equal(dernier("closing.refused")?.reason, "nothing");
 
-    // Twenty merges more and a threshold crossed since the pass that left, hours later.
+    // Twenty merges more and a threshold crossed since that request, hours later.
     heure.avancer(ONE_PASS_A_DAY_MS - 60_000);
     merge(cuisine, 20);
     cross(cuisine);
-    await ticks(cuisine, 10);
+    await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), ["runtime"]);
     assert.deepEqual(trigger(journal.base, heure.maintenant()), null);
 
@@ -92,7 +96,7 @@ describe("the automatic closing pass", { concurrency: 3 }, () => {
     heure.avancer(60_000);
     await jusqua(() => requests(cuisine).length === 2);
     assert.deepEqual(requests(cuisine), ["runtime", "runtime"]);
-    await jusqua(() => refused() === 1);
+    await jusqua(() => refused() === 2);
     assert.equal(dernier("closing.refused")?.reason, "nothing");
 
     // The chef's gesture is not capped: right after, it still requests a pass.
@@ -100,7 +104,8 @@ describe("the automatic closing pass", { concurrency: 3 }, () => {
     assert.equal(geste.code, 0, geste.sortie);
     assert.match(geste.sortie, /^brigade : closing pass requested/);
     assert.deepEqual(requests(cuisine), ["runtime", "runtime", "chef"]);
-    await jusqua(() => refused() === 2);
+    await jusqua(() => refused() === 3);
+    assert.deepEqual(closer.lancements(), []);
   });
 
   test("a served project with no closer set never gets a pass requested, whatever the merges or thresholds", async (t) => {

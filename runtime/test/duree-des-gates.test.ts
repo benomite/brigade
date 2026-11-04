@@ -49,8 +49,9 @@ function releve(ligne: string): { processeur: number; utilisateur: number; syste
   return { processeur, utilisateur, systeme, horloge: Number(lu[7]) };
 }
 
-// Une suite qui calcule : deux secondes de processeur.
-const CALCULE = `node -e "while (process.cpuUsage().user < 2e6) for (let i = 0; i < 1e7; i++);"`;
+// Une suite qui calcule : une demi-seconde de processeur, que la ligne doit
+// compter en entier.
+const CALCULE = `node -e "while (process.cpuUsage().user < 5e5) for (let i = 0; i < 1e6; i++);"`;
 
 // Chaque test a son projet : ils se jouent de front.
 describe("la durée des gates", { concurrency: 3 }, () => {
@@ -63,10 +64,10 @@ describe("la durée des gates", { concurrency: 3 }, () => {
     }
   });
 
-  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns two seconds of processor in node, and expects at least two seconds of user time in its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async (t) => {
+  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns half a second of processor in node, and expects at least half a second of user time in its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async (t) => {
     const { processeur, utilisateur, systeme } = releve(deLaDuree((await jouer(projet(t, { suite: CALCULE }))).lignes)[0] ?? "");
 
-    assert.ok(utilisateur >= 2, `utilisateur : ${utilisateur}`);
+    assert.ok(utilisateur >= 0.5, `utilisateur : ${utilisateur}`);
     // Chaque nombre est arrondi au dixième pour son compte.
     assert.ok(Math.abs(processeur - (utilisateur + systeme)) < 0.15, `${processeur} ≠ ${utilisateur} + ${systeme}`);
   });

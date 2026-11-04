@@ -2,8 +2,8 @@
 // des projets d'essai qui partagent un verrou — comme deux worktrees d'une box.
 // Seule l'étape des tests est regardée ; les autres y sont rouges, sans dépôt.
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -21,8 +21,8 @@ function projet(t: TestContext, suite: string): string {
 
 type Passage = { process: ChildProcess; sortie: () => string; fin: Promise<number | null> };
 
-function jouer(t: TestContext, racine: string, verrou: string): Passage {
-  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou }, stdio: ["ignore", "pipe", "pipe"] });
+function jouer(t: TestContext, racine: string, verrou: string, env: NodeJS.ProcessEnv = {}): Passage {
+  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   let sortie = "";
   gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
@@ -35,6 +35,17 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
 // qu'elle l'a vu (`<libere>.vu`) avant de finir.
 const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done; touch ${libere}.vu`;
 
+// Un `sleep` d'essai, mis devant le vrai dans le PATH d'un passage : il pose
+// `<repertoire>/attend` à son premier appel — le passage est dans la boucle
+// de son tour, son attente déjà comptée —, et ramène la demi-seconde de cette
+// boucle à 50 ms. Les autres délais vont au vrai `sleep`.
+function sleepQuiSignale(repertoire: string): string {
+  const vrai = execFileSync("bash", ["-c", "command -v sleep"], { encoding: "utf8" }).trim();
+  writeFileSync(join(repertoire, "sleep"), `#!/bin/sh\n: >"${join(repertoire, "attend")}"\n[ "$1" = 0.5 ] && set -- 0.05\nexec "${vrai}" "$@"\n`);
+  chmodSync(join(repertoire, "sleep"), 0o755);
+  return join(repertoire, "attend");
+}
+
 describe("le tour des gates sur une box", () => {
   test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", { skip: posixOnly("plays the real gates.sh twice on projects sharing one turn lock and expects the second suite to wait for the first, then say how long it waited; on Windows npm runs each project's `test` script through cmd.exe, which cannot run the test's `touch`/`while` shell loop, so the first suite never signals its start") }, async (t) => {
     const verrou = join(repertoireTemporaire(t), "verrou");
@@ -44,12 +55,19 @@ describe("le tour des gates sur une box", () => {
     const a = projet(t, suiteRetenue(signalA, libere));
     const b = projet(t, `touch ${signalB}`);
 
+    const outils = repertoireTemporaire(t);
+    const attend = sleepQuiSignale(outils);
+
     const premier = jouer(t, a, verrou);
-    await jusqua(() => existsSync(signalA));
-    const second = jouer(t, b, verrou);
-    // Le second a eu tout le temps de partir : son verrou est tenu par le premier.
+    // Le premier tient le tour : le second part.
     await jusqua(() => existsSync(join(verrou, "pid")));
-    await new Promise((r) => setTimeout(r, 1500));
+    const second = jouer(t, b, verrou, { PATH: `${outils}:${ENV_ENFANT.PATH ?? process.env.PATH ?? ""}` });
+    // Le second est dans la boucle de son tour, que le premier tient.
+    await jusqua(() => existsSync(attend));
+    // Son attente se compte en secondes entières de l'horloge : le premier ne
+    // rend son tour qu'une fois la seconde changée.
+    const seconde = Math.floor(Date.now() / 1000);
+    await jusqua(() => Math.floor(Date.now() / 1000) > seconde);
     assert.equal(existsSync(signalB), false, "les tests du second tournent pendant ceux du premier");
 
     writeFileSync(libere, "");

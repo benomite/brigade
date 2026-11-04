@@ -207,10 +207,10 @@ describe("la mémoire, en cuisine", { concurrency: 3 }, () => {
     const { demander, fin, closer, runtime, dernier } = cuisineFermee(t);
     const tous = [...DU_PROJET.values()];
     retenir(runtime.journal.base, "autre", { run: "fermeture-autre", at: "2026-10-08T09:00:00.000Z", proposes: tous, laisses: tous.map(({ id, quoi }) => ({ id, what: quoi, reason: "pas sûr", before: false })) });
-    closer.gestes(RETIRER_M1);
 
+    // Le closer ne retire rien : ce qui compte est ce qui lui a été proposé.
     assert.equal((await demander()).code, 0);
-    assert.equal((await fin()).outcome, "delivered");
+    assert.equal((await fin()).outcome, "nothing");
     assert.equal(dernier("closing.started")?.candidates, 3);
     assert.match(closer.consigne(), /- D1 —[\s\S]*- M1 —[\s\S]*- M2 —/);
     assert.equal(memoire(runtime.journal.base, "autre").length, 3);

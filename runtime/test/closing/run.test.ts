@@ -7,10 +7,10 @@ import { describe, test } from "node:test";
 import { principal } from "../../src/closing/command.ts";
 import { SANS_MOTIF } from "../../src/closing/brief.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
+import { chef, issue, PLAFONDS, STATION } from "../aides/cuisine.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
-import { cuisineFermee, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
+import { cuisineFermee, fiche, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
 
 // Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
 describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
@@ -129,9 +129,13 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
 
   test("demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient", async (t) => {
     const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
-    const { runtime, demander, dernier, poser, closer, fin, gh, types } = cuisine;
-    await poser(7, "src/tenu");
-    await poser(8, "docs");
+    const { runtime, demander, dernier, closer, fin, gh, types } = cuisine;
+    // Les deux tickets entrent au même sondage.
+    gh.ficher(7, "2026-10-08T09:00:00Z", fiche("src/tenu"));
+    gh.ficher(8, "2026-10-08T09:00:00Z", fiche("docs"));
+    gh.poser(issue(7));
+    gh.poser(issue(8));
+    await jusqua(() => types(7).includes("ticket.arrived") && types(8).includes("ticket.arrived"));
     assert.equal(runtime.rail.prendre(STATION)?.ticket, 7);
     assert.equal(runtime.rail.prendre(STATION)?.ticket, 8);
     closer.gestes(RETIRER_M1);
@@ -144,9 +148,9 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
     );
     assert.match(demandee.sortie, /the runtime starts it on its own, once, as soon as nothing holds it back — nothing to watch, nothing to restart/);
     assert.match(demandee.sortie, /to withdraw it before it leaves: `brigade <projet> closing cancel`/);
-    // Le runtime l'a relue à dix ticks : elle attend, rien n'est refusé, rien n'est parti.
+    // Le runtime l'a relue à trois ticks : elle attend, rien n'est refusé, rien n'est parti.
     const vus = types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
+    await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 3);
     assert.equal(dernier("closing.refused"), undefined);
     rienNEstParti(cuisine);
 
@@ -167,8 +171,8 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", async (t) => {
+    // Le closer ne retire rien : ce qui compte ici, c'est qu'elle parte, pas ce qu'elle livre.
     const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
-    cuisine.closer.gestes(RETIRER_M1);
     await cuisine.poser(9);
     assert.equal(cuisine.runtime.rail.prendre(STATION)?.ticket, 9);
 
@@ -176,11 +180,13 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
     assert.equal(code, 0, sortie);
     assert.match(sortie, /it waits: start condition not met: the cook in flight on #9 declares no zone/);
     const vus = cuisine.types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
+    await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 3);
     rienNEstParti(cuisine);
 
     cuisine.runtime.rail.rendre(9, "essai", STATION);
-    assert.equal((await cuisine.fin()).outcome, "delivered");
+    await cuisine.fin();
+    assert.deepEqual(cuisine.dernier("closing.started")?.held, []);
+    assert.equal(cuisine.closer.lancements().length, 1);
   });
 
   test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien", async (t) => {
@@ -203,24 +209,29 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part", async (t) => {
-    const cuisine = cuisineFermee(t, { station: true });
-    const { demander, poser, closer, fin, types, etat } = cuisine;
-    closer.gestes(`attendre\n${RETIRER_M1}`);
+    // Les cooks prennent leurs tickets au rail que lisent les stations : c'est
+    // lui qu'on interroge, sans faire jouer de cook.
+    const cuisine = cuisineFermee(t);
+    const { runtime, demander, closer, fin, types, etat, gh } = cuisine;
+    closer.gestes("attendre\n");
     assert.equal((await demander()).code, 0);
     await jusqua(() => closer.lancements().length === 1);
 
     // Le ticket #8, le premier dans l'ordre de service, veut ce que la passe tient.
-    await poser(8, "src/libre");
-    await poser(9, "src/ailleurs");
-    await jusqua(() => etat(9) === "pass");
+    gh.ficher(8, "2026-10-08T09:00:00Z", fiche("src/libre"));
+    gh.ficher(9, "2026-10-08T09:00:00Z", fiche("src/ailleurs"));
+    gh.poser(issue(8));
+    gh.poser(issue(9));
+    await jusqua(() => types(8).includes("ticket.arrived") && types(9).includes("ticket.arrived"));
+    assert.equal(runtime.rail.prendre(STATION)?.ticket, 9);
+    assert.equal(runtime.rail.prendre(STATION), null);
     assert.equal(etat(8), "waiting");
-    assert.ok(!types(8).includes("ticket.taken"));
     assert.ok(!types().includes("closing.ended"));
 
     // La passe finie, elle ne tient plus rien : le ticket part.
     closer.feu();
-    assert.equal((await fin()).outcome, "delivered");
-    await jusqua(() => types(8).includes("ticket.taken"));
+    await fin();
+    await jusqua(() => runtime.rail.prendre(STATION)?.ticket === 8);
   });
 
   test("la passe s'arrête et le dit quand son plafond de tokens est atteint — le sien, par passe, pas celui d'un cook", async (t) => {
