@@ -215,15 +215,16 @@ describe("le chef pose ses décisions par la station", () => {
     assert.equal(existsSync(cheminJournal(autre)), false);
   });
 
-  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", { skip: posixOnly("sets every decision through `npm run station` in a process of its own while a kitchen's fake-claude cook is in flight, and expects the cook untouched and the runtime not restarted; on Windows that process cannot take the journal's write lock while the kitchen holds the journal, so SQLite reports the database locked and the command fails") }, async (t) => {
+  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", { skip: posixOnly("sets every decision through `npm run station`, the first in a process of its own, while a kitchen's fake-claude cook is in flight, and expects the cook untouched and the runtime not restarted; on Windows that process cannot take the journal's write lock while the kitchen holds the journal, so SQLite reports the database locked and the command fails") }, async (t) => {
     const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
-    // Comme `npm run station` la lance : un autre process, une autre connexion au journal.
+    // La première comme `npm run station` la lance : un autre process, une autre connexion au journal. Les suivantes
+    // par la même commande, jouée dans le process du test : chacune y ouvre sa propre connexion au journal.
     // Sa station reste, à deux cooks au plus.
     const valeurs = { ...Object.fromEntries(GESTES.map(([geste, , , seconde]) => [geste, seconde])), stations: `${STATION}:2:code` };
-    for (const [geste, valeur] of Object.entries(valeurs)) {
-      const pose = lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
+    for (const [rang, [geste, valeur]] of Object.entries(valeurs).entries()) {
+      const pose = rang === 0 ? lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire }) : appeler(montrerStation, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
       assert.equal(await pose.fin, 0, pose.sortie());
       assert.match(pose.sortie(), /no running cook is stopped\n(source: box\n)?$/);
     }

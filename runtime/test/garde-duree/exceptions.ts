@@ -58,7 +58,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/reseau.test.ts", test: "le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien" },
   { file: "test/sauvegarde.test.ts", test: "restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi" },
   { file: "test/sorties-du-chef-en-anglais.test.ts", test: "`arbiter` : l'état, weight, remove et les refus ne portent aucun mot français du glossaire" },
-  { file: "test/station-decisions.test.ts", test: "en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré" },
   { file: "test/station.test.ts", test: "un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté" },
   { file: "test/station/main.test.ts", test: "deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service" },
   { file: "test/station/main.test.ts", test: "la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie" },
