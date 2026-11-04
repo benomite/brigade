@@ -8,7 +8,7 @@
 // projets remis à la station — journal, décisions et clone intacts —, les
 // anciennes unités arrêtées avant, l'ancien chemin retiré, et l'arrêt de la
 // cuisine mesuré jusqu'à ce que la station serve. Un cook en vol que la vie
-// suivante reprend sans le relancer : main.test.ts et station/main.test.ts.
+// suivante reprend sans le relancer : reprise.test.ts, sur le runtime du test.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

@@ -7,8 +7,8 @@
 //
 // Ce que le paquet joue à chaque version installée — l'unité changée relue
 // avant de relancer la station, seule la station relancée — est dans
-// paquet/paquet.test.ts ; un cook en vol pendant que la station est remplacée,
-// dans station/main.test.ts.
+// paquet/paquet.test.ts ; un cook en vol que la vie suivante reprend sans le
+// relancer, dans reprise.test.ts, sur le runtime du test.
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

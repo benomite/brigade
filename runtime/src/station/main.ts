@@ -81,7 +81,7 @@ try {
 }
 // L'écart minimal entre deux écritures de son gist, et l'intervalle entre deux
 // ticks du runtime de ses projets, en secondes entières : une minute chacun, à
-// défaut. Une station de test les règle plus courts (recette.test.ts).
+// défaut. Une station de test les règle plus courts.
 const ecartS = process.env.BRIGADE_STATION_ECART_S;
 if (ecartS !== undefined && !/^[1-9]\d*$/.test(ecartS)) refuser(`BRIGADE_STATION_ECART_S=${ecartS} — attendu un nombre entier de secondes`);
 const tickS = process.env.BRIGADE_STATION_TICK_S;
