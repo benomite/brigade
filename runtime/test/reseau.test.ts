@@ -59,12 +59,18 @@ describe("le réseau du projet", { concurrency: 3 }, () => {
     assert.equal(variables.NODE_USE_ENV_PROXY, "1");
   });
 
-  test("le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien", async () => {
+  test("le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien", async (t) => {
     assert.equal(await sonderLeFiltre(envoi({ erreur: "EPERM" })), true);
     assert.equal(await sonderLeFiltre(envoi({})), false);
     // Aucune route, ou un envoi qui ne rend jamais : ni oui, ni non.
     assert.equal(await sonderLeFiltre(envoi({ erreur: "ENETUNREACH" })), null);
-    assert.equal(await sonderLeFiltre(envoi("muet")), null);
+    // La sonde patiente 2 s : son délai est joué sur une horloge simulée, posée
+    // et levée sans rendre la main — les tests voisins gardent la vraie.
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const muet = sonderLeFiltre(envoi("muet"));
+    t.mock.timers.tick(2000);
+    t.mock.timers.reset();
+    assert.equal(await muet, null);
   });
 
   test("une déclaration illisible n'est pas une déclaration vide : la dernière liste lue tient, et c'est dit une fois", async (t) => {
