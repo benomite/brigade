@@ -154,7 +154,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
 describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
-    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "stations.undeclared", "drift.configured", "session.observed", "isolation.configured"]);
 
     // Ce qu'une autre commande lira pour dire s'il tourne sur le code installé.
     assert.equal(runtime.codeEnService, empreinteDuCode());
@@ -169,7 +169,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
         ["project.switched-on", "brigade", "runtime"],
         ["grant.activated", "brigade", "runtime"],
         ["guard.configured", "brigade", "runtime"],
-        ["station.announced", "brigade", "station:box/claude"],
+        ["stations.undeclared", "brigade", "runtime"],
         ["drift.configured", "brigade", "runtime"],
         ["session.observed", "brigade", "runtime"],
         ["isolation.configured", "brigade", "runtime"],
@@ -196,7 +196,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       apres.map((e) => [e.type, e.payload]).slice(8, 9),
       [["runtime.interrupted", { startedSeq: apres.find((e) => e.type === "runtime.started")?.seq }]],
     );
-    assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
+    assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "stations.undeclared", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
   });
 
   test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", { skip: posixOnly("starts a second runtime on a project the first one holds and expects it refused, naming the first one's pid; on Windows the first runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's temporary directories, whose removal then fails (EPERM)") }, async (t) => {
@@ -210,7 +210,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await second.fin, REFUS);
     assert.match(second.sortie(), /refus de démarrer/);
     assert.match(second.sortie(), new RegExp(`pid ${premier.process.pid}`));
-    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "stations.undeclared", "drift.configured", "session.observed", "isolation.configured"]);
   });
 
   test("sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite", async (t) => {

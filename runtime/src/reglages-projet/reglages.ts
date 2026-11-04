@@ -118,9 +118,9 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // que d'autres ouvrent sur le dépôt, auxquelles le rôle produit répond
   // (`produit/externes/`).
   chef?: string;
-  // L'interrupteur de l'état GitHub seul (#2060) : allumé, les stations du
-  // projet prennent, cuisinent et mergent ses tickets en ne lisant et
-  // n'écrivant que GitHub (`brigade-github.ts`). Absent, il est éteint.
+  // L'ancien interrupteur de l'état GitHub seul (#2060). Plus lu (#2061) :
+  // l'état GitHub seul est le seul chemin (`brigade-github.ts`). Gardé pour
+  // qu'un fichier qui le porte encore reste lisible, et réécrit tel quel.
   githubOnlyState?: boolean;
 };
 
