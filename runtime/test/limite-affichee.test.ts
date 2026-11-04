@@ -8,7 +8,7 @@ import { principal as faits } from "../src/faits.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { constaterLimite, limiteDeLaStation, pauseDeLaStation, REPERTOIRE_COMPTEUR, retenueDeLaStation } from "../src/limite-github.ts";
 import { principal as status } from "../src/status.ts";
-import { appeler, repertoireTemporaire } from "./outils.ts";
+import { appeler, QUOTA_GITHUB, repertoireTemporaire } from "./outils.ts";
 
 const TEXTE_BRUT = /request id|terms|HTTP 4|rate limit exceeded/i;
 
@@ -70,12 +70,12 @@ test("quand la box retient ses appels à la réserve des gestes, status le dit �
   t.after(() => limite.fermer());
 
   // Au-dessus de la réserve, rien à dire.
-  limite.noter("gh", { restant: 2000, plafond: 5000, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
+  limite.noter("gh", { restant: 2000, plafond: QUOTA_GITHUB, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
   assert.equal(retenueDeLaStation(station, Date.now()), null);
   assert.doesNotMatch(await lire(), /^github /m);
 
   // À la réserve : la box retient, GitHub n'a rien refusé.
-  limite.noter("gh", { restant: 500, plafond: 5000, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
+  limite.noter("gh", { restant: 500, plafond: QUOTA_GITHUB, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
   assert.notEqual(retenueDeLaStation(station, Date.now()), null);
   const sortie = await lire();
   assert.match(sortie, /^github {5}the box holds its own calls to keep the reserve for your gestures, back around \d\d:\d\d$/m);

@@ -5,10 +5,8 @@
 // tiennent ensemble, et la ligne horaire du journal de service. Contre des faux
 // `gh` qui disent le quota qu'on leur dicte : jamais le vrai GitHub.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { test, type TestContext } from "node:test";
 import { canalGitHub } from "../src/appairage/canal.ts";
 import { ouvrirGitHub } from "../src/github.ts";
@@ -26,13 +24,12 @@ import {
   reserveDes,
   type Limite,
 } from "../src/limite-github.ts";
-import { aArreter, DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { aArreter, DEPOT, jusqua, lancer, QUOTA_GITHUB, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 import { FAUX_GH_GISTS } from "./appairage/doublure-des-gists.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const MODULE = join(import.meta.dirname, "../src/limite-github.ts");
 const STATION = join(import.meta.dirname, "../src/station/main.ts");
 const DEPART = Date.parse("2026-10-22T12:00:00Z");
 const SECONDE = 1000;
@@ -106,8 +103,8 @@ function chargerLHeure(limite: Limite, n: number) {
 
 test("le quota se lit dans les en-têtes de l'API REST : un en-tête d'une autre ressource, ou incomplet, ne dit rien", () => {
   const entetes = (paires: Record<string, string>) => new Map(Object.entries(paires));
-  assert.deepEqual(quotaDesEntetes(entetes({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3600", "x-ratelimit-reset": "1761134400", "x-ratelimit-resource": "core" })), { restant: 3600, plafond: 5000, reset: 1761134400 * SECONDE });
-  assert.deepEqual(quotaDesEntetes(entetes({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1761134400" })), { restant: 0, plafond: 5000, reset: 1761134400 * SECONDE });
+  assert.deepEqual(quotaDesEntetes(entetes({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3600", "x-ratelimit-reset": "1761134400", "x-ratelimit-resource": "core" })), { restant: 3600, plafond: QUOTA_GITHUB, reset: 1761134400 * SECONDE });
+  assert.deepEqual(quotaDesEntetes(entetes({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1761134400" })), { restant: 0, plafond: QUOTA_GITHUB, reset: 1761134400 * SECONDE });
   const incomplets: Array<Record<string, string>> = [{}, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3600" }, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "beaucoup", "x-ratelimit-reset": "1761134400" }, { "x-ratelimit-limit": "30", "x-ratelimit-remaining": "2", "x-ratelimit-reset": "1761134400", "x-ratelimit-resource": "search" }];
   for (const paires of incomplets) {
     assert.equal(quotaDesEntetes(entetes(paires)), null, JSON.stringify(paires));
@@ -123,7 +120,7 @@ test("sans quota dit par GitHub, ou avec un quota large, aucun compte de la box 
     const limite = ouvrirLimite({ fichier, maintenant: horloge.maintenant });
     aArreter(t, () => limite.fermer());
     for (let i = 0; i < 3000; i++) assert.equal(tenter(limite), true, `appel ${i + 1}, sans quota dit`);
-    limite.noter("gh", { restant: 3600, plafond: 5000, reset: DEPART + 40 * MINUTE });
+    limite.noter("gh", { restant: 3600, plafond: QUOTA_GITHUB, reset: DEPART + 40 * MINUTE });
     for (let i = 0; i < 500; i++) assert.equal(tenter(limite), true, `appel ${i + 1}, 3 600 restants sur 5 000`);
     assert.equal(limite.appels(), 3500);
   }
@@ -138,7 +135,7 @@ test("au-dessus de la réserve des gestes rien ne retient la cuisine ; à la ré
   // Quel que soit le quota au-dessus de la réserve, on s'arrête à 1 000 appels pour le dire.
   for (const restant of [4000, 2400, 1100, 530]) {
     horloge.avancer(10 * MINUTE);
-    limite.noter("gh", { restant, plafond: 5000, reset: horloge.maintenant() + 30 * MINUTE });
+    limite.noter("gh", { restant, plafond: QUOTA_GITHUB, reset: horloge.maintenant() + 30 * MINUTE });
     let partis = 0;
     while (partis < 1000 && tenter(limite)) partis++;
     assert.equal(partis, 1000, `${restant} restants sur 5 000`);
@@ -147,7 +144,7 @@ test("au-dessus de la réserve des gestes rien ne retient la cuisine ; à la ré
   // À la réserve, plus rien de la cuisine ne part avant la fin de la fenêtre.
   const reset = limite.quota()?.reset ?? 0;
   horloge.poser(reset - 20 * MINUTE);
-  limite.noter("gh", { restant: 500, plafond: 5000, reset });
+  limite.noter("gh", { restant: 500, plafond: QUOTA_GITHUB, reset });
   assert.throws(
     () => limite.prendre(),
     (erreur: unknown) => erreur instanceof CuisineRalentie && erreur.jusqua === reset && erreur.libreDansMs === 20 * MINUTE && /quota GitHub bas : 500 appels restants sur 5000, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans 1200 s/.test(erreur.message),
@@ -165,13 +162,13 @@ test("deux réponses de la même fenêtre arrivées dans le désordre : la plus 
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   const reset = DEPART + 30 * MINUTE;
-  limite.noter("gh", { restant: 400, plafond: 5000, reset });
-  limite.noter("gh", { restant: 420, plafond: 5000, reset });
+  limite.noter("gh", { restant: 400, plafond: QUOTA_GITHUB, reset });
+  limite.noter("gh", { restant: 420, plafond: QUOTA_GITHUB, reset });
   assert.equal(limite.quota()?.restant, 400);
-  limite.noter("gh", { restant: 4990, plafond: 5000, reset: reset + FENETRE_MS });
+  limite.noter("gh", { restant: 4990, plafond: QUOTA_GITHUB, reset: reset + FENETRE_MS });
   assert.equal(limite.quota()?.restant, 4990);
   // Chaque compte a le sien : l'App d'un rôle ne dépense pas celui de la machine.
-  limite.noter("pass", { restant: 10, plafond: 5000, reset });
+  limite.noter("pass", { restant: 10, plafond: QUOTA_GITHUB, reset });
   assert.equal(limite.quota()?.restant, 4990);
   assert.equal(tenter(limite), true);
   assert.throws(() => limite.prendre("cuisine", "pass"), CuisineRalentie);
@@ -182,7 +179,7 @@ test("un geste du chef n'est jamais retenu par la box : ni par l'heure chargée,
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   chargerLHeure(limite, 2600);
-  limite.noter("gh", { restant: 12, plafond: 5000, reset: DEPART + 30 * MINUTE });
+  limite.noter("gh", { restant: 12, plafond: QUOTA_GITHUB, reset: DEPART + 30 * MINUTE });
   limite.suspendre(DEPART + 10 * MINUTE);
   assert.throws(() => limite.prendre(), LimiteGitHubAtteinte);
   for (let i = 0; i < 20; i++) limite.prendre("geste");
@@ -211,7 +208,7 @@ test("la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'h
   assert.deepEqual(messages, []);
   assert.equal(gh.appels().length, 30);
   assert.equal(gh.restant(), 3570);
-  assert.deepEqual(limite.quota(), { restant: 3570, plafond: 5000, reset: DEPART + 40 * MINUTE, vu: horloge.maintenant() });
+  assert.deepEqual(limite.quota(), { restant: 3570, plafond: QUOTA_GITHUB, reset: DEPART + 40 * MINUTE, vu: horloge.maintenant() });
   assert.ok(limite.appels() > 2500);
 });
 
@@ -267,7 +264,7 @@ test("un merge du chef part sur un compte au plus bas et une heure chargée côt
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   chargerLHeure(limite, 2600);
-  limite.noter("gh", { restant: 30, plafond: 5000, reset: DEPART + 30 * MINUTE });
+  limite.noter("gh", { restant: 30, plafond: QUOTA_GITHUB, reset: DEPART + 30 * MINUTE });
   const cuisine = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
   const geste = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant, usage: "geste" });
   t.after(() => cuisine.fermer());
@@ -290,7 +287,7 @@ test("une décision sur un quota bas lu depuis plus d'une minute se confirme aup
   const reset = DEPART + 30 * MINUTE;
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
-  limite.noter("gh", { restant: 480, plafond: 5000, reset });
+  limite.noter("gh", { restant: 480, plafond: QUOTA_GITHUB, reset });
   const prendre = () => prendreUnAppel(limite, { gh: gh.bin, maintenant: horloge.maintenant });
 
   // Lu à l'instant : la décision se prend sans rien demander.
@@ -309,43 +306,43 @@ test("une décision sur un quota bas lu depuis plus d'une minute se confirme aup
   gh.rateLimit({ limit: 5000, remaining: 4800, reset: reset + FENETRE_MS });
   await prendre();
   assert.equal(gh.questionsDeQuota(), 2);
-  assert.deepEqual(limite.quota(), { restant: 4800, plafond: 5000, reset: reset + FENETRE_MS, vu: horloge.maintenant() });
+  assert.deepEqual(limite.quota(), { restant: 4800, plafond: QUOTA_GITHUB, reset: reset + FENETRE_MS, vu: horloge.maintenant() });
   // Un geste ne demande jamais rien.
-  limite.noter("gh", { restant: 10, plafond: 5000, reset: reset + 2 * FENETRE_MS });
+  limite.noter("gh", { restant: 10, plafond: QUOTA_GITHUB, reset: reset + 2 * FENETRE_MS });
   horloge.avancer(10 * MINUTE);
   await prendreUnAppel(limite, { gh: gh.bin, usage: "geste", maintenant: horloge.maintenant });
   assert.equal(gh.questionsDeQuota(), 2);
 });
 
-test("la station et trois projets, chacun dans son process, lisent le même quota et tiennent ensemble le même compte", async (t) => {
+// Chaque process ouvre sa propre connexion au fichier du compteur : quatre
+// connexions ouvertes ensemble, qui prennent à tour de rôle, sont ce que
+// voient la station et ses projets, sans lancer quatre Node.
+test("la station et trois projets, chacun sur sa connexion au compteur, lisent le même quota et tiennent ensemble le même compte", (t) => {
   const racine = repertoireTemporaire(t);
   const instant = 1_000_000;
   const avant = limiteDeLaStation(racine, { maintenant: () => instant });
-  // 2 000 restants, au-dessus de la réserve : rien ne retient, et chaque appel est compté, quel que soit son process.
-  avant.noter("gh", { restant: 2000, plafond: 5000, reset: instant + 30 * MINUTE });
+  // 2 000 restants, au-dessus de la réserve : rien ne retient, et chaque appel est compté, quelle que soit sa connexion.
+  avant.noter("gh", { restant: 2000, plafond: QUOTA_GITHUB, reset: instant + 30 * MINUTE });
   avant.fermer();
-  const script = `
-    import { CuisineRalentie, limiteDeLaStation } from ${JSON.stringify(pathToFileURL(MODULE).href)};
-    const limite = limiteDeLaStation(${JSON.stringify(racine)}, { maintenant: () => ${instant} });
-    let comptes = 0;
-    for (let i = 0; i < 30; i++) {
-      try { limite.prendre(); comptes++; } catch (erreur) { if (!(erreur instanceof CuisineRalentie)) throw erreur; }
-    }
-    limite.fermer();
-    console.log(comptes);
-  `;
-  const unProcess = () =>
-    new Promise<number>((resoudre, rejeter) =>
-      execFile(process.execPath, ["--input-type=module", "-e", script], { timeout: 110_000 }, (erreur, sortie, erreurs) => (erreur ? rejeter(new Error(erreurs || erreur.message)) : resoudre(Number(sortie.trim())))),
-    );
-  const parProcess = await Promise.all(["station", "projet 1", "projet 2", "projet 3"].map(unProcess));
-  assert.equal(parProcess.reduce((somme, n) => somme + n, 0), 120, `comptés par process : ${parProcess.join(", ")}`);
+  const connexions = ["station", "projet 1", "projet 2", "projet 3"].map(() => limiteDeLaStation(racine, { maintenant: () => instant }));
+  const comptes = connexions.map(() => 0);
+  for (let i = 0; i < 30; i++)
+    connexions.forEach((connexion, n) => {
+      try {
+        connexion.prendre();
+        comptes[n]!++;
+      } catch (erreur) {
+        if (!(erreur instanceof CuisineRalentie)) throw erreur;
+      }
+    });
+  for (const connexion of connexions) connexion.fermer();
+  assert.equal(comptes.reduce((somme, n) => somme + n, 0), 120, `comptés par connexion : ${comptes.join(", ")}`);
   const limite = limiteDeLaStation(racine, { maintenant: () => instant });
   aArreter(t, () => limite.fermer());
   assert.equal(limite.appels(), 120);
   assert.equal(tenter(limite), true);
   // Le quota que l'un a noté retient les autres : à la réserve, plus rien ne part.
-  limite.noter("gh", { restant: 500, plafond: 5000, reset: instant + 30 * MINUTE });
+  limite.noter("gh", { restant: 500, plafond: QUOTA_GITHUB, reset: instant + 30 * MINUTE });
   assert.equal(tenter(limite), false);
 });
 
@@ -361,7 +358,7 @@ test("le canal du gist se règle sur le même quota : à la réserve des gestes,
 
   const id = await canal.creer("brigade — station box", { "station.json": "{}" });
   assert.deepEqual(await canal.lire(id), { "station.json": "{}" });
-  limite.noter("gh", { restant: 100, plafond: 5000, reset: Date.now() + 30 * MINUTE });
+  limite.noter("gh", { restant: 100, plafond: QUOTA_GITHUB, reset: Date.now() + 30 * MINUTE });
   await assert.rejects(canal.ecrire(id, { "station.json": "{}" }), CuisineRalentie);
   assert.equal(readFileSync(join(repertoire, "appels"), "utf8").split("\n").filter(Boolean).length, 2, "l'appel retenu n'est pas parti");
 });
@@ -384,7 +381,7 @@ test("une fois par heure, la ligne « N appels GitHub sur l'heure écoulée » v
   t.mock.timers.tick(10 * MINUTE);
   limite.prendre();
   limite.prendre();
-  limite.noter("gh", { restant: 3600, plafond: 5000, reset: 2 * FENETRE_MS + 30 * MINUTE });
+  limite.noter("gh", { restant: 3600, plafond: QUOTA_GITHUB, reset: 2 * FENETRE_MS + 30 * MINUTE });
   t.mock.timers.tick(50 * MINUTE);
   assert.deepEqual(lignes.at(-1), "brigade : 2 appels GitHub sur l'heure écoulée — GitHub en dit 3600 restants sur 5000");
   t.mock.timers.tick(60 * MINUTE);

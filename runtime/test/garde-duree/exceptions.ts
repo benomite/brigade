@@ -1148,11 +1148,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/decoupage.test.ts", garde: "timeout: 600_000" },
   { file: "test/fusion.test.ts", garde: "timeout: 300_000" },
   { file: "test/gates.test.ts", garde: "delaiMs: 60_000" },
-  { file: "test/gestes-sans-retenue.test.ts", garde: "plafond: 5000" },
   { file: "test/installation.test.ts", garde: "plafondMs: 900_000" },
-  { file: "test/limite-affichee.test.ts", garde: "plafond: 5000" },
-  { file: "test/limite-github.test.ts", garde: "plafond: 5000" },
-  { file: "test/limite-github.test.ts", garde: "timeout: 110_000" },
   { file: "test/mesures-des-gates.test.ts", garde: "delaiMs: 60_000" },
   { file: "test/outils.ts", garde: "DELAI_PAR_DEFAUT_MS: 180_000" },
   { file: "test/pass.test.ts", garde: "delaiGatesMs: 1_800_000" },
@@ -1168,5 +1164,4 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/support/windows.ts", garde: "garde: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
-  { file: "test/tableau/gestes/retenue.test.ts", garde: "plafond: 5000" },
 ];

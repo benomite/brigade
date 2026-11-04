@@ -12,7 +12,7 @@ import { principal as pass } from "../src/montrer-pass.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, JOUR_HORLOGE, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, JOUR_HORLOGE, QUOTA_GITHUB, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -23,7 +23,7 @@ function stationChargee(t: TestContext) {
   const limite = limiteDeLaStation(repertoireTemporaire(t));
   aArreter(t, () => limite.fermer());
   for (let i = 0; i < 2600; i++) limite.prendre("geste");
-  limite.noter("gh", { restant: 40, plafond: 5000, reset: Date.now() + 30 * 60_000 });
+  limite.noter("gh", { restant: 40, plafond: QUOTA_GITHUB, reset: Date.now() + 30 * 60_000 });
   limite.suspendre(Date.now() + 10 * 60_000);
   installerLimite(limite);
   return limite;

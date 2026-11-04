@@ -14,7 +14,7 @@ import { clientGitHubDuTableau } from "../../../src/tableau/publication/client.t
 import { brancherLeTableau } from "../../../src/tableau/publication/publier.ts";
 import { OUVERTURE_DU_BLOC } from "../../../src/tableau/rendu/bloc.ts";
 import { fauxGitHub, issue } from "../../aides/cuisine.ts";
-import { aArreter, DEPOT, fauxGh, jusqua, repertoireTemporaire } from "../../outils.ts";
+import { aArreter, DEPOT, fauxGh, jusqua, QUOTA_GITHUB, repertoireTemporaire } from "../../outils.ts";
 
 const SANS_BASH = process.platform === "win32" && "le faux `gh` est un script bash";
 const PROJET = "brigade";
@@ -35,7 +35,7 @@ test("la box retient ses appels (pause, quota au-dessus de la réserve) : `choos
   // La limite de GitHub atteinte : la cuisine est retenue, alors que le compte a des appels de reste.
   const limite = ouvrirLimite();
   limite.suspendre(Date.now() + 3_600_000);
-  limite.noter("gh", { restant: 3454, plafond: 5000, reset: Date.now() + 3_600_000 });
+  limite.noter("gh", { restant: 3454, plafond: QUOTA_GITHUB, reset: Date.now() + 3_600_000 });
   assert.throws(() => limite.prendre("cuisine"), /limite/);
 
   const gh = fauxGh(t);

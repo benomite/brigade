@@ -429,6 +429,8 @@ export async function lancerSurPortPose(
 }
 
 export const DEPOT = "acme/brigade";
+// Les appels d'une heure sur un compte GitHub : un nombre d'appels, pas un délai.
+export const QUOTA_GITHUB = 5000;
 export const CHEMIN_TICKETS = `repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`;
 
 // Une issue telle que l'API de GitHub la rend.
