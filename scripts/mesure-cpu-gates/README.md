@@ -26,7 +26,17 @@ The launcher itself also prints one line at the end of the spec output:
 It can be run directly, from `runtime/`: `node test-config/suite.ts [<files or globs>] [--concurrence <n>]`.
 
 `SUITE_RUNTIME_AVANT=1 scripts/mesure-cpu-gates/suite-runtime.sh <out-dir>` runs instead the exact command of `npm test`
-(`node --test`, five files at a time, sorted by name): the baseline, on the same machine.
+(`node --test`, five files at a time, sorted by name, with its 2 s reporter): the baseline, on the same machine.
+`SUITE_RUNTIME_DIR=<dir>/runtime` plays another runtime than the worktree's: the base, extracted whole
+(some tests read `docs/` and `.claude/`), without `git worktree`, whose `prune` from a cook's sandbox
+erases the other worktrees' entries:
+
+```sh
+d=.brigade-state/avant/src; mkdir -p "$d" && git archive origin/main | tar -x -C "$d"
+SUITE_RUNTIME_AVANT=1 SUITE_RUNTIME_DIR="$PWD/$d/runtime" scripts/mesure-cpu-gates/suite-runtime.sh .brigade-state/avant/out
+```
+
+An extracted tree is not a git checkout: the five tests of `enrolement/commande.test.ts` fail there, and only there.
 
 To compare the tests run by two passes: `diff <A>/tests.txt <B>/tests.txt` (one line per test, skipped ones marked).
 
@@ -35,7 +45,7 @@ To compare the tests run by two passes: `diff <A>/tests.txt <B>/tests.txt` (one 
 - **Longest files first** (`runtime/test-config/durees.tsv`, refreshed from the `durees.tsv` a pass writes). `node --test` takes its files in name order, five at a time: a 40 s file drawn last held the suite alone while the other cores waited.
 - **As many files at once as logical cores** (`BRIGADE_TESTS_CONCURRENCE` or `--concurrence` to override). Past that, the wall clock no longer drops: the suite is bound by the CPU.
 - **Blocking stdout in each test file** (`runtime/test-config/sortie-bloquante.ts`). Under `--test-force-exit`, a loaded launcher lost the end of a file's report, and tests were missing from the count (23 and 35 on two passes of a loaded box).
-- **Short files several per process** (`suite.ts`, "Les petits fichiers"). A file under a second paid about half of it to start: its Node, the test runner, and the runtime modules it loads — the same as its neighbour's. Files known to last under 4 s are played in batches of up to 8 s, one process per batch, their tests one after the other. A file stays alone when it touches anything its neighbours would share: the process environment, its directory, its signals, the process's GitHub counter (`installerLimite`), global mocks (`t.mock` is undone per test, so it is fine). A file calling `temporaireDuFichier` opens its own batch and never shares it with a file that keeps directories (`repertoireDuFichier`, `aides/box.ts`). An unknown file runs alone until `durees.tsv` knows it.
+- **Short files several per process** (`suite.ts`, "Les petits fichiers"). A file under a second paid about half of it to start: its Node, the test runner, and the runtime modules it loads — the same as its neighbour's. Files known to last under 4 s are played in batches of up to 8 s, one process per batch, their tests one after the other (the batch loads its files by `await import`, one after the other: under static imports, a file whose modules await at load let its neighbour's tests pass first). A file stays alone when it touches anything its neighbours would share: the process environment, its directory, its signals, the process's GitHub counter (`installerLimite`), global mocks (`t.mock` is undone per test, so it is fine). A file calling `temporaireDuFichier` opens its own batch and never shares it with a file that keeps directories (`repertoireDuFichier`, `aides/box.ts`). An unknown file runs alone until `durees.tsv` knows it.
 - **The same files and the same guard as `npm test`**: `test/**/*.test.ts` and `test-hang-guard/**/*.test.ts`, with `test-hang-guard/charger.ts` preloaded in every file (#2084: a test past 30 s fails, named).
 - **The same 2 s rule as `npm test`** (#2129): the launcher plays the reporter `test/garde-duree/reporteur.ts` beside `spec`. A test over 2 s that `test/garde-duree/exceptions.ts` does not list is named on stderr and turns the suite red.
 - Temp dir in `/dev/shm` when it has room, Node's compile cache, `git --exec-path` first in `PATH` — as the gates and `npm test` already do.
@@ -99,6 +109,28 @@ Same box, other worktrees busy on it. Both runs on the same tree and in the same
 The slowest files after, in the suite: `0-en-premier/recette.test.ts` 39.0 s (waits on purpose for the 30 s cadence), `installation.test.ts` 29.0 s, `pass.test.ts` 20.8 s, `mise-a-jour/machine.test.ts` 19.4 s, `depot.test.ts` 18.9 s, `station.test.ts` 17.9 s, `desinstallateur.test.ts` 17.2 s, `closing/run.test.ts` 15.0 s, `bac-a-sable/configuration.test.ts` 11.8 s, `bascule/machine.test.ts` 11.3 s.
 
 **The bound the chef accepted.** The chef accepted the suite as measured here, about 95 s on this box, with under 60 s left to a later, heavier ticket. At 480 s of CPU, the floor on 8 threads is 60 s, even on an idle box. Going under it needs the CPU lowered again: lazy imports in the runtime's core, see below.
+
+### Replayed after the rebase on `origin/main` `ad53189` (#2085)
+
+As the chef asked, the delivery is kept as it is, brought up to the base and played again. Two things the base brought needed a fix:
+- `station-sans-demarrage.test.ts` (new on `main`) stops the runtime and starts it again while the other station's cook runs. Without a relay, that cook dies with the runtime, and the test hung 30 s on the hang guard. It now asks for `relais: true`, as every other restart test does: 0.3 s.
+- The five test files `main` added are now in `durees.tsv`. That reshuffled the batches and exposed a batch-ordering fault: see the batch line above.
+
+Same box, other worktrees busy on it, both passes in the same quarter hour. Before is `origin/main` `ad53189`, extracted and played by `SUITE_RUNTIME_AVANT=1 SUITE_RUNTIME_DIR=…` (above). After is this branch, played by `suite-runtime.sh`.
+
+| Whole runtime suite | Before (`npm test`, `ad53189`) | After (`suite-runtime.sh`) |
+|---|---|---|
+| Wall clock | 241.3 s | **115.6 s** (113.4 s on the pass before) |
+| CPU (user + system) | 842.3 s | **491.2 s** |
+| Tests run | 4419 | **4420** |
+| Passed / failed / skipped | 4407 / 6 / 6 | 4414 / 0 / 6 |
+| Load at the start | 7.21 | 8.01 |
+
+The six failures before are the measure's, not the base's: the five `enrolement/commande.test.ts` tests, which need a git checkout, and one test over 2 s under the load (3.1 s). `diff` of the two `tests.txt`: the same as above, one test more and four renamed, none gone.
+
+The slowest files after, in the suite: `0-en-premier/recette.test.ts` 37.9 s (waits on purpose), `installation.test.ts` 26.4 s, `pass.test.ts` 19.0 s, `depot.test.ts` 17.0 s, `mise-a-jour/machine.test.ts` 16.4 s, `station.test.ts` 16.2 s, `desinstallateur.test.ts` 15.2 s, `closing/run.test.ts` 14.1 s, `bac-a-sable/configuration.test.ts` 11.6 s, `bascule/machine.test.ts` 11.2 s.
+
+At 491 s of CPU, the floor on 8 threads is 61 s on an idle box. With the box shared, the measures land at 113 to 116 s, above the 93 s of the pass before the rebase, also on a shared box. That is load, not cost: CPU is unchanged (480 s then, 491 s now with 72 more tests).
 
 ### Where the CPU goes, and the bound
 

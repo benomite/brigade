@@ -9,6 +9,10 @@
 #   SUITE_RUNTIME_AVANT=1 joue à la place la commande de `npm test` telle
 #   qu'elle est (`node --test`, cinq fichiers à la fois, triés par nom) : la
 #   mesure de départ, sur le même poste, juste avant ou après.
+#   SUITE_RUNTIME_DIR=<dossier runtime> joue ce runtime-là au lieu de celui du
+#   worktree : un arbre extrait de la base (`git archive origin/main | tar -x
+#   -C <d>`, tout le dépôt — des tests lisent docs/ et .claude/), pour la
+#   mesure de départ sans `git worktree`.
 # Écrit dans le dossier de sortie :
 #   sortie.txt     la sortie du lanceur (`spec`)
 #   tests.tap      la même suite en TAP ; tests.txt les tests relevés, un par
@@ -29,14 +33,14 @@ rm -f "$SORTIE/durees.tsv" "$SORTIE/tests.tap"
 
 charge() { printf 'charge %s, nproc %s' "$(uptime | sed -n 's/.*load averages\{0,1\}: *//p')" "$(nproc 2>/dev/null || echo inconnu)"; }
 AVANT="$(charge)"
-cd "$WT/runtime" || exit 1
+cd "${SUITE_RUNTIME_DIR:-$WT/runtime}" || exit 1
 if [ "${SUITE_RUNTIME_AVANT:-}" = 1 ]; then
   # Le script `test` de runtime/package.json, et le TAP à côté.
   GIT_CORE="$(git --exec-path 2>/dev/null)"
   R="$(env -u BRIGADE_STATE_DIR -u BRIGADE_PORT PATH="${GIT_CORE:+$GIT_CORE:}$PATH" \
        NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" \
        python3 -I "$ICI/mesure.py" --sortie "$SORTIE/sortie.txt" -- node --import ./test-hang-guard/charger.ts --test --test-concurrency=5 --test-force-exit --test-timeout=120000 \
-       --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination="$SORTIE/tests.tap" \
+       --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./test/garde-duree/reporteur.ts --test-reporter-destination=stderr --test-reporter=tap --test-reporter-destination="$SORTIE/tests.tap" \
        "test/**/*.test.ts" "test-hang-guard/**/*.test.ts" "$@")"
 else
   R="$(python3 -I "$ICI/mesure.py" --sortie "$SORTIE/sortie.txt" -- node test-config/suite.ts --tap "$SORTIE/tests.tap" --relever "$SORTIE/durees.tsv" "$@")"
