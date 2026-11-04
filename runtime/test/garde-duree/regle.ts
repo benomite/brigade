@@ -23,14 +23,18 @@ export function valeur(texte: string): number | null {
   return facteurs.reduce((produit, f) => produit * Number(f.replaceAll("_", "")), 1);
 }
 
+// Le lanceur de la suite sous Windows n'est pas un test : ses gardes sont celles du job (une part, le délai
+// de chaque test), comme celles du script `test` de package.json, que la règle ne lit pas non plus.
+const LANCEURS = new Set(["test/support/windows.ts"]);
+
 export function fichiersDeTest(racine = RACINE_RUNTIME): string[] {
   const trouves: string[] = [];
   const parcourir = (dossier: string): void => {
     for (const e of readdirSync(dossier, { withFileTypes: true })) {
-      const chemin = join(dossier, e.name);
+      const complet = join(dossier, e.name);
       if (e.isDirectory()) {
-        if (chemin !== ICI.replace(/\/$/, "") && !chemin.startsWith(ICI)) parcourir(chemin);
-      } else if (e.name.endsWith(".ts")) trouves.push(chemin);
+        if (complet !== ICI.replace(/\/$/, "") && !complet.startsWith(ICI)) parcourir(complet);
+      } else if (e.name.endsWith(".ts") && !LANCEURS.has(chemin(racine, complet))) trouves.push(complet);
     }
   };
   parcourir(join(racine, "test"));

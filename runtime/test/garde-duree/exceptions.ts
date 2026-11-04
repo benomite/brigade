@@ -11,8 +11,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/0-en-premier/recette.test.ts", test: "ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box" },
   { file: "test/arbitre-cli.test.ts", test: "ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus" },
-  { file: "test/bac-a-sable/configuration.test.ts", test: "dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert" },
-  { file: "test/bac-a-sable/configuration.test.ts", test: "sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance un script sans chercher sa version ; sans les réglages, il meurt de ENGINE_IDENTITY_UNVERIFIABLE" },
   { file: "test/base-cli.test.ts", test: "`base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire" },
   { file: "test/closing/report.test.ts", test: "une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non" },
   { file: "test/closing/report.test.ts", test: "une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini" },
@@ -98,9 +96,5 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/deploy/installer-station-windows.test.ts", test: "une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
   { file: "test/0-en-premier/recette.test.ts", garde: "timeout: 300_000" },
-  { file: "test/bac-a-sable/configuration.test.ts", garde: "timeout: 90_000" },
   { file: "test/lectures-sous-condition.test.ts", garde: "timeout: 600_000" },
-  { file: "test/support/windows.ts", garde: "garde: 60_000" },
-  { file: "test/support/windows.ts", garde: "timeout: 300000" },
-  { file: "test/support/windows.ts", garde: "timeout: 60_000" },
 ];
