@@ -2,7 +2,7 @@
 // pass, fermeture, et une station si le test la demande — sur un vrai dépôt
 // git, un faux closer dont le test écrit les gestes, les fausses gates et le
 // faux reviewer de la pass, et un GitHub de test. Ni réseau, ni quota.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { avecRail } from "../../src/alimenter.ts";
@@ -19,7 +19,7 @@ import { lirePass } from "../../src/projections/pass.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
 import { BAIL_MS, CALIBRAGE_DU_REVIEWER, fauxGitHub, issue, MACHINE_CALME, montre, PLAFONDS, REGLAGES, STATION } from "../aides/cuisine.ts";
-import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
+import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireDuFichier, repertoireTemporaire } from "../outils.ts";
 import { ecrireHistoire, type Etape, type Fichiers } from "./history.ts";
 
 const FAUX_CLOSER = join(import.meta.dirname, "fake-closer.sh");
@@ -64,12 +64,51 @@ export type Options = {
   histoire?: Etape[];
   // Les lieux d'une vie précédente, pour redémarrer dessus.
   lieux?: Lieux;
+  // Le projet par défaut, sans histoire, copié d'un gabarit que le fichier
+  // écrit une fois — au lieu d'un `git fast-import` et d'un `git push` par
+  // cuisine. Sans effet avec `fichiers`, `histoire` ou `lieux`.
+  gabarit?: true;
 };
 
 export type Lieux = { repertoire: string; origine: string; clone: string; gh: ReturnType<typeof fauxGitHub> };
 
 // La fiche d'un ticket qui possède ces chemins.
 export const fiche = (...zone: string[]) => [MARQUEUR, "- attend : rien", `- zone : ${zone.join(", ")}`].join("\n");
+
+// Le dépôt du projet par défaut, poussé sur son origine : écrit une fois par
+// fichier de tests — le même que `depotGit` puis l'histoire et le push d'une
+// cuisine —, copié à chaque cuisine qui le demande. L'adresse de l'origine,
+// propre à chaque copie, y est un repère.
+const ORIGINE_DU_GABARIT = "@ORIGINE-FERMEE@";
+let gabarit: string | undefined;
+// À appeler dans un `before` pour que le premier test n'en porte pas le coût.
+export function preparerLeGabarit(): string {
+  if (gabarit !== undefined) return gabarit;
+  const racine = repertoireDuFichier("brigade-test-fermeture-", () => void (gabarit = undefined));
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  mkdirSync(clone);
+  git(clone, "init", "-q", `--initial-branch=${BASE}`);
+  writeFileSync(join(clone, "LISEZMOI"), "le projet\n");
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "amorce");
+  git(racine, "clone", "-q", "--bare", clone, origine);
+  git(clone, "remote", "add", "origin", ORIGINE_DU_GABARIT);
+  git(clone, "update-ref", `refs/remotes/origin/${BASE}`, "HEAD");
+  ecrireHistoire(clone, [{ commit: { ...PROJET, ".claude/brigade/gates.sh": { lien: GATES_A_MESURES } } }]);
+  // Poussé par son chemin : l'adresse de `origin` n'est encore qu'un repère.
+  git(clone, "push", "-q", origine, `refs/remotes/origin/${BASE}:refs/heads/${BASE}`);
+  return (gabarit = racine);
+}
+function depuisLeGabarit(t: TestContext): { origine: string; clone: string } {
+  const modele = preparerLeGabarit();
+  const racine = repertoireTemporaire(t);
+  cpSync(modele, racine, { recursive: true });
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  // Écrite avec des barres obliques, comme `depotGit` l'écrit.
+  const config = join(clone, ".git/config");
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_GABARIT, origine.replaceAll("\\", "/")));
+  return { origine, clone };
+}
 
 export function cuisineFermee(t: TestContext, options: Options = {}) {
   // Enregistré avant tout répertoire temporaire : le runtime doit être arrêté
@@ -80,9 +119,10 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     dire?.();
     aArreter?.arreter("test");
   });
-  const lieux: Lieux = options.lieux ?? { repertoire: repertoireTemporaire(t), ...depotGit(t), gh: fauxGitHub(...(options.issues ?? [])) };
+  const copie = options.gabarit === true && !options.lieux && !options.fichiers && !options.histoire;
+  const lieux: Lieux = options.lieux ?? { repertoire: repertoireTemporaire(t), ...(copie ? depuisLeGabarit(t) : depotGit(t)), gh: fauxGitHub(...(options.issues ?? [])) };
   const { repertoire, origine, clone, gh } = lieux;
-  if (!options.lieux) {
+  if (!options.lieux && !copie) {
     // Le projet est sur l'origine : c'est de là que la passe rapatrie la base.
     // Ses gates sont la doublure : c'est sur elles que la pass juge la PR d'une passe.
     ecrireHistoire(clone, [...(options.histoire ?? []), { commit: { ...(options.fichiers ?? PROJET), ".claude/brigade/gates.sh": { lien: GATES_A_MESURES } } }]);

@@ -4,11 +4,11 @@
 // requests the same day. A project with no closer set is never touched, and
 // the chef's gesture keeps working.
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { before, describe, test } from "node:test";
 import { MERGES_PER_PASS, ONE_PASS_A_DAY_MS, trigger } from "../../src/closing/trigger.ts";
 import { chef } from "../aides/cuisine.ts";
 import { jusqua } from "../outils.ts";
-import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
+import { cuisineFermee, preparerLeGabarit, RETIRER_M1 } from "./kitchen.ts";
 
 type Cuisine = ReturnType<typeof cuisineFermee>;
 
@@ -35,9 +35,13 @@ function cross({ journal }: Cuisine): void {
 const requests = ({ journal }: Cuisine) => journal.tout().filter((e) => e.type === "closing.requested").map((e) => e.author);
 
 describe("the automatic closing pass", { concurrency: 3 }, () => {
+  // The project's repository, written once before the first test.
+  before(() => void preparerLeGabarit());
+
   test("with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef", async (t) => {
-    const cuisine = cuisineFermee(t);
-    const { closer, fin, avertissements, journal, heure, dernier } = cuisine;
+    const cuisine = cuisineFermee(t, { gabarit: true });
+    const { closer, avertissements, journal, heure, dernier } = cuisine;
+    closer.gestes("attendre\n");
     assert.equal(MERGES_PER_PASS, 20);
 
     merge(cuisine, 19);
@@ -50,16 +54,17 @@ describe("the automatic closing pass", { concurrency: 3 }, () => {
     await jusqua(() => requests(cuisine).length > 0);
     assert.deepEqual(requests(cuisine), ["runtime"]);
     // It leaves: its closer is launched. What a pass delivers is the business
-    // of the closing pass tests; this closer removes nothing, the pass ends at once.
-    await fin();
+    // of the closing pass tests; this closer waits, and the end of the test
+    // stops the runtime under it.
+    await jusqua(() => closer.lancements().length === 1);
     assert.ok(dernier("closing.started"));
-    assert.equal(closer.lancements().length, 1);
     assert.match(avertissements.join("\n"), /passe de fermeture demandée par le runtime — 20 merges depuis la dernière passe/);
   });
 
   test("with the closer set, a crossed drift threshold requests a pass even under 20 merges", async (t) => {
-    const cuisine = cuisineFermee(t);
-    const { closer, fin, avertissements, dernier } = cuisine;
+    const cuisine = cuisineFermee(t, { gabarit: true });
+    const { closer, avertissements, dernier } = cuisine;
+    closer.gestes("attendre\n");
     merge(cuisine, 3);
     await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), []);
@@ -67,9 +72,8 @@ describe("the automatic closing pass", { concurrency: 3 }, () => {
     cross(cuisine);
     await jusqua(() => requests(cuisine).length > 0);
     assert.deepEqual(requests(cuisine), ["runtime"]);
-    await fin();
+    await jusqua(() => closer.lancements().length === 1);
     assert.ok(dernier("closing.started"));
-    assert.equal(closer.lancements().length, 1);
     assert.match(avertissements.join("\n"), /passe de fermeture demandée par le runtime — seuil de dérive franchi — /);
   });
 
@@ -109,7 +113,7 @@ describe("the automatic closing pass", { concurrency: 3 }, () => {
   });
 
   test("a served project with no closer set never gets a pass requested, whatever the merges or thresholds", async (t) => {
-    const cuisine = cuisineFermee(t, { reglages: { calibration: null } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { calibration: null } });
     const { closer, types } = cuisine;
     closer.gestes(RETIRER_M1);
     merge(cuisine, 45);
@@ -120,7 +124,7 @@ describe("the automatic closing pass", { concurrency: 3 }, () => {
   });
 
   test("under the chef's \"stop\", nothing is requested; the request comes once the kitchen resumes", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const { repertoire, fin } = cuisine;
     chef(repertoire, "kitchen.stopped");
     merge(cuisine, 20);

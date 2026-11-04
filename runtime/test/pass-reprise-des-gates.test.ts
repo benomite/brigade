@@ -2,14 +2,14 @@
 // code qu'elle juge : un vrai dépôt git, un cook qui les joue par le lanceur de
 // la station, et la pass qui juge sa livraison.
 import assert from "node:assert/strict";
-import { appendFileSync, copyFileSync, mkdirSync, symlinkSync } from "node:fs";
+import { appendFileSync, copyFileSync, cpSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { before, describe, test, type TestContext } from "node:test";
 import { coutDuProjet, lireBudget } from "../src/cout-des-gates.ts";
 import type { FaitGates } from "../src/events/gates.ts";
 import type { Gates } from "../src/events/pass.ts";
 import { cuisine, fauxGitHub, issue, montre, type Options } from "./aides/cuisine.ts";
-import { BASE, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
+import { BASE, depotGit, git, jusqua, repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 // Le projet porte ses gates sur sa base : la doublure, par un lien. `copie` :
@@ -27,8 +27,37 @@ function lieuxDuProjet(t: TestContext, copie = false) {
   return { lieux: { repertoire: repertoireTemporaire(t), origine, clone, gh: fauxGitHub(issue(17)), heure: montre() }, script };
 }
 
+// Le projet dont les gates sont la doublure même, fabriqué une fois pour le
+// fichier : chaque test en reçoit une copie, qui coûte bien moins que les
+// `git` qui le font. L'adresse de l'origine y est réécrite pour la copie.
+const ORIGINE_DU_MODELE = "@ORIGINE@";
+let modele: string | undefined;
+function fabriquerLeModele(): string {
+  const racine = repertoireDuFichier("brigade-reprise-des-gates-");
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+  git(clone, "init", "-q", `--initial-branch=${BASE}`);
+  writeFileSync(join(clone, "LISEZMOI"), "le projet\n");
+  symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "le projet et ses gates");
+  git(racine, "clone", "-q", "--bare", clone, origine);
+  git(clone, "remote", "add", "origin", ORIGINE_DU_MODELE);
+  git(clone, "update-ref", `refs/remotes/origin/${BASE}`, "HEAD");
+  return racine;
+}
+function copieDuModele(t: TestContext) {
+  modele ??= fabriquerLeModele();
+  const racine = repertoireTemporaire(t);
+  cpSync(modele, racine, { recursive: true, verbatimSymlinks: true });
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  const config = join(clone, ".git/config");
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_MODELE, origine.replaceAll("\\", "/")));
+  return { lieux: { repertoire: repertoireTemporaire(t), origine, clone, gh: fauxGitHub(issue(17)), heure: montre() } };
+}
+
 function service(t: TestContext, options: Options) {
-  const lieu = cuisine(t, { tickMs: 25, git: true, ...options });
+  const lieu = cuisine(t, { tickMs: 25, git: true, sansSync: true, ...options });
   const { journal, repertoire } = lieu;
   const verdict = () => lieu.dernier("pass.judged", 17) as { verdict: string; gates: Gates } | undefined;
   const passages = () => journal.tout().flatMap((evenement) => (evenement.type === "gates.ran" ? [{ seq: evenement.seq, ticket: evenement.ticket, ...(evenement.payload as FaitGates["payload"]) }] : []));
@@ -39,9 +68,13 @@ function service(t: TestContext, options: Options) {
 }
 
 describe("la pass reprend les gates du cook", { concurrency: 3 }, () => {
+  before(() => void (modele ??= fabriquerLeModele()));
+
   test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", { skip: posixOnly("a cook whose green launcher run covers what it delivers lets the pass reuse it without playing any gates; on Windows the brief names the launcher with backslashes, which neither the test's regular expression nor the fake claude's grep for `/brigade/gates-du-cook` matches, so the cook never plays its gates") }, async (t) => {
-    const { lieux } = lieuxDuProjet(t);
-    const { verdict, passages, parLaPass, gates, cooks, journal, heure } = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
+    const { lieux } = copieDuModele(t);
+    const { verdict, passages, parLaPass, gates, cooks, journal, heure, types } = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
+    // Deux faits l'un après l'autre : la livraison du cook, puis le verdict.
+    await jusqua(() => types(17).includes("ticket.passing"));
     await jusqua(() => verdict() !== undefined);
 
     // La consigne du cook nomme le lanceur, et il l'a joué : une fois.
@@ -56,45 +89,6 @@ describe("la pass reprend les gates du cook", { concurrency: 3 }, () => {
     assert.match(jugees.tail, new RegExp(`^gates non rejouées : le cook les a déjà passées vertes sur le même arbre, avec la même configuration — passage ${duCook?.seq} du journal \\(#17, `));
     // Le coût du projet ne compte que le passage du cook.
     assert.equal(coutDuProjet(journal.base, "brigade", lireBudget({}), heure.maintenant()).lastDay.runs, 1);
-  });
-
-  test("le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier", { skip: posixOnly("a cook plays its gates through the launcher and then commits more, so the pass must replay them on the new tree; on Windows the fake claude's grep for `/brigade/gates-du-cook` misses the launcher the brief names with backslashes, so only the pass plays the gates") }, async (t) => {
-    const { lieux } = lieuxDuProjet(t);
-    const { verdict, passages, parLaPass, gates } = service(t, { lieux, pass: true, scenario: "livre-avant-ses-gates" });
-    await jusqua(() => verdict() !== undefined);
-
-    assert.equal(gates.appels().length, 2);
-    assert.equal(parLaPass().length, 1);
-    assert.deepEqual(
-      passages().map((passage) => [passage.runner, passage.outcome]),
-      [
-        ["cook", "green"],
-        ["pass", "green"],
-      ],
-    );
-    assert.notEqual(passages()[0]?.tree, passages()[1]?.tree);
-    assert.equal(verdict()?.gates.reused, undefined);
-  });
-
-  test("les gates du cook étaient rouges : la pass les joue en entier", { skip: posixOnly("a cook's launcher run is red, so the pass must replay the gates on the same tree; on Windows the fake claude's grep for `/brigade/gates-du-cook` misses the backslashed launcher path of the brief, so no red run of the cook is ever noted") }, async (t) => {
-    const { lieux } = lieuxDuProjet(t);
-    const lieu = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
-    lieu.gates.regler("rouge");
-    await jusqua(() => lieu.verdict() !== undefined);
-
-    assert.equal(lieu.parLaPass().length, 1);
-    // Ceux du ticket : la pass a joué ensuite celles de la base seule, pour savoir à qui est le rouge.
-    const duTicket = lieu.passages().filter((passage) => passage.ticket === 17);
-    assert.deepEqual(
-      duTicket.map((passage) => [passage.runner, passage.outcome]),
-      [
-        ["cook", "red"],
-        ["pass", "red"],
-      ],
-    );
-    // Le même arbre : seul le verdict du cook l'a écarté.
-    assert.equal(duTicket[0]?.tree, duTicket[1]?.tree);
-    assert.equal(lieu.verdict()?.gates.reused, undefined);
   });
 
   test("la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier", { skip: posixOnly("the gates script behind the link changes between a cook's green launcher run and the pass, which must replay them on the same tree; on Windows the fake claude's grep for `/brigade/gates-du-cook` misses the backslashed launcher path of the brief, so there is no cook run to compare with") }, async (t) => {

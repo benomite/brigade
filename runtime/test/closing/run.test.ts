@@ -3,19 +3,22 @@
 // sa condition d'exécution ; chaque garde-fou l'arrête et le dit ; les zones tiennent dans les deux sens ; et ce
 // qu'elle retire arrive par une PR, jamais par un commit sur la base.
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { before, describe, test } from "node:test";
 import { principal } from "../../src/closing/command.ts";
 import { SANS_MOTIF } from "../../src/closing/brief.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { chef, issue, PLAFONDS, STATION } from "../aides/cuisine.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
-import { cuisineFermee, fiche, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
+import { cuisineFermee, fiche, preparerLeGabarit, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
 
 // Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
 describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
+  // Le dépôt du projet, écrit une fois avant le premier test.
+  before(() => void preparerLeGabarit());
+
   test("ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif", async (t) => {
-    const { demander, fin, closer, gh, journal, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = cuisineFermee(t);
+    const { demander, fin, closer, gh, journal, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = cuisineFermee(t, { gabarit: true });
     const avant = teteDeLaBase();
     closer.gestes(RETIRER_M1);
     closer.message("J'ai retiré `inutile`, que rien n'appelle.\n\n<livrable>\nRetiré : M1.\nLAISSÉ D1 : les deux suites se ressemblent mais servent deux modules qui évoluent à part\n</livrable>\n");
@@ -73,7 +76,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("un doublon que le closer réunit en un seul endroit est dit factorisé, à côté du code mort supprimé, avec les lignes gagnées et ce qui est laissé — une entrée par candidat, son lieu et son motif", async (t) => {
-    const { demander, fin, closer, gh } = cuisineFermee(t);
+    const { demander, fin, closer, gh } = cuisineFermee(t, { gabarit: true });
     // `b.ts` appelle ce que `a.ts` garde, au lieu d'en porter la copie ; `inutile` part.
     closer.gestes(
       [`printf 'export const partage = 1;\\n' >>src/libre/a.ts`, `printf 'import { partage } from "./a.ts";\\nconsole.log(partage);\\n' >src/libre/b.ts`, RETIRER_M1].join("\n"),
@@ -113,7 +116,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   }
 
   test("sans la commande du chef ni déclencheur — vingt merges, un seuil franchi —, aucune passe qui écrit ne démarre : pas sur une horloge", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const { journal, types } = cuisine;
     cuisine.closer.gestes(RETIRER_M1);
     const seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: 1, growthPercent: null };
@@ -128,7 +131,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient", async (t) => {
-    const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { cooksBelow: 2 } });
     const { runtime, demander, dernier, closer, fin, gh, types } = cuisine;
     // Les deux tickets entrent au même sondage.
     gh.ficher(7, "2026-10-08T09:00:00Z", fiche("src/tenu"));
@@ -172,7 +175,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
 
   test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", async (t) => {
     // Le closer ne retire rien : ce qui compte ici, c'est qu'elle parte, pas ce qu'elle livre.
-    const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { cooksBelow: 2 } });
     await cuisine.poser(9);
     assert.equal(cuisine.runtime.rail.prendre(STATION)?.ticket, 9);
 
@@ -184,13 +187,14 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
     rienNEstParti(cuisine);
 
     cuisine.runtime.rail.rendre(9, "essai", STATION);
-    await cuisine.fin();
+    await jusqua(() => cuisine.dernier("closing.started") !== undefined);
     assert.deepEqual(cuisine.dernier("closing.started")?.held, []);
+    await cuisine.fin();
     assert.equal(cuisine.closer.lancements().length, 1);
   });
 
   test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien", async (t) => {
-    const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { cooksBelow: 2 } });
     const { runtime, demander, poser, closer, fin, origine, avertissements } = cuisine;
     await poser(7, "src/tenu");
     assert.equal(runtime.rail.prendre(STATION)?.ticket, 7);
@@ -211,7 +215,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   test("un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part", async (t) => {
     // Les cooks prennent leurs tickets au rail que lisent les stations : c'est
     // lui qu'on interroge, sans faire jouer de cook.
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const { runtime, demander, closer, fin, types, etat, gh } = cuisine;
     closer.gestes("attendre\n");
     assert.equal((await demander()).code, 0);
@@ -235,7 +239,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("la passe s'arrête et le dit quand son plafond de tokens est atteint — le sien, par passe, pas celui d'un cook", async (t) => {
-    const cuisine = cuisineFermee(t, { reglages: { tokens: 500 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { tokens: 500 } });
     const { demander, closer, fin, journal, avertissements, clone, repertoire } = cuisine;
     closer.gestes("assistant 600\nattendre\n");
 
@@ -257,7 +261,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range", async (t) => {
-    const cuisine = cuisineFermee(t, { reglages: { removedLines: 3 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { removedLines: 3 } });
     const { demander, closer, fin, journal, avertissements } = cuisine;
     // Huit lignes retirées, pas encore commitées, et il continue.
     closer.gestes("rm src/libre/a.ts\nattendre\n");
@@ -274,7 +278,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("un closer qui finit en ayant retiré plus que son plafond ne livre rien", async (t) => {
-    const cuisine = cuisineFermee(t, { reglages: { removedLines: 3 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglages: { removedLines: 3 } });
     cuisine.closer.gestes("git rm -q src/libre/a.ts\ncommiter\n");
 
     assert.equal((await cuisine.demander()).code, 0);
@@ -284,7 +288,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("la passe s'arrête et le dit après l'inactivité : un closer qui se tait est arrêté par la minuterie de tout cook", async (t) => {
-    const cuisine = cuisineFermee(t, { plafonds: { idleMs: 300 } });
+    const cuisine = cuisineFermee(t, { gabarit: true, plafonds: { idleMs: 300 } });
     cuisine.closer.gestes("attendre\n");
 
     assert.equal((await cuisine.demander()).code, 0);
@@ -295,7 +299,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repart tant que la cuisine est arrêtée", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const { demander, closer, fin, repertoire, avertissements } = cuisine;
     closer.gestes(`attendre\n${RETIRER_M1}`);
     assert.equal((await demander()).code, 0);
@@ -313,7 +317,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("la passe s'arrête et le dit sur disjoncteur : ouvert pendant qu'elle range, il l'arrête ; ouvert, aucune ne part", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const { demander, closer, fin, repertoire, avertissements } = cuisine;
     closer.gestes(`attendre\n${RETIRER_M1}`);
     assert.equal((await demander()).code, 0);
@@ -334,7 +338,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("une seule passe à la fois : demandée pendant qu'une autre range, la commande refuse", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const { demander, closer, fin } = cuisine;
     closer.gestes(`attendre\n${RETIRER_M1}`);
     assert.equal((await demander()).code, 0);
@@ -349,7 +353,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a laissé reste au journal avec son motif", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     cuisine.closer.message("<livrable>\nLAISSÉ M1 : appelé par un script de déploiement hors du dépôt\nLAISSÉ M2 : idem\n</livrable>\n");
 
     assert.equal((await cuisine.demander()).code, 0);
@@ -374,13 +378,13 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
     assert.match(propre.avertissements.join("\n"), /passe de fermeture refusée — rien à ranger — l'observation ne repère ni doublon ni code mort sur `v2`/);
     rienNEstParti(propre);
 
-    const sansCloser = cuisineFermee(t, { reglages: { calibration: null } });
+    const sansCloser = cuisineFermee(t, { gabarit: true, reglages: { calibration: null } });
     const refusee = await sansCloser.demander();
     assert.equal(refusee.code, 1);
     assert.match(refusee.sortie, /the closer is not set on this project — `brigade <projet> station closer-modele <model>` and `brigade <projet> station closer-effort <effort>`/);
     rienNEstParti(sansCloser);
 
-    const eteinte = cuisineFermee(t);
+    const eteinte = cuisineFermee(t, { gabarit: true });
     eteinte.runtime.arreter("essai");
     const seule = appeler(principal, ["write"], { BRIGADE_STATE_DIR: eteinte.repertoire });
     assert.equal(await seule.fin, 1);
@@ -391,7 +395,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
   });
 
   test("une passe ne survit pas au runtime : celle qu'il a laissée en vol est dite interrompue, et une demande d'une autre vie ne lance rien", async (t) => {
-    const premiere = cuisineFermee(t);
+    const premiere = cuisineFermee(t, { gabarit: true });
     premiere.closer.gestes(`attendre\n${RETIRER_M1}`);
     assert.equal((await premiere.demander()).code, 0);
     await jusqua(() => premiere.closer.lancements().length === 1);
@@ -411,18 +415,21 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
       ],
     );
     const vus = seconde.types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => seconde.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
+    await jusqua(() => seconde.types().filter((type) => type === "runtime.ticked").length >= vus + 3);
     assert.equal(seconde.closer.lancements().length, 1);
     rienNEstLivre(seconde);
 
-    // Redemandée par la commande, elle part.
+    // Redemandée par la commande, elle part — un closer qui ne retire rien :
+    // ce qu'une passe livre, c'est l'affaire du premier test.
+    seconde.closer.gestes("");
     seconde.closer.feu();
     assert.equal((await seconde.demander()).code, 0);
-    await jusqua(() => seconde.dernier("closing.ended")?.outcome === "delivered");
+    await jusqua(() => seconde.journal.tout().some((e) => e.type === "closing.ended" && e.payload.run !== run));
+    assert.equal(seconde.closer.lancements().length, 2);
   });
 
   test("une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le dit, et la base n'a pas bougé", async (t) => {
-    const cuisine = cuisineFermee(t);
+    const cuisine = cuisineFermee(t, { gabarit: true });
     const avant = cuisine.teteDeLaBase();
     cuisine.gh.pannes.pr = true;
     cuisine.closer.gestes(RETIRER_M1);
@@ -437,7 +444,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 3 }, () => {
 
   test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part", async (t) => {
     let calibration: ReglagesDeFermeture["calibration"] = null;
-    const cuisine = cuisineFermee(t, { reglagesAChaud: () => ({ ...REGLAGES_DE_FERMETURE, calibration }) });
+    const cuisine = cuisineFermee(t, { gabarit: true, reglagesAChaud: () => ({ ...REGLAGES_DE_FERMETURE, calibration }) });
     const { demander, dernier, closer, fin, types, journal } = cuisine;
     closer.gestes(RETIRER_M1);
 

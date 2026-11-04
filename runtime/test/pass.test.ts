@@ -290,10 +290,12 @@ describe("la pass", { concurrency: 3 }, () => {
   });
 
   test("un grant accordé jusqu'à une heure s'éteint seul : l'heure passée, le runtime l'écrit une fois, sans livraison ni geste, et la livraison suivante n'est pas mergée — son issue dit que le grant s'est éteint", async (t) => {
-    const { repertoire, gh, heure, journal, avertissements, compter, jusquAu, laisserTourner } = service(t);
+    // Aucun ticket d'abord : le grant s'éteint sans livraison qui le réveille.
+    const { repertoire, gh, heure, journal, avertissements, compter, jusquAu, laisserTourner } = service(t, { issues: [] });
     const echeance = new Date(heure.maintenant().getTime() + HEURE_MS).toISOString();
     chef(repertoire, "grant.activated", { until: echeance });
-    await jusquAu("merge.done");
+    // Avant l'heure, les ticks passent sans l'éteindre.
+    await laisserTourner();
     assert.equal(compter("grant.expired"), 0);
 
     heure.avancer(2 * HEURE_MS);
@@ -307,7 +309,7 @@ describe("la pass", { concurrency: 3 }, () => {
       ["grant.expired", "pass", null, { action: "merge", cause: "until", since: echeance }],
     ]);
     assert.match(avertissements.join("\n"), /grant `merge` éteint seul : son échéance est passée/);
-    assert.equal(gh.merges.length, 1);
+    assert.equal(gh.merges.length, 0);
     assert.deepEqual(journal.duTicket(18).at(-1)?.payload, { reason: "no-grant", expired: echeance });
     const dit = gh.commentaires.find(([ticket, corps]) => ticket === 18 && /non mergée/.test(corps))?.[1] ?? "";
     assert.match(dit, /verte, non mergée \(`no-grant`\)[\s\S]*Le grant `merge` s'est éteint seul le /);
@@ -929,16 +931,19 @@ describe("la pass", { concurrency: 3 }, () => {
     gh.ficher(18, "2026-10-08T09:00:00Z", [MARQUEUR, "- attend : #17"].join("\n"));
     gh.ficher(19, "2026-10-08T09:00:00Z", [MARQUEUR, "- attend : #18"].join("\n"));
     const pas = () => journal.duTicket(17).filter((e) => e.type === "pass.kitchen-took-over").length;
-    // Rouge après ses renvois : un ticket `fix` sur sa cause, et #17 l'attend, 86.
-    await jusqua(() => pas() >= 1);
-    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "returns-exhausted", move: "fix", issue: 501, reconciled: false });
-    // Pendant qu'il attend, une autre livraison est mergée sur la base, et sa PR vise désormais `main` : la cuisine n'y peut plus rien.
-    journal.ajouter({ project: "brigade", ticket: 99, author: "pass", type: "merge.done", payload: { pr: `https://github.com/${DEPOT}/pull/199`, sha: "autre", by: "pass", reconciled: false } });
+    // Rouge une fois, puis renvoyée : dès ce renvoi, sa PR vise `main`, une cause
+    // qu'aucun cook ne lève — chaque livraison suivante est non jugée, sans gates.
     const lecture = gh.github.prDeBranche;
     gh.github.prDeBranche = async (branche) => {
       const pr = await lecture(branche);
-      return pr && { ...pr, base: "main" };
+      return pr && (journal.duTicket(17).some((e) => e.type === "pass.returned") ? { ...pr, base: "main" } : pr);
     };
+    // Non jugée après son rouge : un ticket `fix` sur sa cause, et #17 l'attend, 86.
+    await jusqua(() => pas() >= 1);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "fix", issue: 501, reconciled: false });
+    assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "pass.judged").map((e) => charge(e).verdict), ["red"]);
+    // Pendant qu'il attend, une autre livraison est mergée sur la base.
+    journal.ajouter({ project: "brigade", ticket: 99, author: "pass", type: "merge.done", payload: { pr: `https://github.com/${DEPOT}/pull/199`, sha: "autre", by: "pass", reconciled: false } });
     gh.poser({ ...issue(501, []), state: "closed" });
     journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
 
@@ -947,7 +952,7 @@ describe("la pass", { concurrency: 3 }, () => {
     await jusqua(() => pas() >= 3);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "retry", merges: 1 });
     const renvoi = dernier("pass.returned", 17);
-    assert.deepEqual([renvoi?.n, renvoi?.kitchen], [2, true]);
+    assert.deepEqual([renvoi?.n, renvoi?.kitchen], [1, true]);
     assert.match(String((renvoi?.findings as string[])[0]), /Mais un merge a atterri sur la base depuis son dernier verdict rouge[\s\S]*Elle te revient une dernière fois, depuis la base du moment/);
     await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — un essai de plus depuis la base du moment, avant l'abandon (`wrong-base`).**")));
 
@@ -966,7 +971,7 @@ describe("la pass", { concurrency: 3 }, () => {
       assert.deepEqual(dernier("ticket.dropped-with", numero)?.root, 17);
       assert.ok(gh.commentaires.some(([sur, corps]) => sur === numero && corps.startsWith("**Cuisine — ticket abandonné avec #17 (`wrong-base`).**")));
     }
-    assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 5);
+    assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 4);
     // Aucun des trois ne disparaît : chacun attend le chef dans TODO, et ceux qui sont sortis avec #17 le nomment (#2118).
     const cartes = () => attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.quoi === "abandon");
     const abandons = () => cartes().map((attente) => (attente.quoi === "abandon" ? [attente.ticket, attente.voie, attente.root] : []));
