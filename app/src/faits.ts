@@ -30,6 +30,7 @@ import { anciennete, cadenceLue, essaisLus, histogramme, points, type Anciennete
 import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
+import type { CarteDuChef } from "./tableau/todo-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
 import type { Repondue } from "./repondues.ts";
@@ -198,6 +199,20 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
   };
 }
 
+// La carte du chef lue de GitHub (tableau/todo-github.ts) : sa sorte et son texte, ou rien si elle n'a pas cette forme.
+function chefLu(brut: unknown): CarteDuChef | undefined {
+  const lu = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : undefined;
+  return typeof lu?.sorte === "string" && typeof lu.texte === "string" ? { sorte: lu.sorte, texte: lu.texte } : undefined;
+}
+// Ce qu'une carte du chef attend de lui, en une phrase, selon sa sorte ; une sorte que l'app ne connaît pas est dite telle quelle.
+const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
+  blocked: "Blocked: a ticket cannot go on without you.",
+  "merge-by-hand": "Green, but not merged: merge it yourself.",
+  "product-question": "A product question waits for your answer.",
+  abandoned: "The kitchen gave this ticket up.",
+};
+const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
+
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
@@ -207,7 +222,7 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
 // `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
-export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; tache?: TacheHumaine; illisible?: string };
+export type Attendu = { ticket: number; titre: string; url: string | null; chef?: CarteDuChef; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; tache?: TacheHumaine; illisible?: string };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -376,7 +391,7 @@ export type Faits = {
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -725,7 +740,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
               const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
               const carte = lu.carte === undefined ? undefined : carteLue(lu.carte);
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
+              const chef = chefLu(lu.chef);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(chef === undefined ? {} : { chef }), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
               }, ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, illisible }));
             }),
           }),
@@ -1047,7 +1063,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       connu?.illisible !== undefined || donne?.illisible !== undefined
         ? ligneIllisible()
         : dit !== undefined
-        ? ligneQuiMAttend(attenduDe(donne?.decision).phrase)
+        ? ligneQuiMAttend(donne?.chef === undefined ? attenduDe(donne?.decision).phrase : phraseDuChef(donne.chef.sorte))
         : connu?.attente != null
           ? ligneMiseDeCote(connu.attente.raison)
           : connu !== undefined && A_L_OUVRAGE.includes(connu.etat)
@@ -1094,6 +1110,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
+      ...(dit !== undefined && donne?.chef !== undefined ? { chef: donne.chef } : {}),
       ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte, envois?.get(ticket)) } : {}),
       // Confié à un humain : sa tâche (vue/attente-capacite/).
       ...(dit !== undefined && donne?.tache !== undefined ? { tache: donne.tache } : {}),

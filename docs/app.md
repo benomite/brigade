@@ -481,6 +481,20 @@ station publishes in its gist only says why the board is not read yet (#1435, ab
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
 
+### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
+
+For a project whose `.claude/brigade/projet.json` says `githubOnlyState: true`, Todo also lists one card per open issue
+carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the token of this computer's `gh`, conditional
+reads). The card takes its kind and its text from the issue's latest comment that starts with
+`<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read as is): one line
+that says what the kind asks of the chef, then the comment's text. The issue number on the card opens the issue on GitHub. An
+issue with the label and no marked comment still gets a card, which says its comment is missing. A card has nothing to
+answer in the app: the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after
+a gesture). A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
+as it is, never an empty one. A project of the old path (`githubOnlyState` off or absent) shows the Todo it always had.
+Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
+`todo-github-seul-apres.png`.
+
 ### Changing a ticket's priority (#1739)
 
 A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`

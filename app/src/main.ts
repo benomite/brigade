@@ -37,6 +37,7 @@ import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
+import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import { avecLesEtatsGithub, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
@@ -226,7 +227,7 @@ const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
 const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
-  return lu.lu ? avecLesEnvois(await avecLesEtatsGithub(lu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : lu;
+  return lu.lu ? avecLesEnvois(await avecLeTodoGithub(await avecLesEtatsGithub(lu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 
