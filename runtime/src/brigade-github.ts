@@ -27,9 +27,9 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
-import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { controleDeLaBase, estUneReparation, type CheckDeLaBase, type GitHubDeLaBase } from "./github-seul/base-rouge/base-rouge.ts";
 import { lacher, prendre } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue } from "./github.ts";
@@ -60,7 +60,8 @@ export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise =
 // merge, plus les tickets, la PR d'un ticket, les checks de la base, les
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
-  Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> & {
+  Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> &
+  Omit<GitHubDeLaBase, "checksDeLaBase"> & {
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
@@ -68,7 +69,7 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // La PR qui livre le ticket, ou null.
     prDuTicket(issue: number): Promise<PRAFusionner | null>;
     // Les checks du dernier commit de la branche d'intégration.
-    checksDeLaBase(): Promise<Pick<Check, "outcome">[]>;
+    checksDeLaBase(): Promise<CheckDeLaBase[]>;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
@@ -156,6 +157,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const enVol = new Map<number, Promise<void>>();
+  const controler = controleDeLaBase({ github, base });
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
   // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
@@ -206,7 +208,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   const tour = async () => {
-    const etatBase = etatDeLaBase(await github.checksDeLaBase());
+    const { etat: etatBase, erreur } = await controler();
+    if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -214,7 +217,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
-      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, etatBase);
+      let etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, etatBase);
+      // Seule la réparation de la base se merge sur une base rouge (comme sur
+      // l'ancien chemin) : sa CI, sur sa tête, reste exigée par `fusionner`.
+      if (etat === "base-red" && estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) etat = "pass";
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null) {
@@ -364,6 +370,8 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { prsOuvertes } = github;
   if (mettreAJour === undefined) throw new Error("this GitHub client cannot update a branch");
   if (prsOuvertes === undefined) throw new Error("this GitHub client cannot list the files of the open PRs");
+  const { teteDeLaBase } = github;
+  if (teteDeLaBase === undefined) throw new Error("this GitHub client cannot read the head of the integration branch");
   if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
@@ -377,6 +385,10 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
     },
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
     checksDeLaBase: () => github.ci(base),
+    teteDeLaBase: () => teteDeLaBase.call(github, base),
+    issuesDepuis: (instant) => github.issuesDepuis(instant),
+    creerIssue: (issue) => github.creerIssue(issue),
+    fermerIssue: (numero) => github.fermerIssue(numero),
     ci: (sha) => github.ci(sha),
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
     prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
@@ -430,6 +442,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   if (!/^[A-Za-z0-9._/-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
   if (options.github.retraitsDeLabels === undefined) return { refus: "the GitHub client cannot read the label removals of an issue" };
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
+  if (options.github.teteDeLaBase === undefined) return { refus: "the GitHub client cannot read the head of the integration branch" };
   if (options.github.prsOuvertes === undefined) return { refus: "the GitHub client cannot list the files of the open PRs" };
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });
