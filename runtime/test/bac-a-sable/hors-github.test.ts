@@ -101,6 +101,7 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
       commits: () => 1,
       changes: () => [],
       diff: () => "",
+      tete: () => "a".repeat(40),
     },
     prise: () => ({ prendre: async () => ({ prise: true }), lacher: async () => true }),
     claude: "claude",

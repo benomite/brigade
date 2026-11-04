@@ -1069,6 +1069,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
       commits: () => 1,
       changes: () => [],
       diff: () => "",
+      tete: () => "a".repeat(40),
     },
     prise: priseDeLaStation,
     claude: "claude",
@@ -1086,6 +1087,66 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
   await station.tour();
   await station.calme();
   assert.deepEqual(fait, ["reprendre 13-github cook/13-github", "retirer 13-github -"]);
+});
+
+// Une station dont le cook reprend la branche que le clone porte déjà, conclut
+// « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
+async function repriseQui(t: TestContext, avance: boolean) {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(14);
+  let tete = "a".repeat(40);
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, fluxQuiConclut("done"));
+    if (avance) tete = "b".repeat(40);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: (branche) => branche === "cook/14-github",
+      preparer: async () => assert.fail("the branch is resumed"),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => [],
+      diff: () => "",
+      tete: () => tete,
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) throw new Error("inaccessible");
+  await station.tour();
+  await station.calme();
+  return faux;
+}
+
+test("a cook that resumes a branch and adds nothing to it delivers nothing: it counts as a failed cook, and the ticket is not put back in pass (#2372)", async (t) => {
+  const faux = await repriseQui(t, false);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+  assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
+});
+
+test("a cook that resumes a branch and moves its head delivers as before (#2372)", async (t) => {
+  const faux = await repriseQui(t, true);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
 });
 
 test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {

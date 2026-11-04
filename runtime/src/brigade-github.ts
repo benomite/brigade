@@ -670,7 +670,7 @@ export type OptionsDuDepot = {
   graphql?: boolean;
   github: GitHub;
   // Le dépôt de la station, d'où partent les worktrees de ses cooks.
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff">;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete">>;
   // La prise de #2056, liée à la station ; null tant que son module n'est pas
   // dans ce runtime.
   prise: ((github: GitHubDuTour, station: string) => Prise) | null;
@@ -740,6 +740,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }
     const { worktree, branche } = lieu;
+    // La tête que le cook reprend : s'il n'y ajoute rien, il n'a rien livré
+    // (#2372) — sans quoi la pass ressort une tête déjà renvoyée, et le ticket
+    // boucle entre elle et les cooks sans qu'aucun échec ne compte.
+    const avant = reprise && depot.tete !== undefined ? depot.tete(branche) : null;
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
@@ -752,6 +756,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     await depot.ranger(worktree, branche);
     if (depot.commits(branche) === 0) return { echec: "the cook committed nothing" };
+    if (avant !== null && depot.tete?.(branche) === avant) return { echec: "the cook added nothing since its last delivery" };
     try {
       depot.pousser(branche);
     } catch (erreur) {
