@@ -89,7 +89,8 @@ describe("les téléphones par le geste de la station", () => {
     const tire = json(await m.lancer(["code", "--url", "https://box.tail1234.ts.net"]));
     assert.deepEqual(lireContenuDuQr(String(tire.qr)), { code: tire.code, adresse: "https://box.tail1234.ts.net" });
     assert.equal(typeof tire.expiresAt, "string");
-    // Les lectures, dans le process du test ; le geste, lui, tire, liste et révoque.
+    // Les lectures, dans le process du test ; le geste, lui, tire et révoque : deux lancements, chacun par
+    // `sudo` sous le compte de la station, qui écrivent dans son registre.
     assert.equal(json(await m.lire(["status", String(tire.code)])).status, "valid");
 
     // Le téléphone s'appaire au guichet, qui lit le même registre.
@@ -98,7 +99,7 @@ describe("les téléphones par le geste de la station", () => {
     const { jeton } = telephones.appairer(String(tire.code), { nom: "pixel-8", machine: "Android 16" });
     assert.equal(json(await m.lire(["status", String(tire.code)])).status, "used");
     assert.deepEqual(
-      (json(await m.lancer(["list"])).phones as Array<{ name: string }>).map(({ name }) => name),
+      (json(await m.lire(["list"])).phones as Array<{ name: string }>).map(({ name }) => name),
       ["pixel-8"],
     );
 

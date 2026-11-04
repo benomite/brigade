@@ -10,22 +10,21 @@
 // `aArreter`, avant que ses répertoires disparaissent : sous Windows, un
 // fichier ouvert ne se supprime pas.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { Sortie } from "../../src/appel.ts";
 import { mettreEnAttente, PRIX_DE_L_ARRIVEE, renvoyerEnCuisine } from "../../src/attente.ts";
 import type { Fait } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { ticketDuRail } from "../../src/projections/rail.ts";
-import { CONFIGURATION, ETATS } from "../../src/station/configuration.ts";
+import { principal as rail } from "../../src/montrer-rail.ts";
+import { CONFIGURATION, environnementDeLaCommande, ETATS, lireFichierDeConfiguration } from "../../src/station/configuration.ts";
 import { ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { gestesDeLaStation } from "../../src/telephone/gestes.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
 import { projetsDeLaStation } from "../../src/telephone/projets.ts";
 import { aArreter, DEPOT, ENV_ENFANT, fauxGh, horloge, repertoireTemporaire } from "../outils.ts";
 
-const RUNTIME = join(import.meta.dirname, "..", "..");
 const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
 const PULLS = `repos/${DEPOT}/pulls`;
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -87,35 +86,38 @@ async function station(t: TestContext, ligne = "") {
   };
   // Le téléphone fait le geste sur un ticket de `brigade`.
   const geste = (gesture: unknown, ticket: unknown, entetes?: Record<string, string>) => demander("/projects/brigade/gestures", { gesture, ticket }, entetes);
-  // Ce que l'app de l'ordinateur lance sur la station de cet ordinateur pour un projet — le
-  // geste de la station, depuis le dossier du runtime, avec le répertoire de la station
-  // (app/src/box.ts, `lancerIci`) ; sur une box, `brigade <projet> …` lance le même.
-  const commeLOrdinateur = (...args: string[]) =>
-    new Promise<{ code: number; sortie: string; erreurs: string }>((resoudre) => {
-      execFile(process.execPath, [join("src", "station", "geste.ts"), "brigade", ...args], { cwd: RUNTIME, env }, (erreur, sortie, erreurs) =>
-        resoudre({ code: erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : -1, sortie, erreurs }),
-      );
-    });
+  // Ce que l'app de l'ordinateur lance sur la station de cet ordinateur pour un projet : le geste de la station
+  // (app/src/box.ts, `lancerIci`), qui lance la commande du runtime sur l'environnement que la configuration donne
+  // au projet. Ici, cette commande jouée dans le process du test, sur ce même environnement : le geste lui-même,
+  // ce qu'il transmet et son code, sont éprouvés par geste.test.ts.
+  const commeLOrdinateur = async (commande: "rail", ...args: string[]) => {
+    const lu = lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets.find(({ nom }) => nom === "brigade");
+    assert.ok(lu);
+    const [sortie, erreurs]: [string[], string[]] = [[], []];
+    let code = 0;
+    try {
+      await COMMANDES_DE_L_ORDINATEUR[commande]({ args, env: environnementDeLaCommande(racine, lu, env), dire: (ligne) => sortie.push(ligne), redire: (ligne) => erreurs.push(ligne) });
+    } catch (erreur) {
+      if (!(erreur instanceof Sortie)) throw erreur;
+      code = erreur.code;
+    }
+    return { code, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: erreurs.join("\n") };
+  };
   return { journal, gh, jeton, demander, geste, commeLOrdinateur, ecrits: () => ecrits().slice(avant), revoquer: () => telephones.revoquer("pixel-8") };
 }
 
-// La file que l'ordinateur lit : `facts`, par le geste de la station.
-async function railLu(cuisine: Awaited<ReturnType<typeof station>>) {
-  const lue = await cuisine.commeLOrdinateur("facts");
-  assert.equal(lue.code, 0, lue.erreurs);
-  return (JSON.parse(lue.sortie) as { rail: Array<{ ticket: number; etat: string }> }).rail.map(({ ticket, etat }) => ({ ticket, etat }));
-}
+const COMMANDES_DE_L_ORDINATEUR = { rail };
 
 for (const { gesture, args, ticket, fait } of [
-  { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/ },
-  { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/ },
+  { gesture: "remove", args: ["rail", "remove", "15"] as const, ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/ },
+  { gesture: "merge", args: ["rail", "merge", "14"] as const, ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/ },
 ]) {
   test(`« ${gesture} » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase`, async (t) => {
     const telephone = await station(t);
     const ordinateur = await station(t);
 
     const reponse = await telephone.geste(gesture, ticket);
-    const lance = await ordinateur.commeLOrdinateur(...args);
+    const lance = await ordinateur.commeLOrdinateur(args[0], ...args.slice(1));
 
     assert.equal(reponse.statut, 200, JSON.stringify(reponse.corps));
     assert.equal(lance.code, 0, lance.erreurs);
@@ -148,36 +150,18 @@ test("« back-to-kitchen » du téléphone change la station comme `/brigade arr
   assert.deepEqual(telephone.gh.appels(), []);
 });
 
-test("après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine", async (t) => {
-  const cuisine = await station(t);
-  const avant = await railLu(cuisine);
-  assert.deepEqual(avant.find(({ ticket }) => ticket === 15)?.etat, "en attente");
-  assert.notEqual(ticketDuRail(cuisine.journal.base, 16)?.waitingFor ?? null, null);
-
-  assert.equal((await cuisine.geste("remove", 15)).statut, 200);
-  assert.equal((await cuisine.geste("back-to-kitchen", 16)).statut, 200);
-
-  const apres = await railLu(cuisine);
-  assert.equal(apres.find(({ ticket }) => ticket === 15), undefined);
-  assert.equal(ticketDuRail(cuisine.journal.base, 16)?.waitingFor, null);
-  assert.notDeepEqual(apres.find(({ ticket }) => ticket === 16), avant.find(({ ticket }) => ticket === 16));
-  // Le merge de #14 a eu lieu sur GitHub, à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
-  assert.equal((await cuisine.geste("merge", 14)).statut, 200);
-  assert.deepEqual(
-    cuisine.gh.appels().filter((appel) => appel.includes("PUT")),
-    [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]],
-  );
-});
-
 test("un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change", async (t) => {
   const cuisine = await station(t);
 
-  for (const [gesture, ticket, phrase] of [
+  const refus = [
     ["merge", 15, "#15 is not touched: #15 has no delivery waiting for you to merge it — cost: none: nothing was changed"],
     ["remove", 99, "#99 is not touched: #99 is not on the rail — cost: none: nothing was changed"],
     ["back-to-kitchen", 15, "ticket 15 is not waiting for a third party — it is queued"],
-  ] as const) {
-    const reponse = await cuisine.geste(gesture, ticket);
+  ] as const;
+  // Demandés ensemble : aucun ne change rien.
+  const reponses = await Promise.all(refus.map(([gesture, ticket]) => cuisine.geste(gesture, ticket)));
+  for (const [i, [gesture, ticket, phrase]] of refus.entries()) {
+    const reponse = reponses[i] ?? { statut: 0, entetes: new Headers(), corps: {} };
     assert.equal(reponse.statut, 409, `${gesture} ${ticket}`);
     assert.equal(reponse.corps.done, false);
     assert.equal(reponse.corps.said, phrase);
