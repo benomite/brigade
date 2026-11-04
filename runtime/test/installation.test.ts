@@ -10,26 +10,27 @@ import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/c
 import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
-import { poserDecision, retirerDecision } from "../src/decisions.ts";
+import { decisionsAuDemarrage, environnementDecide, poserDecision, retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
 import { configManager } from "../src/manager.ts";
 import { configPass } from "../src/pass.ts";
 import { configReviewer } from "../src/reviewer.ts";
+import { lireLeDepot, variablesDesGatesDuDepot } from "../src/reglages-projet/en-vigueur.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
+import { valeursManquantes } from "../src/valeurs-a-donner.ts";
 import { configStation } from "../src/station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
+import { principal as installation } from "../src/installation-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
+import { appeler, BASE, DEPOT, ENV_ENFANT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
-const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
-const MAIN = join(import.meta.dirname, "../src/main.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
@@ -854,7 +855,7 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     sansReglageSousWindows(racine);
     sansDecision(etat, "BRIGADE_STATIONS");
 
-    const commande = lancer(t, CLI, [], env);
+    const commande = appeler(installation, [], { ...ENV_ENFANT, ...env });
 
     assert.equal(await commande.fin, 1, commande.sortie());
     assert.match(commande.sortie(), /→ step to resume: 4\. Déclarer les stations \(stations\)/);
@@ -900,9 +901,12 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     }
   });
 
-  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", { skip: posixOnly("marks the installation done, starts the real runtime, waits for its first cook and stops it by SIGTERM expecting exit 0: on Windows SIGTERM ends the runtime before its handler runs") }, async (t) => {
-    const { env, etat, gh } = projet(t);
-    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+  // Le runtime n'y est pas lancé : ce qu'il lit avant de rien écrire (main.ts) accepte l'environnement vérifié, ses
+  // stations comprises. Qu'un runtime démarré sur son environnement lance un cook sur le premier ticket calibré,
+  // sans autre geste, se prouve sur le vrai process dans main.test.ts (« une issue calibrée posée sur le dépôt
+  // devient une branche poussée, une PR et un commentaire »).
+  test("après « terminée », la liste des étapes n'en porte aucune à faire, et le runtime démarre sur l'environnement vérifié, ses stations déclarées", async (t) => {
+    const { env, etat } = projet(t);
     // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
     // charge le processeur bien au-delà du seuil par défaut.
     const service = { ...env, BRIGADE_MAX_LOAD_PER_CORE: "1000000", BRIGADE_MIN_FREE_MEMORY_MB: "0", BRIGADE_MIN_FREE_DISK_MB: "0" };
@@ -918,20 +922,17 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     assert.deepEqual(installation.etapes.filter((etape) => etape.etat !== "faite"), []);
     assert.deepEqual(manques(await verifier(service)), []);
 
-    // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
-    const runtime = lancer(t, MAIN, [], service);
-    const lancements = () => {
-      const journal = ouvrirJournal(etat, { lectureSeule: true });
-      try {
-        return journal.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket);
-      } finally {
-        journal.fermer();
-      }
-    };
-    await jusqua(() => lancements().length > 0);
-    assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0, runtime.sortie());
+    // Ce que le runtime lit au démarrage, dans son ordre : rien ne manque, rien n'est refusé.
+    assert.deepEqual(valeursManquantes(service), []);
+    const duDepot = lireLeDepot(service);
+    const decide = environnementDecide(duDepot.env, decisionsAuDemarrage(etat), duDepot.reglages);
+    configRail(decide);
+    assert.notDeepEqual(configStation(decide).stations, []);
+    configPass({ ...service, ...variablesDesGatesDuDepot(duDepot.reglages) });
+    configReviewer(decide);
+    configManager(decide);
+    lireSeuils(decide);
+    lireReglages(service);
   });
 });
 
@@ -1387,8 +1388,9 @@ describe("la désinstallation", () => {
 });
 
 describe("la commande du chef", () => {
-  const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
-    const enfant = lancer(t, CLI, args, env);
+  // Jouée dans le process du test ; lancée par son script, refus et code compris, dans commandes.test.ts.
+  const commande = async (_t: TestContext, env: Record<string, string>, ...args: string[]) => {
+    const enfant = appeler(installation, args, { ...ENV_ENFANT, ...env });
     return { code: await enfant.fin, sortie: enfant.sortie() };
   };
 
