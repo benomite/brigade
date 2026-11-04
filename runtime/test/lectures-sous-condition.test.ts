@@ -1,8 +1,8 @@
 // Les lectures répétées de la station, redemandées sous condition : tant que
 // rien n'a changé sur GitHub, il répond 304 — sans le compter dans son quota,
-// ni la box dans le sien —, et ce qui change se lit au tick suivant. Une heure
-// de ticks sur quatre projets, contre un faux `gh` qui tient l'ETag de chaque
-// ressource.
+// ni la box dans le sien —, et ce qui change se lit au tick suivant. Des ticks
+// sur quatre projets, au long d'une heure, contre un faux `gh` qui tient l'ETag
+// de chaque ressource.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { canalGitHub } from "../src/appairage/canal.ts";
@@ -104,12 +104,13 @@ function uneStation(t: TestContext, etags: boolean) {
     );
     for (let i = 0; i < LECTURES_DU_GIST_PAR_TICK; i++) await canal.lire(GIST);
   };
-  // Les appels comptés pendant un tick, l'horloge avancée d'un tick ensuite.
-  const compterUnTick = async (): Promise<number> => {
+  // Les appels comptés pendant un tick, l'horloge avancée ensuite : d'un tick,
+  // ou de ce que le test saute.
+  const compterUnTick = async (avanceMs = TICK_MS): Promise<number> => {
     const avant = limite.appels();
     await tick();
     const compte = limite.appels() - avant;
-    instant += TICK_MS;
+    instant += avanceMs;
     return compte;
   };
   return { gh, racine, limite, githubs, maintenant, compterUnTick };
@@ -129,25 +130,30 @@ test("avant : sans réponse 304, chaque tick de quatre projets compte toutes ses
   assert.ok(LECTURES_PAR_TICK * 60 > 2500, `${LECTURES_PAR_TICK * 60}`);
 });
 
-// Soixante ticks, chacun de ses lectures par la doublure de `gh` : quelques
-// secondes sous Linux, mais de 70 à 120 s sur un runner Windows, où chaque
-// process coûte cher — au bord des deux minutes laissées à un test. Sa garde
-// est plus large : elle ne sert qu'à ce qu'un test bloqué finisse par le dire.
-test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", { timeout: 600_000 }, async (t) => {
+// Une heure de ticks, sans rien de changé : chaque tick après le premier ne
+// compte rien, quel que soit son rang. Trois ticks suffisent à le voir — le
+// premier, un au milieu de l'heure, le dernier à sa fin —, et l'heure de
+// soixante ticks se compte de là : chaque tick lu par la doublure de `gh` en
+// lance quarante-six, soixante en lançaient 2 760 pour ne rien dire de plus.
+const INSTANTS_MIN = [0, 30, 59];
+
+test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", async (t) => {
   const { gh, racine, maintenant, compterUnTick } = uneStation(t, true);
   const parTick: number[] = [];
-  for (let i = 0; i < 60; i++) parTick.push(await compterUnTick());
+  for (const [i, minute] of INSTANTS_MIN.entries()) parTick.push(await compterUnTick(((INSTANTS_MIN[i + 1] ?? minute + 1) - minute) * MINUTE));
 
   // Chaque tick a bien relu GitHub : rien n'est servi sans lui demander.
-  assert.equal(gh.appels().length, 60 * LECTURES_PAR_TICK);
+  assert.equal(gh.appels().length, INSTANTS_MIN.length * LECTURES_PAR_TICK);
   // Le premier tick lit tout ; le second gist du premier tick est déjà un 304.
   assert.equal(parTick[0], LECTURES_PAR_TICK - 1);
   assert.deepEqual(new Set(parTick.slice(1)), new Set([0]));
   const heure = parTick.reduce((somme, n) => somme + n, 0);
-  assert.ok(heure < 2500, `${heure}`);
+  // Soixante ticks : le premier, et cinquante-neuf comme ceux qui l'ont suivi.
+  const uneHeure = parTick[0]! + 59 * Math.max(...parTick.slice(1));
+  assert.ok(uneHeure < 2500, `${uneHeure}`);
 
-  // `status`, lu à l'instant du soixantième tick : l'heure qu'il couvre les tient tous.
-  const instant = maintenant() - TICK_MS;
+  // `status`, lu à l'instant du dernier tick, une heure moins une minute après le premier : l'heure qu'il couvre les tient tous.
+  const instant = maintenant() - MINUTE;
   const appels = appelsDeLaStation(racine, instant);
   assert.ok(appels);
   assert.equal(appels.total, heure);
