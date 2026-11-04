@@ -112,9 +112,9 @@ describe("the pass", () => {
     await jusqua(() => k.types(17).includes("pass.started"));
     // Allumé : le jugement en vol finit sur sa CI en cours, puis plus rien ne repart.
     sw.etat.allume = true;
-    await laisserPasser(k.journal);
+    await laisserPasser(k.journal, 2);
     ciPrete = true;
-    await laisserPasser(k.journal);
+    await laisserPasser(k.journal, 3);
     assert.equal(k.types(17).includes("merge.done"), false);
 
     sw.etat.allume = false;
