@@ -7,6 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
+import { enSerie, type Lancement } from "./aides/serie.ts";
 import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
@@ -22,11 +23,15 @@ async function servi(t: TestContext, plafond = 10) {
     await serveur.fermer();
     ouvert.fermer();
   });
+  const env = { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire };
   const commande = async (...args: string[]) => {
-    const cli = lancer(t, CLI, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
+    const cli = lancer(t, CLI, args, env);
     return { code: await cli.fin, sortie: cli.sortie() };
   };
-  return { ouvert, repertoire, serveur, commande };
+  // Plusieurs commandes, l'une après l'autre, dans un seul process (`enSerie`) ;
+  // chacune sur cet arbitre, sauf l'environnement qu'elle donne.
+  const commandes = (...lancements: Lancement[]) => enSerie(t, CLI, lancements.map((lancement) => ({ ...lancement, env: lancement.env ?? env })));
+  return { ouvert, repertoire, serveur, commande, commandes };
 }
 
 // Chaque test a son arbitre, sur le port 0, et son état : ils se jouent de front.
@@ -73,25 +78,23 @@ describe("la commande de l'arbitre", { concurrency: 3 }, () => {
   });
 
   test("le chef règle un poids et retire un projet : l'arbitre qui tourne le lit à sa décision suivante", async (t) => {
-    const { ouvert, commande } = await servi(t, 8);
+    const { ouvert, commandes } = await servi(t, 8);
     ouvert.dire("compta", mot(4));
     ouvert.dire("brigade", mot(0));
     const part = (nom: string) => ouvert.etat().projets.find((projet) => projet.projet === nom)?.part;
 
-    assert.deepEqual(await commande("weight", "compta", "3"), { code: 0, sortie: "compta: weight 3 (was 1); the arbiter reads it at its next decision\n" });
+    assert.deepEqual(await commandes({ args: ["weight", "compta", "3"] }, { args: ["weight", "espace", "2"] }), [
+      { code: 0, sortie: "compta: weight 3 (was 1); the arbiter reads it at its next decision\n" },
+      { code: 0, sortie: "espace: weight 2 — project not yet known to the arbiter: it will have a share only once its runtime has been heard\n" },
+    ]);
     assert.deepEqual([part("compta"), part("brigade")], [6, 2]);
-    assert.deepEqual(await commande("weight", "espace", "2"), {
-      code: 0,
-      sortie: "espace: weight 2 — project not yet known to the arbiter: it will have a share only once its runtime has been heard\n",
-    });
     assert.equal(part("espace"), null);
 
-    assert.deepEqual(await commande("remove", "brigade"), {
-      code: 0,
-      sortie: "brigade: removed — its share is no longer reserved; if its runtime is running, it registers again at weight 1 as soon as it speaks\n",
-    });
+    assert.deepEqual(await commandes({ args: ["remove", "brigade"] }, { args: ["remove", "brigade"] }), [
+      { code: 0, sortie: "brigade: removed — its share is no longer reserved; if its runtime is running, it registers again at weight 1 as soon as it speaks\n" },
+      { code: 1, sortie: "brigade : brigade: project unknown to the arbiter\n" },
+    ]);
     assert.deepEqual(ouvert.etat().projets.map((projet) => projet.projet), ["compta", "espace"]);
-    assert.deepEqual(await commande("remove", "brigade"), { code: 1, sortie: "brigade : brigade: project unknown to the arbiter\n" });
   });
 
   test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles", async (t) => {
@@ -112,73 +115,63 @@ describe("la commande de l'arbitre", { concurrency: 3 }, () => {
   });
 
   test("ce que la commande ne comprend pas est refusé sans rien écrire", async (t) => {
-    const { repertoire, commande } = await servi(t);
-    for (const args of [["weight", "compta", "0"], ["weight", "Pas Un Nom", "2"], ["peser", "compta", "2"]]) {
-      const { code, sortie } = await commande(...args);
-      assert.equal(code, 2, args.join(" "));
-      assert.match(sortie, /usage: BRIGADE_ARBITER_PORT=/);
+    const { repertoire, commandes } = await servi(t);
+    const vide = repertoireTemporaire(t);
+    const [poidsNul, nomIllisible, inconnue, sansPort, sansRepertoire, sansReglages] = await commandes(
+      { args: ["weight", "compta", "0"] },
+      { args: ["weight", "Pas Un Nom", "2"] },
+      { args: ["peser", "compta", "2"] },
+      { args: [], env: {} },
+      { args: ["weight", "compta", "2"], env: {} },
+      { args: ["weight", "compta", "2"], env: { BRIGADE_ARBITER_STATE_DIR: vide } },
+    );
+    for (const refus of [poidsNul, nomIllisible, inconnue]) {
+      assert.equal(refus?.code, 2, refus?.sortie);
+      assert.match(refus?.sortie ?? "", /usage: BRIGADE_ARBITER_PORT=/);
     }
     const reglages = ouvrirReglages(repertoire);
     t.after(() => reglages.fermer());
     assert.deepEqual(reglages.projets(), []);
 
-    const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
-      return { code: await cli.fin, sortie: cli.sortie() };
-    };
-    assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT is not set/);
-    assert.match((await sans({}, "weight", "compta", "2")).sortie, /BRIGADE_ARBITER_STATE_DIR is not set/);
-    const vide = repertoireTemporaire(t);
-    assert.deepEqual(await sans({ BRIGADE_ARBITER_STATE_DIR: vide }, "weight", "compta", "2"), {
-      code: 1,
-      sortie: `brigade : no arbiter has run in ${vide}: no settings to read\n`,
-    });
+    assert.match(sansPort?.sortie ?? "", /BRIGADE_ARBITER_PORT is not set/);
+    assert.match(sansRepertoire?.sortie ?? "", /BRIGADE_ARBITER_STATE_DIR is not set/);
+    assert.deepEqual(sansReglages, { code: 1, sortie: `brigade : no arbiter has run in ${vide}: no settings to read\n` });
   });
 
   test("ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus", async (t) => {
-    const { ouvert, repertoire, serveur, commande } = await servi(t, 8);
+    const { ouvert, repertoire, serveur, commandes } = await servi(t, 8);
     ouvert.dire("compta", mot(4, { nonArbitres: 1, consommation: { jour: 10, semaine: 20 } }));
     ouvert.dire("muet", mot(1, { machine: true }));
     ouvert.dire("parti", mot(1));
     ouvert.quitter("parti");
     const lignes = (sortie: string) => sortie.trimEnd().split("\n");
 
-    const etat = await commande();
-    assert.equal(etat.code, 0);
-    assert.ok(lignes(etat.sortie).length > 5);
-    sansMotFrancais(lignes(etat.sortie));
-    for (const args of [["weight", "compta", "3"], ["weight", "compta", "3"], ["weight", "atelier", "2"], ["remove", "atelier"]]) {
-      const dit = await commande(...args);
-      assert.equal(dit.code, 0, args.join(" "));
-      sansMotFrancais(lignes(dit.sortie));
-    }
+    // L'état, puis les réglages.
+    const gestes = [[], ["weight", "compta", "3"], ["weight", "compta", "3"], ["weight", "atelier", "2"], ["remove", "atelier"]];
     // Les refus : un projet inconnu, un poids ou un nom illisible, une commande inconnue.
-    for (const args of [["remove", "atelier"], ["weight", "compta", "0"], ["weight", "Pas Un Nom", "2"], ["peser", "compta", "2"], ["weight", "compta"]]) {
-      const refus = await commande(...args);
-      assert.notEqual(refus.code, 0, args.join(" "));
-      sansMotFrancais(lignes(refus.sortie));
+    const refus = [["remove", "atelier"], ["weight", "compta", "0"], ["weight", "Pas Un Nom", "2"], ["peser", "compta", "2"], ["weight", "compta"]];
+    // Sans port, avec un port illisible, sans répertoire, sans réglages.
+    const sans: Lancement[] = [
+      { env: {} },
+      { env: { BRIGADE_ARBITER_PORT: "pas-un-port" } },
+      { args: ["weight", "compta", "2"], env: {} },
+      { args: ["weight", "compta", "2"], env: { BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) } },
+    ];
+    // L'arbitre injoignable, en dernier : dans le process de la commande, toute connexion est refusée.
+    const injoignable: Lancement = { env: { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire }, precharger: SANS_RESEAU };
+    const dits = await commandes(...gestes.map((args) => ({ args })), ...refus.map((args) => ({ args })), ...sans, injoignable);
+    for (const [rang, { code, sortie }] of dits.entries()) {
+      if (rang < gestes.length) assert.equal(code, 0, `${gestes[rang]?.join(" ")}\n${sortie}`);
+      else assert.notEqual(code, 0, sortie);
+      sansMotFrancais(lignes(sortie));
     }
-    // Sans port, avec un port illisible, sans répertoire, sans réglages, arbitre injoignable.
-    const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
-      return { code: await cli.fin, lignes: lignes(cli.sortie()) };
-    };
-    for (const [env, args] of [
-      [{}, []],
-      [{ BRIGADE_ARBITER_PORT: "pas-un-port" }, []],
-      [{}, ["weight", "compta", "2"]],
-      [{ BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) }, ["weight", "compta", "2"]],
-      [{ BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` }, []],
-    ] as const) {
-      const refus = await sans({ ...env }, ...args);
-      assert.notEqual(refus.code, 0, JSON.stringify(env));
-      sansMotFrancais(refus.lignes);
-    }
-    assert.match((await sans({ BRIGADE_ARBITER_PORT: "pas-un-port" })).lignes.join("\n"), /BRIGADE_ARBITER_PORT invalid: "pas-un-port"/);
+    assert.ok(lignes(dits[0]?.sortie ?? "").length > 5);
+    assert.match(dits.at(-4)?.sortie ?? "", /BRIGADE_ARBITER_PORT invalid: "pas-un-port"/);
+    assert.match(dits.at(-1)?.sortie ?? "", /UNREACHABLE — connection refused/);
   });
 
   test("un poids posé avant le ticket est toujours montré et appliqué, sans rien éditer à la main", async (t) => {
-    const { ouvert, repertoire, commande } = await servi(t, 8);
+    const { ouvert, repertoire, commandes } = await servi(t, 8);
     ouvert.dire("compta", mot(0));
     ouvert.dire("brigade", mot(0));
     // Le poids tel qu'une version d'avant l'a posé : directement dans les réglages de l'arbitre.
@@ -186,9 +179,10 @@ describe("la commande de l'arbitre", { concurrency: 3 }, () => {
     t.after(() => reglages.fermer());
     reglages.peser("compta", 3, "2026-10-01T00:00:00.000Z");
 
-    assert.match((await commande()).sortie, /^  compta {3}weight 3 · /m);
+    const [montre, repese] = await commandes({}, { args: ["weight", "compta", "3"] });
+    assert.match(montre?.sortie ?? "", /^  compta {3}weight 3 · /m);
     assert.equal(ouvert.etat().projets.find((projet) => projet.projet === "compta")?.part, 6);
-    assert.deepEqual(await commande("weight", "compta", "3"), { code: 0, sortie: "compta: weight 3 — unchanged; the arbiter reads it at its next decision\n" });
+    assert.deepEqual(repese, { code: 0, sortie: "compta: weight 3 — unchanged; the arbiter reads it at its next decision\n" });
   });
 
   test("l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM", { skip: posixOnly("starts the arbiter in its own process, checks it answers on its port and refuses a second arbiter, then expects exit code 0 and its closing line on SIGTERM; on Windows kill('SIGTERM') terminates the arbiter before its handler runs, so neither comes") }, async (t) => {
