@@ -91,6 +91,9 @@ export function configPresence(env: Record<string, string | undefined>): number 
 // celui où elle la raconte (voir `station.ts`). `conserve` : il n'a rien livré,
 // et sa branche porte sur l'origine ce nombre de commits — le travail conservé,
 // d'où le cook suivant repart.
+// Ce que git a dit d'un push refusé tient dans la raison : bornée large, pas coupée.
+const RAISON_DISTANTE_MAX = 20_000;
+
 export type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture; sansCommit: boolean; recolte: string | null; conserve?: number };
 
 // Ce que les stations d'ici partagent avec celles qui tirent : les mêmes
@@ -535,7 +538,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   const recevoir = async (cook: EnCours, demande: Extract<Demande, { verb: "deliver" }>): Promise<Conclusion> => {
     const lecture: Lecture = { ...LECTURE_VIDE, message: demande.message?.slice(0, MESSAGE_MAX) ?? null };
     const echec = (raison: string): Conclusion => ({ fin: "failed", raison, lecture, sansCommit: true, recolte: null });
-    if (demande.ending === "failed") return echec(demande.reason?.slice(0, 200) || "échec");
+    if (demande.ending === "failed") return echec(demande.reason?.slice(0, RAISON_DISTANTE_MAX) || "échec");
     try {
       await depot.recevoir(cook.branche);
       const commits = depot.commits(cook.branche);
