@@ -34,6 +34,9 @@ class FauxGitHub {
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
   base: "green" | "red" = "green";
+  // Le dernier commit de la base, et les issues de réparation que le faux a vu créer.
+  teteDeLaBase = "b".repeat(40);
+  creations: number[] = [];
   // Des checks qui ne tournent que sur la base, jamais sur une PR (les tests Windows).
   checksDeLaBaseSeule: Array<{ name: string; outcome: "green" | "red" }> = [];
   // Les PR dont la CI est rouge.
@@ -123,6 +126,25 @@ class FauxGitHub {
         await noter("checksDeLaBase");
         const url = this.runDeLaBase === null ? {} : { url: `https://github.com/faux/depot/actions/runs/${this.runDeLaBase}/job/1` };
         return [{ name: "tests", outcome: this.relanceEnCours ? ("pending" as const) : this.base, ...url }, ...this.checksDeLaBaseSeule];
+      },
+      teteDeLaBase: async () => {
+        await noter("teteDeLaBase");
+        return this.teteDeLaBase;
+      },
+      issuesDepuis: async () => {
+        await noter("issuesDepuis");
+        return [...this.tickets.values()].map((t) => ({ number: t.number, body: t.corps, association: "OWNER" }));
+      },
+      fermerIssue: async (numero) => {
+        await noter("fermerIssue");
+        this.ticket(numero).state = "closed";
+      },
+      creerIssue: async ({ corps, labels }) => {
+        await noter("creerIssue");
+        const number = 900 + this.creations.length;
+        this.creations.push(number);
+        this.feu(number, labels, corps);
+        return number;
       },
       commentaires: async (numero) => {
         await noter("commentaires");
@@ -678,12 +700,97 @@ test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base
   faux.base = "red";
   await a.tour();
   await a.tour();
-  assert.deepEqual(faux.relectures, []);
+  // Seule la réparation que la base rouge a fait ouvrir est relue ; #10 attend.
+  assert.deepEqual(faux.relectures.filter(({ pr }) => faux.pr(pr).issue === 10), []);
   assert.equal(faux.mergee(10), undefined);
   faux.base = "green";
   await a.tour();
   await a.tour();
   assert.equal(faux.mergee(10)?.mergeePar, "A");
+});
+
+const reparations = (faux: FauxGitHub) => [...faux.tickets.values()].filter((t) => t.state === "open" && t.corps.includes("brigade:reparation-base"));
+
+test("a red main: no PR is merged, and the next turns merge nothing either (#2214)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10);
+  const a = faux.station("A", { places: 2 });
+  await a.tour();
+  await a.calme();
+  faux.base = "red";
+  for (let i = 0; i < 3; i++) await a.tour();
+  assert.equal(faux.mergee(10), undefined);
+  assert.deepEqual(faux.relectures.filter(({ pr }) => faux.pr(pr).issue === 10), []);
+  assert.equal(faux.prs.filter((pr) => pr.merged && pr.issue === 10).length, 0);
+});
+
+test("a red commit gets exactly one repair issue, however many turns and stations see it (#2214)", async () => {
+  const faux = new FauxGitHub();
+  faux.base = "red";
+  const a = faux.station("A", { places: 0, avertir: () => {} });
+  const b = faux.station("B", { places: 0, avertir: () => {} });
+  for (let i = 0; i < 3; i++) await Promise.all([a.tour(), b.tour()]);
+  const [reparation, ...autres] = reparations(faux);
+  assert.deepEqual(autres, []);
+  assert.ok(faux.creations.length <= 2);
+  assert.ok(reparation?.corps.includes(`brigade:reparation-base ${faux.teteDeLaBase}`));
+  assert.ok(reparation?.labels.has("prio:0") && reparation.labels.has("fire"));
+  // Les deux stations ont créé la leur au même instant : la plus récente s'est fermée.
+  assert.equal(reparation?.number, 900);
+  // Un autre commit rouge : une autre réparation.
+  faux.teteDeLaBase = "c".repeat(40);
+  await a.tour();
+  assert.equal(reparations(faux).length, 2);
+});
+
+test("a repair issue that GitHub refused to create is retried on the next turn, and the merges stay stopped (#2214)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10);
+  const dits: string[] = [];
+  const a = faux.station("A", { places: 1, avertir: (texte) => dits.push(texte) });
+  await a.tour();
+  await a.calme();
+  faux.base = "red";
+  const github = faux.pour("A");
+  const creer = github.creerIssue;
+  let refus = true;
+  github.creerIssue = async (issue) => {
+    if (refus) throw new Error("rate limited");
+    return creer(issue);
+  };
+  const station = stationGitHub({ nom: "A", places: 1, base: "main", github, prise: faux.prise(github, "A"), cuisiner: async () => assert.fail("no cook"), juger: async () => assert.fail("no review"), avertir: (texte) => dits.push(texte) });
+  await station.tour();
+  assert.equal(faux.creations.length, 0);
+  assert.ok(dits.some((texte) => texte.includes("rate limited")));
+  refus = false;
+  await station.tour();
+  assert.equal(faux.creations.length, 1);
+  assert.equal(faux.mergee(10), undefined);
+});
+
+test("merges resume once main is green again, and the repair itself is merged on the red main (#2214)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10);
+  const a = faux.station("A", { places: 2, avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  faux.base = "red";
+  // Le tour ouvre la réparation et la prend ; son cook la livre.
+  await a.tour();
+  await a.calme();
+  const [reparation] = reparations(faux);
+  assert.ok(reparation);
+  assert.equal(faux.mergee(10), undefined);
+  // La réparation est livrée, mise à jour, puis mergée malgré la base rouge ; #10 attend.
+  await a.tour();
+  await a.tour();
+  assert.equal(faux.mergee(reparation.number)?.mergeePar, "A");
+  assert.equal(faux.mergee(10), undefined);
+  faux.base = "green";
+  await a.tour();
+  await a.tour();
+  assert.equal(faux.mergee(10)?.mergeePar, "A");
+  assert.equal(faux.creations.length, 1);
 });
 
 test("switch off: the old path opens as is, and the GitHub-only station is never built", () => {
@@ -752,6 +859,7 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     delabelliser: bas.delabelliser,
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
+    teteDeLaBase: async () => faux.teteDeLaBase,
     prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
     issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
   };

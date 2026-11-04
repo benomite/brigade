@@ -28,9 +28,9 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
-import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { controleDeLaBase, estUneReparation, type CheckDeLaBase, type GitHubDeLaBase } from "./github-seul/base-rouge/base-rouge.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
@@ -68,7 +68,8 @@ export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise =
 // merge, plus les tickets, la PR d'un ticket, les checks de la base, les
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
-  Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> & {
+  Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> &
+  GitHubDeLaBase & {
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
@@ -77,7 +78,7 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // GitHub change à la PR.
     prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
     // Les checks du dernier commit de la branche d'intégration.
-    checksDeLaBase(): Promise<Array<Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>>>;
+    checksDeLaBase(): Promise<CheckDeLaBase[]>;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
@@ -197,6 +198,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
+  const controler = controleDeLaBase({ github, base });
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
   // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
@@ -284,6 +286,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const tour = async () => {
     renvoyes.clear();
     const checksDeLaBase = await relancerLaBase(await github.checksDeLaBase());
+    // Rouge après sa relance, la base a son ticket de réparation : un seul par commit.
+    const { erreur } = await controler(checksDeLaBase);
+    if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -323,8 +328,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         // Un workflow qui ne tourne que sur la base (les tests Windows) n'a pas
         // de check sur la PR : rouge, il ne la retient pas.
+        // La seule exception est la réparation de la base elle-même : elle doit la
+        // débloquer, et sa CI, sur sa tête, reste exigée par `fusionner`.
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
-        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name))) continue;
+        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
         // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
         // de plusieurs minutes ne retient plus les merges, les autres relectures
         // ni les prises. Les merges, eux, passent un à un.
@@ -507,6 +514,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
   const { prsOuvertes } = github;
   if (mettreAJour === undefined) throw new Error("this GitHub client cannot update a branch");
   if (prsOuvertes === undefined) throw new Error("this GitHub client cannot list the files of the open PRs");
+  const { teteDeLaBase } = github;
   if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
@@ -547,6 +555,15 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       if (lue === undefined) return github.prDeBranche(brancheDuTicket(issue));
       return { number: lue.number, url: "", base, sha: lue.sha, state: "open", merged: false, enRetard: lue.enRetard, ...(lue.enConflit ? { enConflit: true } : {}), mergeePar: null, version: lue.version };
     },
+    // Lue seulement quand la base est rouge : sans elle, le ticket de réparation
+    // ne s'ouvre pas et le tour le dit.
+    teteDeLaBase: async () => {
+      if (teteDeLaBase === undefined) throw new Error("this GitHub client cannot read the head of the integration branch");
+      return teteDeLaBase.call(github, base);
+    },
+    issuesDepuis: (instant) => github.issuesDepuis(instant),
+    creerIssue: (issue) => github.creerIssue(issue),
+    fermerIssue: (numero) => github.fermerIssue(numero),
     ci: async (sha) => {
       const lue = instantane?.prs.find((pr) => pr.sha === sha);
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
