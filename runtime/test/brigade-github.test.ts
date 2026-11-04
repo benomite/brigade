@@ -356,7 +356,7 @@ test("with 5 tickets in pass a station with free places claims nothing; at 4 it 
   await a.calme();
   assert.equal(PASS_MAX, 5);
   assert.equal(faux.prisesDe("A"), 0);
-  assert.deepEqual(faux.cuissons, []);
+  assert.equal(faux.cuissons.length, 0);
   // One leaves the pass: under the cap, the station claims again.
   faux.ticket(5).labels.delete(LABEL_IN_PASS);
   await a.tour();
