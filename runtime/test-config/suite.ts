@@ -178,7 +178,10 @@ const joues = [
   ...fichiers.filter(seul).map((fichier) => join(RUNTIME, fichier)),
   ...lots.map((lot, rang) => {
     const chemin = join(dossierDesLots, `lot-${rang + 1}.mjs`);
-    writeFileSync(chemin, lot.map((fichier) => `import ${JSON.stringify(pathToFileURL(join(RUNTIME, fichier)).href)};\n`).join(""));
+    // L'un après l'autre, par `await import` : sous des `import` statiques, un
+    // fichier dont un module attend au chargement (`await` de tête) se
+    // laisserait doubler par son voisin, et ses tests passeraient après.
+    writeFileSync(chemin, lot.map((fichier) => `await import(${JSON.stringify(pathToFileURL(join(RUNTIME, fichier)).href)});\n`).join(""));
     membres.set(chemin, lot);
     return chemin;
   }),
