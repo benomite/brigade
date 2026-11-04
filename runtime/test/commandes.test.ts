@@ -79,18 +79,20 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
     assert.equal(new Set([...anglais, ...anciens]).size, anglais.length + anciens.length);
   });
 
-  test("taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé", async () => {
-    const lancees = COMMANDES.filter(({ nom }) => nom !== "help").map(async ({ nom }) => ({ nom, fin: await sousSonNom(nom) }));
-    for (const { nom, fin } of await Promise.all(lancees)) {
+  // Un test par commande : chacune est un `npm` et un Node qui démarrent, et vingt-cinq de front ne tiennent pas dans
+  // un test sous la charge d'une suite.
+  for (const { nom } of COMMANDES.filter(({ nom }) => nom !== "help")) {
+    test(`taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé — \`${nom}\``, async () => {
+      const fin = await sousSonNom(nom);
       assert.equal(fin.code, REFUS, `${nom} : ${fin.erreur}`);
       assert.match(fin.sortie + fin.erreur, refusDe(nom).dit, nom);
       assert.doesNotMatch(fin.erreur, /is now/, nom);
-    }
-  });
+    });
+  }
 
-  test("un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris", async () => {
-    const lancees = RENOMMEES.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await npm(ancien, refusDe(nom).args), apres: await sousSonNom(nom) }));
-    for (const { nom, ancien, avant, apres } of await Promise.all(lancees)) {
+  for (const { nom, ancien = "" } of RENOMMEES) {
+    test(`un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris — \`${ancien}\``, async () => {
+      const [avant, apres] = await Promise.all([npm(ancien, refusDe(nom).args), sousSonNom(nom)]);
       const [annonce, ...reste] = avant.erreur.split("\n");
       assert.equal(annonce, `brigade: “${ancien}” is now “${nom}” — the old name still works until ${FIN_DES_ANCIENS_NOMS}, then stops (CHANGELOG.md)`, ancien);
       // Le même refus que sous le nouveau nom, au mot près, et le même code.
@@ -98,8 +100,8 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
       assert.equal(avant.code, REFUS, ancien);
       assert.equal(reste.join("\n"), apres.erreur, ancien);
       assert.equal(avant.sortie, apres.sortie, ancien);
-    }
-  });
+    });
+  }
 
   test("un ancien nom lancé sans `npm` ne devine rien : il le dit, en 2", async () => {
     const fin = await jouer([process.execPath, "src/ancien-nom.ts"]);
@@ -110,16 +112,18 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
   // Pour chaque ancien mot : de quoi le placer là où sa commande le lit.
   const placer = (rang: number, mot: string) => (mot.startsWith("--") ? ["inconnue", mot] : rang === 1 ? ["une-station", mot] : [mot]);
 
-  test("chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient", async () => {
-    const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
-    const essais = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
+  const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
+  const essais = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
+  test("chaque commande remplace ses anciens mots par les siens : il y en a au moins vingt", () => {
     assert.ok(essais.length >= 20);
-    const lances = essais.map(async (essai) => ({ ...essai, fin: await jouer([process.execPath, fichierDe(essai.nom), ...essai.args]) }));
-    for (const { nom, ancien, nouveau, fin } of await Promise.all(lances)) {
+  });
+  for (const { nom, ancien, nouveau, args } of essais) {
+    test(`chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient — \`${nom} ${ancien}\``, async () => {
+      const fin = await jouer([process.execPath, fichierDe(nom), ...args]);
       assert.equal(fin.erreur.split("\n")[0], direAncien(ancien, nouveau), `${nom} ${ancien}`);
       assert.equal(fin.code, REFUS, `${nom} ${ancien} : ${fin.erreur}`);
-    }
-  });
+    });
+  }
 
   test("les anciens mots sont remplacés un à un, dits une fois chacun ; les nouveaux, et tout le reste, passent tels quels et en silence", () => {
     const dits: string[] = [];
