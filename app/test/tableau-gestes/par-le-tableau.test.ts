@@ -75,7 +75,7 @@ async function cuisine(t: TestContext) {
   };
   const gh = fauxGitHub(issue(30));
   const compte = fauxGitHub(issue(30));
-  const gestes = gestesDeLaBox({ client: sousLeTableau, journal: runtime.journal, projet: PROJET, github: gh.github, githubDuChef: compte.github, repertoireEtat: repertoire, second: null, avertir: () => {} });
+  const gestes = gestesDeLaBox({ client: sousLeTableau, journal: runtime.journal, projet: PROJET, github: gh.github, githubDuChef: compte.github, repertoireEtat: repertoire, avertir: () => {} });
   brancherLeTableau(runtime, { client: publication, depot: DEPOT, maintenant, dire: () => {}, avertir: () => {}, gestes });
   await jusqua(() => corps !== "");
 
