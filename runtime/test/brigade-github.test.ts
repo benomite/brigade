@@ -38,7 +38,20 @@ class FauxGitHub {
   checksDeLaBaseSeule: Array<{ name: string; outcome: "green" | "red" }> = [];
   // Les PR dont la CI est rouge.
   ciRouge = new Set<number>();
+  // Le run de GitHub Actions du check `tests` de la base, que la station peut
+  // relancer (#2323) ; null : un check sans lien, qui ne se relance pas.
+  runDeLaBase: number | null = null;
+  tentatives = new Map<number, number>();
+  // Une relance tourne : le check `tests` de la base est en cours jusqu'à
+  // `finirLaRelance`.
+  relanceEnCours = false;
   private horloge = 0;
+
+  // La relance des jobs de la base finit, verte ou rouge.
+  finirLaRelance(couleur: "green" | "red"): void {
+    this.relanceEnCours = false;
+    this.base = couleur;
+  }
 
   feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
     this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
@@ -108,7 +121,8 @@ class FauxGitHub {
       },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
-        return [{ name: "tests", outcome: this.base }, ...this.checksDeLaBaseSeule];
+        const url = this.runDeLaBase === null ? {} : { url: `https://github.com/faux/depot/actions/runs/${this.runDeLaBase}/job/1` };
+        return [{ name: "tests", outcome: this.relanceEnCours ? ("pending" as const) : this.base, ...url }, ...this.checksDeLaBaseSeule];
       },
       commentaires: async (numero) => {
         await noter("commentaires");
@@ -127,6 +141,15 @@ class FauxGitHub {
         this.ticket(issue).labels.delete(label);
       },
       retraitsDeLabels: async () => [],
+      etatDuRun: async (run) => {
+        await noter("etatDuRun");
+        return { tentative: this.tentatives.get(run) ?? 1, termine: !this.relanceEnCours };
+      },
+      relancerLesEchecs: async (run) => {
+        await noter("relancerLesEchecs");
+        this.tentatives.set(run, (this.tentatives.get(run) ?? 1) + 1);
+        this.relanceEnCours = true;
+      },
       ouvrirPR: async ({ branche, corps }) => {
         await noter("ouvrirPR");
         const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
@@ -543,6 +566,61 @@ test("a red check that runs only on the base (Windows) holds nothing; a red chec
     await a.calme();
   }
   assert.equal(faux.mergee(38), undefined);
+});
+
+test("a red base re-runs its failed jobs once: while they run, nothing is held, nothing is sent back, and green after them the pass merges (#2323)", async () => {
+  const faux = new FauxGitHub();
+  const avertis: string[] = [];
+  faux.runDeLaBase = 501;
+  faux.base = "red";
+  faux.feu(39);
+  const a = faux.station("A", { avertir: (texte) => void avertis.push(texte) });
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  // La relance tourne encore : la livraison qui court `tests` s'est mergée, et
+  // la station n'a rien dit d'autre que la relance.
+  assert.equal(faux.relanceEnCours, true);
+  assert.equal(faux.mergee(39)?.mergeePar, "A");
+  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 501 are re-run once before any merge is held"]);
+  assert.deepEqual(faux.commentaires.get(39)?.filter((c) => c.body.includes("sent back")) ?? [], []);
+  faux.finirLaRelance("green");
+  faux.feu(40);
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(40)?.mergeePar, "A");
+  assert.equal(faux.tentatives.get(501), 2);
+  assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
+});
+
+test("a base still red after its re-run holds as before, and neither another station nor a restarted one re-runs it again (#2323)", async () => {
+  const faux = new FauxGitHub();
+  const avertis: string[] = [];
+  const avertir = (texte: string) => void avertis.push(texte);
+  faux.runDeLaBase = 502;
+  faux.base = "red";
+  const a = faux.station("A", { avertir });
+  await a.tour();
+  await a.calme();
+  assert.equal(faux.relanceEnCours, true);
+  faux.finirLaRelance("red");
+  faux.feu(41);
+  // B, et A redémarrée, ne savent pas que A l'a relancée : GitHub le leur dit.
+  const b = faux.station("B", { avertir });
+  const relancee = faux.station("A", { avertir });
+  for (let i = 0; i < 4; i += 1) {
+    for (const station of [a, b, relancee]) {
+      await station.tour();
+      await station.calme();
+    }
+  }
+  assert.equal(faux.mergee(41), undefined);
+  assert.equal(faux.tentatives.get(502), 2);
+  assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
+  assert.equal(avertis.filter((texte) => texte.includes("re-run")).length, 1);
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {

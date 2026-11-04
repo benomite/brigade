@@ -27,14 +27,14 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
         files(first: 100) { pageInfo { hasNextPage } nodes { path changeType } }
         commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 60) { pageInfo { hasNextPage } nodes {
           __typename
-          ... on CheckRun { name status conclusion }
+          ... on CheckRun { name status conclusion detailsUrl }
           ... on StatusContext { context state }
         } } } } } }
       }
     }
     ref(qualifiedName: $base) { target { ... on Commit { statusCheckRollup { contexts(first: 60) { pageInfo { hasNextPage } nodes {
       __typename
-      ... on CheckRun { name status conclusion }
+      ... on CheckRun { name status conclusion detailsUrl }
       ... on StatusContext { context state }
     } } } } } }
   }
@@ -53,7 +53,7 @@ export type PRDeLInstantane = {
   // Les fichiers lus ne sont pas tous ceux de la PR (plus de 100, ou un fichier
   // renommé dont GraphQL ne dit pas l'ancien chemin) : ils se relisent en REST.
   fichiersIncomplets: boolean;
-  ci: Array<Pick<Check, "name" | "outcome">>;
+  ci: Array<Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">>>;
   // Plus de contextes que la requête n'en lit : la CI se relit en REST.
   ciIncomplete: boolean;
 };
@@ -64,17 +64,19 @@ export type Instantane = {
   prs: PRDeLInstantane[];
   // Plus de PR ouvertes que la requête n'en lit : les PR se relisent en REST.
   prsTronquees: boolean;
-  base: Array<Pick<Check, "name" | "outcome">>;
+  base: Array<Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">>>;
   baseIncomplete: boolean;
 };
 
-type Contexte = { __typename?: string; name?: string; status?: string; conclusion?: string | null; context?: string; state?: string };
+type Contexte = { __typename?: string; name?: string; status?: string; conclusion?: string | null; detailsUrl?: string | null; context?: string; state?: string };
 
 // Un check tel que le REST le dit (`github.ts`, `ci`) : vert, rouge ou en cours.
-function check(contexte: Contexte): Pick<Check, "name" | "outcome"> | null {
+function check(contexte: Contexte): Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">> | null {
   if (contexte.__typename === "CheckRun" && typeof contexte.name === "string") {
     if (contexte.status !== "COMPLETED") return { name: contexte.name, outcome: "pending" };
-    return { name: contexte.name, outcome: CONCLUSIONS_VERTES.includes((contexte.conclusion ?? "").toLowerCase()) ? "green" : "red" };
+    const outcome = CONCLUSIONS_VERTES.includes((contexte.conclusion ?? "").toLowerCase()) ? "green" : "red";
+    // Un job rouge garde son lien : la station relance son run (#2323).
+    return outcome === "red" && typeof contexte.detailsUrl === "string" ? { name: contexte.name, outcome, url: contexte.detailsUrl } : { name: contexte.name, outcome };
   }
   if (contexte.__typename === "StatusContext" && typeof contexte.context === "string") {
     const etat = (contexte.state ?? "").toLowerCase();
@@ -85,9 +87,9 @@ function check(contexte: Contexte): Pick<Check, "name" | "outcome"> | null {
 
 type Rollup = { contexts?: { pageInfo?: { hasNextPage?: boolean }; nodes?: Contexte[] } } | null;
 
-const checksDe = (rollup: unknown): Array<Pick<Check, "name" | "outcome">> => {
+const checksDe = (rollup: unknown): Array<Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">>> => {
   const noeuds = (rollup as Rollup)?.contexts?.nodes ?? [];
-  return noeuds.map(check).filter((c): c is Pick<Check, "name" | "outcome"> => c !== null);
+  return noeuds.map(check).filter((c): c is Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">> => c !== null);
 };
 const tronque = (rollup: unknown): boolean => (rollup as Rollup)?.contexts?.pageInfo?.hasNextPage === true;
 
