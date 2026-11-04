@@ -129,6 +129,7 @@ in `run status` (`withholding` in `run station`), and the reason on the ticket's
 | `base` | the integration branch is red (see "The base is judged alone" in [`pass.md`](pass.md)) |
 | `setup` | the project's setup is blocked (see "The worktree setup comes before the cook") |
 | `quota`, `disconnected` | the quota exhausted, the Max connection expired |
+| `unstartable` | a cook of the station ended with 0 turns and 0 tokens: it could not start (see "A cook that cannot start" in [`station-cook.md`](station-cook.md)) |
 | `arbiter`, `unarbitrated` | the arbiter keeps the place for another project; it is unreachable: one cook at a time (see "The arbiter between projects") |
 
 The fact is written when the reason changes, never when no ticket waits; `station.released` when

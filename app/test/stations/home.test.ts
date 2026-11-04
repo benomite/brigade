@@ -67,8 +67,8 @@ test("l'accueil liste ses stations sous ses projets, une ligne chacune : sa past
     { texte: "boxonline · 2 cooks · parade›", survol: "Linux 6.1.0 · version 1.4.0", ton: "vert" },
     { texte: "Macoffline for 12 min · no project›", survol: "macOS 25.0.0 · version 1.4.0", ton: "gris" },
   ]);
-  // Ni la machine ni la version ne s'écrivent à plat.
-  assert.doesNotMatch(section().textContent, /Linux|macOS|version/);
+  // Ni la machine ni la version ne s'écrivent à plat sur les lignes : les versions ont leur propre ligne dessous (#2191).
+  assert.doesNotMatch(section().children[0]?.textContent ?? "", /Linux|macOS|version/);
   // Relu, l'accueil remplace ses lignes.
   jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · saturated · 2 cooks · parade", phrase: "saturated", survol: "Linux 6.1.0 · version 1.4.0" }] });
   await repos();

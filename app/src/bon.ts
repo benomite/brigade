@@ -85,9 +85,10 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
   },
   {
     // `by <station> since <duration>, [STUCK: ][no progress since <duration>, ]lease <duration> left` — or `lease expired since`.
+    // Sans bail, sur GitHub seul (vue/rail/github.ts, #2220) : une prise tient jusqu'à son lâcher.
     etats: ["taken"],
-    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN}), ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|until ${HEURE_EN}|expired since ${DUREE_EN}))$`),
-    lire: ([, tient = "", depuis = "", bail = ""]) => ({ tient, depuis, bail }),
+    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN})(?:, ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|until ${HEURE_EN}|expired since ${DUREE_EN})))?$`),
+    lire: ([, tient = "", depuis = "", bail]) => ({ tient, depuis, ...(bail === undefined ? {} : { bail }) }),
   },
   {
     // `[<ce qui le retient> — ]depuis <durée>`.

@@ -119,6 +119,11 @@ export const GESTES: Geste[] = [
     libelle: "`gh issue create` / `gh issue list --search`",
     classifieur: "le dépôt de la session est de confiance : le mode auto les laisse passer ; une règle à `*` les autoriserait vers n'importe quel dépôt, avec n'importe quel corps",
   },
+  {
+    role: "second",
+    libelle: "Sous l'exception du § 5 bis, prendre la tâche d'un cook",
+    classifieur: "des gestes git et gh sur le dépôt de la session (worktree, gates, push d'une branche, PR, commentaire) : aucune règle sans `*` ne les nomme, et une règle à `*` autoriserait un push ou une PR vers n'importe quel dépôt ; le classifieur juge, sur le dépôt de confiance",
+  },
   { role: "second", libelle: "Merger une PR de brigade : sur demande explicite du chef, seulement", impossible: mergeImpossible("la demande du chef qui nomme la PR (« merge la #372 ») est ce qui le fait passer") },
 ];
 

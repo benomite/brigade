@@ -4,7 +4,7 @@
 // machine : ce qu'elle a à dire, elle l'écrit là.
 import { execFile } from "../sans-invite.ts";
 import { decouper } from "../github.ts";
-import { constaterLimite, COMPTE_DE_LA_MACHINE, limiteDuProcess, noterLesEntetes, PROJET_DE_LA_STATION, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
+import { appelerGitHub, constaterLimite, COMPTE_DE_LA_MACHINE, estUneEcriture, limiteDuProcess, noterLesEntetes, PROJET_DE_LA_STATION, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
 
 export type Fichiers = Record<string, string>;
 
@@ -39,34 +39,35 @@ export function canalGitHub(options: OptionsCanal): Canal {
   const appeler = async (args: string[], entree?: unknown): Promise<{ corps: string; etag: string | null } | "inchange"> => {
     // Un appel que le quota réel retient ne part pas.
     const limite = options.limite ?? limiteDuProcess();
-    const appel = await prendreUnAppel(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist" }, gh: options.gh, env: async () => env, maintenant: options.maintenant });
-    return new Promise((resoudre, rejeter) => {
-      const enfant = execFile(
-        options.gh,
-        // `-i` : les en-têtes disent, à une limite atteinte, quand la fenêtre se ferme.
-        ["api", "-i", ...args],
-        { timeout: options.delaiMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env },
-        (erreur, sortie, erreurs) => {
-          const reponse = decouper(sortie);
-          if (reponse) noterLesEntetes(limite, COMPTE_DE_LA_MACHINE, reponse.entetes);
-          if (reponse?.statut === 304) {
-            limite.rendre(appel);
-            return resoudre("inchange");
-          }
-          if (erreur === null) return resoudre({ corps: reponse?.corps ?? sortie, etag: reponse?.entetes.get("etag") || null });
-          // Sans en-têtes lisibles, le statut de la sortie d'erreur de `gh` suffit à reconnaître la limite.
-          const statut = reponse?.statut ?? Number(/\(HTTP (\d{3})\)/.exec(erreurs)?.[1] ?? 0);
-          const refus: ReponseHttp = { statut, entetes: reponse?.entetes ?? new Map(), corps: reponse?.corps || erreurs };
-          if (refusPourLimite(refus)) return void constaterLimite(limite, refus, { gh: options.gh, env, maintenant: options.maintenant }).then(rejeter, rejeter);
-          if (ABSENT.test(erreurs)) return rejeter(new Absent());
-          const dit = erreurs.trim().split("\n").at(-1) ?? "";
-          rejeter(new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : ${dit || erreur.message}`));
-        },
-      );
-      // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
-      enfant.stdin?.on("error", () => {});
-      enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
-    });
+    return appelerGitHub(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist", ecriture: estUneEcriture(args) }, gh: options.gh, env: async () => env, maintenant: options.maintenant }, (appel) =>
+      new Promise<{ corps: string; etag: string | null } | "inchange">((resoudre, rejeter) => {
+        const enfant = execFile(
+          options.gh,
+          // `-i` : les en-têtes disent, à une limite atteinte, quand la fenêtre se ferme.
+          ["api", "-i", ...args],
+          { timeout: options.delaiMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env },
+          (erreur, sortie, erreurs) => {
+            const reponse = decouper(sortie);
+            if (reponse) noterLesEntetes(limite, COMPTE_DE_LA_MACHINE, reponse.entetes);
+            if (reponse?.statut === 304) {
+              limite.rendre(appel);
+              return resoudre("inchange");
+            }
+            if (erreur === null) return resoudre({ corps: reponse?.corps ?? sortie, etag: reponse?.entetes.get("etag") || null });
+            // Sans en-têtes lisibles, le statut de la sortie d'erreur de `gh` suffit à reconnaître la limite.
+            const statut = reponse?.statut ?? Number(/\(HTTP (\d{3})\)/.exec(erreurs)?.[1] ?? 0);
+            const refus: ReponseHttp = { statut, entetes: reponse?.entetes ?? new Map(), corps: reponse?.corps || erreurs };
+            if (refusPourLimite(refus)) return void constaterLimite(limite, refus, { gh: options.gh, env, maintenant: options.maintenant }).then(rejeter, rejeter);
+            if (ABSENT.test(erreurs)) return rejeter(new Absent());
+            const dit = erreurs.trim().split("\n").at(-1) ?? "";
+            rejeter(new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : ${dit || erreur.message}`));
+          },
+        );
+        // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
+        enfant.stdin?.on("error", () => {});
+        enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
+      }),
+    );
   };
   const corpsDe = async (args: string[], entree?: unknown): Promise<string> => {
     const lu = await appeler(args, entree);
