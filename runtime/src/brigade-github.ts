@@ -160,6 +160,17 @@ const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
+
+// Au plus cinq livraisons en pass : tant que le projet en compte autant, aucune
+// station sur l'état GitHub seul ne prend de ticket neuf (#2300). Le pass se
+// vide moins vite que les cooks livrent ; l'amas s'y relit à chaque tour et s'y
+// met en conflit à chaque merge.
+export const PASS_MAX = 5;
+
+// Les tickets en pass : ceux qui portent `in-pass`, hors ceux que ce tour vient
+// de renvoyer à un cook — la liste lue peut porter encore leur label.
+export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
+  tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 
 // Le motif d'un verdict, sous son marqueur et sa ligne « Changes requested ».
@@ -213,6 +224,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
   // la station qui le prend reprend sa branche, sous sa PR. Au-delà de
   // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
+  // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
+  const renvoyes = new Set<number>();
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string) => {
     const renvois = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
@@ -226,9 +239,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
+    renvoyes.add(ticket.number);
   };
 
   const tour = async () => {
+    renvoyes.clear();
     const checksDeLaBase = await github.checksDeLaBase();
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
@@ -331,6 +346,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     for (const ticket of libres) {
       if (enVol.size + aRendre.size >= places) break;
+      // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
+      if (enPass(tickets, renvoyes) >= PASS_MAX) break;
       if (enVol.has(ticket.number)) continue;
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);

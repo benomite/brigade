@@ -279,6 +279,40 @@ test("un commit sans aucun check rend une CI vide, et une CI illisible lève", a
   await assert.rejects(github.ci("inconnu"), /HTTP 404/);
 });
 
+test("une CI finie n'est plus relue, une CI qui tourne l'est, et une branche l'est toujours (#2298)", async (t) => {
+  const { gh, github } = sonde(t);
+  const sha = "a".repeat(40);
+  const repondre = (cible: string, conclusion: string | null) => {
+    gh.repondre(`repos/${DEPOT}/commits/${cible}/check-runs?per_page=100`, { corps: { check_runs: [{ name: "tests", status: conclusion === null ? "in_progress" : "completed", conclusion, html_url: null }] } });
+    gh.repondre(`repos/${DEPOT}/commits/${cible}/status?per_page=100`, { corps: { state: "success", statuses: [] } });
+  };
+  repondre(sha, null);
+  assert.equal((await github.ci(sha))[0]?.outcome, "pending");
+  repondre(sha, "success");
+  assert.equal((await github.ci(sha))[0]?.outcome, "green");
+  // Finie : GitHub dirait autre chose qu'elle ne serait pas relue.
+  repondre(sha, "failure");
+  assert.equal((await github.ci(sha))[0]?.outcome, "green");
+  // Une branche avance : jamais gardée.
+  repondre("main", "success");
+  assert.equal((await github.ci("main"))[0]?.outcome, "green");
+  repondre("main", "failure");
+  assert.equal((await github.ci("main"))[0]?.outcome, "red");
+});
+
+test("les fichiers d'une PR ouverte ne sont relus que quand sa tête change (#2298)", async (t) => {
+  const { gh, github } = sonde(t);
+  const ouvertes = (sha: string) => gh.repondre(`repos/${DEPOT}/pulls?state=open&per_page=100`, { corps: [{ number: 7, head: { ref: "cook/7-github", sha } }] });
+  const fichiers = (nom: string) => gh.repondre(`repos/${DEPOT}/pulls/7/files?per_page=100`, { corps: [{ filename: nom }] });
+  ouvertes("1".repeat(40));
+  fichiers("a.ts");
+  assert.deepEqual((await github.prsOuvertes?.())?.[0]?.fichiers, ["a.ts"]);
+  fichiers("b.ts");
+  assert.deepEqual((await github.prsOuvertes?.())?.[0]?.fichiers, ["a.ts"]);
+  ouvertes("2".repeat(40));
+  assert.deepEqual((await github.prsOuvertes?.())?.[0]?.fichiers, ["b.ts"]);
+});
+
 test("merger une PR exige le commit jugé", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/pulls/40/merge`;
