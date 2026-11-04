@@ -10,7 +10,9 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileS
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { cheminTelephones, lireContenuDuQr, ouvrirTelephones } from "../src/telephone/appairage.ts";
-import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
+import { principal } from "../src/telephone/appairage-cli.ts";
+import { LANCE } from "../src/telephones.ts";
+import { appeler, repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const RUNTIME = join(import.meta.dirname, "..");
@@ -60,7 +62,13 @@ function machine(t: TestContext, { droit }: { droit: boolean }) {
       enfant.on("error", rejeter);
       enfant.on("close", (code) => resoudre({ code, sortie, erreur }));
     });
-  return { registre, lancer };
+  // La même commande jouée dans le process du test, sur le registre de la station — sans le geste ni `sudo`.
+  const lire = async (args: string[]): Promise<Fin> => {
+    const appel = appeler((demande) => principal(demande, { lance: LANCE }), args, { BRIGADE_STATION_DIR: station, BRIGADE_REGISTRE_DIR: registre });
+    const code = await appel.fin;
+    return { code, sortie: appel.sortie(), erreur: "" };
+  };
+  return { registre, lancer, lire };
 }
 
 const json = (fin: Fin) => {
@@ -81,20 +89,21 @@ describe("les téléphones par le geste de la station", () => {
     const tire = json(await m.lancer(["code", "--url", "https://box.tail1234.ts.net"]));
     assert.deepEqual(lireContenuDuQr(String(tire.qr)), { code: tire.code, adresse: "https://box.tail1234.ts.net" });
     assert.equal(typeof tire.expiresAt, "string");
-    assert.equal(json(await m.lancer(["status", String(tire.code)])).status, "valid");
+    // Les lectures, dans le process du test ; le geste, lui, tire, liste et révoque.
+    assert.equal(json(await m.lire(["status", String(tire.code)])).status, "valid");
 
     // Le téléphone s'appaire au guichet, qui lit le même registre.
     const telephones = ouvrirTelephones(m.registre);
     t.after(() => telephones.fermer());
     const { jeton } = telephones.appairer(String(tire.code), { nom: "pixel-8", machine: "Android 16" });
-    assert.equal(json(await m.lancer(["status", String(tire.code)])).status, "used");
+    assert.equal(json(await m.lire(["status", String(tire.code)])).status, "used");
     assert.deepEqual(
       (json(await m.lancer(["list"])).phones as Array<{ name: string }>).map(({ name }) => name),
       ["pixel-8"],
     );
 
     assert.deepEqual(json(await m.lancer(["revoke", "pixel-8"])), { revoked: true, station: "pixel-8" });
-    assert.deepEqual(json(await m.lancer(["list"])), { phones: [] });
+    assert.deepEqual(json(await m.lire(["list"])), { phones: [] });
     assert.equal(telephones.authentifier(jeton), null);
   });
 
