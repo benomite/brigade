@@ -121,3 +121,19 @@ export async function lacher(issue: Pick<Issue, "number" | "labels">, { github, 
   if (issue.labels.includes(PRIS)) await github.delabelliser(issue.number, PRIS);
   return true;
 }
+
+// Retire le `taken` d'un ticket que personne ne tient : le reste d'un lâcher
+// dont le retrait a échoué. Sans ce retrait, le ticket reste exclu de ceux à
+// prendre. Rend vrai si le label est parti. Un ticket tenu, par elle ou par une
+// autre, n'est pas touché ; un label déjà parti entre la lecture et le retrait
+// (GitHub répond 404) n'est pas une erreur.
+export async function purger(issue: Pick<Issue, "number" | "labels">, { github }: Pick<Contexte, "github">): Promise<boolean> {
+  if (!issue.labels.includes(PRIS)) return false;
+  if ((await lireTenant(issue.number, github)) !== null) return false;
+  try {
+    await github.delabelliser(issue.number, PRIS);
+  } catch (erreur) {
+    if (!/\b404\b|not found/i.test(erreur instanceof Error ? erreur.message : String(erreur))) throw erreur;
+  }
+  return true;
+}

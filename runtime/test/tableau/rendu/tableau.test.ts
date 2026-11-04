@@ -48,7 +48,7 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
   // Les gestes, dans leur code : le disjoncteur à refermer. La remontée technique de #18 n'en porte plus : elle est
   // à la cuisine (#1826).
   assert.ok(!lu.includes("`brigade <projet> pass 18`"));
-  assert.ok(lu.includes("`brigade <projet> guardrails resume`"));
+  assert.ok(lu.includes("press the `Resume` button on the breaker line of TODO"));
   // Le bilan sans grant, qui n'est pas une décision, et la tête du bloc.
   assert.ok(lu.includes("without a grant, 1 green delivery stopped"));
   assert.ok(lu.includes(`Awaiting the chef — 3 decisions, the oldest since ${heureEn(etat.attend[0]?.since ?? "")}`));
