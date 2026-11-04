@@ -17,7 +17,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { principal as aide } from "../src/aide.ts";
+import type { Commande } from "../src/appel.ts";
 import { COMMANDES, direAncien, enAnglais, FIN_DES_ANCIENS_NOMS, SCRIPT_D_ANCIEN_NOM } from "../src/commandes.ts";
+import { FONCTIONS } from "./aides/fonctions-des-commandes.ts";
 import { appeler, CACHE_DE_COMPILATION } from "./outils.ts";
 
 const RUNTIME = join(import.meta.dirname, "..");
@@ -59,6 +61,13 @@ const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
   "hold-arbiter": { dit: /the arbiter refuses to start/ },
   phones: { dit: /usage: brigade <project> phones code\b/ },
 };
+// Ce que la fonction d'une commande rend, jouée sans environnement : son code, et ses lignes — ce que son process
+// écrirait sur ses deux sorties, ensemble.
+async function enFonction(commande: Commande, args: string[]): Promise<{ code: number; erreur: string }> {
+  const appel = appeler(commande, args);
+  return { code: await appel.fin, erreur: appel.sortie() };
+}
+
 const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom}\\b`) };
 
 // Le refus de chaque commande sous son nom anglais, lancé une fois : le test du nom anglais et celui de l'ancien nom
@@ -130,7 +139,9 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
   });
   for (const { nom, ancien, nouveau, args } of essais) {
     test(`chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient — \`${nom} ${ancien}\``, async () => {
-      const fin = await jouer([process.execPath, fichierDe(nom), ...args]);
+      // Une commande qui a sa fonction la joue ici, sans environnement ; les autres, dans leur process.
+      const fonction = FONCTIONS[nom];
+      const fin = fonction ? await enFonction(await fonction(), args) : await jouer([process.execPath, fichierDe(nom), ...args]);
       assert.equal(fin.erreur.split("\n")[0], direAncien(ancien, nouveau), `${nom} ${ancien}`);
       assert.equal(fin.code, REFUS, `${nom} ${ancien} : ${fin.erreur}`);
     });
