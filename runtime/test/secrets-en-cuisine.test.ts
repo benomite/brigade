@@ -126,7 +126,7 @@ describe("les secrets du projet", { concurrency: 3 }, () => {
     git(semis, "push", "-q", "origin", BASE);
     const lieux = { repertoire: repertoireTemporaire(t), ...depot, gh: fauxGitHub(issue(15)), heure: montre() };
 
-    const lieu = cuisine(t, { lieux, git: true, scenario: "livre-et-laisse-un-secret", secrets: { declares: "", valeurs: VALEURS } });
+    const lieu = cuisine(t, { lieux, tickMs: 25, sansSync: true, git: true, scenario: "livre-et-laisse-un-secret", secrets: { declares: "", valeurs: VALEURS } });
     const { origine, gh, etat, dernier } = lieu;
     await jusqua(() => dernier("cook.reported", 15) !== undefined && gh.commentaires.length === 1);
 
@@ -154,7 +154,7 @@ describe("les secrets du projet", { concurrency: 3 }, () => {
     // Des gates rouges : la première livraison est renvoyée.
     writeFileSync(join(lieux.repertoire, "gates.txt"), "rouge");
 
-    const lieu = cuisine(t, { lieux, git: true, pass: true, suite: ["livre", "laisse-un-secret", "ecrit-sans-commiter"], secrets: { declares: "", valeurs: VALEURS } });
+    const lieu = cuisine(t, { lieux, tickMs: 25, sansSync: true, git: true, pass: true, suite: ["livre", "laisse-un-secret", "ecrit-sans-commiter"], secrets: { declares: "", valeurs: VALEURS } });
     const { origine, clone, journal, gh, gates } = lieu;
     const comptesRendus = () => journal.duTicket(17).filter((e) => e.type === "cook.reported").map((e) => e.payload as { ending: string; reason: string | null; branch: string });
     await jusqua(() => comptesRendus().length >= 2);
@@ -243,7 +243,7 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 3 }, ()
   const JETON = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
 
   test("une livraison qui porte un fichier nommé comme les identifiants n'est pas poussée, sans qu'aucun secret soit déclaré", async (t) => {
-    const lieu = cuisine(t, { git: true, scenario: "livre-et-copie-les-identifiants", issues: [issue(15)] });
+    const lieu = cuisine(t, { tickMs: 25, sansSync: true, git: true, scenario: "livre-et-copie-les-identifiants", issues: [issue(15)] });
     const { origine, gh, etat, dernier } = lieu;
     await jusqua(() => dernier("cook.reported", 15) !== undefined && gh.commentaires.length === 1);
 
@@ -272,7 +272,7 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 3 }, ()
     // Des gates rouges : la première livraison est renvoyée.
     writeFileSync(join(lieux.repertoire, "gates.txt"), "rouge");
 
-    const lieu = cuisine(t, { lieux, git: true, pass: true, suite: ["livre", "copie-un-jeton-renomme", "ecrit-sans-commiter"] });
+    const lieu = cuisine(t, { lieux, tickMs: 25, sansSync: true, git: true, pass: true, suite: ["livre", "copie-un-jeton-renomme", "ecrit-sans-commiter"] });
     const { origine, clone, journal, gh, gates } = lieu;
     const comptesRendus = () => journal.duTicket(17).filter((e) => e.type === "cook.reported").map((e) => e.payload as { ending: string; reason: string | null; branch: string });
     await jusqua(() => comptesRendus().length >= 2);

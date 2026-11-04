@@ -3,7 +3,7 @@
 // manifest : les gates y sont rouges — seules leurs mesures sont regardées ici.
 import assert from "node:assert/strict";
 import { chmodSync, cpSync, mkdirSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { jouerGates } from "../src/gates.ts";
 import { commiter, ENV_ENFANT, git, repertoireTemporaire } from "./outils.ts";
@@ -15,8 +15,13 @@ test("les gates du dépôt déclarent les tests, leur durée, le poids du dépô
   for (const dossier of ["runtime", "docs", ".claude/brigade"]) mkdirSync(join(racine, dossier), { recursive: true });
   cpSync(GATES, join(racine, ".claude/brigade/gates.sh"));
   chmodSync(join(racine, ".claude/brigade/gates.sh"), 0o755);
-  // La suite d'essai rend le résumé du lanceur de Node, sans rien jouer.
+  // La suite d'essai rend le résumé du lanceur de Node, sans rien jouer. Un `npm` d'essai le rend à la place
+  // du vrai, qui coûtait à lui seul la moitié du passage : les gates n'en lisent que ce résumé.
   writeFileSync(join(racine, "runtime/package.json"), JSON.stringify({ scripts: { test: "printf 'ℹ tests 12\\nℹ pass 12\\nℹ duration_ms 3449.5\\n'" } }));
+  const bin = join(repertoireTemporaire(t), "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "npm"), `#!/bin/sh\n[ "$*" = "--prefix runtime test" ] || { echo "npm d'essai : $*" >&2; exit 1; }\nprintf 'ℹ tests 12\\nℹ pass 12\\nℹ duration_ms 3449.5\\n'\n`);
+  chmodSync(join(bin, "npm"), 0o755);
   writeFileSync(join(racine, "CLAUDE.md"), "Les règles : @docs/regles.md, et un fichier absent : @docs/absent.md\n");
   writeFileSync(join(racine, "docs/regles.md"), `${"r".repeat(40)} @annexe.md`);
   writeFileSync(join(racine, "docs/annexe.md"), "a".repeat(30));
@@ -26,7 +31,7 @@ test("les gates du dépôt déclarent les tests, leur durée, le poids du dépô
   // Le CLAUDE.md et ce qu'il importe, de proche en proche.
   const contexte = statSync(join(racine, "CLAUDE.md")).size + 51 + 30;
 
-  const gates = await jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 2_000 });
+  const gates = await jouerGates({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, PATH: `${bin}${delimiter}${ENV_ENFANT.PATH}` }, delaiMs: 2_000 });
 
   const { gates_s: duree, depot_octets: depot, ...mesures } = gates.measures ?? {};
   assert.deepEqual(mesures, { tests: 12, tests_s: 3.4, doc_octets: contexte + 500, contexte_octets: contexte }, gates.tail);

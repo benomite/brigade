@@ -320,7 +320,7 @@ describe("le geste brigade", { concurrency: 3 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", { skip: posixOnly("Runs the gesture as `brigade --help` and `-h`, expecting the usage on stdout and exit 0, then as `brigade calculus help` to reach the runtime's help script; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
+  test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", { skip: posixOnly("Runs the gesture as `brigade --help` and `-h`, expecting the usage on stdout and exit 0, then as `brigade calculus --help` and `-h` to reach the runtime's help script; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
     // Les deux options partent de front : aucune ne lance de commande.
@@ -334,20 +334,25 @@ describe("le geste brigade", { concurrency: 3 }, () => {
     }
     assert.equal(m.commande(), null);
 
-    for (const option of ["--help", "-h", "help"]) {
-      assert.equal((await m.lancer(["calculus", option])).code, 0, option);
-      assert.equal(m.commande()?.env.npm_lifecycle_event, "help", option);
+    // Avec un projet, chaque option sur sa machine : leurs commandes partent de front, chacune note ce
+    // qu'elle a reçu. Que `help` tapé tel quel lance son script est le cas de toute commande nommée.
+    const avecProjet = [m, machine(t)] as const;
+    const codes = await Promise.all(options.map((option, i) => avecProjet[i]!.lancer(["calculus", option])));
+    for (const [i, option] of options.entries()) {
+      assert.equal(codes[i]!.code, 0, option);
+      assert.equal(avecProjet[i]!.commande()?.env.npm_lifecycle_event, "help", option);
     }
   });
 
   test("un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, sous le nom tapé, mais le refus d'une commande inconnue ne le nomme pas", { skip: posixOnly("Runs the gesture as `brigade calculus plat-d-hier --vite`, a legacy script name, then `plat-davant`, and checks the refusal does not list the legacy name; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    assert.equal((await m.lancer(["calculus", "plat-d-hier", "--vite"])).code, 0);
+    // Les deux gestes partent de front : le refusé ne lance rien, le témoin est celui de l'ancien nom.
+    const [ancien, fin] = await Promise.all([m.lancer(["calculus", "plat-d-hier", "--vite"]), m.lancer(["calculus", "plat-davant"])]);
+    assert.equal(ancien.code, 0);
     assert.deepEqual(m.commande()?.args, ["--vite"]);
     assert.equal(m.commande()?.env.npm_lifecycle_event, "plat-d-hier");
 
-    const fin = await m.lancer(["calculus", "plat-davant"]);
     assert.equal(fin.code, PAS_DU_RUNTIME);
     assert.doesNotMatch(fin.erreur, /plat-d-hier/);
   });
@@ -355,8 +360,11 @@ describe("le geste brigade", { concurrency: 3 }, () => {
   test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres", { skip: posixOnly("Runs the gesture as `brigade calculus test`, `typecheck` and `start` with a file argument and checks each is refused with exit 66; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    for (const commande of ["test", "typecheck", "start"]) {
-      const fin = await m.lancer(["calculus", commande, "/tmp/nimporte.ts"]);
+    // Les trois gestes partent de front : refusés, aucun ne lance rien.
+    const commandes = ["test", "typecheck", "start"];
+    const fins = await Promise.all(commandes.map((commande) => m.lancer(["calculus", commande, "/tmp/nimporte.ts"])));
+    for (const [i, commande] of commandes.entries()) {
+      const fin = fins[i]!;
       assert.equal(fin.code, PAS_DU_RUNTIME, commande);
       assert.match(fin.erreur, /celles de cette station : status, grant, help, plat-du-jour\n$/);
     }
@@ -438,11 +446,14 @@ describe("le geste brigade", { concurrency: 3 }, () => {
 
   test("dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord", async (t) => {
     if (!terminalPossible()) return t.skip("`script` n'ouvre pas de terminal ici");
-    for (const entree of ["terminal", "redirigée"] as const) {
-      const m = machine(t);
-      m.avecMotDePasse();
-
-      assert.equal(await m.lancerAuTerminal(["calculus", "status", "--suivre"], entree), 0, entree);
+    // Chaque entrée sur sa machine : les deux terminaux s'ouvrent de front.
+    const entrees = ["terminal", "redirigée"] as const;
+    const machines = entrees.map(() => machine(t));
+    for (const m of machines) m.avecMotDePasse();
+    const codes = await Promise.all(entrees.map((entree, i) => machines[i]!.lancerAuTerminal(["calculus", "status", "--suivre"], entree)));
+    for (const [i, entree] of entrees.entries()) {
+      const m = machines[i]!;
+      assert.equal(codes[i], 0, entree);
 
       assert.equal(m.sonde(), null, entree);
       assert.deepEqual(m.sudo(), ["-H", "-u", "brigade", "--", m.geste, "calculus", "status", "--suivre"], entree);
