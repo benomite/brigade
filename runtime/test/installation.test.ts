@@ -24,9 +24,10 @@ import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
+import { principal as installationCli } from "../src/installation-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
+import { appeler, BASE, DEPOT, ENV_ENFANT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const MAIN = join(import.meta.dirname, "../src/main.ts");
@@ -858,7 +859,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 3 
     sansReglageSousWindows(racine);
     sansDecision(etat, "BRIGADE_STATIONS");
 
-    const commande = lancer(t, CLI, [], env);
+    const commande = appeler(installationCli, [], { ...ENV_ENFANT, ...env });
 
     assert.equal(await commande.fin, 1, commande.sortie());
     assert.match(commande.sortie(), /→ step to resume: 4\. Déclarer les stations \(stations\)/);
@@ -914,6 +915,9 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 3 
     // Rien n'a été noté : la vérification verte atteste chaque étape.
     const fin = appeler(etapes, ["demarrage", "faite"], service);
     assert.equal(await fin.fin, 0, fin.sortie());
+    // Le runtime démarré dans l'environnement vérifié, et rien d'autre : son
+    // Node démarre pendant que la liste des étapes et la vérification se relisent.
+    const runtime = lancer(t, MAIN, [], service);
 
     const lue = appeler(etapes, ["--json"], service);
     assert.equal(await lue.fin, 0);
@@ -922,8 +926,6 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 3 
     assert.deepEqual(installation.etapes.filter((etape) => etape.etat !== "faite"), []);
     assert.deepEqual(manques(await verifier(service)), []);
 
-    // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
-    const runtime = lancer(t, MAIN, [], service);
     const lancements = () => {
       const journal = ouvrirJournal(etat, { lectureSeule: true });
       try {
@@ -1397,16 +1399,21 @@ describe("la désinstallation", { concurrency: 3 }, () => {
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("la commande du chef", { concurrency: 3 }, () => {
-  const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
-    const enfant = lancer(t, CLI, args, env);
-    return { code: await enfant.fin, sortie: enfant.sortie() };
+  // Jouée par sa fonction, dans le process du test, avec l'environnement minimal
+  // d'un process lancé par un test. Son fichier lancé comme `npm run
+  // installation` le lance : « un projet prêt : elle le dit et sort en 0 ».
+  const commande = async (_t: TestContext, env: Record<string, string>, ...args: string[]) => {
+    const appel = appeler(installationCli, args, { ...ENV_ENFANT, ...env });
+    return { code: await appel.fin, sortie: appel.sortie() };
   };
 
   test("un projet prêt : elle le dit et sort en 0", async (t) => {
     const { env, racine } = projet(t);
     sansReglageSousWindows(racine);
 
-    const { code, sortie } = await commande(t, env);
+    // Dans son propre process, par son fichier : ce que `npm run installation` lance.
+    const enfant = lancer(t, CLI, [], env);
+    const [code, sortie] = [await enfant.fin, enfant.sortie()];
 
     assert.match(sortie, new RegExp(`project “${PROJET}” : ready`));
     assert.doesNotMatch(sortie, /MANQUE/);

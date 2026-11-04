@@ -20,6 +20,7 @@ export const FONCTIONS: Record<string, () => Promise<Commande>> = {
   base: async () => (await import("../../src/base-cli.ts")).principal,
   help: async () => (await import("../../src/aide.ts")).principal,
   closing: async () => (await import("../../src/closing/command.ts")).principal,
+  installation: async () => (await import("../../src/installation-cli.ts")).principal,
   phones: async () => {
     const [{ principal }, { LANCE }] = await Promise.all([import("../../src/telephone/appairage-cli.ts"), import("../../src/telephones.ts")]);
     return (appel) => principal(appel, { lance: LANCE });
