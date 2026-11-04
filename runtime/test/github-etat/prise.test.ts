@@ -226,3 +226,26 @@ test("`prise.ts` ne lit et n'écrit que par le client de GitHub : il n'importe n
   for (const module of imports) assert.doesNotMatch(module, /relais|boite|journal/);
   assert.doesNotMatch(source, /from "node:/);
 });
+
+test("un lâcher dont le retrait de `taken` échoue laisse un label orphelin, que le tour suivant retire avant que le ticket ne soit repris", async () => {
+  const issue = issueSurGitHub();
+  assert.equal((await prendre(issue.lue(), { github: issue.github, station: "mac" })).prise, true);
+  issue.avancer(1_000);
+  // Le commentaire de lâcher part, puis GitHub abandonne le retrait.
+  const retrait = issue.github.delabelliser;
+  issue.github.delabelliser = () => Promise.reject(new Error("The operation was aborted"));
+  await assert.rejects(lacher(issue.lue(), { github: issue.github, station: "mac" }), /aborted/);
+  issue.github.delabelliser = retrait;
+  assert.equal(await lireTenant(NUMERO, issue.github), null);
+  assert.ok(issue.lue().labels.includes(PRIS));
+  // Le tour suivant : personne ne tient le ticket, le label orphelin tombe.
+  issue.avancer(1_000);
+  assert.equal(await lacher(issue.lue(), { github: issue.github, station: "mac" }), false);
+  assert.ok(!issue.lue().labels.includes(PRIS));
+  assert.equal(issue.commentaires.length, 2);
+  // Le ticket est libre : une station le prend de nouveau.
+  issue.avancer(1_000);
+  const box = await prendre(issue.lue(), { github: issue.github, station: "box" });
+  assert.equal(box.prise, true);
+  assert.ok(issue.lue().labels.includes(PRIS));
+});

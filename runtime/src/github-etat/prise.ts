@@ -113,10 +113,17 @@ export async function prendre(issue: Pick<Issue, "number" | "labels">, { github,
 }
 
 // Lâche le ticket que la station tient : un commentaire de lâcher, puis le
-// retrait de `taken`. Rend faux, sans rien écrire, si elle ne le tient pas.
+// retrait de `taken`. Rend faux, sans rien écrire, si une autre station le
+// tient. Si personne ne le tient mais que `taken` y reste — un lâcher dont le
+// retrait a échoué —, le label orphelin est retiré, et le rendu est faux : la
+// station n'a rien lâché, le ticket redevient prenable au tour suivant.
 export async function lacher(issue: Pick<Issue, "number" | "labels">, { github, station }: Contexte): Promise<boolean> {
   const tient = await lireTenant(issue.number, github);
-  if (tient?.station !== station) return false;
+  if (tient === null) {
+    if (issue.labels.includes(PRIS)) await github.delabelliser(issue.number, PRIS);
+    return false;
+  }
+  if (tient.station !== station) return false;
   await github.commenter(issue.number, corpsDeLacher(station));
   if (issue.labels.includes(PRIS)) await github.delabelliser(issue.number, PRIS);
   return true;
