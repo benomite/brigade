@@ -332,7 +332,7 @@ export type OptionsDuProjet<A> = {
   avertir?: (message: string) => void;
 };
 
-export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void> };
+export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void>; enCuisine(): number[] };
 
 // Ouvre le projet sur le chemin que dit son interrupteur. Allumé, un tour de
 // la station, puis un autre l'intervalle passé, jusqu'à l'arrêt ; l'ancien
@@ -363,6 +363,8 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
   tourner();
   return {
     chemin: "github",
+    // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
+    enCuisine: () => station.enCuisine(),
     arreter: async () => {
       arrete = true;
       clearTimeout(minuterie);
