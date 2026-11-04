@@ -37,7 +37,7 @@ function cuisson(t: TestContext, avecGates = true) {
   return { clone, worktree, journal, jouer, passages };
 }
 
-describe("les gates du cook", { concurrency: 8 }, () => {
+describe("les gates du cook", () => {
   test("le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git", { skip: posixOnly("places the launcher in the clone's .git and compares its path with the one the test builds; git hands back the clone's .git under its long path, not under the 8.3 short name of the Windows temporary directory the test built it from, so the two strings differ") }, (t) => {
     const { clone, worktree } = cuisson(t);
     const lanceur = poserLeLanceur(worktree);

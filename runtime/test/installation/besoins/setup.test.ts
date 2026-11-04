@@ -148,7 +148,7 @@ function uneCuisine(t: TestContext, setup: "postgres" | "echec", sonde: Sonde) {
   return cuisine(t, { scenario: "muet", setup, sonde, lieux });
 }
 
-describe("une cuisine dont le setup échoue", { concurrency: 3 }, () => {
+describe("une cuisine dont le setup échoue", () => {
   test("sur le Postgres de la station, qui refuse son compte : le chef a le choix de la base, et plus la carte de l'échec du setup", async (t) => {
     const { journal, etat, cooks } = uneCuisine(t, "postgres", REFUSE);
     await jusqua(() => etat(15) === "86");

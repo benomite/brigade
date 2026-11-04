@@ -24,7 +24,7 @@ function unProjet(t: TestContext, options: Options = {}) {
   return cuisine(t, { scenario: "muet", ...options, lieux });
 }
 
-describe("le blocage du setup en échec", { concurrency: 2 }, () => {
+describe("le blocage du setup en échec", () => {
   test("la préparation atteint son cook et le blocage dit l'échec en une phrase, sans sortie brute", async (t) => {
     const { journal, cooks, etat } = unProjet(t, { setup: "manque" });
     await jusqua(() => cooks().length === 1);

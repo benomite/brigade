@@ -54,9 +54,7 @@ const FILET_MS = 10_000;
 const vraiMinuteur = setTimeout;
 const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
 
-// Chaque test attend un vrai process et de vrais délais : ils tournent de
-// front, pour que la suite reste de l'ordre de la seconde.
-describe("superviser", { concurrency: true }, () => {
+describe("superviser", () => {
   test("le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux", async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     // La valeur est coupée entre deux écritures, que le tube livre séparément.

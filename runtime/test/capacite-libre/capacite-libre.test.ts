@@ -60,7 +60,7 @@ describe("le nom tapé d'une capacité hors du catalogue", () => {
   });
 });
 
-describe("la capacité tapée, déclarée sur une station", { concurrency: 2 }, () => {
+describe("la capacité tapée, déclarée sur une station", () => {
   test("le ticket en WAITING qui l'attendait revient seul sur le rail dès le « Save », et part chez cette station", async (t) => {
     const { repertoire, gh, journal, etat, lancements, heure } = cuisine(t, { decisions: true, stations: DEUX, scenario: "muet" });
     poser(gh, 14, "- requiert : enregistrement-ecran");

@@ -36,8 +36,7 @@ function traces(lieu: ReturnType<typeof cuisine>): string {
   ].join("\n");
 }
 
-// Chaque test a ses lieux : ils se jouent de front.
-describe("les secrets du projet", { concurrency: 8 }, () => {
+describe("les secrets du projet", () => {
   test("le setup puis le cook reçoivent les secrets que le dépôt déclare, et rien d'autre de ce que la machine détient", { skip: posixOnly("launches the setup then the cook of a ticket with the declared secrets and checks the cook's environment holds them and the test database the setup derived, nothing undeclared; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, and no cook is ever launched") }, async (t) => {
     const { lancements, avertissements } = cuisine(t, { scenario: "bavard", setup: "derive", secrets: SECRETS, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
@@ -238,7 +237,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
 // Les identifiants du compte Max ne sont pas des secrets du projet : le
 // runtime ne les lit pas, donc ne peut pas en chercher la valeur. Il en
 // reconnaît le nom et la forme — que le projet déclare des secrets ou non.
-describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, () => {
+describe("les identifiants de Claude dans une livraison", () => {
   // Le jeton fabriqué que le faux cook écrit : assemblé, jamais en clair.
   const JETON = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
 

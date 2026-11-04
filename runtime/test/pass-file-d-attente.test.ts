@@ -44,7 +44,7 @@ function service(t: TestContext, numeros: number[]) {
   return { ...lieu, liberer: (numero: number) => void liberes.add(numero), premier, pass, passes, laisserTourner };
 }
 
-describe("la file de la pass", { concurrency: 3 }, () => {
+describe("la file de la pass", () => {
   test("trois cartes livrées pendant qu'une pass tourne attendent qu'elle finisse, puis sont jugées une à une, dans l'ordre de leur livraison", async (t) => {
     // 17 d'abord ; puis 20, 18 et 19, dans cet ordre-là.
     const { journal, liberer, premier, pass, passes, laisserTourner } = service(t, [17, 20, 18, 19]);

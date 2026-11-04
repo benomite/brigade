@@ -52,7 +52,7 @@ function service(t: TestContext, options: Options = {}) {
   return { ...lieu, tirer, reclamer, compter, jusquAu, raison };
 }
 
-describe("une station distante tire son travail", { concurrency: 8 }, () => {
+describe("une station distante tire son travail", () => {
   test("annoncée, elle reçoit le ticket dont elle fournit tout ce qu'il demande — jamais celui qui demande ce qu'elle ne fournit pas, même s'il attend devant", async (t) => {
     const { gh, journal, etat, lancements, tirer, reclamer, dernier } = service(t);
     poser(gh, 14, "- requiert : code");

@@ -61,8 +61,7 @@ const gestes = (b: Boite, rang = 0) => b.appels().slice(rang).filter((appel) => 
 // La photo d'une box, sans ce qui vit sous ces chemins.
 const sans = (photo: Record<string, string>, chemins: string[]) => Object.fromEntries(Object.entries(photo).filter(([chemin]) => !chemins.some((retire) => chemin === retire || chemin.startsWith(`${retire}/`))));
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
+describe("le plan d'une désinstallation", () => {
   test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", { skip: posixOnly("Installs calculus and boutique, serves calculus, and checks `uninstall --plan` lists its units, drop-ins, clone, worktree, versions and port without changing the box; Windows has no process.getuid, so the setup install is refused with sans-droit (77).") }, async (t) => {
     const b = await installee(t, "calculus", "boutique");
     servir(b);
@@ -176,8 +175,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("désinstaller un projet", { concurrency: 8 }, () => {
+describe("désinstaller un projet", () => {
   test("sans confirmation : rien n'est effacé, et le geste dit comment confirmer", { skip: posixOnly("Calls uninstall bare, with only `--supprimer-le-journal`, and confirmed with another project's name, expecting three unconfirmed refusals and no systemctl call; Windows has no process.getuid, so even the setup install is refused with sans-droit (77).") }, async (t) => {
     const b = await installee(t);
     servir(b);
@@ -302,8 +300,7 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("ce que la désinstallation refuse, sans rien modifier sur la box", { concurrency: 8 }, () => {
+describe("ce que la désinstallation refuse, sans rien modifier sur la box", () => {
   // Chaque refus : un code non nul, un message, et la box telle qu'elle était.
   async function refuse(b: Boite, args: string[], motif: string, message: RegExp, code: number = CODES.usage): Promise<void> {
     const [avant, rang] = [b.photo(), b.appels().length];
@@ -446,8 +443,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () => {
+describe("une désinstallation qui s'arrête en chemin", () => {
   test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", { skip: posixOnly("Starts the runtime unit and leaves brouillon.txt in the clone, checks the confirmed uninstall stops only the runtime, reports what is done and left, then succeeds replayed; Windows refuses the setup install with sans-droit (77), lacking process.getuid.") }, async (t) => {
     const b = await installee(t);
     servir(b);
@@ -491,8 +487,7 @@ describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () 
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, () => {
+describe("le journal du geste, pour une désinstallation", () => {
   test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", { skip: posixOnly("Plays a plan, three refusals, a failed and a successful uninstall as alice and associe, and checks the gesture journal records author, project, type and payload of each; Windows has no process.getuid, so every gesture there ends in sans-droit (77).") }, async (t) => {
     const b = await installee(t);
     servir(b);
@@ -532,8 +527,7 @@ describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, (
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("ce que la désinstallation lance", { concurrency: 8 }, () => {
+describe("ce que la désinstallation lance", () => {
   test("le pas joué sous le compte du service n'accepte que `--confirmer`", () => {
     const redit: string[] = [];
     const appel = (args: string[]) => () => sousLeCompte({ args, env: {}, dire: () => assert.fail("rien n'est rendu"), redire: (ligne) => redit.push(ligne) });

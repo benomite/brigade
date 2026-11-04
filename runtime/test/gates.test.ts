@@ -30,8 +30,7 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
 
 const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
-// Chaque test a son worktree : ils se jouent de front.
-describe("les gates", { concurrency: 8 }, () => {
+describe("les gates", () => {
   test("ce que le runtime garde de la sortie du setup et des gates est masqué", async (t) => {
     const racine = worktree(t, {
       setup: 'echo "base prête : $DATABASE_URL" >&2; echo "export BASE=$DATABASE_URL/ticket_$1"',
@@ -337,7 +336,7 @@ describe("les gates", { concurrency: 8 }, () => {
 
 const preparer = (racine: string, delaiMs = 60_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
 
-describe("le setup du worktree", { concurrency: 8 }, () => {
+describe("le setup du worktree", () => {
   test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
     const racine = worktree(t, { gates: "exit 0" });
 

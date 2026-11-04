@@ -31,7 +31,7 @@ const poser = (gh: Lieux["gh"], numero: number, ...lignes: string[]) => {
   gh.poser(issue(numero));
 };
 
-describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
+describe("les capacités qu'un ticket demande", () => {
   test("deux stations de capacités différentes : le ticket qui demande `navigateur-headless` va à celle qui le fournit, pas à la première libre", async (t) => {
     const { gh, journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "muet" });
     poser(gh, 14, "- requiert : navigateur-headless");

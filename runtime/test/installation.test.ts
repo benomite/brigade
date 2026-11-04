@@ -217,8 +217,7 @@ function sansReglageSousWindows(racine: string): void {
 }
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("les variables obligatoires", { concurrency: 8 }, () => {
+describe("les variables obligatoires", () => {
   const lecteurs = [configRail, lireReglages, configStation, configPass, configReviewer, configManager, lireSeuils];
   const complet = Object.fromEntries(VARIABLES.map((variable) => [variable, { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_BASE_BRANCH: BASE }[variable as string] ?? "sonnet"]));
   // Ce que le runtime lit, une fois les décisions du journal versées à son
@@ -249,8 +248,7 @@ describe("les variables obligatoires", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
+describe("le réglage du geste d'installation", () => {
   const sauvegardes = (racine: string) => join(racine, "sauvegardes");
   const du_geste = (constats: Constat[]) => constats.filter(duReglage);
 
@@ -362,8 +360,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("la vérification", { concurrency: 8 }, () => {
+describe("la vérification", () => {
   test("un projet installé est prêt : rien ne manque", async (t) => {
     const { env } = projet(t);
 
@@ -806,8 +803,7 @@ describe("la vérification", { concurrency: 8 }, () => {
 
 // « Vérifier » vert veut dire prêt à servir, et « installation terminée » ne
 // s'atteint que par lui : aucun geste ne se découvre après.
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 }, () => {
+describe("« Vérifier » vert, « installation terminée »", () => {
   // Chaque chose qui retient la cuisine, cassée seule sur un projet prêt, et
   // l'étape de l'installation qui la règle.
   const BLOCAGES: Array<{ quoi: string; etape: string; casser: (lu: ReturnType<typeof projet>) => void }> = [
@@ -939,8 +935,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("la mise à jour de la box", { concurrency: 8 }, () => {
+describe("la mise à jour de la box", () => {
   const MISE_A_JOUR = /docs\/installer\.md, “Mettre brigade à jour”/;
   const cloisonPosee = (unites: string) => join(unites, `brigade@${PROJET}.service.d`, "cloison.conf");
   const poserCloison = (unites: string, regler: (contenu: string) => string = (contenu) => contenu) => {
@@ -1085,8 +1080,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("les labels", { concurrency: 8 }, () => {
+describe("les labels", () => {
   const CREATION = `repos/${DEPOT}/labels`;
   const crees = (gh: FauxGh) =>
     gh
@@ -1142,8 +1136,7 @@ test("un fichier de secrets que le runtime refuserait est un manque de la machin
   assert.match(manques(await verifier({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets.env") })).join("\n"), /BRIGADE_SECRETS_FILE invalide.*chmod 600/);
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le coût du setup", { concurrency: 8 }, () => {
+describe("le coût du setup", () => {
   const essais = (etat: string) => join(etat, "worktrees/.essais/installation");
 
   test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", { skip: posixOnly("plays the bash fake setup (test/aides/faux-setup.sh) once in a fresh worktree of the base and checks the call it noted and the worktree removed: the measure weighs that worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
@@ -1254,8 +1247,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("la désinstallation", { concurrency: 8 }, () => {
+describe("la désinstallation", () => {
   const refs = (depot: string) => git(depot, "for-each-ref");
 
   test("sans confirmation, elle dit ce qu'elle retirerait et ne retire rien", (t) => {
@@ -1393,8 +1385,7 @@ describe("la désinstallation", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("la commande du chef", { concurrency: 8 }, () => {
+describe("la commande du chef", () => {
   const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
     const enfant = lancer(t, CLI, args, env);
     return { code: await enfant.fin, sortie: enfant.sortie() };
@@ -1565,8 +1556,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 });
 
-// Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("la ligne du renouvellement", { concurrency: 8 }, () => {
+describe("la ligne du renouvellement", () => {
   const ligne = (etat: EtatDuRenouvellement) => jugerRenouvellement(etat);
   test("ok : l'heure du dernier passage réussi", () => {
     assert.deepEqual(ligne({ etat: "ok", dernierReussi: "14:07", echecsConsecutifs: 0 }), { etat: "ok", texte: "renewal: last successful run at 14:07" });

@@ -1,12 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXCEPTIONS } from "./exceptions.ts";
-import { chemin, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, racineDuRuntime, valeur } from "./regle.ts";
+import { chemin, concurrencesDuDepot, concurrencesDuFichier, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, racineDuRuntime, valeur } from "./regle.ts";
 
 test("aucune garde de plus de 2 s hors de la liste d'exceptions, et aucune exception de garde périmée", () => {
   const lus = new Set(fichiersDeTest().map((f) => chemin(racineDuRuntime, f)));
   const fautes = jugerLesGardes(gardesDuDepot(), EXCEPTIONS, lus);
   assert.deepEqual(fautes, []);
+});
+
+test("aucun fichier de test ne joue ses tests de front", () => {
+  assert.deepEqual(concurrencesDuDepot(), []);
+});
+
+test("une concurrence posée sur un describe ou un test est nommée avec son fichier et sa ligne ; un commentaire ne l'est pas", () => {
+  const texte = ['describe("a", { concurrency: 8 }, () => {});', '// describe("b", { concurrency: 4 })', 'test("c", { concurrency: true, skip: false }, () => {});'].join("\n");
+  assert.deepEqual(concurrencesDuFichier(texte, "test/x.test.ts"), [
+    "test/x.test.ts:1 : concurrency: 8 — les tests d'un fichier se jouent l'un après l'autre",
+    "test/x.test.ts:3 : concurrency: true — les tests d'un fichier se jouent l'un après l'autre",
+  ]);
 });
 
 test("les exceptions sont uniques : une ligne par fautif", () => {

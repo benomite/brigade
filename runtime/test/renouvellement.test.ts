@@ -110,7 +110,7 @@ function poserIdentifiants(fichier: string, ilYA = 3600): void {
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const isoDe = (fichier: string) => new Date(Math.floor(statSync(fichier).mtimeMs / 1000) * 1000).toISOString().replace(".000Z", "Z");
 
-describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
+describe("le renouvellement de la session Max", () => {
   test("claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit", { skip: posixOnly("runs the bash renewal script with a fake claude that rewrites the credentials and reports the session open, and checks renouvele is the file's mtime; Windows cannot execute the extensionless script, so no exit code or stderr comes back") }, (t) => {
     const b = box(t, { rafraichir: "renouvelle", statut: "ouverte" });
     const fin = b.passer();

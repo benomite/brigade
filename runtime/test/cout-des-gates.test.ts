@@ -49,7 +49,7 @@ function worktree(t: TestContext, gates: string) {
 // Une seconde de processeur, brûlée par un process à part.
 const BRULE = `node -e "while (process.cpuUsage().user < 1e6) for (let i = 0; i < 1e6; i++);"`;
 
-describe("le coût des gates", { concurrency: 8 }, () => {
+describe("le coût des gates", () => {
   test("le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts`", { skip: posixOnly("plays gates whose nested bash runs a node process burning one second of processor, and expects that second in the gates' cost, read back through `facts`; Git Bash's `times` does not count the processor time of native Windows programs such as node.exe, so the cost stays far under a second") }, async (t) => {
     // Les gates ne calculent rien elles-mêmes : un shell qu'elles lancent en
     // lance un autre, qui brûle.

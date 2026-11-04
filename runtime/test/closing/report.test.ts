@@ -56,8 +56,7 @@ async function lire({ clone, repertoire }: ReturnType<typeof cuisineFermee>): Pr
   return sortie.slice(sortie.findIndex((ligne) => ligne.startsWith("pass ")));
 }
 
-// Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
-describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
+describe("le bilan d'une passe de fermeture", () => {
   test("après une passe, `run fermeture` en donne le bilan sans rouvrir sa PR : chaque retrait avec son chemin et son motif, chaque candidat laissé avec sa raison, la pente avant et après sur les mêmes merges, et les trois garde-fous avec leur valeur avant, après et leur verdict", PASSE_JUGEE, async (t) => {
     const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
     const { repertoire, types, teteDeLaBase } = cuisine;

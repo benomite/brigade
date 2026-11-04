@@ -197,7 +197,7 @@ async function enCuisine(t: TestContext, issues = [issue(17)]) {
   return { ...lieu, demander, repondreOui, lever, compter, statut, commentaires, ecrire };
 }
 
-describe("le merge et la prise pendant la pause", { concurrency: 4 }, () => {
+describe("le merge et la prise pendant la pause", () => {
   test("une carte qui attend son « oui » ne change rien : la livraison verte est mergée sous grant, comme sans elle", async (t) => {
     const { etat, demander, conclure, compter, gh, journal } = await enCuisine(t);
     await jusqua(() => etat(17) === "taken" && compter("cook.launched", 17) === 1);

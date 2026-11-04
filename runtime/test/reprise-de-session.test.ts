@@ -54,7 +54,7 @@ const autreQueLeRouge = (ligne: string) => !/^brigade : pass rouge sur le ticket
 // Le répertoire du projet d'un lancement — `cwd` tel que le faux `claude` le note, liens résolus.
 const projet = (config: string, cwd: string) => dossierDuProjet(config, cwd) ?? "";
 
-describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
+describe("la reprise de session d'un renvoi", () => {
   test("un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket", RENVOI, async (t) => {
     const { configClaude, repertoire, gates, cooks, lances, sessionDe, jusquAu, journal } = renvoye(t);
     await jusquAu("pass.returned");

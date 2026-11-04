@@ -28,7 +28,7 @@ async function premiereVie(t: TestContext, options: Options = {}) {
 // Ce qui, au journal d'un ticket, dirait qu'un cook a été interrompu ou relancé.
 const ARRETS = ["cook.interrupted", "cook.exited", "guard.tripped", "ticket.released"];
 
-describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
+describe("la reprise des cooks en vol", () => {
   test("un second runtime démarré pendant qu'un cook du premier est en vol le liste en cours, sans le relancer ni le tuer", async (t) => {
     const { premiere, run, pid, worktree } = await premiereVie(t);
     // Entre les deux vies, personne ne tient le projet : le cook tourne seul.

@@ -105,6 +105,19 @@ export function gardesDuFichier(texte: string, file: string): Garde[] {
   return [...trouvees.values()];
 }
 
+// Des tests joués de front dans le même fichier (`{ concurrency }`) partagent son unique fil : la durée de
+// chacun compte aussi le travail des autres. À huit de front, un test d'une demi-seconde en mesurait trois, et
+// le fichier entier allait deux fois moins vite (station.test.ts : 77 s de front, 37 s l'un après l'autre).
+// La suite garde ses fichiers de front (`--test-concurrency`) ; un fichier joue ses tests l'un après l'autre.
+export function concurrencesDuFichier(texte: string, file: string): string[] {
+  const code = sansCommentaires(texte);
+  return [...code.matchAll(/\bconcurrency\s*:\s*(true|\d+)/g)].map((m) => `${file}:${ligneDe(code, m.index)} : ${m[0]} — les tests d'un fichier se jouent l'un après l'autre`);
+}
+
+export function concurrencesDuDepot(racine = RACINE_RUNTIME): string[] {
+  return fichiersDeTest(racine).flatMap((f) => concurrencesDuFichier(readFileSync(f, "utf8"), chemin(racine, f)));
+}
+
 export function gardesDuDepot(racine = RACINE_RUNTIME): Garde[] {
   return fichiersDeTest(racine).flatMap((f) => gardesDuFichier(readFileSync(f, "utf8"), chemin(racine, f)));
 }

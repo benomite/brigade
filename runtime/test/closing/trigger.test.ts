@@ -34,7 +34,7 @@ function cross({ journal }: Cuisine): void {
 // The requests in the log, by their author.
 const requests = ({ journal }: Cuisine) => journal.tout().filter((e) => e.type === "closing.requested").map((e) => e.author);
 
-describe("the automatic closing pass", { concurrency: 4 }, () => {
+describe("the automatic closing pass", () => {
   test("with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef", async (t) => {
     const cuisine = cuisineFermee(t);
     const { closer, fin, avertissements } = cuisine;

@@ -86,7 +86,7 @@ function service(t: TestContext, tickets: Ticket[], options: { jugements?: numbe
   return { ...lieu, phase, premier, compter, laisserTourner, pass, passes, auPlusDeFront, deFront, liberer: (numero: number) => void liberes.add(numero) };
 }
 
-describe("des livraisons jugées de front", { concurrency: 3 }, () => {
+describe("des livraisons jugées de front", () => {
   test("trois livraisons aux zones disjointes sont jugées en même temps, `pass` les dit toutes jugées, et toutes sont mergées", async (t) => {
     const { journal, gh, phase, premier, compter, pass, liberer, auPlusDeFront } = service(t, [
       { numero: 14, zone: "runtime/src/rail" },

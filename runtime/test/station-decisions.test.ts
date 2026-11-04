@@ -55,7 +55,7 @@ function journalDuProjet(t: TestContext) {
   return { repertoire, journal, station };
 }
 
-describe("le chef pose ses décisions par la station", { concurrency: 8 }, () => {
+describe("le chef pose ses décisions par la station", () => {
   test("chaque décision a son geste : la station montre la valeur posée, et le journal porte, au nom du chef, la décision, l'ancienne et la nouvelle valeur", async (t) => {
     const { journal, station } = journalDuProjet(t);
     // La famille entière, et rien d'autre.

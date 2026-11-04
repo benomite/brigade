@@ -150,8 +150,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
   return releve;
 }
 
-// Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
-describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
+describe("le runtime, son process et ses unités", () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
     assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
@@ -477,8 +476,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  // Deux cuisines complètes, chacune avec son dépôt et son `gh` : elles se jouent de front.
-  describe("de bout en bout", { concurrency: 2 }, () => {
+  describe("de bout en bout", () => {
     test("une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", { skip: posixOnly("lets the real runtime turn a calibrated issue into a commit by the fake claude (Git Bash), a pushed branch, a PR and a comment, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the comment did not even come within the test's one-minute wait") }, async (t) => {
       const repertoire = repertoireTemporaire(t);
       const { origine, clone } = depotGit(t);

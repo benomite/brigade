@@ -9,7 +9,7 @@ import { superviserADistance } from "../src/superviseur-distant.ts";
 // Des plafonds qu'aucun test n'atteint par l'horloge, sauf celui qu'il règle.
 const LARGES: Plafonds = { tokens: 1000, durationMs: 600_000, idleMs: 600_000 };
 
-describe("superviser à distance", { concurrency: true }, () => {
+describe("superviser à distance", () => {
   test("le jugement des jetons est celui du superviseur de la box : au plafond rien, au-delà l'arrêt — et les tours ne comptent pas", () => {
     assert.equal(depassement(LARGES, { tokens: 1000 }), null);
     assert.deepEqual(depassement(LARGES, { tokens: 1001 }), { reason: "tokens", limit: 1000, observed: 1001 });

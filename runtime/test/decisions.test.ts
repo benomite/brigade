@@ -75,7 +75,7 @@ const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
   return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture(), plafond: decisions.plafond() };
 };
 
-describe("les décisions du chef", { concurrency: 8 }, () => {
+describe("les décisions du chef", () => {
   test("chacune, posée au support, est lue à la lecture suivante — sans redémarrage ni rechargement du process", (t) => {
     const { repertoire, journal } = support(t);
     poserLesPremieres(repertoire);
@@ -333,7 +333,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
 
 // Un runtime complet, dans son propre process : ce que le chef pose pendant
 // qu'il tourne, il le lit sans redémarrer.
-describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
+describe("le runtime et les décisions du chef", () => {
   const environnement = (t: TestContext, repertoire: string) => {
     const gh = fauxGh(t);
     gh.issues([]);

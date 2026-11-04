@@ -74,7 +74,7 @@ const json = (fin: Fin) => {
 // dès leur arrivée, ils n'ont jamais tourné sur le job Windows ; le même
 // geste lancé de la même façon par geste.test.ts y finit en `spawn
 // …\usr\lib\brigade-station\brigade ENOENT` (run 40076391873).
-describe("les téléphones par le geste de la station", { concurrency: 4 }, () => {
+describe("les téléphones par le geste de la station", () => {
   test("le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station", { skip: posixOnly("spawns deploy/brigade, the station's bash gesture, as a chef the sudoers rule names, to draw a code and its QR, read its status, list and revoke a phone; Node's spawn on Windows cannot launch that extensionless shebang script, nor the fake sudo, systemctl and id written as #!/bin/sh") }, async (t) => {
     const m = machine(t, { droit: true });
 

@@ -137,7 +137,7 @@ function servir(t: TestContext, options: Partial<Options> & { changes?: string[]
   return { ...lieu, compter, jusquAu, attendreTicks, auChef, pass: () => passDuTicket(lieu.journal.base, 17) };
 }
 
-describe("la pass relance une CI rouge sur des tests que la livraison ne touche pas", { concurrency: 4 }, () => {
+describe("la pass relance une CI rouge sur des tests que la livraison ne touche pas", () => {
   test("rouge seulement sur un test qu'elle ne touche pas : les jobs en échec sont relancés, sans renvoi ni carte, puis la relance verte est mergée", async (t) => {
     const lieu = servir(t);
     const { gh, compter, jusquAu, attendreTicks, auChef, pass, cooks, dernier } = lieu;
@@ -319,7 +319,7 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
   }
 });
 
-describe("une CI rouge est rejouée une fois avant de renvoyer la livraison (#2091)", { concurrency: 4 }, () => {
+describe("une CI rouge est rejouée une fois avant de renvoyer la livraison (#2091)", () => {
   // Un test lent sur un runner chargé, dans un fichier que la livraison touche.
   const LENT = [
     "2026-11-02T12:42:00.0000000Z ✖ la commande manager (94012.5ms)",
@@ -406,7 +406,7 @@ describe("le journal d'un job rouge nomme ses tests en échec avec leurs erreurs
   });
 });
 
-describe("un job jamais vert sur la base est dit, pas jugé (#1860)", { concurrency: 4 }, () => {
+describe("un job jamais vert sur la base est dit, pas jugé (#1860)", () => {
   const windows = (n: number) => job(n, "red", "runtime-windows");
   const verteSurLaBase = (nom: string) => job(900, "green", nom);
 

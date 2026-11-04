@@ -44,7 +44,7 @@ function worktree(t: TestContext, fichiers: Record<string, string> = {}): string
   return racine;
 }
 
-describe("l'empreinte des gates", { concurrency: 8 }, () => {
+describe("l'empreinte des gates", () => {
   test("un passage écrit l'arbre qu'il a jugé et le condensé de la configuration de ses gates", (t) => {
     const { empreinte, passage, passages } = cas(t);
 

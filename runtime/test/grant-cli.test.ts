@@ -66,7 +66,6 @@ function cuisine(t: TestContext) {
   return { runtime, journal, repertoire, noter, commande, livrer, juger, grants };
 }
 
-// Chaque test a son répertoire d'état : ils se jouent de front.
 describe("les commandes du grant et de la pass", () => {
   test("sans grant jamais donné, le chef le lit absent, et sans usage", async (t) => {
     const { commande } = cuisine(t);

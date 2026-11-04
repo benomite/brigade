@@ -32,7 +32,7 @@ function service(t: TestContext, numeros: number[], options: { lieux?: ReturnTyp
   return { ...lieu, evenements, relancer, liberer: (numero: number) => void liberes.add(numero) };
 }
 
-describe("relancer une pass coincée", { concurrency: 2 }, () => {
+describe("relancer une pass coincée", () => {
   test("une carte livrée qu'aucune pass ne juge est relancée : un jugement est mis en file, et son journal montre pass.started", async (t) => {
     // Une vie sans pass : 17 est livrée, et personne ne la juge.
     const premiere = service(t, [17], { pass: false });

@@ -36,7 +36,7 @@ function secondeVie(t: TestContext, lieux: ReturnType<typeof cuisine>["lieux"] |
   return { ...vie, evenements, pass, liberer: (numero: number) => void liberes.add(numero) };
 }
 
-describe("la pass après un redémarrage", { concurrency: 2 }, () => {
+describe("la pass après un redémarrage", () => {
   test("des cartes livrées par une vie sans pass sont jugées par la suivante, dans l'ordre de leur livraison", async (t) => {
     const numeros = [17, 20, 18, 19];
     const premiere = premiereVie(t, numeros);

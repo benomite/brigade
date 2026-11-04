@@ -70,7 +70,7 @@ function service(t: TestContext, options: Options = {}) {
   return { ...lieu, tirer, reclamer, mission, prises, prendre, fermer, soulager };
 }
 
-describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte, et la box les reprend", { concurrency: 4 }, () => {
+describe("le Mac fermé ou en veille : ses tickets reviennent au rail sans perte, et la box les reprend", () => {
   test("en pleine cuisson, le Mac se tait : le bail tombe, le ticket revient prêt, et ce qu'il avait poussé est conservé", async (t) => {
     const { gh, journal, repertoire, etat, dernier, tirer, prises, prendre, fermer } = service(t);
     const { run, branch } = await prendre();

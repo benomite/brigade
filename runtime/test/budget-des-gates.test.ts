@@ -48,7 +48,7 @@ async function ticketLu(repertoire: string) {
   return JSON.parse(lancee.sortie()).coutDesGates.ticket;
 }
 
-describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
+describe("le ticket des gates hors budget", () => {
   test("un passage hors budget, sans ticket ouvert, en ouvre exactement un : sa durée, son processeur, le budget et ce qui le dépasse", async (t) => {
     const { repertoire, journal, gh, passage, tenir, types } = cas(t);
     passage(TROP_LONG);

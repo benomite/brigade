@@ -29,8 +29,7 @@ async function servi(t: TestContext, plafond = 10) {
   return { ouvert, repertoire, serveur, commande };
 }
 
-// Chaque test a son arbitre, sur le port 0, et son état : ils se jouent de front.
-describe("la commande de l'arbitre", { concurrency: 8 }, () => {
+describe("la commande de l'arbitre", () => {
   test("le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore, et la consommation des cooks dite comme telle", async (t) => {
     const { ouvert, serveur, commande } = await servi(t, 10);
     ouvert.dire("compta", mot(5, { nonArbitres: 1, consommation: { jour: 1200, semaine: 9000 } }));

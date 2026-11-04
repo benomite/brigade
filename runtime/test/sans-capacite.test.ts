@@ -27,7 +27,7 @@ function brigade(t: TestContext, requis: string, jugement: string, options: Opti
   return { ...c, faits, laisserTourner };
 }
 
-describe("un ticket qui demande ce qu'aucune station ne fournit", { concurrency: 8 }, () => {
+describe("un ticket qui demande ce qu'aucune station ne fournit", () => {
   test("il est renvoyé en réécriture avant TODO : redécoupé, il sort du rail, ses sous-tickets partent, le journal le dit et aucune carte n'est posée", async (t) => {
     const c = brigade(t, "chrome-connecté", "decoupe-tickets");
     await jusqua(() => c.faits("manager.capability-resplit").length === 1);

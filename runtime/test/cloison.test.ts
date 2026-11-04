@@ -36,7 +36,7 @@ const refus = (fn: () => unknown) => {
 const demande = (args: string[]) => args.slice(args.indexOf("brigade") + 1);
 const paires = (args: string[], option: string) => args.flatMap((arg, i) => (arg === option ? [`${args[i + 1]} → ${args[i + 2]}`] : []));
 
-describe("la cloison", { concurrency: 8 }, () => {
+describe("la cloison", () => {
   test("sans binaire, rien n'est cloisonné : le lancement part tel quel", (t) => {
     const { lieux } = machine(t);
     assert.equal(configCloison({ HOME: "/home/brigade" }, lieux), null);

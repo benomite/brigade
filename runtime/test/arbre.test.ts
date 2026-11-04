@@ -81,7 +81,7 @@ async function aucunNeSurvit(pids: number[]): Promise<void> {
   assert.deepEqual(pids.filter(vivant), []);
 }
 
-describe("l'arbre d'un cook", { concurrency: true }, () => {
+describe("l'arbre d'un cook", () => {
   test("arrêter un cook tenu par le runtime tue tout ce qu'il a lancé : ni lui, ni son enfant, ni son petit-enfant ne vit encore", async (t) => {
     const { lus, options } = lancement(t, "racine");
     const supervise = superviser(options);

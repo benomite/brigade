@@ -12,8 +12,7 @@ import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
 import { cuisineFermee, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
 
-// Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
-describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
+describe("la passe de fermeture, en cuisine", () => {
   test("ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif", async (t) => {
     const { demander, fin, closer, gh, journal, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = cuisineFermee(t);
     const avant = teteDeLaBase();
