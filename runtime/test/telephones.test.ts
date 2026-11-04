@@ -2,14 +2,16 @@
 // phones …`, ce que l'app de l'ordinateur lance par `ssh` pour appairer un
 // téléphone sans terminal. Le geste est posé comme le paquet le pose, à côté
 // du runtime de ce dépôt et de son `node` ; ni systemd ni `sudo` ici : des
-// doublures dans le `PATH`. Ce que la règle sudoers donne au chef, il le lance ;
-// qui n'en a pas le droit est refusé, et rien n'est tiré, lu ni révoqué.
+// doublures dans le `PATH`. Qui n'a pas le droit du geste est refusé, et rien
+// n'est tiré, lu ni révoqué ; ce que la commande fait sous l'environnement que
+// le geste lui donne se joue dans le process du test.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { cheminTelephones, lireContenuDuQr, ouvrirTelephones } from "../src/telephone/appairage.ts";
+import { FONCTIONS } from "./aides/fonctions-des-commandes.ts";
 import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
@@ -68,36 +70,50 @@ const json = (fin: Fin) => {
   return JSON.parse(fin.sortie) as Record<string, unknown>;
 };
 
-// Les deux tests lancent le geste de la station — deploy/brigade, un script
+// Ce que le geste donne à la commande — le compte, l'environnement de l'unité de la station — est gardé par
+// geste.test.ts (« le nom du projet et la commande suffisent : le compte et l'environnement viennent de
+// l'unité de la station, le projet de sa configuration »), avec une commande témoin. Ici, la commande des
+// téléphones elle-même, jouée dans le process du test sous cet environnement : le registre est celui que
+// l'unité nomme, aucun `--registry` ne le dit.
+test("sous l'environnement que le geste lui donne, la commande des téléphones tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station", async (t) => {
+  const racine = repertoireTemporaire(t);
+  const [station, registre] = [join(racine, "var/lib/brigade"), join(racine, "var/lib/brigade/registre")];
+  mkdirSync(station, { recursive: true });
+  const commande = await FONCTIONS.phones!();
+  const env = { BRIGADE_STATION_DIR: station, BRIGADE_REGISTRE_DIR: registre, HOME: "/home/brigade", USER: "brigade", PATH: "/usr/bin:/bin" };
+  const lancer = async (args: string[]): Promise<Fin> => {
+    let [sortie, erreur] = ["", ""];
+    await commande({ args, env, dire: (ligne) => void (sortie += `${ligne}\n`), redire: (ligne) => void (erreur += `${ligne}\n`) });
+    return { code: 0, sortie, erreur };
+  };
+
+  const tire = json(await lancer(["code", "--url", "https://box.tail1234.ts.net"]));
+  assert.deepEqual(lireContenuDuQr(String(tire.qr)), { code: tire.code, adresse: "https://box.tail1234.ts.net" });
+  assert.equal(typeof tire.expiresAt, "string");
+  assert.equal(json(await lancer(["status", String(tire.code)])).status, "valid");
+
+  // Le téléphone s'appaire au guichet, qui lit le même registre.
+  const telephones = ouvrirTelephones(registre);
+  t.after(() => telephones.fermer());
+  const { jeton } = telephones.appairer(String(tire.code), { nom: "pixel-8", machine: "Android 16" });
+  assert.equal(json(await lancer(["status", String(tire.code)])).status, "used");
+  assert.deepEqual(
+    (json(await lancer(["list"])).phones as Array<{ name: string }>).map(({ name }) => name),
+    ["pixel-8"],
+  );
+
+  assert.deepEqual(json(await lancer(["revoke", "pixel-8"])), { revoked: true, station: "pixel-8" });
+  assert.deepEqual(json(await lancer(["list"])), { phones: [] });
+  assert.equal(telephones.authentifier(jeton), null);
+});
+
+// Le test lance le geste de la station — deploy/brigade, un script
 // bash — tel quel par `spawn`, derrière de faux `sudo`, `systemctl` et `id`
-// écrits en `#!/bin/sh` : Windows n'exécute pas un script à shebang. Sautés
-// dès leur arrivée, ils n'ont jamais tourné sur le job Windows ; le même
+// écrits en `#!/bin/sh` : Windows n'exécute pas un script à shebang. Sauté
+// dès son arrivée, il n'a jamais tourné sur le job Windows ; le même
 // geste lancé de la même façon par geste.test.ts y finit en `spawn
 // …\usr\lib\brigade-station\brigade ENOENT` (run 40076391873).
 describe("les téléphones par le geste de la station", { concurrency: 3 }, () => {
-  test("le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station", { skip: posixOnly("spawns deploy/brigade, the station's bash gesture, as a chef the sudoers rule names, to draw a code and its QR, read its status, list and revoke a phone; Node's spawn on Windows cannot launch that extensionless shebang script, nor the fake sudo, systemctl and id written as #!/bin/sh") }, async (t) => {
-    const m = machine(t, { droit: true });
-
-    const tire = json(await m.lancer(["code", "--url", "https://box.tail1234.ts.net"]));
-    assert.deepEqual(lireContenuDuQr(String(tire.qr)), { code: tire.code, adresse: "https://box.tail1234.ts.net" });
-    assert.equal(typeof tire.expiresAt, "string");
-    assert.equal(json(await m.lancer(["status", String(tire.code)])).status, "valid");
-
-    // Le téléphone s'appaire au guichet, qui lit le même registre.
-    const telephones = ouvrirTelephones(m.registre);
-    t.after(() => telephones.fermer());
-    const { jeton } = telephones.appairer(String(tire.code), { nom: "pixel-8", machine: "Android 16" });
-    assert.equal(json(await m.lancer(["status", String(tire.code)])).status, "used");
-    assert.deepEqual(
-      (json(await m.lancer(["list"])).phones as Array<{ name: string }>).map(({ name }) => name),
-      ["pixel-8"],
-    );
-
-    assert.deepEqual(json(await m.lancer(["revoke", "pixel-8"])), { revoked: true, station: "pixel-8" });
-    assert.deepEqual(json(await m.lancer(["list"])), { phones: [] });
-    assert.equal(telephones.authentifier(jeton), null);
-  });
-
   test("qui n'a pas le droit du geste est refusé, pour chacune des quatre, et rien n'est tiré, lu ni révoqué", { skip: posixOnly("spawns deploy/brigade as a chef without the sudoers rule and expects exit code 68 for each of the four subcommands, nothing drawn, read or revoked; Node's spawn on Windows cannot launch the gesture, an extensionless bash script, nor its #!/bin/sh fake sudo") }, async (t) => {
     const m = machine(t, { droit: false });
 

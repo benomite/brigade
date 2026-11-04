@@ -636,7 +636,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/telephone/gestes.test.ts", test: "« remove » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase" },
   { file: "test/telephone/gestes.test.ts", test: "après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine" },
   { file: "test/telephone/gestes.test.ts", test: "un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change" },
-  { file: "test/telephones.test.ts", test: "le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station" },
   { file: "test/tirer-par-github/station-par-github.test.ts", test: "sans ssh vers la box, elle rend son travail par sa branche et sa PR : la pass de la principale la juge comme celle de tout cook" },
   { file: "test/verdict.test.ts", test: "aucune station déclarée : la vérification est rouge, d'un seul manque, qui nomme l'étape « stations »" },
   { file: "test/verrou-des-gates.test.ts", test: "le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu" },
