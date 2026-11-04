@@ -62,8 +62,9 @@ function entoure<F extends (...args: any[]) => unknown>(titre: string, ecrit: st
   }) as unknown as F;
 }
 
-// Reads `(name, options, fn)`, `(name, fn)`, `(fn)`, `(options, fn)`.
-function enveloppe<F extends (...args: any[]) => unknown>(original: F): F {
+// Reads `(name, options, fn)`, `(name, fn)`, `(fn)`, `(options, fn)`. Exported for the guard's own test,
+// which wraps a stand-in runner with it.
+export function enveloppe<F extends (...args: any[]) => unknown>(original: F): F {
   const garde = function (this: unknown, ...args: any[]) {
     const i = args.findIndex((a) => typeof a === "function");
     if (i === -1) return original.apply(this, args);

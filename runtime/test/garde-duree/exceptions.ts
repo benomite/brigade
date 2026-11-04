@@ -7,7 +7,6 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test-hang-guard/garde.test.ts", test: "a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass" },
   { file: "test/appairage/canal.test.ts", test: "la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box" },
