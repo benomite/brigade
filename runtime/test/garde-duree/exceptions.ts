@@ -915,7 +915,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
   { file: "test/aides/cuisine.ts", garde: "delaiGatesMs: 60_000" },
   { file: "test/bac-a-sable/configuration.test.ts", garde: "timeout: 90_000" },
-  { file: "test/cloison.test.ts", garde: "delaiMs: 60_000" },
   { file: "test/closing/kitchen.ts", garde: "delaiGatesMs: 60_000" },
   { file: "test/closing/report.test.ts", garde: "timeout: 600_000" },
   { file: "test/correctif/decision.test.ts", garde: "delaiGatesMs: 60_000" },

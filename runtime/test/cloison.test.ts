@@ -392,7 +392,7 @@ describe("la cloison", { concurrency: 3 }, () => {
     writeFileSync(join(worktree, ".claude/brigade/worktree-setup.sh"), '#!/usr/bin/env bash\necho "export BASE_DE_TEST=ticket_$1"\n');
     chmodSync(join(worktree, ".claude/brigade/worktree-setup.sh"), 0o755);
 
-    const setup = await jouerSetup({ worktree, ticket: 17, env: { ...ENV_ENFANT, FAUX_BWRAP_TEMOIN: temoin }, delaiMs: 60_000, cloison: configCloison(env, lieux) });
+    const setup = await jouerSetup({ worktree, ticket: 17, env: { ...ENV_ENFANT, FAUX_BWRAP_TEMOIN: temoin }, delaiMs: 2000, cloison: configCloison(env, lieux) });
 
     assert.equal(setup.pret && setup.env.BASE_DE_TEST, "ticket_17");
     const [recu = []] = lancementsDuFauxBwrap(temoin);
