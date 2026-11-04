@@ -70,7 +70,7 @@ async function uneStation(t: TestContext, github: ReturnType<typeof unGitHub>, i
     apres: () => () => {},
     maintenant: () => instant,
   });
-  aArreter(t, () => presence.arreter());
+  // Aucun minuteur ne la tient : rien à arrêter — son arrêt écrirait sur GitHub pour rien.
   await presence.publier();
   const { gist } = JSON.parse(readFileSync(join(racine, FICHIER_LOCAL), "utf8")) as { gist: string };
   github.appairer(gist);
@@ -130,8 +130,8 @@ test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets 
     [[14, "pris"], [15, "en pass"], [16, "en attente"], [17, "86"], [19, "servi"], [18, "en attente"]],
   );
 
-  // La commande, dans un process neuf : ni HOME, ni état, ni variable de brigade — rien que son `gh`.
-  const commande = lancer(t, COMMANDE, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
+  // La commande, sans rien d'autre que son environnement : ni HOME, ni état, ni variable de brigade — rien que son `gh`.
+  const commande = appeler(principal, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
   assert.equal(await commande.fin, 0, commande.sortie());
   const lu = JSON.parse(commande.sortie()) as RailDuProjet;
   assert.ok(lu.state === "listed", commande.sortie());
@@ -232,7 +232,8 @@ test("sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pou
   assert.equal(sansReseau.reason, "GitHub cannot be reached from this computer, so the rail of brigade could not be read: check its network connection.");
   assert.match(sansReseau.detail ?? "", /error connecting to api\.github\.com/);
 
-  const commande = lancer(t, COMMANDE, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
+  // La commande, dans un process neuf, sans `gh` : elle sort en échec, sa raison sur sa sortie.
+  const commande = lancer(t, COMMANDE, ["brigade"], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: join(github.repertoire, "pas-de-gh") });
   assert.equal(await commande.fin, 1);
   assert.equal((JSON.parse(commande.sortie()) as RailDuProjet).state, "unavailable");
 });
