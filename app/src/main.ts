@@ -37,7 +37,8 @@ import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
-import { avecLesEtatsGithub, type MemoireDesLectures } from "./tableau/rail-github.ts";
+import type { MemoireDesLectures } from "./tableau/rail-github.ts";
+import { avecLeRailGithub } from "./vue/rail/github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
@@ -221,12 +222,17 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 // envoyée et en attente de la cuisine, jouée ou refusée — redémarrée, l'app relit les mêmes, et la carte le dit encore.
 // L'état de chaque ticket du rail est celui que GitHub en dit — ses labels, sa PR, la base (tableau/rail-github.ts, #2059) :
 // relu à chaque lecture du tableau (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
-// conditionnelles dont un 304 ne coûte rien.
+// conditionnelles dont un 304 ne coûte rien. Un projet sur GitHub seul (`githubOnlyState`, #2220) : son rail et ses cooks
+// sont lus de GitHub — ses issues, leurs labels, leurs commentaires de prise et ses PR (vue/rail/github.ts) —, pas du
+// rail figé que le tableau garde de l'ancien chemin.
+const interrupteursDuRail = new Map<string, boolean>();
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
 const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
-  return lu.lu ? avecLesEnvois(await avecLesEtatsGithub(lu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : lu;
+  if (!lu.lu) return lu;
+  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail);
+  return relu.lu ? avecLesEnvois(relu, appelerGitHub) : relu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 

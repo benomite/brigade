@@ -462,6 +462,36 @@ station publishes in its gist only says why the board is not read yet (#1435, ab
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
 
+### A GitHub-only project: its rail and its cooks read from GitHub (#2220)
+
+A project whose `.claude/brigade/projet.json` sets `githubOnlyState: true` ([settings](reglages.md)) no longer keeps its
+rail in the log of a station: its stations take, cook, review and merge its tickets on GitHub. Its box still publishes
+the Kitchen board, but the rail there is the old path's, frozen. So, for that project, the Rail and Cooks tabs are
+drawn from GitHub, at each reading of the board (every 30 seconds):
+
+- **Rail**: every open issue labelled `fire`, all pages, in the column of the state its labels, its pull request and
+  the base give (`etatDuTicket`, as the stations read it): On the rail, Taken, Pass (`base red` when the base is red),
+  Waiting — in `prio:` order, then oldest first. A taken card says the station that holds it and since its claim; a
+  card in pass, who cooked it and since its PR, and its PR number on its `right now` line; a queued card, since its
+  issue was opened.
+- **Cooks**: one station per station holding a claim comment on an issue (`<!-- brigade:prise station=… -->`, the
+  earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
+  says it as the runtime's `prise.ts` does). Each station is `cooking`, its cooks the cards of the tickets it holds, taken
+  or in pass with their PR.
+- What the old path said and the GitHub-only loop does not follow is no longer shown: the idle-kitchen fault, the
+  stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
+  switched off are shown as published. TODO, the backlog and Served still come from the board (#2221).
+- A failed GitHub reading of such a project is a failed board reading: the rail keeps its last columns and says it is
+  stale (#2151) — never the frozen rail.
+
+A project without the switch, or whose `projet.json` GitHub does not return, keeps the rail of its board, its states
+refreshed from GitHub (#2059), as before; once read on, the switch is remembered across a failed reading. Every read is
+conditional: a 304 costs nothing.
+
+*Code: `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in `app/src/main.ts`. Tests:
+`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`. Captures: `docs/captures/2220/` —
+`rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`.*
+
 ### Changing a ticket's priority (#1739)
 
 A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`

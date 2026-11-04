@@ -1,0 +1,220 @@
+// Le rail et les cooks d'un projet sur GitHub seul (#2220) : son interrupteur posé dans `projet.json`, la vue du rail range
+// ses issues `fire` d'après leurs labels et leurs PR — en attente, prises, en pass, en WAITING —, et l'onglet Cooks montre
+// les stations qui les tiennent d'après leurs commentaires de prise, jamais le rail figé du tableau de l'ancien chemin.
+// Un projet de l'ancien chemin garde son rail tel qu'avant (#2059). Joué sur un faux GitHub, puis rendu par le rail de l'app.
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { porter } from "../../../src/bon.ts";
+import { comprendre, tableau as tableauDe, type Faits, type Tableau } from "../../../src/faits.ts";
+import type { AppelGitHub, ReponseGitHub } from "../../../src/tableau/client.ts";
+import type { LectureDuTableauDuDepot, TableauLu } from "../../../src/tableau/lecture.ts";
+import { avecLesEtatsGithub, type MemoireDesLectures } from "../../../src/tableau/rail-github.ts";
+import { statusDuTableau } from "../../../src/tableau/rail.ts";
+import { avecLeRailGithub, interrupteurLu } from "../../../src/vue/rail/github.ts";
+
+const DEPOT = "acme/kitchen";
+const ok = (data: unknown, etag?: string): ReponseGitHub => ({ status: 200, data, ...(etag === undefined ? {} : { etag }) });
+const projetJson = (reglages: object) => ok({ content: Buffer.from(JSON.stringify({ version: 1, integrationBranch: "main", ...reglages })).toString("base64"), encoding: "base64" });
+const issue = (number: number, labels: string[], extra: object = {}) => ({
+  number,
+  title: `Ticket ${number}`,
+  html_url: `https://github.com/${DEPOT}/issues/${number}`,
+  created_at: "2026-11-03T21:00:00Z",
+  labels: labels.map((name) => ({ name })),
+  ...extra,
+});
+const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- brigade:prise station=${station} -->\nTaken by station \`${station}\`.`, author_association: "OWNER", created_at: le });
+
+// Le projet : #1 en attente, #2 pris par box/claude, #3 en pass (PR #40) cuisiné par mac/claude, #4 en WAITING, #5 en pass
+// sans PR — GitHub ne dit d'elle aucun des quatre —, et #6, sans `fire`, avant le rail. Sa base est verte, ou rouge.
+type Monde = { interrupteur?: boolean | "absent" | "refuse"; base?: string; issues?: () => unknown[]; appels?: string[] };
+function github({ interrupteur = true, base = "success", issues, appels = [] }: Monde = {}): AppelGitHub {
+  return async (chemin) => {
+    appels.push(chemin);
+    if (chemin.endsWith("/contents/.claude/brigade/projet.json")) {
+      if (interrupteur === "absent") return { status: 404, data: {} };
+      if (interrupteur === "refuse") return { status: 403, data: { message: "API rate limit exceeded" } };
+      return projetJson({ githubOnlyState: interrupteur });
+    }
+    if (chemin.includes("/issues?") && chemin.includes("labels=fire")) {
+      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "waiting", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
+    }
+    // L'ancien chemin lit toutes les issues ouvertes (tableau/rail-github.ts).
+    if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "taken"]), issue(6, [])]);
+    if (chemin.includes("/pulls?")) return ok([{ number: 40, state: "open", html_url: `https://github.com/${DEPOT}/pull/40`, created_at: "2026-11-04T02:30:00Z", head: { ref: "cook/3-github" }, body: "" }]);
+    if (chemin === `/repos/${DEPOT}`) return ok({ default_branch: "main" });
+    if (chemin.includes("/commits/main/check-runs")) return ok({ check_runs: [{ conclusion: base }] });
+    if (chemin.includes("/issues/2/comments")) return ok([prise(11, "box/claude", "2026-11-04T02:58:00Z")]);
+    if (chemin.includes("/issues/3/comments")) return ok([prise(12, "mac/claude", "2026-11-04T01:00:00Z"), prise(13, "box/claude", "2026-11-04T01:00:05Z")]);
+    if (/\/issues\/\d+\/(comments|events)/.test(chemin)) return ok([]);
+    return { status: 404, data: {} };
+  };
+}
+
+// Le tableau que la box publie encore : le rail figé de l'ancien chemin — trois tickets en attente que GitHub a pris
+// depuis, aucune station déclarée, la cuisine retenue et oisive.
+const LU = "2026-11-04T03:02:03.076Z";
+const tableauFige = (): TableauLu =>
+  ({
+    lu: true,
+    depot: DEPOT,
+    numero: 99,
+    adresse: null,
+    genereLe: LU,
+    luLe: LU,
+    age: 0,
+    projet: "kitchen",
+    file: [],
+    pages: [],
+    bilans: [],
+    cuisine: {
+      rubriques: [
+        { titre: "kitchen", lignes: ["open · breaker closed (0 failures in a row, opens at 3)"] },
+        { titre: "stations", lignes: ["NONE DECLARED since 2026-11-03 19:31 UTC — no cook leaves, the tickets stay waiting"] },
+        { titre: "rail", lignes: ["3 queued"] },
+        { titre: "cooks", lignes: ["none running"] },
+      ],
+    },
+    gestes: [],
+    faits: {
+      etat: "retenue",
+      lu: LU,
+      dernierTick: LU,
+      compteurs: { rail: 3, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 2 },
+      dernierEvenement: null,
+      rail: [1, 2, 3].map((ticket) => ({ ticket, etat: "en attente", titre: `Ticket ${ticket}`, url: `https://github.com/${DEPOT}/issues/${ticket}` })),
+      cooks: [],
+      stations: [],
+      cuisineOisive: { depuis: "2026-11-03T23:38:00.000Z", cartes: [1, 2, 3] },
+    },
+    lignesDuRail: [],
+    etatLuLe: LU,
+  }) as unknown as TableauLu;
+
+// Ce que la vue dessine de la lecture : le tableau de `facts`, avec la ligne de chaque ticket que `status` écrit.
+function dessine(lu: LectureDuTableauDuDepot): Tableau {
+  assert.ok(lu.lu, "the board is read");
+  const faits = comprendre(JSON.stringify(lu.faits));
+  assert.ok(!("informe" in faits), `facts are in shape: ${"informe" in faits ? faits.informe : ""}`);
+  return tableauDe(faits as Faits, undefined, { texte: statusDuTableau(lu), a: lu.luLe });
+}
+const colonnes = (vu: Tableau) => Object.fromEntries(vu.rail.colonnes.map(({ nom, cartes }) => [nom, cartes.map(({ ticket, mot, etat }) => `#${ticket} ${mot ?? etat}`)]));
+
+describe("un projet sur GitHub seul : le rail de ses issues, de leurs labels et de leurs PR", () => {
+  test("ses issues `fire` rangées par état — en attente, prises, en pass, WAITING —, pas le rail figé du tableau", async () => {
+    const vu = dessine(await avecLeRailGithub(tableauFige(), github()));
+    const lues = colonnes(vu);
+    assert.deepEqual(lues["On the rail"], ["#1 queued", "#5 queued"]);
+    assert.deepEqual(lues["Taken"], ["#2 taken"]);
+    assert.deepEqual(lues["Pass"], ["#3 in pass"]);
+    assert.deepEqual(lues["Waiting"], ["#4 waiting"]);
+    // Les compteurs sont ceux de GitHub ; les livrés, que GitHub ne compte pas ici, restent ceux du tableau.
+    assert.deepEqual(vu.compteurs.map(({ nombre }) => nombre), [5, 1, 1, 0, 2]);
+    // « Aucun cook n'a tourné » était le journal de l'ancien chemin : il n'est plus dit.
+    assert.equal(vu.panne, undefined);
+  });
+
+  test("ce que l'ancien chemin disait de la cuisine et que GitHub seul ne suit pas n'est plus dit : retenue, sans station", async () => {
+    const lu = await avecLeRailGithub(tableauFige(), github());
+    assert.ok(lu.lu);
+    assert.equal(dessine(lu).mot, "open");
+    const status = statusDuTableau(lu);
+    assert.doesNotMatch(status, /NONE DECLARED/);
+    assert.match(status, /^rail {7}1 taken · 1 in pass · 1 WAITING · 2 queued$/m);
+    assert.match(status, /^cooks {6}2 running$/m);
+    // L'arrêt du chef reste dit tel quel.
+    const arretee = tableauFige();
+    (arretee.faits as Record<string, unknown>).etat = "arrêtée";
+    const relue = await avecLeRailGithub(arretee, github());
+    assert.equal(relue.lu && relue.faits?.etat, "arrêtée");
+  });
+
+  test("base rouge : le ticket en pass est « base red »", async () => {
+    assert.deepEqual(colonnes(dessine(await avecLeRailGithub(tableauFige(), github({ base: "failure" }))))["Pass"], ["#3 base red"]);
+  });
+
+  test("les bons disent qui tient chaque ticket et depuis quand, sa priorité, et la PR d'un ticket en pass", async () => {
+    const lu = await avecLeRailGithub(tableauFige(), github());
+    assert.ok(lu.lu);
+    const lignes = new Map((lu.lignesDuRail ?? []).map(({ ticket, ligne }) => [ticket, ligne.replace(/^ {2}#\d+ {2}/, "")]));
+    assert.equal(lignes.get(2), "taken  prio:1  by box/claude since 2026-11-04 02:58 UTC  Ticket 2");
+    assert.equal(lignes.get(3), "in pass  -  since 2026-11-04 02:30 UTC, cooked by mac/claude  Ticket 3");
+    assert.equal(lignes.get(1), "queued  prio:2  since 2026-11-03 21:00 UTC  Ticket 1");
+    assert.deepEqual(porter({ etat: "pris", titre: "Ticket 2" }, { lignes: [lignes.get(2) ?? ""], bloque: false }).dit.slice(0, 2), [
+      { libelle: "taken by", valeur: "box/claude", exact: true },
+      { libelle: "since", valeur: "2026-11-04 02:58 UTC" },
+    ]);
+    const carte = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Pass")?.cartes[0];
+    assert.match(carte?.dit.find(({ libelle }) => libelle === "right now")?.valeur ?? "", /^awaiting review and merge PR #40, for /);
+    assert.equal(carte?.dit.find(({ libelle }) => libelle === "cooked by")?.valeur, "mac/claude");
+    // L'âge du rail est celui de la lecture de GitHub, pas celui du tableau publié.
+    assert.equal(lu.etatLuLe, lu.luLe);
+    assert.deepEqual(
+      (lu.faits?.rail as { ticket: number; depuis?: string }[]).map(({ ticket, depuis }) => [ticket, depuis ?? null]),
+      [[2, "2026-11-04T02:58:00Z"], [1, null], [3, "2026-11-04T02:30:00Z"], [4, null], [5, null]],
+    );
+  });
+
+  test("l'onglet Cooks : une station par commentaire de prise qui tient, ses cooks dedans", async () => {
+    const vu = dessine(await avecLeRailGithub(tableauFige(), github()));
+    assert.deepEqual(
+      vu.stations?.lignes.map(({ station, etat, cooks }) => ({ station, etat, cooks: cooks.map(({ ticket }) => ticket) })),
+      [
+        { station: "mac/claude", etat: "cooking", cooks: [3] },
+        { station: "box/claude", etat: "cooking", cooks: [2] },
+      ],
+    );
+    assert.deepEqual(vu.cooks.enCours.map(({ ticket, station }) => `#${ticket} ${station}`), ["#2 box/claude", "#3 mac/claude"]);
+  });
+
+  test("plus de cent tickets : chaque page est lue", async () => {
+    const appels: string[] = [];
+    const cent = Array.from({ length: 100 }, (_, rang) => issue(100 + rang, ["fire"]));
+    const vu = dessine(await avecLeRailGithub(tableauFige(), async (chemin, entetes) => (chemin.includes("labels=fire") ? ok(/[?&]page=1$/.test(chemin) ? cent : [issue(300, ["fire"])]) : github({ appels })(chemin, entetes))));
+    assert.equal(colonnes(vu)["On the rail"]?.length, 101);
+  });
+
+  test("GitHub qui refuse : une lecture ratée — la vue garde le dernier rail lu —, jamais le rail figé", async () => {
+    const interrupteurs = new Map<string, boolean>();
+    assert.ok((await avecLeRailGithub(tableauFige(), github(), undefined, interrupteurs)).lu);
+    const refuse: AppelGitHub = async (chemin, entetes) => (chemin.includes("/contents/") || chemin.includes("labels=fire") ? { status: 403, data: {} } : github()(chemin, entetes));
+    const ratee = await avecLeRailGithub(tableauFige(), refuse, undefined, interrupteurs);
+    assert.equal(ratee.lu, false);
+    assert.match(!ratee.lu ? ratee.raison : "", /^The rail of acme\/kitchen was not read from GitHub: GitHub answered HTTP 403\.$/);
+  });
+
+  test("relu avec les ETag : une seconde lecture sans changement redemande chaque chemin sous condition", async () => {
+    const memoire: MemoireDesLectures = new Map();
+    const conditions: string[] = [];
+    const avecEtag: AppelGitHub = async (chemin, entetes) => {
+      if (entetes?.["If-None-Match"] !== undefined) {
+        conditions.push(chemin);
+        return { status: 304, data: null };
+      }
+      return { ...(await github()(chemin)), etag: `"${chemin}"` };
+    };
+    const premiere = await avecLeRailGithub(tableauFige(), avecEtag, memoire);
+    const seconde = await avecLeRailGithub(tableauFige(), avecEtag, memoire);
+    assert.deepEqual(seconde, premiere);
+    assert.ok(conditions.some((chemin) => chemin.endsWith("projet.json")) && conditions.some((chemin) => chemin.includes("/issues/2/comments")));
+  });
+});
+
+describe("un projet de l'ancien chemin : le même rail qu'avant", () => {
+  for (const interrupteur of [false, "absent", "refuse"] as const) {
+    test(`interrupteur ${interrupteur === false ? "éteint" : interrupteur === "absent" ? "absent" : "illisible, jamais lu posé"} : le tableau, ses états refaits de GitHub (#2059)`, async () => {
+      const appels: string[] = [];
+      const lu = await avecLeRailGithub(tableauFige(), github({ interrupteur, appels }));
+      assert.deepEqual(lu, await avecLesEtatsGithub(tableauFige(), github({ interrupteur })));
+      assert.ok(!appels.some((chemin) => chemin.includes("labels=fire") || chemin.includes("/comments")), "nothing of the GitHub-only rail is read");
+    });
+  }
+
+  test("l'interrupteur se lit dans le contenu de `projet.json`, vrai seulement s'il le dit", () => {
+    assert.equal(interrupteurLu(projetJson({ githubOnlyState: true }).data), true);
+    assert.equal(interrupteurLu(projetJson({ githubOnlyState: "yes" }).data), false);
+    assert.equal(interrupteurLu(projetJson({}).data), false);
+    assert.equal(interrupteurLu({ content: "pas du base64 de JSON" }), false);
+    assert.equal(interrupteurLu(null), false);
+  });
+});
