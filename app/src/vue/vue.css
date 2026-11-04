@@ -3527,6 +3527,148 @@ main > header,
 #rail :is(.station-declaree, .station-de-cuisson) .fait {
   color: var(--discret);
 }
+/* Les stations cloud du projet, sous ses stations (ticket 2232) : leur coût par ticket servi en tête, puis ses trois
+   plafonds en champs et « Add a cloud station », recommandé. Dessous, ce qui retient l'ajout, la liste à approuver avant
+   la première station, ou, approuvée, repliée. */
+#cloud-du-projet:empty {
+  display: none;
+}
+#rail .stations-cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 16px 0;
+  padding: 8px 16px 12px;
+  font-size: 13px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .stations-cloud h4 {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .stations-cloud h4 .combien {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+}
+#rail .stations-cloud .cout {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+}
+#rail .stations-cloud .cout .montant {
+  font-size: 15px;
+  color: var(--texte);
+}
+#rail .stations-cloud .cout .pas-encore {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--discret);
+}
+#rail .stations-cloud .plafonds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+#rail .stations-cloud .plafonds .champ {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+#rail .stations-cloud .plafonds input[type="number"] {
+  width: 10ch;
+  padding: 5px 8px;
+  font: inherit;
+  font-weight: 400;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .stations-cloud .plafonds .action > button,
+#rail .stations-cloud .approbation .confirmation > button {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#rail .stations-cloud button.recommande {
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+#rail .stations-cloud .plafonds .action > button:disabled {
+  color: var(--discret);
+  background: none;
+  border-style: dashed;
+  border-color: var(--trait-fort);
+  cursor: default;
+}
+#rail .stations-cloud .retenu {
+  margin: 0;
+  color: var(--jaune);
+}
+#rail .stations-cloud .approbation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#rail .stations-cloud .listes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+}
+#rail .stations-cloud :is(.recoit, .jamais) h5 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail .stations-cloud :is(.recoit, .jamais) ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--texte-doux);
+}
+#rail .stations-cloud .jamais ul {
+  color: var(--discret);
+}
+#rail .stations-cloud .approbation .confirmation {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+}
+#rail .stations-cloud .approbation .confirmation > p {
+  flex: 1 1 100%;
+}
+#rail .stations-cloud .approbation .confirmation > p.prix {
+  color: var(--jaune);
+}
+#rail .stations-cloud .replie {
+  margin: 0;
+}
+#rail .stations-cloud .fait {
+  margin: 0;
+  color: var(--discret);
+}
 /* Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune — son nom, son mot et ce qu'il veut dire,
    ses cooks en cours, son bouton, à droite. Ce que le dernier clic a rendu passe dessous, sur toute la ligne. */
 #cuisson-du-projet:empty {
@@ -7499,4 +7641,80 @@ button.recommande {
 /* En tête du rail, au bout de la ligne de la panne. */
 #rail .panne-du-rail .signaler {
   margin-left: auto;
+}
+
+/* Le budget d'appels GitHub de chaque projet (ticket 2197), sous les gates : par projet, les lectures puis les écritures
+   utilisées face à leur budget de l'heure. Un projet au-delà prend le bord rouge, la marque « over budget » et les
+   catégories qui ont consommé les appels ; en deçà, rien ne se signale. */
+.budget-des-appels {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.budget-des-appels[data-hors-budget] {
+  border-color: var(--rouge);
+}
+.budget-des-appels h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.budget-des-appels .budget-du-projet {
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+.budget-des-appels .budget-du-projet[data-hors-budget] {
+  padding-left: 8px;
+  border-left: 3px solid var(--rouge);
+}
+.budget-des-appels .budget-du-projet strong {
+  color: var(--texte);
+}
+.budget-des-appels .budget-du-projet p {
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.budget-des-appels .budget-du-projet p[data-hors-budget] {
+  color: var(--rouge-clair);
+}
+.budget-des-appels .hors-budget {
+  padding: 1px 8px;
+  font-weight: 600;
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+}
+.budget-des-appels .categories-des-appels {
+  color: var(--discret);
+}
+
+/* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
+   dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
+#accueil-stations .versions-des-stations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--texte-doux);
+}
+#accueil-stations .versions-des-stations > .titre {
+  flex: 0 0 auto;
+  color: var(--discret);
+}
+#accueil-stations .version-d-une-station {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+#accueil-stations .version-d-une-station[data-ton="jaune"] .phrase {
+  color: var(--jaune);
 }

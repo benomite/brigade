@@ -399,6 +399,9 @@ FIN
       assistant
       code=1
       ;;
+    # Ne démarre pas : sort en échec sans un tour ni un token — un cook que sa
+    # station n'a pas pu faire démarrer.
+    ne-demarre-pas) code=1 ;;
     # Signalé de l'extérieur : il attend que FAUX_CLAUDE_FEU existe, puis se
     # tue de SIGTERM — sans que le superviseur l'ait demandé.
     meurt-sigterm)

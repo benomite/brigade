@@ -51,13 +51,18 @@
 // pass l'a abandonné, il est sorti avec un ticket qu'elle abandonne, ou le
 // triage l'a retiré : sa carte dit pourquoi et les trois gestes, et elle n'en
 // sort qu'à la réponse du chef (abandon-au-chef.ts).
+// La cuisine retenue y entre aussi (#2281) — rien de servi depuis 30 min
+// alors que des tickets attendent : une seule ligne par retenue, qui dit sa
+// cause et le geste qui la lève, et qui tombe quand la cuisine sert de nouveau
+// (retenue/).
+import { SANS_ISSUE_MS } from "./events/closing.ts";
+import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { abandonsAuChef, pourquoi as pourquoiDeLAbandon, pourquoiEn as pourquoiDeLAbandonEn, type Voie } from "./abandon-au-chef.ts";
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause, type VerdictDuSecondJuge } from "./events/pass.ts";
-import { REJOUER_LA_BASE } from "./dire-base.ts";
-import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
-import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./closing/say.ts";
+import { demandeEnAttente, faitAttendre, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
+import { direDemande as direDemandeDeFermeture, direRefusEn as direRefusDeFermetureEn } from "./closing/say.ts";
 import type { Ecart } from "./events/manager.ts";
 import { epiquesEnAttente } from "./projections/splits.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
@@ -66,7 +71,7 @@ import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeR
 import { feuNonVu, type TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renewal.ts";
 import { alerteDuJeton, type AlerteDuJeton } from "./projections/token.ts";
-import { direDeconnexion, direDeconnexionEn, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_EN, GESTE_DE_CONNEXION_TOMBEE, GESTE_DE_CONNEXION_TOMBEE_EN, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { direDeconnexion, direDeconnexionEn, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_TOMBEE, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
 import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
@@ -77,6 +82,8 @@ import { aLaCuisine } from "./remontee-a-la-cuisine.ts";
 import type { EnVol } from "./pause/evenements.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
 import { INTRANSPOSABLE, pourquoiIntransposable } from "./pause/reprise.ts";
+import { retenueEnCours } from "./retenue/lire.ts";
+import { direRetenue, direRetenueEn, type Retenue } from "./retenue/retenue.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
@@ -213,6 +220,10 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // est repartie seule. `why` : pourquoi, tel que la levée de la pause le dit ;
   // `pr` : sa PR restée sans merge, s'il en a ouvert une. `since` : la levée.
   | { quoi: "renommage"; why: string; pr: string | null }
+  // La cuisine retenue : rien de servi depuis 30 min alors que des tickets
+  // attendent. `since` : depuis quand rien n'est servi ; `tickets`, `cause`,
+  // `gesture` : ceux qui attendent, et son diagnostic (retenue/retenue.ts).
+  | ({ quoi: "retenue" } & Omit<Retenue, "since">)
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -244,10 +255,24 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
   disjoncteur: { sorte: "chef-gesture", pourquoi: "the breaker stops every cook after failures in a row: by design, only the chef resumes" },
   pause: { sorte: "chef-gesture", pourquoi: "the code rename asks the chef's yes before pausing the kitchen" },
   renommage: { sorte: "chef-gesture", pourquoi: "the paused code rename failed: the chef reads it and lifts the pause" },
+  retenue: { sorte: "chef-gesture", pourquoi: "nothing served for 30 minutes while tickets wait: the chef reads why, and makes the gesture that lifts it when there is one" },
 };
 
 export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 export const ACCORDER_LE_GRANT = geste("grant enable merge");
+
+// Le bloc `awaiting` ne cite jamais une commande de la box : chaque geste y est
+// dit par le bouton de l'app qui le fait, ou, quand l'app n'en a pas encore,
+// par « no app button for it yet » — sans en inventer un. Les gestes de ce
+// fichier restent ceux des messages écrits pour la box (journald, issues,
+// réponses de commandes).
+const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
+const INTERRUPTEUR_MERGE = "the switch on the `merge` grant's line of the project's Settings";
+const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
+const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `kitchen` line of the project's Settings";
+const BOUTON_PROPOSE = (reglage: string) => `the \`propose\` button on the \`${reglage}\` line of the project's Settings`;
+const BOUTON_ANNULER_LE_NETTOYAGE = "the `Cancel the cleanup` button in the closer section of the project's Cooks tab";
+const SANS_BOUTON = "no app button for it yet";
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
 // — la roadmap, l'issue d'un inconnu — n'attendent personne.
@@ -375,10 +400,13 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   // Le renommage échoué dit pourquoi, jusqu'à ce que le chef l'ait lu.
   const echec = echecDuRenommage(base);
   const renommage: Attente[] = echec === null ? [] : [{ ticket: null, title: null, since: echec.at, quoi: "renommage", why: echec.why, pr: echec.pr }];
+  // La cuisine retenue, une ligne tant qu'elle n'est pas levée.
+  const tenue = retenueEnCours(base);
+  const retenue: Attente[] = tenue === null ? [] : [{ ticket: null, title: null, since: tenue.since, quoi: "retenue", tickets: tenue.tickets, cause: tenue.cause, gesture: tenue.gesture }];
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes, ...abandons]
+  return [...disjoncteur, ...pause, ...renommage, ...retenue, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes, ...abandons]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -403,7 +431,7 @@ const ticketsRetenus = (enVol: EnVol[]) =>
 // réponses.
 function direDemandeDePauseEn({ minutes, enVol, renommage }: Extract<Attente, { quoi: "pause" }>): string {
   const sauf = renommage === null ? "" : ` but #${renommage}'s`;
-  return `the code rename asks to pause the kitchen for about ${minutes} min — no merge${sauf}, no new cook until it ends — ${ticketsRetenusEn(enVol)} — to agree: \`${ACCEPTER_LA_PAUSE}\`; to decline: \`${REFUSER_LA_PAUSE}\``;
+  return `the code rename asks to pause the kitchen for about ${minutes} min — no merge${sauf}, no new cook until it ends — ${ticketsRetenusEn(enVol)} — to agree or decline: ${SANS_BOUTON}`;
 }
 function direDemandeDePause({ minutes, enVol, renommage }: Extract<Attente, { quoi: "pause" }>): string {
   const sauf = renommage === null ? "" : ` que celui de #${renommage}`;
@@ -414,7 +442,7 @@ function direDemandeDePause({ minutes, enVol, renommage }: Extract<Attente, { qu
 // PR ouverte s'il en a une —, et le geste qui l'ôte de la file.
 function direEchecDuRenommageEn({ why, pr }: Extract<Attente, { quoi: "renommage" }>): string {
   const reste = pr === null ? "" : ` — its PR stays open, unmerged, to close: ${pr}`;
-  return `the code rename failed: ${why} — nothing was merged, the kitchen went on by itself${reste} — once read: \`${REFUSER_LA_PAUSE}\``;
+  return `the code rename failed: ${why} — nothing was merged, the kitchen went on by itself${reste} — once read: lifting the pause has ${SANS_BOUTON}`;
 }
 function direEchecDuRenommage({ why, pr }: Extract<Attente, { quoi: "renommage" }>): string {
   const reste = pr === null ? "" : ` — sa PR reste ouverte, sans merge, à fermer : ${pr}`;
@@ -438,7 +466,7 @@ export function pauseDeLaCuisine(base: Base, rail: readonly TicketRail[]): Pause
 // ce que la cuisine fait.
 export function direPauseEn({ since, minutes, finissent, retenus }: PauseEnVigueur, depuis: (instant: string) => string): string {
   const numeros = (tickets: number[]) => (tickets.length === 0 ? "none" : tickets.map((ticket) => `#${ticket}`).join(", "));
-  return `${EN_PAUSE_POUR_LE_RENOMMAGE} — for ${depuis(since)}, expected about ${minutes} min — finishing their work: ${numeros(finissent)} · held: ${numeros(retenus)} — to end it now: \`${REFUSER_LA_PAUSE}\``;
+  return `${EN_PAUSE_POUR_LE_RENOMMAGE} — for ${depuis(since)}, expected about ${minutes} min — finishing their work: ${numeros(finissent)} · held: ${numeros(retenus)} — to end it now: ${SANS_BOUTON}`;
 }
 
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
@@ -469,7 +497,7 @@ const RELANCES_EN: Record<EchecDeReparation, string | null> = {
 function direBaseRougeEn(attente: Extract<Attente, { quoi: "base" }>): string {
   const relance = RELANCES_EN[attente.echec];
   const relancer = relance === null ? "" : `, or restart #${attente.reparation}: ${relance}`;
-  return `BASE RED on ${attente.sha.slice(0, 7)}, failing: ${attente.echecs.join("; ")} — its repair #${attente.reparation} ${ECHECS_DE_REPARATION_EN[attente.echec]} — to repair: fix the base by hand${relancer}; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed: \`${REJOUER_LA_BASE}\``;
+  return `BASE RED on ${attente.sha.slice(0, 7)}, failing: ${attente.echecs.join("; ")} — its repair #${attente.reparation} ${ECHECS_DE_REPARATION_EN[attente.echec]} — to repair: fix the base by hand${relancer}; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed on the station: ${SANS_BOUTON}`;
 }
 
 // Un hôte refusé, tel qu'il se déclare : la porte le note avec son port, que
@@ -490,7 +518,7 @@ function direMiseDeCoteBloqueeEn({ aside }: Extract<Attente, { quoi: "aside" }>)
 function direDisjoncteurEn({ echecs, seuil }: Extract<Attente, { quoi: "disjoncteur" }>): string {
   const lignes = echecs.map(({ ticket, code, turns, tokens }) => `${ticket === null ? "no ticket" : `#${ticket}`}: exit ${code ?? "no code"}, ${turns ?? "?"} turns, ${tokens ?? "?"} tokens`);
   const cause = lignes.length === 0 ? "failures in a row" : `${lignes.length} failure${lignes.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`} — ${lignes.join("; ")}`;
-  return `breaker open: ${cause} — no cook leaves any more — to do: \`${REFERMER_LE_DISJONCTEUR}\` after looking at what fails`;
+  return `breaker open: ${cause} — no cook leaves any more — to do: look at what fails, then press ${BOUTON_RESUME}`;
 }
 
 // Ce que le setup a dit à la fin, sur une ligne, borné : la fin de sa sortie,
@@ -516,6 +544,32 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
   return `setup impossible: \`${SCRIPT_SETUP}\` fails twice identically (${setup.why}${finDuSetup(setup.output)})${vu} — to fix: the project's setup, then merge into the integration branch; ${reprise}`;
 }
 
+// La demande de fermeture, dite sans commande : `direDemandeEn` (closing/say.ts)
+// cite celles de la box, que ses autres lecteurs gardent. Le refus de la
+// ligne en dit de même : le disjoncteur et la cuisine arrêtée par le bouton qui
+// les lève, le closer non réglé par le réglage du projet qui le règle.
+function direRefusDeLaFermetureEn(retenue: Refus): string {
+  switch (retenue.reason) {
+    case "unconfigured":
+      return `the closer is not set on this project — set its calibration with ${BOUTON_PROPOSE("closer's calibration")}, it applies once its pull request is merged`;
+    case "stopped":
+      return `the kitchen has been stopped by the chef since ${retenue.detail} — ${BOUTON_REPRENDRE_LA_CUISINE} first`;
+    case "breaker":
+      return `the breaker has been open since ${retenue.detail} — ${BOUTON_RESUME} first`;
+    default:
+      return direRefusDeFermetureEn(retenue);
+  }
+}
+function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refus | null): string {
+  const demandee = `closing pass requested on ${since}`;
+  if (retenue === null) return `${demandee}: its start condition is met, the runtime starts it at its next wake-up, within the second`;
+  const refus = direRefusDeLaFermetureEn(retenue);
+  if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
+  const renoncer = `withdraw it with ${BOUTON_ANNULER_LE_NETTOYAGE}`;
+  if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold with ${BOUTON_PROPOSE("closer's start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
+}
+
 // Une phrase reprise au milieu d'une ligne.
 const enMinuscule = (phrase: string) => `${phrase.charAt(0).toLowerCase()}${phrase.slice(1)}`;
 
@@ -525,7 +579,7 @@ export function direAttenteEn(attente: Attente): string {
   switch (attente.quoi) {
     case "merge": {
       const ou = attente.pr === null ? "" : `: ${attente.pr}`;
-      const accorder = ` — or enable the grant, for the next ones: \`${ACCORDER_LE_GRANT}\``;
+      const accorder = ` — or enable the grant, for the next ones: ${INTERRUPTEUR_MERGE}`;
       switch (attente.reason) {
         case SANS_GRANT:
           return `green delivery, not merged${attente.expired === null ? " for lack of a `merge` grant" : `: the \`merge\` grant lapsed on its own on ${attente.expired}`} — merge by hand${ou}${accorder}`;
@@ -536,29 +590,28 @@ export function direAttenteEn(attente: Attente): string {
         case MERGE_REFUSE:
           return `green delivery, merge refused by GitHub (${attente.cause ?? "?"}) — merge by hand, once what it refuses is lifted${ou}`;
         default:
-          return `green delivery, not merged (${attente.reason}) — no known action for this reason${ou} — \`${geste(`pass ${attente.ticket}`)}\``;
+          return `green delivery, not merged (${attente.reason}) — no known action for this reason${ou}`;
       }
     }
     case "remontee": {
-      const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
       const sortir = attente.pr === null ? "remove `fire`, or close the issue" : `merge ${attente.pr} by hand, or remove \`fire\``;
       const dit = attente.nonVu === undefined ? "" : ` — the removal of \`fire\` on ${attente.nonVu} came before the hold and was not seen: remove it and set it again now`;
       const precise = attente.cause === null ? "" : `: ${attente.cause}`;
-      if (attente.why !== undefined) return `held by the code rename and not resumed on the renamed tree: ${attente.why} — to decide: carry it by hand onto the renamed base and push its branch, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
+      if (attente.why !== undefined) return `held by the code rename and not resumed on the renamed tree: ${attente.why} — to decide: carry it by hand onto the renamed base and push its branch, then remove and set \`fire\` again; or ${sortir}${dit}`;
       switch (attente.reason) {
         case ENCORE_ROUGE:
-          return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir} — ${voir}${dit}`;
+          return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir}${dit}`;
         case NON_JUGEE: {
           const instables = testsInstablesDeLaCause(attente.cause);
-          if (instables !== null) return `base unstable: delivery red on a test this change does not touch, twice (${instables}) — to lift: rerun that test on the base, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
-          return `escalated by the pass, which could not judge it (${NON_JUGEE}${precise}) — to lift: what its issue says, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
+          if (instables !== null) return `base unstable: delivery red on a test this change does not touch, twice (${instables}) — to lift: rerun that test on the base, then remove and set \`fire\` again; or ${sortir}${dit}`;
+          return `escalated by the pass, which could not judge it (${NON_JUGEE}${precise}) — to lift: what its issue says, then remove and set \`fire\` again; or ${sortir}${dit}`;
         }
         default:
-          return `escalated (${attente.reason}) — no known action for this reason — ${voir}${dit}`;
+          return `escalated (${attente.reason}) — no known action for this reason${dit}`;
       }
     }
     case "fermee":
-      return `PR closed without merge${attente.pr === null ? "" : `: ${attente.pr}`} — to decide: remove \`fire\`, or close the issue — \`${geste(`pass ${attente.ticket}`)}\``;
+      return `PR closed without merge${attente.pr === null ? "" : `: ${attente.pr}`} — to decide: remove \`fire\`, or close the issue`;
     case "ecartee":
       return GESTES_D_ECART_EN[attente.reason];
     case "illisible":
@@ -570,11 +623,11 @@ export function direAttenteEn(attente: Attente): string {
     case "carte":
       return direCarteEn(attente.carte);
     case "abandon":
-      return `taken off the rail by the kitchen without being served — ${enMinuscule(pourquoiDeLAbandonEn(attente).replace(/\.$/, ""))} — to decide: ${attente.root === null ? "set `fire` again" : `set \`fire\` again on #${attente.root}, it comes back with it`}; or take it in a dev session; or close the issue — \`${geste(`rail choose ${attente.ticket} <n>`)}\``;
+      return `taken off the rail by the kitchen without being served — ${enMinuscule(pourquoiDeLAbandonEn(attente).replace(/\.$/, ""))} — to decide: ${attente.root === null ? "set `fire` again" : `set \`fire\` again on #${attente.root}, it comes back with it`}; or take it in a dev session; or close the issue — answer with the buttons of its card in TODO: ${attente.root === null ? "`Put it back on the rail`" : `\`Put #${attente.root} back on the rail, and this ticket with it\``}, \`I take it in a dev session\`, \`Close it\``;
     case "fermeture":
-      return direDemandeDeFermetureEn(attente.demande, attente.retenue);
+      return direFermetureEn(attente.demande, attente.retenue);
     case "connexion":
-      return `Max connection ${direDeconnexionEn(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — to restore: ${GESTE_DE_CONNEXION_TOMBEE_EN}`;
+      return `Max connection ${direDeconnexionEn(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — to restore: log in again with ${BOUTON_LOG_IN} — the kitchen starts again on its own within the minute`;
     case "session":
       return direSessionEn(attente);
     case "jeton":
@@ -591,6 +644,8 @@ export function direAttenteEn(attente: Attente): string {
       return direDemandeDePauseEn(attente);
     case "renommage":
       return direEchecDuRenommageEn(attente);
+    case "retenue":
+      return direRetenueEn(attente);
   }
 }
 
@@ -631,15 +686,15 @@ const heuresEn = (secondes: number) => `${Math.round((secondes / 3600) * 10) / 1
 function direSessionEn({ expires, origin, lifetimeS, failure }: Extract<Attente, { quoi: "session" }>): string {
   const echeance = expires === null || origin === null ? "expiry unknown" : `estimated expiry on ${expires}, ${heuresEn(lifetimeS)} after ${ORIGINES_EN[origin.what]} (${origin.at})`;
   return failure === null
-    ? `Max session close to its expiry — ${echeance} — to do before then: ${GESTE_DE_CONNEXION_EN}`
-    : `Max session renewal failing (${failure.nature}${failure.detail === null ? "" : `: ${failure.detail}`}) — ${echeance} — to restore: ${GESTE_DE_CONNEXION_EN}`;
+    ? `Max session close to its expiry — ${echeance} — to do before then: log in again with ${BOUTON_LOG_IN}`
+    : `Max session renewal failing (${failure.nature}${failure.detail === null ? "" : `: ${failure.detail}`}) — ${echeance} — to restore: log in again with ${BOUTON_LOG_IN}`;
 }
 
 // Le seul geste qui fait un jeton neuf : `claude setup-token` sous le compte
 // du service, par l'étape de connexion Max — qui ne refait pas un jeton
 // rangé, d'où le fichier à retirer d'abord. Le chemin, jamais la valeur.
 const gesteDuJetonEn = (fichier: string) =>
-  `remake the token — \`claude setup-token\` under the service account: delete ${fichier}, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date`;
+  `remake the token on the station (${fichier}; docs/installation-station.md, step 5) — ${SANS_BOUTON}; the station reads the new token and its date`;
 
 // Le jeton longue durée qui va échoir, est échu, ou dont la date ne se lit
 // pas : quand, ou pourquoi on ne le sait pas, puis le geste.
@@ -691,12 +746,12 @@ export const TETE_AWAITING = "awaiting";
 export const FIN_AWAITING = "end awaiting";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside`, `disjoncteur`, `pause`
-// ou `renommage`. C'est aussi le nom que les faits donnent à la décision.
+// `session`, `jeton`, `fermeture`, `base`, `setup`, `aside`, `disjoncteur`, `pause`,
+// `renommage` ou `retenue`. C'est aussi le nom que les faits donnent à la décision.
 export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
 
 // Le même nom, tel que le bloc l'écrit : en anglais (docs/glossary.md, §2).
-const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename" };
+const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename", retenue: "kitchen" };
 export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
 // Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
@@ -867,6 +922,8 @@ export function direAttente(attente: Attente): string {
       return direDemandeDePause(attente);
     case "renommage":
       return direEchecDuRenommage(attente);
+    case "retenue":
+      return direRetenue(attente);
   }
 }
 

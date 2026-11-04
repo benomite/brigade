@@ -34,6 +34,8 @@ import { aDeposer, consigneDuRole, DEPOSEE_PAR, lireReponse, type Source } from 
 export const STATION = "product";
 
 export type OptionsCadence = {
+  // True once the GitHub-only switch is on: the empty rail it reads is the stale log's, so it stops (#2218).
+  perimee?: () => boolean;
   // A GitHub of its own: the list of open issues is a poll with its own
   // confirmation, which another reader would confirm under its feet.
   github: Pick<GitHub, "ouvertes" | "issuesDepuis" | "commentaires" | "creerIssue">;
@@ -206,7 +208,7 @@ export function brancherCadence<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   const desabonner = runtime.surReveil((cause) => {
-    if (cause !== "tick" || arrete || occupee) return;
+    if (cause !== "tick" || arrete || occupee || options.perimee?.()) return;
     occupee = true;
     void passer()
       .catch((erreur) => {

@@ -103,6 +103,25 @@ function nonVerifie(bande: Alerte[], sujet: Sujet, nomme: string): Alerte {
   return ligne;
 }
 
+describe("l'interrupteur GitHub seul refusé par le runtime (ticket 2161)", () => {
+  test("`facts` en porte la raison : une ligne en tête de la bande ; accepté ou absent, aucune", (t) => {
+    const servie = saine(t);
+    const avec = (githubSeul: unknown) => {
+      const rendu = servie.rendre("10:00:00");
+      const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+      bandes.ouvrir(["parade"]);
+      bandes.veiller(["parade"]);
+      bandes.faits(lecture("facts", `${JSON.stringify({ ...JSON.parse(rendu.faits), githubSeul })}\n`));
+      bandes.status(mettreAPart(lecture("status", rendu.status)));
+      return bandes.manager(lecture("manager", rendu.manager)).alertes;
+    };
+    const ligne = enPanne(avec({ etat: "refused", reason: "the station name \"a/b\" cannot sign a claim or a verdict", since: `${JOUR}T09:00:00.000Z` }), "cuisine");
+    assert.match(ligne.dit, /^GitHub-only state refused: the station name .* cannot sign a claim or a verdict — the old path is kept$/);
+    assert.deepEqual(avec({ etat: "accepted", since: `${JOUR}T09:00:00.000Z` }), []);
+    assert.deepEqual(avec(undefined), []);
+  });
+});
+
 describe("la bande d'alertes : vide quand tout va bien", () => {
   test("manager allumé, version à jour, cuisine ouverte, aucun grant : la bande est vide", (t) => {
     assert.deepEqual(saine(t).bande(), []);
@@ -612,5 +631,19 @@ describe("la limite d'appels de GitHub", () => {
 
     const [levee] = bandes.limite(undefined);
     assert.deepEqual(du(levee?.alertes ?? [], "github"), []);
+  });
+});
+
+describe("le budget d'écritures de la box (#2226)", () => {
+  const LIGNE = "held by the GitHub write budget — 450 of 450 in the last hour, next write at 10:20";
+  const status = (avec: boolean) => `project     parade\n${avec ? `github      ${LIGNE}\n` : ""}kitchen     open\n`;
+
+  test("la ligne `github` de `status` se dit mot pour mot dans la bande, et tombe avec elle", (t) => {
+    const { rendre } = saine(t);
+    const faits = JSON.parse(rendre("10:00:00").faits) as Faits;
+    const manager = { sans: MANAGER_PAS_DIT };
+    const dite = alertes({ projet: "parade", faits, status: status(true), manager });
+    assert.deepEqual(du(dite, "github").map(({ dit, ton, verifie }) => ({ dit, ton, verifie })), [{ dit: LIGNE, ton: "jaune", verifie: true }]);
+    assert.deepEqual(du(alertes({ projet: "parade", faits, status: status(false), manager }), "github"), []);
   });
 });

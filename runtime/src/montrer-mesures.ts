@@ -12,7 +12,9 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
+import { direLeReleveGitHub, releveGitHubDeLaStation } from "./mesures-github.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
+import { describeCallsPerTicket, measureCallsPerTicket, type PerTicket } from "./mesures/appels-par-ticket.ts";
 import { ciDurationSection, ghGet } from "./measures/ci-duration.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
 import { decrireRejeux, lireRejeux, mesurerRejeux } from "./tests-rejoues.ts";
@@ -53,6 +55,15 @@ export async function principal({ args: tapes, env, dire, redire }: Appel): Prom
     for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) dire(ligne);
     dire("");
     for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) dire(ligne);
+    // The ledger snapshot (`perTicket`) comes from `github/budget-appels.ts`, which is not on main yet:
+    // until it lands every merged ticket reads as unknown.
+    const perTicket: PerTicket = {};
+    dire("");
+    for (const ligne of describeCallsPerTicket(measureCallsPerTicket(mergedDeliveries(base), perTicket))) dire(ligne);
+    // Rien de relevé, c'est aucune minute limitée et aucune écriture.
+    const github = releveGitHubDeLaStation(env.BRIGADE_STATION_DIR, Date.now()) ?? { minutesLimitees: 0, pointEcritures: 0 };
+    dire("");
+    for (const ligne of direLeReleveGitHub(github)) dire(ligne);
     const ci = await ciDurationSection(env.BRIGADE_GITHUB_REPO, (chemin) => ghGet(chemin, env.BRIGADE_GH_BIN || "gh"));
     if (ci.length > 0) dire("");
     for (const ligne of ci) dire(ligne);

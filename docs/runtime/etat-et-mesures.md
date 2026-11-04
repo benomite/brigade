@@ -22,6 +22,7 @@ kind (`product`, `design`): `-- --days <N>` sets it, 7 by default. A card refuse
 | `fault` | **Absent unless the kitchen is idle with cards on the rail** (`runtime/src/cuisine-oisive.ts`). Above everything but `emergency` and `nothing cooks`: `fault      IDLE KITCHEN for <duration> — no cook has run, with <N> cards on the rail: #12, #14`. Four conditions hold together: cards are on the rail (`queued`, `BLOCKED` or `86`); no cook has run for **30 minutes** (`OISIVE_APRES_MS`) — none running, taken or in pass, the latest mark being the end of the last cook (pass reviews included), the runtime's start, the last service, or the project switched back on; the project is not off (runtime running, no "stop", switch on, not every station stopped); and not every card waits for a capability or a third party (`WAITING`, `no-station: …`, `station-absent: …`, or queued only behind such tickets). The cards named are those that should cook. When some await other tickets, the line names the **root of each wait chain**: `— wait chain: #44, #45, #46, #47 → #43 (off the rail, issue still open: label \`fire\` removed)` — the waiting cards, then the root and where it is; chains are separated by ` · `. The second relays this line at opening (`commands/po.md`) |
 | `project` | The log's project, or `unknown — empty log` |
 | `github` | **Absent unless GitHub limits the account's calls.** `GitHub is rate-limiting calls, back around HH:MM`, by the box's clock. See "The calls to GitHub, on the account's real quota, and waiting out the limit" (`station-machine.md`) |
+| `github` (write budget) | **Absent unless the write pacer holds writes.** `held by the GitHub write budget — N of 450 in the last hour, next write at HH:MM`. GitHub refused nothing (#2226, `station-machine.md`) |
 | `runtime` | `running according to the log`, `stopped <duration> ago`, or `never started`. A runtime killed without notice still appears running: the **age of the last tick** betrays it. Beyond a few cadences: `systemctl status brigade@<project>` |
 | `kitchen` | The chef's "stop" and the breaker: `open` or `STOPPED by the chef <duration> ago`, then `breaker closed (… failures in a row, opens at N)` or `breaker OPEN for <duration>` |
 | `connection` | **Absent while the Max connection holds.** Otherwise, per station: `Max MISSING` or `EXPIRED`, since when, the reason, and the gesture — `claude /login` under the service account; the kitchen resumes within the minute. No ticket is taken until then. See "Max connection expired" |
@@ -74,12 +75,27 @@ disagreements —, Z still open`. A PR closed without merge is a disagreement. W
 
 A rail with only WAITING cards is empty for the kitchen, and that is normal (`rail       empty — 2 WAITING, normal: nothing on it for a cook`, no `fault` line). Cards a cook could take, with no cook running for 30 min, are a fault.
 
+**A held kitchen enters the block, once** (#2281, `runtime/src/retenue/`). When **nothing has been served for 30 minutes**
+(`RETENUE_APRES_MS`) while tickets wait for the kitchen — claimable, or in pass; not those that wait for you, a third
+party or another ticket —, the runtime writes `kitchen.held` to the log and the block gets one entry:
+`  kitchen  for 42 min  HELD: nothing served while 2 tickets wait (#12, #13) — cause: … — to lift: …`. The 30 minutes
+count from the latest of: the last service, the kitchen's opening (runtime start, project switched back on), and the
+moment the waiting tickets started to wait. The cause is the first that holds of: the breaker (`to lift:` its `Resume`
+button), the GitHub limit or the box's reserve for your gestures, the GitHub write budget (both say `nothing to do: it
+lifts on its own around HH:MM`), the red base with its failing checks named (`to lift: fix the base by hand…`), or
+`cause unknown`, with no gesture. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
+its start. When the kitchen serves again — or nothing waits any more, or you stop the kitchen —, `kitchen.hold-lifted`
+is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
+GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The
+GitHub limit and the write budget are read from the station's call counter (`BRIGADE_STATION_DIR`), not on the dev
+workstation. The station's service log says each transition (`kitchen held — …`, `kitchen no longer held (served)`).
+
 The block starts at the **only line that starts with `awaiting`** and ends at the **only
 line exactly `end awaiting`**, bounds included; between them everything is
 indented — an entry is two spaces in. Whoever presents it separately — the app, the second (`/brigade:po`) — takes it by these two lines. **The app reads one thing besides**, to sort its rail: the
 ticket number **at the head** of an entry — two spaces, `#`, digits, two spaces (`  #12  for 2 d  …`). This
 head does not change without the app changing (`docs/app.md`, "The rail"); an entry
-that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside` or `breaker`, and the tally of stops for lack of a grant, has none. Under `--follow`, later events
+that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside`, `breaker` or `kitchen`, and the tally of stops for lack of a grant, has none. Under `--follow`, later events
 are not part of the block.
 
 **The block is in English** (words of `docs/glossary.md`, §2 and §4); what is between backticks keeps its name. A box from before still writes `attend` … `fin attend` in French: the app and the second read both.
@@ -279,8 +295,9 @@ project's log, and the chef is mentioned there. Its calls are counted to that
 project in the station's counter, the one `status` reads for `board cost`.
 
 The issue is found by its label and its block, never by a stored number. Closed, it is reopened;
-deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh, after each creation or reopening, then
-hourly; refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
+deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh and after each creation or reopening, never on a timer
+(#2198: a quiet kitchen costs no call; a board the chef unpins stays unpinned until the next one);
+refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
 at the next tick.
 
 ## The measures reading
@@ -291,6 +308,8 @@ time**, what the log knows of the project's heaviness: the slope reveals a drift
 `npm --prefix runtime run measures` shows them in slices of 10 merges; `-- --by 25`, of 25.
 
 At the end, `measures` adds the CI duration of the last 10 merged PRs (`runtime/src/measures/ci-duration.ts`, from `BRIGADE_GITHUB_REPO`): per merge, the start of the first check of the merge commit to the end of the last, then the median beside the 60 s target, and the worst. A merge over target is marked `OVER TARGET`. With fewer than 10 merges, or a failed GitHub call, the section is one line saying so; nothing else changes.
+
+Before it, `measures` gives two lines on the GitHub account over the last 7 days (`runtime/src/mesures-github.ts`): the rate-limited minutes and the peak writes per minute. The GitHub call layer notes each write as it leaves, once the pause has passed, and each limit episode GitHub declares (every minute from `since` to `backAt` counts), in `<BRIGADE_STATION_DIR>/appels-github/minutes.db`, next to the counter. Nothing noted reads as 0 and 0; a minute older than 7 days is forgotten.
 
 When a ticket among the last ten merges exceeds the drift's cost threshold (`BRIGADE_DRIFT_TICKET_TOKENS`),
 `measures` adds under the `CROSSED` line a `reason for the drift —` line per ticket:

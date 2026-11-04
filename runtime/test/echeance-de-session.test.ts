@@ -27,9 +27,9 @@ import { posixOnly } from "./support/plateforme.ts";
 
 const STATION = "box/claude";
 const GESTE_TOMBEE = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
-const GESTE_TOMBEE_EN = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
+const GESTE_TOMBEE_EN = "log in again with the `log in` button on the station's page in the app, opened by a click on its line of the home screen — the kitchen starts again on its own within the minute";
 const ETAT = "/var/lib/brigade/.session/renouvellement";
-const GESTE = "`claude /login` under the service account, then `brigade <projet> guardrails resume`";
+const GESTE = "log in again with the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
 const RIEN = ["awaiting   nothing awaits the chef"];
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}.000Z`;
 

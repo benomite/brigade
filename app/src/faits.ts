@@ -30,6 +30,7 @@ import { anciennete, cadenceLue, essaisLus, histogramme, points, type Anciennete
 import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
+import type { CarteDuChef } from "./tableau/todo-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
 import type { Repondue } from "./repondues.ts";
@@ -126,6 +127,39 @@ export type TicketDuBudget = { number: number; openedAt: string };
 export type CoutDeLaBase = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean };
 export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: FenetreDesGates; ticket: TicketDuBudget | null; base?: CoutDeLaBase } & Partial<RecentDesGates>;
 
+// Le budget d'appels GitHub par projet (ticket 2197) : l'instantané du registre des appels du runtime.
+export type CompteDAppels = { total: number; byCategory: Record<string, number> };
+export type BudgetDAppelsDuProjet = { reads: CompteDAppels; writes: CompteDAppels; budget: { reads: number; writes: number }; overBudget: boolean };
+export type BudgetDesAppels = { windowStart?: string; projects: Record<string, BudgetDAppelsDuProjet> };
+
+// Le champ `budgetDesAppels` d'un `facts`. Un projet dont la forme n'est pas celle-là n'est pas repris ; sans projet lu,
+// le champ est absent, comme pour un runtime d'avant lui.
+export function budgetDesAppelsLu(brut: unknown): BudgetDesAppels | undefined {
+  const champs = (valeur: unknown): Record<string, unknown> | undefined => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : undefined);
+  const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0;
+  const compte = (valeur: unknown): CompteDAppels | undefined => {
+    const c = champs(valeur);
+    const parCategorie = champs(c?.byCategory);
+    if (c === undefined || parCategorie === undefined || !nombre(c.total)) return undefined;
+    return { total: c.total, byCategory: Object.fromEntries(Object.entries(parCategorie).filter((entree): entree is [string, number] => nombre(entree[1]))) };
+  };
+  const racine = champs(brut);
+  const projets = champs(racine?.projects);
+  if (racine === undefined || projets === undefined) return undefined;
+  const lus: Record<string, BudgetDAppelsDuProjet> = {};
+  for (const [nom, valeur] of Object.entries(projets)) {
+    const projet = champs(valeur);
+    const budget = champs(projet?.budget);
+    const lectures = compte(projet?.reads);
+    const ecritures = compte(projet?.writes);
+    if (projet === undefined || budget === undefined || lectures === undefined || ecritures === undefined) continue;
+    if (!nombre(budget.reads) || !nombre(budget.writes) || typeof projet.overBudget !== "boolean") continue;
+    lus[nom] = { reads: lectures, writes: ecritures, budget: { reads: budget.reads, writes: budget.writes }, overBudget: projet.overBudget };
+  }
+  if (Object.keys(lus).length === 0) return undefined;
+  return { ...(typeof racine.windowStart === "string" ? { windowStart: racine.windowStart } : {}), projects: lus };
+}
+
 // Le champ `coutDesGates` d'un `facts`. Un champ qui n'a pas cette forme n'est pas lu — la file et l'onglet Cooks se
 // dessinent sans, comme pour un runtime d'avant ce champ. Ce que le runtime y met de plus n'est pas repris.
 export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
@@ -198,6 +232,20 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
   };
 }
 
+// La carte du chef lue de GitHub (tableau/todo-github.ts) : sa sorte et son texte, ou rien si elle n'a pas cette forme.
+function chefLu(brut: unknown): CarteDuChef | undefined {
+  const lu = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : undefined;
+  return typeof lu?.sorte === "string" && typeof lu.texte === "string" ? { sorte: lu.sorte, texte: lu.texte } : undefined;
+}
+// Ce qu'une carte du chef attend de lui, en une phrase, selon sa sorte ; une sorte que l'app ne connaît pas est dite telle quelle.
+const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
+  blocked: "Blocked: a ticket cannot go on without you.",
+  "merge-by-hand": "Green, but not merged: merge it yourself.",
+  "product-question": "A product question waits for your answer.",
+  abandoned: "The kitchen gave this ticket up.",
+};
+const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
+
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
@@ -207,7 +255,7 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
 // `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
-export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; tache?: TacheHumaine; illisible?: string };
+export type Attendu = { ticket: number; titre: string; url: string | null; chef?: CarteDuChef; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; tache?: TacheHumaine; illisible?: string };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -277,6 +325,8 @@ export type Faits = {
   limiteGithub?: string;
   // La limite que GitHub pose aux appels du compte — laquelle, depuis quand, retour vers quand (runtime, `github`) ; absente quand les appels passent (vue/bandeau-limite-github.ts).
   github?: LimiteDuCompte;
+  // Le refus de l'interrupteur GitHub seul par le runtime (`githubSeul`, ticket 2161) : sa raison en une phrase, et depuis quand ; absent quand l'interrupteur est éteint ou accepté.
+  githubSeulRefuse?: { reason: string; since: string };
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -330,6 +380,8 @@ export type Faits = {
   // Ce que coûtent les gates du projet face à son budget, et le ticket que la cuisine a ouvert seule (ticket 1318) ;
   // absent d'un runtime d'avant ce champ.
   coutDesGates?: CoutDesGates;
+  // Le budget d'appels GitHub de chaque projet, lectures et écritures (ticket 2197) ; absent d'un runtime d'avant ce champ.
+  budgetDesAppels?: BudgetDesAppels;
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -376,7 +428,7 @@ export type Faits = {
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -437,6 +489,8 @@ export type Tableau = {
   // Ce que coûtent les gates du projet face à son budget : la file le pose en tête, l'onglet Cooks ses 24 h (ticket
   // 1318) — absent d'un runtime qui ne le donne pas.
   coutDesGates?: CoutDesGates;
+  // Le budget d'appels GitHub de chaque projet (ticket 2197) — absent d'un runtime qui ne le donne pas.
+  budgetDesAppels?: BudgetDesAppels;
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -643,6 +697,14 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
   };
 }
 
+// `githubSeul`, de la racine de `facts` : seul un refus se garde, avec sa raison ; rien de mal formé ne la fait inventer.
+function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: string; since: string } } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const { etat, reason, since } = valeur as Record<string, unknown>;
+  if (etat !== "refused" || typeof reason !== "string" || reason === "") return {};
+  return { githubSeulRefuse: { reason, since: typeof since === "string" ? since : "" } };
+}
+
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
@@ -668,6 +730,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       dernierTick: ouRien(racine.dernierTick, "dernierTick", heure),
       ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
       ...limiteLue(racine.github),
+      ...refusGitHubSeulLu(racine.githubSeul),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -725,7 +788,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
               const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
               const carte = lu.carte === undefined ? undefined : carteLue(lu.carte);
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
+              const chef = chefLu(lu.chef);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(chef === undefined ? {} : { chef }), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
               }, ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, illisible }));
             }),
           }),
@@ -760,6 +824,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(cadenceLue(racine.cadence) === undefined ? {} : { cadence: cadenceLue(racine.cadence) }),
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
+      ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -1047,7 +1112,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       connu?.illisible !== undefined || donne?.illisible !== undefined
         ? ligneIllisible()
         : dit !== undefined
-        ? ligneQuiMAttend(attenduDe(donne?.decision).phrase)
+        ? ligneQuiMAttend(donne?.chef === undefined ? attenduDe(donne?.decision).phrase : phraseDuChef(donne.chef.sorte))
         : connu?.attente != null
           ? ligneMiseDeCote(connu.attente.raison)
           : connu !== undefined && A_L_OUVRAGE.includes(connu.etat)
@@ -1094,6 +1159,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
+      ...(dit !== undefined && donne?.chef !== undefined ? { chef: donne.chef } : {}),
       ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte, envois?.get(ticket)) } : {}),
       // Confié à un humain : sa tâche (vue/attente-capacite/).
       ...(dit !== undefined && donne?.tache !== undefined ? { tache: donne.tache } : {}),
@@ -1282,6 +1348,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
     ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
+    ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };

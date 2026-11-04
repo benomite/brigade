@@ -210,6 +210,7 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     diff: async (numero) => diffs.get(numero) ?? "",
     journalDuCheck: async (check) => journauxDeCI.get(check.name) ?? null,
+    etatDuRun: async () => ({ tentative: 1, termine: true }),
     async relancerLesEchecs(run) {
       if (pannes.relance) throw new Error(`gh api repos/${DEPOT}/actions/runs/${run}/rerun-failed-jobs : HTTP 403`);
       relances.push(run);
@@ -438,6 +439,8 @@ export type Lieux = {
 };
 
 export type Options = {
+  // L'interrupteur GitHub seul, allumé : les boucles de l'ancien chemin s'arrêtent à leur entrée (#2218).
+  perimee?: () => boolean;
   scenario?: string;
   // Le binaire que la station lance pour `claude` : la doublure en bash, par
   // défaut.
@@ -638,7 +641,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     : undefined;
   const garde = brancherGardeFous(
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3, ...(options.jugements === undefined ? {} : { jugements: options.jugements }) },
-    avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
+    avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs, ...(options.perimee ? { perimee: options.perimee } : {}) }),
   );
   // Un cook qui survit au runtime part par un relais : un Node de plus à chaque
   // lancement, un quart de seconde sous charge. Seul un test qui éprouve la
@@ -649,6 +652,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   if (options.reviewer?.suite) ecrireSuite(suiteDuReviewer, options.reviewer.suite);
   const jugee = options.pass
     ? brancherPass(lanceur, {
+        ...(options.perimee ? { perimee: options.perimee } : {}),
         repertoireEtat: repertoire,
         depot: depotDuTest,
         github: gh.github,
@@ -677,6 +681,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const triage = options.manager?.triage;
   if (Array.isArray(triage)) ecrireSuite(suiteDuTriage, triage);
   const servie = brancherStation(jugee ?? lanceur, {
+    ...(options.perimee ? { perimee: options.perimee } : {}),
     repertoireEtat: repertoire,
     depot: depotDuTest,
     github: gh.github,

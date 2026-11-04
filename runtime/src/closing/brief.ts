@@ -3,6 +3,7 @@
 // does not judge alone: what it leaves for lack of certainty is said, one line
 // per candidate, and the PR carries it.
 import type { Laisse } from "../events/closing.ts";
+import { CONSIGNE_DES_TESTS } from "../claude.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "../livrable.ts";
 import type { Candidat } from "./candidates.ts";
 
@@ -38,7 +39,7 @@ export function consigneDuCloser(mission: { depot: string; base: string; candida
     `5. Tu n'écris que dans ces fichiers, que la passe tient pour toi tant que tu ranges — tu n'en crées aucun, et un seul fichier écrit ailleurs fait que rien n'est livré. L'endroit partagé d'un doublon est donc l'un d'eux :`,
     ...zone.map((fichier) => `   - \`${fichier}\``),
     `6. Tu ne retires pas plus de ${pluriel(retraits, "ligne")} en tout, factorisations comprises : au-delà, la passe est arrêtée et rien n'est livré. Mieux vaut une passe courte et sûre.`,
-    "7. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais : la passe ouvre la PR, que la pass juge et merge comme celle d'un ticket.",
+    `7. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS} Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais : la passe ouvre la PR, que la pass juge et merge comme celle d'un ticket.`,
     `8. La PR que la passe écrit pour toi a quatre parties, dans cet ordre : « ${retire} » (le code mort supprimé), « ${factorise} » (les doublons réunis), « ${gagne} » (les lignes retirées contre les lignes ajoutées) et « ${laisse} » (chaque candidat laissé, avec son motif). Elle les tire de ta branche — ce que l'observation n'y repère plus — et de ton compte-rendu : rien n'y est tenu pour retiré sur ta parole.`,
     `9. Termine par ton compte-rendu, en clair : ce que tu as supprimé, ce que tu as factorisé et où vit la copie partagée, et comment tu as vérifié que rien de vivant n'en dépendait. Pour chaque candidat que tu n'as ni supprimé ni factorisé, écris une ligne à part, de cette forme exacte : \`${MOT_LAISSE} <nom du candidat> : <pourquoi tu n'es pas sûr>\` — par exemple \`${MOT_LAISSE} M2 : lu par convention par le framework de tests\`. Ces lignes sont recopiées dans la PR : un candidat laissé sans motif y est dit laissé sans motif. ${CONSIGNE_DU_LIVRABLE}`,
     "",

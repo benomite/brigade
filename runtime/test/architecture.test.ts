@@ -40,6 +40,7 @@ const VERS = {
   "mise-a-jour/publications.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
   "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
+  "station-update/releases.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station de l'ordinateur",
   "telephone/guichet.ts": "n'ouvre rien : il écoute — le téléphone du chef le joint pour s'appairer, puis lire les stations, les projets et leur file, y faire les gestes de la file et parler au second de chaque projet",
 };
 // Ce qui sert les stations distantes, côté box.
@@ -55,10 +56,10 @@ test("la déclaration d'une station distante ne porte aucune adresse : la box ne
   }
 });
 
-test("`runtime/src` : seuls huit modules touchent au réseau, aucun vers une station — et ce qui sert les stations distantes n'en importe aucun", () => {
+test("`runtime/src` : seuls neuf modules touchent au réseau, aucun vers une station — et ce qui sert les stations distantes n'en importe aucun", () => {
   const fichiers = sources();
   assert.deepEqual(fichiers.filter((fichier) => RESEAU.test(lire(fichier))).map(nom).sort(), Object.keys(VERS).sort());
-  // Aucun de ces huit ne connaît les stations distantes : ni leurs modules, ni
+  // Aucun de ces neuf ne connaît les stations distantes : ni leurs modules, ni
   // leur déclaration, ni leurs demandes.
   for (const fichier of Object.keys(VERS)) {
     assert.doesNotMatch(lire(join(SRC, fichier)), /distante|remote\.|tirer\.ts|stations-declarees/i, fichier);
@@ -79,7 +80,9 @@ test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé p
   // `systemctl` : pour la seule bascule, jouée sous root par le paquet de la
   // station, qui arrête les anciennes unités de la machine
   // (`bascule/basculer.ts`) — il ne parle qu'au systemd local.
-  assert.deepEqual([...lances].sort(), ["du", "git", "systemctl"]);
+  // `tar` : pour la mise à jour de la station de l'ordinateur, qui extrait la
+  // release qu'elle a téléchargée (`station-update/archive.ts`) — un fichier local.
+  assert.deepEqual([...lances].sort(), ["du", "git", "systemctl", "tar"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
   // Sauf par la vérification des outils du second (#1433), qui cherche `ssh`
   // dans le PATH du chef pour dire s'il manque, et ne lance rien.

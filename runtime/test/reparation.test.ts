@@ -185,7 +185,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", () =>
     base.tete = "base-2";
     await jusqua(() => reparationDeLaBase(journal.base)?.etat === "echouee");
     const [ligne] = ligneDeLaBase();
-    assert.match(ligne ?? "", /^ {2}base {2}for .+? {2}BASE RED on base-2, failing: tests du projet en échec — its repair #501 merged, did not bring it back to green — to repair: fix the base by hand; .*`brigade <projet> base replay`$/);
+    assert.match(ligne ?? "", /^ {2}base {2}for .+? {2}BASE RED on base-2, failing: tests du projet en échec — its repair #501 merged, did not bring it back to green — to repair: fix the base by hand; .*is replayed on the station: no app button for it yet$/);
     await laisserTourner();
     assert.deepEqual([lance(18), gh.creations], [false, [501]]);
 

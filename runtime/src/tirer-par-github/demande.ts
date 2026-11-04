@@ -13,7 +13,7 @@
 // porte que la dernière demande de son créneau :
 //   brigade-pull.<owner>.<repo>.<créneau>.json
 //   { "brigade": "pull", "format": 1, "id": "<uuid>", "depot": "acme/app",
-//     "le": "<ISO>", "verb": "claim", "sandbox": { … } }
+//     "le": "<ISO>", "verb": "claim", "sandbox": { … }, "since": "<ISO>" }
 //   { …, "verb": "renew", "run": "…", "proof": "…", "turns": 3, "tokens": 1200 }
 //   { …, "verb": "deliver", "run": "…", "ending": "delivered", "reason": null,
 //     "message": "…", "turns": 9, "tokens": 4000 }
@@ -40,9 +40,9 @@ const ID = /^[A-Za-z0-9-]{8,64}$/;
 const RUN = /^[A-Za-z0-9._-]{1,80}$/;
 const PREUVE_MAX = 200;
 // Le dernier message d'un cook est gardé comme celui d'un cook de la box, borné ;
-// un motif est court.
+// un motif est court, sauf celui d'un push refusé, qui porte ce que git a dit.
 const MESSAGE_MAX = 20_000;
-const RAISON_MAX = 200;
+const RAISON_MAX = 20_000;
 
 const creneau = (demande: DemandeParGitHub) => (demande.verb === "renew" || demande.verb === "deliver" ? `${demande.verb}.${demande.run}` : "claim");
 
@@ -80,7 +80,10 @@ export function lireUneDemande(brut: string): DemandePosee | null {
   const { id, depot, le, verb } = lu;
   if (typeof id !== "string" || !ID.test(id) || typeof depot !== "string" || typeof le !== "string" || Number.isNaN(Date.parse(le))) return null;
   const sandbox = estObjet(lu.sandbox) ? { sandbox: lu.sandbox as BacASableDeLaStation } : {};
-  if (verb === "announce" || verb === "claim") return { id, depot, le, demande: { verb, ...sandbox } };
+  if (verb === "announce") return { id, depot, le, demande: { verb, ...sandbox } };
+  // L'instant où la station a démarré : illisible, elle ne l'a pas dit.
+  const depuis = typeof lu.since === "string" && !Number.isNaN(Date.parse(lu.since)) ? { since: lu.since } : {};
+  if (verb === "claim") return { id, depot, le, demande: { verb, ...sandbox, ...depuis } };
   if (verb !== "renew" && verb !== "deliver") return null;
   const { run, turns, tokens } = lu;
   if (typeof run !== "string" || !RUN.test(run) || !compte(turns) || !compte(tokens)) return null;

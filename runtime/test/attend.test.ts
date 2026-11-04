@@ -88,7 +88,7 @@ test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   1 decision awaits the chef — for 1 h 00",
-    `  #17  for 1 h 00  green delivery, not merged: the \`merge\` grant lapsed on its own on ${JOUR_HORLOGE}T08:30:00.000Z — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
+    `  #17  for 1 h 00  green delivery, not merged: the \`merge\` grant lapsed on its own on ${JOUR_HORLOGE}T08:30:00.000Z — merge by hand: ${pr(17)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 17`,
     "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
   ]);
 });
@@ -153,8 +153,8 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   4 decisions await the chef — the oldest for 3 d",
-    `  #17  for 3 d  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
-    `  #18  for 2 h 00  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(18)} by hand, or remove \`fire\` — \`brigade <projet> pass 18\`  Ticket 18`,
+    `  #17  for 3 d  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 17`,
+    `  #18  for 2 h 00  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(18)} by hand, or remove \`fire\`  Ticket 18`,
     `  #20  for 2 min  green delivery that touches its judges — review and merge by hand: ${pr(20)}  Ticket 20`,
     `  #22  for 2 min  green delivery that touches what the project opens up (.claude/brigade/reseau) — review and merge by hand: ${pr(22)}  Ticket 22`,
     // Le chiffre sur lequel accorder le grant : seule #17 est arrêtée faute de grant.
@@ -264,9 +264,9 @@ test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce q
   // Constatée, la fermeture date la ligne : c'est d'elle que l'attente se compte.
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
     "awaiting   3 decisions await the chef — the oldest for 5 min",
-    `  #20  for 5 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(20)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 20`,
-    `  #17  for 2 min  PR closed without merge: ${pr(17)} — to decide: remove \`fire\`, or close the issue — \`brigade <projet> pass 17\`  Ticket 17`,
-    `  #18  for 2 min  PR closed without merge: ${pr(18)} — to decide: remove \`fire\`, or close the issue — \`brigade <projet> pass 18\`  Ticket 18`,
+    `  #20  for 5 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(20)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 20`,
+    `  #17  for 2 min  PR closed without merge: ${pr(17)} — to decide: remove \`fire\`, or close the issue  Ticket 17`,
+    `  #18  for 2 min  PR closed without merge: ${pr(18)} — to decide: remove \`fire\`, or close the issue  Ticket 18`,
     // #17 était arrêtée faute de grant, et sa PR est fermée : le désaccord se compte.
     "  without a grant, 2 green deliveries stopped: 0 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open",
   ]);
@@ -288,7 +288,7 @@ test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   1 decision awaits the chef — for 0 s",
-    `  #17  for 0 s  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(17)} by hand, or remove \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
+    `  #17  for 0 s  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(17)} by hand, or remove \`fire\`  Ticket 17`,
   ]);
 });
 
@@ -443,7 +443,7 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
     "awaiting   7 decisions await the chef — the oldest for 1 h 00",
     "  #30  for 1 h 00  set aside by the manager, it carries `question` — to decide: answer it then remove the label, the manager judges it; or close the issue",
     "  #31  for 50 min  manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue",
-    `  #17  for 40 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
+    `  #17  for 40 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 17`,
     "  #32  for 30 min  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
     "  #33  for 20 min  set aside by the manager, it carries `decision` — to decide: decide then remove the label, the manager judges it; or close the issue",
     "  #34  for 20 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
@@ -547,14 +547,15 @@ test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc
   a(`${JOUR_HORLOGE}T10:05:00.000Z`);
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "not-logged-in", run: null } }, null, `station:${STATION}`);
 
-  // Le geste, en anglais : l'en-tête et le bloc `awaiting` l'écrivent de même.
+  // Le geste, en anglais : l'en-tête le dit par la commande, le bloc `awaiting` par le bouton de l'app.
   const gesteEn = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
+  const boutonEn = "log in again with the `log in` button on the station's page in the app, opened by a click on its line of the home screen — the kitchen starts again on its own within the minute";
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:25:00.000Z`), [
     `connection Max MISSING for 20 min on ${STATION} (not-logged-in) — no ticket is taken any more: ${gesteEn}`,
   ]);
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:25:00.000Z`), [
     "awaiting   1 decision awaits the chef — for 20 min",
-    `  ${STATION}  for 20 min  Max connection missing (not-logged-in) — to restore: ${gesteEn}`,
+    `  ${STATION}  for 20 min  Max connection missing (not-logged-in) — to restore: ${boutonEn}`,
   ]);
 
   a(`${JOUR_HORLOGE}T10:30:00.000Z`);
@@ -607,7 +608,7 @@ function baseRouge(noter: ReturnType<typeof cuisine>["noter"]) {
   return { controler, ouvrirLaReparation };
 }
 
-const REPARER = "to repair: fix the base by hand, or restart #501: set `fire` on it again, its issue reopened if needed; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed: `brigade <projet> base replay`";
+const REPARER = "to repair: fix the base by hand, or restart #501: set `fire` on it again, its issue reopened if needed; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed on the station: no app button for it yet";
 
 test("une base rouge n'attend pas le chef tant qu'elle se répare seule : ni pendant le rejeu, ni pendant que son ticket de réparation travaille", (t) => {
   const { a, noter, bloc } = cuisine(t);
@@ -675,7 +676,7 @@ test("une réparation remontée au chef se relance ; mergée sans remettre la ba
   const base = bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  "));
   assert.equal(
     base,
-    "  base  for 2 h 00  BASE RED on base-1, failing: tests du projet en échec — its repair #501 was escalated without being served — to repair: fix the base by hand, or restart #501: remove and set `fire` again; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed: `brigade <projet> base replay`",
+    "  base  for 2 h 00  BASE RED on base-1, failing: tests du projet en échec — its repair #501 was escalated without being served — to repair: fix the base by hand, or restart #501: remove and set `fire` again; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed on the station: no app button for it yet",
   );
 
   // Relancée par le chef — `fire` retiré puis reposé : elle travaille de nouveau, la base n'attend plus.

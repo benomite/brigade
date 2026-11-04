@@ -276,3 +276,14 @@ test("le cook de préparation lancé sur un setup en échec reçoit ce qui a éc
   }
   for (const texte of [consigne(mission), consigneDeRenvoi(renvoi)]) assert.doesNotMatch(texte, /a échoué sur cette station/);
 });
+
+test("les consignes disent de ne jouer que les tests touchés en travaillant, et les gates une fois", async () => {
+  const { consigneDeRenvoi } = await import("../src/pass.ts");
+  const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
+  const renvoi = consigneDeRenvoi({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", branche: "cook/15-abc", n: 1, findings: ["Gates rouges."] });
+
+  for (const texte of [premiere, renvoi]) {
+    assert.match(texte, /ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière/);
+    assert.match(texte, /Les gates, joue-les une seule fois, quand tu es prêt à livrer/);
+  }
+});

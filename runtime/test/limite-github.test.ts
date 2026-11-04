@@ -13,7 +13,12 @@ import { test, type TestContext } from "node:test";
 import { canalGitHub } from "../src/appairage/canal.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import {
+  appelerGitHub,
   CuisineRalentie,
+  ECRITURES_PAR_HEURE,
+  ECRITURES_PAR_MINUTE,
+  EcritureEspacee,
+  estUneEcriture,
   FENETRE_MS,
   journaliserLesAppels,
   LimiteGitHubAtteinte,
@@ -23,6 +28,7 @@ import {
   quotaDesEntetes,
   RAFRAICHIR_MS,
   REPERTOIRE_COMPTEUR,
+  REQUETES_EN_VOL,
   reserveDes,
   type Limite,
 } from "../src/limite-github.ts";
@@ -416,3 +422,206 @@ test("la station réelle compte chacun de ses appels au gist dans le compteur de
 });
 
 test("limite-github.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+
+// Le rythme des écritures (#2145) : GitHub plafonne les écritures par minute et
+// par heure ; la cuisine reste dessous, tous projets du compte ensemble.
+test("writes are paced account-wide: two projects firing at once never send more than the per-minute budget, and both get through", async () => {
+  let horloge = 1_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  const parties: string[] = [];
+  const attentes: number[] = [];
+  const attendre = async (ms: number) => {
+    attentes.push(ms);
+    horloge += ms;
+  };
+  // Deux projets, chacun 40 écritures d'un coup, alternées.
+  for (let i = 0; i < 40; i += 1) {
+    for (const projet of ["a", "b"]) {
+      await prendreUnAppel(limite, { etiquette: { projet, lecture: "issues", ecriture: true }, gh: "gh", maintenant: () => horloge, attendre });
+      parties.push(`${projet}@${horloge}`);
+    }
+  }
+  const instants = parties.map((p) => Number(p.split("@")[1]));
+  // Sur toute minute glissante, pas plus que le budget.
+  for (const debut of instants) assert.ok(instants.filter((t) => t >= debut && t < debut + 60_000).length <= ECRITURES_PAR_MINUTE, `more than ${ECRITURES_PAR_MINUTE} writes in the minute from ${debut}`);
+  // Les deux projets passent tous, aucun n'est affamé.
+  assert.equal(parties.filter((p) => p.startsWith("a@")).length, 40);
+  assert.equal(parties.filter((p) => p.startsWith("b@")).length, 40);
+  assert.ok(attentes.length > 0, "the pacer made writes wait");
+  limite.fermer();
+});
+
+test("reads and the chef's gestures are never paced, and a paced write is not counted until it leaves", () => {
+  let horloge = 2_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  for (let i = 0; i < ECRITURES_PAR_MINUTE; i += 1) limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+  assert.throws(() => limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true }), EcritureEspacee);
+  assert.equal(limite.appels(), ECRITURES_PAR_MINUTE);
+  // Une lecture part, un geste aussi, une écriture d'un autre compte aussi.
+  limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues" });
+  limite.prendre("geste", "gh", { projet: "a", lecture: "gesture", ecriture: true });
+  limite.prendre("cuisine", "app-pass", { projet: "a", lecture: "issues", ecriture: true });
+  // La minute passée, l'écriture repart.
+  horloge += 60_001;
+  limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+  limite.fermer();
+});
+
+test("the hourly write budget holds too, past the minute", () => {
+  let horloge = 3_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  for (let i = 0; i < ECRITURES_PAR_HEURE; i += 1) {
+    limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+    horloge += 2_100;
+  }
+  const erreur = (() => {
+    try {
+      limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+    } catch (e) {
+      return e;
+    }
+    return null;
+  })();
+  assert.ok(erreur instanceof EcritureEspacee);
+  assert.ok(erreur.jusqua > horloge);
+  limite.fermer();
+});
+
+test("what counts as a write in a `gh api` call", () => {
+  assert.equal(estUneEcriture(["repos/o/r/issues/1/comments", "-f", "body=x"]), true);
+  assert.equal(estUneEcriture(["-X", "PATCH", "repos/o/r/issues/1", "--input", "-"]), true);
+  assert.equal(estUneEcriture(["--method=DELETE", "repos/o/r/issues/1/labels/taken"]), true);
+  assert.equal(estUneEcriture(["-X", "GET", "repos/o/r/issues", "-f", "state=open"]), false);
+  assert.equal(estUneEcriture(["-i", "repos/o/r/issues/1/comments"]), false);
+  // A GraphQL call is a POST, but only a mutation writes (#2301).
+  assert.equal(estUneEcriture(["graphql", "-f", "query=query($o: String!) { repository(owner: $o) { id } }"]), false);
+  assert.equal(estUneEcriture(["graphql", "-f", "query=mutation { addStar(input: {}) { clientMutationId } }"]), true);
+});
+
+// La file des appels (#2195) : au plus `REQUETES_EN_VOL` requêtes en vol, et les
+// écritures que le rythme retient partent dans l'ordre d'arrivée, tous projets
+// ensemble, sur l'unique réveil de la file. Rien n'y lance `gh` ni n'y attend
+// l'horloge : le compteur est en mémoire, et chaque pas se règle en vidant les
+// promesses en cours.
+const laisserPasser = () => new Promise<void>((suite) => setImmediate(suite));
+
+// Une requête que le test tient en vol jusqu'à ce qu'il la termine.
+function desRequetesTenues() {
+  let enVol = 0;
+  let auPlus = 0;
+  const parties: string[] = [];
+  const fins: Array<() => void> = [];
+  const requete = (nom: string) => async () => {
+    enVol += 1;
+    auPlus = Math.max(auPlus, enVol);
+    parties.push(nom);
+    await new Promise<void>((fin) => fins.push(fin));
+    enVol -= 1;
+  };
+  return { requete, parties, terminerLaPlusAncienne: () => fins.shift()?.(), enVol: () => enVol, auPlus: () => auPlus };
+}
+
+test("never more than REQUETES_EN_VOL requests in flight: ten fired at once from three projects all get through, in arrival order", async () => {
+  assert.equal(REQUETES_EN_VOL, 4);
+  const limite = ouvrirLimite();
+  const tenues = desRequetesTenues();
+  const toutes = Array.from({ length: 10 }, (_, i) => {
+    const ecriture = i % 2 === 0;
+    return appelerGitHub(limite, { gh: "gh", etiquette: { projet: `p${i % 3}`, lecture: "issues", ecriture } }, tenues.requete(`r${i}`));
+  });
+  await laisserPasser();
+  assert.deepEqual(tenues.parties, ["r0", "r1", "r2", "r3"]);
+  // Chaque requête qui s'achève laisse partir la première arrivée qui attend, et une seule.
+  for (let suivante = 4; suivante < 10; suivante += 1) {
+    tenues.terminerLaPlusAncienne();
+    await laisserPasser();
+    assert.equal(tenues.parties.length, suivante + 1);
+    assert.equal(tenues.enVol(), REQUETES_EN_VOL);
+  }
+  while (tenues.enVol() > 0) {
+    tenues.terminerLaPlusAncienne();
+    await laisserPasser();
+  }
+  await Promise.all(toutes);
+  assert.deepEqual(tenues.parties, Array.from({ length: 10 }, (_, i) => `r${i}`));
+  assert.equal(tenues.auPlus(), REQUETES_EN_VOL);
+  assert.equal(limite.appels(), 10);
+  limite.fermer();
+});
+
+test("a request that fails gives its place back, and a chef's gesture never waits for one", async () => {
+  const limite = ouvrirLimite();
+  const tenues = desRequetesTenues();
+  const premieres = Array.from({ length: REQUETES_EN_VOL }, (_, i) => appelerGitHub(limite, { gh: "gh" }, tenues.requete(`r${i}`)));
+  await laisserPasser();
+  // Les places sont prises : un appel de la cuisine attend, un geste part tout de suite.
+  const enEchec = appelerGitHub(limite, { gh: "gh" }, async () => {
+    throw new Error("gh a échoué");
+  });
+  const apres = appelerGitHub(limite, { gh: "gh" }, tenues.requete("après"));
+  let geste = false;
+  await appelerGitHub(limite, { gh: "gh", usage: "geste" }, async () => {
+    geste = true;
+  });
+  assert.equal(geste, true);
+  await laisserPasser();
+  assert.deepEqual(tenues.parties, ["r0", "r1", "r2", "r3"]);
+  // Une place se libère : l'appel qui échoue la prend, la rend en échouant, et le suivant part.
+  tenues.terminerLaPlusAncienne();
+  await assert.rejects(enEchec, /gh a échoué/);
+  await laisserPasser();
+  assert.deepEqual(tenues.parties, ["r0", "r1", "r2", "r3", "après"]);
+  assert.equal(tenues.enVol(), REQUETES_EN_VOL);
+  while (tenues.enVol() > 0) {
+    tenues.terminerLaPlusAncienne();
+    await laisserPasser();
+  }
+  await Promise.all([...premieres, apres]);
+  limite.fermer();
+});
+
+test("writes from three projects that saturate the pacer leave in strict arrival order, each on the pacer's single wake-up — never on a timer of their own", async () => {
+  let horloge = 5_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  // La minute pleine en trente secondes, quel que soit son budget : le rythme
+  // rend une place à chaque pas, à partir de la soixantième seconde.
+  const pas = (30 * SECONDE) / ECRITURES_PAR_MINUTE;
+  for (let i = 0; i < ECRITURES_PAR_MINUTE; i += 1) {
+    limite.prendre("cuisine", "gh", { projet: "x", lecture: "issues", ecriture: true });
+    horloge += pas;
+  }
+  // Le réveil : enregistré, et ne sonne que quand le test le dit.
+  const reveils: Array<{ ms: number; sonner: () => void }> = [];
+  const attendre = (ms: number) => new Promise<void>((sonner) => reveils.push({ ms, sonner }));
+  const parties: string[] = [];
+  const arrivees: string[] = [];
+  const ecritures: Promise<unknown>[] = [];
+  for (let i = 0; i < 9; i += 1) {
+    const projet = ["a", "b", "c"][i % 3] as string;
+    arrivees.push(`${projet}${i}`);
+    ecritures.push(prendreUnAppel(limite, { gh: "gh", etiquette: { projet, lecture: "issues", ecriture: true }, maintenant: () => horloge, attendre }).then(() => parties.push(`${projet}${i}`)));
+  }
+  await laisserPasser();
+  assert.deepEqual(parties, []);
+  assert.equal(reveils.length, 1, "nine waiting writes, a single wake-up: the pacer's");
+  // Une lecture n'attend pas derrière les écritures retenues.
+  await prendreUnAppel(limite, { gh: "gh", etiquette: { projet: "b", lecture: "issues" }, maintenant: () => horloge, attendre });
+  assert.equal(reveils.length, 1);
+  // L'horloge passe l'instant où le rythme rend une place : sans le réveil de la
+  // file, rien ne part — aucune écriture ne guette l'horloge pour elle-même.
+  horloge += (reveils[0] as { ms: number }).ms;
+  await laisserPasser();
+  assert.deepEqual(parties, []);
+  // Chaque réveil de la file laisse partir la première arrivée, et elle seule ;
+  // la file arme le suivant.
+  for (let partie = 1; partie <= 9; partie += 1) {
+    const reveil = reveils.shift() as { ms: number; sonner: () => void };
+    reveil.sonner();
+    await laisserPasser();
+    assert.deepEqual(parties, arrivees.slice(0, partie));
+    assert.equal(reveils.length, partie < 9 ? 1 : 0, `a single wake-up armed after write ${partie}`);
+    if (partie < 9) horloge += (reveils[0] as { ms: number }).ms;
+  }
+  await Promise.all(ecritures);
+  limite.fermer();
+});

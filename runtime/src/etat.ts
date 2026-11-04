@@ -28,7 +28,7 @@ import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { direLeCoutDuTableau } from "./tableau/budget/cout.ts";
 import { direLaLimiteDuCompte, type LimiteDuCompte } from "./github-limite.ts";
-import { direLaLimite, direLaRetenue, direLesAppels, type Repartition } from "./limite-github.ts";
+import { direLaLimite, direLaRetenue, direLesAppels, direLesEcrituresRetenues, type Repartition } from "./limite-github.ts";
 import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
   activitesDesCooksEnCours,
@@ -370,6 +370,22 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: Depuis): string[] {
           ligne(
             "connection",
             `Max ${direDeconnexionEn(raison).toUpperCase()} for ${depuis(disconnectedAt)} on ${station}${raison === null ? "" : ` (${raison})`} — no ticket is taken any more: ${GESTE_DE_CONNEXION_TOMBEE_EN}`,
+          ),
+        ],
+  );
+}
+
+// La station dont un cook n'a pas pu démarrer ne prend plus de ticket, qu'un
+// ticket l'attende ou non : la ligne le dit, avec ce cook et ce qui la fait
+// reprendre. Rien à dire sinon.
+function decrireSansDemarrage({ stations }: EtatCuisine, depuis: Depuis): string[] {
+  return stations.flatMap(({ station, unstartable }) =>
+    unstartable == null
+      ? []
+      : [
+          ligne(
+            "stations",
+            `${station} NOT TAKING TICKETS for ${depuis(unstartable.since)} — its cook could not start: ${unstartable.run} ended with 0 turns and 0 tokens (${unstartable.reason}); its ticket went back to the rail for another station. It takes tickets again when it restarts, or as soon as a cook launched since produces a turn`,
           ),
         ],
   );
@@ -732,12 +748,14 @@ const lusEn = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatL
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant` ; `absolu` (le tableau) écrit à la place
 // l'heure de chaque instant, de sorte que deux lectures d'une cuisine qui n'a pas bougé donnent les mêmes lignes.
-export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null, retenue: number | null = null, limiteDuCompte: LimiteDuCompte | null = null, absolu = false): string[] {
-  const lignes = decrireEtatEn(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels, retenue, limiteDuCompte, absolu);
+type EcrituresRetenues = { ecrites: number; reprise: number };
+
+export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null, retenue: number | null = null, limiteDuCompte: LimiteDuCompte | null = null, absolu = false, ecritures: EcrituresRetenues | null = null): string[] {
+  const lignes = decrireEtatEn(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels, retenue, limiteDuCompte, absolu, ecritures);
   return absolu ? lignes.map(enAbsolu) : lignes;
 }
 
-function decrireEtatEn(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs: number, limiteGithub: number | null, appels: Repartition | null, retenue: number | null, limiteDuCompte: LimiteDuCompte | null, absolu: boolean): string[] {
+function decrireEtatEn(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs: number, limiteGithub: number | null, appels: Repartition | null, retenue: number | null, limiteDuCompte: LimiteDuCompte | null, absolu: boolean, ecritures: EcrituresRetenues | null): string[] {
   const depuisEn: Depuis = absolu ? depuisAbsolu : (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, lusEn(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
@@ -767,6 +785,8 @@ function decrireEtatEn(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs: 
     ...(limiteDuCompte !== null ? [ligne("github", direLaLimiteDuCompte(limiteDuCompte))] : limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
     // Quand la box retient ses propres appels à la réserve des gestes : GitHub n'a rien refusé.
     ...(retenue === null || limiteGithub !== null || limiteDuCompte !== null ? [] : [ligne("github", direLaRetenue(retenue))]),
+    // Quand le rythme des écritures retient la cuisine (#2226) : GitHub n'a rien refusé non plus.
+    ...(ecritures === null ? [] : [ligne("github", direLesEcrituresRetenues(ecritures))]),
     // Les appels de la box à GitHub sur l'heure écoulée, quand son compteur existe.
     ...(appels === null ? [] : direLesAppels(appels).map((texte, i) => ligne(i === 0 ? "gh calls" : "", texte))),
     // Le coût du tableau de la cuisine dans ce budget : à zéro sans activité, tant que le compteur existe.
@@ -775,6 +795,7 @@ function decrireEtatEn(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs: 
     ...(etat.interrupteur == null ? [] : [ligne("switch", direInterrupteur(etat.interrupteur))]),
     decrireCuisine(etat, depuisEn),
     ...decrireConnexion(etat, depuisEn),
+    ...decrireSansDemarrage(etat, depuisEn),
     ...decrireSansStation(etat, depuisEn),
     ...decrireBase(etat, depuisEn),
     ...decrireSetup(etat, depuisEn),
@@ -1040,6 +1061,7 @@ export const CAUSES_D_URGENCE = {
   pause: "pause du renommage",
   renommage: "renommage échoué",
   abandon: "sorti du rail",
+  retenue: "cuisine retenue",
 } as const satisfies Record<Attente["quoi"], string>;
 export type CauseDUrgence = (typeof CAUSES_D_URGENCE)[keyof typeof CAUSES_D_URGENCE];
 
