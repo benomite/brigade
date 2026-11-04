@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, checksQuiJugentLaBase, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -21,7 +21,7 @@ import { jusqua } from "./outils.ts";
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
 type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
-type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; mergeePar: string | null; fichiers: string[] };
+type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; mergeePar: string | null; fichiers: string[] };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
 // de la station qui le fait, et rend la main avant de répondre, pour que deux
@@ -34,6 +34,8 @@ class FauxGitHub {
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
   base: "green" | "red" = "green";
+  // Des checks qui ne tournent que sur la base, jamais sur une PR (les tests Windows).
+  checksDeLaBaseSeule: Array<{ name: string; outcome: "green" | "red" }> = [];
   // Les PR dont la CI est rouge.
   ciRouge = new Set<number>();
   private horloge = 0;
@@ -106,7 +108,7 @@ class FauxGitHub {
       },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
-        return [{ outcome: this.base }];
+        return [{ name: "tests", outcome: this.base }, ...this.checksDeLaBaseSeule];
       },
       commentaires: async (numero) => {
         await noter("commentaires");
@@ -176,7 +178,7 @@ class FauxGitHub {
         this.cuissons.push({ station: nom, issue: ticket.number });
         // Un renvoi : le cook pousse sur la branche de la PR ouverte, sa tête change.
         const ouverte = this.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
-        if (ouverte !== undefined) ouverte.sha = this.sha();
+        if (ouverte !== undefined) Object.assign(ouverte, { sha: this.sha(), enConflit: false });
         return { branche: brancheDuTicket(ticket.number) };
       },
       juger:
@@ -444,6 +446,24 @@ test("a head already sent back is not sent back again, even if a stale list stil
   assert.equal(renvois.length, 1);
 });
 
+test("a delivery that conflicts with the base goes back to a cook to merge the base in, then merges (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(36);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.enConflit = true;
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvoi = (faux.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /conflicts with the base/);
+  assert.equal(faux.mergee(36)?.mergeePar, "A");
+});
+
 test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(40, CALIBRE);
@@ -459,13 +479,23 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
 });
 
-test("red Windows tests on the base do not freeze the kitchen: only the other checks say the base's state (#2087)", () => {
-  const checks = [
-    { name: "windows tests (2/4)", outcome: "red" as const },
-    { name: "tests runtime (1/16)", outcome: "green" as const },
-    { name: "gates", outcome: "green" as const },
-  ];
-  assert.deepEqual(checksQuiJugentLaBase(checks).map((c) => c.name), ["tests runtime (1/16)", "gates"]);
+test("a red check that runs only on the base (Windows) holds nothing; a red check the PR also runs holds its merge (#2279)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(37);
+  faux.checksDeLaBaseSeule = [{ name: "windows tests (2/4)", outcome: "red" }];
+  const a = faux.station("A");
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(37)?.mergeePar, "A");
+  faux.feu(38);
+  faux.base = "red";
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(38), undefined);
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
