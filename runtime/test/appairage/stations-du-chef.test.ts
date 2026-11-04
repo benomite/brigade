@@ -80,8 +80,8 @@ test("sur un ordinateur neuf connecté à GitHub, les stations déjà appairées
   // Le Mac s'est arrêté proprement : il reste listé, hors ligne.
   await mac.presence.arreter();
 
-  // La commande, dans un process neuf : ni HOME, ni état, ni variable de brigade — rien que son `gh`.
-  const commande = lancer(t, COMMANDE, [], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
+  // La commande, sans rien d'autre que son environnement : ni HOME, ni état, ni variable de brigade — rien que son `gh`.
+  const commande = appeler(principal, [], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
   assert.equal(await commande.fin, 0, commande.sortie());
   const lu = JSON.parse(commande.sortie()) as StationsDuChef;
   assert.equal(lu.state, "listed");
@@ -194,7 +194,8 @@ test("sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pou
   assert.equal(sansReseau.reason, "GitHub cannot be reached from this computer, so your stations could not be read: check its network connection.");
   assert.match(sansReseau.detail ?? "", /error connecting to api\.github\.com/);
 
-  const commande = lancer(t, COMMANDE, [], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: FAUX_GH });
+  // La commande, dans un process neuf, sans `gh` : elle sort en échec, sa raison sur sa sortie.
+  const commande = lancer(t, COMMANDE, [], { ...github.env(), HOME: repertoireTemporaire(t), BRIGADE_GH_BIN: join(github.repertoire, "pas-de-gh") });
   assert.equal(await commande.fin, 1);
   assert.equal((JSON.parse(commande.sortie()) as StationsDuChef).state, "unavailable");
 });
