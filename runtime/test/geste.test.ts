@@ -296,8 +296,11 @@ describe("le geste brigade", () => {
     const m = machine(t);
 
     // `journal` est une commande du runtime de ce dépôt, pas de cette station.
-    for (const commande of ["journal", "status; true", "--version", "toString", "ailleurs"]) {
-      const fin = await m.lancer(["calculus", commande]);
+    // Les refus sont lancés ensemble : aucun ne lance de commande, ils ne se gênent pas.
+    const commandes = ["journal", "status; true", "--version", "toString", "ailleurs"];
+    const fins = await Promise.all(commandes.map((commande) => m.lancer(["calculus", commande])));
+    for (const [i, commande] of commandes.entries()) {
+      const fin = fins[i] ?? { code: null, sortie: "", erreur: "" };
       assert.equal(fin.code, PAS_DU_RUNTIME, commande);
       assert.equal(fin.erreur, `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n`);
       assert.equal(fin.sortie, "");
@@ -327,9 +330,13 @@ describe("le geste brigade", () => {
     }
     assert.equal(m.commande(), null);
 
-    for (const option of ["--help", "-h", "help"]) {
-      assert.equal((await m.lancer(["calculus", option])).code, 0, option);
-      assert.equal(m.commande()?.env.npm_lifecycle_event, "help", option);
+    // Une machine par option, lancées ensemble : chacune a son témoin de la commande reçue.
+    const options = ["--help", "-h", "help"];
+    const machines = options.map(() => machine(t));
+    const codes = await Promise.all(options.map(async (option, i) => (await machines[i]?.lancer(["calculus", option]))?.code));
+    for (const [i, option] of options.entries()) {
+      assert.equal(codes[i], 0, option);
+      assert.equal(machines[i]?.commande()?.env.npm_lifecycle_event, "help", option);
     }
   });
 
