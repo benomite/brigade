@@ -44,11 +44,12 @@ export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
 // personne ne tient le ticket, et y pose `taken` si elle l'emporte ; `lacher`
-// la retire ; `purger` retire le `taken` que personne ne tient plus.
+// la retire ; `purger` retire le `taken` que personne ne tient plus (facultatif :
+// une prise sans `purger` ne purge pas).
 export type Prise = {
   prendre(issue: Pick<Issue, "number" | "labels">): Promise<{ prise: boolean }>;
   lacher(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
-  purger(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
+  purger?(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
 };
 
 // La prise de #2056, liée à la station et au client du tour.
@@ -270,7 +271,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // ou déjà à rendre n'est pas un orphelin.
       if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !aRendre.has(ticket.number)) {
         try {
-          await prise.purger(ticket);
+          await prise.purger?.(ticket);
         } catch (erreur) {
           avertir(`brigade : purge du \`taken\` de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
