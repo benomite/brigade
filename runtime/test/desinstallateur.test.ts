@@ -21,9 +21,29 @@ import { posixOnly } from "./support/plateforme.ts";
 const TIENT_VERROU = join(import.meta.dirname, "aides/tient-verrou.ts");
 const HISTOIRE = "l'histoire de la cuisine\n";
 
-// Une box où ces projets viennent d'être installés par le geste.
+// Le pas joué sous le compte du service, dans le process du test : celui-ci
+// joue déjà sous ce compte. Son process à lui, et ce qu'il rend, restent
+// éprouvés par « ce que le clone porte et que l'origine n'a pas est nommé… »
+// et par « … sans pouvoir prendre son uid, rien n'est fait ».
+async function auCompte(args: string[], env: Record<string, string>) {
+  const [dit, redit]: [string[], string[]] = [[], []];
+  let code = 0;
+  try {
+    sousLeCompte({ args, env, dire: (ligne) => dit.push(ligne), redire: (ligne) => redit.push(ligne) });
+  } catch (erreur) {
+    code = erreur instanceof Sortie ? erreur.code : 1;
+    if (!(erreur instanceof Sortie)) redit.push(String(erreur));
+  }
+  return { code, stdout: dit.join("\n"), stderr: redit.join("\n") };
+}
+// Ce qu'un geste reçoit pour lancer ce pas dans son process, comme sur la box.
+const SON_PROCESS = { sousLeCompte: undefined };
+
+// Une box où ces projets viennent d'être installés par le geste ; sa
+// désinstallation joue son pas sous le compte dans le process du test.
 async function installee(t: TestContext, ...projets: string[]): Promise<Boite> {
   const b = boite(t);
+  b.box.sousLeCompte = auCompte;
   for (const projet of projets.length === 0 ? ["calculus"] : projets) {
     b.pousser(`acme/${projet}`);
     const rendu = await b.geste(b.demande(projet));
@@ -137,7 +157,7 @@ describe("le plan d'une désinstallation", { concurrency: 3 }, () => {
     writeFileSync(join(b.etats, "calculus/depot/brouillon.txt"), "en cours\n");
     const avant = b.photo();
 
-    const rendu = await b.geste(["uninstall", "calculus", "--plan"]);
+    const rendu = await b.geste(["uninstall", "calculus", "--plan"], { box: SON_PROCESS });
 
     assert.equal(rendu.code, 0, rendu.erreur);
     assert.deepEqual(rendu.json.perdus, [`uncommitted in ${join(b.etats, "calculus/depot")}: brouillon.txt`]);
@@ -232,7 +252,7 @@ describe("désinstaller un projet", { concurrency: 3 }, () => {
   });
 
   test("le journal n'est supprimé qu'avec `--supprimer-le-journal` : l'état part alors avec le projet, pas ses sauvegardes", { skip: posixOnly("Confirms the uninstall with `--supprimer-le-journal` and checks the state directory goes while backups stay; on Windows the setup install is refused with sans-droit (77), and the state is emptied by `rm -rf` run under the service account's uid.") }, async (t) => {
-    const b = await installee(t, "calculus", "boutique");
+    const b = await installee(t);
     servir(b);
     const etat = join(b.etats, "calculus");
     const avant = b.photo();
@@ -415,7 +435,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     writeFileSync(getent, `#!/bin/sh\necho "${COMPTE}:x:${(process.getuid?.() ?? 0) + 1}:${(process.getgid?.() ?? 0) + 1}::${b.home}:/bin/sh"\n`, { mode: 0o755 });
     const avant = b.photo();
     for (const forme of [["--plan"], ["--confirmer", "calculus"], ["--confirmer", "calculus", "--supprimer-le-journal"]]) {
-      const rendu = await b.geste(["uninstall", "calculus", ...forme], { box: { getent } });
+      const rendu = await b.geste(["uninstall", "calculus", ...forme], { box: { ...SON_PROCESS, getent } });
       assert.equal(rendu.code, CODES.boxPasPrete, rendu.erreur);
       assert.match(rendu.erreur, /la désinstallation du runtime, lancée sous le compte « cuisine », n'a pas répondu \(elle rend null\) : spawn E(PERM|INVAL) — rien n'est fait$/);
     }

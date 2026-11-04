@@ -149,12 +149,14 @@ const lignesBornees = (lignes: unknown[]) => [...lignes.slice(0, PERDUS_GARDES).
 // Son refus est celui du geste. Root n'en prend aucun chemin : que le clone y
 // est, combien de worktrees, et ce qui serait perdu, à lire.
 async function duRuntime(box: Box, compte: Compte, chemins: { etat: string; clone: string }, confirme: boolean): Promise<Inventaire> {
-  const rendu = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resoudre) => {
+  const args = confirme ? ["--confirmer"] : [];
+  // `GIT_OPTIONAL_LOCKS=0` : à blanc, `git status` ne récrit pas même l'index du clone.
+  const env = { ...box.environnement(compte), BRIGADE_STATE_DIR: chemins.etat, BRIGADE_REPO_DIR: chemins.clone, GIT_OPTIONAL_LOCKS: "0" };
+  const rendu = box.sousLeCompte ? await box.sousLeCompte(args, env) : await new Promise<{ code: number | null; stdout: string; stderr: string }>((resoudre) => {
     let [stdout, stderr] = ["", ""];
     try {
-      const enfant = spawn(process.execPath, [SOUS_LE_COMPTE, ...(confirme ? ["--confirmer"] : [])], {
-        // `GIT_OPTIONAL_LOCKS=0` : à blanc, `git status` ne récrit pas même l'index du clone.
-        env: { ...box.environnement(compte), BRIGADE_STATE_DIR: chemins.etat, BRIGADE_REPO_DIR: chemins.clone, GIT_OPTIONAL_LOCKS: "0" },
+      const enfant = spawn(process.execPath, [SOUS_LE_COMPTE, ...args], {
+        env,
         cwd: sep,
         stdio: ["ignore", "pipe", "pipe"],
         ...sousLeCompte(compte),

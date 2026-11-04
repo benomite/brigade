@@ -65,9 +65,11 @@ resumes where it stopped.
 - **A fourth project is added in under 10 minutes**, from the app, without a terminal
   ([`runtime/`](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal").
 
-The takeover is tested, before the merge, on a test installation — never on the box: three
-projects served the old way, a cook in flight, the real package installed, log, decisions and
-tickets compared before and after (`runtime/test/bascule/machine.test.ts`).
+The takeover is tested, before the merge, on test installations — never on the box: three
+projects served the old way, taken over, their log and decisions compared before and after
+(`runtime/test/bascule/bascule.test.ts`); the package's real postinst playing the takeover before
+it starts the station (`runtime/test/bascule/machine.test.ts`); and a cook in flight that the next
+runtime on the same state resumes without relaunching it (`runtime/test/reprise.test.ts`).
 
 ## The brigade command
 

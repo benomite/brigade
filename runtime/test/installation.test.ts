@@ -904,7 +904,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 3 
     }
   });
 
-  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", { skip: posixOnly("marks the installation done, starts the real runtime, waits for its first cook and stops it by SIGTERM expecting exit 0: on Windows SIGTERM ends the runtime before its handler runs") }, async (t) => {
+  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", { skip: posixOnly("marks the installation done, starts the real runtime and waits for its first cook, then kills it at the end of the test; on Windows the killed runtime leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
     const { env, etat, gh } = projet(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
     // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
@@ -933,9 +933,10 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 3 
       }
     };
     await jusqua(() => lancements().length > 0);
-    assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0, runtime.sortie());
+    assert.deepEqual(lancements(), [15], runtime.sortie());
+    // Son arrêt propre sur SIGTERM est éprouvé par main.test.ts (« le runtime
+    // démarre, tourne, et s'arrête proprement sur SIGTERM ») : ici, la fin du
+    // test le tue.
   });
 });
 
@@ -1499,8 +1500,8 @@ describe("la commande du chef", { concurrency: 3 }, () => {
     const { env, racine } = projet(t);
     sansReglageSousWindows(racine);
 
-    const texte = await commande(t, env);
-    const { code, verdict } = await juger(t, env);
+    // Le texte et le verdict, chacun par son process, lancés ensemble.
+    const [texte, { code, verdict }] = await Promise.all([commande(t, env), juger(t, env)]);
 
     assert.equal(verdict.verdict, "pret");
     assert.deepEqual(verdict.manques, []);
@@ -1514,8 +1515,8 @@ describe("la commande du chef", { concurrency: 3 }, () => {
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
 
-    const texte = await commande(t, env);
-    const { code, verdict } = await juger(t, env);
+    // Le texte et le verdict, chacun par son process, lancés ensemble.
+    const [texte, { code, verdict }] = await Promise.all([commande(t, env), juger(t, env)]);
 
     assert.equal(verdict.verdict, "pas-pret");
     assert.equal(verdict.manques.length, 3);
@@ -1541,8 +1542,7 @@ describe("la commande du chef", { concurrency: 3 }, () => {
     const plante = { ...env, BRIGADE_INSTALLER_CONFIG: join(sudoers, "regle") };
     chmodSync(sudoers, 0o000);
     try {
-      const texte = await commande(t, plante);
-      const { code, verdict } = await juger(t, plante);
+      const [texte, { code, verdict }] = await Promise.all([commande(t, plante), juger(t, plante)]);
 
       assert.match(texte.sortie, /^brigade : EACCES: permission denied, lstat '.*\/etc\/sudoers\.d\/regle'\n$/);
       assert.equal(texte.code, 1);

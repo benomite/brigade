@@ -277,6 +277,10 @@ export type Box = {
   environnement: (compte: Compte) => Record<string, string>;
   // Vrai si rien n'écoute sur ce port de la boucle locale.
   portLibre: (port: number) => Promise<boolean>;
+  // Le pas de la désinstallation joué sous le compte du service, à la place
+  // de son process (`desinstaller-sous-le-compte.ts`) : un test qui joue déjà
+  // sous ce compte l'appelle dans le sien. Absent, il est lancé.
+  sousLeCompte?: (args: string[], env: Record<string, string>) => Promise<{ code: number | null; stdout: string; stderr: string }>;
 };
 
 export type Installation = {
