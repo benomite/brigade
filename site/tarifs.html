@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pricing — Brigade</title>
+  <meta name="description" content="Brigade charges nothing. A cloud station is paid to your own hosting provider, only while the rail has tickets to serve, and you set the ceiling.">
+  <meta property="og:title" content="Pricing — Brigade">
+  <meta property="og:description" content="Brigade charges nothing. You pay your own hosting provider for the machine hours, and you set the ceiling.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>What is paid, and to whom.</h1>
+    <p class="lead">Brigade charges nothing. Its code is open source (MIT), and it bills no subscription and takes no cut. The only cost you can meet is the machine that runs a cloud station, and that is paid to your own hosting provider.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="who">
+    <h2>Who is paid</h2>
+    <ul class="brakes">
+      <li><strong>Brigade: nothing.</strong> No licence, no seat, no per-ticket fee, no commission on merged work.</li>
+      <li><strong>Your hosting provider: the machine.</strong> A cloud station runs on a virtual machine you rent from a hosting provider of your choice. You pay that provider for the machine hours, as you would for any server.</li>
+      <li><strong>Anthropic: your Claude subscription.</strong> The cooks run on your own Claude Max session, as they always have.</li>
+    </ul>
+  </section>
+
+  <section id="when">
+    <h2>When the machine runs</h2>
+    <p>A station does not run all the time. It runs only while the rail has servable tickets: while a ticket is fired and waiting, or a cook is still working on one. When the rail is empty, the station is idle and the machine hours stop adding up.</p>
+    <p>So the cost follows the work. A quiet week costs little; a week with many tickets costs what those tickets take.</p>
+  </section>
+
+  <section id="ceiling" class="pass">
+    <h2>You set the ceiling</h2>
+    <p>The ceiling is the limit you choose on what the kitchen may spend. It caps the spend, so a runaway ticket cannot keep a machine busy beyond what you allowed. The kitchen's brakes (caps on duration, tokens and simultaneous cooks, and one stop that halts everything) are how that ceiling is enforced.</p>
+  </section>
+
+  <section id="next">
+    <h2>Where to look next</h2>
+    <p>The <a href="index.html">main page</a> explains how a ticket gets served. For the setup of a cloud station, read the <a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">installation guide</a>.</p>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>Brigade is made by <a href="https://github.com/benomite">Benoît</a>.</p>
+  <p class="fine">Open source under the MIT licence · <a href="https://github.com/benomite/brigade">benomite/brigade</a> · <a href="https://github.com/benomite/brigade/blob/main/docs/index.md">Documentation</a></p>
+</footer>
+
+</body>
+</html>

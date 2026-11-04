@@ -33,6 +33,9 @@ export type OptionsStation = {
   // (`BRIGADE_STATION_PORTES`), ou null : chaque projet sort alors par la
   // porte que sa ligne nomme, ou sans porte.
   portes?: string | null;
+  // Vrai tant que la station se vide pour sa mise à jour (#2189) : remis à
+  // chaque cuisine, qui ne prend plus aucun ticket.
+  retenue?: () => boolean;
 };
 
 export type Station = {
@@ -40,6 +43,9 @@ export type Station = {
   relire(): void;
   // Les projets servis, dans l'ordre où ils ont été ouverts.
   projets(): string[];
+  // Les tickets que les cooks GitHub seul de ses cuisines cuisinent : ce que
+  // sa mise à jour attend avant de demander sa relance (#2189).
+  enCuisine(): number[];
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
   depots(): Record<string, string>;
   // Le rail de chaque projet servi, par son nom, tel qu'il se publie
@@ -136,7 +142,7 @@ export function ouvrirStation(options: OptionsStation): Station {
         for (const ligne of demenagement.deplaces) dit(`déménagé dans l'atelier de la station — ${ligne}`);
         for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
       }
-      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }) }));
+      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.retenue === undefined ? {} : { retenue: options.retenue }) }));
       ouvertes.set(projet.nom, { cle, depot: projet.depot, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);
@@ -180,6 +186,7 @@ export function ouvrirStation(options: OptionsStation): Station {
   return {
     relire,
     projets: () => [...ouvertes.keys()],
+    enCuisine: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enCuisine?.() ?? []),
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
     rails: () => {
       for (const nom of [...railsLus.keys()]) if (!ouvertes.has(nom)) railsLus.delete(nom);

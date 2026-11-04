@@ -31,6 +31,17 @@ export const EN_SERVICE = "en-service";
 export const ETAT = "etat.json";
 // La variable qui dit à la station où poser les versions qu'elle télécharge.
 export const VARIABLE_DES_VERSIONS = "BRIGADE_STATION_VERSIONS";
+// La ligne que la station écrit quand sa mise à jour demande la relance (runtime/src/station-update/mettre-a-jour.ts,
+// `LIGNE_DE_RELANCE` — le test des deux motifs les garde d'accord) : le numéro de la release, puis son point d'entrée.
+export const LIGNE_DE_RELANCE = /^brigade: station update — restart with release (\S+): (.+)$/;
+
+// Ce que l'app donne à la station pour qu'elle se tienne à jour (#2287) : les releases publiées sur GitHub — sauf
+// si l'environnement dit déjà où les prendre —, et la relance par l'app, qui seule la tient.
+export const environnementDeLaStation = (env: Record<string, string | undefined>): Record<string, string | undefined> => ({
+  BRIGADE_MISE_A_JOUR_SOURCE: "github:benomite/brigade",
+  ...env,
+  BRIGADE_STATION_RELANCE: "app",
+});
 
 // Un numéro de version tel qu'une publication `station-<version>` le porte : jamais un chemin.
 const VERSION = /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,99}$/;
@@ -50,6 +61,9 @@ export type OptionsProcessDeStation = Omit<OptionsStationLocale, "principal"> & 
   embarque: string;
   // Le dossier des versions téléchargées, dans les données de l'app.
   versions: string;
+  // Où est le runtime de la version X sous `versions` ; par défaut `<versions>/<X>/`. La mise à jour de la
+  // station (#2189) pose le sien sous `<versions>/<X>/runtime/`.
+  dossierDuRuntime?: (version: string) => string;
   // Le temps laissé à une version pour se dire en service.
   demarrageMs?: number;
   // Entre deux regards sur la station qui démarre, et sur la demande.
@@ -97,7 +111,7 @@ export function versionDuRuntime(principal: string): string {
   }
 }
 
-export const principalDe = (versions: string, version: string) => join(versions, version, PRINCIPAL);
+export const principalDe = (versions: string, version: string, dossierDuRuntime = (v: string) => join(versions, v)) => join(dossierDuRuntime(version), PRINCIPAL);
 
 // La demande de la station, ou nulle. Illisible, elle est nulle aussi : `motif` dit pourquoi.
 export function lireDemande(racine: string): { version: string } | { motif: string } | null {
@@ -156,7 +170,18 @@ function vivant(pid: number): boolean {
 }
 
 export function tenirProcessDeStation(options: OptionsProcessDeStation): ProcessDeStation {
-  const { racine, versions, dire } = options;
+  const { racine, versions } = options;
+  const dossierDuRuntime = options.dossierDuRuntime ?? ((v: string) => join(versions, v));
+  const principalDeLaVersion = (v: string) => principalDe(versions, v, dossierDuRuntime);
+  // Ce que la station dit passe par là : sa demande de relance (#2287) lance le redémarrage, la ligne reste dite.
+  const dire = (ligne: string) => {
+    options.dire(ligne);
+    const [, visee, main] = LIGNE_DE_RELANCE.exec(ligne) ?? [];
+    if (visee === undefined || main === undefined) return;
+    // La demande porte un numéro, jamais un chemin : le point d'entrée dit par la station doit être celui des données de l'app.
+    if (!VERSION.test(visee) || main !== principalDeLaVersion(visee)) return options.dire(`brigade: this computer's station asked for a restart on ${visee} from an entry point the app does not hold (${main}) — ignored`);
+    void redemarrer(visee);
+  };
   const tenir = options.tenir ?? tenirStationLocale;
   const demarrageMs = options.demarrageMs ?? 120_000;
   const pasMs = options.pasMs ?? 250;
@@ -194,7 +219,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
   const versionEmbarquee = versionDuRuntime(embarque);
   const retenue = etatDesVersions.retenue;
   let principal = embarque;
-  if (retenue !== null && existsSync(principalDe(versions, retenue)) && comparerVersions(retenue, versionEmbarquee) > 0) principal = principalDe(versions, retenue);
+  if (retenue !== null && existsSync(principalDeLaVersion(retenue)) && comparerVersions(retenue, versionEmbarquee) > 0) principal = principalDeLaVersion(retenue);
   let version = principal === embarque ? versionEmbarquee : (retenue ?? versionEmbarquee);
 
   const lancer = (point: string) => tenir({ ...communes, principal: point });
@@ -253,7 +278,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
       return conclure({ quoi: "refusee", visee, motif, le: le() });
     };
     if (etatDesVersions.ratees.includes(visee)) return refuser("that version did not start at its try, it is not tried again");
-    const point = principalDe(versions, visee);
+    const point = principalDeLaVersion(visee);
     if (!existsSync(point)) return refuser(`its runtime is not in ${join(versions, visee)}`);
 
     const depuis = version;

@@ -7,8 +7,9 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, lectureDe, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -59,6 +60,8 @@ export type PR = {
   state: "open" | "closed";
   merged: boolean;
   enRetard: boolean;
+  // Sa branche ne se fusionne pas avec la base : un conflit, que seul un cook résout.
+  enConflit?: boolean;
   mergeePar: string | null;
   // Ce qui change dès que GitHub change quoi que ce soit à la PR — sa tête, sa
   // base, ce qu'il dit de sa fusion — : l'ETag de sa fiche. Absent s'il n'en
@@ -329,31 +332,44 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     // la liste des process.
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant });
-    await environnement();
-    const { erreur, stdout, stderr } = await (options.transport ?? parGh)(args, { bin, env, signal: abandon.signal, delaiMs: options.delaiMs ?? 30_000 });
-    const reponse = decouper(stdout);
-    if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
-    if (reponse?.statut === 304) limite.rendre(appel);
-    if (!reponse) throw new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`);
-    // La limite de GitHub atteinte n'est pas une réponse comme les autres :
-    // elle suspend les appels, et ne passe jamais pour un refus (de merge).
-    // Et elle se nomme au compte : laquelle, depuis quand, jusqu'à quand. Un appel
-    // qui aboutit la lève, une fois sa reprise passée.
-    const limites = options.limitesDuCompte ?? limitesDuProcess();
-    if (refusPourLimite(reponse)) {
-      const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
-      limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
-      throw atteinte;
-    }
-    if (reponse.statut < 400) limites.aboutir(compte);
-    return reponse;
+    return appelerGitHub(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant }, async (appel) => {
+      await environnement();
+      // Une écriture qui part est comptée à la minute, une fois la pause passée.
+      if (estUneEcriture(args)) mesuresGitHubDuProcess().noterEcriture();
+      const { erreur, stdout, stderr } = await (options.transport ?? parGh)(args, { bin, env, signal: abandon.signal, delaiMs: options.delaiMs ?? 30_000 });
+      const reponse = decouper(stdout);
+      if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
+      if (reponse?.statut === 304) limite.rendre(appel);
+      if (!reponse) throw new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`);
+      // La limite de GitHub atteinte n'est pas une réponse comme les autres :
+      // elle suspend les appels, et ne passe jamais pour un refus (de merge).
+      // Et elle se nomme au compte : laquelle, depuis quand, jusqu'à quand. Un appel
+      // qui aboutit la lève, une fois sa reprise passée.
+      const limites = options.limitesDuCompte ?? limitesDuProcess();
+      if (refusPourLimite(reponse)) {
+        const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
+        const lue = lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua });
+        limites.constater(compte, lue);
+        mesuresGitHubDuProcess().noterLimite(lue.depuis, lue.reprise);
+        throw atteinte;
+      }
+      if (reponse.statut < 400) limites.aboutir(compte);
+      return reponse;
+    });
   };
 
   // Une lecture, sous condition si elle a déjà été faite : sur un 304, la
   // réponse gardée. Deux lectures identiques en même temps n'en font qu'une.
   // `liste` : une page d'une liste que l'on feuillette.
   const enVol = new Map<string, Promise<Reponse>>();
+  // Ce qui ne peut plus changer, gardé en mémoire (#2298) : les fichiers d'une PR
+  // par sa tête, et la CI finie d'un commit. Bornés : au-delà, le plus ancien part.
+  const fichiersParTete = new Map<string, string[]>();
+  const ciFinie = new Map<string, Check[]>();
+  const memoriser = <V>(carte: Map<string, V>, cle: string, valeur: V) => {
+    carte.set(cle, valeur);
+    if (carte.size > 500) carte.delete(carte.keys().next().value as string);
+  };
   const lireSousCondition = (args: string[], liste = false): Promise<Reponse> => {
     const cle = [bin, compte, ...args].join("\0");
     const deja = enVol.get(cle);
@@ -525,28 +541,37 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         state: brute.state,
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
         enRetard: brute.mergeable_state === "behind",
+        ...(brute.mergeable_state === "dirty" ? { enConflit: true } : {}),
         mergeePar: brute.merged_by?.login || null,
         ...(version ? { version } : {}),
       };
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string } }>);
       return Promise.all(
         ouvertes.map(async ({ number, head }) => {
+          // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
+          const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
+          const gardes = cle === null ? undefined : fichiersParTete.get(cle);
+          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes };
           const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
           const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
+          if (cle !== null) memoriser(fichiersParTete, cle, fichiers);
           return { number, branche: head.ref, fichiers };
         }),
       );
     },
     async ci(sha) {
+      // Une CI finie ne change plus : elle n'est relue que tant qu'un check tourne (#2298).
+      const finie = ciFinie.get(sha);
+      if (finie !== undefined) return finie;
       const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;
       const statuts = `repos/${depot}/commits/${sha}/status?per_page=100`;
       const [runs, combine] = await Promise.all([lireSousCondition([jobs]), lireSousCondition([statuts])]);
       const { check_runs = [] } = JSON.parse(exiger(runs, jobs).corps) as { check_runs?: CheckRun[] };
       const { statuses = [] } = JSON.parse(exiger(combine, statuts).corps) as { statuses?: Statut[] };
-      return [
+      const checks = [
         ...check_runs.map((run): Check => {
           const conclusion = run.status === "completed" ? (run.conclusion ?? "inconnue") : run.status;
           const outcome = run.status !== "completed" ? "pending" : CONCLUSIONS_VERTES.includes(conclusion) ? "green" : "red";
@@ -557,6 +582,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
         }),
       ];
+      // Gardée seulement pour un commit (40 hexadécimaux), jamais pour une branche
+      // qui avance, et seulement finie : rien qui tourne encore.
+      if (/^[0-9a-f]{40}$/.test(sha) && checks.length > 0 && checks.every((check) => check.outcome !== "pending")) memoriser(ciFinie, sha, checks);
+      return checks;
     },
     async ciDeLaBase(branche) {
       const chemin = `repos/${depot}/commits?sha=${encodeURIComponent(branche)}&per_page=${COMMITS_DE_LA_BASE}`;

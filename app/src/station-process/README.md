@@ -35,9 +35,18 @@ station: a restart neither stops nor reattaches them.
 
 `derniere`, `retenue` and `ratees` are what the station screen (#2191) can show.
 
-## Not done here
+## Wired in the app (#2287)
 
-`app/src/main.ts` still calls `tenirStationLocale` directly: the supervisor has the same surface
-(`etat`, `tourne`, `arreter`) plus `version()`, `redemarrer(X)` and `etatDesVersions()`, and takes
-`embarque` (the bundle's runtime entry point) and `versions` (the releases folder) in place of
-`principal`.
+`app/src/main.ts` holds the computer's station with `tenirProcessDeStation`. It starts it with
+`BRIGADE_MISE_A_JOUR_SOURCE=github:benomite/brigade` (unless the environment already says another
+source) and `BRIGADE_STATION_RELANCE=app` (`environnementDeLaStation`), and its releases folder is
+`<BRIGADE_STATION_DIR>/station-update/releases` — where the station's updater downloads `X` to
+`<X>/runtime/` (`dossierDuRuntime`).
+
+The app reads what the station says: the line `brigade: station update — restart with release <X>:
+<main>` (`LIGNE_DE_RELANCE`) restarts the station on `X`, as the `redemarrage` file does. `<main>` must be
+`X`'s entry point under the releases folder; any other path is ignored and said.
+
+A station restarted on a release is not kept across an app restart: the bundle's version (`1.0.91`)
+sorts after a release's (`0.<date>…`), so the reopened app starts the bundled station, which finds the
+release behind and updates again.

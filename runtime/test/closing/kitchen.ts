@@ -64,6 +64,8 @@ export type Options = {
   histoire?: Etape[];
   // Les lieux d'une vie précédente, pour redémarrer dessus.
   lieux?: Lieux;
+  // L'interrupteur GitHub seul, allumé : les boucles de l'ancien chemin s'arrêtent à leur entrée (#2218).
+  perimee?: () => boolean;
 };
 
 export type Lieux = { repertoire: string; origine: string; clone: string; gh: ReturnType<typeof fauxGitHub> };
@@ -103,9 +105,10 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
 
   const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoire, "worktrees"), env: ENV_GIT });
   const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
-  const garde = brancherGardeFous({ ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds } }, avecRail(socle, { depot: DEPOT, dureeBailMs: BAIL_MS, gh: "", github: gh.github, maintenant: heure.maintenant }));
+  const garde = brancherGardeFous({ ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds } }, avecRail(socle, { depot: DEPOT, dureeBailMs: BAIL_MS, gh: "", github: gh.github, maintenant: heure.maintenant, ...(options.perimee ? { perimee: options.perimee } : {}) }));
   // La pass avant la fermeture : c'est à elle que la passe remet sa PR.
   const jugee = brancherPass(garde, {
+    ...(options.perimee ? { perimee: options.perimee } : {}),
     repertoireEtat: repertoire,
     depot,
     github: gh.github,
@@ -121,6 +124,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     avertir,
   });
   const fermee = brancherFermeture(jugee, {
+    ...(options.perimee ? { perimee: options.perimee } : {}),
     reglages: options.reglagesAChaud ?? { ...REGLAGES_DE_FERMETURE, ...options.reglages },
     repertoireEtat: repertoire,
     depot,
@@ -135,6 +139,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
   });
   const runtime = options.station
     ? brancherStation(fermee, {
+        ...(options.perimee ? { perimee: options.perimee } : {}),
         repertoireEtat: repertoire,
         depot,
         github: gh.github,

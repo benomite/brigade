@@ -651,6 +651,14 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const avant = connu(branche);
         await gitAvec(env, "fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`);
         git("update-ref", connue(branche), suivie(branche));
+        // Une branche qu'une autre station — ou le second — a poussée n'existe
+        // pas encore ici : elle naît de ce que l'origine porte (#2311), pour que
+        // toute station relise ce qu'une autre a cuisiné.
+        try {
+          git("rev-parse", "--verify", "--quiet", `refs/heads/${branche}`);
+        } catch {
+          git("branch", "--quiet", branche, suivie(branche));
+        }
         const [locale, distante] = [git("rev-parse", `refs/heads/${branche}`), commitDe(suivie(branche))];
         const compter = (plage: string) => Number(git("rev-list", "--count", plage));
         // L'origine porte-t-elle ce qu'un autre que la station y a mis ? Le

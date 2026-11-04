@@ -37,6 +37,7 @@ import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
+import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import type { MemoireDesLectures } from "./tableau/rail-github.ts";
 import { avecLeRailGithub } from "./vue/rail/github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
@@ -73,7 +74,7 @@ import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
 import { roleDe } from "./poste/role.ts";
 import { ceQueFournitCetOrdinateur } from "./stations/fournit.ts";
-import { tenirStationLocale } from "./poste/station.ts";
+import { environnementDeLaStation, tenirProcessDeStation } from "./station-process/superviseur.ts";
 import { garderUneSeuleCuisine } from "./station-embarquee-cuisine-unique.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
@@ -232,7 +233,7 @@ const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
   if (!lu.lu) return lu;
   const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail);
-  return relu.lu ? avecLesEnvois(relu, appelerGitHub) : relu;
+  return relu.lu ? avecLesEnvois(await avecLeTodoGithub(relu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : relu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 
@@ -606,12 +607,16 @@ async function tenirCeQueFournitCetOrdinateur(vu: VuDesStations): Promise<void> 
 // terminal qui a lancé l'app.
 const stationLocale =
   role.role === "station" && !installeeAuLancement
-    ? tenirStationLocale({
+    ? tenirProcessDeStation({
         // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
         node: emplacements.node,
-        principal: role.principal,
+        // La station de départ est celle du paquet ; une release que sa mise à jour a téléchargée la remplace seule (#2287).
+        embarque: role.principal,
+        versions: join(racineDeLaStation, "station-update", "releases"),
+        dossierDuRuntime: (version) => join(racineDeLaStation, "station-update", "releases", version, "runtime"),
         racine: racineDeLaStation,
-        env: process.env,
+        // La station se met à jour d'elle-même (#2189) et laisse l'app la relancer : `app`.
+        env: environnementDeLaStation(process.env),
         dire: (ligne) => console.error(ligne),
         appairer: async (code) => stations.appairer(code, await ceQueFournitIci()),
         // Un projet qu'une autre station sert déjà n'ouvre pas de seconde cuisine ici (#2110).

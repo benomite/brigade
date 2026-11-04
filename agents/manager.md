@@ -32,3 +32,12 @@ Une étape qui, **par nature**, ne peut venir d'aucune machine n'est jamais une 
 Exemple : `machine-vierge-comptes-tiers` (une machine vierge, avec des comptes de tiers). Mise en `capacites`, le ticket est resté 3 jours en attente. Cette étape est une **tâche humaine** : tu la déposes comme un ticket à part, `capacites` vide, et tu ne la nommes jamais comme capacité.
 
 La carte d'une tâche humaine le dit : la première ligne de son `contexte` est visible et dit que c'est le travail d'un humain, et pourquoi (ex. « Human task: this step needs a clean machine and third-party accounts, which no station can provide. »). Les autres étapes de l'épique, celles qu'une machine peut faire, restent des tickets ordinaires avec leurs `capacites` comme avant.
+
+## Un ticket qui ajoute une capacité au runtime nomme son point d'entrée
+
+Un module de `runtime/` livré, testé et fusionné mais jamais appelé depuis le point d'entrée que la boîte exécute est une capacité qui n'existe pas : les tests exerçaient le module, pas la station qui tourne (#2056, #2060, #2189). Donc, pour **chaque ticket qui ajoute une capacité au runtime** (un module, une commande, un comportement de la station ou de la cuisine), tu écris dans ses `criteres` :
+
+1. **Le point d'entrée qui doit atteindre la capacité**, nommé par son chemin : `runtime/src/station/main.ts` pour la boîte. Un critère du genre « la station appelle X au démarrage depuis `runtime/src/station/main.ts` », observable, pas « le module X existe ».
+2. **Un critère que la livraison porte un test qui passe par ce point d'entrée** (`ouvrirStation` ou `ouvrirCuisine`), pas seulement un test du module.
+
+Le fichier du point d'entrée entre dans la `zone` du ticket, au même titre que le module. Un ticket qui ne fait que de la doc, de l'app ou du plugin n'est pas concerné.

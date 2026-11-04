@@ -16,8 +16,10 @@ import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree,
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherFermeture } from "./closing/run.ts";
+import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
+import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
@@ -47,7 +49,6 @@ import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
 import { brancherLeTableau, ouvertesDuDepot } from "./tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
 import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
-import { secondDuProjet } from "./tableau/gestes/second.ts";
 import { mentionsDuTableau } from "./tableau/mention/mention.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
@@ -171,13 +172,16 @@ try {
     void entretenues.entretenir();
     socle.surReveil((cause) => void (cause === "tick" && entretenues.entretenir()));
   }
-  const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
+  // Switch on, the old-path loops that read the log stop at their entry (#2218), unless the GitHub-only station is refused below.
+  let stationRefusee = false;
+  const perimee = boucleAncienneArretee(duDepot.reglages, () => stationRefusee);
+  const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail, perimee }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
-  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(process.env.BRIGADE_STATION_DIR ? { etageCommun: { racine: process.env.BRIGADE_STATION_DIR, expiration: seuilsDesLecons.expirationPromue } } : {}) });
+  const pass = brancherPass(garde, { ...delais, perimee, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(process.env.BRIGADE_STATION_DIR ? { etageCommun: { racine: process.env.BRIGADE_STATION_DIR, expiration: seuilsDesLecons.expirationPromue } } : {}) });
   // La fermeture avant la station : c'est par son rail que la station se voit
   // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
-  const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
+  const fermee = brancherFermeture(pass, { perimee, reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
   // Le carnet des leçons après la pass, à qui il remet ses PR : elles n'attendent pas le chef.
   const apprise = brancherCarnet(fermee, { depot, github: githubs.station, base: station.base, seuils: seuilsDesLecons, carnetALaBase: () => lireALaBase(station, CARNET_PATH), env });
   // Le renommage du code après la pass, à qui il remet sa PR : il ne part que
@@ -195,7 +199,8 @@ try {
   const ouvert = brancherBrigadeGithub({
     reglages: duDepot.reglages,
     ancien: () => ({ stations, decisions }),
-    station: () =>
+    station: () => {
+      const ouverte =
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
         : stationDuDepot({
@@ -216,10 +221,17 @@ try {
             graceMs: reglages.graceMs,
             reviewer: reviewer.calibrage,
             flux: join(repertoireEtat, "github-seul"),
-          }),
+            // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
+            // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
+            gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
+          });
+      if ("refus" in ouverte) stationRefusee = true;
+      return ouverte;
+    },
   });
   if (ouvert.chemin === "github") projetGitHub = ouvert;
   const servie = brancherStation(reglee, {
+    perimee,
     ...(ouvert.chemin === "ancien" ? ouvert.ancien : { stations: [], decisions: { ...decisions, stations: () => [] } }),
     repertoireEtat,
     depot,
@@ -238,7 +250,7 @@ try {
     seuils: station.seuils,
     gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
-    arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+    arbitre: arbitre === null || ouvert.chemin === "github" ? null : joindreArbitre(arbitre),
     leconsInjectees,
     // Là où le « oui » du chef les écrit : le clone du projet.
     profils: () => lireLesProfils(station.clone, (texte) => console.error(texte)),
@@ -252,11 +264,13 @@ try {
   const manage = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
   // Le rôle produit, que le rail vide réveille quand le chef l'a allumé : sous l'identité du manager, par un GitHub à lui.
   const sesRoles = identites;
-  const dirige = brancherCadence(manage, { github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison });
+  const dirige = brancherCadence(manage, { perimee, github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
-  const suivie = brancherSession(dirige, session, undefined, jeton);
+  // Les branches `cook/<n>-github` dont l'issue est fermée, retirées tant que l'ancien chemin est arrêté.
+  const elaguee = brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env }), perimee });
+  const suivie = brancherSession(elaguee, session, undefined, jeton);
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
   const datee = brancherJeton(suivie, jeton);
@@ -284,8 +298,6 @@ try {
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
     // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
     githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
-    // La demande d'un `ask` part dans le second du projet, quand cette box le tient (BRIGADE_SECOND_DIR).
-    second: secondDuProjet(process.env),
   });
   // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
   const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));

@@ -126,6 +126,25 @@ station (`installation stations set`): the others stay as it wrote them. `Remove
 its price in one line, then runs `installation stations remove`; the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
 the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
+**Under the stations, its cloud stations** (#2232, epic #2223): stations a cloud host starts when the rail has work no
+other station takes, and stops when it is empty, on the user's own host account. The block says how many are added
+(`none added yet`, `1 added`), then the **cost per ticket served** over the period (`$1.80`; on hover, `$12.60 billed this
+month, 7 tickets served`) — `not available yet` while no ticket was served, never a division by zero. Below, the
+**three ceilings** — `Stations at once`, `Hours a day`, `Hours a month` —, prefilled with the ones the project holds; an
+empty field bounds nothing. **`Add a cloud station`**, recommended (its price on hover: the host bills each station's
+hours), adds a station in one click once two things hold, checked in this order: a ceiling at least — without one, nothing
+leaves and the line under the button says `Set a ceiling first — …` (a field that is not a positive number, or a
+fractional `Stations at once`, is refused the same way); and **what a cloud station receives, approved once**: before the
+first station, the click opens the list of what it receives and of what it never receives (the Max session, the other
+secrets) — each item's `dit`, word for word, from the runtime's `Liste` —, with `Approve and add`, recommended, its price in one line, and `Cancel`. Approved, the list is folded under the
+ceilings (`What a cloud station receives — approved`) and the next station is added with no question; a changed list
+arrives unapproved and asks again. What the add returned is one line under the block, a refusal with its detail on hover;
+a read that fails says `cloud stations: not read`. **The block is drawn but not yet live**: no runtime command publishes
+the cloud stations yet (the shapes are `runtime/src/stations-cloud/plafonds.ts`, `runtime/src/stations-cloud-cout/` and
+`runtime/src/stations-cloud-secrets/`, #2228, #2230, #2231), so the main process does not offer `stationsCloud` and
+`ajouterStationCloud` (`app/src/vue/pont.d.ts`, optional), and the Cooks tab lays no block until it does. The client that
+reads those shapes is `app/src/stations-cloud/stations-cloud.ts`; the view module is
+`app/src/vue/stations-cloud/stations-cloud.js`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
 ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
 `default`, `set by you`, or one of each —, read from `facts` (`plafondDeCalibrage`): the app does not know the default, it
@@ -480,7 +499,8 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
   or in pass with their PR.
 - What the old path said and the GitHub-only loop does not follow is no longer shown: the idle-kitchen fault, the
   stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
-  switched off are shown as published. TODO, the backlog and Served still come from the board (#2221).
+  switched off are shown as published. The backlog and Served still come from the board, and so does TODO, with
+  the chef's `chef-todo` issues added (#2221, below).
 - A failed GitHub reading of such a project is a failed board reading: the rail keeps its last columns and says it is
   stale (#2151) — never the frozen rail.
 
@@ -491,6 +511,20 @@ conditional: a 304 costs nothing.
 *Code: `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in `app/src/main.ts`. Tests:
 `app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`. Captures: `docs/captures/2220/` —
 `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`.*
+
+### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
+
+For a project whose `.claude/brigade/projet.json` says `githubOnlyState: true`, Todo also lists one card per open issue
+carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the token of this computer's `gh`, conditional
+reads). The card takes its kind and its text from the issue's latest comment that starts with
+`<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read as is): one line
+that says what the kind asks of the chef, then the comment's text. The issue number on the card opens the issue on GitHub. An
+issue with the label and no marked comment still gets a card, which says its comment is missing. A card has nothing to
+answer in the app: the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after
+a gesture). A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
+as it is, never an empty one. A project of the old path (`githubOnlyState` off or absent) shows the Todo it always had.
+Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
+`todo-github-seul-apres.png`.
 
 ### Changing a ticket's priority (#1739)
 
@@ -1865,6 +1899,18 @@ project's queue as soon as it opens — what is waiting, and the action that unb
 is not a message of the conversation: the role stays in force after a compaction and on every resume,
 and updating the app updates it, with no plugin to install. You keep control: open shells, do what
 you want with the session.
+
+**The exception: the second may take a cook's task.** The kitchen stays the default — a ticket goes on
+the rail and a cook serves it. Not routine use: the second writes code or does a cook's task itself
+only when the work is **urgent** (a blocker now), **needs a human** (the chef's presence or machine, which
+a cook on the box lacks), or **unblocks a situation the kitchen cannot unblock** (the fix is for the very
+thing that is broken: CI loops, cooks without `gh`, rate limits). A ticket that is neither urgent nor
+blocked still goes on the rail. The second names the case to the chef in one line before starting, then
+works in its own worktree on a branch, runs the gates, opens a pull request that closes the issue
+(which goes through the pass like any delivery) and comments on the issue that the second took it, and
+why. What stays forbidden, exception or not: **merging** (the chef or the pass does; the second only
+gives the command) and **reading the chef's secrets** (`.env.local`, the Max token). The text is in
+`app/src/second/role.md`; the V1 role (`commands/po.md`, with its Codex mirror) carries the same rule (#2178).
 
 **The role exists only in the Second tab.** The role and the settings of the launch (`--settings`, the
 hooks the app gives the second) are arguments of the command the tab runs, and nothing else: the app

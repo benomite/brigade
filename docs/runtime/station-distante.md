@@ -123,6 +123,14 @@ station plays on its workstation, `node runtime/src/bac-a-sable/sonder.ts <workt
   (#1320): a project's pinned pnpm version is not honoured in a sandboxed cook
   (`runtime/test/bac-a-sable/configuration.test.ts`). The "worktree prêt" setup on a real Mac sandbox
   has not been played.
+- **Its ticket is handed to it in a file.** In the sandbox, `gh` has no credentials (`~/.config/gh`
+  and the keychain are refused), so the cook could not read its issue (#2095). The mission names
+  `ticketFile`, `<worktrees>/<run>.ticket.md`, beside the worktree: the cook's brief points to it
+  instead of `gh issue view`, and the configuration lets it read that file. Before launching the cook,
+  the station reads the issue and its comments with its **own** `gh`, outside the sandbox, and writes
+  them there — what a box cook in a local sandbox receives (`ticketRemis`); the file is removed with
+  the worktree. A ticket it cannot read, or a `ticketFile` anywhere else, launches no cook: the
+  mission is handed back as `failed`, reason `ticket: …`.
 - **Setting without a sandbox** — or a station that says nothing, or a workstation whose configuration
   does not hold: **it takes no ordinary ticket**. The box writes it (`station.sandbox`, with the
   reason), says it in the runtime's output when it changes, and `station` shows it on its `ordinary
@@ -167,13 +175,32 @@ brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:c
   worktree), `deliver.<run>` (once the branch is pushed to the origin; the main station fetches it,
   opens the PR, and the pass judges it as any cook's). A silent station stops renewing: at the
   deadline its cook is stopped, the ticket goes back to the rail, and the station learns it from its
-  next answer (`stopped`, `lease`).
+  next answer (`stopped`, `lease`). The box only sees the cook in what its renewals report, so the
+  station renews every third of the lease and **at most every quarter of the idleness cap**
+  (`intervalleDeRenouvellement`): at a third of a 30-minute lease alone, the first renewal left at 10
+  minutes — the cap itself —, and the box stopped every cook longer than that at 0 turns and 0 tokens
+  (#2095).
   Each `claim` carries `since`, the instant the station started at its clock: a station whose cook
   ended with 0 turns and 0 tokens takes no more tickets (`held: unstartable`) until a claim says it
   started after that failure — restarting it is the gesture (see "A cook that cannot start" in
   [`station-cook.md`](station-cook.md)).
 - **The same sandbox guard as `ordinaires`**: with no sandbox said, or an unavailable one, it takes
   only the tickets that ask for one of its capabilities.
+- **On the GitHub-only state** (`githubOnlyState`, [`reglages.md`](../reglages.md); #2219), the
+  project's log no longer holds the rail, so the main station does not relay the requests to it: it
+  answers them itself from GitHub (`runtime/src/tirer-par-github/sur-github-seul.ts`), on the same
+  Kitchen board. A `claim` gets the first free ticket in the turn's order (`prio:`, then the oldest),
+  calibrated, whose zone no open PR holds, taken by a claim comment **in the second station's name**
+  (`github-etat/prise.ts`): when the main station's own turn and the second station want the same
+  ticket, the earliest claim comment wins and the other takes the next one — a ticket is never taken
+  twice. Its mission is a turn cook's (`cook/<n>-github`, resumed from the origin when an open PR
+  carries it), always in the workstation's sandbox: a station without one gets nothing. `renew` is
+  accepted while the station holds the ticket on its issue (the chef removing `taken` or `fire` stops
+  its cook); `deliver` opens the PR and puts the ticket `in-pass`, where any station reviews and
+  merges it — or, with no delivery, gives the ticket back on its issue and says why. The switch is
+  read on the integration branch of the main station's clone the first time a second station asks,
+  as the kitchen reads it when it opens. A silent second station keeps its claims: their lease is not
+  part of this.
 
 `station` (its `ordinary tickets` line: `taken alongside the box's stations, as one more station of the
 project …`) and `facts` (the `ensemble` field of `stations`) say it.

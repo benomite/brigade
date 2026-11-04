@@ -49,7 +49,7 @@ export type GitHubDeLaFusion = {
 };
 
 // La PR telle que la relecture et le merge la lisent.
-export type PRAFusionner = Pick<PR, "number" | "sha" | "state" | "merged" | "enRetard">;
+export type PRAFusionner = Pick<PR, "number" | "sha" | "state" | "merged" | "enRetard" | "enConflit">;
 
 // Le verdict qui fait foi : la station qui l'a rendu, sur quelle tête.
 export type VerdictRendu = { station: string; verdict: Verdict; sha: string; commentaire: number };
