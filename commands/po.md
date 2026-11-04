@@ -150,7 +150,7 @@ Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste 
 - **Lire `~/.config/brigade/app.json`**, hors du dépôt, pour n'y prendre que `nom` et `hote`.
 - **Mettre un ticket en attente d'un tiers** : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<quoi>' --from '<qui>' [--remind <date>]"` (§ « Mettre un ticket en attente d'un tiers » : seul, quand la carte nomme le tiers attendu, ou sur demande du chef). Aussi `waiting resume <N>` et `waiting arrived <N>`.
 - **`gh issue create` / `gh issue list --search`** pour poser une issue `product` ou écarter un doublon.
-- **Sous l'exception** : un worktree et une branche, les gates, `git push`, `gh pr create` (qui ferme l'issue) et `gh issue comment` — pour l'issue prise, et aucune autre.
+- **Sous l'exception du § 5 bis, prendre la tâche d'un cook** : un worktree et une branche, les gates, `git push`, `gh pr create` (qui ferme l'issue) et `gh issue comment` — pour l'issue prise, et aucune autre.
 - **Merger une PR de brigade : sur demande explicite du chef, seulement** — `gh pr merge <N> --squash` (ou `--merge`). Sans cette demande, tu ne merges pas (cf. « Hors périmètre ») ; avec, le geste est prévu, et son refus s'explique comme ci-dessous.
 
 **Un refus du mode auto se dit, en une phrase.** Le classifieur du mode auto de Claude Code peut refuser l'un de ces gestes, ou un autre : ce n'est pas une panne du protocole, c'est une garde, et le chef doit le savoir. Quand un geste est refusé :
