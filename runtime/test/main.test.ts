@@ -13,7 +13,7 @@ import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { proposerAuRuntime } from "../src/reglages-projet/au-runtime.ts";
+import { demanderUnReglage } from "../src/reglages-projet/au-runtime.ts";
 import { FICHIER } from "../src/reglages-projet/reglages.ts";
 import { fauxGitHubApps, prechaufferLesCles } from "./aides/faux-github-apps.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
@@ -448,9 +448,13 @@ describe("le runtime, son process et ses unités", { concurrency: 3 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  // Une valeur refusée — un secret —, qui rend son erreur sans PR ni rien au
-  // journal, se joue dans le process du test (reglages-projet/au-runtime.test.ts).
-  test("un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse", { skip: posixOnly("has the real runtime open a settings PR for a calibration ceiling, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
+  // L'appel lui-même — la demande écrite au journal par un autre process, la
+  // réponse relue — et une valeur refusée, qui rend son erreur sans PR ni rien
+  // au journal, se jouent dans le process du test
+  // (reglages-projet/au-runtime.test.ts). Ici, que le point d'entrée branche
+  // les demandes de réglage : celle que le chef a posée avant le démarrage est
+  // lue dès le branchement, sans attendre que le runtime relise son journal.
+  test("un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et en écrit l'adresse en réponse", { skip: posixOnly("has the real runtime open a settings PR for a calibration ceiling requested before it starts; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const { origine, clone } = depotGit(t);
     const pr = { number: 41, html_url: `https://github.com/${DEPOT}/pull/41`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
@@ -459,20 +463,22 @@ describe("le runtime, son process et ses unités", { concurrency: 3 }, () => {
     gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
     gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${DEPOT}/pulls/41`, { corps: pr });
+    const avant = ouvrirJournal(repertoire);
+    const demande = demanderUnReglage(avant, "brigade", { calibrationCeiling: { model: "opus", effort: "high" } });
+    avant.fermer();
+    assert.ok("request" in demande, JSON.stringify(demande));
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone });
     await runtime.attendre("démarré");
-    const appel = { repertoireEtat: repertoire, projet: "brigade" };
 
-    const reponse = await proposerAuRuntime({ calibrationCeiling: { model: "opus", effort: "high" } }, appel);
-    assert.ok(reponse.ok, JSON.stringify(reponse));
-    assert.equal(reponse.pr, pr.html_url);
-    assert.deepEqual(git(origine, "diff", "--name-only", `${BASE}...${reponse.branche}`).split("\n"), [FICHIER]);
+    const reponse = () => relire(repertoire).find((e) => e.type === "setting.proposed" && e.payload.request === demande.request)?.payload as { pr: string; branch: string } | undefined;
+    await jusqua(() => reponse() !== undefined);
+    assert.equal(reponse()?.pr, pr.html_url);
+    const branche = String(reponse()?.branch);
+    assert.deepEqual(git(origine, "diff", "--name-only", `${BASE}...${branche}`).split("\n"), [FICHIER]);
     const creations = gh.appels().filter((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`);
     assert.equal(creations.length, 1, "one PR is opened");
-    assert.ok(creations[0]?.includes(`head=${reponse.branche}`) && creations[0]?.includes(`base=${BASE}`), JSON.stringify(creations));
+    assert.ok(creations[0]?.includes(`head=${branche}`) && creations[0]?.includes(`base=${BASE}`), JSON.stringify(creations));
     await jusqua(() => relire(repertoire).some((e) => e.type === "pass.entered" && e.ticket === pr.number));
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
   });
 
   test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machine", async (t) => {
