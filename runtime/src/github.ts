@@ -7,6 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, lectureDe, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
@@ -335,6 +336,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
     return appelerGitHub(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant }, async (appel) => {
       await environnement();
+      // Une écriture qui part est comptée à la minute, une fois la pause passée.
+      if (estUneEcriture(args)) mesuresGitHubDuProcess().noterEcriture();
       const { erreur, stdout, stderr } = await (options.transport ?? parGh)(args, { bin, env, signal: abandon.signal, delaiMs: options.delaiMs ?? 30_000 });
       const reponse = decouper(stdout);
       if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
@@ -347,7 +350,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const limites = options.limitesDuCompte ?? limitesDuProcess();
       if (refusPourLimite(reponse)) {
         const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
-        limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
+        const lue = lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua });
+        limites.constater(compte, lue);
+        mesuresGitHubDuProcess().noterLimite(lue.depuis, lue.reprise);
         throw atteinte;
       }
       if (reponse.statut < 400) limites.aboutir(compte);

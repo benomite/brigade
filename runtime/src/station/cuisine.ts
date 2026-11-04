@@ -33,6 +33,7 @@ import { brancherFermeture } from "../closing/run.ts";
 import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "../github-seul/boucles-perimees/boucles-perimees.ts";
 import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
+import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherCadence } from "../produit/cadence/brancher.ts";
@@ -225,6 +226,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               graceMs: reglages.graceMs,
               reviewer: reviewer.calibrage,
               flux: join(repertoireEtat, "github-seul"),
+              // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
+              // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
+              gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
               avertir: dire,
             });
         if ("refus" in ouverte) stationRefusee = true;
@@ -255,7 +259,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       seuils: station.seuils,
       gardeTranscriptsMs: station.gardeTranscriptsMs,
       apresCook: pass.reveillerPass,
-      arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+      arbitre: arbitre === null || ouvert.chemin === "github" ? null : joindreArbitre(arbitre),
       // L'étage commun de la station : ce que le chef a accepté pour tous ses projets.
       commun: () => leconsDeLEtageCommun(envProjet.BRIGADE_STATION_DIR),
     });

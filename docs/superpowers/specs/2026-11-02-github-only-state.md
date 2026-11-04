@@ -45,7 +45,7 @@ uses ETags (`runtime/src/github.ts`).
 
 | Item | Calls |
 |---|---|
-| Each station rereads the fired issues every 30 s | 120 / hour / station, almost all free 304s |
+| Each station rereads the fired issues every 2 min | 30 / hour / station, almost all free 304s |
 | One ticket, from claim to merge | about 20 writes |
 | 50 tickets a day | about 1,000 writes a day, 40–80 / hour at peaks |
 
