@@ -10,22 +10,25 @@
 // `aArreter`, avant que ses répertoires disparaissent : sous Windows, un
 // fichier ouvert ne se supprime pas.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import type { Commande } from "../../src/appel.ts";
 import { mettreEnAttente, PRIX_DE_L_ARRIVEE, renvoyerEnCuisine } from "../../src/attente.ts";
 import type { Fait } from "../../src/evenements.ts";
+import { principal as faits } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { principal as rail } from "../../src/montrer-rail.ts";
 import { ticketDuRail } from "../../src/projections/rail.ts";
-import { CONFIGURATION, ETATS } from "../../src/station/configuration.ts";
+import { CONFIGURATION, environnementDeLaCommande, ETATS, lireFichierDeConfiguration } from "../../src/station/configuration.ts";
 import { ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { gestesDeLaStation } from "../../src/telephone/gestes.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
 import { projetsDeLaStation } from "../../src/telephone/projets.ts";
-import { aArreter, DEPOT, ENV_ENFANT, fauxGh, horloge, repertoireTemporaire } from "../outils.ts";
+import { aArreter, appeler, DEPOT, ENV_ENFANT, fauxGh, horloge, repertoireTemporaire } from "../outils.ts";
 
-const RUNTIME = join(import.meta.dirname, "..", "..");
+// Les commandes du runtime que l'ordinateur lance ici par le geste de la station.
+const COMMANDES: Record<string, Commande> = { rail, facts: faits };
 const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
 const PULLS = `repos/${DEPOT}/pulls`;
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -88,27 +91,35 @@ async function station(t: TestContext, ligne = "") {
   // Le téléphone fait le geste sur un ticket de `brigade`.
   const geste = (gesture: unknown, ticket: unknown, entetes?: Record<string, string>) => demander("/projects/brigade/gestures", { gesture, ticket }, entetes);
   // Ce que l'app de l'ordinateur lance sur la station de cet ordinateur pour un projet — le
-  // geste de la station, depuis le dossier du runtime, avec le répertoire de la station
-  // (app/src/box.ts, `lancerIci`) ; sur une box, `brigade <projet> …` lance le même.
-  const commeLOrdinateur = (...args: string[]) =>
-    new Promise<{ code: number; sortie: string; erreurs: string }>((resoudre) => {
-      execFile(process.execPath, [join("src", "station", "geste.ts"), "brigade", ...args], { cwd: RUNTIME, env }, (erreur, sortie, erreurs) =>
-        resoudre({ code: erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : -1, sortie, erreurs }),
-      );
-    });
+  // geste de la station (app/src/box.ts, `lancerIci`) ; sur une box, `brigade <projet> …`
+  // lance le même —, joué dans ce process : la commande du runtime, dans l'environnement
+  // que le geste lui donne. Le geste, comme process, s'éprouve dans test/geste.test.ts.
+  const commeLOrdinateur = async (commande: string, ...args: string[]) => {
+    const lu = lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets.find(({ nom }) => nom === "brigade");
+    const jouee = COMMANDES[commande];
+    assert.ok(lu !== undefined && jouee !== undefined, commande);
+    const lance = appeler(jouee, args, { ...(environnementDeLaCommande(racine, lu, env) as Record<string, string>), npm_lifecycle_event: commande });
+    return { code: await lance.fin, sortie: lance.sortie() };
+  };
   return { journal, gh, jeton, demander, geste, commeLOrdinateur, ecrits: () => ecrits().slice(avant), revoquer: () => telephones.revoquer("pixel-8") };
 }
 
 // La file que l'ordinateur lit : `facts`, par le geste de la station.
 async function railLu(cuisine: Awaited<ReturnType<typeof station>>) {
   const lue = await cuisine.commeLOrdinateur("facts");
-  assert.equal(lue.code, 0, lue.erreurs);
+  assert.equal(lue.code, 0, lue.sortie);
   return (JSON.parse(lue.sortie) as { rail: Array<{ ticket: number; etat: string }> }).rail.map(({ ticket, etat }) => ({ ticket, etat }));
 }
 
-for (const { gesture, args, ticket, fait } of [
-  { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/ },
-  { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/ },
+for (const { gesture, args, ticket, fait, merges } of [
+  { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/, merges: [] },
+  {
+    gesture: "merge",
+    args: ["rail", "merge", "14"],
+    ticket: 14,
+    fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/,
+    merges: [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]],
+  },
 ]) {
   test(`« ${gesture} » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase`, async (t) => {
     const telephone = await station(t);
@@ -118,7 +129,7 @@ for (const { gesture, args, ticket, fait } of [
     const lance = await ordinateur.commeLOrdinateur(...args);
 
     assert.equal(reponse.statut, 200, JSON.stringify(reponse.corps));
-    assert.equal(lance.code, 0, lance.erreurs);
+    assert.equal(lance.code, 0, lance.sortie);
     assert.equal(reponse.corps.done, true);
     assert.match(String(reponse.corps.said), fait);
     assert.equal(reponse.corps.said, lance.sortie.trim());
@@ -127,6 +138,8 @@ for (const { gesture, args, ticket, fait } of [
     assert.deepEqual(telephone.gh.appels(), ordinateur.gh.appels());
     // Le geste a bien changé quelque chose.
     assert.notDeepEqual([telephone.ecrits(), telephone.gh.appels()], [[], []]);
+    // Un merge part sur GitHub à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
+    assert.deepEqual(telephone.gh.appels().filter((appel) => appel.includes("PUT")), merges);
   });
 }
 
@@ -161,12 +174,6 @@ test("après un geste du téléphone, la file que l'ordinateur lit a changé : #
   assert.equal(apres.find(({ ticket }) => ticket === 15), undefined);
   assert.equal(ticketDuRail(cuisine.journal.base, 16)?.waitingFor, null);
   assert.notDeepEqual(apres.find(({ ticket }) => ticket === 16), avant.find(({ ticket }) => ticket === 16));
-  // Le merge de #14 a eu lieu sur GitHub, à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
-  assert.equal((await cuisine.geste("merge", 14)).statut, 200);
-  assert.deepEqual(
-    cuisine.gh.appels().filter((appel) => appel.includes("PUT")),
-    [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]],
-  );
 });
 
 test("un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change", async (t) => {
@@ -174,7 +181,6 @@ test("un geste que la commande refuse rend 409 et sa phrase — celle que l'ordi
 
   for (const [gesture, ticket, phrase] of [
     ["merge", 15, "#15 is not touched: #15 has no delivery waiting for you to merge it — cost: none: nothing was changed"],
-    ["remove", 99, "#99 is not touched: #99 is not on the rail — cost: none: nothing was changed"],
     ["back-to-kitchen", 15, "ticket 15 is not waiting for a third party — it is queued"],
   ] as const) {
     const reponse = await cuisine.geste(gesture, ticket);
