@@ -34,7 +34,6 @@ No command to type, no file to edit. Every screen is described in **[docs/instal
 - [`docs/index.md`](docs/index.md) — the documentation index, organized by what you want to do.
 - [`docs/tutoriels/installer-sur-mac.md`](docs/tutoriels/installer-sur-mac.md) — tutorial: install brigade on a Mac.
 - [`docs/tutoriels/premier-projet.md`](docs/tutoriels/premier-projet.md) — tutorial: add a first project and cook its first ticket.
-- [`docs/installation.md`](docs/installation.md) — install brigade and cook your first ticket, step by step.
 - [`docs/app.md`](docs/app.md) — the app, screen by screen.
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object (*cook*, *rail*, *station*, *pass*…).
