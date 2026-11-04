@@ -151,7 +151,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
 }
 
 // Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
-describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
+describe("le runtime, son process et ses unités", { concurrency: 3 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
     assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);

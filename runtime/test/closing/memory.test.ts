@@ -131,7 +131,7 @@ test("la PR d'une passe dit combien de candidats ne lui ont pas été reproposé
   assert.doesNotMatch(corpsDeLaPR(passe), /reproposé/);
 });
 
-describe("la mémoire, en cuisine", { concurrency: 4 }, () => {
+describe("la mémoire, en cuisine", { concurrency: 3 }, () => {
   test("après une passe livrée, la mémoire du projet contient ce que le closer a laissé — son lieu, son motif, l'empreinte de ses alentours —, et rien de ce qu'il a retiré", async (t) => {
     const { demander, fin, closer, runtime } = cuisineFermee(t);
     closer.gestes(RETIRER_M1);

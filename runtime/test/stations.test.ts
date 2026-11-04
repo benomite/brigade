@@ -24,7 +24,7 @@ const PLAFONDS_DU_TEST = { durationMs: 6 * 3_600_000, idleMs: 6 * 3_600_000 };
 
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
-describe("les stations que le projet déclare", { concurrency: 8 }, () => {
+describe("les stations que le projet déclare", { concurrency: 3 }, () => {
   test("deux stations déclarées, `box/claude` et `box/playwright` : le runtime les connaît toutes deux, chacune avec ce qu'elle fournit et son plafond", (t) => {
     const { journal } = cuisine(t, { stations: DEUX });
 

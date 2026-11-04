@@ -71,7 +71,7 @@ const LECON_DU_PROJET = "Un test attend un fait, jamais une durée.";
 const retro = (journal: ReturnType<typeof cuisine>["journal"], projet = "brigade") =>
   journal.ajouter({ project: projet, ticket: 9, author: "pass", type: "retro.recorded", payload: { run: null, text: null, kept: [{ kind: "propose", text: LECON_DU_PROJET }], dropped: [] } });
 
-describe("un profil de cook au dispatch", { concurrency: 8 }, () => {
+describe("un profil de cook au dispatch", { concurrency: 3 }, () => {
   test("le profil et un généraliste libres : le ticket de son domaine part sous le profil, son cook reçoit son carnet et les leçons du projet, et le journal le dit", async (t) => {
     const { gh, journal, cooks, carnetDonne, consigneDe, dernier } = service(t, { cooks: 2 }, VUE);
     retro(journal);

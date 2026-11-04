@@ -23,7 +23,7 @@ function projet(t: TestContext) {
   return { repertoire, noter, commande };
 }
 
-describe("la cloison vue par le chef", { concurrency: 8 }, () => {
+describe("la cloison vue par le chef", { concurrency: 3 }, () => {
   test("un journal d'avant la cloison le dit, au lieu de laisser croire qu'elle est ouverte", async (t) => {
     const { commande } = projet(t);
     const { code, sortie } = await commande();

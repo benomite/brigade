@@ -48,7 +48,7 @@ const PREPARATION_SERVIE: Array<{ ticket: number; fait: Fait }> = [
   { ticket: PREPARATION, fait: { type: "ticket.served", payload: {} } },
 ] as never;
 
-describe("le setup en échec du ticket qui prépare le dépôt", { concurrency: 4 }, () => {
+describe("le setup en échec du ticket qui prépare le dépôt", { concurrency: 3 }, () => {
   test("son cook part quand même, sans ce que le setup aurait exporté, avec la phrase et la sortie du setup dans sa consigne", async (t) => {
     const { setup, cooks, types, dernier, etat, avertissements } = unProjet(t, { setup: "manque" });
     await jusqua(() => cooks().length === 1);

@@ -36,7 +36,7 @@ const lances = (journal: { tout(): Array<{ type: string; ticket: number | null; 
   journal.tout().flatMap((e) => (e.type === "cook.launched" ? [[e.ticket, (e.payload as { unarbitrated?: boolean }).unarbitrated ?? false]] : []));
 
 // Chaque test a son arbitre, sur le port 0, et ses cuisines : ils se jouent de front.
-describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
+describe("l'arbitrage entre projets", { concurrency: 3 }, () => {
   test("la station demande sa place à l'arbitre avant chaque lancement, et lui redit ce qu'elle fait tourner", async (t) => {
     const { joint, projet } = await arbitre(t, 10);
     const { journal, lancements, types } = cuisine(t, { arbitre: joint, cooks: 5, scenario: "muet", issues: [issue(14), issue(15)] });

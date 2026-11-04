@@ -57,7 +57,7 @@ function jouer(racine: string): { code: number | null; sortie: string } {
 }
 
 // Chaque test a son projet : ils se jouent de front.
-describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { concurrency: 8 }, () => {
+describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { concurrency: 3 }, () => {
   test("un rôle et son miroir modifiés ensemble ne sont pas jugés périmés", { skip: posixOnly("plays this repository's real gates.sh on a test project where a role and its Codex mirror changed together among 800 long untracked paths, and expects no FAIL; on Windows the gates' Python check lists the role files `pathlib` finds with backslashes, so every declared role is reported absent from the disk") }, (t) => {
     const racine = projet(t);
     writeFileSync(join(racine, "commands/manager.md"), "une règle de plus\n");

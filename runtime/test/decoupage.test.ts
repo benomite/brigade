@@ -47,7 +47,7 @@ const fermer = (c: ReturnType<typeof brigade>, numero: number) => {
   if (ouverte) c.gh.poser({ ...ouverte, state: "closed", updatedAt: "2026-10-08T12:00:00Z" });
 };
 
-describe("le manager découpe une épique", { concurrency: 8 }, () => {
+describe("le manager découpe une épique", { concurrency: 3 }, () => {
   test("une épique devient des tickets : chacun avec ses critères, son calibrage, sa fiche, puis `fire`", async (t) => {
     const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic", "prio:2"])] });
     epique(c);

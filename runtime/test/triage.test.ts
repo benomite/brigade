@@ -462,7 +462,7 @@ describe("ce que l'agent lit et ce qu'il répond", () => {
   });
 });
 
-describe("sur une cuisine complète", { concurrency: 4 }, () => {
+describe("sur une cuisine complète", { concurrency: 3 }, () => {
   // L'agent de triage y est le faux `claude`, un script shell.
   test("manager allumé : la carte attend l'agent de triage hors de TODO, puis y entre quand il la laisse passer", async (t) => {
     const c = cuisine(t, { manager: { triage: "triage-au-feu" }, issues: [issue(30, CALIBRE)] });

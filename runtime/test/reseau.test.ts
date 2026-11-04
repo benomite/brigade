@@ -12,7 +12,7 @@ const envoi = (fin: { erreur?: string } | "muet"): Envoyer => (_adresse, _port, 
   if (fin !== "muet") queueMicrotask(() => rendu(fin.erreur === undefined ? null : Object.assign(new Error(fin.erreur), { code: fin.erreur })));
 };
 
-describe("le réseau du projet", { concurrency: 8 }, () => {
+describe("le réseau du projet", { concurrency: 3 }, () => {
   test("le socle laisse passer Anthropic et GitHub, sous-domaines compris, sur 443 et 80 — et rien d'autre", () => {
     for (const hote of ["api.anthropic.com", "claude.ai", "github.com", "api.github.com", "objects.githubusercontent.com", "API.GitHub.com."]) {
       assert.equal(autorise(REGLES_DE_BASE, hote, 443), true, hote);

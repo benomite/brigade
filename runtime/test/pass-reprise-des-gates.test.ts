@@ -38,7 +38,7 @@ function service(t: TestContext, options: Options) {
   return { ...lieu, verdict, passages, parLaPass };
 }
 
-describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
+describe("la pass reprend les gates du cook", { concurrency: 3 }, () => {
   test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", { skip: posixOnly("a cook whose green launcher run covers what it delivers lets the pass reuse it without playing any gates; on Windows the brief names the launcher with backslashes, which neither the test's regular expression nor the fake claude's grep for `/brigade/gates-du-cook` matches, so the cook never plays its gates") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const { verdict, passages, parLaPass, gates, cooks, journal, heure } = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });

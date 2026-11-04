@@ -167,7 +167,7 @@ describe("le geste du chef : `station -- stop|start <station>`", () => {
   });
 });
 
-describe("sur une cuisine qui tourne", { concurrency: 4 }, () => {
+describe("sur une cuisine qui tourne", { concurrency: 3 }, () => {
   test("lancer : arrêtée, la station ne prend rien — `stopped` ; lancée, elle prend le ticket et passe à `cooking`, son cook dit sa station", async (t) => {
     const { repertoire, journal, gh, etat, lancements, dernier } = cuisine(t, { scenario: "commite-puis-attend" });
     await jusqua(() => etatStation(journal.base, BOX) !== null);

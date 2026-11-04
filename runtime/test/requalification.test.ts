@@ -20,7 +20,7 @@ function brigade(t: TestContext, jugement: string | string[], options: Options =
   return { ...c, requalifie, dits, laisserTourner };
 }
 
-describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
+describe("un ticket blocked-on-human", { concurrency: 3 }, () => {
   test("sans décision écrite, une vraie question est dérivée : carte typée dans TODO, le journal le dit, le label reste", async (t) => {
     const c = brigade(t, "requalifie-carte");
     await jusqua(() => cartesEnTodo(c.journal.base).length === 1);

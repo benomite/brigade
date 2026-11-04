@@ -29,7 +29,7 @@ function pousserALaMain(t: TestContext, origine: string, branche: string, fichie
 }
 
 // Chaque test a son origine et son clone : ils se jouent de front.
-describe("le dépôt de la station", { concurrency: 8 }, () => {
+describe("le dépôt de la station", { concurrency: 3 }, () => {
   test("un répertoire qui n'est pas un dépôt git est refusé à l'ouverture", (t) => {
     const pasUnDepot = repertoireTemporaire(t);
 
@@ -853,7 +853,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 // Le runtime lance `git` dans le worktree d'un cook hors de toute cloison. Or
 // ce worktree désigne lui-même son dépôt, par des fichiers que le cook écrit :
 // rien de ce qu'ils désignent ne doit être lu comme une configuration.
-describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
+describe("un worktree que son cook a détourné", { concurrency: 3 }, () => {
   // Ce que le cook plante : une commande que `git` lancerait à chaque statut
   // (`core.fsmonitor`) et à chaque fichier relu (un filtre `clean`), et qui
   // laisse un témoin.
@@ -1033,7 +1033,7 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
 
 // Sous une identité de rôle, les deux gestes réseau de la station — rapatrier
 // et pousser — partent avec son jeton.
-describe("le dépôt sous une identité", { concurrency: 8 }, () => {
+describe("le dépôt sous une identité", { concurrency: 3 }, () => {
   const ENTETE = `Authorization: Basic ${Buffer.from("x-access-token:ghs_cook_secret").toString("base64")}`;
 
   test("le jeton n'atteint git que par son environnement : un en-tête pour github.com, et rien de la connexion du compte", () => {
@@ -1138,7 +1138,7 @@ describe("le dépôt sous une identité", { concurrency: 8 }, () => {
 
 // Le cook d'une station distante a tourné ailleurs, et c'est elle qui a poussé
 // sa branche : le clone ne la connaît que par l'origine.
-describe("la branche d'une station distante", { concurrency: 8 }, () => {
+describe("la branche d'une station distante", { concurrency: 3 }, () => {
   // Ce que fait la station, depuis son propre clone : une branche neuve partie
   // de la base, un commit, un push. Rend son commit.
   function pousserDeLaStation(t: TestContext, origine: string, branche: string, fichier = "travail.txt"): string {

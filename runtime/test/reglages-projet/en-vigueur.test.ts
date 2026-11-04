@@ -41,7 +41,7 @@ function journalDeLaBox(t: TestContext, decisions: Record<string, string>) {
   return journal;
 }
 
-describe("the project's settings are read from its repository before the box's", { concurrency: 8 }, () => {
+describe("the project's settings are read from its repository before the box's", { concurrency: 3 }, () => {
   test("a clone whose integration branch carries the file: its branch, calibrations and ceiling are used, the box's values ignored", (t) => {
     // Le dépôt déclare `v2` ; sa branche par défaut, que la ligne nomme, aussi.
     const { clone } = projetSurGit(t, { reglages: DU_DEPOT, parDefaut: "main", autres: ["v2"] });
@@ -131,7 +131,7 @@ describe("the project's settings are read from its repository before the box's",
   });
 });
 
-describe("the integration branch is resolved from the repository", { concurrency: 8 }, () => {
+describe("the integration branch is resolved from the repository", { concurrency: 3 }, () => {
   test("the file on the branch the line names comes first, then the file of the clone's working tree, then the line, then the CLAUDE.md line", (t) => {
     // Le fichier sur la branche que la ligne nomme : il fait foi.
     const surLaLigne = projetSurGit(t, { reglages: { integrationBranch: "develop" }, autres: ["develop"] });

@@ -67,7 +67,7 @@ const sousSonNom = (nom: string) => {
 };
 
 // Chaque test lance ses commandes sans état ni dépôt, et n'écrit rien : ils se jouent de front.
-describe("les commandes du runtime", { concurrency: 8 }, () => {
+describe("les commandes du runtime", { concurrency: 3 }, () => {
   test("chaque commande du runtime est dans la table, sous son nom anglais ; chaque ancien nom y est, et son script ne fait que l'annoncer", () => {
     const anglais = COMMANDES.map(({ nom }) => nom);
     const anciens = RENOMMEES.map(({ ancien }) => ancien ?? "");

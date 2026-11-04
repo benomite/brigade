@@ -121,7 +121,7 @@ function photographier(racine: string, sauf: string[]): Record<string, string> {
 }
 
 // Chaque test a sa station — racine, configuration, doublures — sur le port 0 : ils se jouent de front.
-describe("la station, son process", { concurrency: 8 }, () => {
+describe("la station, son process", { concurrency: 3 }, () => {
   test("deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service", { skip: posixOnly("serves two projects from one station process and checks each one's log, sandbox and gh in its single output, then stops it with SIGTERM; the expected startup line is a RegExp built from a Windows path, whose backslashes it reads as escapes, and SIGTERM kills the station before its handler runs, so neither exit code 0 nor the SIGTERM stop facts can come") }, async (t) => {
     const { racine, compte, env, preparer, configurer, relire } = uneStation(t);
     const brigade = fauxGh(t);

@@ -42,7 +42,7 @@ function recit(journal: Journal, tickets: number[]): string {
 }
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
-describe("la station", { concurrency: 8 }, () => {
+describe("la station", { concurrency: 3 }, () => {
   test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit, son plafond de cooks et les cœurs de sa machine", (t) => {
     const { journal } = cuisine(t);
 
@@ -2124,7 +2124,7 @@ describe("la station", { concurrency: 8 }, () => {
 });
 
 // Quand chaque rôle a son identité GitHub, le cook n'en a aucune.
-describe("la station, cooks sans identité", { concurrency: 8 }, () => {
+describe("la station, cooks sans identité", { concurrency: 3 }, () => {
   const remisA = (repertoire: string, run: unknown) => join(repertoire, "runs", `${String(run)}.ticket.md`);
 
   test("le ticket est remis au cook en fichier, hors de son worktree — corps et commentaires —, et sa consigne l'y envoie au lieu de gh", async (t) => {

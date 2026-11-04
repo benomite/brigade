@@ -211,7 +211,7 @@ function enCuisine(t: TestContext, options: Parameters<typeof cuisine>[1] = {}) 
   return { ...lieu, basculer, compter, commentaires };
 }
 
-describe("la cuisine sous l'interrupteur", { concurrency: 4 }, () => {
+describe("la cuisine sous l'interrupteur", { concurrency: 3 }, () => {
   test("éteint : le cook en vol finit, sa livraison verte attend sans merge, aucun ticket neuf n'est pris ; rallumé, elle est mergée et la prise reprend", async (t) => {
     const { etat, basculer, conclure, compter, gh, journal, commentaires } = enCuisine(t, { pass: true, scenario: "commite-puis-attend", cooks: 2, issues: [issue(17)] });
     await jusqua(() => etat(17) === "taken" && compter("cook.launched", 17) === 1);

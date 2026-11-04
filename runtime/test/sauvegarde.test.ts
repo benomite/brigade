@@ -56,7 +56,7 @@ function types(repertoire: string, fichier = "log.db"): string[] {
   }
 }
 
-describe("la sauvegarde", { concurrency: 8 }, () => {
+describe("la sauvegarde", { concurrency: 3 }, () => {
   test("l'instantané se prend pendant qu'une écriture est en cours : il porte ce qui était validé, et rien d'autre", (t) => {
     const { etat, journal, noter } = projet(t);
     const cible = join(repertoireTemporaire(t), "log.db");
@@ -212,7 +212,7 @@ describe("la sauvegarde", { concurrency: 8 }, () => {
   });
 });
 
-describe("la restauration", { concurrency: 8 }, () => {
+describe("la restauration", { concurrency: 3 }, () => {
   test("elle pose le journal et les flux dans un répertoire neuf, sans verrou", (t) => {
     const { destination, options } = projet(t);
     const { chemin } = sauvegarder(options())!;
@@ -282,7 +282,7 @@ describe("la restauration", { concurrency: 8 }, () => {
 });
 
 // Les deux commandes, chacune dans son process, comme le timer et le chef les lancent.
-describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
+describe("sauvegarder et restaurer, en commandes", { concurrency: 3 }, () => {
   const commande = async (t: TestContext, cli: string, env: Record<string, string>, ...args: string[]) => {
     const enfant = lancer(t, cli, args, env);
     return { code: await enfant.fin, sortie: enfant.sortie() };

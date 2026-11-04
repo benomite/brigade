@@ -42,7 +42,7 @@ function rendre(repertoire: string, ticket: number) {
 
 const charge = (evenement: Evenement | undefined) => evenement?.payload as Record<string, unknown> | undefined;
 
-describe("le manager", { concurrency: 8 }, () => {
+describe("le manager", { concurrency: 3 }, () => {
   test("éteint, il ne sonde rien et ne juge rien", async (t) => {
     const { gh, jugements, journal, heure } = brigade(t, { eteint: true, issues: [issue(30, [])] });
     heure.avancer(1);

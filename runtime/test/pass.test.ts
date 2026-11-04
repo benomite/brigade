@@ -91,7 +91,7 @@ const DEPASSEMENT = {
 };
 
 // Chaque test a ses lieux — répertoire d'état, GitHub, gates : ils se jouent de front.
-describe("la pass", { concurrency: 8 }, () => {
+describe("la pass", { concurrency: 3 }, () => {
   test("un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable, sur la fusion de sa branche avec la base — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit et sur quoi il porte", async (t) => {
     const { repertoire, gates, dernier, jusquAu, cooks, relectures } = service(t);
     await jusquAu("pass.held");
@@ -2046,7 +2046,7 @@ test("les deux délais de la pass ont un défaut de trente minutes, et se règle
 
 // Quand la pass a une identité GitHub à elle, « qui a mergé » ne se suppose
 // plus : c'est le compte que GitHub nomme.
-describe("la pass sous son identité", { concurrency: 8 }, () => {
+describe("la pass sous son identité", { concurrency: 3 }, () => {
   const PASS = "brigade-pass[bot]";
   const fait = (journal: ReturnType<typeof service>["journal"]) => journal.duTicket(17).findLast((e) => e.type === "merge.done")?.payload as Record<string, unknown> | undefined;
 

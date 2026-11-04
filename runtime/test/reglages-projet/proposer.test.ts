@@ -59,7 +59,7 @@ function station(t: TestContext, contenu: Parameters<typeof projetSurGit>[1] = {
   return { amont, clone, merger, options, prs, pannes, enPass, preparees, poussees, fichiersDe, reglagesDe };
 }
 
-describe("proposing a project setting change as a pull request", { concurrency: 4 }, () => {
+describe("proposing a project setting change as a pull request", { concurrency: 3 }, () => {
   test("a new calibration ceiling opens a PR towards the integration branch whose diff changes only the ceiling in the settings file, hands it to the pass, and returns its URL", async (t) => {
     const lieu = station(t);
     const propose = await proposerUnReglage({ calibrationCeiling: { model: "opus", effort: "high" } }, lieu.options);

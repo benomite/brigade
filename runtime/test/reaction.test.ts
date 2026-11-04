@@ -55,7 +55,7 @@ function echec(t: TestContext, options: Options & { eteint?: boolean } = {}) {
   return { ...c, faits, charges, jusquAu, calibrages, jugements, dits, labels, ticket, pass: (numero: number) => passDuTicket(journal.base, numero) };
 }
 
-describe("le manager réagit à un échec", { concurrency: 8 }, () => {
+describe("le manager réagit à un échec", { concurrency: 3 }, () => {
   // Le ticket rouge que le manager remonte tel quel : trois tests le lisent
   // sans rien y changer — il n'est joué qu'une fois pour eux trois.
   const remonteTelQuel = partagee(3, (t) => echec(t, { issues: [issue(17)] }));

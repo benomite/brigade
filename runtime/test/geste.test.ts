@@ -179,7 +179,7 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
 }
 
 // Chaque test a sa machine — sa station, ses doublures, son témoin —, et ses process ne bloquent pas : ils se jouent de front.
-describe("le geste brigade", { concurrency: 8 }, () => {
+describe("le geste brigade", { concurrency: 3 }, () => {
   test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` through the fake sudo and checks the account, unit environment and project variables the command receives; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 

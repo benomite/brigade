@@ -53,7 +53,7 @@ function service(t: TestContext, declaration: string, options: Options = {}) {
   return { ...lieu, tirer, annoncer, reclamer, mission, prises, prisPar, geste };
 }
 
-describe("une station de plus du projet cuit à côté de la première", { concurrency: 4 }, () => {
+describe("une station de plus du projet cuit à côté de la première", { concurrency: 3 }, () => {
   test("les deux stations prennent les tickets du projet, chacune jusqu'à son plafond — et la seconde le dit dans `station` et `facts`", async (t) => {
     const { gh, etat, journal, heure, annoncer, mission, reclamer, prises, prisPar, geste } = service(t, `${BOX}:2:code,${MAC}:2:code:distante+ensemble`);
     await annoncer();
@@ -134,7 +134,7 @@ describe("une station de plus du projet cuit à côté de la première", { concu
   });
 });
 
-describe("arrêter ou perdre une station n'empêche pas l'autre de prendre", { concurrency: 4 }, () => {
+describe("arrêter ou perdre une station n'empêche pas l'autre de prendre", { concurrency: 3 }, () => {
   test("la connexion Max de la box tombe : la seconde station, qui a la sienne, continue de prendre les tickets", async (t) => {
     const { gh, etat, journal, annoncer, mission, prises } = service(t, `${BOX}:2:code,${MAC}:2:code:distante+ensemble`, { session: "absente" });
     await jusqua(() => etatStation(journal.base, BOX)?.disconnectedAt != null);

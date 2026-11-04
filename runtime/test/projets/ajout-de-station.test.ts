@@ -36,7 +36,7 @@ const MACHINE: Sonde = {
   maison: "/home/chef",
 };
 
-describe("the defaults of a station, read from this machine and the project's clone", { concurrency: 4 }, () => {
+describe("the defaults of a station, read from this machine and the project's clone", { concurrency: 3 }, () => {
   test("cooks from the machine's cores, the workspace folder, and each capability flagged detected or not — with the project read from its clone", async (t) => {
     const { clone } = espace(t);
     const racine = repertoireTemporaire(t);
@@ -71,7 +71,7 @@ describe("the defaults of a station, read from this machine and the project's cl
   });
 });
 
-describe("adding a station with only what belongs to it", { concurrency: 4 }, () => {
+describe("adding a station with only what belongs to it", { concurrency: 3 }, () => {
   test("cooks, main or not, and capabilities are enough: the repository comes from the clone's origin, the branch from what the repository declares", async (t) => {
     const { clone } = espace(t);
     const ajout = await ajouterUneStation(clone, { cooks: 2, principale: true, capacites: ["navigateur-headless", "android"] });

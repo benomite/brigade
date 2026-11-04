@@ -88,7 +88,7 @@ async function service(t: TestContext, mac: string, options: Options = {}, { box
   return { ...lieu, tirer, reclamer, mission, lance, station, ordinaires, annoncer };
 }
 
-describe("une station distante et les tickets ordinaires", { concurrency: 4 }, () => {
+describe("une station distante et les tickets ordinaires", { concurrency: 3 }, () => {
   test("réglage désactivé : elle ne prend que les tickets qui demandent une de ses capacités, comme avant — même avec le bac à sable sur son poste", async (t) => {
     const { gh, etat, journal, mission, reclamer, station, ordinaires, annoncer } = await service(t, `${MAC}:2:chrome-connecté:distante`);
     poser(gh, 16, "- requiert : chrome-connecté");
@@ -251,7 +251,7 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
 // place, elle garde ses tickets. Inéligible — sans le réglage, sans bac à
 // sable, à sa propre limite —, le Mac n'en reçoit aucun, même box saturée :
 // c'est ce que montrent les tests ci-dessus, où la box est à son plafond.
-describe("les tickets ordinaires partent sur le Mac quand la box sature, et alors seulement", { concurrency: 4 }, () => {
+describe("les tickets ordinaires partent sur le Mac quand la box sature, et alors seulement", { concurrency: 3 }, () => {
   const MAC_ORDINAIRES = `${MAC}:2:chrome-connecté:distante+ordinaires`;
   const prisPar = (journal: { duTicket(ticket: number): Array<{ type: string; author: string }> }, ticket: number) =>
     journal.duTicket(ticket).findLast((e) => e.type === "ticket.taken")?.author;

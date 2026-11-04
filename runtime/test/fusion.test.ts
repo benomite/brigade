@@ -127,7 +127,7 @@ function origineFragile(t: TestContext) {
 }
 
 // Chaque test a ses lieux : ils se jouent de front.
-describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, () => {
+describe("une livraison se juge fusionnée avec la base", { concurrency: 3 }, () => {
   test("ce qui est jugé est la fusion de la branche avec la base du moment : les gates s'y jouent, le verdict dit sur quoi il porte — tête de la branche, tête de la base, arbre obtenu —, et la livraison mergée n'a rien à faire vérifier", async (t) => {
     const { journal, gh, gates, fusion, dernier, histoire, verdicts, compter, jusquAu, laisserTourner, essai, commentaires } = service(t);
     await jusquAu("merge.done");
@@ -594,7 +594,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
   });
 });
 
-describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 8 }, () => {
+describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 3 }, () => {
   test("un merge fait à la main n'a été jugé sur aucune base : les gates sont jouées sur la base seule, hors ticket — vertes, rien n'est retenu", async (t) => {
     const { journal, gh, gates, dernier, jusquAu, essai } = service(t, { aLaMain: true });
     await jusquAu("base.checked");

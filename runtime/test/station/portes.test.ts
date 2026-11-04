@@ -79,7 +79,7 @@ async function tenir(t: TestContext, racine: string, fichier: string, vers: numb
   return { tenues, lignes };
 }
 
-describe("les portes de la station", { concurrency: 4 }, () => {
+describe("les portes de la station", { concurrency: 3 }, () => {
   test("deux projets, deux listes : chacun ne joint que ce que son dépôt déclare — ce qu'un projet ouvre ne l'est pas pour l'autre —, et chaque refus va au journal de son projet", async (t) => {
     const { racine, fichier, refus } = uneStation(t, { calcul: ["registry.npmjs.org"], espace: ["pypi.org"] });
     const { tenues } = await tenir(t, racine, fichier, await exterieur(t));

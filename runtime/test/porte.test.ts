@@ -68,7 +68,7 @@ function tunnel(port: number, cible: string, envoi = "bonjour"): Promise<{ repon
   });
 }
 
-describe("la porte", { concurrency: 8 }, () => {
+describe("la porte", { concurrency: 3 }, () => {
   test("un hôte de la liste blanche est joint : le tunnel s'ouvre et les octets passent", async (t) => {
     const { port, refus, joints } = await porte(t, ["registry.npmjs.org"], await exterieur(t));
     const { reponse, echo } = await tunnel(port, "registry.npmjs.org:443");
