@@ -43,6 +43,8 @@ The `closer` keys, each one in place of a setting the box held (`brigade <projet
 | `maxTokens` | the tokens cap of one pass | an integer greater than zero (default 500,000) | `closer-tokens` |
 | `maxRemovedLines` | the cap on the lines one pass may remove | an integer greater than zero (default 500) | `closer-retraits` |
 
+On a GitHub-only project, the old closer stops at its entry and the closer runs on GitHub instead (#2361): only `calibration` and `maxRemovedLines` are read there, see [fermeture.md](runtime/fermeture.md), "On a GitHub-only project".
+
 The thresholds, each one in place of a variable of the box (the four cost ones also of a gesture of `brigade <projet> station`):
 
 | Key | Meaning | Values | In place of |
