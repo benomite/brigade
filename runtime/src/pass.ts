@@ -2834,7 +2834,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   let enCours = false;
   let tickDemande = false;
   const passer = (tick: boolean) => {
-    if (arrete) return;
+    // GitHub-only: the deliveries it would judge are the stale log's, and the
+    // GitHub-only turn reviews and merges the project (#2370).
+    if (arrete || options.perimee?.()) return;
     tickDemande ||= tick;
     if (enCours) {
       aRefaire = true;
