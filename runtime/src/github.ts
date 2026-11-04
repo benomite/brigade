@@ -125,6 +125,8 @@ export type GitHub = {
   journalDuCheck(check: Check): Promise<string | null>;
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
+  // La tentative en cours d'un run de GitHub Actions : 1 tant qu'il n'a pas été relancé.
+  tentativeDuRun?(run: number): Promise<number>;
   // Remplace, sur l'issue, le commentaire dont le corps est `ancien` par
   // `nouveau` : rend faux si aucun ne l'est plus.
   remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
@@ -615,6 +617,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
       exiger(await appeler(["-X", "POST", chemin]), chemin, 201);
+    },
+    async tentativeDuRun(run) {
+      const chemin = `repos/${depot}/actions/runs/${run}`;
+      return (JSON.parse(exiger(await appeler([chemin]), chemin).corps) as { run_attempt?: number }).run_attempt ?? 1;
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);

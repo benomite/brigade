@@ -36,6 +36,7 @@ import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
+import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
@@ -81,7 +82,7 @@ export type GitHubDuTour = GitHubDeLaFusion &
     corpsDuTicket(issue: number): Promise<string>;
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
     prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
-  };
+  } & Partial<GitHubDeLaRelance>;
 
 const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
 
@@ -256,9 +257,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     renvoyes.add(ticket.number);
   };
 
+  // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
+  const { tentativeDuRun, relancerLesEchecs } = github;
+  const relancerLaBase = tentativeDuRun === undefined || relancerLesEchecs === undefined ? null : relanceDeLaBase({ tentativeDuRun: tentativeDuRun.bind(github), relancerLesEchecs: relancerLesEchecs.bind(github) }, avertir, nom);
+
   const tour = async () => {
     renvoyes.clear();
-    const checksDeLaBase = await github.checksDeLaBase();
+    const lusDeLaBase = await github.checksDeLaBase();
+    const checksDeLaBase = relancerLaBase === null ? lusDeLaBase : await relancerLaBase(lusDeLaBase);
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -521,6 +527,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
     commenter: (numero, corps) => github.commenter(numero, corps),
     retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
+    relancerLesEchecs: (run) => github.relancerLesEchecs(run),
+    ...(github.tentativeDuRun === undefined ? {} : { tentativeDuRun: github.tentativeDuRun.bind(github) }),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     merger: (numero, sha) => github.merger(numero, sha),
     labelliser: (numero, labels) => github.labelliser(numero, labels),
