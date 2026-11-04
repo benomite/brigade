@@ -297,8 +297,11 @@ describe("le geste brigade", { concurrency: 3 }, () => {
     const m = machine(t);
 
     // `journal` est une commande du runtime de ce dépôt, pas de cette station.
-    for (const commande of ["journal", "status; true", "--version", "toString", "ailleurs"]) {
-      const fin = await m.lancer(["calculus", commande]);
+    // Les cinq gestes partent de front : refusés, aucun ne lance rien.
+    const commandes = ["journal", "status; true", "--version", "toString", "ailleurs"];
+    const fins = await Promise.all(commandes.map((commande) => m.lancer(["calculus", commande])));
+    for (const [i, commande] of commandes.entries()) {
+      const fin = fins[i]!;
       assert.equal(fin.code, PAS_DU_RUNTIME, commande);
       assert.equal(fin.erreur, `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n`);
       assert.equal(fin.sortie, "");
@@ -320,8 +323,11 @@ describe("le geste brigade", { concurrency: 3 }, () => {
   test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", { skip: posixOnly("Runs the gesture as `brigade --help` and `-h`, expecting the usage on stdout and exit 0, then as `brigade calculus help` to reach the runtime's help script; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    for (const option of ["--help", "-h"]) {
-      const fin = await m.lancer([option]);
+    // Les deux options partent de front : aucune ne lance de commande.
+    const options = ["--help", "-h"];
+    const fins = await Promise.all(options.map((option) => m.lancer([option])));
+    for (const [i, option] of options.entries()) {
+      const fin = fins[i]!;
       assert.equal(fin.code, 0, option);
       assert.equal(fin.sortie, "usage: brigade <project> <command> [arguments…]\n       brigade <project> help    lists the commands\n", option);
       assert.equal(fin.erreur, "", option);
