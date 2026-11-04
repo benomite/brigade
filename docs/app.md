@@ -136,7 +136,7 @@ hours), adds a station in one click once two things hold, checked in this order:
 leaves and the line under the button says `Set a ceiling first — …` (a field that is not a positive number, or a
 fractional `Stations at once`, is refused the same way); and **what a cloud station receives, approved once**: before the
 first station, the click opens the list of what it receives and of what it never receives (the Max session, the other
-secrets), with `Approve and add`, recommended, its price in one line, and `Cancel`. Approved, the list is folded under the
+secrets) — each item's `dit`, word for word, from the runtime's `Liste` —, with `Approve and add`, recommended, its price in one line, and `Cancel`. Approved, the list is folded under the
 ceilings (`What a cloud station receives — approved`) and the next station is added with no question; a changed list
 arrives unapproved and asks again. What the add returned is one line under the block, a refusal with its detail on hover;
 a read that fails says `cloud stations: not read`. **The block is drawn but not yet live**: no runtime command publishes

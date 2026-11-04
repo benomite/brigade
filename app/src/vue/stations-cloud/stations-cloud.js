@@ -17,6 +17,7 @@ import { boutonAction, confirmationDeGeste, lectureIndisponible, replie, survol 
 /** @typedef {import("../../stations-cloud/stations-cloud.ts").VuDuCloud} VuDuCloud */
 /** @typedef {import("../../stations-cloud/stations-cloud.ts").Plafonds} Plafonds */
 /** @typedef {import("../../stations-cloud/stations-cloud.ts").CloudAjoute} CloudAjoute */
+/** @typedef {import("../../stations-cloud/stations-cloud.ts").Element} Element */
 /** @typedef {"aLaFois" | "heuresParJour" | "heuresParMois"} Borne */
 /**
  * Ce que le chef a saisi sur le bloc, gardé d'un repos à l'autre : les trois plafonds tels qu'ils sont tapés, la liste
@@ -118,13 +119,14 @@ function champDe(doc, projet, saisie, borne) {
   return pose;
 }
 
-// Une liste de ce qu'une station reçoit — ou ne reçoit jamais —, son titre en tête.
-/** @param {Fabrique} doc @param {string} titre @param {string[]} lignes */
+// Une liste de ce qu'une station reçoit — ou ne reçoit jamais —, son titre en tête : chaque élément dit en clair, tel que
+// le runtime l'écrit.
+/** @param {Fabrique} doc @param {string} titre @param {Element[]} lignes */
 function listeDe(doc, titre, lignes) {
   const pose = cree(doc, "div");
   const liste = cree(doc, "ul");
   liste.ariaLabel = titre;
-  liste.append(...lignes.map((ligne) => cree(doc, "li", ligne)));
+  liste.append(...lignes.map((ligne) => cree(doc, "li", ligne.dit)));
   pose.append(cree(doc, "h5", titre), liste);
   return pose;
 }

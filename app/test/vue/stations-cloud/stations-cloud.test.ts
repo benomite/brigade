@@ -37,7 +37,16 @@ const SANS_STATION: VuDuCloud = {
   projet: PARADE,
   ajoutees: 0,
   plafonds: {},
-  recoit: { recoit: ["A GitHub token scoped to benomite/parade", "The repository to work on: benomite/parade"], jamais: ["Your Max session", "Any other secret"] },
+  recoit: {
+    recoit: [
+      { cle: "depot", dit: "The name of the repository to work on (owner/name), and of no other repository of yours." },
+      { cle: "jetonGithub", dit: "A GitHub token limited to that repository." },
+    ],
+    jamais: [
+      { cle: "sessionMax", dit: "Your Claude Max session." },
+      { cle: "autresJetons", dit: "Any other token or key." },
+    ],
+  },
   approuvee: false,
   cout: { projet: PARADE, coutTotal: 0, ticketsServis: 0, coutParTicket: "n/a" },
   periode: "this month",
@@ -126,7 +135,7 @@ describe("les stations cloud du projet, sur l'onglet Cooks", () => {
     await repos();
     let pose = bloc(vue) ?? assert.fail("plus de bloc");
     assert.deepEqual(textes(pose, "h5"), [RECOIT, JAMAIS]);
-    assert.deepEqual(textes(pose, "li"), [...SANS_STATION.recoit.recoit, ...SANS_STATION.recoit.jamais]);
+    assert.deepEqual(textes(pose, "li"), [...SANS_STATION.recoit.recoit, ...SANS_STATION.recoit.jamais].map((element) => element.dit));
     // La confirmation dit son prix en une ligne ; le bouton d'ajout attend la réponse.
     const confirmation = pose.dessous("section").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
     assert.equal(confirmation.dessous("p").filter(({ className }) => className === "prix").length, 1);

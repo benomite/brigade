@@ -10,9 +10,21 @@ export const SANS_STATION: VuDuCloud = {
   projet: "parade",
   ajoutees: 0,
   plafonds: {},
+  // La liste de stations-cloud-secrets/ du runtime (#2231), mot pour mot.
   recoit: {
-    recoit: ["A GitHub token scoped to benomite/parade: read the code, push branches, open and merge pull requests", "The repository to work on: benomite/parade", "The project's ceilings and its calibration"],
-    jamais: ["Your Max session", "Any other secret of this computer or of your stations", "Your other repositories"],
+    recoit: [
+      { cle: "depot", dit: "The name of the repository to work on (owner/name), and of no other repository of yours." },
+      {
+        cle: "jetonGithub",
+        dit: "A GitHub token limited to that repository: it lets the station claim its tickets, push its branches, and open, review and merge its pull requests — nothing else on your account.",
+      },
+    ],
+    jamais: [
+      { cle: "sessionMax", dit: "Your Claude Max session: your login, its token and its quota stay on your machine." },
+      { cle: "secretsDuProjet", dit: "The project's development secrets, the values behind `.claude/brigade/secrets`." },
+      { cle: "autresJetons", dit: "Any other token or key: your own GitHub login, the GitHub App's private key, tokens for other repositories, API keys." },
+      { cle: "machine", dit: "Anything else on your machine: its files, its SSH keys, the kitchen's state and journal." },
+    ],
   },
   approuvee: false,
   cout: { projet: "parade", coutTotal: 0, ticketsServis: 0, coutParTicket: "n/a" },

@@ -23,10 +23,12 @@ export type CoutDuProjet = {
   coutParTicket: number | "n/a";
 };
 
-// Ce qu'une station reçoit, et ce qu'elle ne reçoit jamais — en mots, pour l'écran (stations-cloud-secrets/).
+// Ce qu'une station reçoit, et ce qu'elle ne reçoit jamais (stations-cloud-secrets/, `Liste`) : chaque élément a son nom
+// dans la charge utile, `cle`, et ce que l'écran en dit, `dit` — le seul texte que la vue montre.
+export type Element = { cle: string; dit: string };
 export type CeQuElleRecoit = {
-  recoit: string[];
-  jamais: string[];
+  recoit: Element[];
+  jamais: Element[];
 };
 
 // Ce que la vue reçoit pour un projet. `approuvee` : le chef a approuvé la liste telle qu'elle est — une liste changée
@@ -48,7 +50,7 @@ export type CloudAjoute = { fait: string } | { refus: string; detail?: string };
 type Lu = Record<string, unknown>;
 const objet = (valeur: unknown): valeur is Lu => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const chaine = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
-const chaines = (valeur: unknown): valeur is string[] => Array.isArray(valeur) && valeur.every(chaine);
+const elements = (valeur: unknown): valeur is Element[] => Array.isArray(valeur) && valeur.every((element) => objet(element) && chaine(element.cle) && chaine(element.dit));
 const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0;
 
 const BORNES = ["aLaFois", "heuresParJour", "heuresParMois"] as const;
@@ -78,8 +80,9 @@ export function lireCout(valeur: unknown): CoutDuProjet | undefined {
 
 // Ce qu'une station reçoit : une liste vide ne s'approuve pas — l'écran n'aurait rien à montrer avant l'approbation.
 export function lireCeQuElleRecoit(valeur: unknown): CeQuElleRecoit | undefined {
-  if (!objet(valeur) || !chaines(valeur.recoit) || valeur.recoit.length === 0 || !chaines(valeur.jamais)) return undefined;
-  return { recoit: [...valeur.recoit], jamais: [...valeur.jamais] };
+  if (!objet(valeur) || !elements(valeur.recoit) || valeur.recoit.length === 0 || !elements(valeur.jamais)) return undefined;
+  const copie = (liste: Element[]) => liste.map(({ cle, dit }) => ({ cle, dit }));
+  return { recoit: copie(valeur.recoit), jamais: copie(valeur.jamais) };
 }
 
 // La lecture d'un projet, d'une sortie JSON : `undefined` dès qu'une forme n'est pas celle du runtime.
