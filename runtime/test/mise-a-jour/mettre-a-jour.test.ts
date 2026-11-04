@@ -85,6 +85,17 @@ function publiees(versions: string[], options: { illisibles?: string; autrePaque
   };
 }
 
+// La garde lit l'heure de la machine : ici, chaque regard sur la station
+// l'avance d'une demi-seconde, et les 2 s de la garde passent sans les attendre.
+function horlogeAuxRegards(t: TestContext, m: ReturnType<typeof machine>) {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const service = m.systeme.service;
+  m.systeme.service = () => {
+    t.mock.timers.tick(500);
+    return service();
+  };
+}
+
 function passage(m: ReturnType<typeof machine>, publications: Publications, dites: string[] = []) {
   return passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: 2000, pasMs: 5 });
 }
@@ -154,6 +165,7 @@ test("une version qui ne démarre pas : le paquet d'avant est réinstallé, la s
 
 test("une station qui tourne sans se dire en service dans la garde n'est pas gardée", async (t) => {
   const m = machine(t, "1.0.0", (version) => (version === "1.1.0" ? "muette" : { servis: [] }));
+  horlogeAuxRegards(t, m);
   const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]));
   assert.equal(issue?.quoi === "revenue" && issue.motif, "la station ne s'est pas dite en service en 1.1.0 en 2 s (systemd : active)");
 });
@@ -161,6 +173,7 @@ test("une station qui tourne sans se dire en service dans la garde n'est pas gar
 test("une version qui ne sert plus un projet que la précédente servait n'est pas gardée : le motif nomme le projet et son refus", async (t) => {
   const m = machine(t, "1.0.0", (version) => (version === "1.1.0" ? { servis: ["espace"], refuses: { brigade: "BRIGADE_X n'est pas défini" } } : { servis: ["brigade", "espace"] }));
   m.configurer("brigade acme/brigade v2\nespace acme/espace main\n");
+  horlogeAuxRegards(t, m);
   const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]));
   assert.equal(issue?.quoi === "revenue" && issue.motif, "le projet brigade n'est plus servi en 1.1.0 : BRIGADE_X n'est pas défini en 2 s (systemd : active)");
   assert.equal(issue?.quoi === "revenue" && issue.retour, null);
