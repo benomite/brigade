@@ -19,9 +19,13 @@ const RUNTIME = ["runtime/src"];
 // `app/src/vue` en porte cinq, 3 du premier coup : 60 %, 20 points dessous.
 const VINGT_POINTS = [...tickets(1, 5, 3, VUE), ...tickets(6, 15, 13, RUNTIME)];
 
+// Les services écrits d'un bloc : chaque `ajouter` se fond dans cette
+// transaction, et le journal n'est synchronisé sur le disque qu'une fois.
 function journalDe(t: TestContext, services: Service[]): Journal {
   const journal = journalDeTest(t);
-  for (const service of services) servir(journal, service);
+  journal.base.transaction(() => {
+    for (const service of services) servir(journal, service);
+  });
   return journal;
 }
 

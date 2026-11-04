@@ -782,7 +782,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/preparation-depot/setup-en-cuisine.test.ts", test: "le corps du ticket dit, en une phrase, ce qui a échoué — une fois, avant ce qu'il demande de livrer" },
   { file: "test/preparation-depot/setup-en-cuisine.test.ts", test: "le corps qui le dit déjà n'est pas réécrit" },
   { file: "test/preparation-depot/setup-en-cuisine.test.ts", test: "un setup qui passe de nouveau : le corps ne dit plus qu'il échoue, et le cook reçoit ce qu'il exporte" },
-  { file: "test/profils/domaines.test.ts", test: "le type du ticket n'a aucun effet : les mêmes tickets, de types différents, donnent le même relevé" },
   { file: "test/profils/preference.test.ts", test: "le profil et un généraliste libres : le ticket de son domaine part sous le profil, son cook reçoit son carnet et les leçons du projet, et le journal le dit" },
   { file: "test/projets/acces.test.ts", test: "un dépôt en https, sans credential helper : la récupération est refusée vite, et le geste est `gh auth setup-git`" },
   { file: "test/projets/acces.test.ts", test: "un credential helper qui ne donne rien : le geste est de reconnecter gh, puis de le prêter à git" },
