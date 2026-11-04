@@ -15,8 +15,10 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, test } from "node:test";
 import { principal as aide } from "../src/aide.ts";
+import type { Commande } from "../src/appel.ts";
 import { COMMANDES, direAncien, enAnglais, FIN_DES_ANCIENS_NOMS, SCRIPT_D_ANCIEN_NOM } from "../src/commandes.ts";
 import { appeler, CACHE_DE_COMPILATION } from "./outils.ts";
 
@@ -117,7 +119,20 @@ describe("les commandes du runtime", () => {
     const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
     const essais = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
     assert.ok(essais.length >= 20);
-    const lances = essais.map(async (essai) => ({ ...essai, fin: await jouer([process.execPath, fichierDe(essai.nom), ...essai.args]) }));
+    // Une commande qui se joue par `principal` (src/appel.ts) se joue dans le process du test, sur l'environnement
+    // qu'un process lancé recevrait ; les autres dans le leur. Le premier mot dit est l'ancien, sur l'une ou l'autre sortie.
+    const enProcessDuTest = async (fichier: string): Promise<Commande | null> => {
+      const texte = readFileSync(join(RUNTIME, fichier), "utf8");
+      if (!/^export (async )?function principal\(/m.test(texte) || !/^if \(import\.meta\.main\)/m.test(texte)) return null;
+      return ((await import(pathToFileURL(join(RUNTIME, fichier)).href)) as { principal: Commande }).principal;
+    };
+    const jouerLEssai = async (fichier: string, args: string[]) => {
+      const commande = await enProcessDuTest(fichier);
+      if (commande === null) return jouer([process.execPath, fichier, ...args]);
+      const appel = appeler(commande, args, { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp" });
+      return { code: await appel.fin, sortie: "", erreur: appel.sortie() };
+    };
+    const lances = essais.map(async (essai) => ({ ...essai, fin: await jouerLEssai(fichierDe(essai.nom), essai.args) }));
     for (const { nom, ancien, nouveau, fin } of await Promise.all(lances)) {
       assert.equal(fin.erreur.split("\n")[0], direAncien(ancien, nouveau), `${nom} ${ancien}`);
       assert.equal(fin.code, REFUS, `${nom} ${ancien} : ${fin.erreur}`);

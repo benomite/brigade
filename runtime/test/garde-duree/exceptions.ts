@@ -7,14 +7,12 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test/base-cli.test.ts", test: "`base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire" },
   { file: "test/closing/report.test.ts", test: "une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini" },
   { file: "test/closing/run.test.ts", test: "la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien" },
   { file: "test/closing/run.test.ts", test: "un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant" },
   { file: "test/closing/trigger.test.ts", test: "once a pass is requested, no second one is requested the same day, whatever the merges or thresholds; a day later the runtime requests again, and the chef's gesture is never capped" },
   { file: "test/closing/trigger.test.ts", test: "with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef" },
   { file: "test/closing/trigger.test.ts", test: "with the closer set, a crossed drift threshold requests a pass even under 20 merges" },
-  { file: "test/commandes.test.ts", test: "chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient" },
   { file: "test/decisions.test.ts", test: "posées pendant qu'il tourne, ses stations et ses seuils sont lus au réveil suivant : même process, aucun redémarrage" },
   { file: "test/declarer-stations.test.ts", test: "de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage" },
   { file: "test/duree-des-gates.test.ts", test: "le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage" },

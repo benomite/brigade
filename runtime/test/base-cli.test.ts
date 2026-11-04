@@ -3,16 +3,14 @@
 // de la demande de rejeu à sa retenue, passe dans le test de glossaire, refus compris. Le détail des
 // phrases de la base rouge est éprouvé avec `pass` (grant-cli.test.ts).
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { principal as base } from "../src/base-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { appeler, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, horloge, repertoireTemporaire } from "./outils.ts";
 
-const CLI = join(import.meta.dirname, "../src/base-cli.ts");
 const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime"], tail: "" };
 const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
 const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
@@ -23,7 +21,7 @@ function cuisine(t: TestContext) {
   t.after(() => runtime.arreter("test"));
   const noter = (fait: Fait, author = "pass") => runtime.journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
   const dans = async (env: Record<string, string>, ...args: string[]) => {
-    const enfant = lancer(t, CLI, args, env);
+    const enfant = appeler(base, args, env);
     return { code: await enfant.fin, lignes: enfant.sortie().trimEnd().split("\n") };
   };
   const commande = (...args: string[]) => dans({ BRIGADE_STATE_DIR: repertoire }, ...args);
