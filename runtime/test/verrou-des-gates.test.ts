@@ -19,16 +19,28 @@ function projet(t: TestContext, suite: string): string {
   return racine;
 }
 
-type Passage = { process: ChildProcess; sortie: () => string; fin: Promise<number | null> };
+type Passage = { process: ChildProcess; sortie: () => string; fin: Promise<number | null>; tuer: () => void };
 
+// Un passage a son groupe de process : tué, il part avec la garde d'horloge
+// qu'il a lancée — sans quoi elle et son `sleep` lui survivraient cinq minutes.
+// Sa suite, partie dans un groupe à elle, lui survit comme sur une box.
 function jouer(t: TestContext, racine: string, verrou: string, env: NodeJS.ProcessEnv = {}): Passage {
-  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true });
   let sortie = "";
   gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   const fin = new Promise<number | null>((resoudre) => gates.on("close", (code) => resoudre(code)));
-  aArreter(t, () => gates.kill("SIGKILL"));
-  return { process: gates, sortie: () => sortie, fin };
+  const tuer = () => {
+    // Sans pid, rien n'est parti : `-0` serait le groupe du test lui-même.
+    if (gates.pid === undefined) return;
+    try {
+      process.kill(-gates.pid, "SIGKILL");
+    } catch {
+      // Le groupe n'est plus : le passage a fini, et sa garde avec lui.
+    }
+  };
+  aArreter(t, tuer);
+  return { process: gates, sortie: () => sortie, fin, tuer };
 }
 
 // Une suite qui signale son départ, puis attend qu'on la libère — et dit
@@ -96,7 +108,7 @@ describe("le tour des gates sur une box", () => {
     const premier = jouer(t, a, verrou);
     await jusqua(() => existsSync(signalA));
     // SIGKILL : aucun piège ne passe, le verrou reste là, signé d'un pid mort.
-    premier.process.kill("SIGKILL");
+    premier.tuer();
     await premier.fin;
     assert.equal(readFileSync(join(verrou, "pid"), "utf8").trim(), String(premier.process.pid));
 
