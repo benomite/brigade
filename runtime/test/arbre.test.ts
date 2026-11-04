@@ -65,8 +65,9 @@ function lancement(t: TestContext, mode: "racine" | "sort") {
     args: [etage, pids, String(ETAGES), mode, String(ETAGES)],
     env: ENV,
     plafonds: LARGES,
-    // Assez pour que seul l'arrêt demandé tue l'arbre, jamais le délai de grâce.
-    graceMs: 60_000,
+    // Plus long que le test entier (la règle des 2 s) : seul l'arrêt demandé tue
+    // l'arbre, jamais le délai de grâce.
+    graceMs: 2000,
     flux: join(repertoire, "run.jsonl"),
   };
   return { lus, options };
@@ -135,7 +136,7 @@ describe("l'arbre d'un cook", () => {
 
   test("arrêter un cook déjà sorti ne lève pas, tenu ou porté par un relais", async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const options = { commande: process.execPath, args: ["-e", ""], env: ENV, plafonds: LARGES, graceMs: 60_000 };
+    const options = { commande: process.execPath, args: ["-e", ""], env: ENV, plafonds: LARGES, graceMs: 2000 };
     const tenu = superviser({ ...options, flux: join(repertoire, "tenu.jsonl") });
     const relaye = superviserParRelais({ ...options, flux: join(repertoire, "relaye.jsonl"), run: "deja-sorti", secrets: {} });
     aArreter(t, () => relaye.lacher());

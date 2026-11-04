@@ -9,9 +9,10 @@ import { cheminJournal, ouvrirJournal } from "../../src/journal.ts";
 import { sessionEnCours } from "../../src/projections/sessions.ts";
 import { NOM_DE_STATION } from "../../src/stations-declarees.ts";
 
-// Ce que le geste attend la réponse du runtime : un peu plus que le délai
-// passé lequel le runtime ne répond plus à une demande (`DELAI_DE_REPONSE_MS`).
-export const ATTENTE_MS = 30_000;
+// Ce que le geste attend la réponse du runtime : la règle des 2 s (#2129). Le
+// délai passé lequel le runtime ne répond plus à une demande
+// (`DELAI_DE_REPONSE_MS`) se prouve sur l'horloge du test, pas en l'attendant.
+export const ATTENTE_MS = 2000;
 const PAS_MS = 100;
 const MESSAGE_MAX = 20_000;
 const RAISON_MAX = 200;
