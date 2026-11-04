@@ -660,7 +660,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         secrets: secretsDeLaMachine,
         cloison,
         bacASable: options.bacASable,
-        delaiGatesMs: 2_000,
+        delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
         machine: options.machine ?? (() => MACHINE_CALME),

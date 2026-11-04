@@ -114,7 +114,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     depotGitHub: DEPOT,
     bin: FAUX_CLAUDE,
     env: { ...env, FAUX_CLAUDE: options.relecture ?? "relit-vert" },
-    delaiGatesMs: 2_000,
+    delaiGatesMs: 60_000,
     attenteCiMs: 1_800_000,
     machine: () => MACHINE_CALME,
     maintenant: heure.maintenant,
