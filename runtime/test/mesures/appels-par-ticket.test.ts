@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { Delivery } from "../../src/projections/measures.ts";
 import { describeCallsPerTicket, measureCallsPerTicket } from "../../src/mesures/appels-par-ticket.ts";
 
 const merged = (...tickets: number[]) => tickets.map((ticket) => ({ ticket }));
@@ -34,4 +35,10 @@ test("fewer than 10 merges: reports over the merges available and says how many"
 test("no merge, or none known", () => {
   assert.match(describeCallsPerTicket(measureCallsPerTicket([], {}))[0]!, /no merge/);
   assert.match(describeCallsPerTicket(measureCallsPerTicket(merged(1), {}))[0]!, /average unknown/);
+});
+
+test("the real delivery type feeds the measure, in merge order", () => {
+  const delivery = (ticket: number | null): Delivery => ({ ticket, at: "", measures: {}, state: {}, gatesS: null, cooks: [] });
+  const result = measureCallsPerTicket([delivery(5), delivery(null), delivery(7)], { 5: 3, 7: 9 });
+  assert.deepEqual(result.tickets, [{ ticket: 5, calls: 3 }, { ticket: 7, calls: 9 }]);
 });
