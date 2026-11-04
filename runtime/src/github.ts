@@ -362,6 +362,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // réponse gardée. Deux lectures identiques en même temps n'en font qu'une.
   // `liste` : une page d'une liste que l'on feuillette.
   const enVol = new Map<string, Promise<Reponse>>();
+  // Ce qui ne peut plus changer, gardé en mémoire (#2298) : les fichiers d'une PR
+  // par sa tête, et la CI finie d'un commit. Bornés : au-delà, le plus ancien part.
+  const fichiersParTete = new Map<string, string[]>();
+  const ciFinie = new Map<string, Check[]>();
+  const memoriser = <V>(carte: Map<string, V>, cle: string, valeur: V) => {
+    carte.set(cle, valeur);
+    if (carte.size > 500) carte.delete(carte.keys().next().value as string);
+  };
   const lireSousCondition = (args: string[], liste = false): Promise<Reponse> => {
     const cle = [bin, compte, ...args].join("\0");
     const deja = enVol.get(cle);
@@ -540,22 +548,30 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string } }>);
       return Promise.all(
         ouvertes.map(async ({ number, head }) => {
+          // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
+          const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
+          const gardes = cle === null ? undefined : fichiersParTete.get(cle);
+          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes };
           const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
           const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
+          if (cle !== null) memoriser(fichiersParTete, cle, fichiers);
           return { number, branche: head.ref, fichiers };
         }),
       );
     },
     async ci(sha) {
+      // Une CI finie ne change plus : elle n'est relue que tant qu'un check tourne (#2298).
+      const finie = ciFinie.get(sha);
+      if (finie !== undefined) return finie;
       const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;
       const statuts = `repos/${depot}/commits/${sha}/status?per_page=100`;
       const [runs, combine] = await Promise.all([lireSousCondition([jobs]), lireSousCondition([statuts])]);
       const { check_runs = [] } = JSON.parse(exiger(runs, jobs).corps) as { check_runs?: CheckRun[] };
       const { statuses = [] } = JSON.parse(exiger(combine, statuts).corps) as { statuses?: Statut[] };
-      return [
+      const checks = [
         ...check_runs.map((run): Check => {
           const conclusion = run.status === "completed" ? (run.conclusion ?? "inconnue") : run.status;
           const outcome = run.status !== "completed" ? "pending" : CONCLUSIONS_VERTES.includes(conclusion) ? "green" : "red";
@@ -566,6 +582,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
         }),
       ];
+      // Gardée seulement pour un commit (40 hexadécimaux), jamais pour une branche
+      // qui avance, et seulement finie : rien qui tourne encore.
+      if (/^[0-9a-f]{40}$/.test(sha) && checks.length > 0 && checks.every((check) => check.outcome !== "pending")) memoriser(ciFinie, sha, checks);
+      return checks;
     },
     async ciDeLaBase(branche) {
       const chemin = `repos/${depot}/commits?sha=${encodeURIComponent(branche)}&per_page=${COMMITS_DE_LA_BASE}`;
