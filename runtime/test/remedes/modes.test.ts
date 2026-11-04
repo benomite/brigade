@@ -214,8 +214,8 @@ test("une station qui ne répond pas : l'app retire sa demande au bout du délai
   await station.projets.relire();
   // La station s'arrête : plus aucune cadence.
   station.projets.arreter();
-  const issue = await station.demander({ project: "shop", refusal: "hand-written-line", remedy: "remove-hand-written-line" }, { delaiMs: 5_000 });
-  assert.deepEqual(issue, { outcome: "error", error: "the station did not answer within 5 s: the request is withdrawn, and nothing is known to have been done" });
+  const issue = await station.demander({ project: "shop", refusal: "hand-written-line", remedy: "remove-hand-written-line" }, { delaiMs: 2_000 });
+  assert.deepEqual(issue, { outcome: "error", error: "the station did not answer within 2 s: the request is withdrawn, and nothing is known to have been done" });
   assert.deepEqual(lireDemandes(station.fichiers[FICHIER_REMEDES]), []);
   assert.deepEqual(station.joues, []);
 });
