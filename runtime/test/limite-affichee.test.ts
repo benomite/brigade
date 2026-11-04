@@ -6,9 +6,9 @@ import { test } from "node:test";
 import { Base } from "../src/base.ts";
 import { principal as faits } from "../src/faits.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { constaterLimite, limiteDeLaStation, pauseDeLaStation, REPERTOIRE_COMPTEUR, retenueDeLaStation } from "../src/limite-github.ts";
+import { constaterLimite, direLesEcrituresRetenues, ECRITURES_PAR_HEURE, ECRITURES_PAR_MINUTE, ecrituresRetenuesDeLaStation, journaliserLaRetenue, limiteDeLaStation, pauseDeLaStation, prendreUnAppel, REPERTOIRE_COMPTEUR, retenueDeLaStation } from "../src/limite-github.ts";
 import { principal as status } from "../src/status.ts";
-import { appeler, repertoireTemporaire } from "./outils.ts";
+import { appeler, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const TEXTE_BRUT = /request id|terms|HTTP 4|rate limit exceeded/i;
 
@@ -83,4 +83,59 @@ test("quand la box retient ses appels à la réserve des gestes, status le dit �
 
   // La fenêtre passée, la ligne tombe.
   assert.equal(retenueDeLaStation(station, Date.now() + 3_600_000), null);
+});
+
+test("quand le budget d'écritures retient la cuisine, status le dit en une ligne, et le journal une fois au début et une fois à la fin (#2226)", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const station = repertoireTemporaire(t);
+  ouvrirJournal(repertoire).fermer();
+  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_STATION_DIR: station };
+  const lire = async () => {
+    const rendu = appeler(status, [], env);
+    assert.equal(await rendu.fin, 0);
+    return rendu.sortie();
+  };
+  let horloge = Date.now();
+  const limite = limiteDeLaStation(station, { maintenant: () => horloge });
+  t.after(() => limite.fermer());
+  const ecriture = { projet: "p", lecture: "issues", ecriture: true } as const;
+
+  // Sous le budget, rien à dire.
+  for (let i = 0; i < ECRITURES_PAR_MINUTE - 1; i += 1) limite.prendre("cuisine", "gh", ecriture);
+  assert.equal(ecrituresRetenuesDeLaStation(station, horloge), null);
+  assert.doesNotMatch(await lire(), /write budget/);
+
+  // Le budget de la minute plein : la ligne dit combien, et quand la suivante part.
+  limite.prendre("cuisine", "gh", ecriture);
+  const premiere = horloge - 0;
+  const reprise = new Date(premiere + 60_000);
+  const hhmm = `${String(reprise.getHours()).padStart(2, "0")}:${String(reprise.getMinutes()).padStart(2, "0")}`;
+  const retenue = ecrituresRetenuesDeLaStation(station, horloge);
+  assert.deepEqual(retenue, { ecrites: ECRITURES_PAR_MINUTE, reprise: premiere + 60_000 });
+  assert.equal(direLesEcrituresRetenues(retenue!), `held by the GitHub write budget — ${ECRITURES_PAR_MINUTE} of ${ECRITURES_PAR_HEURE} in the last hour, next write at ${hhmm}`);
+  const lignes = (await lire()).split("\n").filter((ligne) => /write budget/.test(ligne));
+  assert.deepEqual(lignes, [`github     ${direLesEcrituresRetenues(retenue!)}`]);
+
+  // Deux écritures attendent, sous l'unique réveil de la file (#2195) : le journal
+  // le dit une fois au début, et une fois à la fin.
+  const journal: string[] = [];
+  journaliserLaRetenue((ligne) => journal.push(ligne));
+  const attente = Promise.withResolvers<void>();
+  let attendent = 0;
+  const attendre = async () => {
+    attendent += 1;
+    await attente.promise;
+    horloge += 60_001;
+  };
+  const deux = [0, 1].map(() => prendreUnAppel(limite, { etiquette: ecriture, gh: "gh", maintenant: () => horloge, attendre }));
+  await jusqua(() => attendent === 1);
+  assert.equal(journal.length, 1);
+  assert.match(journal[0]!, new RegExp(`^brigade : écritures GitHub retenues par le budget — ${ECRITURES_PAR_MINUTE} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${hhmm}$`));
+  attente.resolve();
+  await Promise.all(deux);
+  assert.equal(journal.length, 2);
+  assert.match(journal[1]!, /écritures GitHub reprises/);
+
+  // La fenêtre passée, la ligne tombe.
+  assert.equal(ecrituresRetenuesDeLaStation(station, horloge + 60_001), null);
 });

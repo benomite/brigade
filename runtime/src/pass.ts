@@ -59,7 +59,7 @@ import { join } from "node:path";
 import { capturesLivrees, dossierDesCaptures, estDInterface, zoneALaPrise } from "./captures.ts";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { environnementClaude } from "./jeton-claude.ts";
-import { blocDesGates, blocDuSetup, direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture, type SetupEnEchec } from "./claude.ts";
+import { blocDesGates, CONSIGNE_DES_TESTS, blocDuSetup, direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture, type SetupEnEchec } from "./claude.ts";
 import { complet, type Calibrage } from "./calibrage.ts";
 import type { Decisions } from "./decisions.ts";
 import type { Depot } from "./depot.ts";
@@ -270,6 +270,8 @@ export function configPass(env: Record<string, string | undefined>): ConfigPass 
 }
 
 export type OptionsPass = ConfigPass & {
+  // True once the GitHub-only switch is on: the base check stops at its entry (#2218).
+  perimee?: () => boolean;
   repertoireEtat: string;
   // Chaque rôle a son identité GitHub : ni les gates ni le reviewer ne
   // reçoivent de jeton GitHub, pas même d'un setup de worktree.
@@ -421,7 +423,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     ...blocDuSetup(mission.setup),
     `1. Relis le ticket : ${lectureDuTicket(mission)}, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
-    `3. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
+    `3. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé. ${CONSIGNE_DES_TESTS}`,
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
@@ -449,7 +451,7 @@ export function consigneDeReprise(mission: { base: string; branche: string; work
     ...blocDesGates(mission.gates),
     ...blocDuSetup(mission.setup),
     "1. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
-    `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
+    `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé. ${CONSIGNE_DES_TESTS}`,
     "3. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `4. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
@@ -2618,6 +2620,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return suite;
   };
   const controlerLaBase = async (tick: boolean, exige: boolean) => {
+    // GitHub-only: the merges it would read are the stale log's (#2218).
+    if (options.perimee?.()) return;
     if (!arrete && rougeCompte(base)?.replayed === false) noter(null, { type: "base.recheck-requested", payload: {} });
     const avant = etatDeLaBase(base);
     const rouge = avant?.outcome === "red" ? avant : null;

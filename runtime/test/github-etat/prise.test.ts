@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { corpsDeLacher, corpsDePrise, lacher, lireTenant, prendre, PRIS, tenant, type CommentaireDePrise, type GitHubDeLaPrise, type RetraitDeLabel } from "../../src/github-etat/prise.ts";
+import { corpsDeLacher, corpsDePrise, lacher, lireTenant, prendre, PRIS, purger, tenant, type CommentaireDePrise, type GitHubDeLaPrise, type RetraitDeLabel } from "../../src/github-etat/prise.ts";
 
 const NUMERO = 42;
 
@@ -225,4 +225,39 @@ test("`prise.ts` ne lit et n'écrit que par le client de GitHub : il n'importe n
   assert.deepEqual(imports, ["../alimenter.ts", "../github.ts"]);
   for (const module of imports) assert.doesNotMatch(module, /relais|boite|journal/);
   assert.doesNotMatch(source, /from "node:/);
+});
+
+test("un lâcher dont le retrait de `taken` échoue laisse un label orphelin, que `purger` retire avant que le ticket ne soit repris (#2206)", async () => {
+  const issue = issueSurGitHub();
+  assert.equal((await prendre(issue.lue(), { github: issue.github, station: "mac" })).prise, true);
+  issue.avancer(1_000);
+  // Le commentaire de lâcher part, puis GitHub abandonne le retrait.
+  const retrait = issue.github.delabelliser;
+  issue.github.delabelliser = () => Promise.reject(new Error("The operation was aborted"));
+  await assert.rejects(lacher(issue.lue(), { github: issue.github, station: "mac" }), /aborted/);
+  issue.github.delabelliser = retrait;
+  assert.equal(await lireTenant(NUMERO, issue.github), null);
+  assert.ok(issue.lue().labels.includes(PRIS));
+  assert.equal(await purger(issue.lue(), { github: issue.github }), true);
+  assert.ok(!issue.lue().labels.includes(PRIS));
+  // Le ticket est libre : une station le prend de nouveau.
+  issue.avancer(1_000);
+  assert.equal((await prendre(issue.lue(), { github: issue.github, station: "box" })).prise, true);
+  assert.ok(issue.lue().labels.includes(PRIS));
+});
+
+test("purger removes a taken label nobody holds, leaves a held one, and survives a label already gone (#2206)", async () => {
+  const libre = issueSurGitHub();
+  await libre.github.labelliser(NUMERO, [PRIS]);
+  assert.equal(await purger(libre.lue(), { github: libre.github }), true);
+  assert.ok(!libre.lue().labels.includes(PRIS));
+  const tenu = issueSurGitHub();
+  await prendre(tenu.lue(), { github: tenu.github, station: "box" });
+  assert.ok(tenu.lue().labels.includes(PRIS));
+  assert.equal(await purger(tenu.lue(), { github: tenu.github }), false);
+  assert.ok(tenu.lue().labels.includes(PRIS));
+  const parti = issueSurGitHub();
+  await parti.github.labelliser(NUMERO, [PRIS]);
+  const github = { ...parti.github, delabelliser: async () => { throw new Error("HTTP 404 — Label does not exist"); } };
+  assert.equal(await purger(parti.lue(), { github }), true);
 });
