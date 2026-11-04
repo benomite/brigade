@@ -237,7 +237,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const renvois = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
     // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
-    if (renvois.some((c) => c.body.includes(` sha=${sha} `))) return;
+    // Mais il doit quitter le pass : si le retrait de \`in-pass\` avait échoué
+    // (GitHub qui limite ses appels), il se refait, sans second commentaire (#2319).
+    if (renvois.some((c) => c.body.includes(` sha=${sha} `))) {
+      if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
+      return;
+    }
     const deja = renvois.length;
     if (deja >= RENVOIS_MAX) {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
