@@ -30,8 +30,8 @@ const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
 // Une cuisine à deux stations dont le premier cook — celui de `box/claude`,
 // la première déclarée — ne démarre pas.
-async function sansDemarrer(t: TestContext) {
-  const lieu = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["ne-demarre-pas"], plafonds: PLAFONDS_DU_TEST, issues: [issue(14)] });
+async function sansDemarrer(t: TestContext, relais = false) {
+  const lieu = cuisine(t, { stations: DEUX, ...(relais ? { relais: true as const } : {}), scenario: "commite-puis-attend", suite: ["ne-demarre-pas"], plafonds: PLAFONDS_DU_TEST, issues: [issue(14)] });
   await jusqua(() => lieu.journal.tout().some((e) => e.type === "station.unstartable"));
   return lieu;
 }
@@ -81,11 +81,13 @@ describe("une station dont un cook n'a pas pu démarrer", () => {
   });
 
   test("redémarrée, elle reprend : le ticket qui attendait part chez elle", async (t) => {
-    const premiere = await sansDemarrer(t);
+    // Le cook de l'autre station survit au redémarrage, et garde le #14 : le
+    // ticket qui attendait, le #15, est le seul qui reste à prendre.
+    const premiere = await sansDemarrer(t, true);
     premiere.gh.poser(issue(15));
     await jusqua(() => etatStation(premiere.journal.base, CLAUDE)?.heldReason === "unstartable");
     premiere.runtime.arreter("test");
-    const seconde = cuisine(t, { lieux: premiere.lieux, stations: DEUX, scenario: "commite-puis-attend", plafonds: PLAFONDS_DU_TEST, issues: [issue(14), issue(15)] });
+    const seconde = cuisine(t, { lieux: premiere.lieux, relais: true, stations: DEUX, scenario: "commite-puis-attend", plafonds: PLAFONDS_DU_TEST, issues: [issue(14), issue(15)] });
     assert.equal(etatStation(seconde.journal.base, CLAUDE)?.unstartable, null);
     await jusqua(() => seconde.runtime.rail.tickets().find((ticket) => ticket.ticket === 15)?.station === CLAUDE);
     assert.ok(!decrireEtat(lireEtat(seconde.journal), new Date()).some((l) => l.includes("NOT TAKING TICKETS")));
