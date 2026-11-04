@@ -276,6 +276,10 @@ test("aux réglages de la box — bail de 30 min, 10 min d'inactivité —, la s
     },
     dire: () => {},
     preparer: async () => {},
+    // Sans le `git` réel : ses process prennent du temps réel, que la boucle
+    // sur l'horloge simulée n'attend pas — sous Windows, aucun ne finissait
+    // avant elle, et aucun renouvellement ne partait.
+    empreinte: async () => null,
     lancer: () => cook,
     pousser: async () => {},
     ranger: async () => {},
