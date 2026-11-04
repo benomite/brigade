@@ -10,15 +10,12 @@ import { isAbsolute, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DECISIONS, decisionsDansLEnvironnement, decisionsPosees, direDecisionIgnoree, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
 import { brancherDerive, lireSeuils } from "../src/derive.ts";
-import { MARQUEUR } from "../src/fiche.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configManager } from "../src/manager.ts";
-import { stationsAnnoncees } from "../src/projections/stations.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "./aides/demander.ts";
-import { chef, cuisine, decider, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
+import { chef, cuisine, decider, issue } from "./aides/cuisine.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
@@ -233,36 +230,6 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part", async (t) => {
-    const { repertoire, journal, gh, types, etat } = cuisine(t, { decisions: true, scenario: "muet" });
-    gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : navigateur-headless"].join("\n"));
-    gh.poser(issue(16));
-    await jusqua(() => types(16).includes("ticket.86"));
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/claude"]);
-
-    decider(repertoire, "BRIGADE_STATIONS", "box/claude:1:code,box/playwright:1:navigateur-headless");
-
-    await jusqua(() => etat(16) === "taken" && types(16).includes("cook.launched"));
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/claude", "box/playwright"]);
-    assert.equal(journal.duTicket(16).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
-  });
-
-  test("en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante", async (t) => {
-    const { repertoire, gh, relectures } = cuisine(t, { decisions: true, pass: true, issues: [issue(16)] });
-    await jusqua(() => relectures().length === 1);
-
-    decider(repertoire, "BRIGADE_REVIEWER_MODEL", "opus");
-    decider(repertoire, "BRIGADE_REVIEWER_EFFORT", "high");
-    gh.poser(issue(17));
-
-    await jusqua(() => relectures().length === 2);
-    const calibrage = (args: string[]) => [args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]];
-    assert.deepEqual(relectures().map((lancement) => calibrage(lancement.args)), [
-      ["haiku", "medium"],
-      ["opus", "high"],
-    ]);
-  });
-
   test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", async (t) => {
     const { repertoire, gh, lancements } = cuisine(t, { decisions: true, manager: {}, issues: [issue(30, [])] });
     chef(repertoire, "manager.enabled");
@@ -279,55 +246,6 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       ["sonnet", "medium"],
       ["opus", "high"],
     ]);
-  });
-
-  test("en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée", async (t) => {
-    const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
-    await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
-
-    // Toutes les décisions changent, et la station du cook en vol disparaît.
-    for (const [nom, valeur] of Object.entries({ ...DECIDEES, BRIGADE_STATIONS: "box/autre:1:code" })) decider(repertoire, nom, valeur);
-    await jusqua(() => stationsAnnoncees(journal.base).join() === "box/autre");
-
-    const ARRETS = ["cook.exited", "cook.interrupted", "guard.tripped", "ticket.released"];
-    assert.deepEqual(types(16).filter((type) => ARRETS.includes(type)), []);
-    assert.equal(cooks().length, 1);
-    assert.equal(etat(16), "taken");
-    assert.deepEqual(journal.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);
-
-    // Il finit de lui-même, comme il aurait fini : sa livraison est reçue.
-    conclure();
-    await jusqua(() => etat(16) === "pass");
-    assert.equal((journal.duTicket(16).find((e) => e.type === "cook.exited")?.payload as { outcome?: string } | undefined)?.outcome, "ok");
-    assert.equal(cooks().length, 1);
-    // Sa station retirée ne revient pas pour autant.
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/autre"]);
-  });
-
-  test("en cuisine : une station distante retirée par le chef laisse son cook en vol renouveler et livrer — elle ne prend plus rien", async (t) => {
-    const MAC = "mac/claude";
-    const { repertoire, journal, gh, heure, types, etat } = cuisine(t, { decisions: true, stations: lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` }) });
-    gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : chrome-connecté"].join("\n"));
-    gh.poser(issue(16));
-    const tirer = (demande: Parameters<typeof demander>[2]) => demander(repertoire, MAC, demande, { maintenant: heure.maintenant, pasMs: 2 });
-    await jusqua(() => types(16).includes("ticket.86"));
-    await tirer({ verb: "announce" });
-    await jusqua(() => types(16).includes("ticket.released"));
-    const prise = await tirer({ verb: "claim" });
-    assert.ok(prise.ok && prise.verb === "claim" && prise.mission !== null);
-    const { run, branch } = prise.mission;
-
-    decider(repertoire, "BRIGADE_STATIONS", "box/claude:1:code");
-    await jusqua(() => stationsAnnoncees(journal.base).join() === "box/claude");
-
-    assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 1, tokens: 10 })).ok, true);
-    pousserSurLOrigine(repertoire, branch);
-    assert.equal((await tirer({ verb: "deliver", run, ending: "delivered", reason: null, message: null, turns: 2, tokens: 20 })).ok, true);
-    await jusqua(() => etat(16) === "pass");
-    // Retirée, elle ne s'annonce plus et ne réclame plus rien.
-    const refus = await tirer({ verb: "claim" });
-    assert.equal(refus.ok ? null : refus.refusal, "unknown-station");
-    assert.deepEqual(stationsAnnoncees(journal.base), ["box/claude"]);
   });
 });
 

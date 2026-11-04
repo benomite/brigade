@@ -1,5 +1,5 @@
 // Le bac à sable d'une cuisine locale, sur le Mac du chef : chaque `claude`
-// qu'elle lance — cook, reviewer de la pass, jugement du manager — part avec
+// qu'elle lance — cook, reviewer, jugement du manager — part avec
 // la configuration d'un cook prêté par la box ; la vérification dit `ok`, ou
 // ce qui manque en une phrase. La machine est simulée : plateforme, fichiers,
 // `claude`.
@@ -114,43 +114,31 @@ function profilDe(args: string[]): { mode: string | undefined; reglages: Reglage
   return { mode: args[args.indexOf("--permission-mode") + 1], reglages: JSON.parse(args[settings + 1] ?? "") as Reglages };
 }
 
-test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté", { skip: posixOnly("runs a local kitchen with the sandbox and the manager and checks the cook, the pass reviewer and the manager's judgement each get a lent cook's profile for where they work; the sandbox profile takes only POSIX absolute paths without backslashes, so on Windows the worktrees and the temporary directory are refused and those launches never happen") }, async (t) => {
+test("dans une cuisine locale, le jugement du manager part dans le bac à sable, avec le profil d'un cook prêté", { skip: posixOnly("runs a local kitchen with the sandbox and the manager and checks the manager's judgement gets a lent cook's profile for where it works; the sandbox profile takes only POSIX absolute paths without backslashes, so on Windows the temporary directory is refused and the launch never happens") }, async (t) => {
   let lues = 0;
   const bacASable: BacASableLocal = { version: "2.1.300", home: HOME, caches: ["/Users/chef/Library/Caches/brigade"], hotes: () => (lues++, HOTES) };
-  const c = cuisine(t, { bacASable, pass: true, manager: {}, issues: [issue(15), issue(30, [])] });
+  const c = cuisine(t, { bacASable, manager: {}, issues: [issue(30, [])] });
   chef(c.repertoire, "manager.enabled");
-  // Le jugement n'a aucun outil ; le reviewer, ses trois outils de lecture.
+  // Le jugement n'a aucun outil.
   const outils = (args: string[]) => args[args.indexOf("--tools") + 1];
-  const jugements = () => c.relectures().filter((lance) => outils(lance.args) === "");
-  const relectures = () => c.relectures().filter((lance) => outils(lance.args) !== "");
-  await jusqua(() => relectures().length >= 1 && jugements().length >= 1);
+  const jugements = () => c.lancements().filter((lance) => outils(lance.args) === "");
+  await jusqua(() => jugements().length >= 1);
 
-  const cook = c.cooks()[0];
-  const relecture = relectures()[0];
   const jugement = jugements()[0];
-  assert.ok(cook && relecture && jugement);
-  for (const [lance, ou] of [
-    [cook, cook.cwd],
-    [relecture, relecture.cwd],
-    [jugement, tmpdir()],
-  ] as const) {
-    const { mode, reglages } = profilDe(lance.args);
-    assert.equal(mode, "dontAsk");
-    assert.equal(lance.args.includes("bypassPermissions"), false);
-    // Le profil d'un cook prêté par la box, pour le répertoire où il travaille.
-    // Seul le cook reçoit un fichier à lire hors de son worktree : son ticket.
-    const lus = reglages.permissions.allow.filter((regle) => regle.startsWith("Read(/")).map((regle) => regle.slice("Read(/".length, -1));
-    assert.equal(lus.length, lance === cook ? 1 : 0);
-    assert.ok(lus.every((fichier) => fichier.endsWith(".ticket.md")));
-    assert.deepEqual(reglages, configurer({ worktree: ou, caches: bacASable.caches, hotes: HOTES, home: HOME, lit: lus }).reglages);
-    assert.ok(reglages.sandbox.filesystem.denyRead.includes(join(HOME, ".ssh")));
-    assert.ok(reglages.sandbox.filesystem.denyRead.includes(join(HOME, ".claude/.credentials.json")));
-    assert.equal(reglages.sandbox.network.strictAllowlist, true);
-    assert.ok(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"));
-    assert.equal(reglages.sandbox.network.allowedDomains.includes("example.com"), false);
-  }
-  assert.match(cook.cwd, /\/worktrees\//);
-  assert.ok(lues >= 3);
+  assert.ok(jugement);
+  const { mode, reglages } = profilDe(jugement.args);
+  assert.equal(mode, "dontAsk");
+  assert.equal(jugement.args.includes("bypassPermissions"), false);
+  // Le profil d'un cook prêté par la box, pour le répertoire où il travaille,
+  // sans fichier à lire hors de lui.
+  assert.equal(reglages.permissions.allow.some((regle) => regle.startsWith("Read(/")), false);
+  assert.deepEqual(reglages, configurer({ worktree: tmpdir(), caches: bacASable.caches, hotes: HOTES, home: HOME, lit: [] }).reglages);
+  assert.ok(reglages.sandbox.filesystem.denyRead.includes(join(HOME, ".ssh")));
+  assert.ok(reglages.sandbox.filesystem.denyRead.includes(join(HOME, ".claude/.credentials.json")));
+  assert.equal(reglages.sandbox.network.strictAllowlist, true);
+  assert.ok(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"));
+  assert.equal(reglages.sandbox.network.allowedDomains.includes("example.com"), false);
+  assert.ok(lues >= 1);
 });
 
 test("la commande de vérification dit `ok`, ou la raison en une phrase et le code 1 ; mal appelée, code 2", { skip: posixOnly("runs the check command on a simulated Mac and expects ok, a one-sentence reason with code 1, or code 2 when misused; the command resolves BRIGADE_STATION_DIR with the host's node:path, which on Windows turns the /Users/chef paths into drive paths with backslashes that the sandbox profile refuses, so the check answers code 1 instead of ok") }, async () => {

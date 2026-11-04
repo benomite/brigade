@@ -1,21 +1,18 @@
 // Un setup de worktree qui échoue sur un besoin que la station ne fournit pas
-// vraiment (#1533) : lu dans sa sortie, tenu au journal du projet, et joué par
-// une vraie cuisine dont le setup bute sur le Postgres de la station — le chef
-// a le choix de ce besoin, pas l'échec brut du setup. Un setup qui échoue sur
-// autre chose garde sa carte, avec son erreur.
+// vraiment (#1533) : lu dans sa sortie, et tenu au journal du projet — le chef
+// a le choix de ce besoin, pas l'échec brut du setup.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { blocagesDuJournal, estUneSortieBrute, poserBlocage } from "../../../src/installation/blocages/blocages.ts";
+import { blocagesDuJournal, estUneSortieBrute } from "../../../src/installation/blocages/blocages.ts";
 import { ACTION_DU_CHOIX, choixDuJournal, ICI, manquesDuSetup, suivreLesBesoins, tenirLeSetup, choisir, type Stations } from "../../../src/installation/besoins/besoins.ts";
 import type { Jouer } from "../../../src/installation/besoins/catalogue.ts";
 import type { Sonde } from "../../../src/installation/besoins/fourni.ts";
 import { besoinsNommesParLeSetup, manqueAutreChose } from "../../../src/installation/besoins/setup.ts";
-import { blocageDuSetup, ID_DU_BLOCAGE_DU_SETUP } from "../../../src/installation/preparation/blocage-du-setup.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
-import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux } from "../../aides/cuisine.ts";
-import { aArreter, jusqua, repertoireTemporaire, temporaireDuFichier } from "../../outils.ts";
+import { STATION } from "../../aides/cuisine.ts";
+import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -134,57 +131,6 @@ describe("au journal du projet", () => {
     assert.deepEqual(blocagesDuJournal(journal.base), []);
     // Il passe encore : rien à dire.
     assert.equal(tenirLeSetup(journal, QUI, STATION, []), 0);
-  });
-});
-
-// Une cuisine dont le setup du projet échoue, sur une machine doublée ; un
-// blocage du setup est déjà posé, d'un échec précédent, avant qu'elle ne
-// démarre.
-function uneCuisine(t: TestContext, setup: "postgres" | "echec", sonde: Sonde) {
-  const lieux: Lieux = { repertoire: repertoireTemporaire(t), origine: "", clone: "", gh: fauxGitHub(issue(15)), heure: montre() };
-  const journal = ouvrirJournal(lieux.repertoire);
-  poserBlocage(journal, { projet: "brigade", auteur: `station:${STATION}` }, blocageDuSetup({ station: STATION, phraseEn: `the setup exits with code 1 on the station \`${STATION}\``, sortie: "un échec précédent", preparation: false }));
-  journal.fermer();
-  return cuisine(t, { scenario: "muet", setup, sonde, lieux });
-}
-
-describe("une cuisine dont le setup échoue", { concurrency: 3 }, () => {
-  test("sur le Postgres de la station, qui refuse son compte : le chef a le choix de la base, et plus la carte de l'échec du setup", async (t) => {
-    const { journal, etat, cooks } = uneCuisine(t, "postgres", REFUSE);
-    await jusqua(() => etat(15) === "86");
-
-    assert.deepEqual(cooks(), []);
-    const choix = choixDuJournal(journal.base);
-    assert.deepEqual(choix.map(({ id, status }) => [id, status]), [["need:postgres", "pending"]]);
-    assert.match(choix[0]!.message, /need a Postgres database, which box\/claude does not have\.$/);
-    assert.deepEqual(blocagesDuJournal(journal.base).map(({ id }) => id), ["need:postgres"]);
-    assert.equal(blocagesDuJournal(journal.base).some(({ id }) => id === ID_DU_BLOCAGE_DU_SETUP), false);
-  });
-
-  test("sur autre chose : la carte de l'échec du setup, avec son erreur telle qu'il l'a dite, et aucun choix", async (t) => {
-    const { journal, etat } = uneCuisine(t, "echec", REFUSE);
-    await jusqua(() => etat(15) === "86");
-
-    assert.deepEqual(choixDuJournal(journal.base), []);
-    assert.deepEqual(blocagesDuJournal(journal.base), [
-      {
-        id: ID_DU_BLOCAGE_DU_SETUP,
-        message: `The worktree setup of this project fails on ${STATION}: no ticket of this project starts until it passes.`,
-        cause: `The setup exits with code 1 on the station \`${STATION}\`: \`npm ci a échoué\`.`,
-        detail: "npm ci a échoué",
-      },
-    ]);
-  });
-
-  test("sur un Postgres que la station fournit pourtant : rien de ce qui lui manque ne l'explique, c'est la carte de l'échec du setup", async (t) => {
-    const { journal, etat } = uneCuisine(t, "postgres", SERT);
-    await jusqua(() => etat(15) === "86");
-
-    assert.deepEqual(choixDuJournal(journal.base), []);
-    const [blocage, ...autres] = blocagesDuJournal(journal.base);
-    assert.deepEqual(autres, []);
-    assert.equal(blocage?.id, ID_DU_BLOCAGE_DU_SETUP);
-    assert.ok(blocage?.detail?.includes(SORTIE_PSQL), blocage?.detail ?? "");
   });
 });
 

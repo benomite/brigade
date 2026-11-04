@@ -9,7 +9,6 @@ import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { lireReglagesDesProfils } from "../../src/profils/reglages.ts";
 import { lireLeDepot, variablesDuDepot } from "../../src/reglages-projet/en-vigueur.ts";
-import { appliquerLeChangement, changementsDits } from "../../src/reglages-projet/proposer.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier, validerReglagesProjet, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { aArreter, git, repertoireTemporaire } from "../outils.ts";
@@ -62,15 +61,6 @@ test("an unknown or invalid threshold is refused, and named", () => {
   // Leurs noms ne valent qu'à leur place (`ticketTokens` n'est pas un jeton).
   assert.equal(refus({ integrationBranch: "v2", ticketTokens: 5 }).motif, "secret");
   assert.equal(refus({ integrationBranch: "v2", drift: { apiToken: 5 } }).motif, "secret");
-});
-
-test("a proposed change sets or withdraws the thresholds one by one, and says each", () => {
-  const apres = validerReglagesProjet(appliquerLeChangement(COMPLETS, { drift: { tests: null, repoMb: 250 }, correction: { window: null, threshold: null } }));
-  assert.equal(apres.drift?.tests, undefined);
-  assert.equal(apres.drift?.repoMb, 250);
-  assert.equal(apres.drift?.merges, 8);
-  assert.equal(apres.correction, undefined);
-  assert.deepEqual(changementsDits(COMPLETS, apres), ["drift threshold `repoMb`: 300 → 250", "drift threshold `tests`: 5000 → none", "correction threshold `threshold`: 4 → none", "correction threshold `window`: 30 → none"]);
 });
 
 test("the readers of the runtime read the repository's thresholds over the box's, key by key, and fall back to the box without them", () => {

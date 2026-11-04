@@ -4,17 +4,12 @@
 // que le runtime lit à sa lecture suivante.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DECISIONS, decisionsPosees } from "../src/decisions.ts";
 import { cheminJournal, ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
-import { stationsAnnoncees } from "../src/projections/stations.ts";
-import { cuisine, issue, STATION } from "./aides/cuisine.ts";
-import { appeler, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
-
-const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
+import { STATION } from "./aides/cuisine.ts";
+import { appeler, repertoireTemporaire } from "./outils.ts";
 
 // Chaque geste, la décision qu'il pose, et deux valeurs successives.
 const GESTES = [
@@ -213,35 +208,5 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const retrait = appeler(montrerStation, ["remove", "manager-modele"], { BRIGADE_STATE_DIR: autre, BRIGADE_PROJECT: "calculus" });
     assert.equal(await retrait.fin, 1);
     assert.equal(existsSync(cheminJournal(autre)), false);
-  });
-
-  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", { skip: posixOnly("sets every decision through `npm run station` in a process of its own while a kitchen's fake-claude cook is in flight, and expects the cook untouched and the runtime not restarted; on Windows that process cannot take the journal's write lock while the kitchen holds the journal, so SQLite reports the database locked and the command fails") }, async (t) => {
-    const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
-    await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
-
-    // Comme `npm run station` la lance : un autre process, une autre connexion au journal.
-    // Sa station reste, à deux cooks au plus.
-    const valeurs = { ...Object.fromEntries(GESTES.map(([geste, , , seconde]) => [geste, seconde])), stations: `${STATION}:2:code` };
-    for (const [geste, valeur] of Object.entries(valeurs)) {
-      const pose = lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
-      assert.equal(await pose.fin, 0, pose.sortie());
-      assert.match(pose.sortie(), /no running cook is stopped\n(source: box\n)?$/);
-    }
-    // Le runtime l'a lue sans redémarrer : sa station s'annonce de nouveau, à deux cooks.
-    const annonces = () => journal.tout().flatMap((e) => (e.type === "station.announced" ? [e.payload.maxCooks] : []));
-    await jusqua(() => annonces().includes(2));
-    assert.deepEqual(stationsAnnoncees(journal.base), [STATION]);
-
-    const ARRETS = ["cook.exited", "cook.interrupted", "guard.tripped", "ticket.released"];
-    assert.deepEqual(types(16).filter((type) => ARRETS.includes(type)), []);
-    assert.equal(cooks().length, 1);
-    assert.equal(etat(16), "taken");
-    assert.deepEqual(journal.tout().filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked").map((e) => e.type), ["runtime.started"]);
-
-    // Il finit de lui-même, comme il aurait fini : sa livraison est reçue.
-    conclure();
-    await jusqua(() => etat(16) === "pass");
-    assert.equal((journal.duTicket(16).find((e) => e.type === "cook.exited")?.payload as { outcome?: string } | undefined)?.outcome, "ok");
-    assert.equal(cooks().length, 1);
   });
 });

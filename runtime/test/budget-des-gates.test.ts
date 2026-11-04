@@ -4,15 +4,15 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { annonceDuBudget, LABELS_BUDGET, tenirLeBudget } from "../src/budget-des-gates.ts";
-import { BUDGET_DUREE, BUDGET_PROCESSEUR } from "../src/cout-des-gates.ts";
+import { BUDGET_PROCESSEUR } from "../src/cout-des-gates.ts";
 import { poserDecision } from "../src/decisions.ts";
 import type { FaitGates } from "../src/events/gates.ts";
 import { principal as montrerLeRail } from "../src/montrer-rail.ts";
 import { principal as faits } from "../src/faits.ts";
 import type { GitHub } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { cuisine, fauxGitHub, issue } from "./aides/cuisine.ts";
-import { aArreter, appeler, jusqua, repertoireTemporaire } from "./outils.ts";
+import { fauxGitHub, issue } from "./aides/cuisine.ts";
+import { aArreter, appeler, repertoireTemporaire } from "./outils.ts";
 
 const PROJET = "espace";
 const HEURE = "2026-10-08T10:00:00Z";
@@ -257,22 +257,5 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
     passage(TROP_LONG);
     assert.deepEqual(await tenir(), { ticket: 501, ouvert: true });
     assert.deepEqual(gh.creations, [501]);
-  });
-
-  test("la pass ouvre le ticket quand les gates qu'elle joue dépassent le budget du projet, une fois, et le dit", async (t) => {
-    const { journal, gh, gates, avertissements } = cuisine(t, { pass: true });
-    poserDecision(journal, { projet: "brigade", nom: BUDGET_DUREE, valeur: "0.1", auteur: "chef" });
-    gates.regler("pesant");
-    gh.poser(issue(17));
-
-    await jusqua(() => journal.tout().some((evenement) => evenement.type === "gates.budget-ticket-opened"));
-
-    const [ouvert] = journal.tout().filter((evenement) => evenement.type === "gates.budget-ticket-opened");
-    assert.equal(ouvert?.project, "brigade");
-    assert.equal(ouvert?.author, "pass");
-    const numero = ouvert?.ticket ?? 0;
-    assert.deepEqual(gh.lire(numero)?.labels, LABELS_BUDGET);
-    assert.match(gh.corpsDe(numero), /\| Duration \(wall-clock\) \| [\d.]+ s \| 0\.1 s \(set by the chef\) \| \*\*exceeded\*\*/);
-    await jusqua(() => avertissements.some((ligne) => ligne.includes(`ticket #${numero} ouvert`)));
   });
 });

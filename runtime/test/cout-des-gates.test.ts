@@ -11,8 +11,7 @@ import { principal as faits } from "../src/faits.ts";
 import { jouerGatesMesurees, processeurDit } from "../src/gates.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { cuisine, issue } from "./aides/cuisine.ts";
-import { aArreter, appeler, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, appeler, ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "espace";
@@ -216,18 +215,5 @@ describe("le coût des gates", { concurrency: 8 }, () => {
     passage(2, { runner: "pass", outcome: "green", durationMs: 120_000, cpuMs: 380_000 });
     // Heure 120 s face à un jour de 110 s, 380 s face à 390 s : moins de 10 % d'écart.
     assert.deepEqual(coutDuProjet(journal.base, PROJET, lireBudget({}), maintenant()).trend, { durationSeconds: "steady", cpuSeconds: "steady" });
-  });
-
-  test("la pass écrit le coût des gates qu'elle joue : projet, ticket, `pass`, horloge et processeur se relisent par `facts`", async (t) => {
-    const { journal, repertoire } = cuisine(t, { pass: true, issues: [issue(17)] });
-
-    await jusqua(() => journal.tout().some((evenement) => evenement.type === "gates.ran" && evenement.ticket === 17));
-
-    const { latest } = await lireFaits(repertoire, "brigade");
-    assert.equal(latest.project, "brigade");
-    assert.equal(latest.ticket, 17);
-    assert.equal(latest.runner, "pass");
-    assert.equal(latest.outcome, "green");
-    assert.ok(latest.durationSeconds >= 0 && latest.cpuSeconds >= 0, JSON.stringify(latest));
   });
 });

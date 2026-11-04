@@ -1,6 +1,6 @@
-// La rétro d'un ticket servi : le cook la délimite dans son dernier message, la
-// station la garde à son compte-rendu, et la pass l'écrit quand elle sert le
-// ticket — au plus trois leçons, provisoires, rangées au projet du ticket.
+// La rétro d'un ticket servi : le cook la délimite dans son dernier message,
+// et elle s'écrit au journal quand le ticket est servi — au plus trois leçons,
+// provisoires, rangées au projet du ticket.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { carnetVide, proposer } from "../../src/apprentissage/lecons.ts";
@@ -8,9 +8,7 @@ import { carnetDuProjet, enregistrerRetro, leconsProvisoires, retroDuTicket, ret
 import { CONSIGNE_DE_RETRO, extraireRetro, LECONS_MAX, phrases, trierRetro } from "../../src/apprentissage/retro.ts";
 import { consigne, consigneDeSuite } from "../../src/claude.ts";
 import { ouvrirJournal, type Journal } from "../../src/journal.ts";
-import { consigneDeRenvoi, consigneDeReprise } from "../../src/pass.ts";
-import { chef, cuisine, issue } from "../aides/cuisine.ts";
-import { jusqua, repertoireTemporaire } from "../outils.ts";
+import { repertoireTemporaire } from "../outils.ts";
 
 // Un cook a fini sur `ticket` de `projet`, et le ticket est servi.
 function servi(journal: Journal, projet: string, ticket: number, retro: string | null) {
@@ -39,8 +37,6 @@ describe("la rétro du cook, dans son dernier message", () => {
     const consignes = [
       consigne(mission),
       consigneDeSuite({ ...mission, branche: "cook/7" }),
-      consigneDeRenvoi({ ...mission, branche: "cook/7", n: 1, findings: ["f"] }),
-      consigneDeReprise({ base: "v2", branche: "cook/7", worktree: "/w", n: 1, findings: ["f"] }),
     ];
     for (const texte of consignes) {
       assert.ok(texte.includes(CONSIGNE_DE_RETRO));
@@ -140,46 +136,5 @@ describe("les leçons provisoires d'un projet", () => {
     // Le même service redit n'écrit pas une seconde rétro.
     assert.equal(enregistrerRetro(journal, { projet: "a", ticket: 4, run: "run-a-4", auteur: "pass" }), null);
     assert.equal(retrosDuProjet(journal.base, "a").length, 1);
-  });
-});
-
-describe("le ticket servi par la pass", () => {
-  test("sa rétro est écrite avec lui, au plus trois leçons, et ses leçons sont lisibles dès qu'il est servi", async (t) => {
-    const { repertoire, journal, gh } = cuisine(t, { pass: true, issues: [issue(17)], scenario: "livre-et-retient" });
-    chef(repertoire, "grant.activated");
-    await jusqua(() => journal.duTicket(17).some((e) => e.type === "ticket.served"));
-
-    const types = journal.duTicket(17).map((e) => e.type);
-    // Écrite dans la transaction qui le sert, juste après.
-    assert.equal(types[types.indexOf("ticket.served") + 1], "retro.recorded");
-    const retro = retroDuTicket(journal.base, "brigade", 17);
-    const run = journal.duTicket(17).findLast((e) => e.type === "cook.launched")?.payload as { run: string } | undefined;
-    assert.equal(retro?.run, run?.run);
-    assert.deepEqual(retro?.kept, [
-      { kind: "propose", text: "Lire le CLAUDE.md avant d'écrire quoi que ce soit." },
-      { kind: "propose", text: "Les gates jouent les tests du runtime. Les lancer avant de commiter évite un renvoi." },
-      { kind: "propose", text: "Un test attend un fait, jamais une durée." },
-    ]);
-    assert.deepEqual(
-      retro?.dropped.map((d) => d.reason),
-      ["too-long", "over-limit"],
-    );
-    assert.deepEqual(
-      leconsProvisoires(journal.base, "brigade").map((l) => [l.statut, l.ticket, l.project]),
-      [
-        ["provisoire", 17, "brigade"],
-        ["provisoire", 17, "brigade"],
-        ["provisoire", 17, "brigade"],
-      ],
-    );
-    // Le coût de la rétro se lit au rapport du cook : sa part du dernier message
-    // (200 tokens produits), déjà comprise dans les tokens du cook.
-    const rapport = journal.duTicket(17).findLast((e) => e.type === "cook.reported")?.payload as { summary: string; retro: string; retroTokens: number };
-    assert.equal(rapport.retroTokens, Math.round((200 * extraireRetro(rapport.summary)!.length) / rapport.summary.length));
-    assert.ok(rapport.retroTokens > 0 && rapport.retroTokens < 200);
-    // La rétro n'est pas le livrable : le corps de la PR, qui le porte, n'en dit rien.
-    assert.equal(gh.prs.length, 1);
-    assert.match(gh.prs[0]?.corps ?? "", /J'ai ajouté `travail.txt`/);
-    assert.doesNotMatch(gh.prs[0]?.corps ?? "", /propose/);
   });
 });

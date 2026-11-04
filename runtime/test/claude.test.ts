@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, sessionClaude, SOURCES_DE_REGLAGES, verdict } from "../src/claude.ts";
+import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, sessionClaude, SOURCES_DE_REGLAGES, verdict } from "../src/claude.ts";
 import { ENV_ENFANT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
@@ -231,12 +231,11 @@ test("un binaire introuvable se dit tel quel ; une réponse illisible ne tranche
   assert.equal(await sessionClaude(process.execPath, { ...env, NODE_OPTIONS: "" }), "inconnue");
 });
 
-test("les deux consignes imposent de commiter avant de s'arrêter, et nomment ce qui n'arrive pas pendant le tour", async () => {
-  const { consigneDeRenvoi } = await import("../src/pass.ts");
+test("les deux consignes imposent de commiter avant de s'arrêter, et nomment ce qui n'arrive pas pendant le tour", () => {
   const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
-  const renvoi = consigneDeRenvoi({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", branche: "cook/15-abc", n: 1, findings: ["Gates rouges."] });
+  const suite = consigneDeSuite({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", branche: "cook/15-abc" });
 
-  for (const texte of [premiere, renvoi]) {
+  for (const texte of [premiere, suite]) {
     assert.match(texte, /commite d'abord ce que tu as dans les mains/);
     assert.match(texte, /ni la relecture, ni la CI, ni le verdict de la pass, ni un retour du chef/);
     assert.match(texte, /« j'attends la relecture » n'est jamais une raison de t'arrêter/);
@@ -257,22 +256,17 @@ test("la lecture du flux dit les tokens produits par le message qui porte le com
   assert.equal(lireFlux("").jetonsDuMessage, null);
 });
 
-test("le cook de préparation lancé sur un setup en échec reçoit ce qui a échoué, quelle que soit sa consigne ; les autres n'en lisent rien", async () => {
-  const { consigneDeRenvoi, consigneDeReprise } = await import("../src/pass.ts");
-  const { consigneDeSuite } = await import("../src/claude.ts");
+test("le cook de préparation lancé sur un setup en échec reçoit ce qui a échoué, quelle que soit sa consigne ; les autres n'en lisent rien", () => {
   const setup = { phrase: "le setup a besoin de `psql`, que la station `box/claude` n'a pas", sortie: "./setup.sh: line 3: psql: command not found\n```\nfin" };
   const mission = { ticket: 20, titre: "Préparer le dépôt", depot: "acme/shop", base: "main" };
-  const renvoi = { ...mission, branche: "cook/20-abc", n: 1, findings: ["Gates rouges."] };
   const consignes = [
     consigne({ ...mission, setup }),
     consigneDeSuite({ ...mission, branche: "cook/20-abc", setup }),
-    consigneDeRenvoi({ ...renvoi, setup }),
-    consigneDeReprise({ base: "main", branche: "cook/20-abc", worktree: "/wt", n: 1, findings: ["Gates rouges."], setup }),
   ];
   for (const texte of consignes) {
     assert.match(texte, /Le setup du worktree \(`\.claude\/brigade\/worktree-setup\.sh`\) a échoué sur cette station : le setup a besoin de `psql`, que la station `box\/claude` n'a pas\./);
     // La sortie est citée, sans qu'une clôture qu'elle porte ne ferme la citation.
     assert.match(texte, /```\n\.\/setup\.sh: line 3: psql: command not found\n'''\nfin\n```/);
   }
-  for (const texte of [consigne(mission), consigneDeRenvoi(renvoi)]) assert.doesNotMatch(texte, /a échoué sur cette station/);
+  for (const texte of [consigne(mission), consigneDeSuite({ ...mission, branche: "cook/20-abc" })]) assert.doesNotMatch(texte, /a échoué sur cette station/);
 });

@@ -1,8 +1,8 @@
 // L'interrupteur du projet (#1406) : un seul ON/OFF à la place de l'interrupteur
 // du manager et du grant `merge`. Les premiers tests lisent un journal que le
 // test écrit — ce que le runtime pose à son démarrage, ce que les commandes du
-// chef écrivent, ce que `status` et `switch` en disent ; les derniers font
-// tourner une cuisine, avec sa pass, sa station et son manager.
+// chef écrivent, ce que `status` et `switch` en disent ; le dernier fait
+// tourner une cuisine et son manager.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
@@ -206,37 +206,12 @@ function enCuisine(t: TestContext, options: Parameters<typeof cuisine>[1] = {}) 
       journal.fermer();
     }
   };
-  const compter = (type: string, ticket: number) => lieu.journal.duTicket(ticket).filter((e) => e.type === type).length;
-  const commentaires = (ticket: number) => lieu.gh.commentaires.filter(([numero]) => numero === ticket).map(([, corps]) => corps).join("\n---\n");
-  return { ...lieu, basculer, compter, commentaires };
+  return { ...lieu, basculer };
 }
 
-describe("la cuisine sous l'interrupteur", { concurrency: 4 }, () => {
-  test("éteint : le cook en vol finit, sa livraison verte attend sans merge, aucun ticket neuf n'est pris ; rallumé, elle est mergée et la prise reprend", async (t) => {
-    const { etat, basculer, conclure, compter, gh, journal, commentaires } = enCuisine(t, { pass: true, scenario: "commite-puis-attend", cooks: 2, issues: [issue(17)] });
-    await jusqua(() => etat(17) === "taken" && compter("cook.launched", 17) === 1);
-
-    basculer("off");
-    gh.poser(issue(18));
-    await jusqua(() => journal.tout().some((e) => e.type === "station.held" && e.payload.reason === "off"));
-    conclure();
-    await jusqua(() => compter("pass.waiting", 17) === 1);
-
-    assert.equal(journal.duTicket(17).findLast((e) => e.type === "pass.waiting")?.payload.reason, "project-off");
-    assert.deepEqual(gh.merges, []);
-    assert.equal(compter("grant.used", 17), 0);
-    assert.match(commentaires(17), /\*\*Pass — en attente \(`project-off`\)\.\*\*[\s\S]*L'interrupteur du projet est éteint/);
-    assert.equal(etat(18), "waiting");
-    assert.equal(compter("cook.launched", 18), 0);
-
-    basculer("on");
-    await jusqua(() => compter("merge.done", 17) === 1);
-    await jusqua(() => compter("cook.launched", 18) === 1);
-    assert.equal(gh.merges.length, 1);
-  });
-
+describe("la cuisine sous l'interrupteur", () => {
   test("le manager suit l'interrupteur : éteint, allumé à l'ancienne, il ne juge rien ; le projet rallumé, il juge", async (t) => {
-    const { basculer, gh, lancements, etat, repertoire, heure } = enCuisine(t, { manager: {}, issues: [issue(30, [])] });
+    const { basculer, gh, lancements, repertoire, heure } = enCuisine(t, { manager: {}, issues: [issue(30, [])] });
     basculer("off");
     chef(repertoire, "manager.enabled");
     heure.avancer(1);
@@ -246,6 +221,6 @@ describe("la cuisine sous l'interrupteur", { concurrency: 4 }, () => {
 
     basculer("on");
     await jusqua(() => lancements().some((lancement) => lancement.args.includes("--tools")));
-    await jusqua(() => etat(30) === "pass");
+    await jusqua(() => gh.lire(30)?.labels.includes("fire") === true);
   });
 });

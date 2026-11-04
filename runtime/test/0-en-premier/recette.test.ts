@@ -148,17 +148,14 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/shop/LISEZMOI")));
   assert.match(readFileSync(join(racine, "projets"), "utf8"), /^shop acme\/shop v2$/m);
-  // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt. Le
-  // tableau de sa cuisine n'est pas un ticket.
-  const [ticket, ...autres] = issuesOuvertes().filter((issue) => !issue.labels.includes("kitchen-board"));
+  // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt.
+  const [ticket, ...autres] = issuesOuvertes();
   assert.deepEqual(autres, []);
   assert.equal(ticket?.title, "Préparer le dépôt : gates, setup de worktree, sites autorisés");
   assert.deepEqual(ticket?.labels, ["fire", "model:opus", "effort:high"]);
   assert.match(ticket?.body ?? "", /## Éprouver sur la station, pas en local/);
   assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/shop/preparation-depot.json"), "utf8")).ticket, 1);
   await station.attendre("brigade [shop] : servi par la station");
-  // Sa cuisine publie son tableau dans son dépôt, comme le runtime d'un seul projet.
-  await jusqua(() => issuesOuvertes().some((issue) => issue.depot === "acme/shop" && issue.title === "Kitchen board" && issue.labels.includes("kitchen-board")));
   const journal = ouvrirJournal(join(racine, "etat/shop"), { lectureSeule: true });
   try {
     assert.ok(journal.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "shop"));

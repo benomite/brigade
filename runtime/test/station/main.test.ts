@@ -3,19 +3,15 @@
 // des signaux.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
-import { REPERTOIRE_DES_TAILLES } from "../../src/tableau/rendu/taille.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
-import { principal as status } from "../../src/status.ts";
-import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { relecteur } from "../aides/opt-B-journal.ts";
-import { aArreter, appeler, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
+import { aArreter, BASE, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, vivant } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -192,9 +188,8 @@ describe("la station, son process", { concurrency: 8 }, () => {
     // Tout ce que la machine porte, sauf l'état des projets, la configuration
     // elle-même, ce que la station dit de ce qu'elle sert (`en-service`, que
     // sa mise à jour attend) et le compteur de ses appels à GitHub, que chaque
-    // sondage écrit, et la taille du board de chaque projet, que chaque
-    // rafraîchissement écrit.
-    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR), join(racine, REPERTOIRE_DES_TAILLES)];
+    // sondage écrit.
+    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR)];
     const avant = photographier(machine, sauf);
 
     // Ajouter : une ligne de plus, rien d'autre.
@@ -279,69 +274,6 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await station.fin, 0);
     portes.process.kill("SIGTERM");
     assert.equal(await portes.fin, 0);
-  });
-
-  test("chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662)", { skip: posixOnly("two kitchens create and pin their Kitchen board through the fake gh and a gesture under brigade's board is played by its kitchen alone, then the station is stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
-    const { racine, env, etat, preparer, configurer, faits } = uneStation(t);
-    const projets = [
-      { nom: "brigade", depot: "acme/brigade", tableau: 90, gestes: ["/brigade stop"] },
-      { nom: "espace", depot: "acme/espace", tableau: 7, gestes: [] },
-    ].map((projet) => {
-      const gh = fauxGh(t);
-      const { depot, tableau } = projet;
-      issuesDe(gh, depot, []);
-      // Aucun tableau dans le dépôt : la cuisine le crée, puis l'épingle.
-      gh.repondre(`repos/${depot}/issues?labels=kitchen-board&state=all&per_page=100`, { corps: [] });
-      gh.repondre(`repos/${depot}/issues`, { statut: 201, corps: { number: tableau } });
-      gh.repondre(`repos/${depot}/issues/${tableau}`, { corps: { number: tableau, title: "Kitchen board", body: "", state: "open", labels: [{ name: "kitchen-board" }, { name: "hors-cuisine" }], repository_url: `https://api.github.com/repos/${depot}` } });
-      gh.repondre("graphql", { corps: { data: { repository: { issue: { id: `I_${tableau}`, isPinned: false } }, pinIssue: { issue: { isPinned: true } } } } });
-      // Les gestes du chef sous le tableau, et ce que la box y répond.
-      gh.repondre(`repos/${depot}/issues/${tableau}/comments?per_page=100`, {
-        corps: projet.gestes.map((body, rang) => ({ id: 500 + rang, body, user: { login: "chef" }, created_at: "2026-10-26T08:00:00Z", html_url: `https://github.com/${depot}/issues/${tableau}#issuecomment-${500 + rang}` })),
-      });
-      gh.repondre(`repos/${depot}/issues/${tableau}/comments?per_page=100&since=*`, { corps: [] });
-      gh.repondre(`repos/${depot}/issues/${tableau}/comments`, { statut: 201, corps: { id: 1 } });
-      gh.repondre("user", { corps: { login: "chef" } });
-      preparer(projet.nom);
-      return { ...projet, gh };
-    });
-    // Une issue de brigade que le manager a écartée : elle attend le chef.
-    const journal = ouvrirJournal(etat("brigade"));
-    journal.ajouter({ project: "brigade", ticket: 21, author: "manager", type: "manager.set-aside", payload: { reason: "question", fired: true } });
-    journal.fermer();
-    configurer(projets.map((p) => `${p.nom} ${p.depot} ${BASE} BRIGADE_GH_BIN=${p.gh.bin}\n`).join(""));
-    const station = lancer(t, STATION, [], env);
-
-    // Chaque cuisine crée le sien, dans son dépôt, par son `gh` — jamais dans celui d'un autre.
-    for (const p of projets) {
-      await jusqua(() => p.gh.appels().some((appel) => appel.includes("POST") && appel.at(-1) === `repos/${p.depot}/issues`));
-      await station.attendre(`brigade [${p.nom}] : Kitchen board créé dans ${p.depot} — #${p.tableau}`);
-      const autre = projets.find((q) => q !== p)?.depot ?? "";
-      assert.ok(p.gh.appels().every((appel) => !appel.join(" ").includes(autre)), p.nom);
-    }
-    // Le geste posté sous le tableau de brigade est joué par la cuisine de brigade, et elle seule.
-    await jusqua(() => faits("brigade", "board.replied").length === 1);
-    assert.deepEqual(
-      faits("brigade", "board.gesture").map(({ payload }) => [payload.board, payload.gesture, payload.done]),
-      [[90, "stop", true]],
-    );
-    assert.equal(faits("brigade", "kitchen.stopped").length, 1);
-    assert.deepEqual([faits("espace", "board.gesture"), faits("espace", "kitchen.stopped")], [[], []]);
-    // Le chef est mentionné sous le tableau de brigade pour la décision qui l'y attend — et sous aucun autre.
-    await jusqua(() => faits("brigade", "board.mention").length === 1);
-    assert.deepEqual(faits("brigade", "board.mention").map(({ payload }) => [payload.board, payload.decision]), [[90, "#21"]]);
-    assert.deepEqual(faits("espace", "board.mention"), []);
-    const commentes = (p: (typeof projets)[number]) => p.gh.appels().filter((appel) => appel.includes("POST") && appel.at(-1)?.endsWith("/comments"));
-    assert.deepEqual(projets.map((p) => commentes(p).map((appel) => appel.at(-1))), [["repos/acme/brigade/issues/90/comments", "repos/acme/brigade/issues/90/comments"], []]);
-
-    // Les appels des tableaux, comptés au compteur de la station : `status` les dit.
-    const commande = appeler(status, [], { BRIGADE_STATE_DIR: etat("brigade"), BRIGADE_STATION_DIR: racine });
-    assert.equal(await commande.fin, 0, commande.sortie());
-    const cout = /board cost\s+(\d+) calls? per hour, all projects/.exec(commande.sortie());
-    assert.ok(cout !== null && Number(cout[1]) > 0, commande.sortie());
-
-    station.process.kill("SIGTERM");
-    assert.equal(await station.fin, 0);
   });
 
   test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {

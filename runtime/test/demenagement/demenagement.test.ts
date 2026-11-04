@@ -1,8 +1,7 @@
 // Le déménagement de la cuisine d'un projet entre stations, tel que les
 // stations le mènent par leurs gists : contre des gists en mémoire, des
 // stations doublées dont la cuisine n'est que son verrou — pris tant que sa
-// ligne est dans la configuration, comme la station le tient. Le cook en vol
-// repris sur l'autre station se prouve sur de vraies cuisines, plus bas.
+// ligne est dans la configuration, comme la station le tient.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -13,17 +12,15 @@ import { FICHIER_STATION } from "../../src/appairage/document.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import type { Verification } from "../../src/bac-a-sable/local.ts";
 import { principal as demenager } from "../../src/demenagement/demenager.ts";
-import { lireRemise, recevoir, remettre, RemiseRetenue } from "../../src/demenagement/remise.ts";
+import { lireRemise, remettre, RemiseRetenue } from "../../src/demenagement/remise.ts";
 import type { Evenement } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { lignesDuBloc } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
-import { etatDesGardeFous } from "../../src/projections/guardrails.ts";
 import { PROJECTIONS } from "../../src/projections.ts";
 import { prendreVerrou, type Verrou } from "../../src/verrou.ts";
-import { cuisine, fauxGitHub, issue, montre } from "../aides/cuisine.ts";
-import { aArreter, jusqua, photographier, repertoireTemporaire, temporaireDuFichier, vivant } from "../outils.ts";
+import { aArreter, photographier, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -344,43 +341,6 @@ test("une station ne rouvre pas d'elle-même une cuisine qu'elle a remise : elle
   assert.equal(box.sert(), false);
   assert.deepEqual([box.suivi()?.etat, box.suivi()?.cuitSur], ["refuse", "mac"]);
   assert.match(box.suivi()?.dit ?? "", /it was handed over to mac .* and cooks there: move it back to bring it here/);
-});
-
-test("un ticket en cours de cuisson sur la station qu'il quitte est repris sur la nouvelle : son cook arrêté par le déménagement, ni perdu, ni en échec", async (t) => {
-  const box = join(repertoireTemporaire(t), "etat", "brigade");
-  const mac = join(repertoireTemporaire(t), "etat", "brigade");
-  mkdirSync(box, { recursive: true });
-  const gh = fauxGitHub(issue(15));
-  const heure = montre();
-  const premiere = cuisine(t, { scenario: "commite-puis-attend", lieux: { repertoire: box, origine: "", clone: "", gh, heure } });
-  await jusqua(() => premiere.cooks().length === 1 && premiere.dernier("cook.launched", 15) !== undefined);
-  const run = String(premiere.dernier("cook.launched", 15)?.run);
-  const fichierDuPid = join(box, "runs", `${run}.cook.pid`);
-  await jusqua(() => existsSync(fichierDuPid));
-  const pid = Number(readFileSync(fichierDuPid, "utf8"));
-  // La cuisine de la box se ferme : son cook, qu'un relais porte, tourne encore.
-  premiere.runtime.arreter("SIGTERM");
-  assert.equal(vivant(pid), true);
-
-  const fichiers = await remettre({ repertoireEtat: box, projet: "brigade", de: "box", vers: "mac", demandeLe: AUJOURDHUI });
-  // La remise ne part qu'une fois ce cook arrêté et mort.
-  await jusqua(() => !vivant(pid));
-  const remise = lireRemise(fichiers, "brigade");
-  assert.ok(remise !== null);
-  assert.deepEqual(recevoir({ repertoireEtat: mac, remise, fichiers }), { evenements: remise.journal?.evenements, dernierSeq: remise.journal?.dernierSeq });
-
-  const seconde = cuisine(t, { scenario: "livre", lieux: { repertoire: mac, origine: "", clone: "", gh, heure }, stations: [{ nom: "mac/claude", moteur: "claude", fournit: ["code"], cooks: 1 }] });
-  await jusqua(() => seconde.journal.duTicket(15).filter(({ type }) => type === "cook.launched").length === 2);
-  const lancements = seconde.journal.duTicket(15).filter(({ type }) => type === "cook.launched");
-  assert.equal((lancements[1]?.payload as { station?: string }).station, "mac/claude");
-  const fin = seconde.journal.duTicket(15).find(({ type, payload }) => type === "cook.exited" && (payload as { run: string }).run === run);
-  const { outcome, cause } = (fin?.payload ?? {}) as { outcome?: string; cause?: string };
-  assert.deepEqual([outcome, cause], ["stop", "move"]);
-  // Ni interrompu, ni en échec, ni mis de côté : le disjoncteur n'a rien compté.
-  assert.deepEqual(seconde.types(15).filter((type) => ["cook.interrupted", "ticket.86", "guard.tripped"].includes(type)), []);
-  assert.equal(etatDesGardeFous(seconde.journal.base).failures, 0);
-  const deplace = seconde.journal.tout().find(({ type }) => type === "kitchen.moved");
-  assert.deepEqual(deplace?.payload, { from: "box", to: "mac", askedAt: AUJOURDHUI, cooks: [run] });
 });
 
 test("une remise demandée pendant que la cuisine tient encore son verrou est retenue, sans rien écrire", async (t) => {

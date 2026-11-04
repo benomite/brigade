@@ -253,28 +253,3 @@ test("sans répertoire d'état, sans journal, ou avec un argument, la commande �
   assert.equal(await avecArgument.fin, 2);
   assert.match(avecArgument.sortie(), /usage/);
 });
-
-test("une station distante se lit par sa présence, pas par la machine de la box : absente tant qu'elle ne s'est pas manifestée, présente ensuite, absente de nouveau — sans que ce soit une panne", async (t) => {
-  const { noter, annoncer, montrer } = cuisine(t);
-  annoncer();
-  const MAC = "mac/claude";
-  const duMac = (fait: Fait, auteur = `station:${MAC}`) => noter(fait, null, auteur);
-  duMac({ type: "station.announced", payload: { station: MAC, engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true } });
-
-  const jamais = (await montrer()).sortie;
-  // La station d'ici garde sa ligne de machine ; la distante n'en a pas.
-  assert.equal(jamais.match(/^machine\s/gm)?.length, 1);
-  assert.match(jamais, /station\s+mac\/claude — engine claude, provides: chrome-connecté/);
-  assert.match(jamais, /presence\s+ABSENT — remote, it pulls its work, and has never shown itself; this is not a failure: the tickets only it can cook wait for its return, the others leave/);
-
-  duMac({ type: "remote.asked", payload: { id: "a", station: MAC, verb: "announce" } });
-  duMac({ type: "station.present", payload: { station: MAC } });
-  duMac({ type: "remote.asked", payload: { id: "b", station: MAC, verb: "claim" } });
-  assert.match((await montrer()).sortie, new RegExp(`presence\\s+present since ${JOUR_HORLOGE}T\\S+ — remote, it pulls its work; last request on ${JOUR_HORLOGE}T`));
-
-  duMac({ type: "station.absent", payload: { station: MAC, lastSeen: `${JOUR_HORLOGE}T10:00:03.000Z`, presenceMs: 120_000 } });
-  assert.match((await montrer()).sortie, new RegExp(`presence\\s+ABSENT — remote, it pulls its work, and has not shown itself since ${JOUR_HORLOGE}T`));
-  // Une demande faite sous un nom que le projet ne déclare pas ne crée personne.
-  duMac({ type: "remote.asked", payload: { id: "c", station: "mac/chrome", verb: "claim" } }, "station:mac/chrome");
-  assert.doesNotMatch((await montrer()).sortie, /mac\/chrome/);
-});

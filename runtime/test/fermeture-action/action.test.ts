@@ -2,13 +2,26 @@
 // et ce que le closer va faire, sans rien créer ; la demande ne part qu'avec la
 // confirmation du chef, et passe par la décision de `closing write` ; le retrait
 // est celui de `closing cancel` — refusé, avec sa raison, une fois la passe partie.
+// Plus rien ne lance la passe elle-même (#2061) : les faits qu'elle écrivait —
+// ses réglages, son départ — sont posés au journal.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { principal } from "../../src/closing/command.ts";
-import { PLAFONDS } from "../aides/cuisine.ts";
-import { appeler, jusqua } from "../outils.ts";
-import { cuisineFermee, RETIRER_M1 } from "../closing/kitchen.ts";
-import { posixOnly } from "../support/plateforme.ts";
+import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
+import { cuisine as cuisineDuProjet, PLAFONDS } from "../aides/cuisine.ts";
+import { appeler } from "../outils.ts";
+
+// Les réglages d'une passe, quand un test n'en dit rien : aucun cook en vol,
+// et des plafonds qu'un closer qui retire une ligne n'atteint pas.
+const REGLAGES_DE_FERMETURE: ReglagesDeFermeture = { calibration: { model: "sonnet", effort: "low" }, cooksBelow: 1, tokens: 1000, removedLines: 20 };
+
+// Le runtime du projet tourne, et la passe a noté au journal les réglages
+// qu'elle applique.
+function cuisineFermee(t: TestContext, reglages: Partial<ReglagesDeFermeture> = {}) {
+  const lieu = cuisineDuProjet(t);
+  lieu.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "closing.configured", payload: { ...REGLAGES_DE_FERMETURE, ...reglages } });
+  return lieu;
+}
 
 type Cuisine = ReturnType<typeof cuisineFermee>;
 
@@ -24,14 +37,8 @@ async function lancer({ repertoire }: Cuisine, ...args: string[]): Promise<{ cod
   return { code, sortie, json };
 }
 
-// Le runtime a relu le journal à `combien` réveils de plus.
-async function ticks({ types }: Cuisine, combien: number): Promise<void> {
-  const vus = types().filter((type) => type === "runtime.ticked").length;
-  await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + combien);
-}
-
-// Les faits de la fermeture que le journal porte, hors de ceux que le runtime
-// écrit seul à son démarrage.
+// Les faits de la fermeture que le journal porte, hors des réglages que la
+// passe notait à son démarrage.
 const demandes = ({ types }: Cuisine) => types().filter((type) => type.startsWith("closing.") && type !== "closing.configured");
 
 // Un cook en vol que rien ne rend : il retient la demande.
@@ -39,9 +46,9 @@ function cookEnVol({ journal }: Cuisine, ticket: number): void {
   journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.launched", payload: { run: `${ticket}-enVol`, limits: PLAFONDS, stream: `runs/${ticket}-enVol.jsonl` } });
 }
 
-// Le même cook sort : plus rien ne retient la demande.
-function cookFini({ journal }: Cuisine, ticket: number): void {
-  journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.exited", payload: { run: `${ticket}-enVol`, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
+// La passe est partie : ce que le journal d'avant porte.
+function partie({ journal }: Cuisine): void {
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "closing.started", payload: { run: "fermeture-0a1b2c3d", base: "ba5e001", zone: [], held: [], candidates: 3, limits: { tokens: 1000, removedLines: 20 } } });
 }
 
 test("l'aperçu dit ce que coûte la passe et ce que le closer va faire, et ne crée rien : ni demande, ni refus, ni passe", async (t) => {
@@ -61,11 +68,9 @@ test("l'aperçu dit ce que coûte la passe et ce que le closer va faire, et ne c
   assert.equal(ifRequested.outcome, "leaves");
   assert.match(ifRequested.text, /^a request would leave within the second — start condition met: 0 cooks? in flight for a threshold of 1, rail empty$/);
 
-  // Rien n'est écrit, et rien ne part : le runtime relit le journal et n'y trouve aucune demande.
-  await ticks(cuisine, 5);
+  // Rien n'est écrit.
   assert.equal(cuisine.journal.tout().filter((e) => e.type.startsWith("closing.")).length, avant);
   assert.deepEqual(demandes(cuisine), []);
-  assert.deepEqual(cuisine.closer.lancements(), []);
 
   // Sous un cook en vol, il dit qu'elle attendrait, et pourquoi — toujours sans rien écrire.
   cookEnVol(cuisine, 7);
@@ -83,10 +88,8 @@ test("l'aperçu dit ce que coûte la passe et ce que le closer va faire, et ne c
   assert.deepEqual(demandes(cuisine), []);
 });
 
-test("sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; avec, une demande est créée, qui se lit en attente puis partie", { skip: posixOnly("requests a closing pass through the app's write gesture, refused without --confirm, then waiting behind a cook and leaving once it ends, and expects the fake-claude closer's pass delivered; on Windows the pass was judged out of its zone, the gates link the closing kitchen commits being rewritten by Git for Windows (the cause closing/history.ts now avoids)") }, async (t) => {
+test("sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; avec, une demande est créée, qui se lit en attente puis partie", async (t) => {
   const cuisine = cuisineFermee(t);
-  const { closer } = cuisine;
-  closer.gestes(`attendre\n${RETIRER_M1}`);
   cookEnVol(cuisine, 7);
 
   const sansOui = await lancer(cuisine, "write", "--json");
@@ -114,18 +117,15 @@ test("sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; 
   assert.equal(encore.json.outcome, "already-requested");
   assert.deepEqual(demandes(cuisine), ["closing.requested"]);
 
-  // Le cook rend la main : elle part, et se lit partie.
-  cookFini(cuisine, 7);
-  await jusqua(() => closer.lancements().length === 1);
-  const partie = await lancer(cuisine, "preview", "--json");
-  assert.equal(partie.json.request.state, "running");
-  assert.match(partie.json.request.run, /^fermeture-[0-9a-f]{8}$/);
-  closer.feu();
-  assert.equal((await cuisine.fin()).outcome, "delivered");
+  // Partie, elle se lit partie.
+  partie(cuisine);
+  const lue = await lancer(cuisine, "preview", "--json");
+  assert.equal(lue.json.request.state, "running");
+  assert.equal(lue.json.request.run, "fermeture-0a1b2c3d");
 });
 
 test("sans closer réglé, la demande échoue en le disant et en nommant le geste qui le règle ; l'aperçu le dit aussi", async (t) => {
-  const cuisine = cuisineFermee(t, { reglages: { calibration: null } });
+  const cuisine = cuisineFermee(t, { calibration: null });
 
   const apercu = await lancer(cuisine, "preview", "--json");
   assert.equal(apercu.code, 0, apercu.sortie);
@@ -142,10 +142,9 @@ test("sans closer réglé, la demande échoue en le disant et en nommant le gest
   assert.ok(!cuisine.types().includes("closing.requested"));
 });
 
-test("le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison", { skip: posixOnly("withdraws a waiting closing request through the app's cancel gesture, then requests again and expects the cancel of the started run refused and the pass delivered; on Windows the pass was judged out of its zone because Git for Windows rewrote the gates link of the closing kitchen (closing/history.ts now writes it with /)") }, async (t) => {
+test("le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison", async (t) => {
   const cuisine = cuisineFermee(t);
-  const { closer, types } = cuisine;
-  closer.gestes(`attendre\n${RETIRER_M1}`);
+  const { types } = cuisine;
   cookEnVol(cuisine, 7);
 
   const rien = await lancer(cuisine, "cancel", "--json");
@@ -160,21 +159,14 @@ test("le retrait d'une demande qui n'est pas partie la retire ; partie, il est r
   assert.ok(types().includes("closing.cancelled"));
   assert.deepEqual((await lancer(cuisine, "preview", "--json")).json.request, { state: "none" });
 
-  // Rien ne part, même quand la condition se remplit.
-  cookFini(cuisine, 7);
-  await ticks(cuisine, 10);
-  assert.deepEqual(closer.lancements(), []);
-
-  // Redemandée, elle part ; partie, le retrait est refusé, et dit pourquoi.
+  // Redemandée, puis partie : le retrait est refusé, et dit pourquoi.
   assert.equal((await lancer(cuisine, "write", "--json", "--confirm")).json.outcome, "requested");
-  await jusqua(() => closer.lancements().length === 1);
+  partie(cuisine);
   const tard = await lancer(cuisine, "cancel", "--json");
   assert.equal(tard.code, 1, tard.sortie);
   assert.equal(tard.json.outcome, "refused");
-  assert.match(tard.json.run, /^fermeture-[0-9a-f]{8}$/);
-  assert.match(tard.json.text, /^closing run fermeture-[0-9a-f]{8} has left: it cannot be recalled — “stop” halts it/);
-  closer.feu();
-  assert.equal((await cuisine.fin()).outcome, "delivered");
+  assert.equal(tard.json.run, "fermeture-0a1b2c3d");
+  assert.match(tard.json.text, /^closing run fermeture-0a1b2c3d has left: it cannot be recalled — “stop” halts it/);
 });
 
 test("un geste de l'app mal écrit sort en 2 et n'écrit rien", async (t) => {

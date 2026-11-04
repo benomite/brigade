@@ -6,7 +6,7 @@ import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { appeler, DEPOT, fauxGh, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");

@@ -1,6 +1,6 @@
 // Le rail ne porte que ce que la cuisine peut cuire (#1925, #1926, #1927) : des cartes qui attendent une station sont
 // en WAITING, un rail qui n'en porte que de celles-là est vide pour la cuisine, et ce n'est pas une panne. La ligne
-// « kitchen idle — the rest of the rail needs a human » (#1751) n'existe plus, ni dans `status`, ni sur le tableau.
+// « kitchen idle — the rest of the rail needs a human » (#1751) n'existe plus dans `status`.
 // Bâti d'un vrai journal et d'un vrai rail, lu par `lireEtat` et `decrireEtat`.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -8,8 +8,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { ouvrirRail } from "../src/rail.ts";
-import { tableauDeLaCuisine } from "../src/tableau/rendu/donnees.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { aArreter, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const MAINTENANT = new Date(`${JOUR_HORLOGE}T11:00:00.000Z`);
@@ -34,12 +33,12 @@ function cuisine(t: TestContext, { manager = true }: { manager?: boolean } = {})
         card: { waitsFor, zone: [`zone/${ticket}/`], problems: [], ...(requires.length === 0 ? {} : { requires }) },
       },
     });
-  // Le bloc `awaiting` de `status`, de sa tête à son bord ; et le tableau du même état.
+  // Le bloc `awaiting` de `status`, de sa tête à son bord.
   const lire = () => {
     const etat = lireEtat(journal, MAINTENANT);
     const lignes = decrireEtat(etat, MAINTENANT);
     const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting "));
-    return { etat, bloc: lignes.slice(debut, lignes.indexOf("end awaiting") + 1), tableau: tableauDeLaCuisine(etat, MAINTENANT) };
+    return { etat, bloc: lignes.slice(debut, lignes.indexOf("end awaiting") + 1) };
   };
   return { journal, rail, arriver, lire };
 }
@@ -60,13 +59,12 @@ function railDuChef(t: TestContext, options?: { manager?: boolean }) {
 
 const SANS_LA_LIGNE = /kitchen idle|needs a human/;
 
-test("le cas du chef : plus aucune ligne « kitchen idle », ni dans le bloc `awaiting`, ni sur le tableau, ni dans la file", (t) => {
+test("le cas du chef : plus aucune ligne « kitchen idle », ni dans le bloc `awaiting`, ni dans la file", (t) => {
   const { lire } = railDuChef(t);
-  const { etat, bloc, tableau } = lire();
+  const { etat, bloc } = lire();
 
-  // La file ne change pas : aucune décision, et aucun bilan sur le tableau.
+  // La file ne change pas : aucune décision.
   assert.deepEqual(bloc, ["awaiting   nothing awaits the chef", "end awaiting"]);
-  assert.deepEqual(tableau.bilans, []);
   assert.deepEqual(etat.attend, []);
   assert.equal(faits(etat, MAINTENANT).compteurs.attend, 0);
   assert.doesNotMatch(decrireEtat(etat, MAINTENANT).join("\n"), SANS_LA_LIGNE);

@@ -18,9 +18,8 @@ import { carnetVide } from "../../src/apprentissage/lecons.ts";
 import { Sortie } from "../../src/appel.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { CLONES, CONFIGURATION } from "../../src/station/configuration.ts";
-import { cuisine, issue } from "../aides/cuisine.ts";
 import { sansMotFrancais } from "../aides/glossaire.ts";
-import { BASE, DEPOT, git, jusqua, repertoireTemporaire } from "../outils.ts";
+import { BASE, DEPOT, git, repertoireTemporaire } from "../outils.ts";
 
 const COMMUNE = "Un test attend un fait, jamais une durée.";
 
@@ -61,14 +60,12 @@ function jouer(racine: string, args: string[] = [], env: Record<string, string> 
   return { sortie, erreurs, code };
 }
 
-const prompt = (args: string[]) => args[args.indexOf("-p") + 1] ?? "";
-
-// Le cook d'un ticket du projet `projet` de la station `racine` : ce que sa
-// consigne porte, et ce que son lancement dit avoir reçu.
-async function cookDe(t: TestContext, racine: string, projet: string) {
-  const { cooks, dernier } = cuisine(t, { projet, issues: [issue(17)], commun: () => leconsDeLEtageCommun(racine) });
-  await jusqua(() => cooks().length === 1);
-  return { texte: prompt(cooks()[0]?.args ?? []), recues: dernier("cook.launched", 17)?.lessons };
+// Ce que reçoit le cook d'un ticket d'un projet de la station `racine` : les
+// leçons de l'étage commun (`commun/installation.ts`), les mêmes pour chaque
+// projet, et la consigne qui les porte.
+function cookDe(racine: string) {
+  const lecons = leconsDeLEtageCommun(racine);
+  return { texte: consigne({ ticket: 17, titre: "Ticket 17", depot: DEPOT, base: BASE, lecons }), recues: lecons.map((lecon) => lecon.id) };
 }
 
 describe("la proposition à l'étage commun", () => {
@@ -134,7 +131,7 @@ describe("la proposition à l'étage commun", () => {
 });
 
 describe("le « oui » du chef", () => {
-  test("la leçon entre à l'étage commun, n'est plus proposée, et le cook d'un troisième projet la reçoit dans sa consigne", async (t) => {
+  test("la leçon entre à l'étage commun, n'est plus proposée, et le cook d'un troisième projet la reçoit dans sa consigne", (t) => {
     const racine = station(t, { alpha: [promue("L4", COMMUNE)], beta: [promue("L7", COMMUNE)], gamma: [] });
     const cle = cleDe(COMMUNE);
     const oui = jouer(racine, ["yes", cle]);
@@ -148,7 +145,7 @@ describe("le « oui » du chef", () => {
     assert.deepEqual(jouer(racine, ["no", cle]).sortie, [`already answered — “yes” to ${cle}: lesson C1 joins the common tier — the cooks of every project receive it`]);
     assert.equal(lireEtage(racine).lecons.length, 1);
 
-    const { texte, recues } = await cookDe(t, racine, "gamma");
+    const { texte, recues } = cookDe(racine);
     assert.ok(texte.includes(`- C1 : ${COMMUNE}`), texte);
     assert.match(texte, /étage commun/);
     assert.deepEqual(recues, ["C1"]);
@@ -156,7 +153,7 @@ describe("le « oui » du chef", () => {
 });
 
 describe("le « non » du chef", () => {
-  test("la leçon reste dans le carnet des deux projets seulement, aucun cook d'un autre projet ne la reçoit, et elle n'est plus proposée", async (t) => {
+  test("la leçon reste dans le carnet des deux projets seulement, aucun cook d'un autre projet ne la reçoit, et elle n'est plus proposée", (t) => {
     const racine = station(t, { alpha: [promue("L4", COMMUNE)], beta: [promue("L7", COMMUNE)], gamma: [] });
     const cle = cleDe(COMMUNE);
     const non = jouer(racine, ["no", cle]);
@@ -172,7 +169,7 @@ describe("le « non » du chef", () => {
       const carnet = parseCarnet(git(join(racine, CLONES, nom), "show", `origin/${BASE}:.claude/brigade/carnet.md`) + "\n");
       assert.deepEqual(carnet.lessons.map((l) => [l.text, l.state]), [[COMMUNE, "promoted"]]);
     }
-    const { texte, recues } = await cookDe(t, racine, "gamma");
+    const { texte, recues } = cookDe(racine);
     assert.doesNotMatch(texte, /étage commun/);
     assert.equal(texte.includes(COMMUNE), false);
     assert.deepEqual(recues, []);
@@ -190,7 +187,7 @@ describe("le « non » du chef", () => {
 });
 
 describe("une installation d'un seul projet", () => {
-  test("aucune proposition, et la consigne de ses cooks reste ce qu'elle était — même si l'étage a gardé une leçon acceptée", async (t) => {
+  test("aucune proposition, et la consigne de ses cooks reste ce qu'elle était — même si l'étage a gardé une leçon acceptée", (t) => {
     const racine = station(t, { alpha: [promue("L4", COMMUNE)] });
     const lu = jouer(racine);
     assert.equal(lu.code, 0);
@@ -203,8 +200,8 @@ describe("une installation d'un seul projet", () => {
     writeFileSync(fichierDeLEtage(racine), JSON.stringify(etage));
     assert.deepEqual(leconsDeLEtageCommun(racine), []);
 
-    const { texte, recues } = await cookDe(t, racine, "alpha");
-    assert.equal(texte, consigne({ ticket: 17, titre: issue(17).title, depot: DEPOT, base: BASE }));
+    const { texte, recues } = cookDe(racine);
+    assert.equal(texte, consigne({ ticket: 17, titre: "Ticket 17", depot: DEPOT, base: BASE }));
     assert.deepEqual(recues, []);
   });
 
@@ -230,20 +227,18 @@ describe("la consigne", () => {
 });
 
 describe("le retrait d'une leçon de l'étage par le chef", () => {
-  test("`retire C1` : aucun cook d'aucun projet ne la reçoit plus, elle n'est jamais reproposée, un second geste n'écrit rien", async (t) => {
+  test("`retire C1` : aucun cook d'aucun projet ne la reçoit plus, elle n'est jamais reproposée, un second geste n'écrit rien", (t) => {
     const racine = station(t, { alpha: [promue("L4", COMMUNE)], beta: [promue("L7", COMMUNE)], gamma: [] });
     const cle = cleDe(COMMUNE);
     assert.equal(jouer(racine, ["yes", cle]).code, 0);
-    assert.deepEqual((await cookDe(t, racine, "gamma")).recues, ["C1"]);
+    assert.deepEqual(cookDe(racine).recues, ["C1"]);
 
     const retrait = jouer(racine, ["retire", "C1"]);
     assert.equal(retrait.code, 0, retrait.erreurs.join("\n"));
     assert.deepEqual(retrait.sortie, ["C1 retired: no cook of any project receives it, and it is not proposed again"]);
-    for (const projet of ["alpha", "beta", "gamma"]) {
-      const { texte, recues } = await cookDe(t, racine, projet);
-      assert.equal(texte.includes(COMMUNE), false, projet);
-      assert.deepEqual(recues, []);
-    }
+    const { texte, recues } = cookDe(racine);
+    assert.equal(texte.includes(COMMUNE), false);
+    assert.deepEqual(recues, []);
     assert.deepEqual(leconsDeLEtageCommun(racine), []);
     assert.ok(jouer(racine).sortie.includes("no lesson is proposed"));
     assert.ok(jouer(racine).sortie.some((ligne) => ligne.startsWith(`C1  ${COMMUNE}  (retired `)));
@@ -274,7 +269,7 @@ describe("l'expiration d'une leçon de l'étage", () => {
     return racine;
   };
 
-  test("sans reconfirmation pendant `expiration` tickets servis, elle expire : plus servie, marquée expirée, jamais reproposée", async (t) => {
+  test("sans reconfirmation pendant `expiration` tickets servis, elle expire : plus servie, marquée expirée, jamais reproposée", (t) => {
     const racine = accepter(t);
     assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21"), []);
     assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21"), []);
@@ -286,7 +281,7 @@ describe("l'expiration d'une leçon de l'étage", () => {
     assert.deepEqual(lecon.sortie, { date: "2026-10-22", reason: "expiry" });
     assert.deepEqual(leconsDeLEtageCommun(racine), []);
     assert.deepEqual(idsDeLEtageCommun(racine), []);
-    assert.equal((await cookDe(t, racine, "alpha")).texte.includes(COMMUNE), false);
+    assert.equal(cookDe(racine).texte.includes(COMMUNE), false);
     assert.ok(jouer(racine).sortie.includes("no lesson is proposed"));
     assert.ok(jouer(racine).sortie.some((ligne) => ligne.startsWith(`C1  ${COMMUNE}  (expired 2026-10-22)`)));
     // Plus rien à expirer ensuite.

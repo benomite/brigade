@@ -6,10 +6,10 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
-import { livraisonsCoincees, relancerLeJugement, toursDeLaPass, tourAttendu } from "../../src/file-de-la-pass.ts";
+import { livraisonsCoincees, toursDeLaPass, tourAttendu } from "../../src/file-de-la-pass.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { principal as montrerPass } from "../../src/montrer-pass.ts";
-import { ouvrirRail } from "../../src/rail.ts";
+import { ouvrirRail } from "../aides/rail-du-journal.ts";
 import { aArreter, appeler, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 
 const STATION = "box/claude";
@@ -85,7 +85,6 @@ test("une livraison dont la zone recouvre celle d'une autre dans sa pass l'atten
   assert.deepEqual(tourAttendu(journal.base, 15), { tenants: [14], devant: 0, pourquoi: { quoi: "zone", ticket: 14, chemin: "runtime/src/rail/file.ts" } });
   assert.match(await pass(15), /^#15 {2}delivered, waiting for its turn — #14 is in its pass, next in line — waiting for #14: their zones overlap on runtime\/src\/rail\/file\.ts/);
   assert.doesNotMatch(await pass(16), /waiting for its turn/);
-  assert.deepEqual(relancerLeJugement(journal, 15), { fait: false, raison: "#15 is waiting for its turn — #14 is in its pass, next in line: it is not stuck, the pass judges it after" });
 
   // Une quatrième sur la zone de 15 ne la double pas : elle garde sa place.
   livrer(17, ["docs"]);

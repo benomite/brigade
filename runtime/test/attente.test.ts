@@ -1,8 +1,8 @@
 // WAITING : un ticket qui attend un tiers, et non le chef. Le chef l'y met
 // (quoi, de qui, relance), l'en sort par « reprendre » (l'état d'avant
 // l'attente) ou par « c'est arrivé » (en cuisine) — ni l'un ni l'autre ne passe
-// par TODO (#1834) ; la cuisine ne le prend jamais ; son issue le dit, et cesse
-// de le dire quand il en sort.
+// par TODO (#1834) ; il ne tient pas sa zone ; son issue le dit, et cesse de
+// le dire quand il en sort.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/attente-cli.ts";
@@ -12,7 +12,8 @@ import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ATTEND_UN_TIERS } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
-import { etatLu, GesteRefuse, ouvrirRail } from "../src/rail.ts";
+import { etatLu, GesteRefuse } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { fauxGitHub, issue } from "./aides/cuisine.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -112,23 +113,6 @@ test("une attente sans quoi, sans qui, à relance passée, ou d'un ticket que la
   assert.throws(() => cestArrive(journal, PROJET, 10), /not waiting for a third party/);
 });
 
-test("la cuisine ne prend jamais un ticket en WAITING : la sélection passe à celui d'après, puis ne rend rien", (t) => {
-  const { journal, rail } = cuisine(t);
-  poser(journal, 8);
-  poser(journal, 9);
-  attendre(journal, 8);
-
-  assert.equal(rail.servables(), 1);
-  assert.equal(rail.servables(undefined, [{ station: "box/claude", fournit: [] }]), 1);
-  assert.equal(rail.prendre([{ station: "box/claude", fournit: [] }])?.ticket, 9);
-  assert.equal(rail.prendre("box/claude"), null);
-  // Seul ce ticket-là, ou rien : il reste rien.
-  assert.equal(rail.prendre("box/claude", undefined, 8), null);
-  // Le relevé ne le rend pas : il n'a pas d'heure de retour.
-  assert.equal(rail.relever(), 0);
-  assert.equal(ticketDuRail(journal.base, 8)?.state, "86");
-});
-
 test("un ticket en WAITING n'est pas dans TODO, et ne tient pas sa zone", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 8, ["runtime/src"]);
@@ -141,7 +125,6 @@ test("un ticket en WAITING n'est pas dans TODO, et ne tient pas sa zone", (t) =>
   assert.deepEqual(decrireAttentes(todo(journal), () => "1 min")[0], `${"awaiting".padEnd(11)}nothing awaits the chef`);
   // Sa zone ne retient pas celui qui la recouvre.
   assert.deepEqual(ticketDuRail(journal.base, 9)?.held, []);
-  assert.equal(rail.prendre("box/claude")?.ticket, 9);
 });
 
 test("« reprendre » : un ticket mis de côté reprend l'état d'avant l'attente, sans passer par TODO", (t) => {
@@ -154,11 +137,10 @@ test("« reprendre » : un ticket mis de côté reprend l'état d'avant l'attent
   assert.deepEqual([lu.state, lu.reason, lu.until, lu.waitingFor], ["86", "no-calibration", null, null]);
   assert.deepEqual(todo(journal), []);
   assert.deepEqual(journal.tout().at(-1)?.payload, { to: "todo", why: "chef" });
-  assert.equal(rail.prendre("box/claude"), null);
 });
 
 test("« reprendre » : un ticket qui n'était pas mis de côté retourne en attente sur le rail — jamais dans TODO, et « c'est arrivé » ne s'y applique plus", (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal } = cuisine(t);
   poser(journal, 8);
   attendre(journal, 8);
 
@@ -166,7 +148,6 @@ test("« reprendre » : un ticket qui n'était pas mis de côté retourne en att
   assert.deepEqual([lu.state, lu.reason, lu.waitingFor, etatLu(lu)], ["waiting", null, null, "en attente"]);
   assert.deepEqual(todo(journal), []);
   assert.throws(() => cestArrive(journal, PROJET, 8), /not waiting for a third party/);
-  assert.equal(rail.prendre("box/claude")?.ticket, 8);
 });
 
 test("« c'est arrivé, on repart » : le ticket en WAITING repart en cuisine sans passer par TODO", (t) => {
@@ -184,7 +165,6 @@ test("« c'est arrivé, on repart » : le ticket en WAITING repart en cuisine sa
     journal.duTicket(8).map((e) => e.type),
     ["ticket.arrived", "ticket.86", "ticket.waiting", "ticket.resumed"],
   );
-  assert.equal(rail.prendre("box/claude")?.ticket, 8);
 });
 
 test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand ; la marque est mise à jour, puis retirée quand il en sort", async (t) => {
@@ -255,13 +235,10 @@ test("une marque que GitHub refuse n'est pas retenue : elle est reposée au rév
 
 test("la relance atteinte laisse le ticket en WAITING, sans carte dans TODO : seule sa ligne WAITING montre la date passée", (t) => {
   const { journal } = cuisine(t);
-  let horloge = MAINTENANT;
-  const rail = ouvrirRail(journal, { projet: PROJET, dureeBailMs: 600_000, maintenant: () => horloge });
   poser(journal, 8);
   const relance = lireRelance("2026-10-21", MAINTENANT);
   attendre(journal, 8, relance);
-  horloge = new Date(relance.getTime() + 3_600_000);
-  assert.equal(rail.relever(), 0);
+  const horloge = new Date(relance.getTime() + 3_600_000);
   const lu = ticketDuRail(journal.base, 8);
   assert.equal(etatLu(lu as NonNullable<typeof lu>), "WAITING");
   assert.equal(lu?.reason, ATTEND_UN_TIERS);
@@ -285,8 +262,6 @@ test("une mise à jour de la box rejouée sur des tickets en WAITING n'en sort a
   const rouvert = ouvrirJournal(repertoire);
   t.after(() => rouvert.fermer());
   rouvert.reconstruire();
-  const railRouvert = ouvrirRail(rouvert, { projet: PROJET, dureeBailMs: 600_000, maintenant: () => new Date("2026-11-05T00:00:00.000Z") });
-  assert.equal(railRouvert.relever(), 0);
   assert.equal(await marquerAttentes(rouvert, gh.github, PROJET), 0);
   for (const ticket of [8, 9]) {
     const lu = ticketDuRail(rouvert.base, ticket);
@@ -297,7 +272,7 @@ test("une mise à jour de la box rejouée sur des tickets en WAITING n'en sort a
 });
 
 test("une sortie de WAITING que l'ancienne version écrivait seule (relance, commentaire) n'en sort pas le ticket, rejouée ou non ; celle du chef, si", (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal } = cuisine(t);
   for (const ticket of [8, 9, 10]) poser(journal, ticket);
   attendre(journal, 8);
   attendre(journal, 9);
@@ -319,7 +294,6 @@ test("une sortie de WAITING que l'ancienne version écrivait seule (relance, com
   ];
   assert.deepEqual(lus(), attendu);
   assert.deepEqual(todo(journal), []);
-  assert.equal(rail.relever(), 0);
   journal.reconstruire();
   assert.deepEqual(lus(), attendu);
 });
@@ -359,7 +333,7 @@ test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'el
 });
 
 test("`renvoyerEnCuisine` joue « c'est arrivé » comme un geste du rail : fait avec son prix, ou refusé sans rien changer", (t) => {
-  const { journal, rail } = cuisine(t);
+  const { journal } = cuisine(t);
   poser(journal, 8);
   poser(journal, 9);
   attendre(journal, 8);
@@ -370,6 +344,5 @@ test("`renvoyerEnCuisine` joue « c'est arrivé » comme un geste du rail : fait
   assert.equal(journal.tout().length, avant);
 
   assert.deepEqual(renvoyerEnCuisine(journal, PROJET, 8), { done: true, price: PRIX_DE_L_ARRIVEE });
-  assert.equal(ticketDuRail(journal.base, 8)?.waitingFor, null);
-  assert.equal(rail.prendre("box/claude")?.ticket, 8);
+  assert.deepEqual([ticketDuRail(journal.base, 8)?.state, ticketDuRail(journal.base, 8)?.waitingFor], ["waiting", null]);
 });

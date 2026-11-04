@@ -6,8 +6,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { environnementDecide } from "../../src/decisions.ts";
-import { configPass } from "../../src/pass.ts";
-import { appliquerLeChangement, changementsDits } from "../../src/reglages-projet/proposer.ts";
 import { variablesDesGatesDuDepot } from "../../src/reglages-projet/en-vigueur.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier, validerReglagesProjet, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { lireBudget, lireBudgetDeLaBase } from "../../src/cout-des-gates.ts";
@@ -44,15 +42,6 @@ test("an unknown or invalid setting of the gates is refused, and named", () => {
   }
 });
 
-test("a proposed change sets or withdraws the gates' settings one by one, and keeps the others", () => {
-  const change = appliquerLeChangement(AVEC_GATES, { gates: { timeoutSeconds: 600, ciWaitSeconds: null } });
-  const apres = validerReglagesProjet(change);
-  assert.equal(apres.gates?.timeoutSeconds, 600);
-  assert.equal(apres.gates?.ciWaitSeconds, undefined);
-  assert.equal(apres.gates?.durationBudgetSeconds, 400);
-  assert.deepEqual(changementsDits(AVEC_GATES, apres), ["gates threshold `timeoutSeconds`: 1500 → 600", "gates threshold `ciWaitSeconds`: 2400 → none"]);
-});
-
 test("what the repository sets wins over the box, setting by setting; without it, the box's decisions and defaults stand", () => {
   const posees = { BRIGADE_GATES_BUDGET_SECONDS: "111", BRIGADE_GATES_BASE_BUDGET_SECONDS: "222" };
   const sansDepot = environnementDecide({}, posees as never, null);
@@ -68,6 +57,6 @@ test("what the repository sets wins over the box, setting by setting; without it
 
 test("the gates timeout and the CI wait come from the repository over the environment, and from the environment without it", () => {
   const env = { BRIGADE_GATES_TIMEOUT_SECONDS: "100", BRIGADE_CI_WAIT_SECONDS: "200" };
-  assert.deepEqual(configPass({ ...env, ...variablesDesGatesDuDepot(null) }), { delaiGatesMs: 100_000, attenteCiMs: 200_000 });
-  assert.deepEqual(configPass({ ...env, ...variablesDesGatesDuDepot({ integrationBranch: "v2", gates: { timeoutSeconds: 1500 } }) }), { delaiGatesMs: 1_500_000, attenteCiMs: 200_000 });
+  assert.deepEqual({ ...env, ...variablesDesGatesDuDepot(null) }, env);
+  assert.deepEqual({ ...env, ...variablesDesGatesDuDepot({ integrationBranch: "v2", gates: { timeoutSeconds: 1500 } }) }, { BRIGADE_GATES_TIMEOUT_SECONDS: "1500", BRIGADE_CI_WAIT_SECONDS: "200" });
 });

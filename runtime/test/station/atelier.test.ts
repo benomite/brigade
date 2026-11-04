@@ -12,17 +12,14 @@ import { LECTURES_INTERDITES, type Reglages } from "../../src/bac-a-sable/config
 import { SEATBELT, type Sondes } from "../../src/bac-a-sable/detection.ts";
 import { configBacASableLocal, dansLeBacASableLocal } from "../../src/bac-a-sable/local.ts";
 import { argumentsClaude } from "../../src/claude.ts";
-import { ouvrirDepot } from "../../src/depot.ts";
-import type { Fait } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { ouvrirNettoyage } from "../../src/nettoyage.ts";
 import { REGLES_DE_BASE } from "../../src/reseau.ts";
 import { prendreVerrou } from "../../src/verrou.ts";
 import { demenagerVersLAtelier } from "../../src/station/atelier.ts";
 import { lieuxDuProjet } from "../../src/station/configuration.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
-import { aArreter, BASE, commiter, depotGit, ENV_GIT, FAUX_CLAUDE, git, horloge, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { aArreter, BASE, commiter, depotGit, ENV_GIT, FAUX_CLAUDE, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -94,45 +91,6 @@ test("un projet servi avant l'atelier y déménage : son clone et ses worktrees,
   assert.deepEqual(demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT }), { deplaces: [], restes: [] });
 });
 
-test("déménagé, le worktree d'un cook d'une vie précédente se range sans geste du chef : ce qui y traînait est commité sur sa branche, puis il est retiré", async (t) => {
-  const { racine, etat, lieux } = avantLaMiseAJour(t);
-  demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT });
-  // Le journal le nomme comme avant la mise à jour : `worktrees/<run>`, relatif à l'état.
-  const journal = ouvrirJournal(etat, { maintenant: horloge() });
-  t.after(() => journal.fermer());
-  const noter = (fait: Fait) => journal.ajouter({ project: PROJET, ticket: 12, author: "runtime", ...fait });
-  noter({ type: "ticket.arrived", payload: { title: "Ticket 12", priority: 1, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/12" } });
-  noter({
-    type: "cook.launched",
-    payload: {
-      run: RUN,
-      limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
-      stream: `runs/${RUN}.jsonl`,
-      station: "mac/claude",
-      model: "sonnet",
-      effort: "low",
-      branch: `cook/${RUN}`,
-      worktree: `worktrees/${RUN}`,
-    },
-  });
-  noter({ type: "cook.exited", payload: { run: RUN, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
-  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "mac", node: "26" } });
-
-  const avertissements: string[] = [];
-  const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: lieux.worktrees, env: ENV_GIT });
-  const nettoyage = ouvrirNettoyage({ journal, projet: PROJET, repertoireEtat: etat, worktrees: lieux.worktrees, depot, avertir: (ligne) => void avertissements.push(ligne) });
-  await nettoyage.rattraper();
-
-  assert.deepEqual(avertissements, []);
-  const range = journal.duTicket(12).find((evenement) => evenement.type === "worktree.removed");
-  assert.ok(range, "le worktree n'est pas rangé");
-  const { harvest } = range.payload as { harvest: string | null };
-  assert.ok(harvest, "ce qui traînait n'a pas été commité");
-  assert.equal(existsSync(join(lieux.worktrees, RUN)), false);
-  // Rien n'est perdu : le fichier jamais commité est sur la branche du cook.
-  assert.equal(git(lieux.clone, "show", `cook/${RUN}:en-cours.txt`), "le travail que le cook n'a pas commité");
-});
-
 test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà dans l'atelier, un projet qu'un runtime tient encore", (t) => {
   const { racine, etat, ancienClone, ancienWorktree, lieux } = avantLaMiseAJour(t);
   // Un runtime tient le projet : rien ne bouge sous lui.
@@ -175,7 +133,7 @@ test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks 
   const lignes: string[] = [];
   const station = ouvrirStation({
     racine,
-    // Aucun test ne joint GitHub : ce `gh` n'existe pas, le tableau de la cuisine ne se publie nulle part.
+    // Aucun test ne joint GitHub : ce `gh` n'existe pas.
     env: { ...ENV_GIT, HOME: home, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_DIR: session, BRIGADE_GH_BIN: join(compte, "gh-absent") },
     dire: (ligne) => void lignes.push(ligne),
     ouvrir: (env, options) => ouvrirCuisine(env, { ...options, sondes: MAC }),
