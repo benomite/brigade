@@ -33,12 +33,15 @@ const DISPONIBLE: BacASableDeLaStation = { available: true, version: "2.1.250", 
 // GitHub, doublé : les gists du compte et les issues du dépôt.
 function fauxGitHub() {
   const gists = new Map<string, Fichiers>(Object.values(GISTS).map((id) => [id, {}]));
+  // Combien d'écritures les gists ont reçues : une relecture sans écriture n'y trouve rien de neuf.
+  let ecritures = 0;
   const canal: Canal = {
     creer: async () => assert.fail("personne ne crée de gist ici"),
     async ecrire(id, fichiers) {
       const gist = gists.get(id);
       if (gist === undefined) return "absent";
       Object.assign(gist, fichiers);
+      ecritures++;
       return "ecrit";
     },
     lire: async (id) => {
@@ -62,7 +65,7 @@ function fauxGitHub() {
     epingler: async () => false,
   };
   const corps = () => [...issues.values()][0]?.corps ?? "";
-  return { gists, canal, tableau, corps };
+  return { gists, canal, tableau, corps, ecritures: () => ecritures };
 }
 
 // Une cuisine dont le projet déclare ces stations ; la principale qui relaie et
@@ -82,12 +85,21 @@ function service(t: TestContext, declaration: string, options: Options = {}) {
   let boucle: Promise<void> = Promise.resolve();
   // Ce qui l'a arrêtée pendant qu'elle tournait : le test le dit à sa fin.
   let panne: unknown = null;
+  // Relayer des gists que rien n'a changés, c'est relire des demandes déjà au
+  // journal ; et le tableau ne dépend que du journal et de l'heure. Ce qui n'a
+  // pas bougé n'est pas refait : chaque tour ouvrirait un journal pour rien.
+  let relu = -1;
+  let publie = "";
   const principale = () => {
     tourne = true;
     boucle = (async () => {
       while (tourne) {
-        relayees.push(...(await relayer()).relayees.map(({ station, verb }) => `${station} ${verb}`));
-        await publication.rafraichir(heure.maintenant());
+        const ecrites = github.ecritures();
+        if (ecrites !== relu) relayees.push(...(await relayer()).relayees.map(({ station, verb }) => `${station} ${verb}`));
+        relu = ecrites;
+        const vu = `${journal.dernierSeq()}@${instant()}`;
+        if (vu !== publie) await publication.rafraichir(heure.maintenant());
+        publie = vu;
         await new Promise((resoudre) => setTimeout(resoudre, 5));
       }
     })().catch((erreur: unknown) => void (tourne && (panne = erreur)));
@@ -99,7 +111,7 @@ function service(t: TestContext, declaration: string, options: Options = {}) {
     assert.equal(panne, null);
   };
   const demander = (station: string, demande: DemandeParGitHub): Promise<Reponse> =>
-    demanderParGitHub({ station, depot: DEPOT, gist: GISTS[station]!, canal: github.canal, lireLeTableau: lecteurDuTableau(github.tableau), maintenant: instant, pasMs: 5, attenteMs: 60_000 }, demande);
+    demanderParGitHub({ station, depot: DEPOT, gist: GISTS[station]!, canal: github.canal, lireLeTableau: lecteurDuTableau(github.tableau), maintenant: instant, pasMs: 5, attenteMs: 2_000 }, demande);
   const prises = (ticket: number) => journal.duTicket(ticket).filter((e) => e.type === "ticket.taken").map((e) => e.author.replace(/^station:/, ""));
   // Qui tient le ticket, prise après prise : `<station>` à sa prise, `-` quand
   // il la quitte — rendu, ou son cook fini, qui le rend au rail.
@@ -108,11 +120,10 @@ function service(t: TestContext, declaration: string, options: Options = {}) {
 }
 
 const enAttente = async (lieu: ReturnType<typeof service>, ...numeros: number[]) => {
-  // La box, à un cook au plus, est occupée : les tickets suivants attendent une station.
-  lieu.gh.poser(issue(14));
-  await jusqua(() => lieu.etat(14) === "taken");
-  for (const numero of numeros) lieu.gh.poser(issue(numero));
-  await jusqua(() => numeros.every((numero) => lieu.etat(numero) === "waiting"));
+  // La box, à un cook au plus, est occupée par #14, servi le premier : les
+  // tickets suivants, arrivés dans le même sondage, attendent une station.
+  for (const numero of [14, ...numeros]) lieu.gh.poser(issue(numero));
+  await jusqua(() => lieu.etat(14) === "taken" && numeros.every((numero) => lieu.etat(numero) === "waiting"));
 };
 
 describe("une station secondaire tire son travail par GitHub, arbitrée par la principale", { concurrency: 3, skip: posixOnly("runs a full kitchen on the fake claude where a second station claims, renews and delivers through its gist and the Kitchen board only, and loses its lease when silent; skipped because the fake claude is a bash script, though Windows launches it through Git Bash and no failure of these tests there is known") }, () => {
