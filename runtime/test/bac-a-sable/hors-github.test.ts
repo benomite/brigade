@@ -78,6 +78,7 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
     mettreAJour: async () => {},
     merger: async () => ({ merged: true }) as never,
     retraitsDeLabels: async () => [],
+    prsOuvertes: async () => [],
     ...github,
   };
   const station = stationDuDepot({
@@ -89,6 +90,7 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
     depot: {
       preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
       reprendre: async (run) => join(repertoire, run),
+      connait: () => false,
       retirer: () => {},
       ranger: async () => null,
       pousser: (branche) => void fait.push(`pousser ${branche}`),
@@ -196,8 +198,10 @@ test("the forbidden reads still hold the chef's gh config and keychain, and the 
 });
 
 test("a ticket GitHub will not give launches no cook: the station says why on the issue and releases it", async (t) => {
+  // Ses commentaires, que seule la remise du ticket au cook lit : le tour lit
+  // déjà le corps de l'issue, pour sa zone, avant de prendre le ticket.
   const { servir, lances, fait } = cuisine(t, {
-    issue: async () => {
+    commentaires: async () => {
       throw new Error("HTTP 502");
     },
   });
