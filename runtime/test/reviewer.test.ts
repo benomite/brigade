@@ -54,6 +54,16 @@ test("la consigne d'une relecture de diff porte le ticket, ses commentaires, le 
   assert.match(consigne, /"verdict": "rouge"[\s\S]*"gravite": "bloquant"/);
 });
 
+test("la consigne d'une relecture de diff exige que le code exporté neuf sous runtime/ soit atteint depuis ouvrirStation / ouvrirCuisine, sinon bloquant", () => {
+  const consigne = consigneDeRelecture(MISSION);
+
+  assert.match(consigne, /code exporté sous `runtime\/`[\s\S]*`runtime\/src\/station\/main\.ts`[\s\S]*`ouvrirStation` \/ `ouvrirCuisine`/);
+  assert.match(consigne, /Remonte les appelants de chaque nouvel export/);
+  assert.match(consigne, /que seuls ses tests appellent[^.]*est un constat `bloquant`/);
+  // Un livrable sans diff n'a pas d'export à suivre.
+  assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: null }), /ouvrirCuisine/);
+});
+
 test("un commit de récolte est signalé au reviewer : il n'est pas du cook, il sera mergé quand même, et un fichier qui n'a rien à y faire est bloquant", () => {
   const diff = { fichiers: ["travail.txt", "brouillon.txt"], texte: "+le travail" };
   const consigne = consigneDeRelecture({ ...MISSION, diff: { ...diff, recoltes: ["c0ffee1234567890"] } });
