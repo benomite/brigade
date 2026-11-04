@@ -31,6 +31,7 @@ function service(t: TestContext, tickets: Ticket[], options: { jugements?: numbe
   const dehors = new Map(tickets.flatMap(({ numero, dehors: fichier }) => (fichier === undefined ? [] : [[numero, fichier]])));
   let merges = () => 0;
   const lieu = cuisine(t, {
+    tickMs: 25,
     pass: true,
     issues,
     communs: COMMUNS,

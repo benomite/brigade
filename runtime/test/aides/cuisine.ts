@@ -533,6 +533,13 @@ export type Options = {
   // Chaque cook part par son relais, comme à la box : pour un test qui
   // éprouve sa survie au runtime ou sa reprise.
   relais?: boolean;
+  // L'intervalle du tick, en millisecondes : 100 par défaut. Un test qui
+  // enchaîne des tours que seul le tick fait avancer le resserre.
+  tickMs?: number;
+  // Le journal du runtime n'attend pas le disque à chaque écriture (`PRAGMA
+  // synchronous = OFF`) : aucun test n'éprouve une coupure de courant, et sous
+  // la charge d'autres suites chaque attente du disque bloque tout le fichier.
+  sansSync?: boolean;
 };
 
 // Une machine qui n'a rien de ce qu'un projet peut demander.
@@ -617,7 +624,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
   // (20 ms pour le tick), c'était l'essentiel du processeur des fichiers de
   // cuisine. Les tests attendent des faits, pas des durées : 20 ms de veille
   // et 100 ms de tick ne coûtent que quelques millisecondes par fait attendu.
-  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 20, intervalleTickMs: 100, maintenant: heure.maintenant });
+  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 20, intervalleTickMs: options.tickMs ?? 100, maintenant: heure.maintenant });
+  if (options.sansSync) socle.journal.base.script("PRAGMA synchronous = OFF");
   const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
   // Les décisions du chef, posées au journal : leur seul support.
   const decisions = options.decisions

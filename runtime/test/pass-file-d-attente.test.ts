@@ -17,7 +17,7 @@ const EN_COURS: Check[] = [{ name: "tests", outcome: "pending", conclusion: "in_
 // en cours, sauf pour ceux qu'il a libérés.
 function service(t: TestContext, numeros: number[]) {
   const issues = numeros.map((numero, rang) => issue(numero, CALIBRE, { createdAt: `2026-10-01T00:00:${String(rang + 1).padStart(2, "0")}Z` }));
-  const lieu = cuisine(t, { pass: true, issues });
+  const lieu = cuisine(t, { tickMs: 25, pass: true, issues });
   chef(lieu.repertoire, "grant.activated");
   const { journal, gh } = lieu;
   const liberes = new Set<number>();

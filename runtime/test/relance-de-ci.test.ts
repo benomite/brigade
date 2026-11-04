@@ -120,6 +120,7 @@ const job = (n: number, outcome: Check["outcome"] = "red", nom = "tests"): Check
 function servir(t: TestContext, options: Partial<Options> & { changes?: string[] } = {}) {
   const changes = options.changes ?? ["runtime/src/station.ts"];
   const lieu = cuisine(t, {
+    tickMs: 25,
     pass: true,
     issues: [issue(17)],
     ...options,

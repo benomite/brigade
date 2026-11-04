@@ -28,7 +28,7 @@ function lieuxDuProjet(t: TestContext, copie = false) {
 }
 
 function service(t: TestContext, options: Options) {
-  const lieu = cuisine(t, { git: true, ...options });
+  const lieu = cuisine(t, { tickMs: 25, git: true, ...options });
   const { journal, repertoire } = lieu;
   const verdict = () => lieu.dernier("pass.judged", 17) as { verdict: string; gates: Gates } | undefined;
   const passages = () => journal.tout().flatMap((evenement) => (evenement.type === "gates.ran" ? [{ seq: evenement.seq, ticket: evenement.ticket, ...(evenement.payload as FaitGates["payload"]) }] : []));

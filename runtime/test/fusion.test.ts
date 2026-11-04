@@ -47,6 +47,7 @@ function service(
   // Ce qui empêche une fusion : un conflit, ou une panne — ce que git en dit.
   const fusion: { conflit: boolean; panne: string | null; faites: Array<{ nom: string; base: string; sha: string }> } = { conflit: false, panne: null, faites: [] };
   const lieu = cuisine(t, {
+    tickMs: 25,
     pass: true,
     issues: [issue(17)],
     ...options,
@@ -159,7 +160,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 3 }, ()
     git(clone, "push", "-q", "origin", BASE);
     const lieux = { repertoire: repertoireTemporaire(t), origine, clone, gh: fauxGitHub(issue(17)), heure: montre() };
     // Une première vie sans pass : le cook livre sur une branche partie de la base cassée.
-    const premiere = cuisine(t, { lieux, git: true });
+    const premiere = cuisine(t, { tickMs: 25, lieux, git: true });
     await jusqua(() => premiere.types(17).includes("worktree.removed"));
     const branche = String(premiere.dernier("cook.launched", 17)?.branch);
     premiere.runtime.arreter("test");
@@ -173,7 +174,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 3 }, ()
     const avant = git(origine, "for-each-ref");
     chef(lieux.repertoire, "grant.activated");
 
-    const { gh, journal, gates } = cuisine(t, { lieux, git: true, pass: true });
+    const { gh, journal, gates } = cuisine(t, { tickMs: 25, lieux, git: true, pass: true });
     await jusqua(() => gh.merges.length === 1);
 
     const types = journal.duTicket(17).map((e) => e.type);

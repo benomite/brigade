@@ -25,6 +25,7 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
   const base = { tete: "base-1" };
   const essais: Record<string, Scenario> = { ...options.essais };
   const lieu = cuisine(t, {
+    tickMs: 25,
     pass: true,
     issues: options.issues ?? [],
     scenario: options.scenario,

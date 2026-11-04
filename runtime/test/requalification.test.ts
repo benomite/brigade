@@ -9,7 +9,7 @@ import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
 function brigade(t: TestContext, jugement: string | string[], options: Options = {}) {
-  const c = cuisine(t, { manager: typeof jugement === "string" ? { jugement } : { suite: jugement }, issues: [issue(40, ["blocked-on-human"])], ...options });
+  const c = cuisine(t, { tickMs: 25, manager: typeof jugement === "string" ? { jugement } : { suite: jugement }, issues: [issue(40, ["blocked-on-human"])], ...options });
   chef(c.repertoire, "manager.enabled");
   const requalifie = () => c.journal.duTicket(40).filter((e) => e.type === "manager.requalified");
   const dits = () => c.gh.commentaires.filter(([n, corps]) => n === 40 && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);

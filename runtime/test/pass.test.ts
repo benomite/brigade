@@ -29,6 +29,9 @@ import { posixOnly } from "./support/plateforme.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
 const HEURE_MS = 3_600_000;
+// Le tick des cuisines de ce fichier : bien des pas de la pass — relire GitHub,
+// reprendre une remontée, redemander une relecture — n'avancent qu'à lui.
+const TICK_MS = 25;
 // Ce que Linux accepte pour un seul argument de commande, son octet nul compris
 // (`MAX_ARG_STRLEN`) : au-delà, le lancement est refusé (`E2BIG`).
 const ARGUMENT_MAX_LINUX = 131_072;
@@ -38,7 +41,7 @@ const motifDe = (remontee: Record<string, unknown> | undefined) => ({ reason: re
 
 // Une cuisine avec sa pass, et un ticket calibré sur le rail.
 function service(t: TestContext, options: Options & { grant?: boolean; gates?: "vert" | "rouge" | "lent" | "plafond" | "rouge-et-plafond" } = {}) {
-  const lieu = cuisine(t, { pass: true, issues: [issue(17)], ...options });
+  const lieu = cuisine(t, { pass: true, issues: [issue(17)], tickMs: TICK_MS, ...options });
   if (options.gates) lieu.gates.regler(options.gates);
   if (options.grant) chef(lieu.repertoire, "grant.activated");
   const { journal } = lieu;
@@ -58,7 +61,7 @@ function service(t: TestContext, options: Options & { grant?: boolean; gates?: "
 // Un cook fini sans commit, puis la cuisine rouverte avec sa pass sur le
 // compte-rendu que `ecrit` donne à sa place : un journal d'une autre époque.
 async function rapportReecrit(t: TestContext, ecrit: { summary: string; deliverable?: string }) {
-  const premiere = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
+  const premiere = cuisine(t, { tickMs: TICK_MS, scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
   await jusqua(() => premiere.gh.commentaires.length === 1);
   const rapport = premiere.dernier("cook.reported", 17);
   premiere.runtime.arreter("test");
@@ -71,7 +74,7 @@ async function rapportReecrit(t: TestContext, ecrit: { summary: string; delivera
     payload: { run: String(rapport?.run), ending: "done", reason: "no-diff", ...ecrit, branch: String(rapport?.branch), pr: null },
   });
   laisse.fermer();
-  return cuisine(t, { lieux: premiere.lieux, pass: true });
+  return cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true });
 }
 
 // Une livraison verte mergée sous grant, sans rien d'autre : deux tests la
@@ -323,7 +326,7 @@ describe("la pass", { concurrency: 3 }, () => {
     premiere.heure.avancer(5 * HEURE_MS);
 
     premiere.gh.merge.mode = "ok";
-    const { gh, journal } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { gh, journal } = cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true });
     await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
 
     assert.deepEqual(journal.tout().find((e) => e.type === "grant.expired")?.payload, { action: "merge", cause: "until", since: echeance });
@@ -821,7 +824,8 @@ describe("la pass", { concurrency: 3 }, () => {
     // Le `fix` quitte le rail : la livraison repart, sur sa branche, sans consommer de renvoi.
     journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
     await jusquAu("pass.kitchen-took-over", 2);
-    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "resume", issue: 501 });
+    // La reprise est lue à son rang : l'abandon qui la suit peut déjà être écrit.
+    assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "pass.kitchen-took-over")[1]?.payload, { cause: "wrong-base", move: "resume", issue: 501 });
     const renvoi = dernier("pass.returned", 17);
     assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
     assert.match(String((renvoi?.findings as string[])[0]), /Le ticket `fix` #501, ouvert par la cuisine .* est servi : la livraison te revient/);
@@ -1344,7 +1348,7 @@ describe("la pass", { concurrency: 3 }, () => {
     git(clone, "push", "-q", "origin", BASE);
     const lieux = { repertoire: repertoireTemporaire(t), origine, clone, gh: fauxGitHub(issue(17)), heure: montre() };
     // Une première vie sans pass : le cook livre, sa branche est poussée, le ticket attend en pass.
-    const premiere = cuisine(t, { lieux, git: true });
+    const premiere = cuisine(t, { tickMs: TICK_MS, lieux, git: true });
     await jusqua(() => premiere.types(17).includes("worktree.removed"));
     const branche = String(premiere.dernier("cook.launched", 17)?.branch);
     premiere.runtime.arreter("test");
@@ -1358,7 +1362,7 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.notEqual(git(clone, "rev-parse", branche), livre);
     chef(lieux.repertoire, "grant.activated");
 
-    const { gh, dernier, gates } = cuisine(t, { lieux, git: true, pass: true });
+    const { gh, dernier, gates } = cuisine(t, { tickMs: TICK_MS, lieux, git: true, pass: true });
     await jusqua(() => gh.merges.length === 1);
 
     assert.deepEqual([dernier("pass.started", 17)?.sha, dernier("pass.judged", 17)?.sha, dernier("pass.judged", 17)?.verdict], [livre, livre, "green"]);
@@ -1432,7 +1436,7 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.equal(phaseSurDisque(premiere.repertoire), "merging");
 
     premiere.gh.merge.mode = "ok";
-    const { gh, journal } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { gh, journal } = cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true });
     await jusqua(() => gh.fermetures.length === 1);
 
     const suite = journal.duTicket(17).filter((e) => /^(grant|merge)\./.test(e.type)).map((e) => [e.type, charge(e).reason, charge(e).reconciled]);
@@ -1494,7 +1498,7 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.equal(phaseSurDisque(premiere.repertoire), "cooking");
 
     github.ouvrirPR = ouvrirPR;
-    const { gh, journal, etat } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { gh, journal, etat } = cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true });
     await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
 
     assert.deepEqual(
@@ -1526,7 +1530,7 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.equal(phaseSurDisque(premiere.repertoire), "returned");
 
     premiere.gates.regler("vert");
-    const { gh, journal, dernier } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { gh, journal, dernier } = cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true });
     await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
 
     const rapport = dernier("cook.reported", 17);
@@ -1542,7 +1546,7 @@ describe("la pass", { concurrency: 3 }, () => {
     premiere.runtime.arreter("test");
 
     premiere.gates.regler("vert");
-    const { journal, gates } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { journal, gates } = cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true });
     await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
 
     assert.equal(journal.tout().filter((e) => e.type === "pass.judged").length, 1);
@@ -1744,7 +1748,7 @@ describe("la pass", { concurrency: 3 }, () => {
     premiere.runtime.arreter("test");
 
     // Redémarré : rien ne part tant que le disjoncteur est ouvert, puis le reviewer ne rend plus que de l'illisible.
-    const { repertoire, journal, gh, etat } = cuisine(t, { lieux: premiere.lieux, pass: true, seuilDisjoncteur: 1, reviewer: { relecture: "relit-illisible" } });
+    const { repertoire, journal, gh, etat } = cuisine(t, { tickMs: TICK_MS, lieux: premiere.lieux, pass: true, seuilDisjoncteur: 1, reviewer: { relecture: "relit-illisible" } });
     const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
     await jusqua(() => compter("runtime.ticked") >= ticks + 2);
     assert.equal(compter("pass.reviewed"), 1);
@@ -2135,7 +2139,7 @@ describe("la pass sous son identité", { concurrency: 3 }, () => {
   });
 
   test("le résultat d'un merge s'écrit sans attendre l'identité de la pass : lente à se lire, elle manque à ce merge-là, et rien ne reste en suspens", async (t) => {
-    const lieu = cuisine(t, { pass: true, issues: [issue(17)] });
+    const lieu = cuisine(t, { tickMs: TICK_MS, pass: true, issues: [issue(17)] });
     // L'identité ne répond jamais : rien, entre le merge et son résultat, ne doit l'attendre.
     lieu.gh.github.identite = () => new Promise<string>(() => {});
     chef(lieu.repertoire, "grant.activated");
