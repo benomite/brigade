@@ -7,7 +7,6 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test/arbitre-cli.test.ts", test: "ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus" },
   { file: "test/base-cli.test.ts", test: "`base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire" },
   { file: "test/closing/report.test.ts", test: "une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini" },
   { file: "test/closing/run.test.ts", test: "la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien" },
@@ -35,7 +34,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/main.test.ts", test: "une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire" },
   { file: "test/paquet/paquet.test.ts", test: "le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non" },
   { file: "test/sauvegarde.test.ts", test: "restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi" },
-  { file: "test/sorties-du-chef-en-anglais.test.ts", test: "`arbiter` : l'état, weight, remove et les refus ne portent aucun mot français du glossaire" },
   { file: "test/station.test.ts", test: "un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté" },
   { file: "test/station/main.test.ts", test: "deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service" },
   { file: "test/station/main.test.ts", test: "la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie" },

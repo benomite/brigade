@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
+import { principal } from "../src/arbitre-cli.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
+import { appeler, horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
@@ -23,7 +24,7 @@ async function servi(t: TestContext, plafond = 10) {
     ouvert.fermer();
   });
   const commande = async (...args: string[]) => {
-    const cli = lancer(t, CLI, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
+    const cli = appeler(principal, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   return { ouvert, repertoire, serveur, commande };
@@ -62,7 +63,7 @@ describe("la commande de l'arbitre", () => {
     });
     revenu.dire("compta", mot(9));
     revenu.dire("brigade", mot(0, { machine: true }));
-    const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
+    const cli = appeler(principal, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
     assert.equal(await cli.fin, 0);
     const sortie = cli.sortie();
     assert.match(sortie, /^machine\s+SATURATED according to brigade — the effective cap is what is running \(9\): only a project under its share launches again$/m);
@@ -108,6 +109,7 @@ describe("la commande de l'arbitre", () => {
     assert.match(sortie, /each project launches at most one cook at a time, without arbitration \(degraded mode\), until it is back/);
     assert.match(sortie, /^known projects\s+1$/m);
     assert.match(sortie, /^  compta {2}weight 1$/m);
+    sansMotFrancais(sortie.trimEnd().split("\n"));
   });
 
   test("ce que la commande ne comprend pas est refusé sans rien écrire", async (t) => {
@@ -122,7 +124,7 @@ describe("la commande de l'arbitre", () => {
     assert.deepEqual(reglages.projets(), []);
 
     const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
+      const cli = appeler(principal, args, env);
       return { code: await cli.fin, sortie: cli.sortie() };
     };
     assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT is not set/);
@@ -134,7 +136,7 @@ describe("la commande de l'arbitre", () => {
     });
   });
 
-  test("ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus", async (t) => {
+  test("ce que la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus", async (t) => {
     const { ouvert, repertoire, serveur, commande } = await servi(t, 8);
     ouvert.dire("compta", mot(4, { nonArbitres: 1, consommation: { jour: 10, semaine: 20 } }));
     ouvert.dire("muet", mot(1, { machine: true }));
@@ -159,7 +161,7 @@ describe("la commande de l'arbitre", () => {
     }
     // Sans port, avec un port illisible, sans répertoire, sans réglages, arbitre injoignable.
     const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
+      const cli = appeler(principal, args, env);
       return { code: await cli.fin, lignes: lignes(cli.sortie()) };
     };
     for (const [env, args] of [
@@ -167,7 +169,6 @@ describe("la commande de l'arbitre", () => {
       [{ BRIGADE_ARBITER_PORT: "pas-un-port" }, []],
       [{}, ["weight", "compta", "2"]],
       [{ BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) }, ["weight", "compta", "2"]],
-      [{ BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` }, []],
     ] as const) {
       const refus = await sans({ ...env }, ...args);
       assert.notEqual(refus.code, 0, JSON.stringify(env));
