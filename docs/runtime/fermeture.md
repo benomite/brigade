@@ -320,8 +320,7 @@ at its entry (#2218): it reads the log, which is then stale. The closer runs on 
 - **When**: the same trigger, read from GitHub and the clone. At most every 10 minutes (`ECART_MS`), at
   a tick, a project whose closer is set is checked: **20 merges** on the integration branch (its merge
   commits, the origin fetched) since the last closing issue, **none within 24 hours**, and none still
-  open. No drift threshold triggers it there (it is a fact of the log), and a project with no closer set
-  is never touched.
+  open. No drift threshold triggers it there, and a project with no closer set gets no issue.
 - **What**: the observation on the base, as above, and **one closing issue** — `fire` and the closer's
   calibration (`model:`, `effort:`), the drift of the latest merges (added:removed per window), the
   candidates to prune (the duplicates and the dead code), their files as its `Zone`, and the removal cap
@@ -331,6 +330,16 @@ at its entry (#2218): it reads the log, which is then stale. The closer runs on 
   With nothing to propose, no issue; it is said once per base.
 - **Who cooks it**: the GitHub-only stations, like any ticket: it has no `prio:` and comes after the
   others; its zone keeps the other tickets off its files; the pass reviews and merges its PR.
+- **The drift**: the log no longer sees a merge, so the `drift` line of `status` would freeze on the day
+  the switch was turned on. At the same check, closer set or not, the pass reads the drift instead
+  (`derive-github.ts`): the merges since the last closing issue (the merge commits of the base, each
+  carrying its ticket by its `cook/<n>-` branch) and, for the last 10, what the GitHub-only cooks of the
+  station spent on each ticket — read from their streams (`<state>/github-seul/<n>-github.flux.jsonl`),
+  counted as the supervisor counts, a launch whose result is an error being lost. Against the chef's
+  thresholds, with the same gauges (`merges`, `tokens_ticket`, `tokens_perdus`), it writes what is
+  crossed to `<state>/derive-github.json`; while the switch is accepted, `status` takes its `drift` line
+  from that file, not from the log, and a threshold newly crossed is said once. The gates' measures
+  (tests, repo, context, gates duration) and the cooks of another station are not read there.
 - **What it does not carry**: nothing here launches `claude` nor reads or writes the log, so neither the
   memory of what a pass left (a candidate left may be proposed again), nor the start condition on the
   cooks in flight, nor the `closing.*` facts, nor the summary.

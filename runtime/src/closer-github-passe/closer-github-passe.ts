@@ -19,6 +19,12 @@
 // or another station serving the same project, sees it. Two stations that open
 // one at the same instant keep the oldest, and close the other.
 //
+// The drift is read at the same cadence, whether the closer is set or not, as
+// the old path read it at each merge (`derive.ts`): the merges since the last
+// pass and what the GitHub-only cooks spent on them, against the chef's
+// thresholds (`derive-github.ts`). Its result goes where `status` reads its
+// `drift` line, and a threshold newly crossed is said once.
+//
 // What the old closer kept in the log has no GitHub-only counterpart yet, and
 // is not carried: the memory of what a pass left (a candidate left may be
 // proposed again), its run condition on the cooks in flight, and a drift
@@ -31,10 +37,13 @@ import { lireDepot, type Depot } from "../closing/reading.ts";
 import { MERGES_PER_PASS, ONE_PASS_A_DAY_MS } from "../closing/trigger.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
 import type { ReglagesDeFermeture } from "../events/closing.ts";
+import type { Seuils } from "../events/drift.ts";
 import type { Perimee } from "../github-seul/boucles-perimees/boucles-perimees.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import type { Runtime } from "../runtime.ts";
+import { direJaugeEn } from "../mesures.ts";
 import { execFile } from "../sans-invite.ts";
+import { releverDerive, ticketDuMerge, type CoutsDesCooks, type DeriveGithub, type MergeDuClone } from "./derive-github.ts";
 
 // What the pass reads and writes of GitHub.
 export type GitHubDuCloser = {
@@ -46,8 +55,8 @@ export type GitHubDuCloser = {
 
 // What the pass reads of the project's clone, the base fetched from the origin.
 export type LectureDuClone = {
-  // When the latest merges of the integration branch were made, the most recent first.
-  merges(): Promise<string[]>;
+  // The latest merges of the integration branch, the most recent first.
+  merges(): Promise<MergeDuClone[]>;
   // The observation: the latest merges and the files of the base.
   observer(): Promise<Pick<Depot, "sha" | "merges" | "textes">>;
 };
@@ -65,6 +74,9 @@ export type OptionsCloserGithub = {
   ecartMs?: number;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
+  // The drift: the chef's thresholds, read at each pass, what the cooks of a
+  // ticket spent, and where the reading goes. Absent, the drift is not read.
+  derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
 };
 
 // The shortest gap between two passes, ten ticks: a pass is due at most once
@@ -82,12 +94,13 @@ type Passe = { number: number; createdAt: string; state: "open" | "closed" };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+const depuisLaPasse = (derniere: Passe | null) => (derniere === null ? Number.NEGATIVE_INFINITY : Date.parse(derniere.createdAt));
+
 // Why a pass is due now, or null: the closer's trigger (`closing/trigger.ts`),
 // on what GitHub and the clone say.
-export function aOuvrir(derniere: Passe | null, merges: string[], maintenant: Date): { merges: number } | null {
+export function aOuvrir(derniere: Passe | null, merges: MergeDuClone[], maintenant: Date): { merges: number } | null {
   if (derniere !== null && (derniere.state === "open" || maintenant.getTime() - Date.parse(derniere.createdAt) < ONE_PASS_A_DAY_MS)) return null;
-  const depuis = derniere === null ? Number.NEGATIVE_INFINITY : Date.parse(derniere.createdAt);
-  const nouveaux = merges.filter((at) => Date.parse(at) > depuis).length;
+  const nouveaux = merges.filter(({ at }) => Date.parse(at) > depuisLaPasse(derniere)).length;
   return nouveaux >= MERGES_PER_PASS ? { merges: nouveaux } : null;
 }
 
@@ -153,6 +166,8 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
   // The base on which the observation found nothing to propose: not observed
   // again until it moves.
   let rien: string | null = null;
+  // The measures crossed at the last reading of the drift: a crossing is said once.
+  let signales = new Set<string>();
 
   // The closing passes GitHub knows within the window, the oldest first. The
   // start of the window is a day's, so that the read stays conditional.
@@ -164,11 +179,26 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
       .sort((x, y) => x.number - y.number);
   };
 
+  const relever = (derive: NonNullable<OptionsCloserGithub["derive"]>, derniere: Passe | null, merges: MergeDuClone[]) => {
+    try {
+      const franchis = releverDerive(merges, depuisLaPasse(derniere), derive.couts, derive.seuils());
+      derive.noter({ at: maintenant().toISOString(), franchis });
+      for (const franchi of franchis) if (!signales.has(franchi.measure)) avertir(`brigade : drift — ${direJaugeEn(franchi)}`);
+      signales = new Set(franchis.map(({ measure }) => measure));
+    } catch (erreur) {
+      // A reading that fails stops neither the closer nor the kitchen: the next pass reads again.
+      avertir(`brigade : drift not read — ${message(erreur)}`);
+    }
+  };
+
   const passer = async () => {
     const { calibration, removedLines } = options.reglages();
-    if (calibration === null) return;
+    if (calibration === null && options.derive === undefined) return;
     const derniere = (await passes()).at(-1) ?? null;
-    const due = aOuvrir(derniere, await clone.merges(), maintenant());
+    const merges = await clone.merges();
+    if (options.derive !== undefined && !arrete) relever(options.derive, derniere, merges);
+    if (calibration === null) return;
+    const due = aOuvrir(derniere, merges, maintenant());
     if (due === null || arrete) return;
     const observation = await clone.observer();
     if (arrete || observation.sha === rien) return;
@@ -221,8 +251,15 @@ export function lectureDuClone(options: { depot: Pick<DepotDeStation, "rapatrier
   return {
     merges: async () => {
       await options.depot.rapatrier();
-      const { stdout } = await promisify(execFile)("git", ["log", "--first-parent", "--merges", "-n", "100", "--format=%cI", `origin/${options.base}`], { cwd: options.clone, env: { ...env, GIT_OPTIONAL_LOCKS: "0" }, encoding: "utf8", timeout: 60_000 });
-      return String(stdout).split("\n").filter((ligne) => ligne !== "");
+      // The GitHub-only stations merge with a merge commit (`merge_method=merge`, `github.ts`): one per delivery.
+      const { stdout } = await promisify(execFile)("git", ["log", "--first-parent", "--merges", "-n", "100", "--format=%cI%x09%s", `origin/${options.base}`], { cwd: options.clone, env: { ...env, GIT_OPTIONAL_LOCKS: "0" }, encoding: "utf8", timeout: 60_000 });
+      return String(stdout)
+        .split("\n")
+        .filter((ligne) => ligne !== "")
+        .map((ligne) => {
+          const [at = "", ...sujet] = ligne.split("\t");
+          return { at, ticket: ticketDuMerge(sujet.join("\t")) };
+        });
     },
     observer: async () => {
       await options.depot.rapatrier();

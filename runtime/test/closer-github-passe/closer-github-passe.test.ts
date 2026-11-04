@@ -5,6 +5,14 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { aOuvrir, brancherCloserGithub, estUneFermeture, lectureDuClone, type GitHubDuCloser, type LectureDuClone, type OptionsCloserGithub } from "../../src/closer-github-passe/closer-github-passe.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { coutsDesFlux, lancementsDuFlux, noterDeriveGithub, ticketDuMerge, type DeriveGithub, type MergeDuClone } from "../../src/closer-github-passe/derive-github.ts";
+import { noterGitHubSeul } from "../../src/github-seul-etat.ts";
+import { ouvrirJournal } from "../../src/journal.ts";
+import { SANS_SEUIL } from "../../src/mesures.ts";
+import type { CookMesure } from "../../src/projections/measures.ts";
+import { photoDuProjet } from "../../src/status.ts";
 import { MERGES_PER_PASS, ONE_PASS_A_DAY_MS } from "../../src/closing/trigger.ts";
 import { elagageDuClone, elaguerBranchesPerimees } from "../../src/github-seul/boucles-perimees/boucles-perimees.ts";
 import { zoneDuCorps } from "../../src/brigade-github.ts";
@@ -17,8 +25,8 @@ const MAINTENANT = new Date("2026-10-08T10:00:00.000Z");
 const CALIBRE = { calibration: { model: "sonnet", effort: "low" }, removedLines: 20 };
 const HEURE_MS = 3_600_000;
 
-// `n` merges, an hour apart, the latest an hour ago.
-const merges = (n: number, depuis = MAINTENANT) => Array.from({ length: n }, (_, i) => new Date(depuis.getTime() - (i + 1) * HEURE_MS).toISOString());
+// `n` merges, an hour apart, the latest an hour ago, the most recent first: ticket `100 + n - 1` down to 100.
+const merges = (n: number, depuis = MAINTENANT): MergeDuClone[] => Array.from({ length: n }, (_, i) => ({ at: new Date(depuis.getTime() - (i + 1) * HEURE_MS).toISOString(), ticket: 100 + n - 1 - i }));
 
 type IssueDuFaux = { number: number; title: string; body: string; labels: string[]; association: string; state: "open" | "closed"; createdAt: string };
 
@@ -52,7 +60,7 @@ function fauxGitHub(...issues: IssueDuFaux[]) {
 const passee = (number: number, createdAt: string, state: "open" | "closed" = "closed"): IssueDuFaux => ({ number, title: "Closing pass", body: "<!-- brigade:fermeture sha=abc -->\n\n## Context", labels: [], association: "MEMBER", state, createdAt });
 
 // A clone of the test: its merges, and a base with one dead export.
-function fauxClone(lus: string[] = merges(MERGES_PER_PASS)) {
+function fauxClone(lus: MergeDuClone[] = merges(MERGES_PER_PASS)) {
   const appels = { merges: 0, observations: 0 };
   const clone: LectureDuClone = {
     merges: async () => {
@@ -63,7 +71,7 @@ function fauxClone(lus: string[] = merges(MERGES_PER_PASS)) {
       appels.observations++;
       return {
         sha: "0123456789abcdef",
-        merges: lus.map((at, i) => ({ sha: `m${i}`, at, ajoute: 30, retire: 10 })),
+        merges: lus.map(({ at }, i) => ({ sha: `m${i}`, at, ajoute: 30, retire: 10 })),
         textes: [
           { chemin: "src/a.ts", texte: "export function inutile() {\n  return 1;\n}\n" },
           { chemin: "src/b.ts", texte: "export const vit = 2;\n" },
@@ -285,5 +293,96 @@ describe("the pruning on a GitHub-only project", () => {
     assert.deepEqual(await elaguerBranchesPerimees(elagage), ["cook/14-github"]);
     assert.deepEqual(k.branchesDeLOrigine().filter((branche) => branche.endsWith("-github")), ["cook/15-github"]);
     assert.equal(git(k.clone, "branch", "--list", "cook/*-github", "--format=%(refname:short)"), "cook/15-github");
+  });
+});
+
+// The stream a GitHub-only cook leaves, launch after launch: each spends `tokens`
+// (its message read twice, the last usage counting, cache reads not), and
+// delivers or not.
+const flux = (...lancements: Array<{ tokens: number; livre: boolean }>) =>
+  lancements
+    .flatMap(({ tokens, livre }, i) => [
+      { type: "system", subtype: "init", model: "claude-opus-5-5" },
+      { type: "assistant", message: { id: `m${i}`, usage: { input_tokens: tokens / 2, output_tokens: 0 } } },
+      { type: "assistant", message: { id: `m${i}`, usage: { input_tokens: tokens / 2, output_tokens: tokens / 2, cache_read_input_tokens: 99_999 } } },
+      { type: "result", subtype: "success", is_error: !livre },
+    ])
+    .map((evenement) => JSON.stringify(evenement))
+    .join("\n");
+
+const cook = (tokens: number, delivered: boolean): CookMesure => ({ calibration: "claude-opus-5-5", turns: 1, durationMs: null, tokens, delivered });
+const SANS_CLOSER = () => ({ calibration: null, removedLines: 20 });
+
+describe("the drift on the GitHub-only path", () => {
+  test("a stream says what each launch of a ticket spent, and whether it delivered; a merge, its ticket", () => {
+    assert.deepEqual(lancementsDuFlux(`${flux({ tokens: 900, livre: false }, { tokens: 700, livre: true })}\n{"type":"assistant"`), [cook(900, false), cook(700, true)]);
+    assert.deepEqual(lancementsDuFlux(""), []);
+    assert.equal(ticketDuMerge("Merge pull request #2365 from benomite/cook/2353-github"), 2353);
+    assert.equal(ticketDuMerge("Merge branch 'main' into x"), null);
+  });
+
+  test("at a tick, switch on, the drift of the merges since the last pass is read against the chef's thresholds, closer set or not; a crossing is said once", async (t) => {
+    // The last pass, five and a half hours ago: the 5 merges since count (tickets 119 to 115).
+    const gh = fauxGitHub(passee(40, new Date(MAINTENANT.getTime() - 5.5 * HEURE_MS).toISOString()));
+    const f = fauxClone();
+    const couts: Record<number, CookMesure[]> = { 119: [cook(800, true)], 117: [cook(900, false), cook(700, true)], 101: [cook(9_000, true)] };
+    const notes: DeriveGithub[] = [];
+    const seuils = () => ({ ...SANS_SEUIL, merges: 5, ticketTokens: 1_000, lostTokens: 800 });
+    const k = brancher(t, { github: gh.github, clone: f.clone, reglages: SANS_CLOSER, derive: { seuils, couts: (ticket) => couts[ticket] ?? [], noter: (derive) => void notes.push(derive) } });
+    k.reveiller();
+    await jusqua(() => notes.length === 1);
+    assert.deepEqual(notes[0], {
+      at: MAINTENANT.toISOString(),
+      franchis: [
+        { measure: "merges", observed: 5, limit: 5 },
+        { measure: "tokens_ticket", observed: 1_600, limit: 1_000 },
+        { measure: "tokens_perdus", observed: 900, limit: 800 },
+      ],
+    });
+    assert.deepEqual(k.avertissements, [
+      "brigade : drift — 5 merges since the last closing for a threshold of 5",
+      "brigade : drift — tokens of the costliest ticket of the last 10 merges 1,600 for a threshold of 1,000",
+      "brigade : drift — tokens lost over the last 10 merges 900 for a threshold of 800",
+    ]);
+    k.reveiller();
+    await jusqua(() => notes.length === 2);
+    assert.equal(k.avertissements.length, 3);
+    // Read, nothing opened: the closer is not set.
+    assert.deepEqual(gh.creees, []);
+  });
+
+  test("the switch off reads no drift", async (t) => {
+    const notes: DeriveGithub[] = [];
+    const f = fauxClone();
+    const k = brancher(t, { github: fauxGitHub().github, clone: f.clone, reglages: SANS_CLOSER, derive: { seuils: () => SANS_SEUIL, couts: () => [], noter: (derive) => void notes.push(derive) } });
+    k.sw.allume = false;
+    k.reveiller();
+    assert.equal(f.appels.merges, 0);
+    assert.deepEqual(notes, []);
+  });
+
+  test("status reads its drift line from the closer's pass while the switch is on, from the GitHub-only cooks' streams", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const journal = ouvrirJournal(repertoire, { maintenant: () => MAINTENANT });
+    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+    journal.fermer();
+    noterGitHubSeul(repertoire, { etat: "accepted" }, MAINTENANT);
+    mkdirSync(join(repertoire, "github-seul"));
+    writeFileSync(join(repertoire, "github-seul", "119-github.flux.jsonl"), flux({ tokens: 1_500, livre: true }));
+    const drift = () => photoDuProjet({ BRIGADE_STATE_DIR: repertoire }, { maintenant: MAINTENANT }).filter((ligne) => ligne.startsWith("drift"));
+    assert.deepEqual(drift(), []);
+
+    const k = brancher(t, {
+      github: fauxGitHub().github,
+      clone: fauxClone().clone,
+      reglages: SANS_CLOSER,
+      derive: { seuils: () => ({ ...SANS_SEUIL, ticketTokens: 1_000 }), couts: coutsDesFlux(join(repertoire, "github-seul")), noter: (derive) => noterDeriveGithub(repertoire, derive) },
+    });
+    k.reveiller();
+    await jusqua(() => drift().length === 1);
+    assert.match(drift()[0] ?? "", /^drift +tokens of the costliest ticket of the last 10 merges 1,500 for a threshold of 1,000 — `/);
+    // Refused, the station keeps the old path: the drift is the log's again.
+    noterGitHubSeul(repertoire, { etat: "refused", reason: "x" }, MAINTENANT);
+    assert.deepEqual(drift(), []);
   });
 });

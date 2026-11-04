@@ -19,6 +19,7 @@ import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherFermeture } from "./closing/run.ts";
 import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
 import { brancherCloserGithub, lectureDuClone } from "./closer-github-passe/closer-github-passe.ts";
+import { coutsDesFlux, noterDeriveGithub } from "./closer-github-passe/derive-github.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
@@ -279,8 +280,9 @@ try {
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées tant que l'ancien chemin est arrêté.
   const elaguee = brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env }), perimee });
-  // Le closer sur le chemin GitHub seul, tant que l'ancien est arrêté (#2361) : sa passe est une issue que les stations cuisinent.
-  const closee = brancherCloserGithub(elaguee, { perimee, reglages: decisions.fermeture, github: githubs.station, clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base });
+  // Le closer sur le chemin GitHub seul, tant que l'ancien est arrêté (#2361) : sa passe est une issue que les stations cuisinent,
+  // et il relève la dérive que `status` lit, des flux des cooks GitHub seul.
+  const closee = brancherCloserGithub(elaguee, { perimee, reglages: decisions.fermeture, github: githubs.station, clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
   const suivie = brancherSession(closee, session, undefined, jeton);
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
