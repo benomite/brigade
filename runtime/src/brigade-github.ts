@@ -194,7 +194,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
       // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
-      const echecs = (await github.commentaires(issue)).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length + 1;
+      // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
+      const echecs = (await github.commentaires(issue).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length + 1;
       await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${echecs >= ECHECS_MAX ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
       if (echecs >= ECHECS_MAX) await github.labelliser(issue, [HORS_CUISINE]);
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
