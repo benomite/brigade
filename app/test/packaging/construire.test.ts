@@ -168,6 +168,9 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.equal(emplacements.node, join(ressources, "node", "bin", "node"));
   assert.ok(existsSync(emplacements.node));
   assert.deepEqual(roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {} }), { role: "station", principal: join(ressources, "runtime", "src", "station", "main.ts") });
+  // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
+  assert.deepEqual(readdirSync(emplacements.commandes).sort(), ["ask.md", "dev.md"]);
+  for (const nom of ["dev.md", "ask.md"]) assert.equal(readFileSync(join(emplacements.commandes, nom), "utf8"), readFileSync(join(APP, "..", "commands", nom), "utf8"));
 });
 
 test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l'app la lance, et elle refuse faute de répertoire", (t) => {

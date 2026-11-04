@@ -8,6 +8,12 @@
 # - `--append-system-prompt-file` : il dit la première ligne du fichier, qu'il
 #   lit comme le vrai, et `--settings` est pris avec sa valeur, sans rien dire.
 # Puis il lit son entrée : `!taille` dit la taille de son terminal, `/exit` sort.
+# - `plugin …` (ce que l'app lance pour son plugin, src/plugin-app.ts) : rien
+#   n'est installé, aucun fil n'est laissé ; `--json` rend une liste vide.
+if [ "$1" = plugin ]; then
+  case " $* " in *" --json "*) echo '[]' ;; esac
+  exit 0
+fi
 reprise=
 role=
 recu=

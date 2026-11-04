@@ -87,6 +87,7 @@ import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { type Propositions, type ReponseDuChef, tenirLesPropositions } from "./second/propositions.ts";
 import { tenirRetraits } from "./retrait.ts";
+import { DOSSIER as DOSSIER_DU_PLUGIN, lancerVraiment, tenirLePluginApp } from "./plugin-app.ts";
 import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
@@ -435,10 +436,23 @@ const controlerTout = () => {
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
-// Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station.
+// Le plugin de l'app (plugin-app.ts, #2160) : `/brigade:dev` et `/brigade:ask` dans chaque projet qu'elle ouvre, en
+// scope local de son dossier, à la version qu'elle porte — posé dès le lancement, et pour chaque projet qui entre dans
+// le fichier ; retiré du dossier d'un projet retiré de l'app.
+const pluginApp = tenirLePluginApp({
+  lancer: lancerVraiment(process.env),
+  claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
+  marketplace: join(dirname(cheminConfiguration()), DOSSIER_DU_PLUGIN),
+  commandes: emplacements.commandes,
+  versionDeLApp: app.getVersion(),
+  dire: (ligne) => console.error(ligne),
+});
+// Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
+// désinstalle le plugin de l'app de son dossier.
 const retraits = tenirRetraits({
   chemin: cheminConfiguration(),
   retirer: (nom) => suivi.retirer(nom),
+  desinstaller: (projet) => void pluginApp.retirer(projet),
 });
 // Ce que le second de chaque projet propose au chef (second/propositions.ts, #1520) : le canal du runtime
 // (runtime/src/second-propositions/canal.ts, #1519), chargé une fois de celui qui est à côté de l'app. Tant qu'il ne
@@ -474,6 +488,8 @@ const suivi = suivreConfiguration({
     direLAccueil(accueil.relire());
     // Le second de chaque projet qui s'ouvre est suivi dans son dossier tel qu'il est maintenant.
     propositionsDuSecond?.suivre(projets());
+    // Un projet qui vient d'y entrer reçoit le plugin de l'app.
+    void pluginApp.suivre(projets());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
@@ -497,6 +513,8 @@ const affichee = () => pourLaBarre(suivi.configuration(), lisible, cuisines.ici,
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 // Le même, tel que le fichier le déclare.
 const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) => candidat.nom === nom);
+// Les projets du fichier reçoivent le plugin de l'app, à la version qu'elle porte : une app mise à jour le met à jour.
+void pluginApp.suivre(projets());
 
 // Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
 // origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un
