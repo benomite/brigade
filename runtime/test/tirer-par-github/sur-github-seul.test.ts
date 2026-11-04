@@ -103,6 +103,10 @@ class FauxGitHub {
         return [{ outcome: "green" as const }];
       },
       etatDuRun: async () => ({ tentative: 1, termine: true }),
+      teteDeLaBase: async () => "0".repeat(40),
+      issuesDepuis: async () => [],
+      creerIssue: async () => 0,
+      fermerIssue: async () => {},
       relancerLesEchecs: async () => {},
       commentaires: async (numero) => {
         await appel();
