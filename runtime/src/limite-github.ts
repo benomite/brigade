@@ -105,7 +105,7 @@ const MINUTE_MS = 60_000;
 
 // Une écriture de la cuisine que le rythme retient : elle ne part pas, n'est pas
 // comptée, et peut repartir à `jusqua`. Ce n'est pas un refus de GitHub :
-// `prendreUnAppel` attend, puis la reprend.
+// elle attend son tour dans la file d'`appelerGitHub`, puis part.
 export class EcritureEspacee extends Error {
   readonly jusqua: number;
   // Les écritures du compte comptées sur l'heure écoulée.
@@ -474,19 +474,154 @@ export async function rafraichirLeQuota(limite: Limite, options: { gh: string; e
 // échoue ne se retente pas avant `RAFRAICHIR_MS`.
 const confirmations = new WeakMap<Limite, Map<string, number>>();
 
-// Prend un appel, comme `limite.prendre`, et le rend — mais une décision de la cuisine qui
-// se prendrait sur un quota bas lu depuis trop longtemps se confirme d'abord
-// auprès de `gh api rate_limit` : GitHub a pu voir passer depuis les appels du
-// Mac, ou commencer une autre fenêtre. `env` : celui de l'appel, demandé
-// seulement s'il faut le confirmer.
-export async function prendreUnAppel(
-  limite: Limite,
-  options: { usage?: Usage; compte?: string; etiquette?: Etiquette; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number; attendre?: (ms: number) => Promise<void> },
-): Promise<number> {
+// Les requêtes de la box à GitHub en vol en même temps, au plus (#2195) : GitHub
+// plafonne aussi les requêtes simultanées d'un compte (limite secondaire). Un
+// geste du chef n'attend jamais de place, mais en occupe une tant qu'il est en vol.
+export const REQUETES_EN_VOL = 4;
+
+export type OptionsAppel = {
+  usage?: Usage;
+  compte?: string;
+  etiquette?: Etiquette;
+  gh: string;
+  env?: () => Promise<NodeJS.ProcessEnv | undefined>;
+  maintenant?: () => number;
+  // Le réveil de la file, quand une écriture attend que le rythme libère une
+  // place : par défaut, un `setTimeout`. Un test y met son horloge.
+  attendre?: (ms: number) => Promise<void>;
+};
+
+// Un appel de la cuisine qui attend dans la file : une place en vol, et pour une
+// écriture, une place au rythme de son compte.
+type EnAttente = {
+  usage: Usage;
+  compte: string;
+  etiquette: Etiquette | undefined;
+  maintenant: () => number;
+  attendre: (ms: number) => Promise<void>;
+  partir: (appel: number) => void;
+  echouer: (erreur: unknown) => void;
+  // Vrai dès que le rythme la retient, elle ou une écriture du même compte arrivée avant elle : le journal le dit (#2226).
+  retenue: boolean;
+};
+
+// La file des appels de la cuisine, une par compteur — donc une pour la station
+// et tous les projets qu'elle sert dans son process (#2195). Choix : une seule
+// file dans l'ordre d'arrivée, pas un minuteur par appel en attente. Une place
+// en vol qui se libère, ou la place que le rythme rend, part au premier arrivé
+// qui peut la prendre : une écriture ne double jamais une écriture plus ancienne
+// du même compte, quel que soit son projet. Une lecture, que le rythme ne retient
+// pas, passe devant une écriture qu'il retient — mais pas devant une lecture
+// arrivée avant elle. La file n'a qu'un réveil : l'instant où le rythme rend sa
+// prochaine place.
+type File = {
+  // Demande un appel : il part dès que la file le laisse partir.
+  prendre(usage: Usage, compte: string, etiquette: Etiquette | undefined, maintenant: () => number, attendre: (ms: number) => Promise<void>): Promise<number>;
+  // Une requête en vol s'achève : sa place passe au suivant.
+  liberer(): void;
+};
+
+const files = new WeakMap<Limite, File>();
+
+function fileDe(limite: Limite): File {
+  const deja = files.get(limite);
+  if (deja !== undefined) return deja;
+  const attente: EnAttente[] = [];
+  let enVol = 0;
+  // L'instant du réveil armé le plus proche, Infinity s'il n'y en a pas.
+  let reveil = Number.POSITIVE_INFINITY;
+
+  const armer = (jusqua: number, par: EnAttente) => {
+    reveil = jusqua;
+    par
+      .attendre(Math.max(50, jusqua - par.maintenant()))
+      .catch(() => {})
+      .then(() => {
+        if (reveil === jusqua) reveil = Number.POSITIVE_INFINITY;
+        pomper();
+      });
+  };
+
+  const retenir = (entree: EnAttente, espacee: EcritureEspacee) => {
+    if (entree.retenue) return;
+    entree.retenue = true;
+    commencerLaRetenue(espacee);
+  };
+  const sortir = (entree: EnAttente) => {
+    attente.splice(attente.indexOf(entree), 1);
+    if (entree.retenue) finirLaRetenue();
+  };
+
+  // Fait partir, dans l'ordre d'arrivée, tout ce qui peut partir.
+  const pomper = () => {
+    // Les comptes dont une écriture attend le rythme : les suivantes restent derrière elle.
+    const retenus = new Map<string, EcritureEspacee>();
+    let prochain: { jusqua: number; par: EnAttente } | null = null;
+    for (const entree of [...attente]) {
+      if (enVol >= REQUETES_EN_VOL) break;
+      const devant = entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined;
+      if (devant !== undefined) {
+        retenir(entree, devant);
+        continue;
+      }
+      let appel: number;
+      try {
+        appel = limite.prendre(entree.usage, entree.compte, entree.etiquette);
+      } catch (erreur) {
+        if (erreur instanceof EcritureEspacee) {
+          retenus.set(entree.compte, erreur);
+          retenir(entree, erreur);
+          if (prochain === null || erreur.jusqua < prochain.jusqua) prochain = { jusqua: erreur.jusqua, par: entree };
+          continue;
+        }
+        sortir(entree);
+        entree.echouer(erreur);
+        continue;
+      }
+      sortir(entree);
+      enVol += 1;
+      entree.partir(appel);
+    }
+    if (prochain !== null && prochain.jusqua < reveil) armer(prochain.jusqua, prochain.par);
+  };
+
+  const file: File = {
+    prendre(usage, compte, etiquette, maintenant, attendre) {
+      // Un geste du chef ne fait jamais la queue.
+      if (usage === "geste") {
+        const appel = limite.prendre(usage, compte, etiquette);
+        enVol += 1;
+        return Promise.resolve(appel);
+      }
+      return new Promise<number>((partir, echouer) => {
+        attente.push({ usage, compte, etiquette, maintenant, attendre, partir, echouer, retenue: false });
+        pomper();
+      });
+    },
+    liberer() {
+      enVol = Math.max(0, enVol - 1);
+      pomper();
+    },
+  };
+  files.set(limite, file);
+  return file;
+}
+
+// Fait une requête à GitHub sous le compteur : prend son appel, comme
+// `limite.prendre`, lance `requete` avec lui, et rend sa place en vol quand elle
+// s'achève, qu'elle aboutisse ou non. Un appel de la cuisine attend dans la file
+// (`fileDe`) : une écriture que le rythme retient ne rate pas, elle part plus
+// tard (#2145), dans l'ordre d'arrivée (#2195). Une décision de la cuisine qui se
+// prendrait sur un quota bas lu depuis trop longtemps se confirme d'abord auprès
+// de `gh api rate_limit` : GitHub a pu voir passer depuis les appels du Mac, ou
+// commencer une autre fenêtre. `env` : celui de l'appel, demandé seulement s'il
+// faut le confirmer.
+export async function appelerGitHub<T>(limite: Limite, options: OptionsAppel, requete: (appel: number) => Promise<T>): Promise<T> {
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const usage = options.usage ?? "cuisine";
+  const maintenant = options.maintenant ?? Date.now;
   if (usage === "cuisine" && limite.aConfirmer(compte)) {
-    const instant = (options.maintenant ?? Date.now)();
+    const instant = maintenant();
     const tentees = confirmations.get(limite) ?? new Map<string, number>();
     confirmations.set(limite, tentees);
     const derniere = tentees.get(compte);
@@ -495,26 +630,19 @@ export async function prendreUnAppel(
       await rafraichirLeQuota(limite, { gh: options.gh, env: await options.env?.(), compte });
     }
   }
-  // Une écriture que le rythme retient attend son tour, puis repart : elle ne
-  // rate pas, elle part plus tard (#2145).
   const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
-  let retenue = false;
+  const file = fileDe(limite);
+  const appel = await file.prendre(usage, compte, options.etiquette, maintenant, attendre);
   try {
-    for (;;) {
-      try {
-        return limite.prendre(usage, compte, options.etiquette);
-      } catch (erreur) {
-        if (!(erreur instanceof EcritureEspacee)) throw erreur;
-        if (!retenue) {
-          retenue = true;
-          commencerLaRetenue(erreur);
-        }
-        await attendre(Math.max(50, erreur.jusqua - (options.maintenant ?? Date.now)()));
-      }
-    }
+    return await requete(appel);
   } finally {
-    if (retenue) finirLaRetenue();
+    file.liberer();
   }
+}
+
+// Prend un appel et le rend, sans requête à tenir en vol : sa place se libère aussitôt.
+export function prendreUnAppel(limite: Limite, options: OptionsAppel): Promise<number> {
+  return appelerGitHub(limite, options, async (appel) => appel);
 }
 
 // Le journal de la station dit la retenue des écritures une fois quand elle

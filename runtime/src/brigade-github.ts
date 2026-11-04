@@ -23,6 +23,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
+import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
@@ -30,7 +31,7 @@ import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
-import { lacher, prendre } from "./github-etat/prise.ts";
+import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -44,16 +45,19 @@ export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
 // personne ne tient le ticket, et y pose `taken` si elle l'emporte ; `lacher`
-// la retire.
+// la retire ; `purger` retire le `taken` que personne ne tient plus (facultatif :
+// une prise sans `purger` ne purge pas).
 export type Prise = {
   prendre(issue: Pick<Issue, "number" | "labels">): Promise<{ prise: boolean }>;
   lacher(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
+  purger?(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
 };
 
 // La prise de #2056, liée à la station et au client du tour.
 export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise => ({
   prendre: (issue) => prendre(issue, { github, station }),
   lacher: (issue) => lacher(issue, { github, station }),
+  purger: (issue) => purger(issue, { github }),
 });
 
 // Ce que le tour lit et écrit de GitHub : ce que demandent la relecture et le
@@ -277,6 +281,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Au premier tour, un `taken` sans cook ici est peut-être une prise
       // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
       if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);
+      // À chaque tour, un `taken` que personne ne tient — le retrait d'un
+      // lâcher a échoué, ici ou sur une autre station — perd son label : le
+      // ticket redevient libre au tour suivant. Un ticket en pass, en vol ici
+      // ou déjà à rendre n'est pas un orphelin.
+      if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !aRendre.has(ticket.number)) {
+        try {
+          await prise.purger?.(ticket);
+        } catch (erreur) {
+          avertir(`brigade : purge du \`taken\` de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+      }
     }
     premierTour = false;
     for (const [numero, ticket] of aRendre) {
@@ -347,7 +362,7 @@ export type OptionsDuProjet<A> = {
   avertir?: (message: string) => void;
 };
 
-export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void> };
+export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void>; enCuisine(): number[] };
 
 // Ouvre le projet sur le chemin que dit son interrupteur. Allumé, un tour de
 // la station, puis un autre l'intervalle passé, jusqu'à l'arrêt ; l'ancien
@@ -378,6 +393,8 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
   tourner();
   return {
     chemin: "github",
+    // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
+    enCuisine: () => station.enCuisine(),
     arreter: async () => {
       arrete = true;
       clearTimeout(minuterie);
@@ -469,11 +486,24 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
-  const env = () => environnementClaude(environnementCook(options.env), options.env);
+  // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
+  // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
+  // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
+  const env = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
   const github = clientDuTour(options.github, base);
 
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
+    // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
+    // identifiant, et `gh issue view` lui serait refusé.
+    let joint: string;
+    try {
+      const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+      if (lue === null) throw new Error("the issue no longer exists");
+      joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
+    } catch (erreur) {
+      return { echec: `its ticket could not be read on GitHub: ${message(erreur)}` };
+    }
     let lieu: { worktree: string; branche: string };
     // Le run d'un ticket est toujours le même : la branche d'un cook précédent
     // (livrée, ou refusée par la pass) est encore là, et `preparer` ne sait pas
@@ -487,7 +517,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const { worktree, branche } = lieu;
     const flux = join(options.flux, `${run}.flux.jsonl`);
-    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base });
+    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const fin = await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(flux), fin.code);

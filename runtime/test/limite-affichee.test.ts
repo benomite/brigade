@@ -116,7 +116,8 @@ test("quand le budget d'écritures retient la cuisine, status le dit en une lign
   const lignes = (await lire()).split("\n").filter((ligne) => /write budget/.test(ligne));
   assert.deepEqual(lignes, [`github     ${direLesEcrituresRetenues(retenue!)}`]);
 
-  // Deux écritures attendent : le journal le dit une fois au début, et une fois à la fin.
+  // Deux écritures attendent, sous l'unique réveil de la file (#2195) : le journal
+  // le dit une fois au début, et une fois à la fin.
   const journal: string[] = [];
   journaliserLaRetenue((ligne) => journal.push(ligne));
   const attente = Promise.withResolvers<void>();
@@ -127,7 +128,7 @@ test("quand le budget d'écritures retient la cuisine, status le dit en une lign
     horloge += 60_001;
   };
   const deux = [0, 1].map(() => prendreUnAppel(limite, { etiquette: ecriture, gh: "gh", maintenant: () => horloge, attendre }));
-  await jusqua(() => attendent === 2);
+  await jusqua(() => attendent === 1);
   assert.equal(journal.length, 1);
   assert.match(journal[0]!, new RegExp(`^brigade : écritures GitHub retenues par le budget — ${ECRITURES_PAR_MINUTE} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${hhmm}$`));
   attente.resolve();

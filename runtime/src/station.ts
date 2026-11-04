@@ -255,6 +255,8 @@ export function configStation(env: Record<string, string | undefined>): ConfigSt
 }
 
 export type OptionsStation = {
+  // True once the GitHub-only switch is on: the remote stations' gist rail and the cleanup read the stale log, so they stop (#2218).
+  perimee?: () => boolean;
   // Les stations que le projet déclare, dans l'ordre où il les écrit.
   stations: StationDeclaree[];
   // Les décisions du chef : présentes, les stations y sont relues à chaque
@@ -2398,7 +2400,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Le rattrapage : un passage à la fois.
   let rattrape = false;
   const rattraper = async () => {
-    if (arrete || rattrape) return;
+    if (arrete || rattrape || options.perimee?.()) return;
     rattrape = true;
     try {
       await nettoyage.rattraper();
@@ -2437,7 +2439,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Ce qu'une station distante a demandé depuis le dernier réveil, et ce que
   // l'horloge dit de ses cooks et de sa présence.
   const servirLesDistantes = (regarder: boolean) => {
-    if (arrete || !pret) return;
+    if (arrete || !pret || options.perimee?.()) return;
     try {
       distantes.repondre();
       if (regarder) distantes.veiller();
