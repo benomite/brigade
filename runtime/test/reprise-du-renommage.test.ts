@@ -228,6 +228,8 @@ describe("la cuisine reprise après le renommage", () => {
     const tenu: { depot?: Depot } = {};
     const lieu = cuisine(t, {
       pass: true,
+      tickMs: 25,
+      sansSync: true,
       scenario: "commite-puis-attend",
       cooks: 3,
       issues: [],
