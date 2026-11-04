@@ -8,7 +8,7 @@ import type { ReglagesProjet } from "../../reglages-projet/reglages.ts";
 import type { Runtime } from "../../runtime.ts";
 
 // The loops that stop with the switch on, by the name the guard tests carry.
-export const BOUCLES_PERIMEES = ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup"] as const;
+export const BOUCLES_PERIMEES = ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup", "pass"] as const;
 
 // True while the old path must not read the log. Read at each entry, never
 // kept: the switch is the one the project settings carry.

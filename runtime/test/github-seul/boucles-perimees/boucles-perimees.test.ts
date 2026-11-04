@@ -16,7 +16,7 @@ import { demarrer } from "../../../src/runtime.ts";
 import { lireStations } from "../../../src/stations-declarees.ts";
 import { cuisineFermee } from "../../closing/kitchen.ts";
 import { demander, SansReponse } from "../../aides/demander.ts";
-import { BAIL_MS, cuisine, fauxGitHub, issue, montre, REGLAGES } from "../../aides/cuisine.ts";
+import { BAIL_MS, CALIBRE, chef, cuisine, fauxGitHub, issue, montre, REGLAGES } from "../../aides/cuisine.ts";
 import { DEPOT, jusqua, repertoireTemporaire } from "../../outils.ts";
 
 const FAUX_ROLE = join(import.meta.dirname, "../../produit/cadence/faux-role.sh");
@@ -48,7 +48,7 @@ describe("the guard", () => {
   });
 
   test("names the loops it stops", () => {
-    assert.deepEqual([...BOUCLES_PERIMEES], ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup"]);
+    assert.deepEqual([...BOUCLES_PERIMEES], ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup", "pass"]);
   });
 });
 
@@ -98,6 +98,27 @@ describe("the base check", () => {
 
     sw.etat.allume = false;
     await jusqua(() => k.types().includes("base.checked"));
+  });
+});
+
+describe("the pass", () => {
+  test("switch on, a delivery the log holds is not judged nor merged; off, it is (#2370)", async (t) => {
+    const sw = interrupteur(false);
+    let ciPrete = false;
+    const k = cuisine(t, { pass: true, issues: [issue(17, CALIBRE)], perimee: sw.perimee });
+    chef(k.repertoire, "grant.activated");
+    k.gh.github.ci = async () => (ciPrete ? [] : [{ name: "tests", outcome: "pending", conclusion: "pending", url: null }]);
+    // Livrée, sa CI en cours : la pass l'attend.
+    await jusqua(() => k.types(17).includes("pass.started"));
+    // Allumé : le jugement en vol finit sur sa CI en cours, puis plus rien ne repart.
+    sw.etat.allume = true;
+    await laisserPasser(k.journal, 2);
+    ciPrete = true;
+    await laisserPasser(k.journal, 3);
+    assert.equal(k.types(17).includes("merge.done"), false);
+
+    sw.etat.allume = false;
+    await jusqua(() => k.types(17).includes("merge.done"));
   });
 });
 
