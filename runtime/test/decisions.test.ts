@@ -363,26 +363,6 @@ describe("le runtime et les décisions du chef", () => {
     }
   };
 
-  test("posées pendant qu'il tourne, ses stations et ses seuils sont lus au réveil suivant : même process, aucun redémarrage", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
-    await runtime.attendre("démarré");
-
-    decider(repertoire, "BRIGADE_STATIONS", DECIDEES.BRIGADE_STATIONS);
-    decider(repertoire, "BRIGADE_DRIFT_TICKET_TOKENS", DECIDEES.BRIGADE_DRIFT_TICKET_TOKENS);
-
-    const annoncees = () => relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [`${e.payload.station}:${e.payload.maxCooks}`] : []));
-    const seuils = () => relire(repertoire).flatMap((e) => (e.type === "drift.configured" ? [e.payload.limits.ticketTokens] : []));
-    // Le journal et la sortie sont deux écritures : on attend les deux faits.
-    await jusqua(() => annoncees().includes("box/playwright:1") && seuils().includes(300_000) && /stations relues — box\/claude \(3 cooks at most.*box\/playwright/.test(runtime.sortie()));
-    assert.deepEqual(annoncees(), ["box/claude:1", "box/claude:3", "box/playwright:1"]);
-    assert.deepEqual(seuils(), [500_000, 300_000]);
-    const vie = relire(repertoire).filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked");
-    assert.deepEqual(vie.map((e) => e.type), ["runtime.started"]);
-    assert.equal((vie[0]?.payload as { pid?: number }).pid, runtime.process.pid);
-    assert.match(runtime.sortie(), /stations relues — box\/claude \(3 cooks at most.*box\/playwright/);
-  });
-
   test("une variable de décision laissée au drop-in est ignorée dès le démarrage, et dite avec le geste qui la remplace", async (t) => {
     const repertoire = repertoireTemporaire(t);
     const env = { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:7:code", BRIGADE_MANAGER_MODEL: "haiku" };

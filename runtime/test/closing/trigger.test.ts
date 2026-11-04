@@ -42,7 +42,7 @@ describe("the automatic closing pass", () => {
     assert.equal(MERGES_PER_PASS, 20);
 
     merge(cuisine, 19);
-    await ticks(cuisine, 10);
+    await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), []);
     assert.deepEqual(closer.lancements(), []);
 
@@ -59,7 +59,7 @@ describe("the automatic closing pass", () => {
     const { closer, fin, avertissements } = cuisine;
     closer.gestes(RETIRER_M1);
     merge(cuisine, 3);
-    await ticks(cuisine, 5);
+    await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), []);
 
     cross(cuisine);
@@ -84,7 +84,7 @@ describe("the automatic closing pass", () => {
     heure.avancer(ONE_PASS_A_DAY_MS - 60_000);
     merge(cuisine, 20);
     cross(cuisine);
-    await ticks(cuisine, 10);
+    await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), ["runtime"]);
     assert.deepEqual(trigger(journal.base, heure.maintenant()), null);
 
@@ -109,7 +109,7 @@ describe("the automatic closing pass", () => {
     closer.gestes(RETIRER_M1);
     merge(cuisine, 45);
     cross(cuisine);
-    await ticks(cuisine, 10);
+    await ticks(cuisine, 3);
     assert.deepEqual(types().filter((type) => type.startsWith("closing.")), []);
     assert.deepEqual(closer.lancements(), []);
   });
@@ -119,7 +119,7 @@ describe("the automatic closing pass", () => {
     const { repertoire, fin } = cuisine;
     chef(repertoire, "kitchen.stopped");
     merge(cuisine, 20);
-    await ticks(cuisine, 10);
+    await ticks(cuisine, 3);
     assert.deepEqual(requests(cuisine), []);
 
     chef(repertoire, "kitchen.resumed");

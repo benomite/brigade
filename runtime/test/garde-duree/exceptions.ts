@@ -7,17 +7,8 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test/closing/report.test.ts", test: "une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini" },
-  { file: "test/closing/run.test.ts", test: "la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien" },
-  { file: "test/closing/run.test.ts", test: "un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant" },
-  { file: "test/closing/trigger.test.ts", test: "once a pass is requested, no second one is requested the same day, whatever the merges or thresholds; a day later the runtime requests again, and the chef's gesture is never capped" },
-  { file: "test/closing/trigger.test.ts", test: "with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef" },
-  { file: "test/closing/trigger.test.ts", test: "with the closer set, a crossed drift threshold requests a pass even under 20 merges" },
-  { file: "test/decisions.test.ts", test: "posées pendant qu'il tourne, ses stations et ses seuils sont lus au réveil suivant : même process, aucun redémarrage" },
-  { file: "test/declarer-stations.test.ts", test: "de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage" },
   { file: "test/duree-des-gates.test.ts", test: "le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage" },
   { file: "test/duree-des-gates.test.ts", test: "les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond" },
-  { file: "test/etapes.test.ts", test: "après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite" },
   { file: "test/garde-des-gates.test.ts", test: "un test en échec avant la coupure garde la ligne d'un rouge" },
   { file: "test/garde-des-gates.test.ts", test: "une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué" },
   { file: "test/paquet/paquet.test.ts", test: "le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non" },

@@ -5,15 +5,14 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test } from "node:test";
 import { principal } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe, noterEtape } from "../src/etapes.ts";
 import { principal as installation } from "../src/installation-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
+import { demarrer } from "../src/runtime.ts";
+import { appeler, horloge, repertoireTemporaire } from "./outils.ts";
 
-const MAIN = join(import.meta.dirname, "../src/main.ts");
 const ORDRE = ["ajout", "init", "verification", "stations", "protection", "decisions", "demarrage"];
 
 async function lire(repertoire: string) {
@@ -129,36 +128,10 @@ test("une étape notée par une version plus récente, que ce runtime ne connaî
   assert.equal(lue.courante, "init");
 });
 
-// L'environnement d'un runtime complet, sur un dépôt sans ticket : aucun test
-// ne touche le réseau, et aucun cook ne part.
-function environnement(t: TestContext, repertoire: string) {
-  const gh = fauxGh(t);
-  gh.issues([]);
-  const clone = repertoireTemporaire(t);
-  git(clone, "init", "-q");
-  return {
-    ...ENV_GIT,
-    BRIGADE_STATE_DIR: repertoire,
-    BRIGADE_PROJECT: "espace",
-    BRIGADE_GITHUB_REPO: DEPOT,
-    BRIGADE_GH_BIN: gh.bin,
-    BRIGADE_REPO_DIR: clone,
-    BRIGADE_BASE_BRANCH: BASE,
-    BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
-    BRIGADE_STATIONS: "box/claude:1:code",
-    BRIGADE_MANAGER_MODEL: "sonnet",
-    BRIGADE_MANAGER_EFFORT: "medium",
-    BRIGADE_REVIEWER_MODEL: "sonnet",
-    BRIGADE_REVIEWER_EFFORT: "medium",
-    BRIGADE_MAX_LOAD_PER_CORE: "1000000",
-    BRIGADE_MIN_FREE_MEMORY_MB: "0",
-    BRIGADE_MIN_FREE_DISK_MB: "0",
-  };
-}
-
-// Le runtime arrêté proprement sur SIGTERM, avec un code 0, se prouve dans main.test.ts (« le runtime démarre, tourne,
-// et s'arrête proprement sur SIGTERM ») : ici, un arrêt net, puis la relance qui rejoue le journal.
-test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("reads the installation steps before, during and after two runs of the runtime and expects the same states each time, the last run stopped with SIGTERM and a clean exit 0; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
+// Le runtime arrêté sur SIGTERM ou tué net, puis relancé, rejoue son journal : main.test.ts (« le runtime démarre, tourne,
+// et s'arrête proprement sur SIGTERM ») et runtime.test.ts (« au démarrage, les projections sont recalculées depuis le
+// journal… ») le prouvent. Ici, le runtime du process du test : un premier qui s'arrête, un second qui rejoue le journal.
+test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", async (t) => {
   const repertoire = repertoireTemporaire(t);
   // L'installation précède le premier démarrage : le journal naît de la première note.
   await noter(repertoire, "ajout", "faite");
@@ -167,15 +140,16 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   const avant = await lire(repertoire);
   assert.equal(avant.courante, "verification");
 
-  const env = environnement(t, repertoire);
-  // Pendant qu'il tourne, la lecture est la même ; arrêté net, puis relancé, rien de ce qui était noté ne s'est perdu.
-  const premier = lancer(t, MAIN, [], env);
-  await premier.attendre("démarré");
+  const runtime = () => {
+    const lance = demarrer({ repertoireEtat: repertoire, projet: "espace", intervalleVeilleMs: 5, maintenant: horloge() });
+    t.after(() => lance.arreter("test"));
+    return lance;
+  };
+  // Pendant qu'il tourne, la lecture est la même ; arrêté, puis relancé, rien de ce qui était noté ne s'est perdu.
+  const premier = runtime();
   assert.deepEqual(await lire(repertoire), avant);
-  premier.process.kill("SIGKILL");
-  await premier.fin;
-  const second = lancer(t, MAIN, [], env);
-  await second.attendre("démarré");
+  premier.arreter("SIGKILL");
+  const second = runtime();
   assert.deepEqual(await lire(repertoire), avant);
 
   // Lue par la commande du chef, `installation etapes`, pendant qu'il tourne.
@@ -186,8 +160,7 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   // Le chef reprend où il en était : l'étape en attente faite, la courante avance.
   const reprise = appeler(installation, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await reprise.fin, 0, reprise.sortie());
-  second.process.kill("SIGTERM");
-  assert.equal(await second.fin, 0, second.sortie());
+  second.arreter("SIGTERM");
   const apres = await lire(repertoire);
   assert.equal(apres.courante, "stations");
   assert.deepEqual(apres.etapes.map((etape) => etape.etat), ["faite", "faite", "faite", "à faire", "à faire", "à faire", "à faire"]);

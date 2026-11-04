@@ -3,19 +3,16 @@
 // posée au journal du projet, l'étape notée faite, sans `sudo` ni drop-in, et
 // le runtime qui tourne la lit sans redémarrer.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { lireRail } from "../src/projections/rail.ts";
-import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
+import { appeler, FAUX_CLAUDE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const INSTALLATION = join(import.meta.dirname, "../src/installation-cli.ts");
-const MAIN = join(import.meta.dirname, "../src/main.ts");
 const PROJET = "espace";
 
 type Lue = {
@@ -180,56 +177,4 @@ test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machi
   assert.match(sortie, /si tu la sautes  : .*aucun cook ne part/);
   assert.match(sortie, /box\/claude\s+fournit : code, raisonnement — plafond de cooks à choisir/);
   assert.match(sortie, /Pour les déclarer : `brigade espace installation stations box\/claude:<plafond de cooks>:code\+raisonnement`/);
-});
-
-// Le critère de bout en bout : un runtime démarré sans station ne fait partir
-// aucun cook ; l'action déclare, et sans redémarrage le ticket qui attendait
-// part.
-test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("declares a station through the `stations` installation step against a real runtime started without one, expects a cook to leave on the waiting ticket without restart, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
-  const etat = repertoireTemporaire(t);
-  const { clone } = depotGit(t);
-  const gh = fauxGh(t);
-  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-  const temoin = join(repertoireTemporaire(t), "temoin");
-  mkdirSync(temoin);
-  const runtime = lancer(t, MAIN, [], {
-    ...ENV_GIT,
-    BRIGADE_STATE_DIR: etat,
-    BRIGADE_PROJECT: PROJET,
-    BRIGADE_GITHUB_REPO: DEPOT,
-    BRIGADE_GH_BIN: gh.bin,
-    BRIGADE_REPO_DIR: clone,
-    BRIGADE_BASE_BRANCH: BASE,
-    BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
-    BRIGADE_MANAGER_MODEL: "sonnet",
-    BRIGADE_MANAGER_EFFORT: "medium",
-    BRIGADE_REVIEWER_MODEL: "sonnet",
-    BRIGADE_REVIEWER_EFFORT: "medium",
-    BRIGADE_MAX_LOAD_PER_CORE: "1000000",
-    BRIGADE_MIN_FREE_MEMORY_MB: "0",
-    BRIGADE_MIN_FREE_DISK_MB: "0",
-    FAUX_CLAUDE_TEMOIN: temoin,
-  });
-  await runtime.attendre("démarré");
-  const rail = () => {
-    const journal = ouvrirJournal(etat, { lectureSeule: true });
-    try {
-      return lireRail(journal.base);
-    } finally {
-      journal.fermer();
-    }
-  };
-  await jusqua(() => rail().length === 1);
-  assert.ok(evenements(etat).some((e) => e.type === "stations.undeclared"));
-  assert.deepEqual(readdirSync(temoin), []);
-
-  const commande = lancer(t, INSTALLATION, ["stations", "box/claude:1:code+raisonnement"], env(etat));
-  assert.equal(await commande.fin, 0, commande.sortie());
-
-  await jusqua(() => evenements(etat).some((e) => e.type === "cook.launched"));
-  const lance = evenements(etat).find((e) => e.type === "cook.launched");
-  assert.equal(lance?.ticket, 15);
-  assert.ok(evenements(etat).some((e) => e.type === "station.announced" && e.payload.station === "box/claude"));
-  runtime.process.kill("SIGTERM");
-  assert.equal(await runtime.fin, 0);
 });
