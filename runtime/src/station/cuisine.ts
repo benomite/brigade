@@ -32,6 +32,7 @@ import { brancherDerive, lireSeuils } from "../derive.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "../seuils/seuils.ts";
 import { brancherFermeture } from "../closing/run.ts";
 import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "../github-seul/boucles-perimees/boucles-perimees.ts";
+import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/closer-github-passe.ts";
 import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
@@ -282,7 +283,11 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // tickets attendent, sa cause et son geste entrent une fois dans la file
     // du chef, et en sortent quand la cuisine sert de nouveau.
     const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null, dire });
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }), avertir: dire, perimee }), session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
+    // Les branches `cook/<n>-github` dont l'issue est fermée, retirées tant que l'ancien chemin est arrêté ; et le
+    // closer sur le chemin GitHub seul (#2361) : sa passe est une issue que les stations cuisinent.
+    const elaguee = brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }), avertir: dire, perimee });
+    const closee = brancherCloserGithub(elaguee, { perimee, reglages: decisions.fermeture, github: githubs.station, clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire });
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     // Le tableau de la cuisine, publié dans le dépôt du projet comme le
     // runtime d'un seul projet le publiait (`main.ts`) : chaque cuisine le
