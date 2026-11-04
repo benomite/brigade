@@ -8,7 +8,6 @@ import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
   { file: "test-hang-guard/garde.test.ts", test: "a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass" },
-  { file: "test/0-en-premier/recette.test.ts", test: "ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box" },
   { file: "test/arbitre-cli.test.ts", test: "ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus" },
   { file: "test/base-cli.test.ts", test: "`base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire" },
@@ -94,5 +93,4 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/deploy/installer-station-windows.test.ts", test: "une station tombée est relancée cinq secondes plus tard" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
-  { file: "test/0-en-premier/recette.test.ts", garde: "timeout: 300_000" },
 ];
