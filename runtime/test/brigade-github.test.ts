@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { PASS_MAX, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -39,8 +39,9 @@ class FauxGitHub {
   creations: number[] = [];
   // Des checks qui ne tournent que sur la base, jamais sur une PR (les tests Windows).
   checksDeLaBaseSeule: Array<{ name: string; outcome: "green" | "red" }> = [];
-  // Les PR dont la CI est rouge.
+  // Les PR dont la CI est rouge, et celles dont la CI tourne encore.
   ciRouge = new Set<number>();
+  ciEnCours = new Set<number>();
   // Le run de GitHub Actions du check `tests` de la base, que la station peut
   // relancer (#2323) ; null : un check sans lien, qui ne se relance pas.
   runDeLaBase: number | null = null;
@@ -183,6 +184,7 @@ class FauxGitHub {
       ci: async (sha) => {
         await noter("ci");
         const pr = this.prs.find((p) => p.sha === sha);
+        if (pr !== undefined && this.ciEnCours.has(pr.number)) return [{ name: "tests", outcome: "pending" as const }];
         return [{ name: "tests", outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }];
       },
       mettreAJour: async (numero, sha) => {
@@ -215,10 +217,13 @@ class FauxGitHub {
   station(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void; horsDuTour?: boolean } = {}): StationGitHub {
     const station = this.stationSeule(nom, options);
     if (options.horsDuTour === true) return station;
-    return { ...station, tour: async () => {
-      await station.tour();
+    // La même station, pas une copie : ce que la boucle y pose (`presser`), elle le lit.
+    const { tour } = station;
+    station.tour = async () => {
+      await tour();
       await station.relu();
-    } };
+    };
+    return station;
   }
 
   stationSeule(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
@@ -685,6 +690,100 @@ test("a review runs off the turn: while one delivery's review runs, the turn rev
     await a.calme();
   }
   assert.equal(faux.mergee(51)?.mergeePar, "A");
+});
+
+test("the pass presses the next turns on a delivery, a fresh verdict and a merge attempt — CI running included, once per head — and never on a quiet turn (#2333)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(61);
+  const a = faux.station("A");
+  const pressions: boolean[] = [];
+  a.presser = (maintenant = false) => pressions.push(maintenant);
+  await a.tour();
+  assert.deepEqual(pressions, [], "a ticket taken presses nothing");
+  await a.calme();
+  assert.deepEqual(pressions, [true], "delivered: its review at once");
+  assert.ok(faux.ticket(61).labels.has(LABEL_IN_PASS) && !faux.ticket(61).labels.has(LABEL_TAKEN), "woken once `taken` is gone");
+  await a.tour();
+  assert.deepEqual(pressions, [true, false], "approved, its branch updated");
+  const pr = faux.prs[0] as (typeof faux.prs)[number];
+  faux.ciEnCours.add(pr.number);
+  await a.tour();
+  assert.deepEqual(pressions, [true, false, false], "its CI still running");
+  await a.tour();
+  assert.deepEqual(pressions, [true, false, false], "the same head, its CI still running: nothing new");
+  faux.ciEnCours.delete(pr.number);
+  await a.tour();
+  assert.equal(faux.mergee(61)?.mergeePar, "A");
+  assert.deepEqual(pressions, [true, false, false, false], "merged");
+  await a.tour();
+  assert.deepEqual(pressions, [true, false, false, false], "a quiet kitchen");
+});
+
+test("a review that requests changes presses the next turns: the ticket sent back is taken again within 30 s (#2333)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(62);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "not yet" }) });
+  const pressions: boolean[] = [];
+  a.presser = (maintenant = false) => pressions.push(maintenant);
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(pressions, [true]);
+  await a.tour();
+  assert.ok(!faux.ticket(62).labels.has(LABEL_IN_PASS), "sent back to a cook");
+  assert.deepEqual(pressions.slice(0, 2), [true, false], "the verdict presses");
+});
+
+test("the loop: a press brings the next turn within 30 s, a delivery's at once, then TOURS_PRESSES turns 30 s apart and the interval again; a quiet kitchen keeps the interval (#2333)", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const tours: number[] = [];
+  let pendant: (() => void) | undefined;
+  const station: StationGitHub = {
+    tour: async () => {
+      tours.push(Date.now() / 1000);
+      const faire = pendant;
+      pendant = undefined;
+      faire?.();
+    },
+    enCuisine: () => [],
+    calme: async () => {},
+    relu: async () => {},
+  };
+  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("old path"), station: () => station, intervalleMs: 120_000, avertir: () => {} });
+  t.after(() => (ouvert.chemin === "github" ? ouvert.arreter() : undefined));
+  const fini = async () => {
+    for (let i = 0; i < 10; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
+  };
+  // Le temps avance par pas de 5 s : chaque tour programme le suivant après lui.
+  const avancer = async (secondes: number) => {
+    t.mock.timers.tick(0);
+    await fini();
+    for (let s = 0; s < secondes; s += 5) {
+      t.mock.timers.tick(5_000);
+      await fini();
+    }
+  };
+  const presser = (maintenant?: boolean) => {
+    assert.ok(station.presser !== undefined, "the loop sets `presser`");
+    station.presser(maintenant);
+  };
+  assert.equal(TOURS_PRESSES, 4);
+  assert.equal(ATTENTE_PRESSEE_MS, 30_000);
+  await avancer(300);
+  assert.deepEqual(tours, [0, 120, 240], "quiet: the interval");
+  // Un verdict à 300 s, le prochain tour était à 360 s : il vient à 330 s.
+  presser();
+  await avancer(300);
+  assert.deepEqual(tours.slice(3), [330, 360, 390, 420, 540], "pressed: 4 turns 30 s apart, then the interval");
+  // Une livraison à 600 s : un tour tout de suite.
+  presser(true);
+  await avancer(5);
+  assert.deepEqual(tours.slice(8), [600], "delivered: at once");
+  await avancer(250);
+  assert.deepEqual(tours.slice(8), [600, 630, 660, 690, 810]);
+  // Un fait pendant le tour de 930 s : les 4 suivants viennent à 30 s.
+  pendant = () => presser();
+  await avancer(350);
+  assert.deepEqual(tours.slice(13), [930, 960, 990, 1020, 1050, 1170]);
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {

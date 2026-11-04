@@ -158,7 +158,18 @@ export type StationGitHub = {
   relu(): Promise<void>;
   // Le tour ne reprendra pas : ce qu'il tient chez l'arbitre est rendu.
   quitter?(): Promise<void>;
+  // Posé par la boucle : le pass a bougé (#2333). Les `TOURS_PRESSES` tours
+  // suivants viennent à `ATTENTE_PRESSEE_MS` au plus l'un de l'autre, le premier
+  // tout de suite si `maintenant` (une livraison à relire).
+  presser?: (maintenant?: boolean) => void;
 };
+
+// Après une livraison, un verdict ou une fusion tentée (mergée, branche mise à
+// jour, CI qui tourne encore), la station tourne de nouveau dans les 30 s,
+// quelques fois, puis reprend son intervalle (#2333). Un tour coûte 2 points
+// GraphQL : seul un fait neuf presse, jamais un tour où rien n'a bougé.
+export const TOURS_PRESSES = 4;
+export const ATTENTE_PRESSEE_MS = 30_000;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -211,6 +222,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // d'elles changée (#2198) : une PR approuvée dont la CI tourne encore ne
   // coûte pas un merge refusé à chaque tour.
   const tentees = new Map<number, string>();
+  // Les PR dont la CI était attendue, et ce qu'elles étaient alors : une CI
+  // qui tourne presse les tours une fois par tête, pas à chaque tour (#2333).
+  const attendues = new Map<number, string>();
   // Les livraisons que la station relit et merge en ce moment, hors du tour (#2329).
   const enRelecture = new Map<number, Promise<void>>();
   // Un merge à la fois : chaque merge attend le précédent.
@@ -236,6 +250,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // station ne lit le ticket libre.
         await github.labelliser(issue, [LABEL_IN_PASS]);
         await github.delabelliser(issue, LABEL_TAKEN);
+        // Livrée : sa relecture part tout de suite, pas au prochain tour (#2333).
+        station.presser?.(true);
         return;
       }
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
@@ -337,11 +353,29 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // ni les prises. Les merges, eux, passent un à un.
         if (enRelecture.has(ticket.number) || enRelecture.size >= PASS_MAX) continue;
         const relireEtFusionner = async () => {
+        // Le pass a bougé : un verdict neuf, un merge, une mise à jour, un refus,
+        // un renvoi, ou une CI attendue sur une tête neuve (#2333).
+        let bouge = false;
         try {
-          const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
+          const rendu = await relire(pr, {
+            github,
+            station: nom,
+            juger: async (lue) => {
+              const jugement = await juger(ticket, lue);
+              bouge = true;
+              return jugement;
+            },
+          });
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           if (tentees.get(pr.number) !== tentee) {
             const fusion = await enSerie(() => fusionner(pr, github));
+            if (fusion.issue === "ci-attendue") {
+              if (attendues.get(pr.number) !== tentee) bouge = true;
+              attendues.set(pr.number, tentee);
+            } else {
+              attendues.delete(pr.number);
+              if (fusion.issue !== "non-approuvee" && fusion.issue !== "close") bouge = true;
+            }
             if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
@@ -354,6 +388,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         } finally {
           enRelecture.delete(ticket.number);
+          if (bouge) station.presser?.();
         }
         };
         enRelecture.set(ticket.number, relireEtFusionner());
@@ -427,7 +462,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     await gardes?.redire(enVol.size);
   };
 
-  return {
+  const station: StationGitHub = {
     tour,
     enCuisine: () => [...enVol.keys()],
     relu: async () => {
@@ -440,6 +475,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await gardes?.quitter();
     },
   };
+  return station;
 }
 
 // L'interrupteur, tel que les réglages du dépôt le portent.
@@ -483,15 +519,47 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
   let arrete = false;
   let minuterie: NodeJS.Timeout | undefined;
   let enCours: Promise<void> = Promise.resolve();
+  const presseeMs = Math.min(ATTENTE_PRESSEE_MS, intervalleMs);
+  let enTour = false;
+  // Quand vient le prochain tour programmé.
+  let echeance = 0;
+  // Les tours pressés qui restent (#2333), et le délai qu'un fait du pass a
+  // demandé pendant un tour : il vaut pour le tour d'après.
+  let presses = 0;
+  let demande: number | undefined;
+  const programmer = (delai: number) => {
+    clearTimeout(minuterie);
+    echeance = Date.now() + delai;
+    minuterie = setTimeout(tourner, delai);
+  };
   const tourner = () => {
+    enTour = true;
     enCours = (async () => {
       try {
         await station.tour();
       } catch (erreur) {
         avertir(`brigade : tour GitHub seul — ${message(erreur)}`);
       }
-      if (!arrete) minuterie = setTimeout(tourner, intervalleMs);
+      enTour = false;
+      const delai = demande === 0 ? 0 : presses > 0 ? presseeMs : intervalleMs;
+      if (presses > 0) presses -= 1;
+      demande = undefined;
+      if (!arrete) programmer(delai);
     })();
+  };
+  // Un fait du pass rapproche les tours suivants, sans attendre l'intervalle
+  // (#2333) ; un pass où rien ne bouge garde l'intervalle et son coût.
+  station.presser = (maintenant = false) => {
+    if (arrete) return;
+    const delai = maintenant ? 0 : presseeMs;
+    if (enTour) {
+      presses = TOURS_PRESSES;
+      demande = Math.min(demande ?? delai, delai);
+      return;
+    }
+    // Le tour programmé est le premier des tours pressés.
+    presses = TOURS_PRESSES - 1;
+    if (echeance - Date.now() > delai) programmer(delai);
   };
   tourner();
   return {
