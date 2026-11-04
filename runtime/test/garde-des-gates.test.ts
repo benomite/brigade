@@ -37,9 +37,9 @@ const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {
 
 describe("la garde d'horloge des gates", () => {
   test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 1 s clock guard, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
-    // La suite met deux secondes à démarrer — le double du délai de la garde :
-    // c'est une machine chargée, rendue certaine.
-    const racine = projet(t, `sleep 2 && node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
+    // Sur une machine chargée, la suite peut mettre plus que le délai à démarrer : le témoin
+    // (`BRIGADE_GATES_GARDE_APRES`) ne fait courir la garde qu'une fois le fichier figé.
+    const racine = projet(t, `node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
     const temoin = join(racine, "pid-du-fichier");
     // Si la garde manque son process, il ne doit pas survivre au test.
     aArreter(t, () => {
