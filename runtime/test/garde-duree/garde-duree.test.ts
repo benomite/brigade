@@ -83,3 +83,24 @@ test("le fichier d'un test se retrouve par son titre, même bâti", () => {
   assert.deepEqual(fichiersDuTitre("`status` : sa sortie ne porte aucun mot du glossaire", sources), ["test/b.test.ts"]);
   assert.deepEqual(fichiersDuTitre("un titre que personne n'a écrit nulle part ici", sources), []);
 });
+
+test("un titre bâti se retrouve par son plus long bout écrit, en tête ou en queue, dans tous les fichiers qui l'écrivent, jamais à cheval sur deux", () => {
+  const sources = new Map([
+    ["test/a.test.ts", "test(`${n} tickets : la tête de ce titre est écrite ici`, () => {});"],
+    ["test/b.test.ts", "test(`la tête de ce titre est écrite ici, et sa queue aussi : ${n}`, () => {});"],
+    ["test/c.test.ts", 'test("une queue écrite deux fois, dans c", () => {}); // la queue écrite deux fois, dans c et d'],
+    ["test/d.test.ts", 'test("la queue écrite deux fois, dans c et d", () => {});'],
+    ["test/e.test.ts", "un début écrit à la fin d'un fichier"],
+    ["test/f.test.ts", ", et sa suite au début du suivant"],
+    ["test/g.test.ts", "Zabcdefghijklmnopqrstuvwxyz"],
+    ["test/h.test.ts", "abcdefghijklmnopqrstuvwxyzQ"],
+  ]);
+  // La tête la plus longue : celle de b, pas celle, plus courte, que a écrit aussi.
+  assert.deepEqual(fichiersDuTitre("la tête de ce titre est écrite ici, et sa queue aussi : 12", sources), ["test/b.test.ts"]);
+  assert.deepEqual(fichiersDuTitre("12 tickets : la tête de ce titre est écrite ici", sources), ["test/a.test.ts"]);
+  assert.deepEqual(fichiersDuTitre("trois:la queue écrite deux fois, dans c et d", sources), ["test/c.test.ts", "test/d.test.ts"]);
+  // Écrit à moitié dans e (36 caractères), à moitié dans f (33) : le bout le plus long, dans son seul fichier.
+  assert.deepEqual(fichiersDuTitre("un début écrit à la fin d'un fichier, et sa suite au début du suivant", sources), ["test/e.test.ts"]);
+  // Tête et queue de même longueur : la queue.
+  assert.deepEqual(fichiersDuTitre("ZabcdefghijklmnopqrstuvwxyzQ", sources), ["test/h.test.ts"]);
+});

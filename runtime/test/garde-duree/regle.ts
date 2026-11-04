@@ -133,18 +133,71 @@ export type Mesure = { fichiers: string[]; test: string; ms: number };
 const ecritures = (titre: string): string[] => [titre, titre.replaceAll("\\", "\\\\").replaceAll("'", "\\'"), titre.replaceAll('"', '\\"'), titre.replaceAll("`", "\\`")];
 
 // Les fichiers de test où ce titre est écrit. Un titre bâti (`${…}`) n'y est pas en entier : on cherche alors
-// son plus long bout continu, en tête ou en queue. Rien trouvé : liste vide.
+// son plus long bout continu, en tête ou en queue (la queue d'abord, à longueur égale). Rien trouvé : liste vide.
+// Un bout écrit quelque part y laisse écrits tous ses bouts plus courts du même côté : le plus long se cherche
+// par dichotomie, et non bout après bout — le reporter juge ainsi 1 400 titres en une seconde, et non en 40,
+// que la suite attendait après son dernier test (#2085).
 export function fichiersDuTitre(titre: string, sources: Map<string, string>): string[] {
-  const contenant = (bout: string): string[] => [...sources].filter(([, texte]) => ecritures(bout).some((e) => texte.includes(e))).map(([f]) => f);
+  const { tout, debuts, noms } = indexDes(sources);
+  // Les fichiers, dans l'ordre des sources, où l'une des écritures du bout paraît.
+  const contenant = (bout: string): string[] => {
+    const rangs = new Set<number>();
+    for (const forme of new Set(ecritures(bout))) {
+      for (let i = tout.indexOf(forme); i !== -1; ) {
+        // Le fichier qui contient l'index `i` : le dernier qui commence avant lui.
+        let bas = 0;
+        let haut = debuts.length - 1;
+        while (bas < haut) {
+          const milieu = (bas + haut + 1) >> 1;
+          if ((debuts[milieu] ?? 0) <= i) bas = milieu;
+          else haut = milieu - 1;
+        }
+        rangs.add(bas);
+        // La suite, à partir du fichier suivant : celui-ci est déjà compté.
+        const suivant = debuts[bas + 1];
+        i = suivant === undefined ? -1 : tout.indexOf(forme, suivant);
+      }
+    }
+    return [...rangs].sort((a, b) => a - b).map((rang) => noms[rang] ?? "");
+  };
   const entier = contenant(titre);
   if (entier.length > 0) return entier;
-  for (let coupe = 1; coupe < titre.length - 19; coupe++) {
-    const queue = contenant(titre.slice(coupe));
-    if (queue.length > 0) return queue;
-    const tete = contenant(titre.slice(0, titre.length - coupe));
-    if (tete.length > 0) return tete;
+  // La plus petite coupe, de 1 à `titre.length - 20`, dont le bout est écrit ; aucune : Infinity.
+  const coupeMin = (bout: (coupe: number) => string): number => {
+    let bas = 1;
+    let haut = titre.length - 20;
+    let trouvee = Infinity;
+    while (bas <= haut) {
+      const milieu = (bas + haut) >> 1;
+      if (contenant(bout(milieu)).length > 0) {
+        trouvee = milieu;
+        haut = milieu - 1;
+      } else bas = milieu + 1;
+    }
+    return trouvee;
+  };
+  const queue = coupeMin((coupe) => titre.slice(coupe));
+  const tete = coupeMin((coupe) => titre.slice(0, titre.length - coupe));
+  if (queue === Infinity && tete === Infinity) return [];
+  return queue <= tete ? contenant(titre.slice(queue)) : contenant(titre.slice(0, titre.length - tete));
+}
+
+// Les sources bout à bout, séparées d'un octet nul qu'aucun titre ne contient : une recherche les parcourt
+// toutes d'un trait. Faites une fois par jeu de sources.
+const index = new WeakMap<Map<string, string>, { tout: string; debuts: number[]; noms: string[] }>();
+function indexDes(sources: Map<string, string>): { tout: string; debuts: number[]; noms: string[] } {
+  let fait = index.get(sources);
+  if (fait === undefined) {
+    const debuts: number[] = [];
+    let longueur = 0;
+    for (const texte of sources.values()) {
+      debuts.push(longueur);
+      longueur += texte.length + 1;
+    }
+    fait = { tout: [...sources.values()].join("\0"), debuts, noms: [...sources.keys()] };
+    index.set(sources, fait);
   }
-  return [];
+  return fait;
 }
 
 export function sourcesDesTests(racine = RACINE_RUNTIME): Map<string, string> {
