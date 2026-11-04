@@ -481,6 +481,21 @@ test("a delivery that conflicts with the base goes back to a cook to merge the b
   assert.equal(faux.mergee(36)?.mergeePar, "A");
 });
 
+test("a send-back whose label removal failed is completed at the next turn, without a second comment (#2319)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(39);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "no" }), avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  await a.tour();
+  // Le renvoi est écrit, mais \`in-pass\` est resté : son retrait avait échoué.
+  faux.ticket(39).labels.add(LABEL_IN_PASS);
+  faux.ticket(39).labels.delete(LABEL_TAKEN);
+  await a.tour();
+  assert.equal(faux.ticket(39).labels.has(LABEL_IN_PASS), false);
+  assert.equal((faux.commentaires.get(39) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi")).length, 1);
+});
+
 test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(40, CALIBRE);
