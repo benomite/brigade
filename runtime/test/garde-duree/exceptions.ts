@@ -7,7 +7,6 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test-hang-guard/garde.test.ts", test: "a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass" },
   { file: "test/arbitre-cli.test.ts", test: "ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus" },
   { file: "test/base-cli.test.ts", test: "`base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire" },
   { file: "test/closing/report.test.ts", test: "une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini" },
