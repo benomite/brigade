@@ -126,6 +126,25 @@ station (`installation stations set`): the others stay as it wrote them. `Remove
 its price in one line, then runs `installation stations remove`; the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
 the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
+**Under the stations, its cloud stations** (#2232, epic #2223): stations a cloud host starts when the rail has work no
+other station takes, and stops when it is empty, on the user's own host account. The block says how many are added
+(`none added yet`, `1 added`), then the **cost per ticket served** over the period (`$1.80`; on hover, `$12.60 billed this
+month, 7 tickets served`) — `not available yet` while no ticket was served, never a division by zero. Below, the
+**three ceilings** — `Stations at once`, `Hours a day`, `Hours a month` —, prefilled with the ones the project holds; an
+empty field bounds nothing. **`Add a cloud station`**, recommended (its price on hover: the host bills each station's
+hours), adds a station in one click once two things hold, checked in this order: a ceiling at least — without one, nothing
+leaves and the line under the button says `Set a ceiling first — …` (a field that is not a positive number, or a
+fractional `Stations at once`, is refused the same way); and **what a cloud station receives, approved once**: before the
+first station, the click opens the list of what it receives and of what it never receives (the Max session, the other
+secrets), with `Approve and add`, recommended, its price in one line, and `Cancel`. Approved, the list is folded under the
+ceilings (`What a cloud station receives — approved`) and the next station is added with no question; a changed list
+arrives unapproved and asks again. What the add returned is one line under the block, a refusal with its detail on hover;
+a read that fails says `cloud stations: not read`. **The block is drawn but not yet live**: no runtime command publishes
+the cloud stations yet (the shapes are `runtime/src/stations-cloud/plafonds.ts`, `runtime/src/stations-cloud-cout/` and
+`runtime/src/stations-cloud-secrets/`, #2228, #2230, #2231), so the main process does not offer `stationsCloud` and
+`ajouterStationCloud` (`app/src/vue/pont.d.ts`, optional), and the Cooks tab lays no block until it does. The client that
+reads those shapes is `app/src/stations-cloud/stations-cloud.ts`; the view module is
+`app/src/vue/stations-cloud/stations-cloud.js`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
 ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
 `default`, `set by you`, or one of each —, read from `facts` (`plafondDeCalibrage`): the app does not know the default, it
