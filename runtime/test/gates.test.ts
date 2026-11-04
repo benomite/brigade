@@ -193,8 +193,9 @@ describe("les gates", () => {
     );
   });
 
-  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` past a 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
-    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
+  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` past a 0.5 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
+    // Deux `echo` passent bien avant 500 ms ; le `sleep`, lui, ne finit jamais avant le plafond.
+    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 500);
 
     assert.equal(gates.outcome, "timeout");
   });

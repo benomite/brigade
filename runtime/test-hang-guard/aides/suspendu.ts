@@ -7,8 +7,9 @@ test("never resolves", async () => {
   await new Promise(() => {});
 });
 
-test("opted in for longer", { timeout: 5000 }, async () => {
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+// Past the 500 ms limit its test sets, within the 2 s it opted in for.
+test("opted in for longer", { timeout: 2000 }, async () => {
+  await new Promise((resolve) => setTimeout(resolve, 700));
 });
 
 test("quick", () => {});
