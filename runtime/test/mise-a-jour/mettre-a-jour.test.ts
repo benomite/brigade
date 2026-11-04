@@ -1,90 +1,15 @@
-// Un passage de la mise à jour, sur une machine tenue en mémoire : ce qu'elle
-// installe, ce qu'elle garde, ce qui la retient, et ce qu'elle dit. La machine
-// d'essai complète — vrais paquets, vrai postinst — est dans machine.test.ts.
+// Un passage de la mise à jour, sur une machine tenue en mémoire
+// (`aides/en-memoire.ts`) : ce qu'elle installe, ce qu'elle garde, ce qui la
+// retient, et ce qu'elle dit. La garde s'écoule sur une horloge d'essai. Ce
+// qu'une suite de passages laisse au journal d'un projet et à sa file est
+// dans machine.test.ts.
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
-import { annoncerEnService } from "../../src/mise-a-jour/en-service.ts";
+import { test } from "node:test";
+import { decrireEtatMiseAJour } from "../../src/mise-a-jour/dire.ts";
 import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mise-a-jour/etat.ts";
-import { passer } from "../../src/mise-a-jour/mettre-a-jour.ts";
-import type { Publication, Publications } from "../../src/mise-a-jour/publications.ts";
-import type { Systeme } from "../../src/mise-a-jour/systeme.ts";
-import { repertoireTemporaire } from "../outils.ts";
-
-// Ce que fait la station relancée sur une version : elle se dit en service en
-// servant ces projets — ou elle tombe.
-type Demarrage = { servis: string[]; refuses?: Record<string, string> } | "tombe" | "muette";
-
-// Une machine où le paquet installé est noté, et où la station « démarre »
-// selon `demarrage` : elle écrit ce qu'elle dit d'elle-même, comme la vraie.
-function machine(t: TestContext, version: string, demarrage: (version: string) => Demarrage = () => ({ servis: [] })) {
-  let installee: string | null = version;
-  const racine = repertoireTemporaire(t);
-  const dossier = join(repertoireTemporaire(t), "mise-a-jour");
-  const installations: string[] = [];
-  let pid = 100;
-  let actif = "active";
-  let refus: string | null = null;
-  const demarrer = (version: string) => {
-    pid++;
-    const quoi = demarrage(version);
-    if (quoi === "tombe") return void (actif = "failed");
-    actif = "active";
-    if (quoi === "muette") return;
-    const arreter = annoncerEnService(racine, () => ({ servis: quoi.servis, refuses: quoi.refuses ?? {} }), { version, pid });
-    arreter();
-  };
-  demarrer(version);
-  const systeme: Systeme = {
-    installee: () => installee,
-    lirePaquet: (fichier) => {
-      const [paquet = "", version = ""] = readFileSync(fichier, "utf8").split(" ");
-      return { paquet, version };
-    },
-    installer: (fichier) => {
-      const { version } = systeme.lirePaquet(fichier) ?? { version: "" };
-      installations.push(version);
-      if (refus !== null) return { ok: false, motif: refus };
-      installee = version;
-      demarrer(version);
-      return { ok: true };
-    },
-    service: () => ({ actif, pid: actif === "active" ? pid : 0, redemarrages: 0 }),
-  };
-  return {
-    racine,
-    dossier,
-    systeme,
-    installations,
-    refuserLesInstallations: (motif: string | null) => void (refus = motif),
-    // Ce que dpkg dit du paquet, sans rien installer : nul s'il est à moitié posé.
-    dpkg: (version: string | null) => void (installee = version),
-    reglages: (texte: string) => writeFileSync(join(racine, "reglages"), texte),
-    configurer: (texte: string) => writeFileSync(join(racine, "projets"), texte),
-  };
-}
-
-// Des versions publiées, chacune avec son paquet : un fichier qui dit ce qu'il est.
-function publiees(versions: string[], options: { illisibles?: string; autrePaquet?: string } = {}): Publications & { telecharges: string[] } {
-  const telecharges: string[] = [];
-  return {
-    nom: "les publications d'essai",
-    telecharges,
-    async lister(): Promise<Publication[]> {
-      if (options.illisibles) throw new Error(options.illisibles);
-      return versions.map((version) => ({ version, paquet: `essai:${version}`, empreinte: null }));
-    },
-    async telecharger(publication, fichier) {
-      telecharges.push(publication.version);
-      writeFileSync(fichier, options.autrePaquet === publication.version ? `autre-chose ${publication.version}` : `brigade-station ${publication.version}`);
-    },
-  };
-}
-
-function passage(m: ReturnType<typeof machine>, publications: Publications, dites: string[] = []) {
-  return passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: 2000, pasMs: 5 });
-}
+import { machineEnMemoire as machine, passage, publiees } from "./aides/en-memoire.ts";
 
 test("une version plus récente publiée est installée, et gardée quand la station s'y dit en service ; le paquet d'avant reste de côté", async (t) => {
   const m = machine(t, "1.0.0");
@@ -115,10 +40,15 @@ test("gelée, une version plus récente n'est pas installée, et l'état le dit 
   m.reglages("gel=oui\n");
   const { etat } = await passage(m, publiees(["1.0.0", "1.1.0"]));
   assert.deepEqual(m.installations, []);
-  assert.deepEqual([etat.gelee, etat.disponible, etat.retenue], [true, "1.1.0", "version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé"]);
+  assert.deepEqual([etat.gelee, etat.installee, etat.disponible, etat.retenue], [true, "1.0.0", "1.1.0", "version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé"]);
+  // L'état exposé, en clair, par la commande `etat` du paquet.
+  const lu = decrireEtatMiseAJour(lireEtatMiseAJour(m.dossier));
+  assert.deepEqual(lu.slice(0, 3), ["installée   1.0.0", "publiée     1.1.0", "gel         oui — aucune nouvelle version n'est installée"]);
+  assert.ok(lu.includes("retenue     version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé"), lu.join("\n"));
   m.reglages("gel=non\n");
   assert.equal((await passage(m, publiees(["1.0.0", "1.1.0"]))).issue?.quoi, "passee");
   assert.deepEqual(m.installations, ["1.1.0"]);
+  assert.deepEqual([lireEtatMiseAJour(m.dossier)?.gelee, lireEtatMiseAJour(m.dossier)?.installee, lireEtatMiseAJour(m.dossier)?.derniere?.quoi], [false, "1.1.0", "passee"]);
 });
 
 test("un gel mal écrit gèle : dans le doute, rien n'est installé, et la ligne est dite", async (t) => {
