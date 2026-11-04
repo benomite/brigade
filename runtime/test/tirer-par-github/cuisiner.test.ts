@@ -111,7 +111,7 @@ describe("la station qui a rejoint la cuisine y cuit, par GitHub seulement", pos
       dire: (ligne) => lignes.push(ligne),
       maintenant: instant,
       pasMs: 5,
-      attenteMs: 60_000,
+      attenteMs: 2000,
       entreDeuxReclamationsMs: 10,
       cook: {
         preparer: async (_mission, worktree) => void mkdirSync(worktree, { recursive: true }),

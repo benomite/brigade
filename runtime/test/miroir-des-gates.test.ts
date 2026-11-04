@@ -52,7 +52,7 @@ function encombrer(racine: string, debut: string): void {
 }
 
 function jouer(racine: string): { code: number | null; sortie: string } {
-  const passage = spawnSync("bash", [GATES, racine], { env: { ...ENV_ENFANT, HOME: join(racine, "..") }, encoding: "utf8" });
+  const passage = spawnSync("bash", [GATES, racine], { env: { ...ENV_ENFANT, HOME: join(racine, ".."), BRIGADE_GATES_DELAI_TESTS: "2" }, encoding: "utf8" });
   return { code: passage.status, sortie: passage.stdout + passage.stderr };
 }
 

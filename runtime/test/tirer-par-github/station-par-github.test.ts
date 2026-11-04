@@ -99,7 +99,7 @@ function service(t: TestContext, declaration: string, options: Options = {}) {
     assert.equal(panne, null);
   };
   const demander = (station: string, demande: DemandeParGitHub): Promise<Reponse> =>
-    demanderParGitHub({ station, depot: DEPOT, gist: GISTS[station]!, canal: github.canal, lireLeTableau: lecteurDuTableau(github.tableau), maintenant: instant, pasMs: 5, attenteMs: 60_000 }, demande);
+    demanderParGitHub({ station, depot: DEPOT, gist: GISTS[station]!, canal: github.canal, lireLeTableau: lecteurDuTableau(github.tableau), maintenant: instant, pasMs: 5, attenteMs: 2000 }, demande);
   const prises = (ticket: number) => journal.duTicket(ticket).filter((e) => e.type === "ticket.taken").map((e) => e.author.replace(/^station:/, ""));
   // Qui tient le ticket, prise après prise : `<station>` à sa prise, `-` quand
   // il la quitte — rendu, ou son cook fini, qui le rend au rail.

@@ -21,8 +21,10 @@ function projet(t: TestContext, suite: string): string {
 
 type Passage = { process: ChildProcess; sortie: () => string; fin: Promise<number | null> };
 
+// La garde d'horloge des gates à 2 s, pas à ses 300 s : tué par la fin du test,
+// le script laisserait sa garde dormir cinq minutes après lui.
 function jouer(t: TestContext, racine: string, verrou: string): Passage {
-  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou }, stdio: ["ignore", "pipe", "pipe"] });
+  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, BRIGADE_GATES_DELAI_TESTS: "2" }, stdio: ["ignore", "pipe", "pipe"] });
   let sortie = "";
   gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
