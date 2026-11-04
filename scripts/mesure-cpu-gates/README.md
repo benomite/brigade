@@ -132,6 +132,18 @@ The slowest files after, in the suite: `0-en-premier/recette.test.ts` 37.9 s (wa
 
 At 491 s of CPU, the floor on 8 threads is 61 s on an idle box. With the box shared, the measures land at 113 to 116 s, above the 93 s of the pass before the rebase, also on a shared box. That is load, not cost: CPU is unchanged (480 s then, 491 s now with 72 more tests).
 
+Played again by the next cook on the same head, same commands, in the same ten minutes, the box at a load of 9 to 14:
+
+| Whole runtime suite | Before (`npm test`, `ad53189`) | After, two passes (`suite-runtime.sh`) |
+|---|---|---|
+| Wall clock | 274.0 s | **138.7 s**, 158.6 s |
+| CPU (user + system) | 864.3 s | **505.9 s**, 511.5 s |
+| Tests run | 4419 | **4420**, 4420 |
+| Passed / failed / skipped | 4408 / 5 / 6 | 4414 / 0 / 6, both |
+| Load at the start | 8.78 | 13.15, 9.82 |
+
+The five failures before are the `enrolement/commande.test.ts` tests of the extracted tree. The two passes after run the same tests (`diff` empty), and their `diff` with before is the one above. The wall clock follows the box's load; the CPU, and the ratio to before (0.5 to 0.6 in wall clock, 0.6 in CPU), hold.
+
 ### Where the CPU goes, and the bound
 
 Measured before the step above, at 616 s of CPU. The proportions still say where the next seconds are.
