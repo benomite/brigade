@@ -205,8 +205,8 @@ npm --prefix runtime run waiting -- resume 8    # WAITING → TODO, right away
 
 `--what` and `--from` values are the chef's own words, so French; `set`, `resume`, `--what`,
 `--from`, `--remind` are English (the old `poser`, `reprendre`, `--quoi`, `--de` still answer). "It
-arrived" is not a box command: post `/brigade arrived #8` on the Kitchen board
-(`docs/tableau-gestes.md`).
+arrived" is not a box command: on the GitHub-only path, remove the ticket's `waiting` label on
+GitHub ([`github-seul.md`](github-seul.md)).
 
 - **`set`** puts a ticket of the rail that is **queued or 86** in WAITING; a ticket taken or in pass
   is refused. `--remind`: a date (midnight, box time), a date and time (`2026-10-21T09:00`) or a

@@ -171,6 +171,8 @@ What the shape does not say:
 
 ### Proposed corrections
 
+> **Since #2061, nothing feeds this and nothing answers it**: the proposals were drawn from the tickets the old pass served, and the chef answered them on the Kitchen board, both removed ([`github-seul.md`](github-seul.md)). What follows describes what the log may still hold.
+
 When the same cause of failure comes back on several recent tickets, the runtime picks it out as a
 **candidate for a correction** (`correction.candidate`, `runtime/src/correctif/detecter.ts`). The
 model reads the cause, what the failed tickets say of it and the project's guidance
@@ -220,6 +222,8 @@ compare** (`rien-a-comparer`), not a zero share.
 
 ### Proposed profiles
 
+> **Since #2061, nothing feeds this and nothing answers it**: the proposals were drawn from the tickets the old pass served, and the chef answered them on the Kitchen board, both removed ([`github-seul.md`](github-seul.md)). What follows describes what the log may still hold.
+
 When a card zone comes back often on the last served tickets and is delivered on the first
 try markedly less there than in the rest of the project (`runtime/src/profils/domaines.ts`: at least
 `BRIGADE_PROFILE_MIN_TICKETS` tickets, 5 by default, among the last `BRIGADE_PROFILE_WINDOW`, 20,
@@ -263,27 +267,11 @@ The log says it at launch: `profile.notebook-given`, with `run` (the
 cook), `name` and `zone`, `file` and
 `lessons` (the ids given — `[]` for an empty notebook). A generalist has none.
 
-### The Kitchen board, on GitHub
+### No Kitchen board
 
-The runtime publishes what `status` says in the project's own repository: one issue titled
-**Kitchen board**, pinned, whose body is the board (`runtime/src/tableau/`) — the queue with each
-gesture, the kitchen's state, and a machine block for the apps. It carries the labels
-`kitchen-board`, by which it is found again, and `hors-cuisine`, so that neither the rail nor the
-manager takes it as a ticket. Its format is in [`tableau-de-cuisine.md`](tableau-de-cuisine.md). On each tick (once a minute) the runtime rereads the board and
-**rewrites the body only if what it says changed** (reading time, durations
-and last tick are not a change). Only the body is edited —
-no comment, no mention: a refresh notifies nobody. Each call goes through the GitHub budget
-(`station-machine.md`), as a kitchen call, under the manager's identity when roles have one.
-
-A station publishes one board per project it serves (`runtime/src/station/cuisine.ts`), in that project's repository. Gestures posted under a board are played on that
-project's log, and the chef is mentioned there. Its calls are counted to that
-project in the station's counter, the one `status` reads for `board cost`.
-
-The issue is found by its label and its block, never by a stored number. Closed, it is reopened;
-deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh and after each creation or reopening, never on a timer
-(#2198: a quiet kitchen costs no call; a board the chef unpins stays unpinned until the next one);
-refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
-at the next tick.
+No runtime writes a Kitchen board any more (#2061): the app's rail view and TODO read the project's issues,
+labels and PRs on GitHub ([`github-seul.md`](github-seul.md)). The old board issue (#1683, label `kitchen-board`)
+is no longer refreshed and can be closed.
 
 ## The measures reading
 

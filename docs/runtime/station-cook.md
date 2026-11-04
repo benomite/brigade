@@ -140,8 +140,7 @@ more tickets**; its running cooks finish. The ticket of that cook is back on the
 takes it (for ordinary tickets, a station that cannot start counts as one with no room, like a stopped
 one). A cook that ends with turns says nothing about starting: a failure with turns holds nothing.
 
-`run status` says so whether a ticket waits or not, and the Kitchen board carries the same line in
-its `stations` section and `sansDemarrage` in `cuisine.stations[]`:
+`run status` says so whether a ticket waits or not:
 
 ```
 stations   box/claude NOT TAKING TICKETS for 2 min — its cook could not start: 14-1a5c0bc9 ended with 0 turns and 0 tokens (guard:idle); its ticket went back to the rail for another station. It takes tickets again when it restarts, or as soon as a cook launched since produces a turn

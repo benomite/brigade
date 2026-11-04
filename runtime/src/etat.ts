@@ -570,7 +570,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
 // Une ligne par livraison coincée en pass : depuis quand, et le geste qui la relance.
 function decrireCoincees({ coincees }: EtatCuisine, depuis: Depuis): string[] {
   return coincees.map(({ ticket, since }, rang) =>
-    ligne(rang === 0 ? "stuck" : "", `#${ticket} in pass for ${depuis(since)} with no active pass — delivered, never judged: \`${geste(`pass ${ticket} --relaunch`)}\``),
+    ligne(rang === 0 ? "stuck" : "", `#${ticket} in pass for ${depuis(since)} with no active pass — delivered on the old path, never judged: nothing judges it any more (#2061)`),
   );
 }
 
