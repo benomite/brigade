@@ -12,6 +12,7 @@ import { cartesDeCorrection } from "./correctif/cartes.ts";
 import { reculDesCorrections } from "./correctif/recul.ts";
 import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
+import { lireGitHubSeul } from "./github-seul-etat.ts";
 import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
@@ -104,7 +105,9 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // absente quand les appels passent.
     const github = limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR);
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
-    return { ...forme, plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
+    // L'interrupteur GitHub seul, quand il est allumé : accepté, ou refusé et pourquoi (`github-seul-etat.ts`).
+    const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
+    return { ...forme, ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

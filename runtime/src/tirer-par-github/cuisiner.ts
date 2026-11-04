@@ -210,7 +210,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
     try {
       await pousser(worktree, branch);
     } catch (erreur) {
-      return rendre("failed", `push: ${message(erreur)}`.slice(0, 200), lecture.message, mesure);
+      return rendre("failed", `push: ${message(erreur)}`, lecture.message, mesure);
     }
     return rendre("delivered", null, lecture.message, mesure);
   } finally {

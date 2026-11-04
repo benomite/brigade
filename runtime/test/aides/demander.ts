@@ -14,7 +14,8 @@ import { NOM_DE_STATION } from "../../src/stations-declarees.ts";
 export const ATTENTE_MS = 30_000;
 const PAS_MS = 100;
 const MESSAGE_MAX = 20_000;
-const RAISON_MAX = 200;
+const RAISON_MAX = 20_000;
+const PREUVE_MAX = 200;
 
 // La demande n'a pas pu être faite, ou n'a pas reçu de réponse : rien n'est à
 // supposer de ce que la box en a fait.
@@ -55,7 +56,7 @@ export async function demander(repertoireEtat: string, station: string, demande:
         demande.verb === "deliver"
           ? { ...demande, message: demande.message?.slice(0, MESSAGE_MAX) ?? null, reason: demande.reason?.slice(0, RAISON_MAX) ?? null }
           : demande.verb === "renew"
-            ? { ...demande, proof: demande.proof?.slice(0, RAISON_MAX) ?? null }
+            ? { ...demande, proof: demande.proof?.slice(0, PREUVE_MAX) ?? null }
             : demande;
       return journal.ajouter({ project: projet, ticket: null, author: `station:${station}`, type: "remote.asked", payload: { id, station, ...ecrire } });
     });

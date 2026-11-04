@@ -382,3 +382,28 @@ test("le côté de la station qui a rejoint n'ouvre aucun journal et ne passe pa
 });
 
 test("cuisiner.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+
+test("un push refusé : la station rend ce que git a dit en entier, sans le couper", posix("pushes with a stub that fails and expects the whole git output in the reason"), async (t) => {
+  const { clone } = depotGit(t);
+  const worktree = join(repertoireTemporaire(t), "worktrees", MISSION.run);
+  const demandes: Demande[] = [];
+  const dit = `remote: ${"refus ".repeat(80)}\n! [remote rejected] branche -> branche (hook declined)`;
+  await cuisinerUneMission({
+    mission: MISSION,
+    worktree,
+    clone,
+    claude: FAUX_CLAUDE,
+    env: { ...process.env, FAUX_CLAUDE: "livre" },
+    gh: "gh-jamais-lance",
+    demander: async (demande) => (demandes.push(demande), { ok: true, verb: "deliver", ending: "failed", reason: null }),
+    dire: () => {},
+    pousser: async () => {
+      throw new Error(dit);
+    },
+  });
+  const [livraison] = demandes;
+  assert.ok(livraison?.verb === "deliver");
+  assert.equal(livraison.ending, "failed");
+  assert.ok(dit.length > 200);
+  assert.equal(livraison.reason, `push: ${dit}`);
+});

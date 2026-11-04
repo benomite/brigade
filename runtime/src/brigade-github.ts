@@ -410,6 +410,8 @@ export type OptionsDuProjet<A> = {
   // Entre deux tours. Par défaut, deux minutes.
   intervalleMs?: number;
   avertir?: (message: string) => void;
+  // Ce que le runtime a décidé de l'interrupteur, pour qu'il se lise ailleurs que dans son log (`github-seul-etat.ts`) : null, éteint.
+  noter?: (decision: { etat: "accepted" } | { etat: "refused"; reason: string } | null) => void;
 };
 
 export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void>; enCuisine(): number[] };
@@ -419,12 +421,17 @@ export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "githu
 // chemin n'est pas ouvert.
 export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuvert<A> {
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
-  if (!surGitHubSeul(options.reglages)) return { chemin: "ancien", ancien: options.ancien() };
+  if (!surGitHubSeul(options.reglages)) {
+    options.noter?.(null);
+    return { chemin: "ancien", ancien: options.ancien() };
+  }
   const station = options.station();
   if ("refus" in station) {
+    options.noter?.({ etat: "refused", reason: station.refus });
     avertir(`brigade : GitHub-only state is on in the project settings, but this runtime cannot serve it — ${station.refus}; the old path is kept`);
     return { chemin: "ancien", ancien: options.ancien() };
   }
+  options.noter?.({ etat: "accepted" });
   avertir("brigade : GitHub-only state — this station takes, cooks, reviews and merges the project's tickets from GitHub only");
   const intervalleMs = options.intervalleMs ?? 120_000;
   let arrete = false;

@@ -6,6 +6,7 @@ import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { Sortie, type Appel } from "./appel.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
+import { noterGitHubSeul } from "./github-seul-etat.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "./brigade-github.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
@@ -207,6 +208,7 @@ export function demarrerLeRuntime({ env: environnement, dire, redire }: Omit<App
     const ici = stations.find((declaree) => !declaree.distante);
     const ouvert = brancherBrigadeGithub({
       reglages: duDepot.reglages,
+      noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
       ancien: () => ({ stations, decisions }),
       station: () => {
         const ouverte =
