@@ -2,7 +2,7 @@
 // un répertoire tel que le runtime l'attend, et un serveur local qui vérifie le
 // JWT de chaque requête avant de rendre un jeton d'installation. Ni réseau, ni
 // vraie App.
-import { createPublicKey, generateKeyPairSync, verify } from "node:crypto";
+import { createPublicKey, generateKeyPair, generateKeyPairSync, type KeyObject, verify } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -45,9 +45,25 @@ function cles() {
   return paires;
 }
 
+// Les mêmes paires, fabriquées hors du fil du test et de front : un fichier qui
+// l'appelle à son chargement ne bloque aucun de ses tests le temps de les
+// fabriquer. Sans cet appel, `cles()` les fabrique comme avant.
+let prechauffage: Promise<void> | undefined;
+export function prechaufferLesCles(): Promise<void> {
+  prechauffage ??= (async () => {
+    const fabriquer = () => new Promise<{ privateKey: KeyObject; publicKey: KeyObject }>((resoudre, rejeter) => generateKeyPair("rsa", { modulusLength: 2048 }, (erreur, publicKey, privateKey) => (erreur ? rejeter(erreur) : resoudre({ privateKey, publicKey }))));
+    const fabriquees = await Promise.all(ROLES.map(async (role) => [role, await fabriquer()] as const));
+    paires ??= Object.fromEntries(
+      fabriquees.map(([role, { privateKey, publicKey }]) => [role, { privee: privateKey.export({ type: "pkcs1", format: "pem" }).toString(), publique: publicKey.export({ type: "spki", format: "pem" }).toString() }]),
+    ) as Record<Role, { privee: string; publique: string }>;
+  })();
+  return prechauffage;
+}
+
 const ID: Record<Role, string> = { cook: "1001", pass: "1002", manager: "1003" };
 
 export async function fauxGitHubApps(t: TestContext): Promise<FauxGitHubApps> {
+  if (prechauffage) await prechauffage;
   const paire = cles();
   const repertoire = join(repertoireTemporaire(t), "apps");
   mkdirSync(repertoire);
