@@ -424,7 +424,14 @@ describe("superviser, à l'horloge du test", () => {
     for (let tour = 1; tour <= 3; tour += 1) {
       while (!fini && mesure().turns < tour) await souffler();
       t.mock.timers.tick(999);
-      if (!fini) process.kill(pid, "SIGUSR1");
+      // Le cook a pu finir entre le tour lu et le signal : un process parti n'a plus rien à réveiller.
+      if (!fini) {
+        try {
+          process.kill(pid, "SIGUSR1");
+        } catch (erreur) {
+          if ((erreur as NodeJS.ErrnoException).code !== "ESRCH") throw erreur;
+        }
+      }
     }
 
     assert.equal((await fin).arret?.reason, "tokens");
