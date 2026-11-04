@@ -1,0 +1,2089 @@
+# The former offenders of the 2 s rule, and what became of them (#2130)
+
+On #2129's merge, `exceptions.ts` listed 1493 tests and 37 guards. #2130 emptied it. Each line below
+gives one entry's fate. A duration is the one the suite's own reporter measured for that title in a
+full `npm --prefix runtime test` run on the dev workstation (4627 tests, 0 failed, slowest 1656 ms),
+after main was merged into the branch. A commit hash names the commit of this branch that did it.
+
+The list was built with a margin: a test went on it when it ran over 2 s, or over 0.7 s under heavy load.
+Many entries were never slow on a quiet box. They left the list once they had stayed under 0.7 s in four
+full runs under load (45bfad4, f5fc5c7, dfa4560).
+
+## The two named scenarios
+
+- « la commande manager » (`test/manager-cli.test.ts`, 94 s on the Windows runner): **rewritten in place**
+  (d52e2ed). Each test reads a journal posed by hand instead of a running runtime, and calls the command in
+  the test's process; no `node` is launched. The whole block takes 779 ms, and no test in it is over 0.6 s.
+  Its one file-launch test (« lancée par son fichier… ») is **deleted**: commandes.test.ts launches every
+  command under its `npm run` name, refusal and exit code included.
+- « la cuisine reprise après le renommage » (`test/reprise-du-renommage.test.ts`, 65 s): **rewritten in
+  place**. The runtime is in the test's process, with a fake GitHub, a repository whose transposition is
+  decided per ticket, a fake `claude` and a fake rename tool. It runs on the kitchen's 25 ms tick without
+  sync (7d4d823). The three real-repository tests before it build their repository once and run one after
+  the other (5502423). The block takes 697 ms.
+
+## The 65 tests that no longer run under their old title
+
+- `test-hang-guard/garde.test.ts` « a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass » — rewritten in place (6eb7397): a stand-in runner wrapped in-process, on the test's clock; title now « …naming file, title, where it is written and what it still held… »
+- `test/0-en-premier/recette.test.ts` « ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration » — deleted (256095d); each step is covered: projets/tenir.test.ts « un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit » and « le ticket qui prépare le dépôt s'ouvre avant la ligne du projet, une fois… », projets-station/servir.test.ts « un dépôt coché dans l'app est servi à la lecture suivante… » and « un dépôt décoché n'est plus servi à la lecture suivante… », projets-station/station.test.ts « sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main… », onboarding/attente.test.ts « retenu : sans bac à sable et sans décision, aucun cook ne part… »
+- `test/arbitre-cli.test.ts` « sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi » — rewritten in place (3df0e57, cf6565b): the refusals play one after another in one process; title now « sans répertoire, sans port, sans plafond, sur un port pris, ou sur un répertoire qu'un arbitre tient, l'arbitre refuse de démarrer et dit pourquoi »
+- `test/bac-a-sable/configuration.test.ts` « sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance un script sans chercher sa version ; sans les réglages, il meurt de ENGINE_IDENTITY_UNVERIFIABLE » — deleted (f398798): it installed pnpm from the network; covered by bac-a-sable/configuration.test.ts « les réglages du bac à sable posent la désactivation du changement de version de pnpm »
+- `test/bascule/machine.test.ts` « installer le paquet reprend les trois projets — journal, décisions et ticket en cours intacts —, retire l'ancien chemin, et la cuisine reprend seule après un arrêt mesuré » — deleted (4142d5f): covered by bascule/bascule.test.ts (what the switch writes, removes and leaves) and reprise.test.ts (the cook in flight); bascule/machine.test.ts keeps three tests of the real postinst
+- `test/commandes.test.ts` « chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient » — rewritten in place (8fbca79, dfa4560): one test per old word, « …— `<command> <old word>` », played in-process where the command has a function
+- `test/commandes.test.ts` « taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé » — rewritten in place (8fbca79, 655a45e): one test per command, « …— `<command>` »
+- `test/commandes.test.ts` « un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris » — rewritten in place (8fbca79, 655a45e): one test per old name, « …— `<old name>` »
+- `test/enregistrement-station/station.test.ts` « arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist » — deleted with enregistrement-station/station.test.ts (d52e2ed): covered by enregistrement-station/enregistrer.test.ts « arrêtée proprement, elle écrit tout de suite l'heure de son arrêt… » and « redémarrée, elle reprend le même gist… », and station/main.test.ts « le process de la station relit sa configuration sur SIGHUP… ; arrêté par SIGTERM, il l'écrit sur son enregistrement »
+- `test/enregistrement-station/station.test.ts` « démarrée, la station est enregistrée sous le compte sans aucune commande ; redémarrée, elle rafraîchit le même gist » — deleted with enregistrement-station/station.test.ts (d52e2ed): covered by enregistrement-station/enregistrer.test.ts « à son démarrage, la station crée un gist secret du compte qui porte son enregistrement, sans code à taper » and « redémarrée, elle reprend le même gist… »
+- `test/enrolement/commande.test.ts` « une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre » — deleted (79fce35): covered by enrolement/enrolement.test.ts « un code ne sert qu'une fois : une seconde présentation, de cette machine ou d'une autre, est refusée… » and enrolement/commande.test.ts « un code faux dans la commande est refusé… »
+- `test/exploitation-en-anglais.test.ts` « `arbiter` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): one test per step, « `arbiter` (pas 1) … », « `arbiter weight brigade x` (pas 2) … »
+- `test/exploitation-en-anglais.test.ts` « `backup` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): one test per step, « `backup` (pas 1) … », « `backup` (pas 2) … »
+- `test/exploitation-en-anglais.test.ts` « `door` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): one test per step, « `door` (pas 1) … », « `door` (pas 2) … »
+- `test/exploitation-en-anglais.test.ts` « `measures` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): one test per step, « `measures` (pas 1) … » to « `measures --by 0` (pas 3) … »
+- `test/exploitation-en-anglais.test.ts` « `partition` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): one test per step, « `partition` (pas 1) … » to « `partition probe x` (pas 3) … »
+- `test/exploitation-en-anglais.test.ts` « `restore` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): one test per step, « `restore` (pas 1) … », « `restore /inexistante` (pas 2) … »
+- `test/exploitation-en-anglais.test.ts` « un ancien nom de commande répond en anglais, et dit le nouveau » — deleted (4985d1b): covered by commandes.test.ts « un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom… » (one per old name) and « un ancien nom lancé sans `npm` ne devine rien… »
+- `test/main.test.ts` « avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN » — rewritten in place (8b66dee), merged into main.test.ts « une issue calibrée posée sur le dépôt part chez un cook, à son calibrage ; avec le jeton à son emplacement, sur une machine sans session, la station se sait connectée et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN… »
+- `test/main.test.ts` « désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne » — rewritten in place (8b66dee), on one process: « désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; sans lui, rien n'en est dit qu'une ligne »; the runtime going on without its arbiter is covered by arbitrage.test.ts « arbitre injoignable : le projet lance quand même… »
+- `test/main.test.ts` « les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail » — rewritten in place (8b66dee): « les issues du dépôt arrivent sur le rail, avec leur priorité et leur fiche »; the restart after a kill is covered by runtime.test.ts « arrêté puis redémarré, le runtime retrouve son journal… » and garde-fous.test.ts « un cook meurt avec le runtime, et le démarrage suivant note son interruption sur son ticket »
+- `test/main.test.ts` « sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée » — deleted (8b66dee): covered by pass.test.ts « verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée »
+- `test/main.test.ts` « sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici » — deleted (8b66dee): covered by station-distante.test.ts « annoncée, elle reçoit le ticket dont elle fournit tout ce qu'il demande… » and runtime.test.ts « ce qu'un autre process écrit dans le journal réveille le runtime »
+- `test/main.test.ts` « tué sans préavis puis relancé, le runtime retrouve son journal et y note l'interruption » — deleted (8b66dee): covered by runtime.test.ts « arrêté puis redémarré, le runtime retrouve son journal et n'y voit aucune interruption », garde-fous.test.ts « un cook meurt avec le runtime, et le démarrage suivant note son interruption sur son ticket », and verrou.test.ts « un verrou relâché se reprend »
+- `test/main.test.ts` « un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit » — rewritten in place (8b66dee): « un projet qui déclare deux stations ici et une distante démarre avec les trois : chacune s'annonce, avec son plafond, et le runtime les dit »
+- `test/main.test.ts` « un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse ; une valeur refusée rend son erreur, sans PR » — rewritten in place (59fa8f5): the request is journaled before the real runtime starts; « un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et en écrit l'adresse en réponse »
+- `test/main.test.ts` « un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée » — deleted (8b66dee): covered by reprise.test.ts « un second runtime démarré pendant qu'un cook du premier est en vol le liste en cours, sans le relancer ni le tuer » and « le cook repris finit son travail… »
+- `test/main.test.ts` « une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part » — rewritten in place (8b66dee), on one process: « une identité par rôle, sur le vrai process : le runtime le dit, sonde GitHub sous l'identité du manager… »
+- `test/main.test.ts` « une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire » — rewritten in place (8b66dee): main.test.ts « une issue calibrée posée sur le dépôt part chez un cook, à son calibrage… »; the push, PR and comment chain is covered in-process by station.test.ts « deux cooks partent de front d'un même clone : deux worktrees, deux branches poussées, deux PR » and cuisson-de-bout-en-bout.test.ts « la station prépare le worktree, y lance le cook…, pousse sa branche et range le worktree »
+- `test/mise-a-jour/machine.test.ts` « la version gelée, une version publiée n'est pas installée ; le gel levé, elle l'est » — deleted with mise-a-jour/machine.test.ts (0a42982): covered by mise-a-jour/mettre-a-jour.test.ts « gelée, une version plus récente n'est pas installée, et l'état le dit ; le gel levé, elle l'est »
+- `test/mise-a-jour/machine.test.ts` « trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage » — deleted with mise-a-jour/machine.test.ts (0a42982): covered by mise-a-jour/mettre-a-jour.test.ts « une version plus récente publiée est installée, et gardée quand la station s'y dit en service… », paquet/paquet.test.ts « une mise à jour relance ce qui est activé sur le nouveau code… », mise-a-jour/relais.test.ts « la file dit la dernière mise à jour, le jour même… »
+- `test/mise-a-jour/machine.test.ts` « un cook en vol pendant la mise à jour n'est pas interrompu : la station de la nouvelle version le reprend sans le relancer, et sa livraison est servie » — deleted with mise-a-jour/machine.test.ts (0a42982): covered by station/main.test.ts « la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison part »
+- `test/mise-a-jour/machine.test.ts` « une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée » — deleted with mise-a-jour/machine.test.ts (0a42982): covered by mise-a-jour/mettre-a-jour.test.ts « une version qui ne démarre pas : le paquet d'avant est réinstallé… » and mise-a-jour/relais.test.ts for the queue line
+- `test/pass-reprise-des-gates.test.ts` « le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier » — deleted (8a3f8da): covered by empreinte-des-gates.test.ts « un seul fichier changé change l'arbre : rien n'est repris » and gates-du-cook.test.ts « à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte… »
+- `test/pass-reprise-des-gates.test.ts` « les gates du cook étaient rouges : la pass les joue en entier » — deleted (8a3f8da): covered by empreinte-des-gates.test.ts « un passage rouge ou coupé n'est pas repris, et il l'emporte sur un vert plus ancien du même arbre »
+- `test/reaction.test.ts` « remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO » — rewritten in place (3df0e57): two tests side by side, « …— product » and « …— gesture »
+- `test/station.test.ts` « quatre cooks partent de front d'un même clone : quatre worktrees, quatre branches poussées, quatre PR » — rewritten in place (fcaa79d): « deux cooks partent de front d'un même clone : deux worktrees, deux branches poussées, deux PR »
+- `test/station/main.test.ts` « chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662) » — rewritten in place (fcaa79d): station opened in the test's process; title now ends « …et le chef y est mentionné pour ce qui l'attend »
+- `test/station/main.test.ts` « deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire » — deleted (fcaa79d): covered by station.test.ts « deux cooks partent de front d'un même clone… » and « un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre », and station/main.test.ts « deux projets dans la configuration : une seule station les sert… »
+- `test/station/main.test.ts` « deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service » — rewritten in place (fcaa79d): « deux projets dans la configuration : une seule station les sert, chacun avec son journal, sa cloison, sa porte et son `gh` — jamais ceux d'un autre ; une ligne refusée ne l'arrête pas… »
+- `test/station/main.test.ts` « la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie » — rewritten in place (3016c25), in the test's process: « la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison part »
+- `test/station/main.test.ts` « sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet » — rewritten in place (fcaa79d): « sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable »; serving no project without a configuration is covered by projets-station/servir.test.ts « sans sélection, la station ne sert aucun projet et le dit au journal de service… »
+- `test/station/main.test.ts` « sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre » — rewritten (4adaec4, fcaa79d): the waiting moves in-process to station/portes.test.ts « la station attend sa porte avant de rien joindre : elle le dit une fois passé sa patience, et sort par elle dès que son port est écrit »; the process part is station/main.test.ts « le process de la station : sous ses portes, ses projets reçoivent la leur… »
+- `test/station/main.test.ts` « une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station » — deleted (fcaa79d): covered by identites.test.ts and station.test.ts « un setup qui exporte un jeton GitHub ne le passe pas au cook »
+- `test/station/main.test.ts` « une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres » — rewritten in place (fcaa79d), merged into station/main.test.ts « deux projets dans la configuration : une seule station les sert… ; une ligne refusée ne l'arrête pas : elle le dit au nom du projet… »
+- `test/telephones.test.ts` « le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station » — rewritten in place (88358f0): « sous l'environnement que le geste lui donne, la commande des téléphones tire un code et son QR… », in-process; the gesture's forwarding stays proven by geste.test.ts
+- `test/depot.test.ts` « un clone nommé dans une autre casse que celle du disque reste le sien : ses worktrees ne passent pas pour détournés » — kept as is; skipped on this case-sensitive volume, so not measured here
+- `test/exploitation-en-anglais.test.ts` « `hold-arbiter` : ses sorties et ses refus ne portent aucun mot français du glossaire » — rewritten in place (4985d1b): « `hold-arbiter` (pas 1) … »
+- `test/installation.test.ts` « une racine tenue par le compte de service manque : à qui elle appartient, et la commande qui la remet à root » — kept as is; skipped without root, so not measured here
+- `test/limite-github.test.ts` « la station et trois projets, chacun dans son process, lisent le même quota et tiennent ensemble le même compte » — rewritten in place (760278d): « la station et trois projets, chacun sur sa connexion au compteur, lisent le même quota… », four connections instead of four Node processes
+- `test/manager-cli.test.ts` « lancée par son fichier, comme `npm run` la lance, elle rend la même ligne et sort en 0 » — deleted (d52e2ed): covered by commandes.test.ts, which launches every command by its `npm run` name, refusal and exit code included
+- `test/tableau/gestes/sans-ssh.test.ts` « `/brigade ask #30 …` sur la box qui tient le second du projet : la demande entre dans sa conversation, et sa réponse est postée sous le geste et portée par le tableau » — gone with its feature on main (#2169, « remove the board side of 'ask the second' »), not by this branch
+- `test/deploy/installer-station-windows.test.ts` « la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé ni écrit au registre » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « sans winget, un outil qui manque est nommé, avec où le prendre, et rien n'est installé » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « une connexion GitHub ratée est dite, et la connexion Claude n'est pas tentée » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « une connexion Claude ratée est dite, avec de quoi la reprendre : rejouer la même commande » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « ailleurs que sous Windows, sur une architecture sans node, ou sans curl.exe : refusé avant tout téléchargement » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « il ne double pas la station que l'app tient : il attend qu'elle la rende » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « une station tombée est relancée cinq secondes plus tard » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+- `test/deploy/installer-station-windows.test.ts` « pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions » — rewritten in place (f23eccc): its scenarios play once, side by side, before the file's tests read them; skipped on this workstation (no pwsh), measured under 0.9 s each on the Windows runner per the commit
+
+## The 37 guards
+
+- `test/0-en-premier/recette.test.ts` `timeout: 300_000` — gone with the deleted test (256095d)
+- `test/aides/cuisine.ts` `delaiGatesMs: 60_000` — 2 s (3122319, f398798)
+- `test/bac-a-sable/configuration.test.ts` `timeout: 90_000` — gone with the deleted pnpm 10 test (f398798)
+- `test/cloison.test.ts` `delaiMs: 60_000` — 2 s (b8caed9)
+- `test/closing/kitchen.ts` `delaiGatesMs: 60_000` — 2 s (3122319, f398798)
+- `test/closing/report.test.ts` `timeout: 600_000` — removed; the test runs under the suite's default (f398798)
+- `test/connexion-max/connecter.test.ts` `delaiMuet: 60_000` — 2 s (f7cb164)
+- `test/correctif/decision.test.ts` `delaiGatesMs: 60_000` — 2 s (3122319)
+- `test/cout-des-gates.test.ts` `delaiMs: 120_000` — 2 s (f398798)
+- `test/cout-des-gates.test.ts` `delaiMs: 60_000` — 2 s (f398798)
+- `test/decoupage.test.ts` `timeout: 600_000` — removed (f398798)
+- `test/enregistrement-station/station.test.ts` `GARDE_MS: 90_000` — gone with the deleted file (d52e2ed)
+- `test/enregistrement-station/station.test.ts` `timeout: 300_000` — gone with the deleted file (d52e2ed)
+- `test/fusion.test.ts` `timeout: 300_000` — removed (f398798)
+- `test/gates.test.ts` `delaiMs: 60_000` — 2 s (f398798)
+- `test/gestes-sans-retenue.test.ts` `plafond: 5000` — not a duration: the GitHub quota, a number of calls, now written as QUOTA_GITHUB (760278d)
+- `test/installation.test.ts` `plafondMs: 900_000` — 2 s (f398798)
+- `test/lectures-sous-condition.test.ts` `timeout: 600_000` — removed: three ticks across the hour instead of sixty (cc1a388)
+- `test/limite-affichee.test.ts` `plafond: 5000` — not a duration: the GitHub quota, QUOTA_GITHUB (760278d)
+- `test/limite-github.test.ts` `plafond: 5000` — not a duration: the GitHub quota, QUOTA_GITHUB (760278d)
+- `test/limite-github.test.ts` `timeout: 110_000` — removed: four connections to the counter instead of four Node processes (760278d)
+- `test/mesures-des-gates.test.ts` `delaiMs: 60_000` — 2 s (f398798)
+- `test/outils.ts` `DELAI_PAR_DEFAUT_MS: 180_000` — `jusqua` waits 2 s by default, on every platform (f398798)
+- `test/pass.test.ts` `delaiGatesMs: 1_800_000` — 2 s (3122319)
+- `test/pass.test.ts` `delaiGatesMs: 60_000` — 2 s (3122319)
+- `test/pass.test.ts` `timeout: 600_000` — removed (f398798)
+- `test/porte.test.ts` `delaiMs: 5000` — 2 s, on the test's clock (f866e31)
+- `test/reaction.test.ts` `timeout: 600_000` — removed (f398798)
+- `test/reglages-projet/gates.test.ts` `delaiGatesMs: 1_500_000` — read on values of one or two seconds (3122319)
+- `test/reglages-projet/gates.test.ts` `delaiGatesMs: 100_000` — read on values of one or two seconds (3122319)
+- `test/remedes/modes.test.ts` `delaiMs: 5_000` — 2 s, on the test's clock (f866e31)
+- `test/reprise-de-session.test.ts` `timeout: 600_000` — removed (f398798)
+- `test/sans-invite.test.ts` `timeout: 60_000` — 2 s (9fea162)
+- `test/support/windows.ts` `garde: 60_000` — not a test: the Windows CI part runner, which starts `node --test`. Its bounds are a CI job's (a 25 min part), so the rule no longer scans it (`LANCEURS` in regle.ts, f398798)
+- `test/support/windows.ts` `timeout: 300000` — same: the CI part runner, not scanned (f398798)
+- `test/support/windows.ts` `timeout: 60_000` — same: the CI part runner's `tasklist` call, not scanned (f398798)
+- `test/tableau/gestes/retenue.test.ts` `plafond: 5000` — not a duration: the GitHub quota, QUOTA_GITHUB (760278d)
+
+## The 1389 tests that still run under their title, each now under 2 s
+
+Unchanged when no commit is named in this file's earlier sections. Otherwise rewritten in place, in the
+same file, by the commits that touch it. The duration is the one measured in the run above.
+
+### `test/appairage/canal.test.ts`
+
+- 551 ms — « la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt »
+- 174 ms — « un gist supprimé se dit absent ; une panne de GitHub lève, et nomme ce que gh a dit »
+- 134 ms — « le canal crée un gist secret, en réécrit un fichier sans toucher aux autres, et le relit »
+
+### `test/appairage/rail-du-projet.test.ts`
+
+- 627 ms — « sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase »
+- 573 ms — « sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box »
+- 567 ms — « une station qui sert le projet sans publier de rail — d'avant #1432 —, ou un rail illisible : la réponse le dit en une phrase »
+- 223 ms — « le rail que publie une station en ligne passe avant celui d'une station arrêtée qui servait le projet avant elle »
+- 306 ms — « non connecté à GitHub : la réponse dit pourquoi en une phrase, avec le geste qui connecte — jamais un rail vide »
+- 299 ms — « sans accès au projet — aucune station de ce compte ne le sert — la réponse le dit en une phrase, avec le geste qui connecte sous un autre compte »
+- 243 ms — « un rail vide se lit vide, et le dit en une phrase »
+
+### `test/appairage/stations-du-chef.test.ts`
+
+- 627 ms — « sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase »
+- 465 ms — « sur un ordinateur neuf connecté à GitHub, les stations déjà appairées — un Mac et shop-box — sont listées avec les projets que chacune porte »
+- 306 ms — « connecté, mais aucune station appairée : la liste est vide, et dit pourquoi en une phrase »
+- 363 ms — « un gist de station appairée illisible est dit, sans faire tomber les autres ; seul, la liste vide dit pourquoi »
+- 585 ms — « sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase, jamais une liste vide sans raison »
+
+### `test/appels-par-projet.test.ts`
+
+- 161 ms — « deux GitHub, deux projets, un faux gh : `status` et les faits de l'app disent le même total, le même projet et la même lecture en tête ; l'heure passée, ils sortent »
+
+### `test/apprentissage/injection.test.ts`
+
+- 115 ms — « reçoit les leçons de son projet — celle d'un ticket précédent comprise —, jamais celles d'un autre, et son lancement dit lesquelles »
+- 94 ms — « le réglage du projet change le compte qu'il reçoit »
+- 59 ms — « sans leçon, il part comme avant, et son lancement dit qu'il n'en a reçu aucune »
+
+### `test/apprentissage/retro-servie.test.ts`
+
+- 258 ms — « sa rétro est écrite avec lui, au plus trois leçons, et ses leçons sont lisibles dès qu'il est servi »
+
+### `test/arbitrage.test.ts`
+
+- 652 ms — « arbitre injoignable : le projet lance quand même, un cook à la fois, le journalise et le signale une fois ; au retour, il reprend »
+- 674 ms — « deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir »
+- 643 ms — « la station demande sa place à l'arbitre avant chaque lancement, et lui redit ce qu'elle fait tourner »
+- 402 ms — « le chef donne du poids à un projet : sa part grandit sans toucher au plafond de l'autre »
+- 753 ms — « refusée par l'arbitre, la station se retient et le dit ; la place rendue par une fin de cook, le ticket part »
+- 328 ms — « sans arbitre désigné, le projet tourne comme avant : ni mode dégradé, ni avertissement — et il sort de celui d'une vie précédente »
+- 145 ms — « un arbitre qui n'a jamais été là : la connexion refusée suffit, sans attendre »
+- 573 ms — « un projet arrêté par le chef ne demande rien : ses tickets qui attendent ne réservent aucune place chez l'autre »
+- 282 ms — « un projet au plafond de cooks que le chef lui a réglé ne réserve pas le reste de sa part »
+- 307 ms — « un runtime qui s'arrête proprement rend sa part ; l'arbitre qui redémarre se remplit de ce que les runtimes lui redisent »
+- 180 ms — « une écriture qui lève à l'entrée en mode dégradé ne retient pas la station : la demande n'est pas perdue »
+
+### `test/arbitre-cli.test.ts`
+
+- 140 ms — « ce que la commande ne comprend pas est refusé sans rien écrire »
+- 375 ms — « ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus »
+- 345 ms — « l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM »
+- 245 ms — « le chef règle un poids et retire un projet : l'arbitre qui tourne le lit à sa décision suivante »
+- 245 ms — « un poids posé avant le ticket est toujours montré et appliqué, sans rien éditer à la main »
+- 230 ms — « une machine saturée, un projet qui n'a pas reparlé, un projet parti : chacun se lit »
+- 214 ms — « le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore, et la consommation des cooks dite comme telle »
+- 178 ms — « arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles »
+
+### `test/arbre.test.ts`
+
+- 300 ms — « arrêter un cook porté par un relais tue tout son arbre, et le relais écrit sa fin puis s'en va »
+- 205 ms — « arrêter un cook tenu par le runtime tue tout ce qu'il a lancé : ni lui, ni son enfant, ni son petit-enfant ne vit encore »
+- 247 ms — « un cook qui sort de lui-même ne laisse rien derrière lui : ce qu'il a lancé et qui vit encore est tué »
+- 216 ms — « arrêter un cook déjà sorti ne lève pas, tenu ou porté par un relais »
+
+### `test/architecture.test.ts`
+
+- 346 ms — « un tour complet d'une station distante — annoncer, réclamer, renouveler, rendre, la pass, le merge — n'ouvre aucune connexion depuis la box »
+
+### `test/attend-en-anglais.test.ts`
+
+- 166 ms — « sur l'état d'avant, le bloc `awaiting` nomme les mêmes décisions que le bloc `attend` d'avant, dans le même ordre »
+
+### `test/bac-a-sable/configuration.test.ts`
+
+- 2 ms — « dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert »
+- 282 ms — « une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus »
+
+### `test/bac-a-sable/local.test.ts`
+
+- 244 ms — « dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté »
+
+### `test/bas-de-status-en-anglais.test.ts`
+
+- 157 ms — « sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes »
+
+### `test/bascule/bascule.test.ts`
+
+- 314 ms — « un projet avec une variable hors BRIGADE_ : la bascule est refusée en le disant, et rien ne change sur la machine »
+- 466 ms — « une machine sans ancienne installation : rien à basculer, rien d'écrit »
+- 353 ms — « rejouée, la bascule ne trouve plus rien à faire : la machine reste telle quelle »
+- 321 ms — « un projet sans dépôt : la bascule est refusée en le disant, et rien ne change sur la machine »
+- 332 ms — « un projet avec une valeur à blancs : la bascule est refusée en le disant, et rien ne change sur la machine »
+
+### `test/base-cli.test.ts`
+
+- 1022 ms — « `base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire »
+- 442 ms — « les refus de la commande ne portent aucun mot français du glossaire »
+- 107 ms — « un rejeu demandé sans runtime qui tourne le dit, en anglais »
+- 206 ms — « un rejeu demandé avant le ticket est toujours montré et se lève sans rien éditer à la main »
+- 139 ms — « l'ancien mot `rejouer` fait toujours son effet, et le nouveau est dit »
+
+### `test/budget-des-gates.test.ts`
+
+- 46 ms — « tant que le ticket est ouvert, les passages hors budget suivants n'en ouvrent pas d'autre »
+- 112 ms — « un ticket retiré du rail, resté ouvert, ne retient pas le suivant — ni `hors-cuisine` »
+- 767 ms — « la pass ouvre le ticket quand les gates qu'elle joue dépassent le budget du projet, une fois, et le dit »
+- 110 ms — « un passage hors budget, sans ticket ouvert, en ouvre exactement un : sa durée, son processeur, le budget et ce qui le dépasse »
+- 112 ms — « le run complet sur la base ne se juge pas au budget d'un ticket : il a le sien, plus large »
+- 93 ms — « le run complet sur la base au-dessus de son budget ouvre un ticket qui le dit, sans demander de tenir le budget d'un ticket »
+- 118 ms — « la file du projet dit en une ligne que les gates sont hors budget sans ticket sur le rail, et se tait sinon »
+
+### `test/capacite-libre/capacite-libre.test.ts`
+
+- 229 ms — « le ticket en WAITING qui l'attendait revient seul sur le rail dès le « Save », et part chez cette station »
+
+### `test/capacites-en-cuisine.test.ts`
+
+- 148 ms — « `status` nomme la capacité qui manque au ticket, et le geste qui la fournirait »
+- 892 ms — « aucune station déclarée : la vérification est rouge, d'un seul manque, qui nomme l'étape « stations » »
+- 278 ms — « aucune station déclarée ne fournit la capacité demandée : le ticket ne part pas, il est 86, et aucun cook n'est lancé »
+- 339 ms — « aucune station ne fournit `macos` : le ticket quitte le rail pour WAITING et dit ce qu'il attend ; une station qui le fournit déclarée, il revient seul sur le rail et sa raison tombe — celui qu'une station sert n'est jamais mis de côté (#1925) »
+- 275 ms — « deux stations de capacités différentes : le ticket qui demande `navigateur-headless` va à celle qui le fournit, pas à la première libre »
+- 344 ms — « devant l'arbitre entre projets, un ticket que seule une station pleine peut cuisiner ne réserve aucune place : la station libre ne demande rien pour lui »
+- 265 ms — « la spécialité n'écarte jamais : une station prend le ticket qui ne lui demande rien, et celui qui demande moins qu'elle ne fournit »
+- 330 ms — « la station qui fournit la capacité est pleine : le ticket attend sa place, aucune autre ne le prend, et `status` dit laquelle le retient »
+- 319 ms — « une chaîne de trois tickets derrière un ticket qu'aucune station ne peut cuisiner : les trois sont en WAITING, chacun nomme celui qu'il attend, aucun ticket du rail n'en attend un ; la station déclarée, ils reviennent tous seuls sur le rail (#1926) »
+- 322 ms — « les tickets du même lot qui ne demandent rien partent normalement pendant qu'un autre est 86 — même sur sa zone »
+- 262 ms — « deux capacités fournies chacune par une station, jamais ensemble : le ticket ne part pas, et le motif dit que c'est leur réunion qui manque »
+- 380 ms — « une fois la capacité retirée de sa fiche, le ticket revient en attente tout seul et son cook part ; changée pour une autre qui manque, il dit laquelle »
+- 367 ms — « une station qui fournit la capacité est déclarée, le runtime redémarre : le ticket revient en attente tout seul et part chez elle »
+- 250 ms — « sans aucune station déclarée, le ticket qui demande une capacité est 86 et le dit ; celui qui ne demande rien attend, comme avant »
+- 141 ms — « une fiche illisible ne demande rien : le ticket part pour être refusé sur son issue, pas pour une capacité qui manque »
+- 172 ms — « demander une capacité ne confère aucune autorisation : `accès-prod`, demandé comme capacité ou comme action, reste refusé par les grants »
+
+### `test/cloison.test.ts`
+
+- 20 ms — « le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants »
+- 10 ms — « le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement »
+- 13 ms — « un masque qui est un fichier est refusé au démarrage, pas à chaque lancement »
+- 89 ms — « un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket »
+- 83 ms — « le compte est rendu en lecture seule : ce qu'un cook écrit sous ~ va au projet, jamais dans le ~/.gitconfig que lit le runtime »
+- 224 ms — « un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule »
+- 25 ms — « un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs »
+- 59 ms — « `git config` écrit dans la vue du worktree, pas dans la config que lit le `git` du runtime »
+- 131 ms — « réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage »
+- 226 ms — « le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant »
+- 238 ms — « le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal »
+- 290 ms — « dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison »
+- 44 ms — « sans binaire, rien n'est cloisonné : le lancement part tel quel »
+- 32 ms — « une cloison à moitié posée est un refus de démarrer »
+- 19 ms — « le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt »
+
+### `test/closing/memory.test.ts`
+
+- 1005 ms — « après une passe livrée, la mémoire du projet contient ce que le closer a laissé — son lieu, son motif, l'empreinte de ses alentours —, et rien de ce qu'il a retiré »
+- 879 ms — « à la passe suivante, ce qui a été laissé sans que le code autour change n'est pas reproposé ; ce dont le code autour a changé l'est, et son entrée est remplacée »
+- 800 ms — « ce qu'un autre projet a laissé, au même code, ne retient rien de ce qui est proposé à celui-ci »
+
+### `test/closing/observer.test.ts`
+
+- 278 ms — « sur un historique de merges fixe, le ratio ajouté / retiré de chaque fenêtre est le bon, avec ses valeurs absolues »
+- 76 ms — « une fenêtre plus large que l'historique dit combien de merges elle a trouvés ; sans rien de retiré, elle ne donne pas de ratio ; sans merge, elle le dit »
+- 84 ms — « quand il n'y a ni doublon ni code mort, la sortie le dit explicitement — et dit ce qu'elle n'a pas pu chercher »
+- 114 ms — « l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune branche et n'y prend aucun verrou — même quand un autre en tient »
+- 105 ms — « le journal, s'il est là, dit les compteurs de la dérive : les merges depuis la dernière fermeture et les seuils franchis, lus par le relevé des mesures »
+- 187 ms — « `run closing` joue l'observation dans son propre process »
+
+### `test/closing/pass.test.ts`
+
+- 625 ms — « ce que la passe retire passe par la pass et le merge normaux : sa PR est jugée fusionnée avec la base — gates, reviewer —, mergée sous le grant `merge`, et rien n'est commité sur la branche d'intégration »
+- 499 ms — « sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte, le dit sur la PR, et voit le merge que le chef fait à la main »
+- 443 ms — « un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : rien n'est mergé, aucun cook ni closer n'est renvoyé, elle remonte au chef »
+- 435 ms — « des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef »
+
+### `test/closing/report.test.ts`
+
+- 1290 ms — « après une passe, `run fermeture` en donne le bilan sans rouvrir sa PR : chaque retrait avec son chemin et son motif, chaque candidat laissé avec sa raison, la pente avant et après sur les mêmes merges, et les trois garde-fous avec leur valeur avant, après et leur verdict »
+- 298 ms — « une couverture ou un nombre de vérifications en baisse est un échec, dit en tête du bilan — même si les gates sont vertes et que la pass a mergé »
+- 943 ms — « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non »
+- 967 ms — « une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini »
+- 9 ms — « un seul garde-fou qui cède suffit, une mesure qui monte ou ne bouge pas tient, et des gates rouges sont l'échec du produit »
+- 131 ms — « un garde-fou que rien n'a mesuré n'est jamais dit tenu : le bilan dit ce qui manque — la PR pas encore jugée, des gates qui ne déclarent pas la mesure, une base que la pass n'a jamais jugée seule »
+
+### `test/closing/request.test.ts`
+
+- 481 ms — « une demande qui attend se lit dans la file : depuis quand, et ce qui la retient — combien de cooks en vol, pour quel seuil ; elle en sort en partant »
+- 475 ms — « une seule demande à la fois : redemandée pendant qu'elle attend, rien n'est redemandé, et une seule passe part »
+- 781 ms — « le chef renonce à la demande par le même geste : rien ne part, même quand la condition se remplit ; partie, elle ne se rappelle pas »
+- 347 ms — « une demande qui attend depuis deux heures est dite sans issue — une fois, au journal, dans journald et dans la file — et attend toujours »
+- 371 ms — « le « stop » du chef pendant qu'elle attend la refuse : elle ne repart pas d'elle-même à la reprise »
+
+### `test/closing/run.test.ts`
+
+- 844 ms — « ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif »
+- 1151 ms — « demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient »
+- 731 ms — « la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien »
+- 1053 ms — « la passe s'arrête et le dit après l'inactivité : un closer qui se tait est arrêté par la minuterie de tout cook »
+- 642 ms — « la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range »
+- 677 ms — « la passe s'arrête et le dit quand son plafond de tokens est atteint — le sien, par passe, pas celui d'un cook »
+- 634 ms — « la passe s'arrête et le dit sur disjoncteur : ouvert pendant qu'elle range, il l'arrête ; ouvert, aucune ne part »
+- 386 ms — « la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repart tant que la cuisine est arrêtée »
+- 971 ms — « sans la commande du chef ni déclencheur — vingt merges, un seuil franchi —, aucune passe qui écrit ne démarre : pas sur une horloge »
+- 792 ms — « sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la commande refuse et rien ne part »
+- 624 ms — « un closer qui finit en ayant retiré plus que son plafond ne livre rien »
+- 517 ms — « un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a laissé reste au journal avec son motif »
+- 914 ms — « un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant »
+- 796 ms — « un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part »
+- 785 ms — « un doublon que le closer réunit en un seul endroit est dit factorisé, à côté du code mort supprimé, avec les lignes gagnées et ce qui est laissé — une entrée par candidat, son lieu et son motif »
+- 790 ms — « une passe ne survit pas au runtime : celle qu'il a laissée en vol est dite interrompue, et une demande d'une autre vie ne lance rien »
+- 766 ms — « une seule passe à la fois : demandée pendant qu'une autre range, la commande refuse »
+- 524 ms — « une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le dit, et la base n'a pas bougé »
+- 380 ms — « le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part »
+
+### `test/closing/trigger.test.ts`
+
+- 412 ms — « a served project with no closer set never gets a pass requested, whatever the merges or thresholds »
+- 852 ms — « once a pass is requested, no second one is requested the same day, whatever the merges or thresholds; a day later the runtime requests again, and the chef's gesture is never capped »
+- 1047 ms — « with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef »
+- 975 ms — « with the closer set, a crossed drift threshold requests a pass even under 20 merges »
+- 455 ms — « under the chef's "stop", nothing is requested; the request comes once the kitchen resumes »
+
+### `test/commandes.test.ts`
+
+- 224 ms — « `npm run help` rend l'aide, telle que la commande la dit »
+- 15 ms — « chaque commande du runtime est dans la table, sous son nom anglais ; chaque ancien nom y est, et son script ne fait que l'annoncer »
+- 198 ms — « un ancien nom lancé sans `npm` ne devine rien : il le dit, en 2 »
+
+### `test/commun/etage.test.ts`
+
+- 540 ms — « `retire C1` : aucun cook d'aucun projet ne la reçoit plus, elle n'est jamais reproposée, un second geste n'écrit rien »
+- 233 ms — « une même leçon promue dans deux projets est proposée au chef, avec le nom des deux ; promue dans un seul, rien »
+- 126 ms — « une leçon promue dans un seul projet, ou provisoire ou sortie dans l'autre, n'est pas proposée »
+- 314 ms — « le seuil est un réglage, deux par défaut : à trois, une leçon de deux projets n'est plus proposée ; trois projets la font revenir »
+- 339 ms — « la leçon entre à l'étage commun, n'est plus proposée, et le cook d'un troisième projet la reçoit dans sa consigne »
+- 288 ms — « la leçon reste dans le carnet des deux projets seulement, aucun cook d'un autre projet ne la reçoit, et elle n'est plus proposée »
+- 105 ms — « aucune proposition, et la consigne de ses cooks reste ce qu'elle était — même si l'étage a gardé une leçon acceptée »
+- 209 ms — « sans reconfirmation pendant `expiration` tickets servis, elle expire : plus servie, marquée expirée, jamais reproposée »
+- 147 ms — « une rétro qui la reconfirme remet le compte à zéro ; une retirée n'expire pas »
+
+### `test/connexion-max/cuisine.test.ts`
+
+- 612 ms — « connexion perdue d'après le renouvellement : les cuisines de tous les projets suspendent, sans lancer un cook ni rien compter comme échec »
+- 692 ms — « un cook qui voit la connexion tomber la fait perdre à toute la machine : l'autre projet suspend sans lancer le sien »
+- 104 ms — « après un login — seul geste —, la cuisine reprend seule, sans redémarrage, dans la minute de l'horloge simulée »
+- 66 ms — « le « reprendre » du chef après la perte reste le sien : la veille ne resuspend pas le projet »
+
+### `test/correctif/decision.test.ts`
+
+- 455 ms — « une proposition que personne ne tranche ne fait rien naître ; « oui » sur une autre en fait une PR qui porte exactement son diff, que la pass juge et merge comme une livraison »
+- 328 ms — « « oui » deux fois, ou « oui » puis « non » : un seul geste compte, et une seule PR part »
+- 171 ms — « un diff qui ne se commite plus n'ouvre aucune PR : la correction est dite non livrée, et pourquoi »
+
+### `test/correctif/proposer.test.ts`
+
+- 203 ms — « une candidate donne une proposition : la cause, ses tickets, un diff des consignes et ce qu'il a coûté — et la carte la porte »
+- 136 ms — « la garde lit le diff elle-même : CLAUDE.md, la doc d'équipe et les gates passent ; tout le reste, et ce qui ne se lit pas, est refusé »
+
+### `test/cout-des-gates.test.ts`
+
+- 477 ms — « le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts` »
+- 274 ms — « des gates coupées à leur plafond ont une durée, et pas de processeur : il est mort avec elles »
+- 55 ms — « un setup en échec ne lance pas les gates : rien n'est écrit »
+- 62 ms — « sans budget posé, le projet a le défaut — 100 s d'horloge, 400 s de processeur ; posé par le chef, le sien »
+- 52 ms — « le dernier jour compte les passages, leur horloge et leur processeur ; un passage de plus de 24 h, ou d'un autre projet, n'y est pas »
+- 221 ms — « la pass écrit le coût des gates qu'elle joue : projet, ticket, `pass`, horloge et processeur se relisent par `facts` »
+
+### `test/cuisson-de-bout-en-bout.test.ts`
+
+- 781 ms — « arrêté, le cook ne laisse aucun process — ni lui, ni son enfant, ni son petit-enfant —, son worktree est rangé, et le cook suivant en reçoit un neuf »
+- 523 ms — « la station prépare le worktree, y lance le cook — chemins à espaces, arguments intacts —, reçoit sa fin par le relais, pousse sa branche et range le worktree »
+
+### `test/cuisson-par-station.test.ts`
+
+- 434 ms — « lancer : arrêtée, la station ne prend rien — `stopped` ; lancée, elle prend le ticket et passe à `cooking`, son cook dit sa station »
+- 355 ms — « arrêter laisse finir le cook en cours : rien ne le coupe, il livre — rien n'est perdu — et la station ne prend plus rien »
+- 417 ms — « arrêtée, un cook qui finit sans rien livrer rend son ticket au rail — il n'est pas perdu, et la station ne le reprend qu'une fois lancée »
+- 333 ms — « une station distante s'arrête par le même geste : son cook renouvelle et rend, son ticket revient au rail, elle ne reçoit plus rien avant d'être lancée »
+- 93 ms — « le « stop » de toute la cuisine reste celui d'avant : il coupe les cooks, quand l'arrêt d'une station les laisse finir »
+
+### `test/decisions.test.ts`
+
+- 575 ms — « le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt »
+- 1490 ms — « posées pendant qu'il tourne, ses stations et ses seuils sont lus au réveil suivant : même process, aucun redémarrage »
+- 458 ms — « sans décision au journal, une variable de décision du drop-in ne suffit pas : le runtime refuse de démarrer, et nomme le geste »
+- 365 ms — « un répertoire d'état sous le clone est un refus de démarrer : les décisions y seraient à portée d'un cook »
+- 682 ms — « une variable de décision laissée au drop-in est ignorée dès le démarrage, et dite avec le geste qui la remplace »
+- 315 ms — « chacune, posée au support, est lue à la lecture suivante — sans redémarrage ni rechargement du process »
+- 252 ms — « une variable de décision laissée dans l'environnement est ignorée au profit du support ; retirée du support, la décision ne retombe pas sur elle »
+- 50 ms — « une décision absente reste absente : ni station, ni seuil, ni calibrage par défaut »
+- 92 ms — « retirée sans variable derrière, une décision ne tombe pas sur un défaut : le runtime s'en tient à ce qu'il lisait, et le dit une fois »
+- 389 ms — « en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part »
+- 453 ms — « en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante »
+- 222 ms — « en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant »
+- 164 ms — « en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée »
+- 243 ms — « en cuisine : une station distante retirée par le chef laisse son cook en vol renouveler et livrer — elle ne prend plus rien »
+- 132 ms — « les seuils de coût posés pendant que la dérive tourne sont écrits au journal au réveil suivant, et regardés à leur aune »
+
+### `test/declarer-stations.test.ts`
+
+- 129 ms — « de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage »
+- 315 ms — « l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien ne peut y manquer »
+- 2 ms — « la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare »
+
+### `test/decoupage.test.ts`
+
+- 162 ms — « deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit »
+- 475 ms — « l'épique liste ses tickets avec leur état, et la liste suit le rail sans qu'aucune issue bouge »
+- 298 ms — « le chef ajoute un ticket à l'épique par une ligne de son corps : il entre dans la liste, et se juge comme une issue du chef »
+- 297 ms — « le chef change un critère, un calibrage ou retire `fire` d'un ticket du découpage : le manager n'y revient pas »
+- 269 ms — « le chef ferme l'épique plutôt que de répondre : le journal l'apprend, une fois, et la question n'est pas reposée »
+- 345 ms — « le chef ferme un ticket du découpage : il ne renaît pas, et l'épique dit que celui qui l'attendait ne l'attend plus »
+- 204 ms — « le chef lit sur l'épique pourquoi ces tickets, pourquoi cet ordre, et que le découpage est désormais à lui »
+- 223 ms — « le chef ne pose aucun label : une épique que le jugement reconnaît est découpée, pas refusée »
+- 145 ms — « le découpage est au journal avant tout ticket, avec son motif et celui de son ordre »
+- 266 ms — « le découpage lit l'épique, ses commentaires de confiance et le plan du dépôt — en un seul jugement, sans outil »
+- 411 ms — « le découpage pose sur la fiche les capacités que chaque ticket demande : l'un part dans la station qui la fournit, l'autre dit laquelle manque »
+- 391 ms — « les tickets nés du découpage ne sont pas rejugés, et ne reçoivent pas un second calibrage »
+- 237 ms — « les tickets partent dans l'ordre du découpage : celui qui en attend un autre reste en attente »
+- 293 ms — « un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage »
+- 246 ms — « un ticket fermé sans livraison : l'épique reste ouverte, et « upcoming » dit lequel manque »
+- 347 ms — « une épique devient des tickets : chacun avec ses critères, son calibrage, sa fiche, puis `fire` »
+- 689 ms — « une épique dont tous les tickets sont servis se ferme d'elle-même, avec ses tickets et leurs PR, une seule fois »
+- 307 ms — « une épique n'est jamais découpée deux fois : ni les réveils, ni une édition, ni un redémarrage ne la refont »
+- 703 ms — « une épique traverse la cuisine : ses tickets servis l'un après l'autre, la liste le dit »
+- 123 ms — « devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse »
+- 314 ms — « la question ne se repose pas tant que l'épique ne change pas ; le chef répond, elle est relue et découpée »
+- 276 ms — « un runtime tué au milieu des créations reprend où il en était : aucun doublon »
+- 166 ms — « une issue créée dont la réponse s'est perdue est retrouvée par sa marque, pas recréée »
+- 222 ms — « la marque d'un ticket ne vaut que sur une issue de confiance : celle d'un inconnu n'est ni reprise, ni fichée, ni lancée »
+- 186 ms — « à la reprise, la fiche d'un tiers ne dispense pas de poser celle du manager »
+- 292 ms — « le chef pose `epic` pendant le jugement d'une issue : elle est découpée, pas lancée comme un ticket »
+- 122 ms — « une épique qui cite le marqueur de liste, dans une phrase ou un exemple, est découpée — et ce qu'elle cite n'est pas réécrit »
+- 175 ms — « une issue qui cite la marque d'un ticket n'est pas prise pour un ticket né d'un découpage : elle est jugée »
+- 146 ms — « une épique découpée à la main — son corps liste déjà ses tickets — n'est ni jugée ni découpée »
+- 256 ms — « une épique que le découpage lit comme déjà découpée ne crée rien, et le dit une fois »
+- 188 ms — « un découpage illisible ne crée aucun ticket, le dit, et n'est pas retenté sur le même état »
+- 206 ms — « une épique retenue par le chef n'est pas découpée ; libérée, elle l'est »
+- 182 ms — « tant que le chef a dit « stop », aucune épique n'est découpée ; à « resume », elle l'est »
+- 255 ms — « éteint au milieu des créations, le manager s'arrête là ; rallumé, il finit sans rejuger »
+- 198 ms — « une épique fermée n'est jamais découpée : fermée pendant le jugement, aucun ticket ne naît »
+- 222 ms — « le chef retient l'épique au milieu des créations : elles attendent qu'il la libère »
+
+### `test/demenagement/demenagement.test.ts`
+
+- 311 ms — « la cuisine d'un projet ajouté depuis l'app va de la box à cet ordinateur, revient, puis va sur une autre station — sans retrait ni rajout, son histoire, ses tickets, ses grants et ses réglages intacts »
+- 314 ms — « un ticket en cours de cuisson sur la station qu'il quitte est repris sur la nouvelle : son cook arrêté par le déménagement, ni perdu, ni en échec »
+
+### `test/deploy/installer-station-windows.test.ts`
+
+- 152 ms — « rejouée sans rien de neuf : rien ne se retélécharge, la station n'est pas relancée, et rien ne se redemande »
+- 64 ms — « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé »
+- 130 ms — « sans terminal, la station est installée et la commande dit de la rejouer pour les connexions »
+- 20 ms — « sans argument et sans dépôt désigné, rien n'est téléchargé : le script dit quoi donner »
+
+### `test/deploy/installer-station.test.ts`
+
+- 223 ms — « la première fois : le runtime publié, son node vérifié, l'agent launchd écrit et chargé, puis les deux connexions »
+- 109 ms — « l'agent launchd lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main »
+- 112 ms — « le lanceur prend le répertoire de la station, garde son pid, et lance le point d'entrée du runtime »
+- 138 ms — « le lanceur ne double pas la station que l'app tient : il attend qu'elle la rende »
+- 152 ms — « rejouée sans rien de neuf : rien ne se retélécharge, la station n'est pas relancée, et rien ne se redemande »
+- 166 ms — « rejouée sur une version publiée plus récente : le runtime est remplacé, et la station relancée sur lui »
+- 64 ms — « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé »
+- 130 ms — « sans terminal, la station est installée et la commande dit de la rejouer pour les connexions »
+- 63 ms — « rejouée sur une station installée et connectée : rien ne se redemande, et la station reste active »
+
+### `test/depot.test.ts`
+
+- 147 ms — « ce que le projet ignore ne fait pas bouger l'empreinte : ni dépendances, ni logs »
+- 281 ms — « ce qui est livré d'une branche est ce que l'origine en a reçu : une récolte posée après le push n'en fait pas partie »
+- 207 ms — « ce qui traîne dans un worktree est commité sur sa branche, sous le nom de la brigade — jamais ce que le projet ignore »
+- 535 ms — « chaque rapatriement de la base se signale, une fois la base du clone à jour : à la prise d'un ticket, à sa reprise, à la demande »
+- 259 ms — « la base qui avance se compte depuis un commit, et ce que la livraison change se lit toujours depuis son point de départ »
+- 230 ms — « le worktree part de la base telle qu'elle est sur l'origine, pas telle que le clone l'a connue »
+- 302 ms — « les identifiants de Claude se reconnaissent dans ce que la branche ajoute, pas dans ce que la base portait déjà »
+- 358 ms — « lire l'empreinte n'écrit pas l'index : un commit du cook au même instant ne bute pas sur son verrou »
+- 619 ms — « un commit poussé à la main pendant que le cook travaille n'est pas écrasé : le push échoue en le disant, et le cook suivant repart des deux »
+- 722 ms — « un commit poussé à la main sur la branche entre deux cooks survit au renvoi : le cook repart de ce que l'origine porte, et son push ne l'écrase pas »
+- 229 ms — « un fichier au nom non ASCII, ou avec une espace, se lit tel qu'il s'écrit dans ce qu'une livraison change »
+- 232 ms — « un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin »
+- 160 ms — « un signal de rapatriement qui lève ne retient pas le ticket »
+- 492 ms — « un worktree chargé de fichiers neufs se lit quand même : plus d'un mégaoctet de statut »
+- 415 ms — « un worktree jetable porte la fusion d'un commit avec une tête de la base, et dit l'arbre obtenu — sans toucher à aucune branche, et sans rien laisser une fois jeté »
+- 160 ms — « un worktree jetable qui ne se crée pas lève, avec ce que git en dit : ce n'est pas un conflit, et rien n'est rendu »
+- 187 ms — « un worktree qui n'est plus sur sa branche n'est pas récolté : le commit n'irait nulle part »
+- 435 ms — « une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station »
+- 197 ms — « une branche poussée avant que la station ne retienne ses pushs se pousse encore : ce qu'elle en sait se lit alors sur sa branche de suivi »
+- 537 ms — « une branche qu'un humain a réécrite sur l'origine entre deux cooks est adoptée telle quelle : l'ancien historique de la station n'y revient pas »
+- 696 ms — « une branche que l'origine et le clone ont changée au même endroit ne se reprend pas : l'échec le dit, sans worktree ni rien d'écrasé »
+- 340 ms — « une branche que l'origine n'a plus se reprend telle que le clone la porte, et se pousse à nouveau »
+- 365 ms — « une branche rebasée par un renvoi dont le push a échoué se reprend telle que le cook l'a laissée : l'origine ne porte rien d'étranger, rien n'est fusionné »
+- 431 ms — « une fusion qui ne se fait pas ne rend pas de worktree, et n'en laisse pas »
+- 165 ms — « une livraison dit, par fichier, les lignes qu'elle ajoute et celles qu'elle retire — zéro et zéro pour un binaire »
+- 89 ms — « un répertoire qui n'est pas un dépôt git est refusé à l'ouverture »
+- 273 ms — « ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge »
+- 290 ms — « ce qu'un push publierait ne compte pas ce que l'origine a déjà reçu de la branche, et la branche y revient »
+- 258 ms — « ce qu'un push publierait dit le fichier écrit sous les préfixes `a/` et `b/`, quoi que règle la config git de la station »
+- 222 ms — « une branche jamais poussée revient à la base »
+- 218 ms — « le worktree d'un cook est une branche neuve, partie de la base »
+- 114 ms — « les fichiers suivis de la base se lisent sans worktree, tels que le clone les connaît »
+- 177 ms — « un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau »
+- 132 ms — « un répertoire de worktrees relatif se lit depuis le répertoire du process, pas depuis le clone »
+- 149 ms — « l'arbre principal du dépôt n'est jamais touché »
+- 136 ms — « les commits d'un cook se comptent depuis la base »
+- 266 ms — « la branche poussée arrive sur l'origine, et la base n'y bouge pas »
+- 300 ms — « un push impossible lève, avec ce que git en dit »
+- 112 ms — « une origine injoignable fait échouer la préparation, sans laisser de worktree »
+- 152 ms — « la pass lit d'une branche son commit, ce qu'elle change depuis la base, et ce qu'elle porte — sans worktree »
+- 150 ms — « un worktree dit s'il est intact : un fichier suivi modifié ou un fichier neuf, non ; ce que le projet ignore, oui »
+- 155 ms — « l'empreinte d'un worktree ne change pas tant que rien n'y bouge »
+- 153 ms — « l'empreinte change à chaque progrès : un commit, un fichier suivi modifié puis réécrit, un fichier neuf, un fichier supprimé »
+- 68 ms — « un worktree dit s'il est encore sur sa branche : ni sur une autre, ni en tête détachée »
+- 293 ms — « un worktree se range : ce qui traîne est commité, le worktree part avec ce que le projet ignore, la branche reste — rien n'est poussé »
+- 145 ms — « ranger ne touche pas ce qui n'est pas le worktree d'un cook : un répertoire resté là avec des fichiers lève, un chemin hors des worktrees aussi »
+- 224 ms — « une branche rangée se reprend dans un worktree neuf : le renvoi y retrouve le travail, récolte comprise »
+- 325 ms — « le worktree jetable d'une fusion est détaché : il ne retient pas la branche livrée, et part une fois jeté »
+- 228 ms — « une branche locale s'élague une fois tout sur l'origine ; avec des commits qui n'y sont pas, elle reste — la branche distante n'est jamais touchée »
+- 207 ms — « ranger passe à son tour sur le clone : des rangements et une préparation demandés ensemble aboutissent tous »
+- 242 ms — « son fichier `.git` réécrit vers un dépôt à lui : rien de ce dépôt n'est lu, ni au tick ni à la récolte, le refus nomme le fichier, et l'abandon dit ce qui part »
+- 200 ms — « son `.git` remplacé par un dépôt entier : le worktree n'est plus celui du clone, et rien de ce dépôt n'est lu »
+- 280 ms — « le `commondir` de son répertoire d'administration réécrit : ni la configuration ni les références de ce qu'il désigne ne sont lues, et le refus nomme le fichier »
+- 201 ms — « le `gitdir` de son répertoire d'administration réécrit vers un dépôt à lui : rien n'en est lu, la récolte se fait, et le rangement qui échoue le dit »
+- 179 ms — « un sous-module dont la configuration est à lui : `git` n'y descend pas, ni au tick ni à la récolte, et le reste du worktree est récolté »
+- 241 ms — « la branche d'un cook est poussée avec le jeton courant, qui n'est dans aucun argument »
+- 229 ms — « sans jeton vivant, rien n'est poussé, et l'échec le dit »
+- 209 ms — « un push que GitHub refuse faute du droit `workflows` se lit comme tel : le motif nomme le droit manquant »
+- 386 ms — « reçue, elle est dans le clone ce que l'origine en porte : ses commits se comptent, son diff se lit, et la pass jugera ce que l'origine a reçu — sans qu'aucun worktree soit créé »
+- 352 ms — « reçue de nouveau après un renvoi, elle devient ce que la station a poussé depuis — réécrite ou non »
+- 223 ms — « absente de l'origine, elle naît dans le clone sur la base, sans commit : une livraison sans diff, que la pass sait juger »
+
+### `test/desinstallateur.test.ts`
+
+- 386 ms — « `--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box »
+- 436 ms — « ce que le clone porte et que l'origine n'a pas est nommé, et le plan dit que la désinstallation refusera »
+- 118 ms — « ce que root retirerait lui-même et qui contient l'état du projet n'est jamais retiré »
+- 265 ms — « ce qui est au compte du service ne se lit ni ne se retire que sous lui : sans pouvoir prendre son uid, rien n'est fait »
+- 286 ms — « chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi »
+- 345 ms — « confirmée par le nom du projet : elle retire ce que le plan listait, et rien d'autre — le journal reste, les autres projets aussi »
+- 148 ms — « coupée avant son premier geste : rien n'est retiré »
+- 256 ms — « le journal du projet : gardé par défaut, retiré par `--supprimer-le-journal` — le plan le dit dans les deux cas, et ne change rien »
+- 191 ms — « le journal n'est supprimé qu'avec `--supprimer-le-journal` : l'état part alors avec le projet, pas ses sauvegardes »
+- 263 ms — « le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue »
+- 288 ms — « les ports du projet désinstallé redeviennent attribuables : le projet suivant reçoit le sien »
+- 506 ms — « tout ce qui n'est pas dans sa liste fermée : une option d'ailleurs, un chemin, une valeur en trop »
+- 204 ms — « un clone qui contient l'état n'est jamais supprimé : la garantie du runtime retient le geste, plan compris »
+- 196 ms — « un clone qui porte ce que l'origine n'a pas retient la désinstallation confirmée — avec ou sans le journal »
+- 124 ms — « un clone qui porte des centaines de fichiers jamais poussés : le plan en nomme deux cents, et compte le reste »
+- 308 ms — « un projet désinstallé se réinstalle sur son journal, et une désinstallation rejouée ne trouve plus rien »
+- 226 ms — « un projet inconnu de la box : un message clair, sous toutes les formes de l'appel »
+- 114 ms — « un répertoire qui n'est pas un clone n'est pas pris pour le clone réservé »
+- 342 ms — « un runtime lancé hors de systemd tient encore le projet : rien n'est retiré »
+- 157 ms — « un runtime qui tourne est arrêté d'abord, puis son clone retiré »
+- 128 ms — « un runtime qui tourne : le plan dit qu'il sera arrêté, et que son clone ne s'inventorie qu'ensuite »
+- 119 ms — « sans confirmation : rien n'est effacé, et le geste dit comment confirmer »
+- 135 ms — « un drop-in qui est un lien, ou un projet que ses unités posent ailleurs : le geste ne suit aucun chemin »
+- 109 ms — « un autre geste en cours : le plan aussi attend son tour »
+
+### `test/duree-des-gates.test.ts`
+
+- 966 ms — « le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage »
+- 880 ms — « les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond »
+- 467 ms — « une étape qui plante au lieu de rapporter écrit sa ligne FAIL : aucun rouge de ces gates n'est muet »
+
+### `test/echeance-de-session.test.ts`
+
+- 45 ms — « le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants »
+
+### `test/enregistrement-station/stations-du-compte.test.ts`
+
+- 241 ms — « les stations enregistrées sous le compte sont listées, disponibles, sans appairage — les autres gists du compte écartés »
+- 196 ms — « le compte, la sélection que l'app a écrite, et la disponibilité jugée à l'instant de la lecture »
+- 184 ms — « arrêtée proprement, elle est indisponible à la lecture suivante ; sa sélection reste »
+- 295 ms — « un enregistrement illisible est écarté, en disant pourquoi ; aucune station, la liste dit pourquoi »
+- 113 ms — « un `gh` connecté à aucun compte demande la connexion ; un GitHub injoignable est indisponible »
+- 287 ms — « la commande rend l'état en une ligne JSON : code 0 quand les stations sont listées, 1 sinon »
+
+### `test/enrolement/commande.test.ts`
+
+- 308 ms — « la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation »
+- 286 ms — « la commande porte le nom choisi dans la home : la machine se présente sous lui »
+- 319 ms — « un code faux dans la commande est refusé : la machine n'apparaît pas au registre »
+- 274 ms — « une commande expirée est refusée : la machine n'apparaît pas au registre »
+
+### `test/enrolement/geste.test.ts`
+
+- 152 ms — « `prepare` rend le code et la commande en JSON, au registre que la home lui nomme »
+
+### `test/etapes.test.ts`
+
+- 416 ms — « après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite »
+
+### `test/exploitation-en-anglais.test.ts`
+
+- 81 ms — « `base` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 36 ms — « `closing` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 208 ms — « `facts` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 46 ms — « `grant` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 102 ms — « `guardrails` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 199 ms — « `installation` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 73 ms — « `log` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 24 ms — « `manager` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 46 ms — « `pass` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 40 ms — « `phones` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 219 ms — « `rail` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 96 ms — « `setting` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 82 ms — « `station` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 404 ms — « `status` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 92 ms — « `switch` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 51 ms — « `waiting` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 51 ms — « `report` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 8 ms — « `help` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- 319 ms — « `backup` puis `restore` : la sauvegarde et sa restauration se disent en anglais »
+
+### `test/faits.test.ts`
+
+- 361 ms — « le plafond et le calibrage que porte le dépôt du projet passent avant ceux de la box : `facts` et `station` le disent, et un geste qui les pose sur la box est dit ignoré »
+
+### `test/fermeture-action/action.test.ts`
+
+- 609 ms — « le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison »
+- 288 ms — « l'aperçu dit ce que coûte la passe et ce que le closer va faire, et ne crée rien : ni demande, ni refus, ni passe »
+- 394 ms — « sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; avec, une demande est créée, qui se lit en attente puis partie »
+- 94 ms — « un geste de l'app mal écrit sort en 2 et n'écrit rien »
+
+### `test/fermeture-lecture/lecture.test.ts`
+
+- 154 ms — « la dérive dit si un seuil est franchi, au seuil que le chef a déclaré au relevé des mesures »
+- 136 ms — « lire ne change rien : aucune demande n'est créée, aucun fait n'est écrit, le journal n'a pas bougé d'un octet »
+- 200 ms — « `run closing -- --json` se joue dans son propre process, et rend un objet sur une ligne »
+
+### `test/fusion.test.ts`
+
+- 1058 ms — « ce qui est jugé est la fusion de la branche avec la base du moment : les gates s'y jouent, le verdict dit sur quoi il porte — tête de la branche, tête de la base, arbre obtenu —, et la livraison mergée n'a rien à faire vérifier »
+- 414 ms — « coupées à nouveau par leur garde d'horloge une fois rejouées sur une machine calme : c'est un rouge, et le renvoi le dit »
+- 717 ms — « coupées par leur garde d'horloge sur une machine calme : c'est un rouge dès la première fois »
+- 837 ms — « coupées par leur garde d'horloge sur une machine saturée, sans aucun test en échec : ni verdict, ni renvoi, ni base jugée — la livraison attend en le disant, et ses gates sont rejouées seules quand la machine se calme »
+- 690 ms — « des merges à vérifier sur une base qui ne se rapatrie pas : leur contrôle est retenu, dit une fois pour la série, et se joue seul quand l'origine revient »
+- 801 ms — « la base bouge entre le verdict et le merge : la livraison est rejugée fusionnée avec la base devenue, et c'est ce verdict-là qui autorise le merge — sans seconde relecture »
+- 774 ms — « le chef fait rejouer les gates d'une base rouge sans commit : rouges, la retenue reste ; vertes, elle tombe et la prise de tickets reprend »
+- 788 ms — « le plafond de durée des gates, seul rouge sur la base, ne la rend pas rouge »
+- 599 ms — « le rejeu demandé par le chef consomme la machine comme un autre : saturée, il attend en le disant une fois, et se joue seul quand elle se calme »
+- 782 ms — « le rejeu demandé par le chef est joué quand la pass n'a plus aucune livraison à juger et que GitHub ne répond pas au ticket qu'elle surveille : rouge, la retenue reste et c'est dit ; vert, elle tombe »
+- 558 ms — « le rejeu que le chef demande et qui ne peut pas se faire est servi par un contrôle non joué : le rouge reste, le motif est au journal, et c'est dit une fois — pas à chaque réveil »
+- 815 ms — « le rejeu que le chef demande sur une base qui ne se rapatrie pas est retenu : écrit et dit une fois, retenté au tick, le rouge reste — et il se joue seul quand l'origine revient »
+- 764 ms — « les gates de la base coupées par leur garde d'horloge sur une machine saturée, sans aucun test en échec, ne la rougissent pas : rejouées seules une fois la machine calme — et coupées à nouveau, elle est rouge »
+- 599 ms — « main passe devant la tête sur laquelle la base est rouge : ses gates sont rejouées sur la nouvelle tête sans aucun geste — verte, la retenue tombe et c'est dit ; rouge, elle reste et c'est dit »
+- 773 ms — « rejuger consomme la machine : saturée, la livraison dont la base a bougé attend en le disant, et repart seule »
+- 507 ms — « rouge sur une tête où la base est rouge, puis la base rejouée verte sur la même tête : les gates de la fusion sont rejouées, pas resservies — aucun cook n'est renvoyé pour un rouge étranger »
+- 625 ms — « rouge une fois fusionnée parce que la base l'est seule : ce rouge n'est celui d'aucun cook — ni verdict ni renvoi, la livraison attend en le disant, et elle est verte dès que la base est réparée »
+- 430 ms — « rouge une fois fusionnée, et la base ne peut pas être jouée seule : « pas pu vérifier » ne renvoie pas le cook — ni verdict ni renvoi, et rien n'est rejoué à chaque réveil »
+- 592 ms — « rouge une fois fusionnée, la base verte seule : c'est le rouge de la livraison, elle est renvoyée — et la base, jugée sur cette tête, n'est pas rejouée au renvoi suivant »
+- 949 ms — « un contrôle non joué ne lève pas un rouge constaté : la base bouge, ses gates ne peuvent pas se jouer, et rien ne repart — ni merge, ni ticket — jusqu'à un contrôle joué et vert »
+- 633 ms — « un dépôt qui exige une branche à jour refuse le merge : ce refus-là n'arrête pas la pass, il repart au cook avec la même consigne — se mettre à jour de la base »
+- 741 ms — « un jugement plus long que le délai de GitHub n'est pas abandonné : seuls les appels à GitHub sont bornés »
+- 1172 ms — « un merge à la main casse la base : c'est vu et dit sur son issue, plus rien n'est jugé ni mergé, les livraisons des cooks déjà partis attendent sans verdict — et sont jugées seules quand la base est réparée »
+- 555 ms — « un merge fait à la main n'a été jugé sur aucune base : les gates sont jouées sur la base seule, hors ticket — vertes, rien n'est retenu »
+- 815 ms — « un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois »
+- 651 ms — « un verdict joué n'est pas perdu par un ménage raté : le rejeu demandé par le chef, joué vert, lève le rouge même si son worktree jetable ne se retire pas »
+- 513 ms — « une base jamais vue rouge dont les gates ne peuvent pas se jouer ne retient rien : la station prend le ticket suivant »
+- 652 ms — « une base rouge qui ne se rapatrie plus : c'est dit une fois, pas à chaque tick ; l'origine revenue sur la même tête, rien n'est rejoué et le rouge reste »
+- 566 ms — « une CI rouge dont le journal nomme un test en échec : le finding porte le nom du test et son erreur, pas le seul lien (ticket 1867) »
+- 386 ms — « une CI rouge sur une branche à jour de la base est un rouge de la livraison : le finding nomme le job »
+- 202 ms — « une CI rouge sur une branche qui n'a pas la tête de la base n'a pas jugé ce qui sera mergé : le cook est renvoyé se mettre à jour de la base, pas corriger un job — et GitHub n'est pas relu pour le savoir »
+- 637 ms — « une CI verte sur une branche qui n'a pas la tête de la base reste verte : les gates jouées sur la fusion jugent la fusion, et aucun cook ne repart »
+- 428 ms — « une fusion qui échoue sans conflit est une panne de la machine : ni verdict ni renvoi de la pass, la cuisine la renvoie une fois puis veut en faire un ticket `fix`, avec ce que git en dit — et se lit sur l'issue »
+- 194 ms — « une fusion qui ne se fait pas n'est pas un rouge de tests : sans gates ni relecture, le cook est renvoyé se mettre à jour de la base — une consigne qu'il peut suivre »
+- 1453 ms — « une livraison née avant un correctif de la base est verte au premier jugement qui suit le correctif, sans que personne n'intervienne — sur un vrai dépôt, et sans que la fusion jugée soit poussée nulle part »
+- 531 ms — « une livraison qui attend sa CI ne rejoue pas sa suite à chaque avance de la base : le jugement se conclut sur la base où il a commencé, et c'est le verdict qui est rejugé, une fois »
+- 678 ms — « une livraison qui attend une base rouge ne relit pas GitHub à chaque réveil : sa PR n'est relue qu'au tick »
+- 636 ms — « une livraison verte que GitHub refuse de merger faute d'être à jour compte parmi ce qui a été tenté : le manager, à qui la pass passe la main, lit qu'il fallait se mettre à jour de la base »
+- 366 ms — « une panne de rapatriement qui change de cause pendant la retenue : le nouveau motif est écrit et dit une fois, la retenue garde sa date, et le même motif répété reste silencieux »
+- 319 ms — « verte fusionnée avec la base d'hier, rouge avec celle d'aujourd'hui : rien n'est mergé, et c'est un renvoi comme un autre — le finding dit sur quelle fusion les gates ont été jouées »
+- 467 ms — « un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué »
+
+### `test/garde-des-gates.test.ts`
+
+- 417 ms — « un test en échec avant la coupure garde la ligne d'un rouge »
+- 407 ms — « une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué »
+- 204 ms — « un délai illisible rougit sans jouer la suite, au lieu de la laisser sans garde »
+
+### `test/garde-fous-cli.test.ts`
+
+- 251 ms — « « stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate »
+- 80 ms — « sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable »
+- 168 ms — « `stop`, `resume`, l'état et chacun de leurs refus ne portent aucun mot français du glossaire »
+- 41 ms — « une commande inconnue est refusée avec l'usage, sans rien écrire »
+- 43 ms — « voir ne modifie pas le journal »
+
+### `test/garde-fous.test.ts`
+
+- 299 ms — « un cook relayé survit à l'arrêt du runtime ; le suivant le liste en cours, le reprend sans le relancer, et écrit sa fin »
+- 262 ms — « un cook relayé qui a fini pendant que personne ne tenait le runtime : sa fin est lue à la reprise »
+- 247 ms — « un cook relayé que personne ne reprend au démarrage est arrêté, et son interruption notée »
+- 195 ms — « un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué »
+- 197 ms — « un cook relayé s'arrête au « stop » du chef comme un autre, repris ou non »
+- 211 ms — « un cook relayé repris pendant que la cuisine est arrêtée s'arrête aussitôt »
+- 745 ms — « ce qu'un cook relayé dit est masqué avant d'être écrit — les secrets qu'il reçoit et la forme des identifiants de Claude —, et ses plafonds tiennent »
+- 261 ms — « à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé et ce qu'il fait ; fini, il n'en laisse plus »
+
+### `test/gates-du-cook.test.ts`
+
+- 531 ms — « le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git »
+- 316 ms — « le lanceur joue le script du projet tel quel — sa sortie, son code de sortie — et son reçu porte l'arbre que le cook livrera, ce qui n'était pas commité compris, sans toucher à son index »
+- 281 ms — « à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte — que la pass reprend sur le même arbre — puis il est effacé »
+- 88 ms — « un reçu illisible ne compte pas, et un nouveau cook dans le worktree repart sans les reçus du précédent »
+
+### `test/gates.test.ts`
+
+- 370 ms — « arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant »
+- 69 ms — « ce que le runtime garde de la sortie du setup et des gates est masqué »
+- 49 ms — « des gates qui citent le jeton longue durée — laissé dans le worktree par un cook — ne le gardent nulle part : leur sortie est masquée, et le compte le dit »
+- 49 ms — « coupées par leur garde d'horloge et rouges sur autre chose, ou leur sortie gardée en partie : des gates rouges comme les autres »
+
+### `test/geste.test.ts`
+
+- 933 ms — « `--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime »
+- 480 ms — « `test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres »
+- 585 ms — « dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord »
+- 541 ms — « lancé sous le compte de la station, il ne passe pas par `sudo` »
+- 533 ms — « le clone que la ligne du projet nomme est celui de la commande »
+- 546 ms — « le code de sortie de la commande est rendu tel quel »
+- 518 ms — « le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration »
+- 430 ms — « les arguments arrivent à la commande tels qu'ils ont été donnés, espaces compris »
+- 533 ms — « rien de l'environnement de celui qui lance n'arrive à la commande »
+- 456 ms — « un `--` devant les arguments, comme `npm run` en demandait un, ne change rien »
+- 852 ms — « un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, sous le nom tapé, mais le refus d'une commande inconnue ne le nomme pas »
+- 695 ms — « une commande qui n'est pas du runtime est refusée, en nommant celles de la station »
+- 472 ms — « une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière »
+- 368 ms — « un projet que cette station ne sert pas est refusé en le disant »
+- 397 ms — « une unité de la station qui ne nomme pas son répertoire : refusé, avec le code de systemd — ses projets ne se trouvent pas »
+- 565 ms — « sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie »
+
+### `test/gestes-ecrits.test.ts`
+
+- 84 ms — « les gestes cités en constantes sont ceux de la box »
+
+### `test/gestes-sans-retenue.test.ts`
+
+- 552 ms — « rail remove et pass comment partent sur un compteur que la cuisine ne passe plus, et y sont comptés »
+
+### `test/github-limite.test.ts`
+
+- 223 ms — « sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`, et à défaut l'attente est de 60 s »
+
+### `test/grant-cli.test.ts`
+
+- 109 ms — « `enable`, `extend`, `revoke`, l'état et chacun de leurs refus s'écrivent sans mot français du glossaire »
+- 44 ms — « avant d'accorder, le chef lit ce qu'il a fait de ce que la pass a arrêté faute de grant, là où il regarde déjà — sans rien écrire »
+- 35 ms — « ce qu'aucun grant n'autorise est refusé au chef lui-même : la ligne est nommée, la demande journalisée, rien n'est accordé »
+- 36 ms — « chaque usage du grant se relit : quel ticket, quelle PR, quel verdict, quand »
+- 72 ms — « le chef active le grant sans redémarrer le runtime, en son nom, et voit son état »
+- 49 ms — « le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois »
+- 34 ms — « le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR »
+- 11 ms — « sans journal, ou devant un journal d'avant la pass, les commandes le disent et ne créent rien »
+- 74 ms — « sans grant jamais donné, le chef le lit absent, et sans usage »
+- 34 ms — « `--until` rend ce qu'il a compris, en UTC et avec la durée, avant toute autre ligne »
+- 36 ms — « activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif »
+- 30 ms — « le grant donné sans runtime qui tourne tient quand même, et le dit »
+- 78 ms — « le chef accorde avec une échéance, lit ce qu'il reste, prolonge sans révoquer — et l'histoire de ses gestes se relit »
+- 33 ms — « `grant` lit éteint un grant échu que le runtime n'a pas encore constaté, et n'écrit rien : il ne prend pas le journal »
+- 28 ms — « une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire »
+- 40 ms — « le chef lit ce qu'aucun grant n'autorise là où il lit ses grants »
+- 39 ms — « une livraison entre les mains du manager se lit comme telle, et ses relances ne passent pas pour des renvois de la pass »
+- 53 ms — « pour un ticket, le chef relit chaque verdict et ce qui l'a produit, jusqu'au merge »
+- 69 ms — « le relevé dit sous quelle identité un merge a été fait, quand le journal la porte »
+- 38 ms — « un grant posé avant ce ticket — ancien mot de commande, ancienne durée, refus au libellé français — est montré et appliqué sans édition »
+- 2 ms — « sans journal où l'écrire, ce qu'aucun grant n'autorise est refusé quand même, et rien n'est créé »
+- 46 ms — « le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge »
+- 45 ms — « le chef lit qu'une livraison arrêtée touche à ce que le projet s'ouvre, et à quel fichier »
+- 44 ms — « un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé »
+- 43 ms — « voir ne modifie pas le journal »
+- 49 ms — « le chef lit ce que la base est devenue : rouge après un merge, ce qui l'attend — et, dans un journal d'avant, le rejeu et le merge sans rejeu d'une livraison jugée sur sa branche seule »
+- 41 ms — « le plafond de durée des gates, franchi, se lit dans `run pass` : non jugé quand il est leur seul rouge, à part de leurs échecs sinon »
+- 45 ms — « un contrôle que le rapatriement retient se lit dans `run base` et `run pass` : retenu, pourquoi, depuis quand — sur des merges à vérifier comme sur un rejeu demandé »
+
+### `test/grant.test.ts`
+
+- 57 ms — « ce qui ne se lit pas est refusé en disant ce qui est attendu, jamais deviné »
+
+### `test/haut-de-status-en-anglais.test.ts`
+
+- 190 ms — « sur l'état d'avant, `runtime`, `kitchen` et `backup` disent les mêmes états que `runtime`, `cuisine` et `sauvegarde` d'avant »
+
+### `test/identites.test.ts`
+
+- 430 ms — « un jeton est demandé au nom de l'App du rôle, pour ce dépôt seul et avec les droits du rôle »
+- 153 ms — « chaque geste part sous l'identité de son rôle : le cook livre, la pass merge, le manager tient les issues »
+
+### `test/installateur.test.ts`
+
+- 499 ms — « de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports »
+- 177 ms — « deux projets de suite : chacun reçoit le port de sa porte, distinct, sans qu'aucun n'ait été fourni — celui de l'arbitre est à la box »
+- 779 ms — « lancé sans `sudo`, le vrai geste refuse et ne touche à rien »
+- 359 ms — « un dépôt, une branche ou un calibrage hors de ce qui est accepté »
+
+### `test/installation.test.ts`
+
+- 668 ms — « « installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire »
+- 426 ms — « `--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment »
+- 485 ms — « `--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe »
+- 236 ms — « `desinstaller` ne retire rien sans `--confirmer`, puis dit ce qui reste à la main »
+- 218 ms — « `labels` crée ce qui manque et le dit »
+- 251 ms — « `setup` mesure le setup et dit si un worktree neuf par cook tient »
+- 252 ms — « `setup` sur un setup en échec sort en 1 avec ce qu'il a dit »
+- 1168 ms — « après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste »
+- 330 ms — « ce que le setup pose dans le worktree est pesé »
+- 414 ms — « ce qui manque au dépôt, à GitHub et à la machine est dit dans le même passage »
+- 578 ms — « chaque manque nomme une étape de l'installation, et seuls les manques en nomment une »
+- 305 ms — « confirmée, elle retire le clone réservé et les worktrees — et rien de l'origine ni du journal »
+- 592 ms — « des bindings sans branche d'intégration valent `main` »
+- 563 ms — « des gates ou un setup non exécutables manquent : le runtime les exécute tels quels »
+- 422 ms — « des unités posées par lien vers les fichiers du dépôt ne sont pas comparées à elles-mêmes »
+- 529 ms — « des unités posées qui sont celles du dépôt : « à jour » est dit, et ce qui a été comparé est nommé »
+- 420 ms — « elle ne lance ni cook ni setup, n'écrit rien sur GitHub et ne déplace rien dans le clone »
+- 672 ms — « la branche d'intégration des bindings et celle de la machine doivent être la même »
+- 640 ms — « la branche d'intégration sans protection : la vérification est rouge, d'un seul manque, qui nomme l'étape « protection » »
+- 586 ms — « la cloison posée se compare aussi, réglages du chef mis à part »
+- 373 ms — « la commande la dit rouge, et nomme pour chaque manque l'étape à reprendre »
+- 577 ms — « là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus »
+- 671 ms — « la protection de la branche illisible : la vérification est rouge, d'un seul manque, qui nomme l'étape « protection » »
+- 818 ms — « le calibrage du reviewer absent : la vérification est rouge, d'un seul manque, qui nomme l'étape « decisions » »
+- 479 ms — « le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué »
+- 581 ms — « le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite »
+- 266 ms — « le setup ne reçoit rien de l'état du runtime »
+- 462 ms — « les bindings que le runtime ne lit pas sont signalés sans rien retenir »
+- 351 ms — « les labels sont lus au-delà de la première page »
+- 709 ms — « les stations déclarées par l'étape d'installation, la vérification ne dit plus « aucune station » : le projet est prêt »
+- 389 ms — « quand systemd ne dit pas d'où l'unité est chargée, rien n'est comparé et c'est dit »
+- 404 ms — « sans confirmation, elle dit ce qu'elle retirerait et ne retire rien »
+- 457 ms — « sur une box de station, brigade-station.service tient lieu de l'unité par projet : elle ne manque pas »
+- 353 ms — « tout ce que l'origine n'a pas est nommé à blanc, et retient la désinstallation confirmée »
+- 751 ms — « un calibrage absent manque avec l'action de l'étape qui le pose, son choix expliqué ; posé par elle, le projet est prêt »
+- 441 ms — « un compte qui lit le dépôt sans pouvoir y pousser manque : aucune livraison ne partirait »
+- 774 ms — « un compte qui n'administre pas le dépôt : la protection se lit par la branche, et le geste dit le droit à donner d'abord »
+- 625 ms — « un compte sans identité git manque : un cook n'y commiterait rien »
+- 331 ms — « un dépôt GitHub que `gh` ne lit pas manque »
+- 484 ms — « un label écrit avec une autre casse est le même label : GitHub ne la distingue pas »
+- 453 ms — « un nom de projet que le runtime refuserait manque, avec ses mots »
+- 406 ms — « un projet installé est prêt : rien ne manque »
+- 461 ms — « un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1 »
+- 652 ms — « un projet prêt : elle le dit et sort en 0 »
+- 559 ms — « un projet sans setup est prêt, et c'est dit : un worktree neuf y part tel quel »
+- 354 ms — « un refus ne touche ni ce qui n'est pas noté, ni l'étape d'un manque déjà à faire : rien n'est écrit pour rien »
+- 338 ms — « un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook »
+- 326 ms — « un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré »
+- 524 ms — « une box à mettre à jour : la dérive se lit avec son geste, et le projet reste prêt »
+- 311 ms — « une branche d'intégration que rien ne protège manque, avec l'action qui la protège »
+- 331 ms — « une branche protégée sans PR obligatoire manque, et l'action ne l'écrasera pas : le geste dit où la régler »
+- 1 ms — « une commande inconnue rappelle l'usage et sort en 2 »
+- 421 ms — « une connexion Max que le journal dit expirée manque, avec sa date, même si `claude auth status` répond connecté »
+- 463 ms — « une connexion reprise ou un journal qui n'en dit rien ne change pas le constat »
+- 737 ms — « une push protection qui n'est pas active est dite sans rien retenir, avec ce que GitHub en rend »
+- 515 ms — « une racine que root tient seul est constatée, avec ce qui a été lu »
+- 368 ms — « une unité chargée depuis le dépôt même ne le compare pas à lui-même »
+- 372 ms — « une unité masquée n'a aucune copie à lire : « non comparées » est dit, pas « à jour » »
+- 359 ms — « une unité posée qui diffère de celle du dépôt est nommée, avec le geste qui la règle, sans rien retenir »
+- 380 ms — « une unité que systemd dit masquée n'est pas comparée, quel que soit son fichier »
+- 264 ms — « une variable de décision laissée au drop-in est dite : ignorée, avec le geste qui la pose puis retire la variable »
+- 406 ms — « une variable mal écrite est nommée avec ce que le runtime en dirait »
+- 320 ms — « une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt » »
+- 421 ms — « un `claude` désigné par son chemin ne doit rien au `PATH` de l'unité »
+- 400 ms — « un répertoire temporaire de `claude` qui n'est pas au compte manque : chaque cook s'y refuserait »
+- 473 ms — « absent, il est à savoir, pas un manque : une box qui ne sert pas d'app n'en a pas besoin »
+- 289 ms — « une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme »
+- 452 ms — « un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé »
+- 456 ms — « une racine absente manque, avec la commande qui la crée »
+- 427 ms — « une racine qui est un lien manque »
+- 401 ms — « un réglage présent sans `sauvegardes=` ou qui ne se lit pas manque, avec les mots du geste »
+- 246 ms — « un réglage qu'un autre compte pourrait écrire manque »
+- 260 ms — « toutes les variables absentes sont nommées d'un coup, pas la première »
+- 377 ms — « un projet sans station déclarée n'est pas prêt : le runtime démarrerait, mais aucun cook ne partirait — et le geste est dit »
+- 529 ms — « une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait »
+- 271 ms — « une branche d'intégration que l'origine n'a pas manque, et le dépôt n'est pas jugé à l'aveugle »
+- 283 ms — « une origine injoignable manque, et n'est pas prise pour une branche absente »
+- 171 ms — « un clone réservé absent manque, avec le geste qui le pose »
+- 408 ms — « sans systemd sur la machine, l'unité n'est pas vérifiée et c'est dit »
+- 507 ms — « un `claude` que le shell trouve mais pas l'unité manque : c'est le `PATH` de l'unité qui compte »
+- 482 ms — « un `claude` que le `PATH` de l'unité donne ne manque pas »
+- 280 ms — « sans `PATH` dans ses drop-ins, l'unité reçoit celui de systemd, et c'est lui qui est fouillé »
+- 342 ms — « une sauvegarde qui n'est pas programmée est signalée sans rien retenir »
+- 189 ms — « un fichier de secrets que le runtime refuserait est un manque de la machine »
+- 111 ms — « un projet sans setup n'a rien à mesurer que son worktree »
+- 187 ms — « une seule perte suffit à la retenir »
+- 212 ms — « un clone à jour de son origine n'a rien à perdre »
+- 86 ms — « le clone déjà parti, les worktrees qui restent sont annoncés à blanc, puis retirés — et c'est dit »
+- 138 ms — « rejouée, elle ne trouve plus rien à retirer et ne se plaint pas »
+- 203 ms — « tant que le runtime du projet tourne, elle refuse »
+- 133 ms — « verifier porte une seule ligne de renouvellement, jouée par le systemd injecté »
+- 212 ms — « ceux qui manquent sont créés, ceux qui existent ne sont pas touchés »
+
+### `test/installation/besoins/besoins.test.ts`
+
+- 195 ms — « le chef laisse la base au setup du projet : un seul ticket s'ouvre sur le projet, qui nomme le besoin ; le choix n'est plus une carte en attente, et dit son ticket »
+
+### `test/installation/clone/clone.test.ts`
+
+- 206 ms — « Host key verification failed sous git_protocol ssh : le clone se refait en HTTPS, sans rien changer à la configuration de gh »
+
+### `test/installation/preparation/blocage-du-setup.test.ts`
+
+- 266 ms — « la préparation atteint son cook et le blocage dit l'échec en une phrase, sans sortie brute »
+
+### `test/interrupteur.test.ts`
+
+- 412 ms — « éteint : le cook en vol finit, sa livraison verte attend sans merge, aucun ticket neuf n'est pris ; rallumé, elle est mergée et la prise reprend »
+- 346 ms — « le manager suit l'interrupteur : éteint, allumé à l'ancienne, il ne juge rien ; le projet rallumé, il juge »
+- 159 ms — « allumé, `status` porte sa ligne `switch` ; éteint, la ligne le dit, la cuisine se dit SWITCHED OFF et les faits la disent retenue »
+
+### `test/journal-pas-rejoue.test.ts`
+
+- 295 ms — « status devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- 291 ms — « montrer-rail devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- 113 ms — « garde-fous-cli devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- 307 ms — « montrer-station devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- 322 ms — « montrer-pass devant un journal sans projections dit de redémarrer le runtime, sans trace »
+
+### `test/journal.test.ts`
+
+- 197 ms — « une lecture seule attend qu'un journal tenu un instant par un autre process se libère, au lieu d'échouer »
+
+### `test/lectures-sous-condition.test.ts`
+
+- 556 ms — « une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus »
+- 584 ms — « avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget »
+- 871 ms — « une issue, une PR ou un commentaire qui change se lit au tick suivant, et seule sa lecture compte »
+- 399 ms — « l'heure passée, les lectures du premier tick sortent du compte »
+
+### `test/lignes-masquees.test.ts`
+
+- 170 ms — « borné, quel que soit le texte, le découpage et la borne : ce qui est écrit et compté est ce que le masquage du texte entier donne »
+
+### `test/limite-github.test.ts`
+
+- 173 ms — « contre un GitHub presque épuisé, les sondages partent jusqu'à la réserve puis attendent, avant que GitHub ne refuse, sans lancer `gh` ; la fenêtre passée, ils reprennent »
+- 722 ms — « la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire »
+- 854 ms — « sans quota dit par GitHub, ou avec un quota large, aucun compte de la box ne retient la cuisine — même au-delà de 2 500 appels dans l'heure »
+- 646 ms — « la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'heure côté box et 3 600 restants, les sondages partent, sans jamais « budget GitHub épuisé » »
+- 213 ms — « le canal du gist se règle sur le même quota : à la réserve des gestes, il ne lance pas `gh` »
+
+### `test/main.test.ts`
+
+- 195 ms — « avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude` »
+- 422 ms — « avec deux stations du même nom, le runtime refuse de démarrer, et rien n'est écrit »
+- 410 ms — « avec un bail qui n'est pas un nombre de secondes, le runtime refuse de démarrer, et rien n'est écrit »
+- 429 ms — « avec un clone qui n'est pas un dépôt git, le runtime refuse de démarrer, et rien n'est écrit »
+- 423 ms — « avec un dépôt qui n'est pas <owner>/<repo>, le runtime refuse de démarrer, et rien n'est écrit »
+- 397 ms — « avec un effort de reviewer inconnu, le runtime refuse de démarrer, et rien n'est écrit »
+- 396 ms — « avec un fichier de jeton absent, le runtime refuse de démarrer, et rien n'est écrit »
+- 388 ms — « avec un jeton d'API dans l'environnement, le runtime refuse de démarrer, et rien n'est écrit »
+- 427 ms — « avec un modèle de manager inconnu, le runtime refuse de démarrer, et rien n'est écrit »
+- 407 ms — « avec un nombre d'entrées simultanées nul, le runtime refuse de démarrer, et rien n'est écrit »
+- 361 ms — « avec un plafond de calibrage inconnu, le runtime refuse de démarrer, et rien n'est écrit »
+- 409 ms — « avec un port d'arbitre illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- 364 ms — « avec un port de porte illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- 396 ms — « avec un seuil de mémoire illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- 389 ms — « avec une clé d'API dans l'environnement, le runtime refuse de démarrer, et rien n'est écrit »
+- 434 ms — « avec une cloison qui laisse l'état dehors, le runtime refuse de démarrer, et rien n'est écrit »
+- 414 ms — « avec une cloison qui ne masque rien, le runtime refuse de démarrer, et rien n'est écrit »
+- 731 ms — « avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef »
+- 387 ms — « avec une durée de garde des transcripts illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- 402 ms — « avec une roadmap qui n'est pas un numéro d'issue, le runtime refuse de démarrer, et rien n'est écrit »
+- 394 ms — « avec une station au plafond nul, le runtime refuse de démarrer, et rien n'est écrit »
+- 418 ms — « avec une station dont le nom n'est pas <machine>/<moteur>, le runtime refuse de démarrer, et rien n'est écrit »
+- 670 ms — « le manager est branché, et suit l'interrupteur du projet : allumé par défaut au premier démarrage, il sonde les issues ouvertes sans geste du chef »
+- 719 ms — « le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal »
+- 857 ms — « le runtime démarre, tourne, et s'arrête proprement sur SIGTERM »
+- 644 ms — « le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'en a pas »
+- 393 ms — « sans BRIGADE_BASE_BRANCH, le runtime refuse de démarrer, et rien n'est écrit »
+- 400 ms — « sans BRIGADE_GITHUB_REPO, le runtime refuse de démarrer, et rien n'est écrit »
+- 459 ms — « sans BRIGADE_MANAGER_EFFORT, le runtime refuse de démarrer, et rien n'est écrit »
+- 414 ms — « sans BRIGADE_MANAGER_MODEL, le runtime refuse de démarrer, et rien n'est écrit »
+- 389 ms — « sans BRIGADE_PROJECT, le runtime refuse de démarrer et nomme la variable »
+- 408 ms — « sans BRIGADE_REPO_DIR, le runtime refuse de démarrer, et rien n'est écrit »
+- 419 ms — « sans BRIGADE_REVIEWER_EFFORT, le runtime refuse de démarrer, et rien n'est écrit »
+- 400 ms — « sans BRIGADE_REVIEWER_MODEL, le runtime refuse de démarrer, et rien n'est écrit »
+- 377 ms — « sans BRIGADE_STATE_DIR, le runtime refuse de démarrer et nomme la variable »
+- 199 ms — « sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient »
+- 879 ms — « sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite »
+- 507 ms — « un délai de la pass illisible fait refuser de démarrer, sans laisser de journal »
+- 451 ms — « un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal »
+- 395 ms — « un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal »
+- 378 ms — « un plafond illisible est un refus de démarrer, avant d'avoir rien écrit »
+- 777 ms — « un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part »
+- 451 ms — « un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal »
+- 634 ms — « un second runtime sur le même projet refuse de démarrer et dit pourquoi »
+
+### `test/manager-cli.test.ts`
+
+- 9 ms — « allumer ou éteindre le manager seul est refusé : la commande nomme l'interrupteur du projet, et n'écrit rien »
+- 321 ms — « aucune ligne de `manager on|off|return|backlog|upstream`, refus et erreurs compris, ne porte un mot français du glossaire »
+- 18 ms — « la ligne `manager` suit l'interrupteur du projet, dès qu'il est posé — l'ancien interrupteur n'y compte plus »
+- 19 ms — « le chef lit ce que le manager a écarté, pourquoi, et le geste qui lève chaque écart »
+- 21 ms — « le chef lit les réactions du manager aux tickets restés rouges : le choix, et son motif »
+- 35 ms — « le chef lit où en est chaque épique : découpée et servie, en cours, ou en attente de sa réponse »
+- 23 ms — « rendre ne force aucun autre écart : la commande dit le geste qui le lève, et n'écrit rien »
+- 31 ms — « rendre s'écrit au journal au nom du chef, une fois, pour une issue écartée `chef-changed` — et le relevé la montre rendue »
+- 58 ms — « sans argument et sans rien au journal, le manager est éteint et le chef lit ce que cela veut dire »
+- 15 ms — « le chef lit les dernières décisions, chacune avec son motif »
+- 7 ms — « sans épique regardée, la commande le dit »
+- 41 ms — « une commande inconnue est refusée avec l'usage, sans rien écrire »
+- 5 ms — « sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien »
+- 19 ms — « les deux nombres sont ceux du dépôt : les issues ouvertes, PR écartées, et celles qui portent `blocked-on-human` »
+- 22 ms — « elle ne fait que lire : un GET sur la liste que le manager sonde, rien au journal, et pas besoin de lui »
+- 30 ms — « un backlog de plus d'une page est compté en entier »
+- 28 ms — « une seule issue, aucune : les nombres restent en chiffres, en tête de leur mot »
+- 13 ms — « GitHub pas joint : la commande échoue en le disant, sans aucun nombre — ce n'est pas « aucune issue » »
+- 4 ms — « sans dépôt déclaré, ou avec un argument de trop, elle est refusée »
+- 42 ms — « chaque issue ouverte hors du rail porte ce qui lui arrive, dans l'ordre où le manager les lit — les PR et le rail n'y sont pas »
+- 23 ms — « ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé »
+- 13 ms — « GitHub pas joint : elle échoue en le disant, sans rien lister — ce n'est pas « rien en amont » »
+- 4 ms — « sans journal, ou avec un argument de trop, elle est refusée sans rien demander à GitHub »
+
+### `test/manager.test.ts`
+
+- 241 ms — « `hors-cuisine` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit »
+- 212 ms — « à la remise, un label de calibrage que le chef a posé lui-même n'est pas retiré »
+- 428 ms — « allumé, une issue posée sans aucun label est jugée, lancée et calibrée, puis cuisinée »
+- 451 ms — « après un redémarrage, ce qui a été jugé ne l'est pas de nouveau »
+- 133 ms — « avec un jeton à son emplacement, un jugement le reçoit dans CLAUDE_CODE_OAUTH_TOKEN »
+- 286 ms — « ce que le code sait écarter ne coûte aucun jugement : roadmap, question, décision, issue retenue »
+- 211 ms — « chaque décision est au journal avec son motif, et le jugement y figure comme un cook, avec son calibrage »
+- 375 ms — « éteint pendant un jugement, le manager ne pose rien ; rallumé, il pose la décision sans rejuger »
+- 322 ms — « éteint, il ne sonde rien et ne juge rien »
+- 449 ms — « l'écart `chef-changed` est dit une fois sur l'issue, avec ce qui a été retiré et la commande qui la rend »
+- 142 ms — « l'écart nomme ce qui manque à l'issue, pas ce que le manager a posé un jour : un calibrage que le chef a remplacé n'est pas dit retiré »
+- 362 ms — « l'issue d'un inconnu n'est ni jugée ni commentée, et son commentaire ne pèse pas dans un jugement »
+- 281 ms — « le calibrage posé est justifié sur l'issue, et le chef y lit comment le contester »
+- 354 ms — « le chef corrige un calibrage posé par le manager : rien n'est réécrit »
+- 915 ms — « le chef ferme une issue dont le manager l'attendait : le journal l'apprend, une fois ; rouverte, il l'apprend aussi »
+- 276 ms — « le chef lance et calibre l'issue pendant son jugement : le manager n'ajoute aucun label »
+- 248 ms — « le chef pose `fire` sans calibrer : le manager juge, et ne pose que le calibrage »
+- 441 ms — « le chef pose `fire` sur ce que le code écarte : le manager ne le retire pas, ne calibre pas, et le dit une fois »
+- 604 ms — « le chef relance lui-même l'issue écartée, un label à la fois : l'écart n'est pas redit »
+- 286 ms — « le chef retient l'issue pendant son jugement : rien n'est posé, les labels sont relus avant d'écrire »
+- 577 ms — « le chef retire le `fire` du manager : il n'est pas reposé, même si l'issue change »
+- 1081 ms — « ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed` »
+- 887 ms — « rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois »
+- 624 ms — « rendue pendant qu'un tour, qui l'a déjà dépassée, attend GitHub : la remise n'est pas perdue, elle est au tour suivant »
+- 484 ms — « rendue puis relancée et calibrée par le chef avant que le manager y revienne : il n'y retire rien et ne la rejuge pas »
+- 166 ms — « un jugement arrêté par un garde-fou n'épingle rien non plus »
+- 349 ms — « un jugement illisible ne pose rien, le dit, compte pour le disjoncteur, et n'est pas retenté sur le même état »
+- 278 ms — « un jugement que le modèle refuse est retenté sans compter au disjoncteur, et ne dit rien tant qu'il peut aboutir »
+- 377 ms — « un jugement qui bute sur le quota le dit de toutes les stations du projet : le compte est le même »
+- 520 ms — « un jugement qui bute sur le quota retient la station, et repart quand le quota revient »
+- 573 ms — « un jugement qui n'a pas eu lieu — panne, sortie en erreur — n'épingle rien : il est retenté, sans commentaire, jusqu'au disjoncteur »
+- 338 ms — « un jugement qui révèle une connexion Max expirée retient la station, sans rien décider »
+- 554 ms — « un jugement refusé trois fois d'affilée n'est pas retenté sans fin : il s'épingle, et le chef lit le refus sur l'issue »
+- 262 ms — « un réveil qui n'a rien à qualifier ne lance aucun jugement »
+- 520 ms — « une issue ne se juge qu'une fois par état : ni les réveils, ni ce que le manager y a écrit ne la font rejuger »
+- 258 ms — « une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, sans rien poser »
+- 200 ms — « une issue refusée est rejugée quand le chef la modifie ou y répond »
+- 377 ms — « une issue retenue par le chef est jugée dès qu'il la libère »
+- 178 ms — « un jugement n'a ni outil ni worktree, et ne voit pas l'état du runtime »
+- 132 ms — « sans roadmap déclarée, aucune issue n'est écartée à ce titre »
+- 107 ms — « une dimension que le chef a calibrée n'est pas réécrite, et le commentaire dit ce qui a été laissé »
+- 251 ms — « un `chef-changed` d'avant le commentaire d'écart n'est pas commenté après coup »
+- 328 ms — « tant que le chef a dit « stop », rien n'est jugé ; à « resume », le manager juge ce qui attendait »
+- 180 ms — « le « stop » du chef arrête un jugement en cours, qui repart à « resume » »
+- 77 ms — « sans station, le manager juge quand même : seuls les cooks ne partent pas »
+- 141 ms — « une décision prise se pose sans rejuger quand GitHub a refusé les labels la première fois »
+- 330 ms — « une issue jugée, exécutable ou non, peut être fermée sans que le journal le note : le manager n'en attendait pas le chef »
+- 255 ms — « un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118) »
+- 291 ms — « le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118) »
+- 107 ms — « un journal écrit avant ce fait se rejoue : au premier tour, les issues écartées puis fermées depuis sont constatées fermées »
+- 217 ms — « éteint en cours de route, le manager ne juge plus ce qui arrive »
+
+### `test/mesures-des-gates.test.ts`
+
+- 435 ms — « les gates du dépôt déclarent les tests, leur durée, le poids du dépôt, de la doc et du contexte, et leur propre durée »
+
+### `test/mesures.test.ts`
+
+- 685 ms — « `run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien »
+- 427 ms — « la commande montre le relevé sans rien écrire, et refuse un argument qu'elle ne connaît pas »
+
+### `test/miroir-des-gates.test.ts`
+
+- 1362 ms — « un rôle et son miroir modifiés ensemble ne sont pas jugés périmés »
+- 937 ms — « un rôle modifié sans son miroir n'est pas sauté : il rougit, et lui seul »
+- 534 ms — « un fichier dont le chemin ne fait que contenir celui d'un rôle ou d'un miroir ne compte pas pour lui »
+
+### `test/mise-a-jour/mettre-a-jour.test.ts`
+
+- 22 ms — « une station qui tourne sans se dire en service dans la garde n'est pas gardée »
+- 20 ms — « une version qui ne sert plus un projet que la précédente servait n'est pas gardée : le motif nomme le projet et son refus »
+
+### `test/mise-a-jour/versions.test.ts`
+
+- 327 ms — « l'ordre est bien celui de `dpkg --compare-versions` »
+
+### `test/mode-auto.test.ts`
+
+- 91 ms — « lancée par son fichier, la commande écrit les règles et rend 0 »
+
+### `test/montrer-cloison.test.ts`
+
+- 186 ms — « un journal d'avant la cloison le dit, au lieu de laisser croire qu'elle est ouverte »
+- 197 ms — « sans cloison ni porte, le chef lit que les projets se voient et que le réseau est ouvert »
+- 223 ms — « posée, elle dit ce qui est masqué, chaque hôte qui passe avec sa raison, et chaque refus avec son motif »
+- 211 ms — « une porte que l'unité ne double pas d'un filtre se lit comme telle »
+- 477 ms — « éprouver lance de vraies sondes : une cloison qui ne masque rien est prise sur le fait »
+- 313 ms — « éprouver sans cloison posée le dit, et une cloison mal posée est refusée avec son motif »
+- 221 ms — « une commande inconnue rend l'usage »
+
+### `test/montrer-rail.test.ts`
+
+- 431 ms — « le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son état »
+- 313 ms — « sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi »
+
+### `test/montrer-station.test.ts`
+
+- 313 ms — « sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi »
+- 389 ms — « le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa connexion et son quota »
+
+### `test/outils.test.ts`
+
+- 255 ms — « lancerSurPortPose : l'arbitre sur un port repris à chaque essai, le compte d'essais s'épuise et le dit »
+- 203 ms — « lancerSurPortPose : un port repris avant que l'arbitre n'y écoute est retiré, et le process tient le suivant »
+- 177 ms — « lancerSurPortPose : un port repris avant que la porte n'y écoute est retiré, et le process tient le suivant »
+- 280 ms — « lancerSurPortPose : la porte sur un port repris à chaque essai, le compte d'essais s'épuise et le dit »
+- 77 ms — « lancerSurPortPose : un process qui meurt d'autre chose que d'un port pris n'est pas relancé »
+
+### `test/paquet/paquet.test.ts`
+
+- 11 ms — « la première installation crée le compte, puis active et démarre la station et son renouvellement »
+- 1271 ms — « le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non »
+- 8 ms — « un compte brigade déjà là est gardé tel quel »
+- 12 ms — « un groupe brigade sans compte : le compte le rejoint »
+- 9 ms — « une mise à jour depuis une version sans portes ne les démarre pas elle-même : la station les réclame en repartant »
+- 12 ms — « une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver — les portes d'abord, quand elles tournent »
+- 112 ms — « une commande produit un .deb nommé par sa version et son architecture, et dit son chemin »
+- 117 ms — « sans le dépôt qui publie le paquet, ou sans mainteneur, la construction est refusée en le disant, sans rien écrire »
+- 60 ms — « une version que dpkg n'accepterait pas est refusée, sans rien écrire »
+- 86 ms — « il porte le runtime, son node, ses unités, le renouvellement et le geste `brigade` — ni tests, ni rien sous /etc, aucune règle sudoers »
+
+### `test/pass-file-d-attente.test.ts`
+
+- 934 ms — « trois cartes livrées pendant qu'une pass tourne attendent qu'elle finisse, puis sont jugées une à une, dans l'ordre de leur livraison »
+- 524 ms — « une carte livrée quand aucune pass ne tourne est jugée aussitôt, sans attendre son tour »
+- 499 ms — « une livraison qui ne commence pas — GitHub bute sur sa PR — ne tient pas la file : les suivantes sont jugées »
+
+### `test/pass-relance.test.ts`
+
+- 344 ms — « une carte livrée qu'aucune pass ne juge est relancée : un jugement est mis en file, et son journal montre pass.started »
+- 374 ms — « une carte dont la pass tourne, qui attend son tour, ou déjà mergée est refusée, sans rien écrire ni créer de pass »
+
+### `test/pass-reprise-des-gates.test.ts`
+
+- 802 ms — « la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier »
+- 799 ms — « le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût »
+
+### `test/pass-reprise-des-livrees.test.ts`
+
+- 733 ms — « des cartes livrées par une vie sans pass sont jugées par la suivante, dans l'ordre de leur livraison »
+- 535 ms — « une pass interrompue au milieu : les cartes déjà jugées ne le sont pas deux fois, celle qui était en cours reprend et n'est jugée qu'une fois »
+
+### `test/pass.test.ts`
+
+- 510 ms — « au deuxième renvoi resté rouge, la pass cesse de renvoyer et la cuisine reprend le ticket, pas le chef : rien n'est mergé »
+- 859 ms — « au moment d'abandonner un ticket, la cuisine le réessaie une fois si un merge a atterri sur la base depuis son dernier rouge ; abandonné ensuite, ceux qui l'attendent sortent du rail avec lui, et le suivent quand `fire` lui revient (#1902) »
+- 463 ms — « avec un jeton à son emplacement, le cook et le reviewer le reçoivent ; les gates, qui jouent le code du projet, jamais »
+- 342 ms — « ce qu'un cook laisse non commité dans sa livraison est commité à sa place avant le push : la pass juge ce commit-là, et le reviewer sait qu'il n'est pas du cook »
+- 955 ms — « ce qu'un rangement commite sur une branche déjà livrée n'est pas jugé : la pass juge et merge le commit que l'origine a reçu, celui que GitHub connaît »
+- 371 ms — « ce que le second juge dit qu'elle change s'écrit avec son verdict, et la carte du chef le dit (#1877) »
+- 333 ms — « des gates dont le seul rouge est leur plafond de durée ne retiennent rien : le verdict est vert, le reviewer relit, la livraison est mergée sous grant — et le dépassement se lit sur l'issue »
+- 581 ms — « des gates qui dépassent leur plafond sont arrêtées, et c'est rouge »
+- 330 ms — « des gates rouges ne paient pas de relecture : le reviewer n'est pas appelé, et le verdict le dit »
+- 456 ms — « établie non affaiblie par le second juge, sans grant : elle n'est pas mergée, comme une livraison ordinaire — arrêtée `no-grant`, sans carte »
+- 553 ms — « établie non affaiblie par le second juge, sous grant : la pass la merge comme une livraison ordinaire, sans carte, et le journal dit le merge »
+- 650 ms — « gates rouges : rien n'est mergé, les findings repartent à un cook dans un worktree neuf, sur la même branche et la même PR »
+- 355 ms — « GitHub injoignable : rien n'est jugé ni écrit, et la pass y revient »
+- 600 ms — « illisible, illisible, puis lisible : le ticket est jugé sur la dernière relecture, toujours sur le même commit — rouge, son constat repart au cook comme un renvoi ordinaire »
+- 227 ms — « la PR que la pass ouvre est au journal avant toute remontée : le ticket remonté porte sa PR »
+- 579 ms — « la raison d'un renvoi de la pass devient une leçon candidate du projet, d'origine « pass-send-back #17 », que le cook renvoyé reçoit »
+- 541 ms — « le grant n'est pas rétroactif : activé après coup, une livraison déjà arrêtée n'est pas mergée »
+- 472 ms — « le grant se consulte à chaque décision : révoqué entre deux livraisons, la seconde n'est pas mergée »
+- 630 ms — « le plafond franchi ne se dit sur l'issue que sous un verdict vert, et une fois par commit livré : un reviewer bloquant renvoie sans lui »
+- 369 ms — « le résultat d'un merge s'écrit sans attendre l'identité de la pass : lente à se lire, elle manque à ce merge-là, et rien ne reste en suspens »
+- 464 ms — « le reviewer passe par les garde-fous : un échec compte pour le disjoncteur, et rien n'est relu tant qu'il est ouvert »
+- 461 ms — « le second juge qui répond « cannot establish », sous grant : rien n'est mergé, et une carte `gesture` proposée au triage dit en trois lignes ce qui est affaibli, et où »
+- 339 ms — « le second juge qui répond « juge-non-affaibli » : not-weakened, avec sa raison »
+- 399 ms — « le second juge qui répond « relit-vert » : cannot-establish, avec sa raison »
+- 439 ms — « le second juge qui répond « weakened », sous grant : rien n'est mergé, et une carte `gesture` proposée au triage dit en trois lignes ce qui est affaibli, et où »
+- 552 ms — « le ticket `fix` de la cuisine sorti du rail, la livraison repart chez un cook ; non jugée de nouveau sur une cause qu'aucun cook ne lève, la cuisine abandonne le ticket et dit pourquoi sur l'issue : il sort du rail, jamais dans TODO ni laissé de côté »
+- 375 ms — « rouges sur autre chose, des gates renvoient la livraison, plafond franchi ou non — et le renvoi ne donne pas le plafond pour cause »
+- 602 ms — « ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut au lieu d'être mis de côté ; au plus haut calibrage permis, la cuisine l'abandonne en disant pourquoi sur l'issue »
+- 276 ms — « sous l'identité unique de la machine, rien ne distingue la pass du chef : ce que le runtime suppose reste, avec le compte que GitHub nomme »
+- 541 ms — « un cook de renvoi parti en pass sans compte-rendu est repris de même : sur sa PR, son renvoi toujours compté »
+- 401 ms — « un cook de renvoi qui conclut sans commit ni rien délimiter n'a pas livré non plus : il a échoué, rien ne repart en pass, et le renvoi n'est pas consommé »
+- 433 ms — « un cook de renvoi qui échoue sans rien commiter ne consomme pas de renvoi »
+- 588 ms — « un cook de renvoi qui écrit sans rien commiter n'a pas livré un ticket sans diff : il a échoué, rien ne repart en pass, et ce qu'il a écrit est commité sur sa branche locale »
+- 324 ms — « un cook qui a commité et délimité son compte-rendu : le reviewer lit ce qu'il a délimité, pas son message entier »
+- 462 ms — « un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable, sur la fusion de sa branche avec la base — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit et sur quoi il porte »
+- 408 ms — « un cook sans commit qui se déclare bloqué n'est pas servi : rien n'est relu, le ticket reste ouvert et la question va au chef »
+- 513 ms — « un finding bloquant rend la pass rouge, gates vertes ou non : rien n'est mergé, il repart au cook comme un renvoi, et le verdict dit qui l'a produit »
+- 821 ms — « un grant accordé jusqu'à une heure s'éteint seul : l'heure passée, le runtime l'écrit une fois, sans livraison ni geste, et la livraison suivante n'est pas mergée — son issue dit que le grant s'est éteint »
+- 464 ms — « un grant échu pendant que le runtime était arrêté est éteint au redémarrage, pas réveillé : l'extinction s'écrit, datée de l'échéance, et rien n'est mergé »
+- 528 ms — « un grant pour un usage : le premier merge fait le consomme et l'éteint dans le même geste, la livraison suivante n'est pas mergée »
+- 219 ms — « un job de CI en échec rend la pass rouge, et le verdict dit lequel »
+- 601 ms — « un merge à la main dont l'auteur tarde à se lire, et un ticket parti puis revenu entre-temps avec un cook neuf : le merge n'est pas mis au compte de la nouvelle livraison »
+- 455 ms — « un merge de la pass porte son identité »
+- 508 ms — « un merge que GitHub refuse n'est pas retenté : la pass s'arrête et dit pourquoi »
+- 253 ms — « un merge sans réponse se réconcilie sur GitHub : la PR est mergée, le résultat est écrit, jamais un second merge »
+- 494 ms — « un merge sans réponse, retrouvé fait sous l'identité de la pass, est bien le sien »
+- 176 ms — « un projet sans gates n'est pas jugé vert : la cuisine en fait un ticket `fix`, sans renvoyer au cook ses propres gates à écrire »
+- 522 ms — « un renvoi dont la branche a disparu du clone repart de la base : un cook qui n'y commite rien a échoué, rien n'est poussé »
+- 387 ms — « un reviewer qui bute sur le quota retient la station comme un cook, et la livraison attend sans verdict »
+- 651 ms — « un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix` »
+- 445 ms — « un runtime arrêté pendant les gates ne laisse pas de verdict : au redémarrage, la livraison est jugée »
+- 308 ms — « un runtime mort entre l'intention et le résultat : au redémarrage, un merge qui n'a pas eu lieu est repris, sous un grant relu »
+- 432 ms — « un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne »
+- 449 ms — « un ticket qui quitte le rail pendant que la pass le juge : la relecture en cours est arrêtée, et sa PR restée ouverte est dite une fois sur l'issue »
+- 198 ms — « un ticket remonté dont le chef ferme la PR : la fermeture est constatée de même, et le ticket reste 86 »
+- 352 ms — « un ticket remonté que le chef merge à la main : la pass le voit et ferme l'issue »
+- 381 ms — « un ticket remonté que le chef rend au rail, puis dont il ferme la PR : la fermeture est écrite, mais rien n'est dit d'un ticket qui attend un cook »
+- 660 ms — « un ticket resté en pass sans compte-rendu n'est jamais jugé tant que le runtime vit ; au redémarrage la station le raconte, et la pass le juge sur une seule PR »
+- 474 ms — « un ticket sans diff jugé rouge repart au cook avec le constat, dans la limite des deux renvois ; son nouveau compte-rendu est relu »
+- 352 ms — « un ticket sans diff n'est jamais servi sans avoir été relu : relecture illisible, la cuisine le reprend ; cuisine arrêtée, il attend »
+- 245 ms — « une branche disparue dont la PR est déjà mergée n'est pas remontée : le ticket est servi »
+- 132 ms — « une branche disparue sans PR ouverte est remontée de même : la pass ne bute pas dessus à chaque réveil »
+- 353 ms — « une branche dont les seuls workflows sont planifiés, manuels ou sur tag est jugée sans CI (gadgets) »
+- 312 ms — « une branche dont les workflows ne se lancent pas sur les PR est jugée sans attendre de CI »
+- 290 ms — « une branche dont un workflow se lance sur les PR attend sa CI, et remonte en ci-silent passé le délai »
+- 388 ms — « une CI en cours ne donne pas de verdict : elle est relue, les gates ne sont pas rejouées »
+- 239 ms — « une CI qui ne conclut jamais n'est pas jugée passé le délai : la cuisine renvoie la livraison à un cook, sans consommer de renvoi ni poser de carte »
+- 233 ms — « une CI rouge renvoie la livraison au cook sans relecture : le reviewer n'est pas appelé, et le verdict dit le job »
+- 243 ms — « une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la cuisine en fait un ticket `fix` »
+- 672 ms — « une intention restée sans résultat, puis un merge fait à la main : il n'est pas mis au compte de la pass, et la base est contrôlée »
+- 577 ms — « une issue mergée puis rouverte est refermée au merge suivant »
+- 240 ms — « une livraison dont le clone ne connaît plus la branche n'est pas un projet sans gates : la pass remonte `worktree-lost`, et le dit sur l'issue »
+- 534 ms — « une livraison mergée à la main, relue seulement après le retour de son ticket sur le rail : le merge n'est pas mis au compte de la livraison du nouveau cook »
+- 703 ms — « une livraison n'est relue qu'une fois sa CI verte : tant qu'elle tourne, aucun reviewer n'est appelé »
+- 474 ms — « une livraison qui ne touche pas à ses juges ne passe devant aucun second juge »
+- 349 ms — « une livraison qui ne touche pas aux réglages du projet n'est pas retenue pour cela »
+- 381 ms — « une livraison qui touche à la déclaration des réglages du projet n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté »
+- 284 ms — « une livraison qui touche à la déclaration des secrets n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté »
+- 340 ms — « une livraison qui touche à la déclaration du réseau n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté »
+- 528 ms — « une livraison qui touche à ses juges passe devant un second juge, distinct du reviewer et plus fort que lui : son verdict et sa raison s'écrivent au journal et sur la PR, une fois »
+- 441 ms — « une livraison qui touche à ses propres juges n'est pas mergée sur le seul verdict de la pass, même sous grant »
+- 566 ms — « une livraison qui touche aux deux déclarations les nomme toutes les deux, et dit les juges touchés avec elles »
+- 383 ms — « une livraison sans diff rapportée sans livrable — un journal d'avant la délimitation — n'est pas relue : rouge, elle repart au cook, qui apprend ce qu'il doit délimiter »
+- 387 ms — « une PR arrêtée que le chef ferme sans la merger : la pass le constate, l'écrit et le dit une fois ; le ticket reste en pass, et la PR rouverte puis mergée le sert »
+- 429 ms — « une PR arrêtée que le chef merge à la main : la pass le voit, sert le ticket et ferme l'issue »
+- 464 ms — « une PR arrêtée que le chef merge à la main porte son compte »
+- 551 ms — « une PR arrêtée que le chef merge à la main, et dont le ticket quitte le rail avant que la pass ait relu GitHub : le merge est constaté, le ticket servi, pas abandonné »
+- 367 ms — « une PR fermée avant que la pass ne juge : rien n'est joué ni relu, et c'est écrit plutôt que relu sans fin »
+- 487 ms — « une PR qui ne vise pas la base est refusée : ni gates, ni merge, ni renvoi »
+- 901 ms — « une redemande passe par les garde-fous, et ses deux essais se comptent au journal : disjoncteur ouvert, elle attend ; le runtime redémarré, la livraison n'en reçoit pas une de plus »
+- 614 ms — « une relecture illisible — de la prose — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis la cuisine renvoie la livraison à un cook, sans merge ni renvoi consommé »
+- 587 ms — « une relecture illisible — un verdict que ses constats contredisent — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis la cuisine renvoie la livraison à un cook, sans merge ni renvoi consommé »
+- 380 ms — « une relecture illisible se redemande au reviewer, pas au cook : sur le même commit, sans cook relancé — lisible, elle est jugée comme une autre, sans que le ticket ait jamais été remonté »
+- 381 ms — « une relecture que le modèle refuse n'est pas un échec : elle est retentée, sans rien écrire sur la livraison ni compter au disjoncteur »
+- 286 ms — « une relecture qui n'aboutit pas ne dit rien de la livraison : rien n'est écrit, elle est retentée »
+- 579 ms — « une relecture refusée trois fois d'affilée ne boucle pas jusqu'au disjoncteur : la cuisine reprend la livraison, et l'issue dit pourquoi »
+- 595 ms — « verte sans grant : la PR reste ouverte, la pass s'arrête là et le dit »
+- 132 ms — « verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée »
+- 419 ms — « le second juge qui répond « juge-incertain » : cannot-establish, avec sa raison »
+- 316 ms — « une PR que la station n'avait pas pu ouvrir est ouverte par la pass »
+- 462 ms — « le reviewer relit le diff après des gates vertes : un autre process que le cook, à son propre calibrage, en lecture seule dans le worktree jetable de la pass »
+- 406 ms — « une remarque ne retient rien : la pass est verte, la livraison mergée, et le chef lit la remarque sur l'issue »
+- 293 ms — « un ticket sans diff est jugé par le seul reviewer, sur le livrable que le cook a délimité : vert, il est servi sans merge ni grant, et son issue fermée »
+- 39 ms — « sous l'identité unique, un merge de la pass ne porte aucun compte : rien ne l'a lu »
+- 338 ms — « un setup qui exporte un jeton GitHub ne le donne pas aux gates, qui exécutent le code du cook »
+- 234 ms — « sous l'identité unique, ce que le setup exporte pour gh passe aux gates, comme avant »
+- 157 ms — « une identité illisible n'empêche ni le merge ni son résultat de s'écrire »
+
+### `test/pass/jugements-de-front.test.ts`
+
+- 785 ms — « avec un plafond d'un, la pass juge une livraison à la fois, dans l'ordre de leur livraison, comme avant »
+- 1109 ms — « avec un plafond de deux, jamais plus de deux jugements à la fois : la troisième attend une place libre, et la prend quand une se libère »
+- 1105 ms — « trois livraisons aux zones disjointes sont jugées en même temps, `pass` les dit toutes jugées, et toutes sont mergées »
+- 853 ms — « une livraison qui a écrit hors de sa zone se juge seule, elle aussi »
+- 1522 ms — « une livraison sans zone se juge seule : elle ne commence pas tant qu'une autre est jugée, et rien d'autre ne l'est pendant qu'elle l'est »
+
+### `test/pause.test.ts`
+
+- 482 ms — « après le « oui », le cook en vol finit son travail, puis sa livraison verte attend au lieu d'être mergée ; aucun ticket neuf n'est pris ; à la fin de la pause, elle est mergée et la prise reprend »
+- 452 ms — « pendant la pause, seul le ticket du renommage part en cuisine et se merge »
+- 534 ms — « une carte qui attend son « oui » ne change rien : la livraison verte est mergée sous grant, comme sans elle »
+- 142 ms — « demander la pause pose une carte dans la file : la durée attendue, et les tickets en vol qu'elle retiendra — chacun avec ce qui lui arrivera »
+
+### `test/porte.test.ts`
+
+- 343 ms — « sans port, sans projet ou sans état, la porte refuse de démarrer et dit ce qui manque »
+- 173 ms — « la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process »
+
+### `test/poser-decisions.test.ts`
+
+- 952 ms — « de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef »
+- 336 ms — « l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni drop-in — rien ne peut y manquer »
+- 316 ms — « la commande du chef, en texte : l'étape, puis chaque décision avec sa question, ses options, la recommandée et ce qui arrive si on la saute »
+
+### `test/preparation-depot/ouvrir.test.ts`
+
+- 93 ms — « le ticket dit, pour chaque fichier, ce que la branche d'intégration en porte déjà »
+
+### `test/preparation-depot/setup-en-cuisine.test.ts`
+
+- 359 ms — « son cook part quand même, sans ce que le setup aurait exporté, avec la phrase et la sortie du setup dans sa consigne »
+- 258 ms — « le corps du ticket dit, en une phrase, ce qui a échoué — une fois, avant ce qu'il demande de livrer »
+- 325 ms — « le corps qui le dit déjà n'est pas réécrit »
+- 286 ms — « un setup qui passe de nouveau : le corps ne dit plus qu'il échoue, et le cook reçoit ce qu'il exporte »
+- 238 ms — « un setup bloqué ne retient pas la station tant que la préparation attend : c'est elle qui le répare »
+- 102 ms — « une fois la préparation servie, le setup qu'elle a livré passe avant chaque cook, et le cook reçoit ce qu'il exporte »
+
+### `test/preparation-depot/station.test.ts`
+
+- 224 ms — « le ticket qui prépare le dépôt servi, la cuisine prend les autres »
+- 429 ms — « tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail »
+
+### `test/produit/cadence/cadence.test.ts`
+
+- 552 ms — « le rôle ne dépose jamais plus que le plafond ; au plafond, les ticks du jour ne déposent rien et le disent une fois ; le lendemain, il reprend »
+
+### `test/produit/usage/box.test.ts`
+
+- 156 ms — « un dépôt est brigade quand sa branche d'intégration porte le runtime de brigade »
+
+### `test/profils/design.test.ts`
+
+- 215 ms — « la cuisine lance le ticket de la vue sous le profil design, et le journal le nomme comme tout profil ; le cook du profil occupé, le suivant part en généraliste »
+
+### `test/profils/domaines.test.ts`
+
+- 79 ms — « le type du ticket n'a aucun effet : les mêmes tickets, de types différents, donnent le même relevé »
+- 51 ms — « chacun des trois seuils, réglé dans l'environnement du projet, change le relevé »
+
+### `test/profils/preference.test.ts`
+
+- 294 ms — « le profil et un généraliste libres : le ticket de son domaine part sous le profil, son cook reçoit son carnet et les leçons du projet, et le journal le dit »
+- 245 ms — « le cook du profil occupé : le ticket suivant du domaine part aussitôt avec un généraliste, sans carnet — il ne l'attend pas »
+- 228 ms — « un ticket hors de tout domaine, ou sans fiche, part avec un généraliste : aucun carnet, et sa consigne est celle de tout cook »
+- 190 ms — « une station distante : le cook qu'elle tire reçoit le carnet du profil comme un cook de la box, et le journal le dit en son nom »
+- 4 ms — « une définition illisible n'est pas un profil : elle est écartée, et nommée »
+
+### `test/profils/propositions.test.ts`
+
+- 337 ms — « un profil que le dépôt définit déjà n'est pas proposé, et un « oui » ne remplace jamais une définition »
+
+### `test/projections.test.ts`
+
+- 271 ms — « effacer les projections et rejouer le journal redonne le même état »
+- 253 ms — « des projections perdues se retrouvent en rejouant le journal »
+
+### `test/projets-station/selection.test.ts`
+
+- 120 ms — « la branche de la ligne : aucune si le dépôt en déclare une, sinon sa branche par défaut — aucune tant qu'il n'est pas cloné »
+
+### `test/projets-station/servir.test.ts`
+
+- 140 ms — « un dépôt coché dans l'app est servi à la lecture suivante : cloné, ses décisions posées, sa ligne écrite — sans aucune configuration à la main »
+- 191 ms — « un dépôt décoché n'est plus servi à la lecture suivante : sa ligne quitte la configuration, son état et son clone restent »
+- 161 ms — « appairée par code et sans sélection, elle sert ce que l'app lui demande par l'appairage ; la sélection écrite, c'est elle qu'elle sert »
+- 122 ms — « sa sélection écrite, elle tient aussi les projets que le chef lui ajoute depuis la page d'un projet (« + station ») : la demande de son appairage les porte, sans la dire principale »
+
+### `test/projets-station/station.test.ts`
+
+- 726 ms — « sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main et le suit dans son enregistrement »
+
+### `test/projets/acces.test.ts`
+
+- 84 ms — « une origine qui laisse récupérer et pousser : l'accès est libre »
+- 419 ms — « un dépôt en https, sans credential helper : la récupération est refusée vite, et le geste est `gh auth setup-git` »
+- 490 ms — « un credential helper qui ne donne rien : le geste est de reconnecter gh, puis de le prêter à git »
+
+### `test/projets/ajout-de-station.test.ts`
+
+- 441 ms — « cooks from the machine's cores, the workspace folder, and each capability flagged detected or not — with the project read from its clone »
+- 403 ms — « with nothing overridden, the cores are this machine's own, and the cooks follow them »
+- 362 ms — « a folder that is no clone of a github.com repository has no project: it is said, nothing is guessed »
+- 122 ms — « cooks, main or not, and capabilities are enough: the repository comes from the clone's origin, the branch from what the repository declares »
+- 123 ms — « a repository without the settings file: the branch is the one its CLAUDE.md declares »
+- 56 ms — « an older call that still names the repository and the branch keeps working, with or without a clone here »
+- 119 ms — « what cannot be resolved is named field by field, never guessed »
+- 117 ms — « nothing from the station's fields is written into the project's repository: the clone stays clean »
+
+### `test/projets/ajout-depuis-le-projet.test.ts`
+
+- 626 ms — « ajouté depuis la page du projet, le Mac en rejoint la cuisine et y cuit : le ticket que seul un Mac peut cuire part chez lui de lui-même, et la pass de la box le sert »
+
+### `test/projets/copie-locale.test.ts`
+
+- 437 ms — « accès refusé : GitHub ne montre pas le dépôt au compte, ou refuse sa lecture — la raison nomme le compte et le dépôt »
+- 152 ms — « sans copie locale, ouvrir le projet le clone dans le dossier que l'app gère, en disant où il en est, et finit le projet ouvert »
+- 235 ms — « la commande ouvre le projet sans qu'on lui donne de dossier : celui de BRIGADE_PROJECTS_DIR, une ligne par étape puis l'état »
+- 134 ms — « une copie locale qui existe déjà est reprise telle quelle : rien n'est recloné »
+- 86 ms — « sans git sur l'ordinateur, l'ouverture dit que git manque, et rien n'est cloné »
+- 167 ms — « réseau coupé, ordinateur pas connecté à GitHub, `gh` absent : chaque échec dit sa cause en une phrase »
+
+### `test/projets/preparer.test.ts`
+
+- 200 ms — « le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné, rien ne se refait ; introuvable, rien ne reste »
+- 177 ms — « après un clone en échec, le `gh` de la station dit son compte, le type de son jeton — jamais le jeton — et si le propriétaire du dépôt existe »
+- 446 ms — « avec ses Apps : autorisées, rien à faire ; une App pas installée sur le dépôt, la page où l'installer, en un clic »
+
+### `test/projets/secondaires.test.ts`
+
+- 498 ms — « de bout en bout : un Mac appairé, ajouté au projet par l'app sans en être la principale, est lu dans son gist et déclaré au journal du projet avec `macos` — aucune commande du chef »
+
+### `test/projets/tenir.test.ts`
+
+- 845 ms — « un dépôt en https sans credential helper : l'accès bloqué nomme `gh auth setup-git` comme geste »
+- 237 ms — « un dépôt qui refuse la récupération : l'accès est bloqué, en une phrase — rien n'est préparé ; le geste fait, le projet est servi à la cadence suivante »
+- 105 ms — « un dépôt qui laisse récupérer mais refuse de pousser : l'accès est bloqué, avec une raison propre au push »
+- 113 ms — « un dépôt joignable, où la station peut pousser : servi comme avant, sans accès bloqué »
+
+### `test/promotion/livrer.test.ts`
+
+- 273 ms — « une leçon promue que rien ne reconfirme redescend, puis disparaît : la PR inscrit sa sortie au carnet, datée et motivée, sans l'effacer »
+- 214 ms — « retirée par une PR qui la marque `retired`, la leçon n'est pas repromue par la même histoire ; trois rétros nouvelles en font une nouvelle PR de promotion »
+- 261 ms — « retirée par le revert de sa PR de promotion, la leçon est inscrite `retired`, id gardé ; elle n'est repromue que par trois rétros nouvelles »
+- 128 ms — « un clone en retard sur la base ne fait rien livrer : le jugement est refait sur la base rapatriée, et la branche préparée disparaît »
+- 133 ms — « un carnet de la base illisible n'est pas réécrit : rien ne part, et la raison est dite »
+- 148 ms — « une promotion fait une PR, une seule, qui ne touche que le carnet et nomme les rétros qui ont proposé la leçon »
+
+### `test/proteger-branche.test.ts`
+
+- 653 ms — « la commande du chef, par `gh` : une branche déjà protégée, l'étape faite, aucune écriture »
+- 312 ms — « la commande du chef, par `gh`, sans le rôle d'administrateur : bloquée, et aucune écriture ne part »
+
+### `test/rail.test.ts`
+
+- 162 ms — « deux stations qui se jettent en même temps sur le rail ne prennent jamais le même ticket »
+- 130 ms — « deux stations sur un seul ticket : une seule l'obtient »
+
+### `test/reaction.test.ts`
+
+- 596 ms — « au second rouge, la pass passe la main : le manager monte d'un cran le label qu'il a posé, sans LLM, puis renvoie »
+- 673 ms — « des relances du manager restées rouges n'ouvrent pas le disjoncteur : il monte tant qu'il lui reste de quoi monter »
+- 757 ms — « éteint pendant le redécoupage, le manager n'en garde rien : aucun sous-ticket ne naîtra derrière un parent qui tient sa zone »
+- 472 ms — « éteint pendant qu'il tenait un ticket, le manager le rend à la pass, qui reprend sa règle d'avant »
+- 620 ms — « éteint, rien ne change : deux renvois au même calibrage, puis la pass remonte au chef »
+- 346 ms — « le chef n'est sollicité qu'en dernier recours, et reçoit de quoi trancher : ce qui a été tenté, ce qui a échoué, ce que le manager propose »
+- 509 ms — « le chef recalibre pendant que le manager tient le ticket : son label reste, et le ticket repart à son calibrage »
+- 520 ms — « le plafond posé par le chef est relu à chaque réaction, sans redémarrage, et c'est lui que le commentaire nomme »
+- 612 ms — « le plafond que porte le dépôt du projet passe avant celui de la box ; baissé par une PR, il vaut dès la réaction suivante, sans redémarrage »
+- 928 ms — « passé les deux renvois, le manager choisit — monter — et un ticket ne repart jamais à l'identique »
+- 1156 ms — « redécoupé, le ticket devient l'épique de ses sous-tickets : il ne tient plus sa zone, et ils partent »
+- 856 ms — « remonté sans diff, le ticket n'a pas de PR : le commentaire ne propose pas de la merger, et dit que la cuisine le reprend »
+- 549 ms — « sans plafond posé par le chef, le défaut vaut : le ticket monte, et le commentaire nomme le plafond »
+- 422 ms — « un label de calibrage posé par le chef n'est jamais touché : le second renvoi part au même calibrage, et le manager dit pourquoi »
+- 647 ms — « un redécoupage que le LLM ne sait pas faire vaut remontée, sans rien créer »
+- 845 ms — « une montée faite sur GitHub mais dont la note s'est perdue n'est ni refaite ni reniée : le label reste au manager, qui peut monter encore »
+- 721 ms — « une montée que GitHub refuse ne relance rien et ne se redécide pas : elle reprend où elle en était »
+- 702 ms — « une réaction illisible, ou qui choisit ce qui n'était pas offert, vaut remontée : le manager ne devine pas »
+- 630 ms — « une remontée que GitHub empêche de dire est faite quand même, et dite dès qu'il répond »
+- 363 ms — « une remontée que GitHub empêche de dire, puis dont le chef ferme la PR : le mot du manager est dit quand même »
+- 85 ms — « la réaction en cours se relit dans le journal : le chef y lit le choix et son motif »
+
+### `test/reglage-cli.test.ts`
+
+- 157 ms — « with no argument, it shows the settings the kitchen applies — the repository's first — and where each comes from »
+
+### `test/reglages-projet/au-runtime.test.ts`
+
+- 468 ms — « a new ceiling returns the PR URL; the PR changes only the settings file, and the pass, judging it green under grant, holds it for the chef and never merges it »
+- 108 ms — « a value the writer refuses returns a clear error: no PR, and nothing of it written to the log »
+- 293 ms — « a change the base already carries is answered by the runtime: nothing to propose, and no PR »
+
+### `test/reglages-projet/closer.test.ts`
+
+- 281 ms — « two stations serving the project apply the closer's settings of projet.json at their next fetch, with no restart and no box command, over what each box held »
+- 215 ms — « `closing --json` and `station` say where each of the closer's values comes from: the repository, the box, or the default »
+
+### `test/reglages-projet/en-vigueur.test.ts`
+
+- 407 ms — « a change merged on the integration branch applies to the next read once the station fetches it, without any restart »
+- 430 ms — « a clone whose integration branch carries the file: its branch, calibrations and ceiling are used, the box's values ignored »
+- 281 ms — « a project whose repository has no file: the box's branch, calibrations and ceiling, as before »
+- 187 ms — « a fresh clone and a station line that names no branch: the project's branch, calibrations and ceiling, nothing entered on the box »
+- 111 ms — « without the box's calibrations nor the repository's, the runtime refuses to start, naming both places »
+- 59 ms — « a file on the integration branch that is not the project's settings: the kitchen refuses to open rather than fall back on the box »
+- 264 ms — « the file on the branch the line names comes first, then the file of the clone's working tree, then the line, then the CLAUDE.md line »
+- 108 ms — « a branch the clone does not know, or an unreadable file, is said — the resolution goes on, it never throws »
+
+### `test/reglages-projet/proposer.test.ts`
+
+- 451 ms — « a new calibration ceiling opens a PR towards the integration branch whose diff changes only the ceiling in the settings file, hands it to the pass, and returns its URL »
+- 450 ms — « the change applies to the settings of the freshly fetched base, not to what the station's clone last saw »
+- 169 ms — « a change carrying a machine path opens no PR, prepares no branch, and says which setting and why »
+- 137 ms — « a change carrying a machine-specific limit opens no PR, prepares no branch, and says which setting and why »
+- 131 ms — « a change carrying a value that is no calibration opens no PR, prepares no branch, and says which setting and why »
+- 130 ms — « a change that names nothing, or is no object, is refused before anything is prepared »
+- 316 ms — « a change the base already carries opens no PR and leaves no branch »
+- 334 ms — « without a settings file, the PR creates it from the branch the CLAUDE.md declares, with the new ceiling »
+- 295 ms — « removing a setting with null, and a default calibration changed role by role »
+- 149 ms — « GitHub refusing the PR is said, and nothing is handed to the pass »
+- 286 ms — « a change carrying a secret opens no PR, prepares no branch, and says which setting and why »
+
+### `test/reglages-projet/reglages.test.ts`
+
+- 124 ms — « an absolute machine path is refused, and the file is left untouched »
+- 149 ms — « what is not a project setting, or not a valid one, is refused and named »
+- 67 ms — « a machine-specific limit — cook count, workspace folder — is refused, and the file is left untouched »
+
+### `test/reglages-projet/seuils.test.ts`
+
+- 225 ms — « a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file »
+
+### `test/relance-de-ci.test.ts`
+
+- 569 ms — « la réponse de GitHub perdue après la création du ticket `fix` : il se retrouve par sa marque, pas ouvert deux fois »
+- 701 ms — « le ticket `fix` du test déjà ouvert : une autre livraison rouge sur le même test le reprend, sans en ouvrir un second »
+- 533 ms — « rouge de nouveau après la relance sur le même test : pas de seconde relance, ni renvoi, ni carte — le test part à la cuisine en ticket `fix`, et la livraison est jugée sans lui »
+- 846 ms — « rouge seulement sur un test qu'elle ne touche pas : les jobs en échec sont relancés, sans renvoi ni carte, puis la relance verte est mergée »
+- 715 ms — « un run qu'un verdict rouge a déjà jugé est relancé avant d'être rejugé : un renvoi ne juge jamais deux fois le même run de CI »
+- 305 ms — « rouge après la relance sur un autre test, qui n'est pas touché non plus : la carte ne dit pas « deux fois », le rouge est un verdict comme avant »
+- 305 ms — « rouge sur un test que la livraison touche : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- 270 ms — « rouge sur un journal qui ne se lit pas : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- 318 ms — « rouge sur un journal qui ne nomme aucun test : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- 309 ms — « rouge sur un test qui n'est pas dans le dépôt : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- 203 ms — « rouge sur un check qui n'est pas un job de GitHub Actions : aucune relance, la livraison est renvoyée comme avant »
+- 133 ms — « rouge sur une relance que GitHub refuse : aucune relance, la livraison est renvoyée comme avant »
+- 365 ms — « verte au rejeu : la livraison suit son chemin comme verte, et le ticket dit le test rejoué »
+- 340 ms — « rouge encore au rejeu : renvoyée à son cook avec le nom du test et son erreur »
+- 316 ms — « verte au rejeu sur un job dont le journal ne nommait aucun test : le commentaire nomme le job »
+- 283 ms — « seul rouge d'un job sans exécution verte sur la base : la livraison n'est pas bloquée, le rouge est dit en information »
+- 245 ms — « le même job, une fois la base verte sur lui : son rouge bloque comme avant »
+- 221 ms — « deux jobs rouges, la base verte sur l'un : seul le job jamais vert est excusé »
+
+### `test/relire.test.ts`
+
+- 80 ms — « sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable »
+- 158 ms — « le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne »
+
+### `test/renommage.test.ts`
+
+- 121 ms — « levée sur un échec, la pause laisse la PR du renommage à jamais sans merge, et une carte qui dit pourquoi — que le « non » du chef ôte »
+- 530 ms — « sur le « oui », l'outil part de la dernière tête de la base ; son arbre passe les gates et la pass avant le merge, mergé dans la même pause, qui est levée ensuite »
+- 336 ms — « gates rouges : rien n'est mergé, la pause est levée sans geste du chef, et la carte de la file dit pourquoi »
+- 222 ms — « conflit avec la base : rien n'est mergé, la pause est levée, et la carte dit le conflit »
+- 258 ms — « au-delà de sa limite, comptée sur l'horloge de la cuisine depuis le « oui », le renommage est abandonné : l'outil arrêté, rien de livré ni de mergé, la pause levée avant l'heure »
+
+### `test/renouvellement.test.ts`
+
+- 116 ms — « claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit »
+- 101 ms — « rien à renouveler : le passage le consigne sans bruit, et ne demande rien de plus à claude »
+- 113 ms — « claude échoue : la date et la nature de l'échec sont consignées, et le passage sort en code non nul »
+- 116 ms — « Anthropic refuse le renouvellement : claude vide ses identifiants, le passage dit qu'il faut /login »
+- 110 ms — « identifiants réécrits mais statut illisible : c'est un échec, pas un renouvellement »
+- 13 ms — « aucune connexion Max sous le compte : l'échec est consigné sans lancer claude »
+- 179 ms — « des identifiants plus vieux qu'un jeton ne vit, jamais réécrits : le renouvellement n'a pas eu lieu »
+- 295 ms — « un claude introuvable est un échec nommé »
+- 308 ms — « un échec garde le dernier renouvellement, et un passage réussi garde le dernier échec »
+- 274 ms — « le fichier d'identifiants n'est jamais lu : illisible, il ne change rien, et rien de ce qu'il porte ne sort »
+- 74 ms — « claude part dans un environnement vidé : aucune clé ni aucun jeton du compte ne lui passe »
+- 65 ms — « le passage n'écrit que le fichier d'état »
+
+### `test/renvois.test.ts`
+
+- 410 ms — « `measures --last` mesure les renvois des N derniers tickets servis, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un »
+- 258 ms — « `measures` sur un journal où aucun ticket n'a été servi le dit, sans planter »
+
+### `test/reparation.test.ts`
+
+- 851 ms — « le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart »
+- 824 ms — « rouge puis verte au rejeu : la pass rejoue seule, aucun ticket de réparation n'est ouvert, et la cuisine reprend le travail »
+- 471 ms — « rouge qui reste rouge après le rejeu : un ticket de réparation est ouvert, qui nomme ce qui échoue et la base — calibré, `fire`, et `prio:0` »
+- 461 ms — « tant que le premier ticket de réparation est en cours, aucun second n'est ouvert — ni quand la base bouge en restant rouge, ni au rejeu demandé par le chef »
+- 323 ms — « une réparation dont la base est verte sur la tête mergée lève le blocage sans geste du chef ni rouvrir le ticket »
+- 621 ms — « une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule »
+- 313 ms — « une réparation fermée sans aucun merge qui l'ait fermée garde « left the rail without being served » : la base reste rouge »
+- 1000 ms — « une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus »
+- 233 ms — « une création dont la réponse se perd n'ouvre pas une seconde issue : au tick suivant, la pass retrouve la sienne par sa marque »
+
+### `test/reprise-de-session.test.ts`
+
+- 299 ms — « au relevé des mesures, le ticket repris se distingue d'un ticket reparti de zéro, et ses perdus se comptent comme avant »
+- 943 ms — « le transcript du cook précédent rangé avant le renvoi : le renvoi part d'un cook neuf, sans erreur, et livre »
+- 547 ms — « sans répertoire de `claude` connu, ou sans session dans le flux du cook précédent, le renvoi part d'un cook neuf »
+- 563 ms — « un cook de renvoi repris qui échoue sans rien livrer : le suivant part d'un cook neuf — la reprise elle-même a pu buter »
+- 883 ms — « un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket »
+- 568 ms — « un renvoi repris livré une seconde fois en rouge : le second renvoi reprend la session bifurquée du premier »
+- 1043 ms — « un renvoi repris repasse exactement les gates et la relecture d'un renvoi reparti de zéro : rien n'est sauté, rien n'est assoupli »
+- 364 ms — « sous cloison, la session se retrouve dans le `~/.claude` du projet »
+
+### `test/reprise-du-renommage.test.ts`
+
+- 33 ms — « elle ne touchait aucun fichier déplacé : rien n'est porté, sa branche ne bouge pas »
+- 120 ms — « elle réécrit ce que le renommage réécrit : le conflit est dit, chemin compris, sa branche ne bouge pas, et rien ne reste »
+- 187 ms — « elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier »
+- 697 ms — « le renommage mergé, la pause est levée, et la cuisine reprend seule : les tickets retenus sont repris sur le nouvel arbre — zone et branche sur les nouveaux chemins —, celui qui ne se porte pas est nommé dans la file avec la raison, celui qui ne touchait rien est repris tel quel, et un ticket neuf est pris et mergé »
+
+### `test/reprise.test.ts`
+
+- 850 ms — « aucun cook en vol n'est interrompu pendant le remplacement : ni son processus, ni son worktree, ni sa branche — le rangement de la nouvelle vie passe sans y toucher »
+- 670 ms — « un second runtime démarré pendant qu'un cook du premier est en vol le liste en cours, sans le relancer ni le tuer »
+- 502 ms — « le cook repris finit son travail : sa branche est poussée, sa PR ouverte, il passe la pass et se merge — sans qu'aucun cook neuf ne parte »
+- 268 ms — « un cook qui a fini pendant que personne ne tenait le projet : sa fin est lue au démarrage, et sa livraison part en pass »
+- 457 ms — « un cook repris garde son bail : le temps du remplacement ne compte pas contre lui »
+
+### `test/requalification.test.ts`
+
+- 578 ms — « sans décision écrite, une vraie question est dérivée : carte typée dans TODO, le journal le dit, le label reste »
+- 374 ms — « la carte sort de TODO quand le chef retire le label »
+- 381 ms — « sans rien d'attendu, la cuisine reprend le ticket : le label s'en va, le journal dit « taken-back », l'issue est jugée »
+- 203 ms — « quand elle dit la décision attendue, rien ne change : retenue, sans carte, label gardé, écartée comme avant »
+- 186 ms — « une réponse illisible laisse l'issue retenue, sans la relire tant qu'elle ne change pas »
+
+### `test/reseau.test.ts`
+
+- 99 ms — « le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien »
+- 166 ms — « une déclaration illisible n'est pas une déclaration vide : la dernière liste lue tient, et c'est dit une fois »
+- 159 ms — « sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire »
+- 7 ms — « le socle laisse passer Anthropic et GitHub, sous-domaines compris, sur 443 et 80 — et rien d'autre »
+- 7 ms — « le dépôt déclare ses registres : un hôte par ligne, ses sous-domaines par `*.`, un autre port par `:port` »
+- 6 ms — « une ligne qui ouvrirait autre chose qu'un hôte n'ouvre rien, et se dit »
+- 5 ms — « le port de la porte n'a pas de défaut, et ne s'écrit pas à moitié »
+- 45 ms — « tout ce qui est lancé passe par la porte, sauf la boucle locale »
+
+### `test/sans-capacite.test.ts`
+
+- 367 ms — « il est renvoyé en réécriture avant TODO : redécoupé, il sort du rail, ses sous-tickets partent, le journal le dit et aucune carte n'est posée »
+- 547 ms — « la réécriture est impossible : le ticket attend en WAITING, 86, et son issue nomme l'accès à donner et la raison — aucune carte dans TODO (#1834) »
+- 479 ms — « une capacité qu'une station fournit garde le comportement actuel : le ticket part, sans renvoi ni carte »
+
+### `test/sauvegarde.test.ts`
+
+- 314 ms — « restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi »
+- 340 ms — « restaurer réclame une sauvegarde et un répertoire d'état »
+- 478 ms — « une réussite non journalisée et des flux manquants se disent, sans faire échouer la commande »
+- 162 ms — « l'instantané se prend pendant qu'une écriture est en cours : il porte ce qui était validé, et rien d'autre »
+- 175 ms — « une sauvegarde porte le journal, son manifeste et les flux bruts — ni le verrou, ni le dépôt, ni les worktrees »
+- 208 ms — « une sauvegarde réussie s'écrit au journal du projet, au nom de la sauvegarde — après l'instantané, qui ne la contient pas »
+- 182 ms — « les flux bruts ne pèsent qu'une fois : seul ce qui est neuf ou a changé est recopié, et rien n'est jamais retiré »
+- 169 ms — « la rotation ne garde que les dernières sauvegardes, et ne touche pas aux flux »
+- 96 ms — « une sauvegarde qui échoue ne laisse rien qui ait l'air d'une sauvegarde, et ne retire aucune des précédentes »
+- 127 ms — « les restes d'une sauvegarde interrompue sont retirés au passage suivant ; une sauvegarde en cours est laissée »
+- 221 ms — « elle pose le journal et les flux dans un répertoire neuf, sans verrou »
+- 82 ms — « elle n'écrase jamais un journal : un répertoire d'état qui en a un est refusé, intact »
+- 130 ms — « sans destination déclarée, la sauvegarde refuse : elle ne la devine pas »
+- 136 ms — « une rétention illisible est un refus, avant d'avoir rien écrit »
+- 239 ms — « un refus de la sauvegarde sort avec le code 2, un échec avec le code 1 »
+- 156 ms — « une réussite qui ne peut pas s'écrire au journal reste une sauvegarde faite : c'est dit à part, et la rotation a lieu »
+
+### `test/secrets-en-cuisine.test.ts`
+
+- 248 ms — « des gates qui citent un jeton : leur sortie gardée est masquée, le verdict le compte et l'issue le dit »
+- 314 ms — « le setup puis le cook reçoivent les secrets que le dépôt déclare, et rien d'autre de ce que la machine détient »
+- 747 ms — « les gates de la pass reçoivent les secrets du projet, le reviewer aucun, et ce qu'elles en disent est masqué »
+- 271 ms — « un cook qui dit ses secrets tout haut ne les révèle nulle part : flux brut, sortie d'erreur, journal, issue et PR sont masqués »
+- 126 ms — « un cook qui dit tout haut le jeton longue durée qu'il a reçu ne le publie nulle part : flux brut, sortie d'erreur, journal, compte-rendu, issue et PR sont masqués »
+- 327 ms — « un cook qui dit un jeton tout haut ne le publie nulle part, sans secret déclaré ni cloison : flux brut, sortie d'erreur, journal, issue et PR sont masqués, et l'issue le dit »
+- 115 ms — « un cook qui ne dit aucun jeton : rien n'est masqué, et rien ne le dit »
+- 166 ms — « un dépôt qui déclare sur une machine sans fichier de secrets : aucun cook, et l'issue nomme la variable à poser »
+- 1180 ms — « un jeton copié sous un autre nom sur un renvoi : rien n'est poussé, la branche revient à la livraison refusée, et le cook suivant livre »
+- 227 ms — « un projet sans déclaration ne reçoit rien du fichier de la machine »
+- 271 ms — « un reviewer qui cite un jeton ne le publie pas : sa relecture est masquée au journal et sur l'issue, qui le dit »
+- 1136 ms — « un secret commité sur un renvoi ne condamne pas le ticket : la branche revient à la livraison refusée, et le cook suivant livre »
+- 654 ms — « un secret qui manque : aucun setup, aucun cook, le ticket est 86 dix minutes et l'issue dit lequel — une fois »
+- 614 ms — « une livraison qui porte la valeur d'un secret n'est pas poussée : le cook est en échec, et l'issue nomme la variable »
+- 516 ms — « une livraison qui porte un fichier nommé comme les identifiants n'est pas poussée, sans qu'aucun secret soit déclaré »
+- 459 ms — « une livraison reprise après un redémarrage se raconte masquée, et le dit encore : la fin du cook est au journal »
+- 367 ms — « un reviewer qui cite ce que les gates ont laissé sur le disque ne publie pas le secret »
+- 289 ms — « un secret retiré avant les gates : elles ne sont pas jouées, rien n'est renvoyé au cook, et la pass remonte au chef »
+- 237 ms — « le contrôle de la base, sans ses secrets, n'est pas joué — et dit pourquoi »
+
+### `test/sortie-attente-capacite/station.test.ts`
+
+- 163 ms — « seul un ticket en WAITING faute de capacité porte `requiert` dans `facts` : un ticket qui demande ce qu'une station fournit n'en porte pas »
+- 216 ms — « `facts` dit ce que la carte en WAITING demande ; donné à `box/playwright`, le ticket revient sur le rail, part chez elle, et ne revient pas en WAITING »
+
+### `test/sorties-de-ticket-en-anglais.test.ts`
+
+- 235 ms — « `rail` : le rail de l'état d'exemple ne porte aucun mot français du glossaire, ni ses refus »
+
+### `test/sorties-du-chef-en-anglais.test.ts`
+
+- 1350 ms — « `arbiter` : l'état, weight, remove et les refus ne portent aucun mot français du glossaire »
+- 269 ms — « `manager` : on, off, return, backlog, upstream et leurs refus ne portent aucun mot français du glossaire »
+- 189 ms — « `grant` : enable, extend, revoke, l'état et les refus ne portent aucun mot français du glossaire »
+- 186 ms — « `station` : la vue, cooks, une décision, remove, help et leurs refus ne portent aucun mot français du glossaire »
+
+### `test/station-appairee.test.ts`
+
+- 327 ms — « le ticket qui demande `macos`, mis de côté faute de station, part sur le Mac dès que la principale le déclare ; celui qui demande `ios` reste de côté, et la box ne prend ni l'un ni l'autre »
+
+### `test/station-decisions.test.ts`
+
+- 448 ms — « en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré »
+- 286 ms — « chaque décision a son geste : la station montre la valeur posée, et le journal porte, au nom du chef, la décision, l'ancienne et la nouvelle valeur »
+- 213 ms — « reposer la valeur déjà posée n'écrit rien ; une valeur entourée d'espaces est posée sans eux »
+- 226 ms — « une valeur invalide est refusée avec ce qui était attendu : rien n'est écrit ni journalisé »
+- 71 ms — « retirée, une décision n'est plus décidée, et aucune variable d'environnement n'y supplée : le journal le porte au nom du chef »
+- 138 ms — « l'aide montre chaque geste en une ligne, avec ce qu'il attend — ni sudo, ni drop-in, ni éditeur »
+- 2 ms — « sans journal, le geste refuse et n'en crée pas »
+- 119 ms — « sans journal, une décision le crée au nom du projet que l'unité donne : le runtime d'un projet neuf n'a pas démarré, et ne démarre qu'avec elles »
+
+### `test/station-distante.test.ts`
+
+- 295 ms — « absente, elle ne retient que les tickets qui la demandent : ils sont 86 « station absente », sans cook ni panne, et les autres partent — dans le même lot »
+- 356 ms — « annoncée, elle reçoit le ticket dont elle fournit tout ce qu'il demande — jamais celui qui demande ce qu'elle ne fournit pas, même s'il attend devant »
+- 432 ms — « le plafond d'inactivité aussi : une station qui ne rapporte plus rien de son cook le perd »
+- 408 ms — « les plafonds des garde-fous sont ceux d'un cook de la box : le plafond de jetons l'arrête sur ce que sa station rapporte, sans ouvrir le disjoncteur, et chaque étape est au journal »
+- 464 ms — « sa livraison traverse la pass par le même chemin que celle d'un cook de la box : mêmes gates, même reviewer, même merge »
+- 440 ms — « sans commit sur l'origine, ce qu'elle a délimité est son livrable — et sans rien de délimité, elle n'a rien livré »
+- 523 ms — « son bail ne se renouvelle que sur une preuve de travail : sans preuve, ou sur la même empreinte, le renouvellement est refusé — et le bail tombe »
+- 408 ms — « une livraison que la pass renvoie est reprise par la station distante sur la même branche, avec ses findings »
+- 263 ms — « son cook reçoit les leçons provisoires du projet, comme un cook de la box, et son lancement dit lesquelles »
+- 218 ms — « seule une station que le projet déclare distante tire son travail : un nom inconnu ou une station de la box sont refusés, et rien n'est prêté »
+- 286 ms — « le plafond de jetons l'arrête de même, sur ce que sa station rapporte »
+- 390 ms — « le « stop » du chef arrête son cook et la retient, comme une station d'ici »
+- 191 ms — « une demande restée sans lecture trop longtemps n'attend plus personne : aucun ticket n'est prêté à une station qui n'écoute plus »
+- 247 ms — « un runtime qui redémarre tient ses cooks pour interrompus, comme ceux de la box : le ticket revient, et sa station l'apprend »
+
+### `test/station-en-anglais.test.ts`
+
+- 226 ms — « `station` : la vue de l'état d'exemple ne porte aucun mot français du glossaire »
+- 214 ms — « `station` : `cooks`, chaque décision, `remove` et `help` n'écrivent aucun mot français du glossaire »
+- 163 ms — « `station` : chaque refus, y compris ceux de `decisions.ts` et de `stations-declarees.ts`, est en anglais »
+
+### `test/station-ensemble.test.ts`
+
+- 498 ms — « les deux stations prennent les tickets du projet, chacune jusqu'à son plafond — et la seconde le dit dans `station` et `facts` »
+- 463 ms — « la box a encore de la place — elle monte par paliers — et la seconde prend quand même ; le ticket qu'elle tient, la box ne le prend pas »
+- 510 ms — « deux stations de plus réclament en même temps : chaque ticket part une fois, sur une seule station, et aucune ne dépasse son plafond »
+- 186 ms — « la connexion Max de la box tombe : la seconde station, qui a la sienne, continue de prendre les tickets »
+- 229 ms — « dans le même cas, un renfort (`distante+ordinaires`) ne reçoit rien : il attend que la box sature, ce qu'une box retenue ne fait pas »
+- 401 ms — « le chef arrête la cuisine sur l'une : l'autre continue de prendre — dans un sens, puis dans l'autre »
+- 351 ms — « la seconde station se perd en pleine cuisson : la box reprend son ticket et continue de prendre les nouveaux »
+- 329 ms — « le ticket que cuit la seconde est jugé par le manager et relu par la pass de la première : la seconde ne reçoit que son cook »
+
+### `test/station-ordinaires.test.ts`
+
+- 412 ms — « elle ne dépasse jamais la limite de cooks fixée pour le Mac : tickets ordinaires compris »
+- 448 ms — « réglage activé et bac à sable disponible : elle prend un ticket ordinaire, et son cook est lancé avec la configuration du bac à sable »
+- 564 ms — « réglage activé et bac à sable indisponible : elle ne prend aucun ticket ordinaire, et expose l'état et sa raison »
+- 470 ms — « réglage désactivé : elle ne prend que les tickets qui demandent une de ses capacités, comme avant — même avec le bac à sable sur son poste »
+- 272 ms — « box saturée — à son plafond —, Mac éligible avec de la place : un ticket ordinaire en attente part sur le Mac »
+- 340 ms — « box non saturée — elle a de la place, et monte par paliers — : un ticket ordinaire en attente reste sur la box, même quand le Mac le réclame »
+
+### `test/station-veille.test.ts`
+
+- 385 ms — « en pleine cuisson, le Mac se tait : le bail tombe, le ticket revient prêt, et ce qu'il avait poussé est conservé »
+- 942 ms — « la box reprend le ticket sur la branche conservée, et repart de ce que le Mac avait poussé — sans redémarrer de zéro »
+- 869 ms — « pendant la veille, aucun ticket n'est perdu ni doublé : tenu par le Mac, la box ne le prend pas ; perdu, un seul cook le reprend ; réveillé, le Mac n'en reçoit plus rien »
+- 345 ms — « réveillé, la box toujours saturée, le Mac reprend lui-même le travail conservé : même branche, tirée de l'origine »
+- 419 ms — « rien de poussé : rien n'est conservé, et le cook suivant repart de la base, comme un premier »
+
+### `test/station.test.ts`
+
+- 224 ms — « à un plafond d'un, la station ne fait tourner qu'un cook à la fois, même si le rail est plein »
+- 149 ms — « après une connexion expirée, la station repart au « resume » du chef »
+- 254 ms — « au plus deux tickets en entrée à la fois : le setup des suivants attend que les premiers soient partis »
+- 193 ms — « avec un jeton à son emplacement, le cook le reçoit dans CLAUDE_CODE_OAUTH_TOKEN — pas celui qu'un setup exporte »
+- 170 ms — « avec un plafond à trois, trois cooks tournent en même temps, chacun sur son ticket, son worktree et sa branche — jamais quatre »
+- 192 ms — « connexion Max expirée : le ticket revient en attente, la station le signale et ne prend plus rien »
+- 298 ms — « cuisine arrêtée : la station ne prend rien, et repart au « resume » »
+- 424 ms — « dans sa zone, dans un chemin commun, ou sans zone : rien n'est signalé »
+- 200 ms — « des gates de base qui n'ont pas pu se jouer ne sont pas un rouge : la station sert »
+- 292 ms — « deux tickets dont les zones se recouvrent ne partent jamais ensemble, même sous le plafond : le second attend, et le rail dit qui tient sa zone »
+- 1114 ms — « deux tickets qui butent sur le même hôte bloquent le projet : plus aucun setup n'est lancé, pour aucun ticket, et le journal n'en redit rien »
+- 312 ms — « GitHub injoignable au redémarrage : le compte-rendu repris s'écrit sans PR, et le commentaire le dit »
+- 1026 ms — « l'accès rétabli, l'essai suivant passe dans le même process, sans redémarrage : le cook part, l'échec et le blocage du projet tombent »
+- 310 ms — « l'annonce n'est réécrite au redémarrage que si elle a changé »
+- 1098 ms — « l'échec porte l'erreur de git, l'heure du prochain essai et le geste, et tient jusqu'à l'essai suivant ; refusé de nouveau, chaque essai repousse cette heure sans lancer de cook »
+- 466 ms — « la cause levée, le projet reprend seul : un seul ticket sonde, et dès que son cook part l'entrée du chef disparaît »
+- 177 ms — « la machine se lit même quand une autre borne retient la station : au plafond, une saturation se dit et se lève »
+- 181 ms — « la même cause sur deux tickets bloque le projet : une alerte avec la cause et le geste, et chaque ticket dit en clair ce qu'il attend »
+- 106 ms — « le calibrage du ticket est celui du cook : passé au binaire, et porté par le journal »
+- 489 ms — « le chef baisse le plafond pendant que des cooks tournent : aucun n'est arrêté, et la station n'en lance plus avant d'être revenue dessous ; zéro lève la limite »
+- 307 ms — « le cook commente son ticket : ce qu'il a fait, son calibrage, ce qu'il a consommé, sa PR »
+- 150 ms — « le cook ne reçoit pas l'état du runtime qui le fait tourner »
+- 66 ms — « le même reste de mémoire ne retient pas une machine de 16 Go : son seuil, dérivé de sa mémoire totale, est plus bas »
+- 444 ms — « le projet bloqué ne reprend qu'un ticket à la fois : les autres, à échéance au même tick, restent retenus tant que le premier sonde »
+- 214 ms — « le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket »
+- 366 ms — « le setup du projet passe avant le cook, avec le numéro du ticket, et le cook reçoit ce qu'il exporte »
+- 217 ms — « le setup n'en est pas : un setup en échec ne compte pas pour une cause de mise de côté »
+- 89 ms — « le setup tient le ticket : son bail repart quand le cook est lancé »
+- 349 ms — « tant que le quota n'est pas revenu la station ne prend rien ; à l'heure dite, elle reprend »
+- 157 ms — « un « stop » pendant un cook rend le ticket au rail, sans commentaire ni reprise »
+- 268 ms — « un commit renouvelle le bail ; un fichier que le projet ignore, non »
+- 366 ms — « un cook arrêté par un garde-fou sans avoir rien commité reste un échec »
+- 291 ms — « un cook fini, la station prend le ticket suivant »
+- 1656 ms — « un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté »
+- 269 ms — « un cook mort pendant que le runtime était arrêté — son relais tué avec lui : au redémarrage son ticket est en attente, et un cook neuf le reprend »
+- 410 ms — « un cook que le modèle refuse n'a pas échoué : le ticket repart, le chef le lit sur l'issue, et le disjoncteur n'en sait rien »
+- 265 ms — « un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass »
+- 171 ms — « un cook qui conclut sans commit et sans rien délimiter n'a pas livré : c'est un échec, pas un ticket sans diff dont le message serait le livrable »
+- 173 ms — « un cook qui conclut sans commit, avec un compte-rendu, a livré un ticket sans diff : il part en pass, sans rien pousser ni ouvrir de PR »
+- 318 ms — « un cook qui échoue : le ticket revient en attente, le journal et un commentaire disent pourquoi »
+- 217 ms — « un cook qui échoue en laissant du travail non commité : son worktree part quand même, ce qu'il avait écrit est commité sur sa branche locale, et rien n'est poussé »
+- 230 ms — « un cook qui écrit hors de la zone de son ticket est signalé au chef : au journal et sur l'issue, sans que rien ne s'arrête »
+- 405 ms — « un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass »
+- 566 ms — « un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue »
+- 315 ms — « un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent »
+- 321 ms — « un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté »
+- 349 ms — « un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail »
+- 535 ms — « un cook qui réécrit le fichier `.git` de son worktree ne fait rien lancer à la station : sa livraison échoue en le disant, rien n'est poussé, et son worktree est abandonné en disant ce qui part avec lui »
+- 112 ms — « un cook refusé dont le ticket a quitté la station pendant la cuisson : le commentaire ne prétend ni l'avoir rendu ni l'avoir remonté »
+- 493 ms — « un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, sans compter au disjoncteur »
+- 254 ms — « un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là »
+- 70 ms — « un jugement du manager ou une relecture en cours ne retient pas la prise : le plafond ne compte que les cooks de tickets »
+- 63 ms — « un quota épuisé qui ne dit pas quand il revient est retenté une heure plus tard »
+- 473 ms — « un rail de trente tickets ne part pas d'un bloc : la station compte d'avance les cooks qu'elle vient de lancer, et monte par paliers d'une minute »
+- 287 ms — « un runtime mort entre l'envoi en pass et le compte-rendu : au redémarrage la station ouvre la PR, écrit le compte-rendu et le dit sur le ticket »
+- 679 ms — « un setup bloqué le reste après un redémarrage : la nouvelle vie ne relance aucun setup tant que la base n'a pas bougé »
+- 717 ms — « un setup en échec sur un renvoi retire le worktree neuf, pas la branche : elle porte la livraison refusée, et le renvoi la reprend »
+- 248 ms — « un setup qui exporte une clé ne détourne pas le cook de la connexion Max : aucun jeton ne lui parvient »
+- 165 ms — « un setup réparé : le ticket revient en attente à l'heure dite, et son cook part »
+- 372 ms — « un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre »
+- 507 ms — « un ticket d'interface livré avec ses captures les montre sur sa PR et sur le ticket, avant et après côte à côte, et le journal les garde pour la carte »
+- 126 ms — « un ticket d'interface livré sans ses captures est dit incomplet, sur sa PR, sur le ticket et pour la carte »
+- 214 ms — « un ticket dont la fiche est illisible n'est jamais lancé : il passe 86 et un commentaire dit quoi corriger »
+- 187 ms — « un ticket non calibré ne retient pas le suivant »
+- 508 ms — « un ticket que le modèle refuse trois fois d'affilée n'est pas relancé sans fin : il est mis de côté un jour, 86, avec le motif — sans rien demander au chef (#1834) »
+- 552 ms — « un ticket qui échoue est repris par un cook neuf, et le disjoncteur borne la série »
+- 485 ms — « un ticket qui n'est pas d'interface ne dit rien de captures : ni sur sa PR, ni sur le ticket, ni au journal, ni pour la carte »
+- 172 ms — « un ticket qui quitte la station pendant son setup ne laisse pas de worktree : il est repris dans un neuf »
+- 217 ms — « un ticket rendu au rail pendant que son cook tourne n'est repris qu'une fois ce cook arrêté : jamais deux cooks sur un ticket »
+- 275 ms — « un ticket rendu pendant que son cook tourne ne fait pas une place : à un plafond d'un, jamais deux cooks vivants »
+- 684 ms — « un ticket rendu pendant que son cook tourne tient encore sa zone : un ticket qui la recouvre ne part pas tant que ce cook écrit »
+- 488 ms — « un ticket renvoyé par la pass repasse par le setup : le cook de renvoi reçoit lui aussi ce qu'il exporte »
+- 591 ms — « un worktree durablement illisible ne vaut pas progrès : passé un sursis, le bail tombe »
+- 173 ms — « un worktree impossible à préparer met le ticket 86 dix minutes, avec sa raison, sans lancer de cook »
+- 200 ms — « une autre cause se présente : le blocage tombe seul, et c'est elle qui compte »
+- 526 ms — « une base d'intégration rouge : la station ne lance plus aucun cook et le dit, sans toucher à ceux qui tournent ; elle repart seule au vert »
+- 305 ms — « une fiche modifiée pendant la cuisson est montrée même quand la livraison tient dans la zone de la prise »
+- 248 ms — « une fiche modifiée pendant la cuisson ne change pas le juge : la zone est celle de la prise, et le changement est montré »
+- 348 ms — « une fois sa fiche corrigée, le ticket refusé revient en attente tout seul et son cook part »
+- 224 ms — « une fois ses labels posés, le ticket refusé revient en attente tout seul et son cook part »
+- 279 ms — « une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte »
+- 374 ms — « une livraison déjà racontée n'est pas reprise au redémarrage »
+- 432 ms — « une machine de 32 Go à qui il reste 2 Go : la station ne prend plus rien, `status` dit la mémoire avec son seuil et d'où il vient, puis les deux ressources ; elle reprend seule quand la mémoire revient »
+- 603 ms — « une machine illisible ne retient rien : la station le dit une fois et sert »
+- 435 ms — « une machine qui n'en peut plus : la station ne prend plus rien et le dit une fois, sans toucher aux cooks en cours ; elle reprend quand la machine respire »
+- 360 ms — « une PR ouverte juste avant la mort du runtime est retrouvée au redémarrage : jamais une seconde »
+- 327 ms — « au branchement, la station annonce son nom, son moteur, ce qu'elle fournit, son plafond de cooks et les cœurs de sa machine »
+- 115 ms — « un ticket sans calibrage n'est jamais lancé : il passe 86 et un commentaire dit quoi poser »
+- 241 ms — « le « stop » du chef et le disjoncteur passent avant la base rouge : c'est eux que la station nomme »
+- 308 ms — « une machine devenue illisible pendant une saturation ne passe pas pour une machine qui respire : rien n'est levé, rien n'est pris »
+- 163 ms — « un cook qui a commité avant le refus du modèle a livré : son travail est récolté »
+- 185 ms — « un cook qui a commité et délimité son compte-rendu : seul ce qu'il a délimité est publié en clair, sur le ticket comme dans la PR »
+- 157 ms — « un cook qui a commité sans rien délimiter n'est pas en échec : son message est son compte-rendu, publié tel quel »
+- 176 ms — « un cook qui écrit des fichiers, oublie de les commiter et dit avoir fini n'a rien livré : ce n'est pas un ticket sans diff »
+- 144 ms — « un cook qui conclut sans rien commiter ni rien dire a échoué »
+- 152 ms — « une branche qui ne peut pas être poussée fait du cook un échec, pas une livraison »
+- 133 ms — « un cook qui a commité puis s'est arrêté en erreur a fini : son travail est récolté et part en pass »
+- 69 ms — « un travail récolté qui ne peut pas être poussé reste un échec »
+- 100 ms — « le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station »
+- 50 ms — « un quota épuisé après un commit reste un 86 : le ticket attend le retour du quota »
+- 119 ms — « quota épuisé : le ticket passe 86 jusqu'à l'heure de retour, sans échec ni commentaire »
+- 143 ms — « une machine sans session le dit dès le démarrage, sans lancer de cook »
+- 165 ms — « un ticket retiré du rail pendant que son cook tourne : le cook est arrêté »
+- 94 ms — « un cook qui finit alors que son ticket vient de quitter le rail : sa branche est poussée, aucune PR n'est ouverte, et le chef lit quoi en faire »
+- 131 ms — « un ticket resté pris par une vie précédente, sans cook, est rendu au démarrage »
+- 146 ms — « un setup en échec : aucun cook n'est lancé, le ticket est 86 dix minutes avec son motif, et rien n'est compté comme un échec de cook »
+- 151 ms — « un setup qui bute sur la porte : l'issue nomme l'hôte refusé pendant ce setup, et le geste qui l'ouvre »
+- 220 ms — « un setup qui échoue encore dix minutes plus tard, pour la même raison, bloque le projet : l'issue l'apprend, sans que l'échec y soit redit »
+- 248 ms — « la branche d'intégration bouge sous un setup bloqué — un hôte déclaré, un setup corrigé, mergés — : les setups reprennent d'eux-mêmes, sans attendre l'heure des tickets 86 »
+- 549 ms — « une base qui bouge sans lever la cause : un seul setup est retenté, et le projet est rebloqué sur la nouvelle base »
+- 244 ms — « un échec de setup dont la cause diffère du précédent ne bloque pas le projet : le ticket est 86 dix minutes, et retenté »
+- 227 ms — « un hôte refusé que l'échec précédent ne nommait pas fait une autre cause : le projet n'est pas bloqué »
+- 259 ms — « un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup »
+- 537 ms — « un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte »
+- 488 ms — « un worktree qui ne se range pas est gardé, et dit : au journal, à journald, dans `status` — et la station y revient à chaque tick »
+
+### `test/station/atelier.test.ts`
+
+- 159 ms — « un projet servi avant l'atelier y déménage : son clone et ses worktrees, tels quels — branche, commits et fichiers non commités compris —, et `git` y retrouve ses liens »
+- 150 ms — « déménagé, le worktree d'un cook d'une vie précédente se range sans geste du chef : ce qui y traînait est commité sur sa branche, puis il est retiré »
+- 321 ms — « sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé »
+
+### `test/station/cuisine-bac-a-sable.test.ts`
+
+- 324 ms — « sur un Mac qui a le bac à sable, la cuisine s'ouvre et dit que chaque `claude` y part »
+- 235 ms — « hors de macOS, la cuisine n'est pas locale : elle s'ouvre comme avant, sans bac à sable »
+
+### `test/station/cuisine-jeton.test.ts`
+
+- 273 ms — « la cuisine de la station sous un jeton : la date du jeton est écrite, le renouvellement n'est ni lu ni écrit »
+- 237 ms — « la cuisine de la station sans jeton : le renouvellement est lu comme avant »
+
+### `test/station/cuisine-rail.test.ts`
+
+- 350 ms — « la cuisine ouverte donne le rail de son journal — celui de `facts` — et n'en donne plus une fois arrêtée »
+
+### `test/station/cuisine-reglages-du-depot.test.ts`
+
+- 356 ms — « a fresh clone and a newly registered station: the project's branch, calibrations and ceiling, with nothing but the station entered on the box »
+- 325 ms — « the box's branch, calibrations and ceiling, when they differ from the repository's, are ignored »
+
+### `test/station/main.test.ts`
+
+- 410 ms — « BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent »
+- 408 ms — « un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658) »
+- 543 ms — « un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela »
+
+### `test/station/nom.test.ts`
+
+- 378 ms — « la commande de renommage change le nom retenu, et refuse un nom vide ou l'absence du répertoire »
+
+### `test/station/portes.test.ts`
+
+- 341 ms — « le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer »
+- 284 ms — « deux projets, deux listes : chacun ne joint que ce que son dépôt déclare — ce qu'un projet ouvre ne l'est pas pour l'autre —, et chaque refus va au journal de son projet »
+- 203 ms — « la porte de la station ne laisse passer qu'Anthropic et GitHub — rien de ce qu'un projet déclare »
+- 136 ms — « un projet ajouté à la configuration a sa porte ; retiré, il la perd — et le fichier des ports suit »
+- 54 ms — « relancées, les portes reprennent leurs ports — ceux que la bascule a repris compris ; un port pris, la porte en prend un autre et le dit »
+
+### `test/stations.test.ts`
+
+- 336 ms — « deux stations déclarées, `box/claude` et `box/playwright` : le runtime les connaît toutes deux, chacune avec ce qu'elle fournit et son plafond »
+- 215 ms — « le chef règle le plafond d'une station à chaud : il l'emporte sur celui qu'elle déclare, sans toucher à l'autre »
+- 391 ms — « le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend »
+- 418 ms — « le plafond que donnent les cœurs est tenu comme celui qu'on déclare : une station pleine laisse le ticket suivant à l'autre, puis il attend son tour »
+- 541 ms — « sans station, l'absence n'est écrite qu'une fois ; une station déclarée ensuite l'efface, et le ticket part »
+- 246 ms — « sans station, le chef peut toujours arrêter et reprendre la cuisine : rien ne plante, rien ne part »
+- 300 ms — « un projet qui ne déclare aucune station est accepté : aucun cook ne part, le ticket attend, et le journal comme `status` le disent »
+- 301 ms — « une place qui se libère dans une station est reprise par elle : son plafond borne à chaque prise »
+- 307 ms — « une station à plafond 1, seule : jamais deux cooks à la fois, même devant un rail plein »
+- 667 ms — « une station que le projet ne déclare plus est retirée au redémarrage : `status` ne la montre plus, et le cook qu'elle faisait tourner est repris — il finit comme il aurait fini, sans qu'elle ne prenne plus rien »
+- 233 ms — « une station retirée puis déclarée à nouveau s'annonce de nouveau »
+- 377 ms — « le quota est celui du compte : épuisé pour le cook d'une station, il retient toutes les stations du projet »
+- 101 ms — « à l'arrêt, plus aucune station ne retient personne »
+- 209 ms — « la connexion Max est celle de la machine : absente au démarrage, elle retient toutes les stations, et l'avertissement les nomme »
+
+### `test/status.test.ts`
+
+- 714 ms — « avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C »
+- 522 ms — « pendant qu'un cook tourne, la commande répond et montre le runtime, le rail, le cook et les derniers événements »
+- 296 ms — « avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace »
+- 235 ms — « sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi »
+
+### `test/superviseur.test.ts`
+
+- 463 ms — « le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux »
+- 452 ms — « sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois »
+- 443 ms — « ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort »
+- 875 ms — « un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté »
+- 447 ms — « une sortie sans saut de ligne n'attend pas la fin du cook en mémoire : passé la borne, elle est écrite, masquée »
+- 426 ms — « un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne »
+- 411 ms — « ce qu'un cook a consommé se mesure pendant qu'il tourne »
+- 403 ms — « le flux brut du cook est gardé tel quel dans son fichier »
+- 398 ms — « ce que le cook écrit sur sa sortie d'erreur est gardé à côté du flux »
+- 388 ms — « un cook qui échoue rend son code de sortie »
+- 382 ms — « un message livré en plusieurs lignes compte pour un tour, et son usage une seule fois »
+- 358 ms — « les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache »
+- 353 ms — « un cook qui dépasse son plafond de tokens est arrêté, avec le motif »
+- 346 ms — « un cook qui dépasse son plafond de durée est arrêté, même s'il produit »
+- 328 ms — « un cook muet est détecté comme inactif et arrêté »
+- 312 ms — « la commande d'arrêt arrête le cook, une seule fois »
+- 362 ms — « un cook sourd à SIGTERM est tué après le délai de grâce »
+- 315 ms — « un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook »
+- 286 ms — « le motif est remis avant que le signal parte : le cook vit encore quand on le note »
+- 236 ms — « un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles »
+- 214 ms — « une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook »
+- 286 ms — « un motif qui ne peut pas être noté n'empêche pas l'arrêt »
+- 192 ms — « un binaire introuvable est une fin en erreur, pas un cook qui pend »
+- 67 ms — « un cook qui produit n'est pas pris pour un inactif »
+
+### `test/tableau/budget/cout.test.ts`
+
+- 423 ms — « N rafraîchissements dont M changent le contenu, sur une heure : `status` dit exactement les appels faits par le client »
+
+### `test/tableau/gestes/retenue.test.ts`
+
+- 170 ms — « la box retient ses appels (pause, quota au-dessus de la réserve) : `choose` posté sous le tableau se joue quand même, et la box répond dessous »
+
+### `test/tableau/publication/publier.test.ts`
+
+- 201 ms — « sans tableau, le rafraîchissement crée l'issue « Kitchen board » et l'épingle ; le suivant n'en crée pas de seconde, ni un autre process après lui »
+- 109 ms — « un corps inchangé ne fait aucun appel d'écriture — même quand l'heure avance et que ses durées changent »
+
+### `test/tableau/rendu/tableau.test.ts`
+
+- 256 ms — « le tableau montre chaque ligne de la file avec son geste, telle que `status` l'écrit dans son bloc `awaiting` »
+
+### `test/telephone/gestes.test.ts`
+
+- 674 ms — « « merge » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase »
+- 804 ms — « « remove » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase »
+- 578 ms — « après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine »
+- 498 ms — « un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change »
+- 588 ms — « un geste qui ne rend pas de verdict — sa commande sort sur un autre code — rend 502 et une phrase, sans rien changer »
+
+### `test/telephone/projets.test.ts`
+
+- 174 ms — « la file d'un projet servie au téléphone est celle que l'app de l'ordinateur lit au même instant, sur le même état — avant et après que le rail bouge »
+
+### `test/telephone/second.test.ts`
+
+- 211 ms — « le téléphone écrit au second d'un projet et lit sa réponse : elle s'ajoute à la conversation du desktop, que le desktop lit à sa source »
+
+### `test/telephone/tailnet.test.ts`
+
+- 136 ms — « un téléphone qui ne connaît que l'adresse du tailnet — celle du QR — s'y appaire et lit les stations, sans jamais joindre le guichet en direct »
+
+### `test/telephones.test.ts`
+
+- 38 ms — « qui n'a pas le droit du geste est refusé, pour chacune des quatre, et rien n'est tiré, lu ni révoqué »
+
+### `test/test-bloque.test.ts`
+
+- 737 ms — « un test qui expire en tenant une poignée est rouge, nommé, et son fichier s'arrête »
+
+### `test/tests-rejoues.test.ts`
+
+- 236 ms — « `measures` montre les tests verts seulement au rejeu, après les ratages »
+
+### `test/tests-touches.test.ts`
+
+- 151 ms — « sans souche pour lire ce qu'il était — ni --souche, ni branche d'intégration —, ou une souche qui ne l'a pas, le doute joue tout »
+- 302 ms — « à la station, le script qui joue la suite changé : sa zone joue ses tests proches, où qu'ils soient »
+- 397 ms — « à la station, une dépendance, un lockfile, un tsconfig ou le setup changés rejouent toujours tout »
+- 98 ms — « une commande ajoutée touche les tests qui lisent les scripts, et eux seuls »
+- 76 ms — « une commande ajoutée touche le test qui lance un code du produit lisant les scripts »
+- 89 ms — « un package.json ajouté, tout se joue — même s'il ne porte que des scripts »
+
+### `test/tirer-par-github/cuisiner.test.ts`
+
+- 521 ms — « elle réclame, la réclamation arrive au journal de la principale, qui lui prête le ticket ; elle en lance le cook, pousse sa branche et la rend — la pass de la principale la juge et la sert »
+- 137 ms — « le cook d'une mission, sur un vrai dépôt : son worktree part de la base, le cook y commite, sa branche est poussée sur l'origine et rendue avec son compte-rendu — puis le worktree est rangé »
+
+### `test/tirer-par-github/station-par-github.test.ts`
+
+- 663 ms — « sans ssh vers la box, elle rend son travail par sa branche et sa PR : la pass de la principale la juge comme celle de tout cook »
+- 589 ms — « sans ssh vers la box, elle obtient un ticket et son bail : sa demande posée dans son gist, la réponse lue au Kitchen board »
+- 593 ms — « deux stations réclament le même ticket au même instant : une seule l'obtient, l'autre n'en reçoit aucun »
+- 606 ms — « la station renouvelle son bail par GitHub : son échéance avance au Kitchen board — sans preuve de progrès, elle n'avance pas »
+- 604 ms — « une station qui se tait perd son bail sans rien faire : il tombe au Kitchen board, la principale reprend le ticket — jamais tenu par deux stations »
+
+### `test/urgence.test.ts`
+
+- 159 ms — « une livraison à merger à la main qui tient toutes les zones : l'urgence porte la cause, la décision, son geste et le début de l'arrêt total — et `status` le dit en première ligne »
+
+### `test/valeur-tests/historique/historique.test.ts`
+
+- 251 ms — « le rapport du vrai lanceur, un test qui échoue et un qui réussit : les deux sont inscrits, le dernier échec est la date du tour pour l'un, null pour l'autre »
+
+### `test/valeurs-a-donner.test.ts`
+
+- 757 ms — « le runtime lancé sur une machine sans configuration refuse de démarrer en les disant toutes, et sort en 2 »
+
+### `test/verdict.test.ts`
+
+- 892 ms — « aucune station déclarée : la vérification est rouge, d'un seul manque, qui nomme l'étape « stations » »
+
+### `test/verrou-des-gates.test.ts`
+
+- 1314 ms — « le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu »
+- 563 ms — « un passage tué en cours rend son tour au suivant »
+
+### `test/zone-du-86.test.ts`
+
+- 305 ms — « la station lance le cook du ticket qui attendait la zone d'un ticket remonté ; relancé, le remonté ne cuit pas à côté »
