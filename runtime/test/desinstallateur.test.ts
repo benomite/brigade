@@ -3,15 +3,18 @@
 // rien modifier, `--confirmer <projet>` le retire — et le journal du projet
 // survit, sauf `--supprimer-le-journal`. Ni root, ni systemd, ni GitHub ici :
 // la box d'essai (`aides/box.ts`), où chaque projet est d'abord installé par
-// le geste lui-même.
+// le geste lui-même. Le pas que le geste joue sous le compte du service s'y
+// joue dans le process du test ; dans un process à lui, une fois (« un runtime
+// qui tourne est arrêté d'abord, puis son clone retiré »).
 import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { pathToFileURL } from "node:url";
 import { Sortie } from "../src/appel.ts";
 import { lireRetrait, type Plan } from "../src/desinstallateur.ts";
 import { principal as sousLeCompte } from "../src/desinstaller-sous-le-compte.ts";
-import { CODES, Refus } from "../src/installateur.ts";
+import { CODES, Refus, type Box } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { boite, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./aides/box.ts";
@@ -21,9 +24,35 @@ import { posixOnly } from "./support/plateforme.ts";
 const TIENT_VERROU = join(import.meta.dirname, "aides/tient-verrou.ts");
 const HISTOIRE = "l'histoire de la cuisine\n";
 
+// Le pas joué sous le compte du service, dans le process du test : le script
+// que le geste désigne, sur ses arguments et son environnement. Le compte est
+// celui qui joue la suite : le process à lui ne changerait pas d'uid.
+const sousLeCompteEnProcess: NonNullable<Box["pasSousLeCompte"]> = async (script, args, env) => {
+  const { principal } = (await import(pathToFileURL(script).href)) as { principal: typeof sousLeCompte };
+  const [dit, redit]: [string[], string[]] = [[], []];
+  const rendu = (code: number) => ({ code, stdout: dit.join("\n"), stderr: redit.join("\n") });
+  try {
+    principal({ args, env, dire: (ligne) => dit.push(ligne), redire: (ligne) => redit.push(ligne) });
+    return rendu(0);
+  } catch (erreur) {
+    if (erreur instanceof Sortie) return rendu(erreur.code);
+    redit.push(erreur instanceof Error ? erreur.message : String(erreur));
+    return rendu(1);
+  }
+};
+// Le pas joué dans un process à lui, sous l'uid du compte, comme sur la box.
+const SON_PROCESS = { pasSousLeCompte: undefined } satisfies Partial<Box>;
+
+// Une box d'essai dont le geste joue le pas sous le compte dans le process du
+// test, sauf à lui en désigner un autre.
+function boiteEnProcess(t: TestContext): Boite {
+  const b = boite(t);
+  return { ...b, geste: (args, options = {}) => b.geste(args, { ...options, box: { pasSousLeCompte: sousLeCompteEnProcess, ...options.box } }) };
+}
+
 // Une box où ces projets viennent d'être installés par le geste.
 async function installee(t: TestContext, ...projets: string[]): Promise<Boite> {
-  const b = boite(t);
+  const b = boiteEnProcess(t);
   for (const projet of projets.length === 0 ? ["calculus"] : projets) {
     b.pousser(`acme/${projet}`);
     const rendu = await b.geste(b.demande(projet));
@@ -288,7 +317,8 @@ describe("désinstaller un projet", () => {
     b.demarrer("brigade@calculus.service");
     const rang = b.appels().length;
 
-    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
+    // Le pas sous le compte, dans un process à lui : il rend au geste ce qu'il a retiré.
+    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { box: SON_PROCESS });
 
     assert.equal(rendu.code, 0, rendu.erreur);
     assert.deepEqual(gestes(b, rang), ["disable --now brigade@calculus.service", "disable --now brigade-sauvegarde@calculus.timer", "disable --now brigade-porte@calculus.service", "daemon-reload"]);
@@ -319,7 +349,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     for (const forme of FORMES) {
       await refuse(b, ["uninstall", "fantome", ...forme], "projet-inconnu", /le projet « fantome » n'est pas connu de cette box : ni drop-in sous .*, ni état sous .* — rien n'est fait, rien n'a changé\. Elle porte : boutique, calculus$/, CODES.inconnu);
     }
-    const vide = boite(t);
+    const vide = boiteEnProcess(t);
     await refuse(vide, ["uninstall", "calculus", "--plan"], "projet-inconnu", /Elle ne porte aucun projet$/, CODES.inconnu);
   });
 
@@ -412,7 +442,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", () 
     writeFileSync(getent, `#!/bin/sh\necho "${COMPTE}:x:${(process.getuid?.() ?? 0) + 1}:${(process.getgid?.() ?? 0) + 1}::${b.home}:/bin/sh"\n`, { mode: 0o755 });
     const avant = b.photo();
     for (const forme of [["--plan"], ["--confirmer", "calculus"], ["--confirmer", "calculus", "--supprimer-le-journal"]]) {
-      const rendu = await b.geste(["uninstall", "calculus", ...forme], { box: { getent } });
+      const rendu = await b.geste(["uninstall", "calculus", ...forme], { box: { ...SON_PROCESS, getent } });
       assert.equal(rendu.code, CODES.boxPasPrete, rendu.erreur);
       assert.match(rendu.erreur, /la désinstallation du runtime, lancée sous le compte « cuisine », n'a pas répondu \(elle rend null\) : spawn E(PERM|INVAL) — rien n'est fait$/);
     }
