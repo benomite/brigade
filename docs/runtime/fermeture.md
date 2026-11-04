@@ -318,8 +318,8 @@ at its entry (#2218): it reads the log, which is then stale. The closer runs on 
 `runtime/src/closer-github-passe/`), in every project's kitchen of the station, as a ticket:
 
 - **When**: the same trigger, read from GitHub and the clone. At most every 10 minutes (`ECART_MS`), at
-  a tick, a project whose closer is set is checked: **20 merges** on the integration branch (its merge
-  commits, the origin fetched) since the last closing issue, **none within 24 hours**, and none still
+  a tick, a project whose closer is set is checked: **20 merges** on the integration branch (its
+  first-parent commits, the origin fetched: a PR merged by squash or rebase counts too) since the last closing issue, **none within 24 hours**, and none still
   open. No drift threshold triggers it there, and a project with no closer set gets no issue.
 - **What**: the observation on the base, as above, and **one closing issue** — `fire` and the closer's
   calibration (`model:`, `effort:`), the drift of the latest merges (added:removed per window), the
@@ -332,8 +332,8 @@ at its entry (#2218): it reads the log, which is then stale. The closer runs on 
   others; its zone keeps the other tickets off its files; the pass reviews and merges its PR.
 - **The drift**: the log no longer sees a merge, so the `drift` line of `status` would freeze on the day
   the switch was turned on. At the same check, closer set or not, the pass reads the drift instead
-  (`derive-github.ts`): the merges since the last closing issue (the merge commits of the base, each
-  carrying its ticket by its `cook/<n>-` branch) and, for the last 10, what the GitHub-only cooks of the
+  (`derive-github.ts`): the merges since the last closing issue (the first-parent commits of the base, a
+  merge commit carrying its ticket by its `cook/<n>-` branch) and, for the last 10, what the GitHub-only cooks of the
   station spent on each ticket — read from their streams (`<state>/github-seul/<n>-github.flux.jsonl`),
   counted as the supervisor counts, a launch whose result is an error being lost. Against the chef's
   thresholds, with the same gauges (`merges`, `tokens_ticket`, `tokens_perdus`), it writes what is

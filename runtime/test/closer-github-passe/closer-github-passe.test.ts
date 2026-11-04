@@ -19,7 +19,7 @@ import { zoneDuCorps } from "../../src/brigade-github.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { cuisineFermee } from "../closing/kitchen.ts";
-import { BASE, git, jusqua, repertoireTemporaire } from "../outils.ts";
+import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "../outils.ts";
 
 const MAINTENANT = new Date("2026-10-08T10:00:00.000Z");
 const CALIBRE = { calibration: { model: "sonnet", effort: "low" }, removedLines: 20 };
@@ -260,6 +260,23 @@ describe("every project of the station", () => {
     for (const { gh } of projets) await jusqua(() => gh.creees.length === 1);
     // Nothing of the closer in either log: only the runtime's own facts.
     for (const { runtime } of projets) assert.deepEqual([...new Set(runtime.journal.tout().map(({ type }) => type))].filter((type) => !type.startsWith("runtime.")), []);
+  });
+});
+
+describe("the merges the clone says", () => {
+  test("every first-parent commit of the base is a merge, a squash too; only a merge commit names its ticket", async (t) => {
+    const { clone } = depotGit(t);
+    git(clone, "checkout", "-q", "-b", "cook/42-github");
+    commiter(clone, "livraison.txt");
+    git(clone, "checkout", "-q", BASE);
+    git(clone, "merge", "-q", "--no-ff", "-m", "Merge pull request #7 from acme/cook/42-github", "cook/42-github");
+    commiter(clone, "squash.txt");
+    git(clone, "push", "-q", "origin", BASE);
+    git(clone, "update-ref", `refs/remotes/origin/${BASE}`, `${BASE}~2`);
+    const lus = await lectureDuClone({ depot: { rapatrier: async () => void git(clone, "fetch", "-q", "origin") }, clone, base: BASE, env: ENV_GIT }).merges();
+    // The squash, the merge, then the base's first commit: the delivery's own commit is not a first parent.
+    assert.deepEqual(lus.map(({ ticket }) => ticket), [null, 42, null]);
+    assert.ok(lus.every(({ at }) => !Number.isNaN(Date.parse(at))));
   });
 });
 

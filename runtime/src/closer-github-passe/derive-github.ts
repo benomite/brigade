@@ -4,7 +4,7 @@
 // (`etat.ts`); with the switch on, that log is stale and its gauges freeze on
 // the day the switch was turned on. The closer's pass takes the drift over: at
 // its cadence, it builds the merged deliveries from what the clone says (the
-// merge commits of the integration branch, one per ticket) and from what the
+// first-parent commits of the integration branch, a merge commit naming its ticket) and from what the
 // GitHub-only cooks of this station said (their streams, kept by the station
 // under `<state>/github-seul/`), measures them against the chef's thresholds
 // with the same gauges, and leaves the result where `status` reads it.

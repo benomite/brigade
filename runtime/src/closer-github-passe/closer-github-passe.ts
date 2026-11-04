@@ -55,7 +55,8 @@ export type GitHubDuCloser = {
 
 // What the pass reads of the project's clone, the base fetched from the origin.
 export type LectureDuClone = {
-  // The latest merges of the integration branch, the most recent first.
+  // The latest merges of the integration branch, the most recent first: its
+  // first-parent commits, whatever the merge method.
   merges(): Promise<MergeDuClone[]>;
   // The observation: the latest merges and the files of the base.
   observer(): Promise<Pick<Depot, "sha" | "merges" | "textes">>;
@@ -251,8 +252,10 @@ export function lectureDuClone(options: { depot: Pick<DepotDeStation, "rapatrier
   return {
     merges: async () => {
       await options.depot.rapatrier();
-      // The GitHub-only stations merge with a merge commit (`merge_method=merge`, `github.ts`): one per delivery.
-      const { stdout } = await promisify(execFile)("git", ["log", "--first-parent", "--merges", "-n", "100", "--format=%cI%x09%s", `origin/${options.base}`], { cwd: options.clone, env: { ...env, GIT_OPTIONAL_LOCKS: "0" }, encoding: "utf8", timeout: 60_000 });
+      // One delivery per commit of the branch's first parents: the GitHub-only stations merge with a merge commit
+      // (`merge_method=merge`, `github.ts`), but a PR merged by squash or rebase by hand lands as plain commits, and
+      // counts too. Only a merge commit names its ticket, by its `cook/<n>-` branch.
+      const { stdout } = await promisify(execFile)("git", ["log", "--first-parent", "-n", "100", "--format=%cI%x09%s", `origin/${options.base}`], { cwd: options.clone, env: { ...env, GIT_OPTIONAL_LOCKS: "0" }, encoding: "utf8", timeout: 60_000 });
       return String(stdout)
         .split("\n")
         .filter((ligne) => ligne !== "")
