@@ -107,6 +107,9 @@ export function ticketRemis(ticket: { number: number; title: string; body: strin
   ].join("\n");
 }
 
+// Comment un cook joue ses tests pendant qu'il travaille, et ses gates à la fin.
+export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière, qui prend des minutes sur une station chargée. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
+
 // Le lanceur des gates que la station a posé pour le cook
 // (`gates-du-cook.ts`) : nommé, la consigne lui dit de jouer les gates par lui.
 // Absent — le projet n'a pas de gates, ou une station distante —, rien.
@@ -152,7 +155,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     ...(mission.joint === undefined ? [] : [mission.joint, ""]),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
-    "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis ?? mission.joint)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
@@ -178,7 +181,7 @@ export function consigneDeSuite(mission: { ticket: number; titre: string; depot:
     ...blocDuSetup(mission.setup),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)} ; puis ce qui est déjà fait : \`git log origin/${base}..HEAD\` et \`git diff origin/${base}...HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs.",
-    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche.`,
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
