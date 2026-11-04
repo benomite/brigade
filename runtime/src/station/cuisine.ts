@@ -38,6 +38,8 @@ import { brancherManager, configManager } from "../manager.ts";
 import { brancherCadence } from "../produit/cadence/brancher.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
+import { brancherRetenue } from "../retenue/brancher.ts";
+import { suivreLeTour } from "../retenue/tour.ts";
 import { nomDeclare } from "./nom.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import { lireRail } from "../projections/rail.ts";
@@ -200,6 +202,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // c'est la station GitHub seul qui prend, cuisine, relit et merge, sous
     // l'identité de la pass et au nom de la station déclarée sur cette machine.
     const ici = stations.find((declaree) => !declaree.distante);
+    // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
+    const suiviDuTour = suivreLeTour();
     const ouvert = brancherBrigadeGithub({
       reglages: duDepot.reglages,
       ancien: () => ({ stations, decisions }),
@@ -226,6 +230,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               reviewer: reviewer.calibrage,
               flux: join(repertoireEtat, "github-seul"),
               avertir: dire,
+              observer: suiviDuTour.envelopper,
             });
         if ("refus" in ouverte) stationRefusee = true;
         return ouverte;
@@ -266,7 +271,11 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const dirige = brancherCadence(manage, { perimee, github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison, bacASable, avertir: dire });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }), avertir: dire, perimee }), session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
+    // La retenue de la cuisine : rien de servi depuis 30 min alors que des
+    // tickets attendent, sa cause et son geste entrent une fois dans la file
+    // du chef, et en sortent quand la cuisine sert de nouveau.
+    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null, dire });
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }), avertir: dire, perimee }), session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     // Le tableau de la cuisine, publié dans le dépôt du projet comme le
     // runtime d'un seul projet le publiait (`main.ts`) : chaque cuisine le
