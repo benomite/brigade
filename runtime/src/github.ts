@@ -113,6 +113,8 @@ export type GitHub = {
   prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
+  // Une requête GraphQL de lecture, ses variables en texte : son `data`, ou une erreur.
+  lireGraphql?(requete: string, variables: Record<string, string | number>): Promise<unknown>;
   // Les checks des derniers commits de la branche d'intégration, mis bout à
   // bout : de quoi dire quel job y a déjà été vu vert.
   ciDeLaBase(branche: string): Promise<Check[]>;
@@ -278,7 +280,7 @@ type CheckRun = { name: string; status: string; conclusion: string | null; html_
 type Statut = { context: string; state: string; target_url: string | null };
 
 // Les conclusions d'un job qui ne sont pas un échec.
-const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
+export const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
 
 function lire(brute: IssueBrute): Issue {
   return {
@@ -561,6 +563,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           return { number, branche: head.ref, fichiers };
         }),
       );
+    },
+    async lireGraphql(requete, variables) {
+      const args = ["graphql", "-f", `query=${requete}`, ...Object.entries(variables).flatMap(([nom, valeur]) => (typeof valeur === "number" ? ["-F", `${nom}=${valeur}`] : ["-f", `${nom}=${valeur}`]))];
+      const reponse = await appeler(args);
+      if (reponse.statut >= 400) throw new Error(`gh api graphql : HTTP ${reponse.statut}`);
+      const lu = JSON.parse(reponse.corps) as { data?: unknown; errors?: Array<{ message?: string }> };
+      if (lu.errors !== undefined && lu.errors.length > 0) throw new Error(`gh api graphql : ${lu.errors.map((e) => e.message ?? "?").join("; ")}`);
+      return lu.data;
     },
     async ci(sha) {
       // Une CI finie ne change plus : elle n'est relue que tant qu'un check tourne (#2298).
