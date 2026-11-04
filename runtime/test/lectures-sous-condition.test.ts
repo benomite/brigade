@@ -131,11 +131,11 @@ test("avant : sans réponse 304, chaque tick de quatre projets compte toutes ses
 });
 
 // Une heure de ticks, sans rien de changé : chaque tick après le premier ne
-// compte rien, quel que soit son rang. Trois ticks suffisent à le voir — le
-// premier, un au milieu de l'heure, le dernier à sa fin —, et l'heure de
-// soixante ticks se compte de là : chaque tick lu par la doublure de `gh` en
-// lance quarante-six, soixante en lançaient 2 760 pour ne rien dire de plus.
-const INSTANTS_MIN = [0, 30, 59];
+// compte rien, quel que soit son rang. Deux ticks suffisent à le voir — le
+// premier, et le dernier de l'heure —, et l'heure de soixante ticks se compte
+// de là : chaque tick lu par la doublure de `gh` en lance quarante-six,
+// soixante en lançaient 2 760 pour ne rien dire de plus.
+const INSTANTS_MIN = [0, 59];
 
 test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", async (t) => {
   const { gh, racine, maintenant, compterUnTick } = uneStation(t, true);
