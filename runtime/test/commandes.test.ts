@@ -78,6 +78,13 @@ const sousSonNom = (nom: string) => {
   refusSousSonNom.set(nom, fin);
   return fin;
 };
+// De même sous un ancien nom : le test de cet ancien nom et celui de `npm` lisent la même fin.
+const refusSousLAncien = new Map<string, ReturnType<typeof jouer>>();
+const sousLAncien = (ancien: string, nom: string) => {
+  const fin = refusSousLAncien.get(ancien) ?? script(ancien, refusDe(nom).args);
+  refusSousLAncien.set(ancien, fin);
+  return fin;
+};
 
 // Chaque test lance ses commandes sans état ni dépôt, et n'écrit rien : ils se jouent de front.
 describe("les commandes du runtime", { concurrency: 3 }, () => {
@@ -105,7 +112,7 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
 
   for (const { nom, ancien = "" } of RENOMMEES) {
     test(`un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris — \`${ancien}\``, async () => {
-      const [avant, apres] = await Promise.all([script(ancien, refusDe(nom).args), sousSonNom(nom)]);
+      const [avant, apres] = await Promise.all([sousLAncien(ancien, nom), sousSonNom(nom)]);
       const [annonce, ...reste] = avant.erreur.split("\n");
       assert.equal(annonce, `brigade: “${ancien}” is now “${nom}” — the old name still works until ${FIN_DES_ANCIENS_NOMS}, then stops (CHANGELOG.md)`, ancien);
       // Le même refus que sous le nouveau nom, au mot près, et le même code.
@@ -118,9 +125,12 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
 
   test("tapé par `npm`, un ancien nom rend ce que rend le fichier de son script lancé sous ce nom, code compris", async () => {
     const { nom, ancien = "" } = RENOMMEES[0] ?? { nom: "" };
-    const [parNpm, parLeFichier] = await Promise.all([npm(ancien, refusDe(nom).args), script(ancien, refusDe(nom).args)]);
+    const [parNpm, parLeFichier] = await Promise.all([npm(ancien, refusDe(nom).args), sousLAncien(ancien, nom)]);
     assert.deepEqual(parNpm, parLeFichier);
     assert.match(parNpm.erreur, new RegExp(`“${ancien}” is now “${nom}”`));
+    // `npm` ne donne au script que le nom tapé : ce qu'il fait de celui-ci, il le fait de chaque ancien nom dont le
+    // script est le même, au caractère près — c'est la table de package.json qui le dit, sans relancer `npm`.
+    for (const { ancien: autre = "" } of RENOMMEES) assert.equal(scripts[autre], scripts[ancien], autre);
   });
 
   test("un ancien nom lancé sans `npm` ne devine rien : il le dit, en 2", async () => {
@@ -133,6 +143,17 @@ describe("les commandes du runtime", { concurrency: 3 }, () => {
   const placer = (rang: number, mot: string) => (mot.startsWith("--") ? ["inconnue", mot] : rang === 1 ? ["une-station", mot] : [mot]);
 
   const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
+
+  test("chaque commande dont le fichier joue une fonction (`enProcess`) a la sienne dans FONCTIONS, et c'est celle que son fichier exporte", async () => {
+    const sources = new Map(COMMANDES.map(({ nom }) => [nom, readFileSync(join(RUNTIME, fichierDe(nom)), "utf8")]));
+    const enFonction = [...sources].filter(([, source]) => /\benProcess\(/.test(source)).map(([nom]) => nom);
+    assert.deepEqual(Object.keys(FONCTIONS).sort(), enFonction.sort());
+    // Le fichier qui exporte sa fonction la garde derrière `import.meta.main` : l'importer ne la joue pas.
+    for (const nom of enFonction.filter((nom) => /^export (async )?function principal\b/m.test(sources.get(nom) ?? ""))) {
+      const module = (await import(join(RUNTIME, fichierDe(nom)))) as { principal: Commande };
+      assert.equal(await FONCTIONS[nom]?.(), module.principal, nom);
+    }
+  });
   const essais = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
   test("chaque commande remplace ses anciens mots par les siens : il y en a au moins vingt", () => {
     assert.ok(essais.length >= 20);
