@@ -30,7 +30,7 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
@@ -222,7 +222,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const tour = async () => {
     const checksDeLaBase = await github.checksDeLaBase();
-    const etatBase = etatDeLaBase(checksDeLaBase);
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -230,7 +229,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
-      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, etatBase);
+      // La base ne gèle pas tout le pass : elle ne retient une livraison que
+      // rouge sur un check que cette livraison doit elle-même passer (#2279).
+      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, null);
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null && pr.enConflit === true) {
@@ -258,6 +259,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           }
           continue;
         }
+        // Un workflow qui ne tourne que sur la base (les tests Windows) n'a pas
+        // de check sur la PR : rouge, il ne la retient pas.
+        const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
+        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name))) continue;
         try {
           const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
@@ -404,10 +409,6 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 }
 
 // Le client du tour, sur le client GitHub du runtime (`github.ts`).
-// Les checks de la base qui disent son état : tous, sauf les tests Windows,
-// qui ne tournent que sur elle et n'y bloquent rien (#2087).
-export const checksQuiJugentLaBase = <C extends { name: string }>(checks: C[]): C[] => checks.filter((check) => !check.name.startsWith("windows "));
-
 export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { mettreAJour } = github;
   const { retraitsDeLabels } = github;
@@ -428,7 +429,7 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
     // Les tests Windows ne tournent que sur la base, et n'y bloquent rien
     // (#2087) : rouges, ils ne gèlent pas la cuisine.
-    checksDeLaBase: async () => checksQuiJugentLaBase(await github.ci(base)),
+    checksDeLaBase: () => github.ci(base),
     ci: (sha) => github.ci(sha),
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
     prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
