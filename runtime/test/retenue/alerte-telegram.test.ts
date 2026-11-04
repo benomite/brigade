@@ -36,8 +36,8 @@ test("une retenue qui commence envoie un message, avec la cause et le geste", (t
   const { envoyes, passer } = atelier(t);
   passer(retenue, attend);
   assert.deepEqual(envoyes, [direRetenueEn(retenue)]);
-  assert.match(envoyes[0], /the breaker is open/);
-  assert.match(envoyes[0], /press the `Resume` button/);
+  assert.match(String(envoyes[0]), /the breaker is open/);
+  assert.match(String(envoyes[0]), /press the `Resume` button/);
 });
 
 test("la même retenue vue à de nombreuses passes n'envoie pas de second message", (t) => {
@@ -71,7 +71,7 @@ test("un envoi qui échoue ne retient pas la boucle et est dit au journal de ser
   assert.equal(envoyes.length, 1);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(lignes.length, 1);
-  assert.match(lignes[0], /not sent — chat not found/);
+  assert.match(String(lignes[0]), /not sent — chat not found/);
 });
 
 test("un envoi qui lève sans promesse est dit au journal de service, sans lever", () => {
@@ -79,5 +79,5 @@ test("un envoi qui lève sans promesse est dit au journal de service, sans lever
   const suivre = alerteTelegram({ envoyer: () => { throw new Error("boom"); }, dire: (ligne) => lignes.push(ligne) });
   const transition: Transition = { type: "started", retenue };
   assert.doesNotThrow(() => suivre(transition));
-  assert.match(lignes[0], /boom/);
+  assert.match(String(lignes[0]), /boom/);
 });
