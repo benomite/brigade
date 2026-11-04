@@ -46,8 +46,8 @@ async function aParle(flux: string): Promise<void> {
 
 // Le délai au bout duquel un cook resté bloqué fait échouer son test au lieu
 // de le laisser pendre. Ce n'est pas une mesure : il couvre le démarrage d'un
-// process sur une machine chargée, que rien dans le test ne maîtrise.
-const FILET_MS = 10_000;
+// process sur une machine chargée, que rien dans le test ne maîtrise, dans les 2 s de toute garde de test.
+const FILET_MS = 2_000;
 
 // Le vrai minuteur, pour attendre un vrai process pendant que l'horloge du
 // superviseur est tenue par le test.
