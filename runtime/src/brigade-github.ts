@@ -362,7 +362,7 @@ export type OptionsDuProjet<A> = {
   ancien: () => A;
   // La station GitHub seul, ou pourquoi elle ne peut pas tourner ici.
   station: () => StationGitHub | { refus: string };
-  // Entre deux tours. Par défaut, trente secondes.
+  // Entre deux tours. Par défaut, deux minutes.
   intervalleMs?: number;
   avertir?: (message: string) => void;
 };
