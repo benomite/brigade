@@ -118,10 +118,6 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // que d'autres ouvrent sur le dépôt, auxquelles le rôle produit répond
   // (`produit/externes/`).
   chef?: string;
-  // L'ancien interrupteur de l'état GitHub seul (#2060). Plus lu (#2061) :
-  // l'état GitHub seul est le seul chemin (`brigade-github.ts`). Gardé pour
-  // qu'un fichier qui le porte encore reste lisible, et réécrit tel quel.
-  githubOnlyState?: boolean;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -138,7 +134,6 @@ export type ReglagesLus = {
   closer: ReglagesDuCloser;
   commonPaths?: string[];
   chef?: string;
-  githubOnlyState?: boolean;
 } & SeuilsDuProjet;
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
@@ -162,6 +157,9 @@ export class ReglageRefuse extends Error {
 const BRANCHE = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock(?:\/|$))[A-Za-z0-9._/-]+(?<![/.])$/;
 const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.startsWith("/") && !branche.split("/").some((morceau) => morceau.startsWith("."));
 
+// `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
+// accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
+// sa réécriture le retire.
 const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
@@ -309,10 +307,6 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (typeof objet.chef !== "string" || !LOGIN.test(objet.chef)) throw invalide("chef", "must be the chef's GitHub login");
     reglages.chef = objet.chef;
   }
-  if (objet.githubOnlyState !== undefined) {
-    if (typeof objet.githubOnlyState !== "boolean") throw invalide("githubOnlyState", "must be `true` or `false`");
-    reglages.githubOnlyState = objet.githubOnlyState;
-  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -331,7 +325,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, githubOnlyState } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -355,7 +349,6 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(duCloser.length === 0 ? {} : { closer: Object.fromEntries(duCloser) }),
       ...(commonPaths === undefined || commonPaths.length === 0 ? {} : { commonPaths }),
       ...(chef === undefined ? {} : { chef }),
-      ...(githubOnlyState === undefined ? {} : { githubOnlyState }),
       ...Object.fromEntries(desSeuils),
     },
     null,
@@ -450,7 +443,6 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     closer: reglages.closer ?? {},
     ...(reglages.commonPaths === undefined ? {} : { commonPaths: reglages.commonPaths }),
     ...(reglages.chef === undefined ? {} : { chef: reglages.chef }),
-    ...(reglages.githubOnlyState === undefined ? {} : { githubOnlyState: reglages.githubOnlyState }),
     ...seuilsDuProjet(reglages),
   };
 }

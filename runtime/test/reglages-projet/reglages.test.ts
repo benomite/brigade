@@ -82,6 +82,12 @@ test("the CLAUDE.md line is read with or without its markup, and an unreadable b
   assert.equal(brancheDuClaudeMd("- **Branche d'intégration** : `a..b`"), null);
 });
 
+test("the old `githubOnlyState` switch is accepted and ignored: a file carrying it stays readable, and nothing reads it back (#2061)", async (t) => {
+  const repertoire = clone(t);
+  poser(repertoire, FICHIER, JSON.stringify({ version: 1, integrationBranch: "v2", githubOnlyState: true }));
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "v2", defaultCalibrations: {}, calibrationCeiling: null, closer: {} });
+});
+
 test("writing then reading round-trips", async (t) => {
   const repertoire = clone(t);
   assert.deepEqual(ecrireReglagesProjet(repertoire, COMPLETS), COMPLETS);
