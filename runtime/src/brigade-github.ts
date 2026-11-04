@@ -31,6 +31,8 @@ import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
+import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
@@ -409,7 +411,7 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 }
 
 // Le client du tour, sur le client GitHub du runtime (`github.ts`).
-export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
+export function clientDuTour(github: GitHub, base: string, depotGitHub?: string): GitHubDuTour {
   const { mettreAJour } = github;
   const { retraitsDeLabels } = github;
   const { prsOuvertes } = github;
@@ -418,21 +420,46 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
+  // L'état du tour en une requête GraphQL (#2301), lu par `checksDeLaBase`, ce
+  // que le tour lit en premier : ses tickets, ses PR, leur CI et la base en
+  // sortent, sans un appel REST de plus. Sans GraphQL, le REST d'avant.
+  const [proprietaire, nomDuDepot] = (depotGitHub ?? "").split("/");
+  const { lireGraphql } = github;
+  const parGraphql = lireGraphql !== undefined && proprietaire && nomDuDepot ? lireGraphql.bind(github) : null;
+  let instantane: Instantane | null = null;
+  const prDeLInstantane = (issue: number) => instantane?.prs.find((pr) => pr.branche === brancheDuTicket(issue));
   return {
+    checksDeLaBase: async () => {
+      if (parGraphql === null) return github.ci(base);
+      try {
+        instantane = lireInstantane(await parGraphql(REQUETE, { owner: proprietaire as string, repo: nomDuDepot as string, base: `refs/heads/${base}` }));
+        return instantane.base;
+      } catch (erreur) {
+        // GitHub qui limite ses appels se dit comme avant ; toute autre panne de
+        // la lecture GraphQL laisse ce tour au REST, sans arrêter la cuisine.
+        instantane = null;
+        if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+        return github.ci(base);
+      }
+    },
     fires: async () => {
+      if (instantane !== null && !instantane.incomplet) return instantane.tickets;
       const sonde = await github.tickets();
       if (sonde.inchange) return derniers;
       derniers = sonde.issues.filter((issue) => !issue.pr);
       sonde.confirmer();
       return derniers;
     },
-    prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
-    // Les tests Windows ne tournent que sur la base, et n'y bloquent rien
-    // (#2087) : rouges, ils ne gèlent pas la cuisine.
-    checksDeLaBase: () => github.ci(base),
-    ci: (sha) => github.ci(sha),
+    // Une PR ouverte se lit dans l'instantané ; une PR mergée ou fermée n'y est
+    // pas, et se lit en REST — ce qui n'arrive qu'une fois par ticket.
+    prDuTicket: async (issue) => {
+      const lue = prDeLInstantane(issue);
+      if (lue === undefined) return github.prDeBranche(brancheDuTicket(issue));
+      return { number: lue.number, url: "", base, sha: lue.sha, state: "open", merged: false, enRetard: lue.enRetard, ...(lue.enConflit ? { enConflit: true } : {}), mergeePar: null, version: lue.version };
+    },
+    ci: async (sha) => instantane?.prs.find((pr) => pr.sha === sha)?.ci ?? github.ci(sha),
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
-    prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
+    prsOuvertes: async () => (instantane !== null ? instantane.prs.map(({ branche, fichiers }) => ({ branche, fichiers })) : (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers }))),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang
     // départage, comme leur id, deux commentaires de la même seconde.
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
@@ -455,6 +482,9 @@ export type OptionsDuDepot = {
   base: string;
   // `owner/name` du projet.
   depotGitHub: string;
+  // L'état du tour lu en une requête GraphQL (#2301) ; \`false\` : le REST
+  // d'avant, ce que mesurent les tests du coût par ticket.
+  graphql?: boolean;
   github: GitHub;
   // Le dépôt de la station, d'où partent les worktrees de ses cooks.
   depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff">;
@@ -491,7 +521,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
   const env = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
-  const github = clientDuTour(options.github, base);
+  const github = clientDuTour(options.github, base, options.graphql === false ? undefined : depotGitHub);
 
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);

@@ -56,6 +56,8 @@ function station(t: TestContext, faux: FauxGitHub, cuisson: () => Promise<void> 
     limitesDuCompte: ouvrirLimitesDuCompte(),
   });
   const ouverte = stationDuDepot({
+    // Le coût mesuré ici est celui du REST, appel par appel (#2198) : la lecture GraphQL (#2301) a le sien.
+    graphql: false,
     nom: "box",
     places: 2,
     base: "main",

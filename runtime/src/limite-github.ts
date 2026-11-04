@@ -138,6 +138,8 @@ function prochaineEcriture(lire: Lire, compte: string, instant: number): number 
 // Vrai si l'appel `gh api` écrit : une méthode autre que GET, ou des champs sans
 // méthode dite — `gh api` envoie alors un POST.
 export function estUneEcriture(args: readonly string[]): boolean {
+  // Une requête GraphQL part en POST, mais seule une mutation écrit (#2301).
+  if (args.includes("graphql")) return args.some((arg) => /^query=\s*mutation\b/.test(arg));
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i] ?? "";
     const methode = arg === "-X" || arg === "--method" ? args[i + 1] : /^--method=(.+)$/.exec(arg)?.[1] ?? (/^-X(.+)$/.exec(arg)?.[1]);

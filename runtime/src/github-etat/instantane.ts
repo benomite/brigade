@@ -1,0 +1,107 @@
+// L'état d'un tour GitHub seul, lu en une seule requête GraphQL (#2301) : les
+// issues ouvertes qui portent `fire`, avec leurs labels ; les PR ouvertes —
+// celles des cooks, et les autres, dont les fichiers tiennent des zones —, avec
+// leur tête, leur fusionnabilité, leur CI et les fichiers qu'elles changent ; et la CI du dernier commit de la base.
+// Avant, un tour lisait tout cela en REST, ticket par ticket et PR par PR :
+// des centaines d'appels par minute avec seize livraisons au pass, et GitHub
+// coupait le compte.
+//
+// Une lecture, pas un état : rien n'est gardé d'un tour au suivant. Ce que
+// l'instantané ne porte pas — une PR déjà mergée, plus de 100 tickets — se lit
+// encore en REST, par le client du tour.
+import type { Check } from "../events/pass.ts";
+import { CONCLUSIONS_VERTES } from "../github.ts";
+
+export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
+  repository(owner: $owner, name: $repo) {
+    issues(first: 100, states: OPEN, labels: ["fire"], orderBy: { field: CREATED_AT, direction: ASC }) {
+      pageInfo { hasNextPage }
+      nodes { number title labels(first: 30) { nodes { name } } }
+    }
+    pullRequests(first: 30, states: OPEN) {
+      nodes {
+        number headRefName headRefOid mergeable mergeStateStatus
+        files(first: 100) { nodes { path } }
+        commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 60) { nodes {
+          __typename
+          ... on CheckRun { name status conclusion }
+          ... on StatusContext { context state }
+        } } } } } }
+      }
+    }
+    ref(qualifiedName: $base) { target { ... on Commit { statusCheckRollup { contexts(first: 60) { nodes {
+      __typename
+      ... on CheckRun { name status conclusion }
+      ... on StatusContext { context state }
+    } } } } } }
+  }
+}`;
+
+export type TicketDeLInstantane = { number: number; title: string; labels: string[]; state: "open" };
+export type PRDeLInstantane = {
+  number: number;
+  branche: string;
+  sha: string;
+  enRetard: boolean;
+  enConflit: boolean;
+  // Ce qui change dès que GitHub change quoi que ce soit à sa fusion.
+  version: string;
+  fichiers: string[];
+  ci: Array<Pick<Check, "name" | "outcome">>;
+};
+export type Instantane = {
+  tickets: TicketDeLInstantane[];
+  // Plus de tickets que la requête n'en lit : la liste se relit en REST.
+  incomplet: boolean;
+  prs: PRDeLInstantane[];
+  base: Array<Pick<Check, "name" | "outcome">>;
+};
+
+type Contexte = { __typename?: string; name?: string; status?: string; conclusion?: string | null; context?: string; state?: string };
+
+// Un check tel que le REST le dit (`github.ts`, `ci`) : vert, rouge ou en cours.
+function check(contexte: Contexte): Pick<Check, "name" | "outcome"> | null {
+  if (contexte.__typename === "CheckRun" && typeof contexte.name === "string") {
+    if (contexte.status !== "COMPLETED") return { name: contexte.name, outcome: "pending" };
+    return { name: contexte.name, outcome: CONCLUSIONS_VERTES.includes((contexte.conclusion ?? "").toLowerCase()) ? "green" : "red" };
+  }
+  if (contexte.__typename === "StatusContext" && typeof contexte.context === "string") {
+    const etat = (contexte.state ?? "").toLowerCase();
+    return { name: contexte.context, outcome: etat === "success" ? "green" : etat === "pending" || etat === "expected" ? "pending" : "red" };
+  }
+  return null;
+}
+
+const checksDe = (rollup: unknown): Array<Pick<Check, "name" | "outcome">> => {
+  const noeuds = (rollup as { contexts?: { nodes?: Contexte[] } } | null)?.contexts?.nodes ?? [];
+  return noeuds.map(check).filter((c): c is Pick<Check, "name" | "outcome"> => c !== null);
+};
+
+// L'instantané, lu dans ce que la requête rend. Lève si sa forme n'y est pas.
+export function lireInstantane(data: unknown): Instantane {
+  const depot = (data as { repository?: Record<string, unknown> } | null)?.repository;
+  if (depot === undefined || depot === null) throw new Error("GraphQL : no repository in the answer");
+  const issues = depot.issues as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<{ number: number; title: string; labels?: { nodes?: Array<{ name: string }> } }> };
+  const prs = depot.pullRequests as { nodes?: Array<Record<string, unknown>> };
+  const tickets = (issues.nodes ?? []).map((n) => ({ number: n.number, title: n.title, labels: (n.labels?.nodes ?? []).map((l) => l.name), state: "open" as const }));
+  return {
+    tickets,
+    incomplet: issues.pageInfo?.hasNextPage === true,
+    prs: (prs.nodes ?? [])
+      .filter((p) => typeof p.headRefName === "string")
+      .map((p) => {
+        const commit = (p.commits as { nodes?: Array<{ commit?: { statusCheckRollup?: unknown } }> } | undefined)?.nodes?.[0]?.commit;
+        return {
+          number: p.number as number,
+          branche: p.headRefName as string,
+          sha: p.headRefOid as string,
+          enRetard: p.mergeStateStatus === "BEHIND",
+          enConflit: p.mergeable === "CONFLICTING" || p.mergeStateStatus === "DIRTY",
+          version: `${String(p.headRefOid)}/${String(p.mergeable)}/${String(p.mergeStateStatus)}`,
+          fichiers: ((p.files as { nodes?: Array<{ path: string }> } | undefined)?.nodes ?? []).map((f) => f.path),
+          ci: checksDe(commit?.statusCheckRollup ?? null),
+        };
+      }),
+    base: checksDe(((depot.ref as { target?: { statusCheckRollup?: unknown } } | null)?.target?.statusCheckRollup) ?? null),
+  };
+}
