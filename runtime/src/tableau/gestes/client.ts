@@ -6,7 +6,7 @@
 // chef sont ensemble le geste du chef : ni un quota bas ni la pause de la box
 // ne les retiennent, sans quoi un geste posté resterait sans réponse.
 import { masquerIdentifiants } from "../../identifiants.ts";
-import { appelerGitHub, COMPTE_DE_LA_MACHINE, estUneEcriture, lectureDe, limiteDuProcess, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
+import { appelerGitHub, COMPTE_DE_LA_MACHINE, etiquetteDe, limiteDuProcess, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
 import { lancerGhApi } from "../publication/client.ts";
 
 // Un commentaire du tableau. `id` : celui de GitHub, croissant d'un commentaire
@@ -61,7 +61,7 @@ export function clientGitHubDesGestes(options: OptionsClient): ClientDesGestes {
       {
         usage,
         compte,
-        etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, usage), ecriture: estUneEcriture(args) },
+        etiquette: etiquetteDe(args, { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), usage }),
         gh: bin,
         env: environnement,
         maintenant: options.maintenant,

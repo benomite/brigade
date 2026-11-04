@@ -87,9 +87,12 @@ test("la station écrit sa demande de relance : l'app ne relance que son process
   assert.equal(issues[0]?.quoi, "passee");
   assert.equal(tenue.version(), RELEASE);
   assert.equal(tenue.tourne(), true);
+  // La station relancée écrit sa ligne après l'issue `passee` : on attend le fait avant de l'asserter.
+  const variablesDeLaRelancee = new RegExp(`variables ${RELEASE.replace(/[+.]/g, "\\$&")} : github:benomite/brigade app`);
+  await jusqua(() => variablesDeLaRelancee.test(dit()));
   // Les deux variables sont celles que les deux stations ont reçues.
   assert.match(dit(), /variables 1\.0\.91 : github:benomite\/brigade app/);
-  assert.match(dit(), new RegExp(`variables ${RELEASE.replace(/[+.]/g, "\\$&")} : github:benomite/brigade app`));
+  assert.match(dit(), variablesDeLaRelancee);
 });
 
 test("un point d'entrée que l'app ne tient pas n'est pas lancé", { skip: SANS_POSIX }, async (t) => {

@@ -12,6 +12,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
+import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "../brigade-github.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { avecRail, configRail } from "../alimenter.ts";
@@ -33,6 +34,7 @@ import { brancherFermeture } from "../closing/run.ts";
 import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "../github-seul/boucles-perimees/boucles-perimees.ts";
 import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
+import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherCadence } from "../produit/cadence/brancher.ts";
@@ -206,6 +208,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const suiviDuTour = suivreLeTour();
     const ouvert = brancherBrigadeGithub({
       reglages: duDepot.reglages,
+      noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
       ancien: () => ({ stations, decisions }),
       station: () => {
         const ouverte =
@@ -216,6 +219,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               // Pas plus de cooks que la machine n'en porte, comme l'ancien chemin
               // (`plafondDesCoeurs`) : une station déclarée à 30 en tiendrait 30.
               places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+              capacites: ici.fournit,
               base: station.base,
               depotGitHub: rail.depot,
               github: githubs.pass,
@@ -229,6 +233,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               graceMs: reglages.graceMs,
               reviewer: reviewer.calibrage,
               flux: join(repertoireEtat, "github-seul"),
+              // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
+              // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
+              gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
               avertir: dire,
               observer: suiviDuTour.envelopper,
             });
@@ -260,7 +267,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       seuils: station.seuils,
       gardeTranscriptsMs: station.gardeTranscriptsMs,
       apresCook: pass.reveillerPass,
-      arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+      arbitre: arbitre === null || ouvert.chemin === "github" ? null : joindreArbitre(arbitre),
       // L'étage commun de la station : ce que le chef a accepté pour tous ses projets.
       commun: () => leconsDeLEtageCommun(envProjet.BRIGADE_STATION_DIR),
     });

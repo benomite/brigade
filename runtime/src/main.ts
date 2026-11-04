@@ -5,6 +5,7 @@ import { plafondDesCoeurs } from "./projections/stations.ts";
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
+import { noterGitHubSeul } from "./github-seul-etat.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "./brigade-github.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
@@ -19,6 +20,7 @@ import { brancherFermeture } from "./closing/run.ts";
 import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
+import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
@@ -201,6 +203,7 @@ try {
   const suiviDuTour = suivreLeTour();
   const ouvert = brancherBrigadeGithub({
     reglages: duDepot.reglages,
+    noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
     ancien: () => ({ stations, decisions }),
     station: () => {
       const ouverte =
@@ -211,6 +214,7 @@ try {
             // Pas plus de cooks que la machine n'en porte, comme l'ancien chemin
               // (`plafondDesCoeurs`) : une station déclarée à 30 en tiendrait 30.
               places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+            capacites: ici.fournit,
             base: station.base,
             depotGitHub: rail.depot,
             github: githubs.pass,
@@ -225,6 +229,9 @@ try {
             reviewer: reviewer.calibrage,
             flux: join(repertoireEtat, "github-seul"),
             observer: suiviDuTour.envelopper,
+            // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
+            // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
+            gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
           });
       if ("refus" in ouverte) stationRefusee = true;
       return ouverte;
@@ -251,7 +258,7 @@ try {
     seuils: station.seuils,
     gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
-    arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+    arbitre: arbitre === null || ouvert.chemin === "github" ? null : joindreArbitre(arbitre),
     leconsInjectees,
     // Là où le « oui » du chef les écrit : le clone du projet.
     profils: () => lireLesProfils(station.clone, (texte) => console.error(texte)),

@@ -1,0 +1,2 @@
+{"instant": 1793840400000, "status": 200, "headers": {"x-ratelimit-remaining": "4000"}}
+{"instant": 1793840400000, "status": 429, "headers": {"retry-after": "60"}}

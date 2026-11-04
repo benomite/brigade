@@ -40,9 +40,9 @@ const ID = /^[A-Za-z0-9-]{8,64}$/;
 const RUN = /^[A-Za-z0-9._-]{1,80}$/;
 const PREUVE_MAX = 200;
 // Le dernier message d'un cook est gardé comme celui d'un cook de la box, borné ;
-// un motif est court.
+// un motif est court, sauf celui d'un push refusé, qui porte ce que git a dit.
 const MESSAGE_MAX = 20_000;
-const RAISON_MAX = 200;
+const RAISON_MAX = 20_000;
 
 const creneau = (demande: DemandeParGitHub) => (demande.verb === "renew" || demande.verb === "deliver" ? `${demande.verb}.${demande.run}` : "claim");
 

@@ -292,6 +292,8 @@ export type Faits = {
   limiteGithub?: string;
   // La limite que GitHub pose aux appels du compte — laquelle, depuis quand, retour vers quand (runtime, `github`) ; absente quand les appels passent (vue/bandeau-limite-github.ts).
   github?: LimiteDuCompte;
+  // Le refus de l'interrupteur GitHub seul par le runtime (`githubSeul`, ticket 2161) : sa raison en une phrase, et depuis quand ; absent quand l'interrupteur est éteint ou accepté.
+  githubSeulRefuse?: { reason: string; since: string };
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -658,6 +660,14 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
   };
 }
 
+// `githubSeul`, de la racine de `facts` : seul un refus se garde, avec sa raison ; rien de mal formé ne la fait inventer.
+function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: string; since: string } } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const { etat, reason, since } = valeur as Record<string, unknown>;
+  if (etat !== "refused" || typeof reason !== "string" || reason === "") return {};
+  return { githubSeulRefuse: { reason, since: typeof since === "string" ? since : "" } };
+}
+
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
@@ -683,6 +693,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       dernierTick: ouRien(racine.dernierTick, "dernierTick", heure),
       ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
       ...limiteLue(racine.github),
+      ...refusGitHubSeulLu(racine.githubSeul),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),

@@ -103,6 +103,25 @@ function nonVerifie(bande: Alerte[], sujet: Sujet, nomme: string): Alerte {
   return ligne;
 }
 
+describe("l'interrupteur GitHub seul refusé par le runtime (ticket 2161)", () => {
+  test("`facts` en porte la raison : une ligne en tête de la bande ; accepté ou absent, aucune", (t) => {
+    const servie = saine(t);
+    const avec = (githubSeul: unknown) => {
+      const rendu = servie.rendre("10:00:00");
+      const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+      bandes.ouvrir(["parade"]);
+      bandes.veiller(["parade"]);
+      bandes.faits(lecture("facts", `${JSON.stringify({ ...JSON.parse(rendu.faits), githubSeul })}\n`));
+      bandes.status(mettreAPart(lecture("status", rendu.status)));
+      return bandes.manager(lecture("manager", rendu.manager)).alertes;
+    };
+    const ligne = enPanne(avec({ etat: "refused", reason: "the station name \"a/b\" cannot sign a claim or a verdict", since: `${JOUR}T09:00:00.000Z` }), "cuisine");
+    assert.match(ligne.dit, /^GitHub-only state refused: the station name .* cannot sign a claim or a verdict — the old path is kept$/);
+    assert.deepEqual(avec({ etat: "accepted", since: `${JOUR}T09:00:00.000Z` }), []);
+    assert.deepEqual(avec(undefined), []);
+  });
+});
+
 describe("la bande d'alertes : vide quand tout va bien", () => {
   test("manager allumé, version à jour, cuisine ouverte, aucun grant : la bande est vide", (t) => {
     assert.deepEqual(saine(t).bande(), []);

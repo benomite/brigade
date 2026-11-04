@@ -56,6 +56,8 @@ function station(t: TestContext, faux: FauxGitHub, cuisson: () => Promise<void> 
     limitesDuCompte: ouvrirLimitesDuCompte(),
   });
   const ouverte = stationDuDepot({
+    // Le coût mesuré ici est celui du REST, appel par appel (#2198) : la lecture GraphQL (#2301) a le sien.
+    graphql: false,
     nom: "box",
     places: 2,
     base: "main",
@@ -106,7 +108,10 @@ test("a ticket served end to end, from taken to merged, costs at most 30 counted
   servir();
   await box.calme();
   // Relecture et merge, au tour suivant.
-  for (let tour = 0; tour < 5 && faux.prDe(42)?.merged !== true; tour += 1) await box.tour();
+  for (let tour = 0; tour < 5 && faux.prDe(42)?.merged !== true; tour += 1) {
+    await box.tour();
+    await box.calme();
+  }
   assert.equal(faux.prDe(42)?.merged, true);
   assert.equal(faux.issue(42).state, "closed");
   // Le tour qui voit le ticket parti, puis une demi-heure de cuisine vide.
@@ -137,7 +142,9 @@ async function uneHeure(t: TestContext, faux: FauxGitHub, avertis: string[] = []
       ...box,
       tour: async () => {
         try {
+          // Le tour et ses relectures, qui tournent hors de lui (#2329).
           await box.tour();
+          await box.relu();
         } finally {
           tours += 1;
           fini();

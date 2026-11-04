@@ -24,3 +24,17 @@ test("la place du worktree d'un run, laissée par un essai coupé — worktree c
   assert.equal(git(second.worktree, "rev-parse", "HEAD"), git(second.worktree, "rev-parse", `origin/${BASE}`));
   assert.equal(existsSync(join(autre.worktree, "oublie.txt")), false);
 });
+
+test("une station reprend une branche qu'une autre a poussée sans l'avoir jamais eue chez elle (#2311)", async (t) => {
+  const { origine, clone } = depotGit(t);
+  const une = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoireTemporaire(t), "w1"), env: ENV_GIT });
+  const { worktree, branche } = await une.preparer("9-github");
+  commiter(worktree, "livre.txt");
+  une.pousser(branche);
+  // Une autre station : son propre clone de la même origine, sans la branche.
+  const autreClone = join(repertoireTemporaire(t), "autre");
+  git(repertoireTemporaire(t), "clone", "-q", origine, autreClone);
+  const autre = ouvrirDepot({ clone: autreClone, base: BASE, worktrees: join(repertoireTemporaire(t), "w2"), env: ENV_GIT });
+  const repris = await autre.reprendre("review-9-github", branche);
+  assert.equal(existsSync(join(repris, "livre.txt")), true);
+});

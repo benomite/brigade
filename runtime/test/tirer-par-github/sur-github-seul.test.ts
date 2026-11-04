@@ -102,6 +102,12 @@ class FauxGitHub {
         await appel();
         return [{ outcome: "green" as const }];
       },
+      etatDuRun: async () => ({ tentative: 1, termine: true }),
+      teteDeLaBase: async () => "0".repeat(40),
+      issuesDepuis: async () => [],
+      creerIssue: async () => 0,
+      fermerIssue: async () => {},
+      relancerLesEchecs: async () => {},
       commentaires: async (numero) => {
         await appel();
         return [...(this.commentaires.get(numero) ?? [])];
@@ -241,6 +247,27 @@ test("la réclamation d'un poste sans bac à sable ne prend rien, et le dit", as
   assert.equal(await faux.tenant(1), null);
 });
 
+test("la réclamation d'une station ne prend rien quand 5 livraisons sont en pass, et prend à 4 (PASS_MAX, #2300)", async (t) => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 5; n += 1) faux.feu(n, [...CALIBRE, "in-pass"]);
+  faux.feu(10);
+  const repertoire = repertoireTemporaire(t);
+  journalDuProjet(repertoire);
+  const demander = async () => {
+    const gist = poserLaDemande({ id: unId(), depot: DEPOT, le: new Date().toISOString(), demande: { verb: "claim", sandbox: DISPONIBLE } });
+    await repondreSurGitHubSeul({ repertoireEtat: repertoire, depot: DEPOT, base: "main", secondaires: [{ station: MAC, gist: "gistmac" }], lire: async () => gist, github: faux.client(), hotes: () => reglesDuProjet([]) });
+    return reponsesAuJournal(repertoire).at(-1);
+  };
+  const pleine = await demander();
+  assert.ok(pleine?.ok && pleine.verb === "claim");
+  assert.equal(pleine.mission, null);
+  assert.equal(await faux.tenant(10), null);
+  faux.tickets.get(5)!.labels.delete("in-pass");
+  const sous = await demander();
+  assert.ok(sous?.ok && sous.verb === "claim");
+  assert.equal(sous.mission?.ticket, 5);
+});
+
 test("le chef retire `taken` : le bail du cook de la seconde est refusé, son cook s'arrête ; un cook sans livraison rend le ticket sur l'issue", async (t) => {
   const faux = new FauxGitHub();
   for (const numero of [1, 2]) faux.feu(numero);
@@ -273,7 +300,7 @@ test("le chef retire `taken` : le bail du cook de la seconde est refusé, son co
   assert.equal(rendu.ending, "failed");
   assert.equal(await faux.tenant(1), null);
   assert.ok(!faux.labels(1).includes(LABEL_TAKEN));
-  assert.ok((faux.commentaires.get(1) ?? []).some((c) => c.body === `Station \`${MAC}\`: the cook stopped without a delivery — guard:idle`));
+  assert.ok((faux.commentaires.get(1) ?? []).some((c) => c.body.includes(`Station \`${MAC}\`: the cook stopped without a delivery — guard:idle`)));
   assert.equal(faux.prs.length, 0);
 });
 
