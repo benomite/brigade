@@ -101,7 +101,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   s`). `status` says it on its `github` line (`the box holds its own calls to keep the reserve for your
   gestures, back around HH:MM`); "GitHub is rate-limiting calls" is kept for when GitHub itself refused.
 - **The chef's gestures are never held by the box.** `rail` (remove, merge, send-back, choose, answer),
-  `pass <ticket> issue|comment|ask` and `manager` fail only if GitHub refuses. They are counted, and
+  `pass <ticket> issue|comment` and `manager` fail only if GitHub refuses. They are counted, and
   spend the reserve.
 - **Shared, not split.** The counter is a SQLite database,
   `<BRIGADE_STATION_DIR>/appels-github/compteur.db`, held together by the station and its projects: they
@@ -131,6 +131,13 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   the time is the earliest the next write can go), the app's project view shows the same line, and the
   station's service log says it once when the hold starts (`brigade : écritures GitHub retenues par le
   budget — …`) and once when the last waiting write goes (`brigade : écritures GitHub reprises …`).
+- **One queue, four in flight (#2195).** All the station's projects share, in its process, one queue of
+  kitchen calls in arrival order: at most `REQUETES_EN_VOL` (4) GitHub requests are in flight at once, and
+  a freed place goes to the first arrival that can take it. A write the pace holds never lets a later
+  write of the same account pass it, whatever its project; a read is not held behind it. Waiting writes
+  have no timer of their own: the queue holds a single wake-up, at the instant the pace frees its next
+  place. A chef's gesture never waits for a place, but holds one while in flight. A process outside the
+  station (a command) keeps its own queue, under the same shared counter.
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
   (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind (`issue-comments`,
   `pull-requests`, `issues`, `gist`, `gesture`, `board` for the Kitchen board's refresh, `other`) over the
