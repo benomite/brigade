@@ -270,6 +270,8 @@ export function configPass(env: Record<string, string | undefined>): ConfigPass 
 }
 
 export type OptionsPass = ConfigPass & {
+  // True once the GitHub-only switch is on: the base check stops at its entry (#2218).
+  perimee?: () => boolean;
   repertoireEtat: string;
   // Chaque rôle a son identité GitHub : ni les gates ni le reviewer ne
   // reçoivent de jeton GitHub, pas même d'un setup de worktree.
@@ -2618,6 +2620,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return suite;
   };
   const controlerLaBase = async (tick: boolean, exige: boolean) => {
+    // GitHub-only: the merges it would read are the stale log's (#2218).
+    if (options.perimee?.()) return;
     if (!arrete && rougeCompte(base)?.replayed === false) noter(null, { type: "base.recheck-requested", payload: {} });
     const avant = etatDeLaBase(base);
     const rouge = avant?.outcome === "red" ? avant : null;
