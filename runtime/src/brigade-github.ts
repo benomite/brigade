@@ -128,12 +128,21 @@ export type OptionsDeStation = {
   prise: Prise;
   cuisiner: Cuisiner;
   juger: Juger;
+  // Ce que la station fournit (#2187) : un ticket qui demande une capacité
+  // qu'elle n'a pas, par un label `needs:<capacité>`, n'est jamais pris ici.
+  capacites?: readonly string[];
   // Les garde-fous de l'ancien chemin (#2213) : le « stop », le disjoncteur,
   // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
   gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
 };
+
+// Le préfixe du label par lequel un ticket demande une capacité.
+export const PREFIXE_BESOIN = "needs:";
+
+// Les capacités qu'un ticket demande, lues de ses seuls labels.
+export const besoinsDuTicket = (labels: readonly string[]): string[] => labels.filter((label) => label.startsWith(PREFIXE_BESOIN)).map((label) => label.slice(PREFIXE_BESOIN.length));
 
 export type StationGitHub = {
   // Un tour : relit et merge ce qui est en pass, puis prend ce que ses places
@@ -183,6 +192,7 @@ const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
@@ -363,6 +373,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       if (enPass(tickets, renvoyes) >= PASS_MAX) break;
       if (enVol.has(ticket.number)) continue;
+      // Une capacité qui manque à la station : le ticket attend celle qui l'a.
+      if (besoinsDuTicket(ticket.labels).some((besoin) => !capacites.has(besoin))) continue;
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
@@ -558,6 +570,8 @@ export type OptionsDuDepot = {
   reviewer: Calibrage;
   // Où s'écrit le flux de chaque lancement.
   flux: string;
+  // Ce que la station fournit, tel que le projet le déclare.
+  capacites?: readonly string[];
   lancer?: Lancer;
   // Les garde-fous de l'ancien chemin (#2213), dont le lancement gardé des
   // cooks et des relectures.
@@ -649,5 +663,5 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
+  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
 }

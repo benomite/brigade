@@ -210,6 +210,7 @@ try {
             // Pas plus de cooks que la machine n'en porte, comme l'ancien chemin
               // (`plafondDesCoeurs`) : une station déclarée à 30 en tiendrait 30.
               places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+            capacites: ici.fournit,
             base: station.base,
             depotGitHub: rail.depot,
             github: githubs.pass,
