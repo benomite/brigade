@@ -757,7 +757,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/lectures-sous-condition.test.ts", test: "une issue, une PR ou un commentaire qui change se lit au tick suivant, et seule sa lecture compte" },
   { file: "test/lectures-sous-condition.test.ts", test: "l'heure passée, les lectures du premier tick sortent du compte" },
   { file: "test/lectures-sous-condition.test.ts", test: "une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus" },
-  { file: "test/lignes-masquees.test.ts", test: "borné, quel que soit le texte, le découpage et la borne : ce qui est écrit et compté est ce que le masquage du texte entier donne" },
   { file: "test/limite-github.test.ts", test: "sans quota dit par GitHub, ou avec un quota large, aucun compte de la box ne retient la cuisine — même au-delà de 2 500 appels dans l'heure" },
   { file: "test/limite-github.test.ts", test: "la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'heure côté box et 3 600 restants, les sondages partent, sans jamais « budget GitHub épuisé »" },
   { file: "test/miroir-des-gates.test.ts", test: "un fichier dont le chemin ne fait que contenir celui d'un rôle ou d'un miroir ne compte pas pour lui" },

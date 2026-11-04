@@ -117,7 +117,12 @@ describe("lignesMasquees", () => {
     };
     const entier = (max: number) => Math.floor(hasard() * max);
     const parmi = <T>(choix: readonly T[]): T => choix[entier(choix.length)] as T;
-    const corps = (longueur: number) => Array.from({ length: longueur }, () => parmi([..."abBZ09_-sk"])).join("");
+    const LETTRES = [..."abBZ09_-sk"];
+    const corps = (longueur: number) => {
+      let texte = "";
+      for (let i = 0; i < longueur; i++) texte += parmi(LETTRES);
+      return texte;
+    };
     const prefixe = ["sk", "ant", ""].join("-");
     const morceaux: (() => string)[] = [
       () => prefixe,
@@ -132,9 +137,21 @@ describe("lignesMasquees", () => {
     ];
     // Les séparateurs sont rares : c'est dans les longues suites que la coupe se joue.
     const tirer = () => (hasard() < 0.06 ? parmi(morceaux.slice(7)) : parmi(morceaux.slice(0, 7)))();
+    // La plus longue suite de caractères de jeton du texte.
+    const plusLongueSuite = (texte: string) => {
+      let plus = 0;
+      let courante = 0;
+      for (const c of texte) {
+        courante = /[A-Za-z0-9_-]/.test(c) ? courante + 1 : 0;
+        if (courante > plus) plus = courante;
+      }
+      return plus;
+    };
     let masques = 0;
     let coupesDansUneSuite = 0;
-    for (let essai = 0; essai < 3000; essai++) {
+    // 600 essais : l'ancienne coupe, celle qui attendait le dernier début de
+    // jeton (#237), échoue dès l'essai 9 de cette graine, et sur un essai sur dix.
+    for (let essai = 0; essai < 600; essai++) {
       const texte = Array.from({ length: 1 + entier(25) }, tirer).join("");
       const attendu = masquerIdentifiants(texte);
       const borne = parmi([1, 20, 58, 70, 100, 200, 257, 1000]);
@@ -151,11 +168,11 @@ describe("lignesMasquees", () => {
       assert.equal(ecrits.join(""), attendu.texte, ou);
       assert.equal(comptes(), attendu.masques, ou);
       masques += attendu.masques;
-      if (new RegExp(`[A-Za-z0-9_-]{${borne + 1}}`).test(texte)) coupesDansUneSuite++;
+      if (plusLongueSuite(texte) > borne) coupesDansUneSuite++;
     }
     // Le tirage éprouve bien ce qu'il prétend : des jetons, et des suites plus
     // longues que leur borne.
-    assert.ok(masques > 1000, `${masques} jetons tirés`);
-    assert.ok(coupesDansUneSuite > 1000, `${coupesDansUneSuite} suites plus longues que la borne`);
+    assert.ok(masques > 200, `${masques} jetons tirés`);
+    assert.ok(coupesDansUneSuite > 300, `${coupesDansUneSuite} suites plus longues que la borne`);
   });
 });
