@@ -174,6 +174,21 @@ brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:c
   [`station-cook.md`](station-cook.md)).
 - **The same sandbox guard as `ordinaires`**: with no sandbox said, or an unavailable one, it takes
   only the tickets that ask for one of its capabilities.
+- **On the GitHub-only state** (`githubOnlyState`, [`reglages.md`](../reglages.md); #2219), the
+  project's log no longer holds the rail, so the main station does not relay the requests to it: it
+  answers them itself from GitHub (`runtime/src/tirer-par-github/sur-github-seul.ts`), on the same
+  Kitchen board. A `claim` gets the first free ticket in the turn's order (`prio:`, then the oldest),
+  calibrated, whose zone no open PR holds, taken by a claim comment **in the second station's name**
+  (`github-etat/prise.ts`): when the main station's own turn and the second station want the same
+  ticket, the earliest claim comment wins and the other takes the next one — a ticket is never taken
+  twice. Its mission is a turn cook's (`cook/<n>-github`, resumed from the origin when an open PR
+  carries it), always in the workstation's sandbox: a station without one gets nothing. `renew` is
+  accepted while the station holds the ticket on its issue (the chef removing `taken` or `fire` stops
+  its cook); `deliver` opens the PR and puts the ticket `in-pass`, where any station reviews and
+  merges it — or, with no delivery, gives the ticket back on its issue and says why. The switch is
+  read on the integration branch of the main station's clone the first time a second station asks,
+  as the kitchen reads it when it opens. A silent second station keeps its claims: their lease is not
+  part of this.
 
 `station` (its `ordinary tickets` line: `taken alongside the box's stations, as one more station of the
 project …`) and `facts` (the `ensemble` field of `stations`) say it.
