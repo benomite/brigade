@@ -836,7 +836,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/pass.test.ts", garde: "timeout: 600_000" },
   { file: "test/reaction.test.ts", garde: "timeout: 600_000" },
   { file: "test/reprise-de-session.test.ts", garde: "timeout: 600_000" },
-  { file: "test/sans-invite.test.ts", garde: "timeout: 60_000" },
   { file: "test/support/windows.ts", garde: "garde: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
