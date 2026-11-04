@@ -335,7 +335,10 @@ FIN
       assistant
       code=1
       ;;
+    # Parle dès qu'il est lancé — sa minuterie d'inactivité repart de là, pas du
+    # démarrage du process —, commite, le dit, puis se tait.
     commite-puis-se-tait)
+      assistant
       commiter
       assistant
       rester

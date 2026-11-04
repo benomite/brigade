@@ -971,9 +971,9 @@ describe("la station", () => {
     const { gh, journal, etat, dernier, types } = cuisine(t, {
       scenario: "bavard",
       suite: ["commite-puis-se-tait"],
-      // Assez long pour que le cook ait commité avant, même sur une machine
-      // chargée : son démarrage compte dans l'inactivité.
-      plafonds: { idleMs: 1500 },
+      // Le cook parle dès son lancement : l'inactivité ne compte que son commit,
+      // puis son silence.
+      plafonds: { idleMs: 700 },
       issues: [issue(15)],
     });
     await jusqua(() => gh.commentaires.length === 1);

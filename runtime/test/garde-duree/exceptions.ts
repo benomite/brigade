@@ -9,7 +9,6 @@ import type { Exception } from "./regle.ts";
 export const EXCEPTIONS: Exception[] = [
   { file: "test/paquet/paquet.test.ts", test: "le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non" },
   { file: "test/sauvegarde.test.ts", test: "restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi" },
-  { file: "test/station.test.ts", test: "un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté" },
   { file: "test/telephone/gestes.test.ts", test: "après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine" },
   { file: "test/telephones.test.ts", test: "le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions" },
