@@ -199,8 +199,12 @@ describe("la station, son process", { concurrency: 3 }, () => {
     const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR), join(racine, REPERTOIRE_DES_TAILLES)];
     const avant = photographier(machine, sauf);
 
-    // Ajouter : une ligne de plus, rien d'autre.
+    // Ajouter : une ligne de plus, rien d'autre. La station relit sa configuration
+    // toutes les deux secondes ; SIGHUP la lui fait relire sur-le-champ, par la
+    // même relecture (station/station.test.ts l'éprouve sans process) : le test
+    // n'attend pas la minuterie.
     appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.started").length === 1);
     assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, pid);
     await station.attendre("brigade [espace] : servi par la station");
@@ -208,6 +212,7 @@ describe("la station, son process", { concurrency: 3 }, () => {
 
     // Retirer : la ligne s'en va ; le projet s'arrête, la station et l'autre projet restent.
     configurer(ligneBrigade);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.stopped").length === 1);
     assert.deepEqual(faits("espace", "runtime.stopped")[0]?.payload, { signal: "removed" });
     await station.attendre("brigade [espace] : retiré de la configuration : la station ne le sert plus");
@@ -217,10 +222,12 @@ describe("la station, son process", { concurrency: 3 }, () => {
 
     // Rajouté, il repart de son journal : son verrou a été rendu, rien n'est interrompu.
     appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.started").length === 2);
     assert.deepEqual(faits("espace", "runtime.interrupted"), []);
     await jusqua(() => espace.appels().length > sondes);
     configurer(ligneBrigade);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.stopped").length === 2);
 
     // Ni unité, ni drop-in, ni compte, ni clone : rien hors de l'état des projets n'a bougé.
@@ -261,7 +268,7 @@ describe("la station, son process", { concurrency: 3 }, () => {
     assert.equal(await station.fin, 0);
   });
 
-  test("sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("starts the station under its doors (tenir-portes.ts) and expects each project's proxy on a port of its own, then stops both processes with SIGTERM expecting exit 0; on Windows SIGTERM kills them before their handlers run, and a project's isolation.configured fact did not even come within the test's one-minute wait") }, async (t) => {
+  test("sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("starts the station under its doors (tenir-portes.ts) and expects each project's proxy on a port of its own, then stops both processes with SIGTERM expecting exit 0; on Windows SIGTERM kills them before their handlers run, and a project's isolation.configured fact did not even come within the test's one-minute wait") }, async (t) => {
     const { racine, env, preparer, configurer, faits } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
@@ -272,11 +279,12 @@ describe("la station, son process", { concurrency: 3 }, () => {
     configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
     const fichier = join(racine, "portes.json");
 
-    const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
-    await station.attendre(`la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier}`);
-    assert.deepEqual(faits("brigade", "runtime.started"), []);
-
+    // Qu'elle attende sa porte avant de rien joindre, et le dise : portes.test.ts, sans process. Ici, les portes
+    // sont ouvertes d'abord : la station n'attend ni la sienne ni celles de ses projets, qu'elle relirait toutes
+    // les deux secondes.
     const portes = lancer(t, PORTES, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
+    await portes.attendre("portes de la station ouvertes");
+    const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
     await station.attendre("station démarrée");
     assert.match(station.sortie(), /2 projets servis : brigade, espace/);
     const ports = lirePortes(fichier);
