@@ -176,6 +176,11 @@ if there is a newer one, it hands it to `apt`. The package puts in the new code 
 then restarts the station — its only process: **the cooks in flight finish their work**, and the
 station that comes back up takes them over.
 
+**At most one new version every 30 minutes** (#2374): every merge publishes a version, and every
+install restarts the station, cutting the work in flight. Within 30 minutes of the last version it
+moved to, the updater waits, and its state says until when; a version that was rolled back does
+not hold the next one.
+
 The new version is kept when the station says it has started on it and serves all the projects it
 served before. Otherwise, **it goes back on its own to the previous version**, whose package it
 kept. A failed version is not retried; the next one will be. In both cases, each project's queue
