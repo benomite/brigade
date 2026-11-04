@@ -88,7 +88,7 @@ its start. When the kitchen serves again — or nothing waits any more, or you s
 is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
 GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The
 GitHub limit and the write budget are read from the station's call counter (`BRIGADE_STATION_DIR`), not on the dev
-workstation. The station's service log says each transition (`kitchen held — …`, `kitchen no longer held (served)`).
+workstation. A red base is not announced at once (`runtime/src/retenue/relance-base.ts`, #2283): the failed jobs of the base are re-run once per hold, and `kitchen.held` (hence the entry and the Telegram alert) is written only if the base is still red after the re-run; the other causes re-run nothing. The station's service log says each transition (`kitchen held — …`, `kitchen no longer held (served)`).
 
 The block starts at the **only line that starts with `awaiting`** and ends at the **only
 line exactly `end awaiting`**, bounds included; between them everything is

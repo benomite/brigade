@@ -93,7 +93,7 @@ function cuisineGitHubSeule(t: TestContext, station?: string) {
   const github = suivi.envelopper(client);
   const ecouteurs: Array<(cause: CauseReveil) => void> = [];
   const runtime: Runtime = { projet: "brigade", journal, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}), arreter: () => {} };
-  brancherRetenue(runtime, { tour: suivi, station, maintenant: () => new Date(instant), dire: () => {} });
+  brancherRetenue(runtime, { tour: suivi, relance: null, station, maintenant: () => new Date(instant), dire: () => {} });
   const a = (hhmmss: string) => {
     instant = A(hhmmss);
   };
