@@ -14,7 +14,8 @@ export type Garde = { file: string; garde: string; ms: number; line: number };
 export const chemin = (racine: string, fichier: string): string => relative(racine, fichier).split(sep).join("/");
 
 const RACINE_RUNTIME = fileURLToPath(new URL("../..", import.meta.url));
-const ICI = fileURLToPath(new URL(".", import.meta.url));
+// Le dossier de la règle, sans séparateur final : sous Windows il s'écrit en `\`.
+const ICI = import.meta.dirname;
 
 // `10_000`, `60 * 1000`, `2 * 60_000` : un produit de littéraux, rien d'autre.
 export function valeur(texte: string): number | null {
@@ -29,7 +30,7 @@ export function fichiersDeTest(racine = RACINE_RUNTIME): string[] {
     for (const e of readdirSync(dossier, { withFileTypes: true })) {
       const chemin = join(dossier, e.name);
       if (e.isDirectory()) {
-        if (chemin !== ICI.replace(/\/$/, "") && !chemin.startsWith(ICI)) parcourir(chemin);
+        if (chemin !== ICI && !chemin.startsWith(ICI + sep)) parcourir(chemin);
       } else if (e.name.endsWith(".ts")) trouves.push(chemin);
     }
   };
