@@ -31,7 +31,7 @@ import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
-import { lacher, prendre } from "./github-etat/prise.ts";
+import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -45,16 +45,19 @@ export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
 // personne ne tient le ticket, et y pose `taken` si elle l'emporte ; `lacher`
-// la retire.
+// la retire ; `purger` retire le `taken` que personne ne tient plus (facultatif :
+// une prise sans `purger` ne purge pas).
 export type Prise = {
   prendre(issue: Pick<Issue, "number" | "labels">): Promise<{ prise: boolean }>;
   lacher(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
+  purger?(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
 };
 
 // La prise de #2056, liée à la station et au client du tour.
 export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise => ({
   prendre: (issue) => prendre(issue, { github, station }),
   lacher: (issue) => lacher(issue, { github, station }),
+  purger: (issue) => purger(issue, { github }),
 });
 
 // Ce que le tour lit et écrit de GitHub : ce que demandent la relecture et le
@@ -267,6 +270,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Au premier tour, un `taken` sans cook ici est peut-être une prise
       // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
       if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);
+      // À chaque tour, un `taken` que personne ne tient — le retrait d'un
+      // lâcher a échoué, ici ou sur une autre station — perd son label : le
+      // ticket redevient libre au tour suivant. Un ticket en pass, en vol ici
+      // ou déjà à rendre n'est pas un orphelin.
+      if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !aRendre.has(ticket.number)) {
+        try {
+          await prise.purger?.(ticket);
+        } catch (erreur) {
+          avertir(`brigade : purge du \`taken\` de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+      }
     }
     premierTour = false;
     for (const [numero, ticket] of aRendre) {

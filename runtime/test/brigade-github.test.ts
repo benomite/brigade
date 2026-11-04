@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherBrigadeGithub, brancheDuTicket, checksQuiJugentLaBase, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
+import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
 import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
@@ -798,4 +799,25 @@ test("the zone of a ticket is read from its Zone section", () => {
   assert.deepEqual(zoneDuCorps("## Context\n\nno zone here"), []);
   assert.ok(secoupent("runtime", "runtime/src/a.ts"));
   assert.ok(!secoupent("runtime", "runtime2/a.ts"));
+});
+
+test("a taken label nobody holds — a release whose removal failed, left by another station — is removed at any turn, and the ticket is taken again (#2206)", async () => {
+  const faux = new FauxGitHub();
+  const b = faux.station("B", { cuisiner: () => new Promise(() => {}) });
+  // B a déjà passé son premier tour : rien n'est plus rendu par redémarrage.
+  await b.tour();
+  // A a lâché #7 — le commentaire est parti — mais le retrait du label a échoué.
+  faux.feu(7, [...CALIBRE, LABEL_TAKEN]);
+  const a = faux.pour("A");
+  await a.commenter(7, corpsDePrise("A"));
+  await a.commenter(7, corpsDeLacher("A"));
+  // Un ticket que A tient vraiment garde son label.
+  faux.feu(8, [...CALIBRE, LABEL_TAKEN]);
+  await a.commenter(8, corpsDePrise("A"));
+  await b.tour();
+  assert.ok(!faux.ticket(7).labels.has(LABEL_TAKEN), "the stale label is gone");
+  assert.ok(faux.ticket(8).labels.has(LABEL_TAKEN), "#8 stays A's");
+  await b.tour();
+  assert.deepEqual(faux.pris(), [7, 8]);
+  assert.equal(faux.prisesDe("B"), 1);
 });
