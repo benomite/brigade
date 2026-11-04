@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { poserLeBudgetDAppels } from "../../src/vue/budget-appels.js";
+import { budgetDesAppelsLu } from "../../src/faits.ts";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -49,5 +50,17 @@ describe("le budget d'appels GitHub", () => {
     const section = poserLeBudgetDAppels(doc, undefined);
     assert.equal(section.dataset.appels, "absents");
     assert.match(section.textContent, /no call counted yet/);
+  });
+
+  test("le champ du runtime est lu, un projet mal formé est écarté", () => {
+    const lu = budgetDesAppelsLu({ ...INSTANTANE, projects: { ...INSTANTANE.projects, casse: { reads: 3 } } });
+    assert.deepEqual(Object.keys(lu!.projects), ["parade", "brigade"]);
+    assert.equal(budgetDesAppelsLu({ projects: {} }), undefined);
+    assert.equal(budgetDesAppelsLu("x"), undefined);
+  });
+
+  test("un projet sans catégorie : ses lignes, sans « used by »", () => {
+    const vide = { projects: { p: { reads: compte(5), writes: compte(0), budget: { reads: 1, writes: 1 }, overBudget: true } } };
+    assert.doesNotMatch(poserLeBudgetDAppels(doc, vide).textContent, /used by/);
   });
 });

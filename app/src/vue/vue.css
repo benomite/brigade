@@ -7500,3 +7500,55 @@ button.recommande {
 #rail .panne-du-rail .signaler {
   margin-left: auto;
 }
+
+/* Le budget d'appels GitHub de chaque projet (ticket 2197), sous les gates : par projet, les lectures puis les écritures
+   utilisées face à leur budget de l'heure. Un projet au-delà prend le bord rouge, la marque « over budget » et les
+   catégories qui ont consommé les appels ; en deçà, rien ne se signale. */
+.budget-des-appels {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.budget-des-appels[data-hors-budget] {
+  border-color: var(--rouge);
+}
+.budget-des-appels h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.budget-des-appels .budget-du-projet {
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+.budget-des-appels .budget-du-projet[data-hors-budget] {
+  padding-left: 8px;
+  border-left: 3px solid var(--rouge);
+}
+.budget-des-appels .budget-du-projet strong {
+  color: var(--texte);
+}
+.budget-des-appels .budget-du-projet p {
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.budget-des-appels .budget-du-projet p[data-hors-budget] {
+  color: var(--rouge-clair);
+}
+.budget-des-appels .hors-budget {
+  padding: 1px 8px;
+  font-weight: 600;
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+}
+.budget-des-appels .categories-des-appels {
+  color: var(--discret);
+}

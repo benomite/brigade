@@ -14,7 +14,7 @@ import { survol } from "./briques.js";
 
 export const TITRE = "GitHub call budget, last hour";
 export const HORS_BUDGET = "over budget";
-const AIDE = "For each project, the GitHub reads and writes used in the last hour against their hourly budget, apart. A project over budget is marked, with the categories that used the calls.";
+const AIDE = "GitHub reads and writes used in the last hour, per project, against the hourly budget.";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {

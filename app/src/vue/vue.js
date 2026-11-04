@@ -112,6 +112,7 @@ import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserBarre } from "./avant-le-rail.js";
 import { poserAge, poserCadence, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
+import { poserLeBudgetDAppels } from "./budget-appels.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
@@ -4564,7 +4565,7 @@ function poserCuisson(projet, posees = new Map()) {
   // Le dernier passage face au budget, et le ticket que la cuisine a ouvert (ticket 1457), puis, dessous, l'heure et le jour.
   const tableauLu = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau : undefined;
   const gates = poserLeJourDesGates(document, tableauLu?.coutDesGates);
-  gatesDuProjet.replaceChildren(...poserLesGatesDeCooks(document, tableauLu?.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), ...(gates === null ? [] : [gates]));
+  gatesDuProjet.replaceChildren(...poserLesGatesDeCooks(document, tableauLu?.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), ...(gates === null ? [] : [gates]), ...(tableauLu?.budgetDesAppels === undefined ? [] : [poserLeBudgetDAppels(document, tableauLu.budgetDesAppels)]));
   triageDuProjet.replaceChildren(...(tableauLu === undefined ? [] : poserTriageDeCooks(document, tableauLu.triage, (ligne, contenu) => replieDe(projet, "triage", ligne, contenu))));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const cout = tableauLu?.coutDesGates;
