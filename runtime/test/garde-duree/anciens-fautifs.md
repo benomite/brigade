@@ -1,0 +1,1661 @@
+# The former offenders of the 2 s rule (#2192)
+
+The duration gate of #2129 (`regle.ts`, `reporteur.ts`) started with a list of
+tolerated offenders in `exceptions.ts`: **1491 entries** at its merge (`31c562c`),
+1457 tests measured over 2 s (or over 0.7 s under heavy load) and 34 guards written
+over 2 s. #2192 emptied that list. This file gives the fate of every entry, grouped by
+the commit of #2192 that took it off the list.
+
+- An entry with no fate of its own is **kept in place**: the test is still in its file
+  under the same title, and is played in the full suite under 2 s. Its group says what
+  changed (the test itself, or what made it slow).
+- An entry that left its file or its title says so: **rewritten** (new title or new
+  location) or **deleted** (with the tests that already cover what it proved).
+- A guard is either brought to 2 s or less, or renamed where it was no wait at all.
+
+The list was generated from `git show 31c562c:runtime/test/garde-duree/exceptions.ts`,
+the diff of each commit on that file, and the test titles a full run of the suite gives.
+
+## The three offenders the ticket names
+
+- **The first-station test** (`0-en-premier/recette.test.ts`, up to 60 s for the
+  station to say it is registered, then its real 30 s cadence: 36 s, a 300 s timeout).
+  Deleted in `9a45d0e`, rewritten in `89731f4` as `projets/recette.test.ts`, same
+  title, in the test's process on a clock the test moves. The real station's
+  registration is covered by `appairage/canal.test.ts` and
+  `projets-station/station.test.ts`, each write of it by
+  `enregistrement-station/enregistrer.test.ts`.
+- **« la cuisine reprise après le renommage »** (65 s), `reprise-du-renommage.test.ts`,
+  same place, same text: it already played the runtime in the test's process (`cuisine()`).
+  What made it slow went from under it: the in-file concurrency (`f8a0cfb`), the Node relay
+  each kitchen cook started through (`6f74672`), and the 100 ms tick of the test kitchen,
+  now 20 ms (`7f19ad6`). 0.87 s in the full suite at load 6. It still launches the two
+  doubles it is written on, the fake `claude` and the fake rename tool, two short shell
+  scripts; no real runtime, no real station, no wait but for facts.
+- **« la commande manager »** (94 s), `manager-cli.test.ts`: rewritten in place in
+  `1908038`, on a posed journal instead of a running runtime, no `node` launched: 0.61 s
+  for the whole block. Its file-launch test is deleted, covered by `commandes.test.ts`.
+
+## `1908038` — the manager and grant commands play in-process, the real-station registration test goes (56)
+
+manager-cli.test.ts reads a posed journal instead of a running runtime and launches no `node` (94 s for the block before, 1.7 s after, no test over 0.6 s); grant-cli.test.ts plays every command in the test's process next to the running runtime (every test under 0.35 s). Rewritten in place, same titles.
+
+- `test/enregistrement-station/station.test.ts` « arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist » — deleted with its file; covered by enregistrement-station/enregistrer.test.ts « à son démarrage, la station crée un gist secret du compte qui porte son enregistrement, sans code à taper », « arrêtée proprement, elle écrit tout de suite l'heure de son arrêt : indisponible à la lecture suivante, et plus rien n'est écrit » and « redémarrée, elle reprend le même gist : de nouveau disponible, son premier enregistrement gardé » (simulated clock), and on the real station process by appairage/canal.test.ts « la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt »
+- `test/enregistrement-station/station.test.ts` « démarrée, la station est enregistrée sous le compte sans aucune commande ; redémarrée, elle rafraîchit le même gist » — deleted with its file; covered by enregistrement-station/enregistrer.test.ts « à son démarrage, la station crée un gist secret du compte qui porte son enregistrement, sans code à taper », « arrêtée proprement, elle écrit tout de suite l'heure de son arrêt : indisponible à la lecture suivante, et plus rien n'est écrit » and « redémarrée, elle reprend le même gist : de nouveau disponible, son premier enregistrement gardé » (simulated clock), and on the real station process by appairage/canal.test.ts « la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt »
+- `test/grant-cli.test.ts` « `enable`, `extend`, `revoke`, l'état et chacun de leurs refus s'écrivent sans mot français du glossaire »
+- `test/grant-cli.test.ts` « avant d'accorder, le chef lit ce qu'il a fait de ce que la pass a arrêté faute de grant, là où il regarde déjà — sans rien écrire »
+- `test/grant-cli.test.ts` « ce qu'aucun grant n'autorise est refusé au chef lui-même : la ligne est nommée, la demande journalisée, rien n'est accordé »
+- `test/grant-cli.test.ts` « chaque usage du grant se relit : quel ticket, quelle PR, quel verdict, quand »
+- `test/grant-cli.test.ts` « le chef active le grant sans redémarrer le runtime, en son nom, et voit son état »
+- `test/grant-cli.test.ts` « le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois »
+- `test/grant-cli.test.ts` « le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR »
+- `test/grant-cli.test.ts` « sans journal, ou devant un journal d'avant la pass, les commandes le disent et ne créent rien »
+- `test/manager-cli.test.ts` « allumer ou éteindre le manager seul est refusé : la commande nomme l'interrupteur du projet, et n'écrit rien »
+- `test/manager-cli.test.ts` « aucune ligne de `manager on|off|return|backlog|upstream`, refus et erreurs compris, ne porte un mot français du glossaire »
+- `test/manager-cli.test.ts` « la ligne `manager` suit l'interrupteur du projet, dès qu'il est posé — l'ancien interrupteur n'y compte plus »
+- `test/manager-cli.test.ts` « le chef lit ce que le manager a écarté, pourquoi, et le geste qui lève chaque écart »
+- `test/manager-cli.test.ts` « le chef lit les réactions du manager aux tickets restés rouges : le choix, et son motif »
+- `test/manager-cli.test.ts` « le chef lit où en est chaque épique : découpée et servie, en cours, ou en attente de sa réponse »
+- `test/manager-cli.test.ts` « rendre ne force aucun autre écart : la commande dit le geste qui le lève, et n'écrit rien »
+- `test/manager-cli.test.ts` « rendre s'écrit au journal au nom du chef, une fois, pour une issue écartée `chef-changed` — et le relevé la montre rendue »
+- `test/grant-cli.test.ts` « sans grant jamais donné, le chef le lit absent, et sans usage »
+- `test/grant-cli.test.ts` « `--until` rend ce qu'il a compris, en UTC et avec la durée, avant toute autre ligne »
+- `test/grant-cli.test.ts` « activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif »
+- `test/grant-cli.test.ts` « le grant donné sans runtime qui tourne tient quand même, et le dit »
+- `test/grant-cli.test.ts` « le chef accorde avec une échéance, lit ce qu'il reste, prolonge sans révoquer — et l'histoire de ses gestes se relit »
+- `test/grant-cli.test.ts` « `grant` lit éteint un grant échu que le runtime n'a pas encore constaté, et n'écrit rien : il ne prend pas le journal »
+- `test/grant-cli.test.ts` « une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire »
+- `test/grant-cli.test.ts` « le chef lit ce qu'aucun grant n'autorise là où il lit ses grants »
+- `test/grant-cli.test.ts` « une livraison entre les mains du manager se lit comme telle, et ses relances ne passent pas pour des renvois de la pass »
+- `test/grant-cli.test.ts` « pour un ticket, le chef relit chaque verdict et ce qui l'a produit, jusqu'au merge »
+- `test/grant-cli.test.ts` « le relevé dit sous quelle identité un merge a été fait, quand le journal la porte »
+- `test/manager-cli.test.ts` « sans argument et sans rien au journal, le manager est éteint et le chef lit ce que cela veut dire »
+- `test/manager-cli.test.ts` « le chef lit les dernières décisions, chacune avec son motif »
+- `test/manager-cli.test.ts` « sans épique regardée, la commande le dit »
+- `test/manager-cli.test.ts` « une commande inconnue est refusée avec l'usage, sans rien écrire »
+- `test/manager-cli.test.ts` « sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien »
+- `test/manager-cli.test.ts` « les deux nombres sont ceux du dépôt : les issues ouvertes, PR écartées, et celles qui portent `blocked-on-human` »
+- `test/manager-cli.test.ts` « elle ne fait que lire : un GET sur la liste que le manager sonde, rien au journal, et pas besoin de lui »
+- `test/manager-cli.test.ts` « un backlog de plus d'une page est compté en entier »
+- `test/manager-cli.test.ts` « une seule issue, aucune : les nombres restent en chiffres, en tête de leur mot »
+- `test/manager-cli.test.ts` « GitHub pas joint : la commande échoue en le disant, sans aucun nombre — ce n'est pas « aucune issue » »
+- `test/manager-cli.test.ts` « sans dépôt déclaré, ou avec un argument de trop, elle est refusée »
+- `test/manager-cli.test.ts` « lancée par son fichier, comme `npm run` la lance, elle rend la même ligne et sort en 0 » — deleted; covered by commandes.test.ts « taper le nom anglais lance la commande… » (every command launched by its npm script line, refusal and exit code included)
+- `test/manager-cli.test.ts` « chaque issue ouverte hors du rail porte ce qui lui arrive, dans l'ordre où le manager les lit — les PR et le rail n'y sont pas »
+- `test/manager-cli.test.ts` « ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé »
+- `test/manager-cli.test.ts` « GitHub pas joint : elle échoue en le disant, sans rien lister — ce n'est pas « rien en amont » »
+- `test/grant-cli.test.ts` « un grant posé avant ce ticket — ancien mot de commande, ancienne durée, refus au libellé français — est montré et appliqué sans édition »
+- `test/grant-cli.test.ts` « sans journal où l'écrire, ce qu'aucun grant n'autorise est refusé quand même, et rien n'est créé »
+- `test/grant-cli.test.ts` « le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge »
+- `test/grant-cli.test.ts` « le chef lit qu'une livraison arrêtée touche à ce que le projet s'ouvre, et à quel fichier »
+- `test/grant-cli.test.ts` « un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé »
+- `test/grant-cli.test.ts` « voir ne modifie pas le journal »
+- `test/grant-cli.test.ts` « le chef lit ce que la base est devenue : rouge après un merge, ce qui l'attend — et, dans un journal d'avant, le rejeu et le merge sans rejeu d'une livraison jugée sur sa branche seule »
+- `test/grant-cli.test.ts` « le plafond de durée des gates, franchi, se lit dans `run pass` : non jugé quand il est leur seul rouge, à part de leurs échecs sinon »
+- `test/grant-cli.test.ts` « un contrôle que le rapatriement retient se lit dans `run base` et `run pass` : retenu, pourquoi, depuis quand — sur des merges à vérifier comme sur un rejeu demandé »
+- `test/manager-cli.test.ts` « sans journal, ou avec un argument de trop, elle est refusée sans rien demander à GitHub »
+- `test/enregistrement-station/station.test.ts`: guard `GARDE_MS: 90_000`: gone with its file
+- `test/enregistrement-station/station.test.ts`: guard `timeout: 300_000`: gone with its file
+
+## `f8a0cfb` — a test file plays its tests one after the other (1203)
+
+Kept in place, unchanged: these tests were over 2 s because `{ concurrency: 8 }` played them side by side on their file's single thread, each measured duration counting the others' work. With the in-file concurrency gone (and a rule that refuses it coming back), each measured under 1 s on the box under load 15–21.
+
+- `test/appairage/rail-du-projet.test.ts` « une station qui sert le projet sans publier de rail — d'avant #1432 —, ou un rail illisible : la réponse le dit en une phrase »
+- `test/arbitrage.test.ts` « arbitre injoignable : le projet lance quand même, un cook à la fois, le journalise et le signale une fois ; au retour, il reprend »
+- `test/arbitrage.test.ts` « deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir »
+- `test/arbitrage.test.ts` « la station demande sa place à l'arbitre avant chaque lancement, et lui redit ce qu'elle fait tourner »
+- `test/arbitrage.test.ts` « le chef donne du poids à un projet : sa part grandit sans toucher au plafond de l'autre »
+- `test/arbitrage.test.ts` « refusée par l'arbitre, la station se retient et le dit ; la place rendue par une fin de cook, le ticket part »
+- `test/arbitrage.test.ts` « sans arbitre désigné, le projet tourne comme avant : ni mode dégradé, ni avertissement — et il sort de celui d'une vie précédente »
+- `test/arbitrage.test.ts` « un arbitre qui n'a jamais été là : la connexion refusée suffit, sans attendre »
+- `test/arbitrage.test.ts` « un projet arrêté par le chef ne demande rien : ses tickets qui attendent ne réservent aucune place chez l'autre »
+- `test/arbitrage.test.ts` « un projet au plafond de cooks que le chef lui a réglé ne réserve pas le reste de sa part »
+- `test/arbitrage.test.ts` « un runtime qui s'arrête proprement rend sa part ; l'arbitre qui redémarre se remplit de ce que les runtimes lui redisent »
+- `test/arbitre-cli.test.ts` « ce que la commande ne comprend pas est refusé sans rien écrire »
+- `test/arbitre-cli.test.ts` « l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM »
+- `test/arbitre-cli.test.ts` « le chef règle un poids et retire un projet : l'arbitre qui tourne le lit à sa décision suivante »
+- `test/arbitre-cli.test.ts` « sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi »
+- `test/arbitre-cli.test.ts` « un poids posé avant le ticket est toujours montré et appliqué, sans rien éditer à la main »
+- `test/arbitre-cli.test.ts` « une machine saturée, un projet qui n'a pas reparlé, un projet parti : chacun se lit »
+- `test/bac-a-sable/configuration.test.ts` « une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus »
+- `test/bascule/bascule.test.ts` « un projet avec une variable hors BRIGADE_ : la bascule est refusée en le disant, et rien ne change sur la machine »
+- `test/bascule/bascule.test.ts` « une machine sans ancienne installation : rien à basculer, rien d'écrit »
+- `test/capacites-en-cuisine.test.ts` « `status` nomme la capacité qui manque au ticket, et le geste qui la fournirait »
+- `test/capacites-en-cuisine.test.ts` « aucune station déclarée : la vérification est rouge, d'un seul manque, qui nomme l'étape « stations » »
+- `test/capacites-en-cuisine.test.ts` « aucune station déclarée ne fournit la capacité demandée : le ticket ne part pas, il est 86, et aucun cook n'est lancé »
+- `test/capacites-en-cuisine.test.ts` « aucune station ne fournit `macos` : le ticket quitte le rail pour WAITING et dit ce qu'il attend ; une station qui le fournit déclarée, il revient seul sur le rail et sa raison tombe — celui qu'une station sert n'est jamais mis de côté (#1925) »
+- `test/capacites-en-cuisine.test.ts` « deux stations de capacités différentes : le ticket qui demande `navigateur-headless` va à celle qui le fournit, pas à la première libre »
+- `test/capacites-en-cuisine.test.ts` « devant l'arbitre entre projets, un ticket que seule une station pleine peut cuisiner ne réserve aucune place : la station libre ne demande rien pour lui »
+- `test/capacites-en-cuisine.test.ts` « la spécialité n'écarte jamais : une station prend le ticket qui ne lui demande rien, et celui qui demande moins qu'elle ne fournit »
+- `test/capacites-en-cuisine.test.ts` « la station qui fournit la capacité est pleine : le ticket attend sa place, aucune autre ne le prend, et `status` dit laquelle le retient »
+- `test/capacites-en-cuisine.test.ts` « une chaîne de trois tickets derrière un ticket qu'aucune station ne peut cuisiner : les trois sont en WAITING, chacun nomme celui qu'il attend, aucun ticket du rail n'en attend un ; la station déclarée, ils reviennent tous seuls sur le rail (#1926) »
+- `test/closing/memory.test.ts` « après une passe livrée, la mémoire du projet contient ce que le closer a laissé — son lieu, son motif, l'empreinte de ses alentours —, et rien de ce qu'il a retiré »
+- `test/closing/report.test.ts` « une couverture ou un nombre de vérifications en baisse est un échec, dit en tête du bilan — même si les gates sont vertes et que la pass a mergé »
+- `test/closing/run.test.ts` « ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif »
+- `test/closing/run.test.ts` « la passe s'arrête et le dit après l'inactivité : un closer qui se tait est arrêté par la minuterie de tout cook »
+- `test/closing/run.test.ts` « la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range »
+- `test/closing/run.test.ts` « la passe s'arrête et le dit quand son plafond de tokens est atteint — le sien, par passe, pas celui d'un cook »
+- `test/closing/run.test.ts` « la passe s'arrête et le dit sur disjoncteur : ouvert pendant qu'elle range, il l'arrête ; ouvert, aucune ne part »
+- `test/closing/run.test.ts` « la passe s'arrête et le dit sur le « stop » du chef, et aucune ne repart tant que la cuisine est arrêtée »
+- `test/closing/run.test.ts` « sans la commande du chef ni déclencheur — vingt merges, un seuil franchi —, aucune passe qui écrit ne démarre : pas sur une horloge »
+- `test/closing/run.test.ts` « sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la commande refuse et rien ne part »
+- `test/closing/run.test.ts` « un closer qui finit en ayant retiré plus que son plafond ne livre rien »
+- `test/closing/run.test.ts` « un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a laissé reste au journal avec son motif »
+- `test/closing/run.test.ts` « un doublon que le closer réunit en un seul endroit est dit factorisé, à côté du code mort supprimé, avec les lignes gagnées et ce qui est laissé — une entrée par candidat, son lieu et son motif »
+- `test/closing/run.test.ts` « une passe ne survit pas au runtime : celle qu'il a laissée en vol est dite interrompue, et une demande d'une autre vie ne lance rien »
+- `test/closing/run.test.ts` « une seule passe à la fois : demandée pendant qu'une autre range, la commande refuse »
+- `test/closing/trigger.test.ts` « a served project with no closer set never gets a pass requested, whatever the merges or thresholds »
+- `test/commandes.test.ts` « `npm run help` rend l'aide, telle que la commande la dit »
+- `test/commandes.test.ts` « chaque commande du runtime est dans la table, sous son nom anglais ; chaque ancien nom y est, et son script ne fait que l'annoncer »
+- `test/commandes.test.ts` « un ancien nom lancé sans `npm` ne devine rien : il le dit, en 2 »
+- `test/commun/etage.test.ts` « une même leçon promue dans deux projets est proposée au chef, avec le nom des deux ; promue dans un seul, rien »
+- `test/decisions.test.ts` « le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt »
+- `test/decisions.test.ts` « sans décision au journal, une variable de décision du drop-in ne suffit pas : le runtime refuse de démarrer, et nomme le geste »
+- `test/decisions.test.ts` « un répertoire d'état sous le clone est un refus de démarrer : les décisions y seraient à portée d'un cook »
+- `test/decisions.test.ts` « une variable de décision laissée au drop-in est ignorée dès le démarrage, et dite avec le geste qui la remplace »
+- `test/decoupage.test.ts` « deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit »
+- `test/decoupage.test.ts` « l'épique liste ses tickets avec leur état, et la liste suit le rail sans qu'aucune issue bouge »
+- `test/decoupage.test.ts` « le chef ajoute un ticket à l'épique par une ligne de son corps : il entre dans la liste, et se juge comme une issue du chef »
+- `test/decoupage.test.ts` « le chef change un critère, un calibrage ou retire `fire` d'un ticket du découpage : le manager n'y revient pas »
+- `test/decoupage.test.ts` « le chef ferme l'épique plutôt que de répondre : le journal l'apprend, une fois, et la question n'est pas reposée »
+- `test/decoupage.test.ts` « le chef ferme un ticket du découpage : il ne renaît pas, et l'épique dit que celui qui l'attendait ne l'attend plus »
+- `test/decoupage.test.ts` « le chef lit sur l'épique pourquoi ces tickets, pourquoi cet ordre, et que le découpage est désormais à lui »
+- `test/decoupage.test.ts` « le chef ne pose aucun label : une épique que le jugement reconnaît est découpée, pas refusée »
+- `test/decoupage.test.ts` « le découpage est au journal avant tout ticket, avec son motif et celui de son ordre »
+- `test/decoupage.test.ts` « le découpage lit l'épique, ses commentaires de confiance et le plan du dépôt — en un seul jugement, sans outil »
+- `test/decoupage.test.ts` « le découpage pose sur la fiche les capacités que chaque ticket demande : l'un part dans la station qui la fournit, l'autre dit laquelle manque »
+- `test/decoupage.test.ts` « les tickets nés du découpage ne sont pas rejugés, et ne reçoivent pas un second calibrage »
+- `test/decoupage.test.ts` « les tickets partent dans l'ordre du découpage : celui qui en attend un autre reste en attente »
+- `test/decoupage.test.ts` « un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage »
+- `test/decoupage.test.ts` « un ticket fermé sans livraison : l'épique reste ouverte, et « upcoming » dit lequel manque »
+- `test/decoupage.test.ts` « une épique devient des tickets : chacun avec ses critères, son calibrage, sa fiche, puis `fire` »
+- `test/decoupage.test.ts` « une épique dont tous les tickets sont servis se ferme d'elle-même, avec ses tickets et leurs PR, une seule fois »
+- `test/decoupage.test.ts` « une épique n'est jamais découpée deux fois : ni les réveils, ni une édition, ni un redémarrage ne la refont »
+- `test/decoupage.test.ts` « une épique traverse la cuisine : ses tickets servis l'un après l'autre, la liste le dit »
+- `test/depot.test.ts` « ce que le projet ignore ne fait pas bouger l'empreinte : ni dépendances, ni logs »
+- `test/depot.test.ts` « ce qui est livré d'une branche est ce que l'origine en a reçu : une récolte posée après le push n'en fait pas partie »
+- `test/depot.test.ts` « ce qui traîne dans un worktree est commité sur sa branche, sous le nom de la brigade — jamais ce que le projet ignore »
+- `test/depot.test.ts` « chaque rapatriement de la base se signale, une fois la base du clone à jour : à la prise d'un ticket, à sa reprise, à la demande »
+- `test/depot.test.ts` « la base qui avance se compte depuis un commit, et ce que la livraison change se lit toujours depuis son point de départ »
+- `test/depot.test.ts` « le worktree part de la base telle qu'elle est sur l'origine, pas telle que le clone l'a connue »
+- `test/depot.test.ts` « les identifiants de Claude se reconnaissent dans ce que la branche ajoute, pas dans ce que la base portait déjà »
+- `test/depot.test.ts` « lire l'empreinte n'écrit pas l'index : un commit du cook au même instant ne bute pas sur son verrou »
+- `test/depot.test.ts` « un commit poussé à la main pendant que le cook travaille n'est pas écrasé : le push échoue en le disant, et le cook suivant repart des deux »
+- `test/depot.test.ts` « un commit poussé à la main sur la branche entre deux cooks survit au renvoi : le cook repart de ce que l'origine porte, et son push ne l'écrase pas »
+- `test/depot.test.ts` « un fichier au nom non ASCII, ou avec une espace, se lit tel qu'il s'écrit dans ce qu'une livraison change »
+- `test/depot.test.ts` « un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin »
+- `test/depot.test.ts` « un signal de rapatriement qui lève ne retient pas le ticket »
+- `test/depot.test.ts` « un worktree chargé de fichiers neufs se lit quand même : plus d'un mégaoctet de statut »
+- `test/depot.test.ts` « un worktree jetable porte la fusion d'un commit avec une tête de la base, et dit l'arbre obtenu — sans toucher à aucune branche, et sans rien laisser une fois jeté »
+- `test/depot.test.ts` « un worktree jetable qui ne se crée pas lève, avec ce que git en dit : ce n'est pas un conflit, et rien n'est rendu »
+- `test/depot.test.ts` « un worktree qui n'est plus sur sa branche n'est pas récolté : le commit n'irait nulle part »
+- `test/depot.test.ts` « une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station »
+- `test/depot.test.ts` « une branche poussée avant que la station ne retienne ses pushs se pousse encore : ce qu'elle en sait se lit alors sur sa branche de suivi »
+- `test/depot.test.ts` « une branche qu'un humain a réécrite sur l'origine entre deux cooks est adoptée telle quelle : l'ancien historique de la station n'y revient pas »
+- `test/depot.test.ts` « une branche que l'origine et le clone ont changée au même endroit ne se reprend pas : l'échec le dit, sans worktree ni rien d'écrasé »
+- `test/depot.test.ts` « une branche que l'origine n'a plus se reprend telle que le clone la porte, et se pousse à nouveau »
+- `test/depot.test.ts` « une branche rebasée par un renvoi dont le push a échoué se reprend telle que le cook l'a laissée : l'origine ne porte rien d'étranger, rien n'est fusionné »
+- `test/depot.test.ts` « une fusion qui ne se fait pas ne rend pas de worktree, et n'en laisse pas »
+- `test/depot.test.ts` « une livraison dit, par fichier, les lignes qu'elle ajoute et celles qu'elle retire — zéro et zéro pour un binaire »
+- `test/desinstallateur.test.ts` « `--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box »
+- `test/desinstallateur.test.ts` « ce que le clone porte et que l'origine n'a pas est nommé, et le plan dit que la désinstallation refusera »
+- `test/desinstallateur.test.ts` « ce que root retirerait lui-même et qui contient l'état du projet n'est jamais retiré »
+- `test/desinstallateur.test.ts` « ce qui est au compte du service ne se lit ni ne se retire que sous lui : sans pouvoir prendre son uid, rien n'est fait »
+- `test/desinstallateur.test.ts` « coupée avant son premier geste : rien n'est retiré »
+- `test/desinstallateur.test.ts` « tout ce qui n'est pas dans sa liste fermée : une option d'ailleurs, un chemin, une valeur en trop »
+- `test/desinstallateur.test.ts` « un clone qui porte ce que l'origine n'a pas retient la désinstallation confirmée — avec ou sans le journal »
+- `test/desinstallateur.test.ts` « un clone qui porte des centaines de fichiers jamais poussés : le plan en nomme deux cents, et compte le reste »
+- `test/desinstallateur.test.ts` « un projet inconnu de la box : un message clair, sous toutes les formes de l'appel »
+- `test/desinstallateur.test.ts` « un répertoire qui n'est pas un clone n'est pas pris pour le clone réservé »
+- `test/desinstallateur.test.ts` « un runtime lancé hors de systemd tient encore le projet : rien n'est retiré »
+- `test/desinstallateur.test.ts` « un runtime qui tourne est arrêté d'abord, puis son clone retiré »
+- `test/enrolement/commande.test.ts` « la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation »
+- `test/enrolement/commande.test.ts` « une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre »
+- `test/exploitation-en-anglais.test.ts` « `arbiter` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `backup` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `base` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `closing` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `door` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `facts` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `grant` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `guardrails` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `log` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `measures` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `partition` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `pass` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `phones` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `restore` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `setting` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `status` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `waiting` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/fermeture-action/action.test.ts` « le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison »
+- `test/fusion.test.ts` « ce qui est jugé est la fusion de la branche avec la base du moment : les gates s'y jouent, le verdict dit sur quoi il porte — tête de la branche, tête de la base, arbre obtenu —, et la livraison mergée n'a rien à faire vérifier »
+- `test/fusion.test.ts` « coupées à nouveau par leur garde d'horloge une fois rejouées sur une machine calme : c'est un rouge, et le renvoi le dit »
+- `test/fusion.test.ts` « coupées par leur garde d'horloge sur une machine calme : c'est un rouge dès la première fois »
+- `test/fusion.test.ts` « coupées par leur garde d'horloge sur une machine saturée, sans aucun test en échec : ni verdict, ni renvoi, ni base jugée — la livraison attend en le disant, et ses gates sont rejouées seules quand la machine se calme »
+- `test/fusion.test.ts` « des merges à vérifier sur une base qui ne se rapatrie pas : leur contrôle est retenu, dit une fois pour la série, et se joue seul quand l'origine revient »
+- `test/fusion.test.ts` « la base bouge entre le verdict et le merge : la livraison est rejugée fusionnée avec la base devenue, et c'est ce verdict-là qui autorise le merge — sans seconde relecture »
+- `test/fusion.test.ts` « le chef fait rejouer les gates d'une base rouge sans commit : rouges, la retenue reste ; vertes, elle tombe et la prise de tickets reprend »
+- `test/fusion.test.ts` « le plafond de durée des gates, seul rouge sur la base, ne la rend pas rouge »
+- `test/fusion.test.ts` « le rejeu demandé par le chef consomme la machine comme un autre : saturée, il attend en le disant une fois, et se joue seul quand elle se calme »
+- `test/fusion.test.ts` « le rejeu demandé par le chef est joué quand la pass n'a plus aucune livraison à juger et que GitHub ne répond pas au ticket qu'elle surveille : rouge, la retenue reste et c'est dit ; vert, elle tombe »
+- `test/fusion.test.ts` « le rejeu que le chef demande et qui ne peut pas se faire est servi par un contrôle non joué : le rouge reste, le motif est au journal, et c'est dit une fois — pas à chaque réveil »
+- `test/fusion.test.ts` « le rejeu que le chef demande sur une base qui ne se rapatrie pas est retenu : écrit et dit une fois, retenté au tick, le rouge reste — et il se joue seul quand l'origine revient »
+- `test/fusion.test.ts` « les gates de la base coupées par leur garde d'horloge sur une machine saturée, sans aucun test en échec, ne la rougissent pas : rejouées seules une fois la machine calme — et coupées à nouveau, elle est rouge »
+- `test/fusion.test.ts` « main passe devant la tête sur laquelle la base est rouge : ses gates sont rejouées sur la nouvelle tête sans aucun geste — verte, la retenue tombe et c'est dit ; rouge, elle reste et c'est dit »
+- `test/fusion.test.ts` « rejuger consomme la machine : saturée, la livraison dont la base a bougé attend en le disant, et repart seule »
+- `test/fusion.test.ts` « rouge sur une tête où la base est rouge, puis la base rejouée verte sur la même tête : les gates de la fusion sont rejouées, pas resservies — aucun cook n'est renvoyé pour un rouge étranger »
+- `test/fusion.test.ts` « rouge une fois fusionnée parce que la base l'est seule : ce rouge n'est celui d'aucun cook — ni verdict ni renvoi, la livraison attend en le disant, et elle est verte dès que la base est réparée »
+- `test/fusion.test.ts` « rouge une fois fusionnée, et la base ne peut pas être jouée seule : « pas pu vérifier » ne renvoie pas le cook — ni verdict ni renvoi, et rien n'est rejoué à chaque réveil »
+- `test/fusion.test.ts` « rouge une fois fusionnée, la base verte seule : c'est le rouge de la livraison, elle est renvoyée — et la base, jugée sur cette tête, n'est pas rejouée au renvoi suivant »
+- `test/fusion.test.ts` « un contrôle non joué ne lève pas un rouge constaté : la base bouge, ses gates ne peuvent pas se jouer, et rien ne repart — ni merge, ni ticket — jusqu'à un contrôle joué et vert »
+- `test/fusion.test.ts` « un dépôt qui exige une branche à jour refuse le merge : ce refus-là n'arrête pas la pass, il repart au cook avec la même consigne — se mettre à jour de la base »
+- `test/fusion.test.ts` « un jugement plus long que le délai de GitHub n'est pas abandonné : seuls les appels à GitHub sont bornés »
+- `test/fusion.test.ts` « un merge fait à la main n'a été jugé sur aucune base : les gates sont jouées sur la base seule, hors ticket — vertes, rien n'est retenu »
+- `test/fusion.test.ts` « un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois »
+- `test/fusion.test.ts` « un verdict joué n'est pas perdu par un ménage raté : le rejeu demandé par le chef, joué vert, lève le rouge même si son worktree jetable ne se retire pas »
+- `test/fusion.test.ts` « une base jamais vue rouge dont les gates ne peuvent pas se jouer ne retient rien : la station prend le ticket suivant »
+- `test/fusion.test.ts` « une CI rouge dont le journal nomme un test en échec : le finding porte le nom du test et son erreur, pas le seul lien (ticket 1867) »
+- `test/fusion.test.ts` « une CI rouge sur une branche à jour de la base est un rouge de la livraison : le finding nomme le job »
+- `test/fusion.test.ts` « une CI rouge sur une branche qui n'a pas la tête de la base n'a pas jugé ce qui sera mergé : le cook est renvoyé se mettre à jour de la base, pas corriger un job — et GitHub n'est pas relu pour le savoir »
+- `test/fusion.test.ts` « une CI verte sur une branche qui n'a pas la tête de la base reste verte : les gates jouées sur la fusion jugent la fusion, et aucun cook ne repart »
+- `test/fusion.test.ts` « une fusion qui échoue sans conflit est une panne de la machine : ni verdict ni renvoi de la pass, la cuisine la renvoie une fois puis veut en faire un ticket `fix`, avec ce que git en dit — et se lit sur l'issue »
+- `test/fusion.test.ts` « une fusion qui ne se fait pas n'est pas un rouge de tests : sans gates ni relecture, le cook est renvoyé se mettre à jour de la base — une consigne qu'il peut suivre »
+- `test/fusion.test.ts` « une livraison née avant un correctif de la base est verte au premier jugement qui suit le correctif, sans que personne n'intervienne — sur un vrai dépôt, et sans que la fusion jugée soit poussée nulle part »
+- `test/fusion.test.ts` « une livraison qui attend sa CI ne rejoue pas sa suite à chaque avance de la base : le jugement se conclut sur la base où il a commencé, et c'est le verdict qui est rejugé, une fois »
+- `test/fusion.test.ts` « une livraison qui attend une base rouge ne relit pas GitHub à chaque réveil : sa PR n'est relue qu'au tick »
+- `test/fusion.test.ts` « une livraison verte que GitHub refuse de merger faute d'être à jour compte parmi ce qui a été tenté : le manager, à qui la pass passe la main, lit qu'il fallait se mettre à jour de la base »
+- `test/fusion.test.ts` « verte fusionnée avec la base d'hier, rouge avec celle d'aujourd'hui : rien n'est mergé, et c'est un renvoi comme un autre — le finding dit sur quelle fusion les gates ont été jouées »
+- `test/garde-fous-cli.test.ts` « « stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate »
+- `test/gates-du-cook.test.ts` « le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git »
+- `test/geste.test.ts` « `test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres »
+- `test/geste.test.ts` « dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord »
+- `test/geste.test.ts` « lancé sous le compte de la station, il ne passe pas par `sudo` »
+- `test/geste.test.ts` « le clone que la ligne du projet nomme est celui de la commande »
+- `test/geste.test.ts` « le code de sortie de la commande est rendu tel quel »
+- `test/geste.test.ts` « le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration »
+- `test/geste.test.ts` « les arguments arrivent à la commande tels qu'ils ont été donnés, espaces compris »
+- `test/geste.test.ts` « rien de l'environnement de celui qui lance n'arrive à la commande »
+- `test/geste.test.ts` « un `--` devant les arguments, comme `npm run` en demandait un, ne change rien »
+- `test/geste.test.ts` « un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, sous le nom tapé, mais le refus d'une commande inconnue ne le nomme pas »
+- `test/geste.test.ts` « une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière »
+- `test/installation.test.ts` « « installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire »
+- `test/installation.test.ts` « `--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment »
+- `test/installation.test.ts` « `--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe »
+- `test/installation.test.ts` « `desinstaller` ne retire rien sans `--confirmer`, puis dit ce qui reste à la main »
+- `test/installation.test.ts` « `labels` crée ce qui manque et le dit »
+- `test/installation.test.ts` « ce que le setup pose dans le worktree est pesé »
+- `test/installation.test.ts` « ce qui manque au dépôt, à GitHub et à la machine est dit dans le même passage »
+- `test/installation.test.ts` « chaque manque nomme une étape de l'installation, et seuls les manques en nomment une »
+- `test/installation.test.ts` « confirmée, elle retire le clone réservé et les worktrees — et rien de l'origine ni du journal »
+- `test/installation.test.ts` « des bindings sans branche d'intégration valent `main` »
+- `test/installation.test.ts` « des gates ou un setup non exécutables manquent : le runtime les exécute tels quels »
+- `test/installation.test.ts` « des unités posées par lien vers les fichiers du dépôt ne sont pas comparées à elles-mêmes »
+- `test/installation.test.ts` « des unités posées qui sont celles du dépôt : « à jour » est dit, et ce qui a été comparé est nommé »
+- `test/installation.test.ts` « elle ne lance ni cook ni setup, n'écrit rien sur GitHub et ne déplace rien dans le clone »
+- `test/installation.test.ts` « la branche d'intégration des bindings et celle de la machine doivent être la même »
+- `test/installation.test.ts` « la branche d'intégration sans protection : la vérification est rouge, d'un seul manque, qui nomme l'étape « protection » »
+- `test/installation.test.ts` « la cloison posée se compare aussi, réglages du chef mis à part »
+- `test/installation.test.ts` « la commande la dit rouge, et nomme pour chaque manque l'étape à reprendre »
+- `test/installation.test.ts` « là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus »
+- `test/installation.test.ts` « la protection de la branche illisible : la vérification est rouge, d'un seul manque, qui nomme l'étape « protection » »
+- `test/installation.test.ts` « le calibrage du reviewer absent : la vérification est rouge, d'un seul manque, qui nomme l'étape « decisions » »
+- `test/installation.test.ts` « le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué »
+- `test/installation.test.ts` « le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite »
+- `test/installation.test.ts` « le setup ne reçoit rien de l'état du runtime »
+- `test/installation.test.ts` « les bindings que le runtime ne lit pas sont signalés sans rien retenir »
+- `test/installation.test.ts` « les labels sont lus au-delà de la première page »
+- `test/installation.test.ts` « les stations déclarées par l'étape d'installation, la vérification ne dit plus « aucune station » : le projet est prêt »
+- `test/installation.test.ts` « quand systemd ne dit pas d'où l'unité est chargée, rien n'est comparé et c'est dit »
+- `test/installation.test.ts` « sans confirmation, elle dit ce qu'elle retirerait et ne retire rien »
+- `test/installation.test.ts` « sur une box de station, brigade-station.service tient lieu de l'unité par projet : elle ne manque pas »
+- `test/installation.test.ts` « tout ce que l'origine n'a pas est nommé à blanc, et retient la désinstallation confirmée »
+- `test/installation.test.ts` « un calibrage absent manque avec l'action de l'étape qui le pose, son choix expliqué ; posé par elle, le projet est prêt »
+- `test/installation.test.ts` « un compte qui lit le dépôt sans pouvoir y pousser manque : aucune livraison ne partirait »
+- `test/installation.test.ts` « un compte qui n'administre pas le dépôt : la protection se lit par la branche, et le geste dit le droit à donner d'abord »
+- `test/installation.test.ts` « un compte sans identité git manque : un cook n'y commiterait rien »
+- `test/installation.test.ts` « un dépôt GitHub que `gh` ne lit pas manque »
+- `test/installation.test.ts` « un label écrit avec une autre casse est le même label : GitHub ne la distingue pas »
+- `test/installation.test.ts` « un nom de projet que le runtime refuserait manque, avec ses mots »
+- `test/installation.test.ts` « un projet installé est prêt : rien ne manque »
+- `test/installation.test.ts` « un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1 »
+- `test/installation.test.ts` « un projet prêt : elle le dit et sort en 0 »
+- `test/installation.test.ts` « un projet sans setup est prêt, et c'est dit : un worktree neuf y part tel quel »
+- `test/installation.test.ts` « un refus ne touche ni ce qui n'est pas noté, ni l'étape d'un manque déjà à faire : rien n'est écrit pour rien »
+- `test/installation.test.ts` « un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook »
+- `test/installation.test.ts` « un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré »
+- `test/installation.test.ts` « une box à mettre à jour : la dérive se lit avec son geste, et le projet reste prêt »
+- `test/installation.test.ts` « une branche d'intégration que rien ne protège manque, avec l'action qui la protège »
+- `test/installation.test.ts` « une branche protégée sans PR obligatoire manque, et l'action ne l'écrasera pas : le geste dit où la régler »
+- `test/installation.test.ts` « une commande inconnue rappelle l'usage et sort en 2 »
+- `test/installation.test.ts` « une connexion Max que le journal dit expirée manque, avec sa date, même si `claude auth status` répond connecté »
+- `test/installation.test.ts` « une connexion reprise ou un journal qui n'en dit rien ne change pas le constat »
+- `test/installation.test.ts` « une push protection qui n'est pas active est dite sans rien retenir, avec ce que GitHub en rend »
+- `test/installation.test.ts` « une racine que root tient seul est constatée, avec ce qui a été lu »
+- `test/installation.test.ts` « une unité chargée depuis le dépôt même ne le compare pas à lui-même »
+- `test/installation.test.ts` « une unité masquée n'a aucune copie à lire : « non comparées » est dit, pas « à jour » »
+- `test/installation.test.ts` « une unité posée qui diffère de celle du dépôt est nommée, avec le geste qui la règle, sans rien retenir »
+- `test/installation.test.ts` « une unité que systemd dit masquée n'est pas comparée, quel que soit son fichier »
+- `test/installation.test.ts` « une variable de décision laissée au drop-in est dite : ignorée, avec le geste qui la pose puis retire la variable »
+- `test/installation.test.ts` « une variable mal écrite est nommée avec ce que le runtime en dirait »
+- `test/installation.test.ts` « une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt » »
+- `test/limite-github.test.ts` « contre un GitHub presque épuisé, les sondages partent jusqu'à la réserve puis attendent, avant que GitHub ne refuse, sans lancer `gh` ; la fenêtre passée, ils reprennent »
+- `test/limite-github.test.ts` « la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire »
+- `test/main.test.ts` « avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude` »
+- `test/main.test.ts` « avec deux stations du même nom, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un bail qui n'est pas un nombre de secondes, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un clone qui n'est pas un dépôt git, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un dépôt qui n'est pas <owner>/<repo>, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un effort de reviewer inconnu, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un fichier de jeton absent, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un jeton d'API dans l'environnement, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un modèle de manager inconnu, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un nombre d'entrées simultanées nul, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un plafond de calibrage inconnu, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un port d'arbitre illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un port de porte illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec un seuil de mémoire illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une clé d'API dans l'environnement, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une cloison qui laisse l'état dehors, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une cloison qui ne masque rien, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef »
+- `test/main.test.ts` « avec une durée de garde des transcripts illisible, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une roadmap qui n'est pas un numéro d'issue, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une station au plafond nul, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « avec une station dont le nom n'est pas <machine>/<moteur>, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal »
+- `test/main.test.ts` « le runtime démarre, tourne, et s'arrête proprement sur SIGTERM »
+- `test/main.test.ts` « le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'en a pas »
+- `test/main.test.ts` « sans BRIGADE_BASE_BRANCH, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_GITHUB_REPO, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_MANAGER_EFFORT, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_MANAGER_MODEL, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_PROJECT, le runtime refuse de démarrer et nomme la variable »
+- `test/main.test.ts` « sans BRIGADE_REPO_DIR, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_REVIEWER_EFFORT, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_REVIEWER_MODEL, le runtime refuse de démarrer, et rien n'est écrit »
+- `test/main.test.ts` « sans BRIGADE_STATE_DIR, le runtime refuse de démarrer et nomme la variable »
+- `test/main.test.ts` « sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient »
+- `test/main.test.ts` « sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite »
+- `test/main.test.ts` « un délai de la pass illisible fait refuser de démarrer, sans laisser de journal »
+- `test/main.test.ts` « un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal »
+- `test/main.test.ts` « un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal »
+- `test/main.test.ts` « un plafond illisible est un refus de démarrer, avant d'avoir rien écrit »
+- `test/main.test.ts` « un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit » — rewritten in place as « un projet qui déclare trois stations démarre avec les trois : chacune s'annonce, avec son plafond, la distante comme telle, et le runtime les dit » (0.9 s)
+- `test/main.test.ts` « un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal »
+- `test/manager.test.ts` « `hors-cuisine` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit »
+- `test/manager.test.ts` « à la remise, un label de calibrage que le chef a posé lui-même n'est pas retiré »
+- `test/manager.test.ts` « allumé, une issue posée sans aucun label est jugée, lancée et calibrée, puis cuisinée »
+- `test/manager.test.ts` « après un redémarrage, ce qui a été jugé ne l'est pas de nouveau »
+- `test/manager.test.ts` « avec un jeton à son emplacement, un jugement le reçoit dans CLAUDE_CODE_OAUTH_TOKEN »
+- `test/manager.test.ts` « ce que le code sait écarter ne coûte aucun jugement : roadmap, question, décision, issue retenue »
+- `test/manager.test.ts` « chaque décision est au journal avec son motif, et le jugement y figure comme un cook, avec son calibrage »
+- `test/manager.test.ts` « éteint pendant un jugement, le manager ne pose rien ; rallumé, il pose la décision sans rejuger »
+- `test/manager.test.ts` « éteint, il ne sonde rien et ne juge rien »
+- `test/manager.test.ts` « l'écart `chef-changed` est dit une fois sur l'issue, avec ce qui a été retiré et la commande qui la rend »
+- `test/manager.test.ts` « l'écart nomme ce qui manque à l'issue, pas ce que le manager a posé un jour : un calibrage que le chef a remplacé n'est pas dit retiré »
+- `test/manager.test.ts` « l'issue d'un inconnu n'est ni jugée ni commentée, et son commentaire ne pèse pas dans un jugement »
+- `test/manager.test.ts` « le calibrage posé est justifié sur l'issue, et le chef y lit comment le contester »
+- `test/manager.test.ts` « le chef corrige un calibrage posé par le manager : rien n'est réécrit »
+- `test/manager.test.ts` « le chef ferme une issue dont le manager l'attendait : le journal l'apprend, une fois ; rouverte, il l'apprend aussi »
+- `test/manager.test.ts` « le chef lance et calibre l'issue pendant son jugement : le manager n'ajoute aucun label »
+- `test/manager.test.ts` « le chef pose `fire` sans calibrer : le manager juge, et ne pose que le calibrage »
+- `test/manager.test.ts` « le chef pose `fire` sur ce que le code écarte : le manager ne le retire pas, ne calibre pas, et le dit une fois »
+- `test/manager.test.ts` « le chef relance lui-même l'issue écartée, un label à la fois : l'écart n'est pas redit »
+- `test/manager.test.ts` « le chef retient l'issue pendant son jugement : rien n'est posé, les labels sont relus avant d'écrire »
+- `test/manager.test.ts` « le chef retire le `fire` du manager : il n'est pas reposé, même si l'issue change »
+- `test/manager.test.ts` « rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois »
+- `test/manager.test.ts` « rendue pendant qu'un tour, qui l'a déjà dépassée, attend GitHub : la remise n'est pas perdue, elle est au tour suivant »
+- `test/manager.test.ts` « rendue puis relancée et calibrée par le chef avant que le manager y revienne : il n'y retire rien et ne la rejuge pas »
+- `test/manager.test.ts` « un jugement arrêté par un garde-fou n'épingle rien non plus »
+- `test/manager.test.ts` « un jugement illisible ne pose rien, le dit, compte pour le disjoncteur, et n'est pas retenté sur le même état »
+- `test/manager.test.ts` « un jugement que le modèle refuse est retenté sans compter au disjoncteur, et ne dit rien tant qu'il peut aboutir »
+- `test/manager.test.ts` « un jugement qui bute sur le quota le dit de toutes les stations du projet : le compte est le même »
+- `test/manager.test.ts` « un jugement qui bute sur le quota retient la station, et repart quand le quota revient »
+- `test/manager.test.ts` « un jugement qui n'a pas eu lieu — panne, sortie en erreur — n'épingle rien : il est retenté, sans commentaire, jusqu'au disjoncteur »
+- `test/manager.test.ts` « un jugement qui révèle une connexion Max expirée retient la station, sans rien décider »
+- `test/manager.test.ts` « un jugement refusé trois fois d'affilée n'est pas retenté sans fin : il s'épingle, et le chef lit le refus sur l'issue »
+- `test/manager.test.ts` « un réveil qui n'a rien à qualifier ne lance aucun jugement »
+- `test/manager.test.ts` « une issue ne se juge qu'une fois par état : ni les réveils, ni ce que le manager y a écrit ne la font rejuger »
+- `test/manager.test.ts` « une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, sans rien poser »
+- `test/manager.test.ts` « une issue refusée est rejugée quand le chef la modifie ou y répond »
+- `test/manager.test.ts` « une issue retenue par le chef est jugée dès qu'il la libère »
+- `test/mesures-des-gates.test.ts` « les gates du dépôt déclarent les tests, leur durée, le poids du dépôt, de la doc et du contexte, et leur propre durée »
+- `test/mesures.test.ts` « `run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien »
+- `test/mesures.test.ts` « la commande montre le relevé sans rien écrire, et refuse un argument qu'elle ne connaît pas »
+- `test/miroir-des-gates.test.ts` « un rôle et son miroir modifiés ensemble ne sont pas jugés périmés »
+- `test/miroir-des-gates.test.ts` « un rôle modifié sans son miroir n'est pas sauté : il rougit, et lui seul »
+- `test/outils.test.ts` « lancerSurPortPose : l'arbitre sur un port repris à chaque essai, le compte d'essais s'épuise et le dit »
+- `test/paquet/paquet.test.ts` « la première installation crée le compte, puis active et démarre la station et son renouvellement »
+- `test/paquet/paquet.test.ts` « un compte brigade déjà là est gardé tel quel »
+- `test/paquet/paquet.test.ts` « un groupe brigade sans compte : le compte le rejoint »
+- `test/paquet/paquet.test.ts` « une mise à jour depuis une version sans portes ne les démarre pas elle-même : la station les réclame en repartant »
+- `test/paquet/paquet.test.ts` « une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver — les portes d'abord, quand elles tournent »
+- `test/pass-reprise-des-gates.test.ts` « le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier »
+- `test/pass-reprise-des-gates.test.ts` « le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût »
+- `test/pass-reprise-des-livrees.test.ts` « des cartes livrées par une vie sans pass sont jugées par la suivante, dans l'ordre de leur livraison »
+- `test/pass-reprise-des-livrees.test.ts` « une pass interrompue au milieu : les cartes déjà jugées ne le sont pas deux fois, celle qui était en cours reprend et n'est jugée qu'une fois »
+- `test/pass.test.ts` « au deuxième renvoi resté rouge, la pass cesse de renvoyer et la cuisine reprend le ticket, pas le chef : rien n'est mergé »
+- `test/pass.test.ts` « au moment d'abandonner un ticket, la cuisine le réessaie une fois si un merge a atterri sur la base depuis son dernier rouge ; abandonné ensuite, ceux qui l'attendent sortent du rail avec lui, et le suivent quand `fire` lui revient (#1902) »
+- `test/pass.test.ts` « avec un jeton à son emplacement, le cook et le reviewer le reçoivent ; les gates, qui jouent le code du projet, jamais »
+- `test/pass.test.ts` « ce qu'un cook laisse non commité dans sa livraison est commité à sa place avant le push : la pass juge ce commit-là, et le reviewer sait qu'il n'est pas du cook »
+- `test/pass.test.ts` « ce que le second juge dit qu'elle change s'écrit avec son verdict, et la carte du chef le dit (#1877) »
+- `test/pass.test.ts` « des gates dont le seul rouge est leur plafond de durée ne retiennent rien : le verdict est vert, le reviewer relit, la livraison est mergée sous grant — et le dépassement se lit sur l'issue »
+- `test/pass.test.ts` « des gates qui dépassent leur plafond sont arrêtées, et c'est rouge »
+- `test/pass.test.ts` « des gates rouges ne paient pas de relecture : le reviewer n'est pas appelé, et le verdict le dit »
+- `test/pass.test.ts` « établie non affaiblie par le second juge, sans grant : elle n'est pas mergée, comme une livraison ordinaire — arrêtée `no-grant`, sans carte »
+- `test/pass.test.ts` « établie non affaiblie par le second juge, sous grant : la pass la merge comme une livraison ordinaire, sans carte, et le journal dit le merge »
+- `test/pass.test.ts` « gates rouges : rien n'est mergé, les findings repartent à un cook dans un worktree neuf, sur la même branche et la même PR »
+- `test/pass.test.ts` « GitHub injoignable : rien n'est jugé ni écrit, et la pass y revient »
+- `test/pass.test.ts` « illisible, illisible, puis lisible : le ticket est jugé sur la dernière relecture, toujours sur le même commit — rouge, son constat repart au cook comme un renvoi ordinaire »
+- `test/pass.test.ts` « la PR que la pass ouvre est au journal avant toute remontée : le ticket remonté porte sa PR »
+- `test/pass.test.ts` « la raison d'un renvoi de la pass devient une leçon candidate du projet, d'origine « pass-send-back #17 », que le cook renvoyé reçoit »
+- `test/pass.test.ts` « le grant n'est pas rétroactif : activé après coup, une livraison déjà arrêtée n'est pas mergée »
+- `test/pass.test.ts` « le grant se consulte à chaque décision : révoqué entre deux livraisons, la seconde n'est pas mergée »
+- `test/pass.test.ts` « le plafond franchi ne se dit sur l'issue que sous un verdict vert, et une fois par commit livré : un reviewer bloquant renvoie sans lui »
+- `test/pass.test.ts` « le résultat d'un merge s'écrit sans attendre l'identité de la pass : lente à se lire, elle manque à ce merge-là, et rien ne reste en suspens »
+- `test/pass.test.ts` « le reviewer passe par les garde-fous : un échec compte pour le disjoncteur, et rien n'est relu tant qu'il est ouvert »
+- `test/pass.test.ts` « le second juge qui répond « cannot establish », sous grant : rien n'est mergé, et une carte `gesture` proposée au triage dit en trois lignes ce qui est affaibli, et où »
+- `test/pass.test.ts` « le second juge qui répond « juge-non-affaibli » : not-weakened, avec sa raison »
+- `test/pass.test.ts` « le second juge qui répond « relit-vert » : cannot-establish, avec sa raison »
+- `test/pass.test.ts` « le second juge qui répond « weakened », sous grant : rien n'est mergé, et une carte `gesture` proposée au triage dit en trois lignes ce qui est affaibli, et où »
+- `test/pass.test.ts` « le ticket `fix` de la cuisine sorti du rail, la livraison repart chez un cook ; non jugée de nouveau sur une cause qu'aucun cook ne lève, la cuisine abandonne le ticket et dit pourquoi sur l'issue : il sort du rail, jamais dans TODO ni laissé de côté »
+- `test/pass.test.ts` « rouges sur autre chose, des gates renvoient la livraison, plafond franchi ou non — et le renvoi ne donne pas le plafond pour cause »
+- `test/pass.test.ts` « sous l'identité unique de la machine, rien ne distingue la pass du chef : ce que le runtime suppose reste, avec le compte que GitHub nomme »
+- `test/pass.test.ts` « un cook de renvoi parti en pass sans compte-rendu est repris de même : sur sa PR, son renvoi toujours compté »
+- `test/pass.test.ts` « un cook de renvoi qui conclut sans commit ni rien délimiter n'a pas livré non plus : il a échoué, rien ne repart en pass, et le renvoi n'est pas consommé »
+- `test/pass.test.ts` « un cook de renvoi qui échoue sans rien commiter ne consomme pas de renvoi »
+- `test/pass.test.ts` « un cook de renvoi qui écrit sans rien commiter n'a pas livré un ticket sans diff : il a échoué, rien ne repart en pass, et ce qu'il a écrit est commité sur sa branche locale »
+- `test/pass.test.ts` « un cook qui a commité et délimité son compte-rendu : le reviewer lit ce qu'il a délimité, pas son message entier »
+- `test/pass.test.ts` « un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable, sur la fusion de sa branche avec la base — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit et sur quoi il porte »
+- `test/pass.test.ts` « un cook sans commit qui se déclare bloqué n'est pas servi : rien n'est relu, le ticket reste ouvert et la question va au chef »
+- `test/pass.test.ts` « un finding bloquant rend la pass rouge, gates vertes ou non : rien n'est mergé, il repart au cook comme un renvoi, et le verdict dit qui l'a produit »
+- `test/pass.test.ts` « un grant accordé jusqu'à une heure s'éteint seul : l'heure passée, le runtime l'écrit une fois, sans livraison ni geste, et la livraison suivante n'est pas mergée — son issue dit que le grant s'est éteint »
+- `test/pass.test.ts` « un grant échu pendant que le runtime était arrêté est éteint au redémarrage, pas réveillé : l'extinction s'écrit, datée de l'échéance, et rien n'est mergé »
+- `test/pass.test.ts` « un grant pour un usage : le premier merge fait le consomme et l'éteint dans le même geste, la livraison suivante n'est pas mergée »
+- `test/pass.test.ts` « un job de CI en échec rend la pass rouge, et le verdict dit lequel »
+- `test/pass.test.ts` « un merge à la main dont l'auteur tarde à se lire, et un ticket parti puis revenu entre-temps avec un cook neuf : le merge n'est pas mis au compte de la nouvelle livraison »
+- `test/pass.test.ts` « un merge de la pass porte son identité »
+- `test/pass.test.ts` « un merge que GitHub refuse n'est pas retenté : la pass s'arrête et dit pourquoi »
+- `test/pass.test.ts` « un merge sans réponse se réconcilie sur GitHub : la PR est mergée, le résultat est écrit, jamais un second merge »
+- `test/pass.test.ts` « un merge sans réponse, retrouvé fait sous l'identité de la pass, est bien le sien »
+- `test/pass.test.ts` « un projet sans gates n'est pas jugé vert : la cuisine en fait un ticket `fix`, sans renvoyer au cook ses propres gates à écrire »
+- `test/pass.test.ts` « un renvoi dont la branche a disparu du clone repart de la base : un cook qui n'y commite rien a échoué, rien n'est poussé »
+- `test/pass.test.ts` « un reviewer qui bute sur le quota retient la station comme un cook, et la livraison attend sans verdict »
+- `test/pass.test.ts` « un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix` »
+- `test/pass.test.ts` « un runtime arrêté pendant les gates ne laisse pas de verdict : au redémarrage, la livraison est jugée »
+- `test/pass.test.ts` « un runtime mort entre l'intention et le résultat : au redémarrage, un merge qui n'a pas eu lieu est repris, sous un grant relu »
+- `test/pass.test.ts` « un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne »
+- `test/pass.test.ts` « un ticket qui quitte le rail pendant que la pass le juge : la relecture en cours est arrêtée, et sa PR restée ouverte est dite une fois sur l'issue »
+- `test/pass.test.ts` « un ticket remonté dont le chef ferme la PR : la fermeture est constatée de même, et le ticket reste 86 »
+- `test/pass.test.ts` « un ticket remonté que le chef merge à la main : la pass le voit et ferme l'issue »
+- `test/pass.test.ts` « un ticket remonté que le chef rend au rail, puis dont il ferme la PR : la fermeture est écrite, mais rien n'est dit d'un ticket qui attend un cook »
+- `test/pass.test.ts` « un ticket resté en pass sans compte-rendu n'est jamais jugé tant que le runtime vit ; au redémarrage la station le raconte, et la pass le juge sur une seule PR »
+- `test/pass.test.ts` « un ticket sans diff jugé rouge repart au cook avec le constat, dans la limite des deux renvois ; son nouveau compte-rendu est relu »
+- `test/pass.test.ts` « une branche disparue dont la PR est déjà mergée n'est pas remontée : le ticket est servi »
+- `test/pass.test.ts` « une branche disparue sans PR ouverte est remontée de même : la pass ne bute pas dessus à chaque réveil »
+- `test/pass.test.ts` « une branche dont les seuls workflows sont planifiés, manuels ou sur tag est jugée sans CI (gadgets) »
+- `test/pass.test.ts` « une branche dont les workflows ne se lancent pas sur les PR est jugée sans attendre de CI »
+- `test/pass.test.ts` « une branche dont un workflow se lance sur les PR attend sa CI, et remonte en ci-silent passé le délai »
+- `test/pass.test.ts` « une CI en cours ne donne pas de verdict : elle est relue, les gates ne sont pas rejouées »
+- `test/pass.test.ts` « une CI qui ne conclut jamais n'est pas jugée passé le délai : la cuisine renvoie la livraison à un cook, sans consommer de renvoi ni poser de carte »
+- `test/pass.test.ts` « une CI rouge renvoie la livraison au cook sans relecture : le reviewer n'est pas appelé, et le verdict dit le job »
+- `test/pass.test.ts` « une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la cuisine en fait un ticket `fix` »
+- `test/pass.test.ts` « une intention restée sans résultat, puis un merge fait à la main : il n'est pas mis au compte de la pass, et la base est contrôlée »
+- `test/pass.test.ts` « une issue mergée puis rouverte est refermée au merge suivant »
+- `test/pass.test.ts` « une livraison dont le clone ne connaît plus la branche n'est pas un projet sans gates : la pass remonte `worktree-lost`, et le dit sur l'issue »
+- `test/pass.test.ts` « une livraison mergée à la main, relue seulement après le retour de son ticket sur le rail : le merge n'est pas mis au compte de la livraison du nouveau cook »
+- `test/pass.test.ts` « une livraison qui ne touche pas à ses juges ne passe devant aucun second juge »
+- `test/pass.test.ts` « une livraison qui ne touche pas aux réglages du projet n'est pas retenue pour cela »
+- `test/pass.test.ts` « une livraison qui touche à la déclaration des réglages du projet n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté »
+- `test/pass.test.ts` « une livraison qui touche à la déclaration des secrets n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté »
+- `test/pass.test.ts` « une livraison qui touche à la déclaration du réseau n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté »
+- `test/pass.test.ts` « une livraison qui touche à ses juges passe devant un second juge, distinct du reviewer et plus fort que lui : son verdict et sa raison s'écrivent au journal et sur la PR, une fois »
+- `test/pass.test.ts` « une livraison qui touche à ses propres juges n'est pas mergée sur le seul verdict de la pass, même sous grant »
+- `test/pass.test.ts` « une livraison qui touche aux deux déclarations les nomme toutes les deux, et dit les juges touchés avec elles »
+- `test/pass.test.ts` « une livraison sans diff rapportée sans livrable — un journal d'avant la délimitation — n'est pas relue : rouge, elle repart au cook, qui apprend ce qu'il doit délimiter »
+- `test/pass.test.ts` « une PR arrêtée que le chef ferme sans la merger : la pass le constate, l'écrit et le dit une fois ; le ticket reste en pass, et la PR rouverte puis mergée le sert »
+- `test/pass.test.ts` « une PR arrêtée que le chef merge à la main : la pass le voit, sert le ticket et ferme l'issue »
+- `test/pass.test.ts` « une PR arrêtée que le chef merge à la main porte son compte »
+- `test/pass.test.ts` « une PR arrêtée que le chef merge à la main, et dont le ticket quitte le rail avant que la pass ait relu GitHub : le merge est constaté, le ticket servi, pas abandonné »
+- `test/pass.test.ts` « une PR fermée avant que la pass ne juge : rien n'est joué ni relu, et c'est écrit plutôt que relu sans fin »
+- `test/pass.test.ts` « une PR qui ne vise pas la base est refusée : ni gates, ni merge, ni renvoi »
+- `test/pass.test.ts` « une redemande passe par les garde-fous, et ses deux essais se comptent au journal : disjoncteur ouvert, elle attend ; le runtime redémarré, la livraison n'en reçoit pas une de plus »
+- `test/pass.test.ts` « une relecture illisible — de la prose — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis la cuisine renvoie la livraison à un cook, sans merge ni renvoi consommé »
+- `test/pass.test.ts` « une relecture illisible — un verdict que ses constats contredisent — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis la cuisine renvoie la livraison à un cook, sans merge ni renvoi consommé »
+- `test/pass.test.ts` « une relecture illisible se redemande au reviewer, pas au cook : sur le même commit, sans cook relancé — lisible, elle est jugée comme une autre, sans que le ticket ait jamais été remonté »
+- `test/pass.test.ts` « une relecture que le modèle refuse n'est pas un échec : elle est retentée, sans rien écrire sur la livraison ni compter au disjoncteur »
+- `test/pass.test.ts` « une relecture qui n'aboutit pas ne dit rien de la livraison : rien n'est écrit, elle est retentée »
+- `test/pass.test.ts` « une relecture refusée trois fois d'affilée ne boucle pas jusqu'au disjoncteur : la cuisine reprend la livraison, et l'issue dit pourquoi »
+- `test/pass.test.ts` « verte sans grant : la PR reste ouverte, la pass s'arrête là et le dit »
+- `test/pass.test.ts` « verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée »
+- `test/pass/jugements-de-front.test.ts` « avec un plafond d'un, la pass juge une livraison à la fois, dans l'ordre de leur livraison, comme avant »
+- `test/pass/jugements-de-front.test.ts` « avec un plafond de deux, jamais plus de deux jugements à la fois : la troisième attend une place libre, et la prend quand une se libère »
+- `test/pass/jugements-de-front.test.ts` « trois livraisons aux zones disjointes sont jugées en même temps, `pass` les dit toutes jugées, et toutes sont mergées »
+- `test/pass/jugements-de-front.test.ts` « une livraison qui a écrit hors de sa zone se juge seule, elle aussi »
+- `test/pause.test.ts` « après le « oui », le cook en vol finit son travail, puis sa livraison verte attend au lieu d'être mergée ; aucun ticket neuf n'est pris ; à la fin de la pause, elle est mergée et la prise reprend »
+- `test/pause.test.ts` « pendant la pause, seul le ticket du renommage part en cuisine et se merge »
+- `test/pause.test.ts` « une carte qui attend son « oui » ne change rien : la livraison verte est mergée sous grant, comme sans elle »
+- `test/porte.test.ts` « sans port, sans projet ou sans état, la porte refuse de démarrer et dit ce qui manque »
+- `test/poser-decisions.test.ts` « l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni drop-in — rien ne peut y manquer »
+- `test/poser-decisions.test.ts` « la commande du chef, en texte : l'étape, puis chaque décision avec sa question, ses options, la recommandée et ce qui arrive si on la saute »
+- `test/projets/copie-locale.test.ts` « accès refusé : GitHub ne montre pas le dépôt au compte, ou refuse sa lecture — la raison nomme le compte et le dépôt »
+- `test/projets/tenir.test.ts` « un dépôt en https sans credential helper : l'accès bloqué nomme `gh auth setup-git` comme geste »
+- `test/proteger-branche.test.ts` « la commande du chef, par `gh` : une branche déjà protégée, l'étape faite, aucune écriture »
+- `test/reaction.test.ts` « éteint pendant qu'il tenait un ticket, le manager le rend à la pass, qui reprend sa règle d'avant »
+- `test/reaction.test.ts` « éteint, rien ne change : deux renvois au même calibrage, puis la pass remonte au chef »
+- `test/reaction.test.ts` « le chef n'est sollicité qu'en dernier recours, et reçoit de quoi trancher : ce qui a été tenté, ce qui a échoué, ce que le manager propose »
+- `test/reaction.test.ts` « le chef recalibre pendant que le manager tient le ticket : son label reste, et le ticket repart à son calibrage »
+- `test/reaction.test.ts` « un label de calibrage posé par le chef n'est jamais touché : le second renvoi part au même calibrage, et le manager dit pourquoi »
+- `test/reaction.test.ts` « une réaction illisible, ou qui choisit ce qui n'était pas offert, vaut remontée : le manager ne devine pas »
+- `test/reaction.test.ts` « une remontée que GitHub empêche de dire est faite quand même, et dite dès qu'il répond »
+- `test/reglages-projet/en-vigueur.test.ts` « a change merged on the integration branch applies to the next read once the station fetches it, without any restart »
+- `test/reglages-projet/proposer.test.ts` « a new calibration ceiling opens a PR towards the integration branch whose diff changes only the ceiling in the settings file, hands it to the pass, and returns its URL »
+- `test/reglages-projet/proposer.test.ts` « the change applies to the settings of the freshly fetched base, not to what the station's clone last saw »
+- `test/relance-de-ci.test.ts` « la réponse de GitHub perdue après la création du ticket `fix` : il se retrouve par sa marque, pas ouvert deux fois »
+- `test/relance-de-ci.test.ts` « le ticket `fix` du test déjà ouvert : une autre livraison rouge sur le même test le reprend, sans en ouvrir un second »
+- `test/relance-de-ci.test.ts` « rouge de nouveau après la relance sur le même test : pas de seconde relance, ni renvoi, ni carte — le test part à la cuisine en ticket `fix`, et la livraison est jugée sans lui »
+- `test/relance-de-ci.test.ts` « un run qu'un verdict rouge a déjà jugé est relancé avant d'être rejugé : un renvoi ne juge jamais deux fois le même run de CI »
+- `test/reparation.test.ts` « rouge qui reste rouge après le rejeu : un ticket de réparation est ouvert, qui nomme ce qui échoue et la base — calibré, `fire`, et `prio:0` »
+- `test/reparation.test.ts` « tant que le premier ticket de réparation est en cours, aucun second n'est ouvert — ni quand la base bouge en restant rouge, ni au rejeu demandé par le chef »
+- `test/reparation.test.ts` « une réparation dont la base est verte sur la tête mergée lève le blocage sans geste du chef ni rouvrir le ticket »
+- `test/reparation.test.ts` « une réparation fermée sans aucun merge qui l'ait fermée garde « left the rail without being served » : la base reste rouge »
+- `test/reprise-de-session.test.ts` « au relevé des mesures, le ticket repris se distingue d'un ticket reparti de zéro, et ses perdus se comptent comme avant »
+- `test/reprise-de-session.test.ts` « le transcript du cook précédent rangé avant le renvoi : le renvoi part d'un cook neuf, sans erreur, et livre »
+- `test/reprise-de-session.test.ts` « sans répertoire de `claude` connu, ou sans session dans le flux du cook précédent, le renvoi part d'un cook neuf »
+- `test/reprise-de-session.test.ts` « un cook de renvoi repris qui échoue sans rien livrer : le suivant part d'un cook neuf — la reprise elle-même a pu buter »
+- `test/reprise-de-session.test.ts` « un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket »
+- `test/reprise-de-session.test.ts` « un renvoi repris livré une seconde fois en rouge : le second renvoi reprend la session bifurquée du premier »
+- `test/sauvegarde.test.ts` « restaurer réclame une sauvegarde et un répertoire d'état »
+- `test/sauvegarde.test.ts` « une réussite non journalisée et des flux manquants se disent, sans faire échouer la commande »
+- `test/secrets-en-cuisine.test.ts` « des gates qui citent un jeton : leur sortie gardée est masquée, le verdict le compte et l'issue le dit »
+- `test/secrets-en-cuisine.test.ts` « le setup puis le cook reçoivent les secrets que le dépôt déclare, et rien d'autre de ce que la machine détient »
+- `test/secrets-en-cuisine.test.ts` « les gates de la pass reçoivent les secrets du projet, le reviewer aucun, et ce qu'elles en disent est masqué »
+- `test/secrets-en-cuisine.test.ts` « un cook qui dit ses secrets tout haut ne les révèle nulle part : flux brut, sortie d'erreur, journal, issue et PR sont masqués »
+- `test/secrets-en-cuisine.test.ts` « un cook qui dit tout haut le jeton longue durée qu'il a reçu ne le publie nulle part : flux brut, sortie d'erreur, journal, compte-rendu, issue et PR sont masqués »
+- `test/secrets-en-cuisine.test.ts` « un cook qui dit un jeton tout haut ne le publie nulle part, sans secret déclaré ni cloison : flux brut, sortie d'erreur, journal, issue et PR sont masqués, et l'issue le dit »
+- `test/secrets-en-cuisine.test.ts` « un cook qui ne dit aucun jeton : rien n'est masqué, et rien ne le dit »
+- `test/secrets-en-cuisine.test.ts` « un dépôt qui déclare sur une machine sans fichier de secrets : aucun cook, et l'issue nomme la variable à poser »
+- `test/secrets-en-cuisine.test.ts` « un projet sans déclaration ne reçoit rien du fichier de la machine »
+- `test/secrets-en-cuisine.test.ts` « un reviewer qui cite un jeton ne le publie pas : sa relecture est masquée au journal et sur l'issue, qui le dit »
+- `test/secrets-en-cuisine.test.ts` « un secret qui manque : aucun setup, aucun cook, le ticket est 86 dix minutes et l'issue dit lequel — une fois »
+- `test/secrets-en-cuisine.test.ts` « une livraison qui porte un fichier nommé comme les identifiants n'est pas poussée, sans qu'aucun secret soit déclaré »
+- `test/secrets-en-cuisine.test.ts` « une livraison reprise après un redémarrage se raconte masquée, et le dit encore : la fin du cook est au journal »
+- `test/station-distante.test.ts` « absente, elle ne retient que les tickets qui la demandent : ils sont 86 « station absente », sans cook ni panne, et les autres partent — dans le même lot »
+- `test/station-distante.test.ts` « annoncée, elle reçoit le ticket dont elle fournit tout ce qu'il demande — jamais celui qui demande ce qu'elle ne fournit pas, même s'il attend devant »
+- `test/station-distante.test.ts` « le plafond d'inactivité aussi : une station qui ne rapporte plus rien de son cook le perd »
+- `test/station-distante.test.ts` « les plafonds des garde-fous sont ceux d'un cook de la box : le plafond de jetons l'arrête sur ce que sa station rapporte, sans ouvrir le disjoncteur, et chaque étape est au journal »
+- `test/station-distante.test.ts` « sa livraison traverse la pass par le même chemin que celle d'un cook de la box : mêmes gates, même reviewer, même merge »
+- `test/station-distante.test.ts` « sans commit sur l'origine, ce qu'elle a délimité est son livrable — et sans rien de délimité, elle n'a rien livré »
+- `test/station-distante.test.ts` « son bail ne se renouvelle que sur une preuve de travail : sans preuve, ou sur la même empreinte, le renouvellement est refusé — et le bail tombe »
+- `test/station-distante.test.ts` « une livraison que la pass renvoie est reprise par la station distante sur la même branche, avec ses findings »
+- `test/station-ordinaires.test.ts` « elle ne dépasse jamais la limite de cooks fixée pour le Mac : tickets ordinaires compris »
+- `test/station-ordinaires.test.ts` « réglage activé et bac à sable disponible : elle prend un ticket ordinaire, et son cook est lancé avec la configuration du bac à sable »
+- `test/station-ordinaires.test.ts` « réglage activé et bac à sable indisponible : elle ne prend aucun ticket ordinaire, et expose l'état et sa raison »
+- `test/station-ordinaires.test.ts` « réglage désactivé : elle ne prend que les tickets qui demandent une de ses capacités, comme avant — même avec le bac à sable sur son poste »
+- `test/station-veille.test.ts` « en pleine cuisson, le Mac se tait : le bail tombe, le ticket revient prêt, et ce qu'il avait poussé est conservé »
+- `test/station-veille.test.ts` « pendant la veille, aucun ticket n'est perdu ni doublé : tenu par le Mac, la box ne le prend pas ; perdu, un seul cook le reprend ; réveillé, le Mac n'en reçoit plus rien »
+- `test/station-veille.test.ts` « réveillé, la box toujours saturée, le Mac reprend lui-même le travail conservé : même branche, tirée de l'origine »
+- `test/station.test.ts` « à un plafond d'un, la station ne fait tourner qu'un cook à la fois, même si le rail est plein »
+- `test/station.test.ts` « après une connexion expirée, la station repart au « resume » du chef »
+- `test/station.test.ts` « au plus deux tickets en entrée à la fois : le setup des suivants attend que les premiers soient partis »
+- `test/station.test.ts` « avec un jeton à son emplacement, le cook le reçoit dans CLAUDE_CODE_OAUTH_TOKEN — pas celui qu'un setup exporte »
+- `test/station.test.ts` « avec un plafond à trois, trois cooks tournent en même temps, chacun sur son ticket, son worktree et sa branche — jamais quatre »
+- `test/station.test.ts` « connexion Max expirée : le ticket revient en attente, la station le signale et ne prend plus rien »
+- `test/station.test.ts` « cuisine arrêtée : la station ne prend rien, et repart au « resume » »
+- `test/station.test.ts` « dans sa zone, dans un chemin commun, ou sans zone : rien n'est signalé »
+- `test/station.test.ts` « des gates de base qui n'ont pas pu se jouer ne sont pas un rouge : la station sert »
+- `test/station.test.ts` « deux tickets dont les zones se recouvrent ne partent jamais ensemble, même sous le plafond : le second attend, et le rail dit qui tient sa zone »
+- `test/station.test.ts` « GitHub injoignable au redémarrage : le compte-rendu repris s'écrit sans PR, et le commentaire le dit »
+- `test/station.test.ts` « l'annonce n'est réécrite au redémarrage que si elle a changé »
+- `test/station.test.ts` « la cause levée, le projet reprend seul : un seul ticket sonde, et dès que son cook part l'entrée du chef disparaît »
+- `test/station.test.ts` « la machine se lit même quand une autre borne retient la station : au plafond, une saturation se dit et se lève »
+- `test/station.test.ts` « la même cause sur deux tickets bloque le projet : une alerte avec la cause et le geste, et chaque ticket dit en clair ce qu'il attend »
+- `test/station.test.ts` « le calibrage du ticket est celui du cook : passé au binaire, et porté par le journal »
+- `test/station.test.ts` « le chef baisse le plafond pendant que des cooks tournent : aucun n'est arrêté, et la station n'en lance plus avant d'être revenue dessous ; zéro lève la limite »
+- `test/station.test.ts` « le cook commente son ticket : ce qu'il a fait, son calibrage, ce qu'il a consommé, sa PR »
+- `test/station.test.ts` « le cook ne reçoit pas l'état du runtime qui le fait tourner »
+- `test/station.test.ts` « le même reste de mémoire ne retient pas une machine de 16 Go : son seuil, dérivé de sa mémoire totale, est plus bas »
+- `test/station.test.ts` « le projet bloqué ne reprend qu'un ticket à la fois : les autres, à échéance au même tick, restent retenus tant que le premier sonde »
+- `test/station.test.ts` « le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket »
+- `test/station.test.ts` « le setup du projet passe avant le cook, avec le numéro du ticket, et le cook reçoit ce qu'il exporte »
+- `test/station.test.ts` « le setup n'en est pas : un setup en échec ne compte pas pour une cause de mise de côté »
+- `test/station.test.ts` « le setup tient le ticket : son bail repart quand le cook est lancé »
+- `test/station.test.ts` « tant que le quota n'est pas revenu la station ne prend rien ; à l'heure dite, elle reprend »
+- `test/station.test.ts` « un « stop » pendant un cook rend le ticket au rail, sans commentaire ni reprise »
+- `test/station.test.ts` « un commit renouvelle le bail ; un fichier que le projet ignore, non »
+- `test/station.test.ts` « un cook arrêté par un garde-fou sans avoir rien commité reste un échec »
+- `test/station.test.ts` « un cook fini, la station prend le ticket suivant »
+- `test/station.test.ts` « un cook mort pendant que le runtime était arrêté — son relais tué avec lui : au redémarrage son ticket est en attente, et un cook neuf le reprend »
+- `test/station.test.ts` « un cook que le modèle refuse n'a pas échoué : le ticket repart, le chef le lit sur l'issue, et le disjoncteur n'en sait rien »
+- `test/station.test.ts` « un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass »
+- `test/station.test.ts` « un cook qui conclut sans commit et sans rien délimiter n'a pas livré : c'est un échec, pas un ticket sans diff dont le message serait le livrable »
+- `test/station.test.ts` « un cook qui conclut sans commit, avec un compte-rendu, a livré un ticket sans diff : il part en pass, sans rien pousser ni ouvrir de PR »
+- `test/station.test.ts` « un cook qui échoue : le ticket revient en attente, le journal et un commentaire disent pourquoi »
+- `test/station.test.ts` « un cook qui écrit hors de la zone de son ticket est signalé au chef : au journal et sur l'issue, sans que rien ne s'arrête »
+- `test/station.test.ts` « un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent »
+- `test/station.test.ts` « un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté »
+- `test/station.test.ts` « un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail »
+- `test/station.test.ts` « un cook qui réécrit le fichier `.git` de son worktree ne fait rien lancer à la station : sa livraison échoue en le disant, rien n'est poussé, et son worktree est abandonné en disant ce qui part avec lui »
+- `test/station.test.ts` « un cook refusé dont le ticket a quitté la station pendant la cuisson : le commentaire ne prétend ni l'avoir rendu ni l'avoir remonté »
+- `test/station.test.ts` « un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, sans compter au disjoncteur »
+- `test/station.test.ts` « un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là »
+- `test/station.test.ts` « un jugement du manager ou une relecture en cours ne retient pas la prise : le plafond ne compte que les cooks de tickets »
+- `test/station.test.ts` « un quota épuisé qui ne dit pas quand il revient est retenté une heure plus tard »
+- `test/station.test.ts` « un runtime mort entre l'envoi en pass et le compte-rendu : au redémarrage la station ouvre la PR, écrit le compte-rendu et le dit sur le ticket »
+- `test/station.test.ts` « un setup bloqué le reste après un redémarrage : la nouvelle vie ne relance aucun setup tant que la base n'a pas bougé »
+- `test/station.test.ts` « un setup qui exporte une clé ne détourne pas le cook de la connexion Max : aucun jeton ne lui parvient »
+- `test/station.test.ts` « un setup réparé : le ticket revient en attente à l'heure dite, et son cook part »
+- `test/station.test.ts` « un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre »
+- `test/station.test.ts` « un ticket d'interface livré avec ses captures les montre sur sa PR et sur le ticket, avant et après côte à côte, et le journal les garde pour la carte »
+- `test/station.test.ts` « un ticket d'interface livré sans ses captures est dit incomplet, sur sa PR, sur le ticket et pour la carte »
+- `test/station.test.ts` « un ticket dont la fiche est illisible n'est jamais lancé : il passe 86 et un commentaire dit quoi corriger »
+- `test/station.test.ts` « un ticket non calibré ne retient pas le suivant »
+- `test/station.test.ts` « un ticket que le modèle refuse trois fois d'affilée n'est pas relancé sans fin : il est mis de côté un jour, 86, avec le motif — sans rien demander au chef (#1834) »
+- `test/station.test.ts` « un ticket qui échoue est repris par un cook neuf, et le disjoncteur borne la série »
+- `test/station.test.ts` « un ticket qui n'est pas d'interface ne dit rien de captures : ni sur sa PR, ni sur le ticket, ni au journal, ni pour la carte »
+- `test/station.test.ts` « un ticket qui quitte la station pendant son setup ne laisse pas de worktree : il est repris dans un neuf »
+- `test/station.test.ts` « un ticket rendu au rail pendant que son cook tourne n'est repris qu'une fois ce cook arrêté : jamais deux cooks sur un ticket »
+- `test/station.test.ts` « un ticket rendu pendant que son cook tourne ne fait pas une place : à un plafond d'un, jamais deux cooks vivants »
+- `test/station.test.ts` « un ticket rendu pendant que son cook tourne tient encore sa zone : un ticket qui la recouvre ne part pas tant que ce cook écrit »
+- `test/station.test.ts` « un ticket renvoyé par la pass repasse par le setup : le cook de renvoi reçoit lui aussi ce qu'il exporte »
+- `test/station.test.ts` « un worktree durablement illisible ne vaut pas progrès : passé un sursis, le bail tombe »
+- `test/station.test.ts` « un worktree impossible à préparer met le ticket 86 dix minutes, avec sa raison, sans lancer de cook »
+- `test/station.test.ts` « une autre cause se présente : le blocage tombe seul, et c'est elle qui compte »
+- `test/station.test.ts` « une base d'intégration rouge : la station ne lance plus aucun cook et le dit, sans toucher à ceux qui tournent ; elle repart seule au vert »
+- `test/station.test.ts` « une fiche modifiée pendant la cuisson est montrée même quand la livraison tient dans la zone de la prise »
+- `test/station.test.ts` « une fiche modifiée pendant la cuisson ne change pas le juge : la zone est celle de la prise, et le changement est montré »
+- `test/station.test.ts` « une fois sa fiche corrigée, le ticket refusé revient en attente tout seul et son cook part »
+- `test/station.test.ts` « une fois ses labels posés, le ticket refusé revient en attente tout seul et son cook part »
+- `test/station.test.ts` « une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte »
+- `test/station.test.ts` « une livraison déjà racontée n'est pas reprise au redémarrage »
+- `test/station.test.ts` « une machine de 32 Go à qui il reste 2 Go : la station ne prend plus rien, `status` dit la mémoire avec son seuil et d'où il vient, puis les deux ressources ; elle reprend seule quand la mémoire revient »
+- `test/station.test.ts` « une machine illisible ne retient rien : la station le dit une fois et sert »
+- `test/station.test.ts` « une machine qui n'en peut plus : la station ne prend plus rien et le dit une fois, sans toucher aux cooks en cours ; elle reprend quand la machine respire »
+- `test/station.test.ts` « une PR ouverte juste avant la mort du runtime est retrouvée au redémarrage : jamais une seconde »
+- `test/station/cuisine-reglages-du-depot.test.ts` « a fresh clone and a newly registered station: the project's branch, calibrations and ceiling, with nothing but the station entered on the box »
+- `test/station/cuisine-reglages-du-depot.test.ts` « the box's branch, calibrations and ceiling, when they differ from the repository's, are ignored »
+- `test/station/main.test.ts` « BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent »
+- `test/station/nom.test.ts` « la commande de renommage change le nom retenu, et refuse un nom vide ou l'absence du répertoire »
+- `test/stations.test.ts` « deux stations déclarées, `box/claude` et `box/playwright` : le runtime les connaît toutes deux, chacune avec ce qu'elle fournit et son plafond »
+- `test/stations.test.ts` « le chef règle le plafond d'une station à chaud : il l'emporte sur celui qu'elle déclare, sans toucher à l'autre »
+- `test/stations.test.ts` « le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend »
+- `test/stations.test.ts` « le plafond que donnent les cœurs est tenu comme celui qu'on déclare : une station pleine laisse le ticket suivant à l'autre, puis il attend son tour »
+- `test/stations.test.ts` « sans station, l'absence n'est écrite qu'une fois ; une station déclarée ensuite l'efface, et le ticket part »
+- `test/stations.test.ts` « sans station, le chef peut toujours arrêter et reprendre la cuisine : rien ne plante, rien ne part »
+- `test/stations.test.ts` « un projet qui ne déclare aucune station est accepté : aucun cook ne part, le ticket attend, et le journal comme `status` le disent »
+- `test/stations.test.ts` « une place qui se libère dans une station est reprise par elle : son plafond borne à chaque prise »
+- `test/stations.test.ts` « une station à plafond 1, seule : jamais deux cooks à la fois, même devant un rail plein »
+- `test/stations.test.ts` « une station que le projet ne déclare plus est retirée au redémarrage : `status` ne la montre plus, et le cook qu'elle faisait tourner est repris — il finit comme il aurait fini, sans qu'elle ne prenne plus rien »
+- `test/stations.test.ts` « une station retirée puis déclarée à nouveau s'annonce de nouveau »
+- `test/status.test.ts` « avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C »
+- `test/status.test.ts` « pendant qu'un cook tourne, la commande répond et montre le runtime, le rail, le cook et les derniers événements »
+- `test/verdict.test.ts` « aucune station déclarée : la vérification est rouge, d'un seul manque, qui nomme l'étape « stations » »
+- `test/installation.test.ts` « un `claude` désigné par son chemin ne doit rien au `PATH` de l'unité »
+- `test/installation.test.ts` « un répertoire temporaire de `claude` qui n'est pas au compte manque : chaque cook s'y refuserait »
+- `test/appairage/canal.test.ts` « un gist supprimé se dit absent ; une panne de GitHub lève, et nomme ce que gh a dit »
+- `test/appairage/rail-du-projet.test.ts` « le rail que publie une station en ligne passe avant celui d'une station arrêtée qui servait le projet avant elle »
+- `test/appairage/rail-du-projet.test.ts` « non connecté à GitHub : la réponse dit pourquoi en une phrase, avec le geste qui connecte — jamais un rail vide »
+- `test/appairage/rail-du-projet.test.ts` « un rail vide se lit vide, et le dit en une phrase »
+- `test/appairage/stations-du-chef.test.ts` « connecté, mais aucune station appairée : la liste est vide, et dit pourquoi en une phrase »
+- `test/appairage/stations-du-chef.test.ts` « un gist de station appairée illisible est dit, sans faire tomber les autres ; seul, la liste vide dit pourquoi »
+- `test/apprentissage/injection.test.ts` « reçoit les leçons de son projet — celle d'un ticket précédent comprise —, jamais celles d'un autre, et son lancement dit lesquelles »
+- `test/apprentissage/injection.test.ts` « le réglage du projet change le compte qu'il reçoit »
+- `test/apprentissage/injection.test.ts` « sans leçon, il part comme avant, et son lancement dit qu'il n'en a reçu aucune »
+- `test/apprentissage/retro-servie.test.ts` « sa rétro est écrite avec lui, au plus trois leçons, et ses leçons sont lisibles dès qu'il est servi »
+- `test/arbitrage.test.ts` « une écriture qui lève à l'entrée en mode dégradé ne retient pas la station : la demande n'est pas perdue »
+- `test/arbitre-cli.test.ts` « le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore, et la consommation des cooks dite comme telle »
+- `test/arbitre-cli.test.ts` « arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles »
+- `test/arbre.test.ts` « arrêter un cook porté par un relais tue tout son arbre, et le relais écrit sa fin puis s'en va »
+- `test/architecture.test.ts` « un tour complet d'une station distante — annoncer, réclamer, renouveler, rendre, la pass, le merge — n'ouvre aucune connexion depuis la box »
+- `test/attend-en-anglais.test.ts` « sur l'état d'avant, le bloc `awaiting` nomme les mêmes décisions que le bloc `attend` d'avant, dans le même ordre »
+- `test/bac-a-sable/local.test.ts` « dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté »
+- `test/bas-de-status-en-anglais.test.ts` « sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes »
+- `test/bascule/bascule.test.ts` « rejouée, la bascule ne trouve plus rien à faire : la machine reste telle quelle »
+- `test/bascule/bascule.test.ts` « un projet sans dépôt : la bascule est refusée en le disant, et rien ne change sur la machine »
+- `test/bascule/bascule.test.ts` « un projet avec une valeur à blancs : la bascule est refusée en le disant, et rien ne change sur la machine »
+- `test/base-cli.test.ts` « un rejeu demandé sans runtime qui tourne le dit, en anglais »
+- `test/base-cli.test.ts` « un rejeu demandé avant le ticket est toujours montré et se lève sans rien éditer à la main »
+- `test/base-cli.test.ts` « l'ancien mot `rejouer` fait toujours son effet, et le nouveau est dit »
+- `test/budget-des-gates.test.ts` « tant que le ticket est ouvert, les passages hors budget suivants n'en ouvrent pas d'autre »
+- `test/budget-des-gates.test.ts` « un ticket retiré du rail, resté ouvert, ne retient pas le suivant — ni `hors-cuisine` »
+- `test/budget-des-gates.test.ts` « la pass ouvre le ticket quand les gates qu'elle joue dépassent le budget du projet, une fois, et le dit »
+- `test/capacite-libre/capacite-libre.test.ts` « le ticket en WAITING qui l'attendait revient seul sur le rail dès le « Save », et part chez cette station »
+- `test/capacites-en-cuisine.test.ts` « les tickets du même lot qui ne demandent rien partent normalement pendant qu'un autre est 86 — même sur sa zone »
+- `test/capacites-en-cuisine.test.ts` « deux capacités fournies chacune par une station, jamais ensemble : le ticket ne part pas, et le motif dit que c'est leur réunion qui manque »
+- `test/capacites-en-cuisine.test.ts` « une fois la capacité retirée de sa fiche, le ticket revient en attente tout seul et son cook part ; changée pour une autre qui manque, il dit laquelle »
+- `test/capacites-en-cuisine.test.ts` « une station qui fournit la capacité est déclarée, le runtime redémarre : le ticket revient en attente tout seul et part chez elle »
+- `test/capacites-en-cuisine.test.ts` « sans aucune station déclarée, le ticket qui demande une capacité est 86 et le dit ; celui qui ne demande rien attend, comme avant »
+- `test/capacites-en-cuisine.test.ts` « une fiche illisible ne demande rien : le ticket part pour être refusé sur son issue, pas pour une capacité qui manque »
+- `test/capacites-en-cuisine.test.ts` « demander une capacité ne confère aucune autorisation : `accès-prod`, demandé comme capacité ou comme action, reste refusé par les grants »
+- `test/cloison.test.ts` « le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants »
+- `test/cloison.test.ts` « le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement »
+- `test/cloison.test.ts` « un masque qui est un fichier est refusé au démarrage, pas à chaque lancement »
+- `test/cloison.test.ts` « un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket »
+- `test/cloison.test.ts` « le compte est rendu en lecture seule : ce qu'un cook écrit sous ~ va au projet, jamais dans le ~/.gitconfig que lit le runtime »
+- `test/cloison.test.ts` « un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule »
+- `test/cloison.test.ts` « un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs »
+- `test/cloison.test.ts` « `git config` écrit dans la vue du worktree, pas dans la config que lit le `git` du runtime »
+- `test/cloison.test.ts` « réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage »
+- `test/cloison.test.ts` « le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant »
+- `test/cloison.test.ts` « le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal »
+- `test/cloison.test.ts` « dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison »
+- `test/closing/memory.test.ts` « ce qu'un autre projet a laissé, au même code, ne retient rien de ce qui est proposé à celui-ci »
+- `test/closing/observer.test.ts` « sur un historique de merges fixe, le ratio ajouté / retiré de chaque fenêtre est le bon, avec ses valeurs absolues »
+- `test/closing/observer.test.ts` « une fenêtre plus large que l'historique dit combien de merges elle a trouvés ; sans rien de retiré, elle ne donne pas de ratio ; sans merge, elle le dit »
+- `test/closing/observer.test.ts` « quand il n'y a ni doublon ni code mort, la sortie le dit explicitement — et dit ce qu'elle n'a pas pu chercher »
+- `test/closing/observer.test.ts` « l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune branche et n'y prend aucun verrou — même quand un autre en tient »
+- `test/closing/observer.test.ts` « le journal, s'il est là, dit les compteurs de la dérive : les merges depuis la dernière fermeture et les seuils franchis, lus par le relevé des mesures »
+- `test/closing/observer.test.ts` « `run closing` joue l'observation dans son propre process »
+- `test/closing/pass.test.ts` « sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte, le dit sur la PR, et voit le merge que le chef fait à la main »
+- `test/closing/pass.test.ts` « un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : rien n'est mergé, aucun cook ni closer n'est renvoyé, elle remonte au chef »
+- `test/closing/pass.test.ts` « des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef »
+- `test/closing/report.test.ts` « un seul garde-fou qui cède suffit, une mesure qui monte ou ne bouge pas tient, et des gates rouges sont l'échec du produit »
+- `test/closing/report.test.ts` « un garde-fou que rien n'a mesuré n'est jamais dit tenu : le bilan dit ce qui manque — la PR pas encore jugée, des gates qui ne déclarent pas la mesure, une base que la pass n'a jamais jugée seule »
+- `test/closing/request.test.ts` « une demande qui attend se lit dans la file : depuis quand, et ce qui la retient — combien de cooks en vol, pour quel seuil ; elle en sort en partant »
+- `test/closing/request.test.ts` « une seule demande à la fois : redemandée pendant qu'elle attend, rien n'est redemandé, et une seule passe part »
+- `test/closing/request.test.ts` « une demande qui attend depuis deux heures est dite sans issue — une fois, au journal, dans journald et dans la file — et attend toujours »
+- `test/closing/request.test.ts` « le « stop » du chef pendant qu'elle attend la refuse : elle ne repart pas d'elle-même à la reprise »
+- `test/closing/run.test.ts` « une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le dit, et la base n'a pas bougé »
+- `test/closing/run.test.ts` « le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part »
+- `test/closing/trigger.test.ts` « under the chef's "stop", nothing is requested; the request comes once the kitchen resumes »
+- `test/commun/etage.test.ts` « une leçon promue dans un seul projet, ou provisoire ou sortie dans l'autre, n'est pas proposée »
+- `test/commun/etage.test.ts` « la leçon reste dans le carnet des deux projets seulement, aucun cook d'un autre projet ne la reçoit, et elle n'est plus proposée »
+- `test/commun/etage.test.ts` « aucune proposition, et la consigne de ses cooks reste ce qu'elle était — même si l'étage a gardé une leçon acceptée »
+- `test/commun/etage.test.ts` « sans reconfirmation pendant `expiration` tickets servis, elle expire : plus servie, marquée expirée, jamais reproposée »
+- `test/commun/etage.test.ts` « une rétro qui la reconfirme remet le compte à zéro ; une retirée n'expire pas »
+- `test/connexion-max/cuisine.test.ts` « connexion perdue d'après le renouvellement : les cuisines de tous les projets suspendent, sans lancer un cook ni rien compter comme échec »
+- `test/connexion-max/cuisine.test.ts` « un cook qui voit la connexion tomber la fait perdre à toute la machine : l'autre projet suspend sans lancer le sien »
+- `test/connexion-max/cuisine.test.ts` « après un login — seul geste —, la cuisine reprend seule, sans redémarrage, dans la minute de l'horloge simulée »
+- `test/connexion-max/cuisine.test.ts` « le « reprendre » du chef après la perte reste le sien : la veille ne resuspend pas le projet »
+- `test/correctif/decision.test.ts` « « oui » deux fois, ou « oui » puis « non » : un seul geste compte, et une seule PR part »
+- `test/correctif/decision.test.ts` « un diff qui ne se commite plus n'ouvre aucune PR : la correction est dite non livrée, et pourquoi »
+- `test/correctif/proposer.test.ts` « une candidate donne une proposition : la cause, ses tickets, un diff des consignes et ce qu'il a coûté — et la carte la porte »
+- `test/correctif/proposer.test.ts` « la garde lit le diff elle-même : CLAUDE.md, la doc d'équipe et les gates passent ; tout le reste, et ce qui ne se lit pas, est refusé »
+- `test/cout-des-gates.test.ts` « des gates coupées à leur plafond ont une durée, et pas de processeur : il est mort avec elles »
+- `test/cout-des-gates.test.ts` « un setup en échec ne lance pas les gates : rien n'est écrit »
+- `test/cout-des-gates.test.ts` « sans budget posé, le projet a le défaut — 100 s d'horloge, 400 s de processeur ; posé par le chef, le sien »
+- `test/cout-des-gates.test.ts` « le dernier jour compte les passages, leur horloge et leur processeur ; un passage de plus de 24 h, ou d'un autre projet, n'y est pas »
+- `test/cout-des-gates.test.ts` « la pass écrit le coût des gates qu'elle joue : projet, ticket, `pass`, horloge et processeur se relisent par `facts` »
+- `test/cuisson-de-bout-en-bout.test.ts` « la station prépare le worktree, y lance le cook — chemins à espaces, arguments intacts —, reçoit sa fin par le relais, pousse sa branche et range le worktree »
+- `test/cuisson-par-station.test.ts` « lancer : arrêtée, la station ne prend rien — `stopped` ; lancée, elle prend le ticket et passe à `cooking`, son cook dit sa station »
+- `test/cuisson-par-station.test.ts` « arrêter laisse finir le cook en cours : rien ne le coupe, il livre — rien n'est perdu — et la station ne prend plus rien »
+- `test/cuisson-par-station.test.ts` « arrêtée, un cook qui finit sans rien livrer rend son ticket au rail — il n'est pas perdu, et la station ne le reprend qu'une fois lancée »
+- `test/cuisson-par-station.test.ts` « une station distante s'arrête par le même geste : son cook renouvelle et rend, son ticket revient au rail, elle ne reçoit plus rien avant d'être lancée »
+- `test/cuisson-par-station.test.ts` « le « stop » de toute la cuisine reste celui d'avant : il coupe les cooks, quand l'arrêt d'une station les laisse finir »
+- `test/decisions.test.ts` « chacune, posée au support, est lue à la lecture suivante — sans redémarrage ni rechargement du process »
+- `test/decisions.test.ts` « une variable de décision laissée dans l'environnement est ignorée au profit du support ; retirée du support, la décision ne retombe pas sur elle »
+- `test/decisions.test.ts` « une décision absente reste absente : ni station, ni seuil, ni calibrage par défaut »
+- `test/decisions.test.ts` « retirée sans variable derrière, une décision ne tombe pas sur un défaut : le runtime s'en tient à ce qu'il lisait, et le dit une fois »
+- `test/decisions.test.ts` « en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part »
+- `test/decisions.test.ts` « en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante »
+- `test/decisions.test.ts` « en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant »
+- `test/decisions.test.ts` « en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée »
+- `test/decisions.test.ts` « en cuisine : une station distante retirée par le chef laisse son cook en vol renouveler et livrer — elle ne prend plus rien »
+- `test/declarer-stations.test.ts` « l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien ne peut y manquer »
+- `test/declarer-stations.test.ts` « la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare »
+- `test/decoupage.test.ts` « devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse »
+- `test/decoupage.test.ts` « la question ne se repose pas tant que l'épique ne change pas ; le chef répond, elle est relue et découpée »
+- `test/decoupage.test.ts` « un runtime tué au milieu des créations reprend où il en était : aucun doublon »
+- `test/decoupage.test.ts` « une issue créée dont la réponse s'est perdue est retrouvée par sa marque, pas recréée »
+- `test/decoupage.test.ts` « la marque d'un ticket ne vaut que sur une issue de confiance : celle d'un inconnu n'est ni reprise, ni fichée, ni lancée »
+- `test/decoupage.test.ts` « à la reprise, la fiche d'un tiers ne dispense pas de poser celle du manager »
+- `test/decoupage.test.ts` « le chef pose `epic` pendant le jugement d'une issue : elle est découpée, pas lancée comme un ticket »
+- `test/decoupage.test.ts` « une épique qui cite le marqueur de liste, dans une phrase ou un exemple, est découpée — et ce qu'elle cite n'est pas réécrit »
+- `test/decoupage.test.ts` « une issue qui cite la marque d'un ticket n'est pas prise pour un ticket né d'un découpage : elle est jugée »
+- `test/decoupage.test.ts` « une épique découpée à la main — son corps liste déjà ses tickets — n'est ni jugée ni découpée »
+- `test/decoupage.test.ts` « une épique que le découpage lit comme déjà découpée ne crée rien, et le dit une fois »
+- `test/decoupage.test.ts` « un découpage illisible ne crée aucun ticket, le dit, et n'est pas retenté sur le même état »
+- `test/decoupage.test.ts` « une épique retenue par le chef n'est pas découpée ; libérée, elle l'est »
+- `test/decoupage.test.ts` « tant que le chef a dit « stop », aucune épique n'est découpée ; à « resume », elle l'est »
+- `test/decoupage.test.ts` « éteint au milieu des créations, le manager s'arrête là ; rallumé, il finit sans rejuger »
+- `test/decoupage.test.ts` « une épique fermée n'est jamais découpée : fermée pendant le jugement, aucun ticket ne naît »
+- `test/decoupage.test.ts` « le chef retient l'épique au milieu des créations : elles attendent qu'il la libère »
+- `test/demenagement/demenagement.test.ts` « la cuisine d'un projet ajouté depuis l'app va de la box à cet ordinateur, revient, puis va sur une autre station — sans retrait ni rajout, son histoire, ses tickets, ses grants et ses réglages intacts »
+- `test/demenagement/demenagement.test.ts` « un ticket en cours de cuisson sur la station qu'il quitte est repris sur la nouvelle : son cook arrêté par le déménagement, ni perdu, ni en échec »
+- `test/deploy/installer-station.test.ts` « la première fois : le runtime publié, son node vérifié, l'agent launchd écrit et chargé, puis les deux connexions »
+- `test/deploy/installer-station.test.ts` « l'agent launchd lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main »
+- `test/deploy/installer-station.test.ts` « le lanceur prend le répertoire de la station, garde son pid, et lance le point d'entrée du runtime »
+- `test/deploy/installer-station.test.ts` « le lanceur ne double pas la station que l'app tient : il attend qu'elle la rende »
+- `test/deploy/installer-station-windows.test.ts` « rejouée sans rien de neuf : rien ne se retélécharge, la station n'est pas relancée, et rien ne se redemande »
+- `test/deploy/installer-station.test.ts` « rejouée sans rien de neuf : rien ne se retélécharge, la station n'est pas relancée, et rien ne se redemande »
+- `test/deploy/installer-station.test.ts` « rejouée sur une version publiée plus récente : le runtime est remplacé, et la station relancée sur lui »
+- `test/deploy/installer-station-windows.test.ts` « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé »
+- `test/deploy/installer-station.test.ts` « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé »
+- `test/deploy/installer-station-windows.test.ts` « sans terminal, la station est installée et la commande dit de la rejouer pour les connexions »
+- `test/deploy/installer-station.test.ts` « sans terminal, la station est installée et la commande dit de la rejouer pour les connexions »
+- `test/depot.test.ts` « un répertoire qui n'est pas un dépôt git est refusé à l'ouverture »
+- `test/depot.test.ts` « ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge »
+- `test/depot.test.ts` « ce qu'un push publierait ne compte pas ce que l'origine a déjà reçu de la branche, et la branche y revient »
+- `test/depot.test.ts` « ce qu'un push publierait dit le fichier écrit sous les préfixes `a/` et `b/`, quoi que règle la config git de la station »
+- `test/depot.test.ts` « une branche jamais poussée revient à la base »
+- `test/depot.test.ts` « le worktree d'un cook est une branche neuve, partie de la base »
+- `test/depot.test.ts` « les fichiers suivis de la base se lisent sans worktree, tels que le clone les connaît »
+- `test/depot.test.ts` « un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau »
+- `test/depot.test.ts` « un répertoire de worktrees relatif se lit depuis le répertoire du process, pas depuis le clone »
+- `test/depot.test.ts` « l'arbre principal du dépôt n'est jamais touché »
+- `test/depot.test.ts` « les commits d'un cook se comptent depuis la base »
+- `test/depot.test.ts` « la branche poussée arrive sur l'origine, et la base n'y bouge pas »
+- `test/depot.test.ts` « un push impossible lève, avec ce que git en dit »
+- `test/depot.test.ts` « une origine injoignable fait échouer la préparation, sans laisser de worktree »
+- `test/depot.test.ts` « la pass lit d'une branche son commit, ce qu'elle change depuis la base, et ce qu'elle porte — sans worktree »
+- `test/depot.test.ts` « un worktree dit s'il est intact : un fichier suivi modifié ou un fichier neuf, non ; ce que le projet ignore, oui »
+- `test/depot.test.ts` « l'empreinte d'un worktree ne change pas tant que rien n'y bouge »
+- `test/depot.test.ts` « l'empreinte change à chaque progrès : un commit, un fichier suivi modifié puis réécrit, un fichier neuf, un fichier supprimé »
+- `test/depot.test.ts` « un worktree dit s'il est encore sur sa branche : ni sur une autre, ni en tête détachée »
+- `test/depot.test.ts` « un worktree se range : ce qui traîne est commité, le worktree part avec ce que le projet ignore, la branche reste — rien n'est poussé »
+- `test/depot.test.ts` « ranger ne touche pas ce qui n'est pas le worktree d'un cook : un répertoire resté là avec des fichiers lève, un chemin hors des worktrees aussi »
+- `test/depot.test.ts` « une branche rangée se reprend dans un worktree neuf : le renvoi y retrouve le travail, récolte comprise »
+- `test/depot.test.ts` « le worktree jetable d'une fusion est détaché : il ne retient pas la branche livrée, et part une fois jeté »
+- `test/depot.test.ts` « une branche locale s'élague une fois tout sur l'origine ; avec des commits qui n'y sont pas, elle reste — la branche distante n'est jamais touchée »
+- `test/depot.test.ts` « ranger passe à son tour sur le clone : des rangements et une préparation demandés ensemble aboutissent tous »
+- `test/depot.test.ts` « un clone nommé dans une autre casse que celle du disque reste le sien : ses worktrees ne passent pas pour détournés » — skipped on the box (its volume does not distinguish case); kept in place, unchanged
+- `test/depot.test.ts` « son fichier `.git` réécrit vers un dépôt à lui : rien de ce dépôt n'est lu, ni au tick ni à la récolte, le refus nomme le fichier, et l'abandon dit ce qui part »
+- `test/depot.test.ts` « son `.git` remplacé par un dépôt entier : le worktree n'est plus celui du clone, et rien de ce dépôt n'est lu »
+- `test/depot.test.ts` « le `commondir` de son répertoire d'administration réécrit : ni la configuration ni les références de ce qu'il désigne ne sont lues, et le refus nomme le fichier »
+- `test/depot.test.ts` « le `gitdir` de son répertoire d'administration réécrit vers un dépôt à lui : rien n'en est lu, la récolte se fait, et le rangement qui échoue le dit »
+- `test/depot.test.ts` « un sous-module dont la configuration est à lui : `git` n'y descend pas, ni au tick ni à la récolte, et le reste du worktree est récolté »
+- `test/depot.test.ts` « la branche d'un cook est poussée avec le jeton courant, qui n'est dans aucun argument »
+- `test/depot.test.ts` « sans jeton vivant, rien n'est poussé, et l'échec le dit »
+- `test/depot.test.ts` « un push que GitHub refuse faute du droit `workflows` se lit comme tel : le motif nomme le droit manquant »
+- `test/depot.test.ts` « reçue, elle est dans le clone ce que l'origine en porte : ses commits se comptent, son diff se lit, et la pass jugera ce que l'origine a reçu — sans qu'aucun worktree soit créé »
+- `test/depot.test.ts` « reçue de nouveau après un renvoi, elle devient ce que la station a poussé depuis — réécrite ou non »
+- `test/depot.test.ts` « absente de l'origine, elle naît dans le clone sur la base, sans commit : une livraison sans diff, que la pass sait juger »
+- `test/desinstallateur.test.ts` « un runtime qui tourne : le plan dit qu'il sera arrêté, et que son clone ne s'inventorie qu'ensuite »
+- `test/desinstallateur.test.ts` « sans confirmation : rien n'est effacé, et le geste dit comment confirmer »
+- `test/desinstallateur.test.ts` « un drop-in qui est un lien, ou un projet que ses unités posent ailleurs : le geste ne suit aucun chemin »
+- `test/desinstallateur.test.ts` « un autre geste en cours : le plan aussi attend son tour »
+- `test/duree-des-gates.test.ts` « une étape qui plante au lieu de rapporter écrit sa ligne FAIL : aucun rouge de ces gates n'est muet »
+- `test/enregistrement-station/stations-du-compte.test.ts` « les stations enregistrées sous le compte sont listées, disponibles, sans appairage — les autres gists du compte écartés »
+- `test/enregistrement-station/stations-du-compte.test.ts` « le compte, la sélection que l'app a écrite, et la disponibilité jugée à l'instant de la lecture »
+- `test/enregistrement-station/stations-du-compte.test.ts` « arrêtée proprement, elle est indisponible à la lecture suivante ; sa sélection reste »
+- `test/enregistrement-station/stations-du-compte.test.ts` « un enregistrement illisible est écarté, en disant pourquoi ; aucune station, la liste dit pourquoi »
+- `test/enregistrement-station/stations-du-compte.test.ts` « un `gh` connecté à aucun compte demande la connexion ; un GitHub injoignable est indisponible »
+- `test/enregistrement-station/stations-du-compte.test.ts` « la commande rend l'état en une ligne JSON : code 0 quand les stations sont listées, 1 sinon »
+- `test/enrolement/commande.test.ts` « la commande porte le nom choisi dans la home : la machine se présente sous lui »
+- `test/enrolement/commande.test.ts` « un code faux dans la commande est refusé : la machine n'apparaît pas au registre »
+- `test/enrolement/commande.test.ts` « une commande expirée est refusée : la machine n'apparaît pas au registre »
+- `test/enrolement/geste.test.ts` « `prepare` rend le code et la commande en JSON, au registre que la home lui nomme »
+- `test/exploitation-en-anglais.test.ts` « `report` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `hold-arbiter` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `help` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `backup` puis `restore` : la sauvegarde et sa restauration se disent en anglais »
+- `test/faits.test.ts` « le plafond et le calibrage que porte le dépôt du projet passent avant ceux de la box : `facts` et `station` le disent, et un geste qui les pose sur la box est dit ignoré »
+- `test/fermeture-action/action.test.ts` « l'aperçu dit ce que coûte la passe et ce que le closer va faire, et ne crée rien : ni demande, ni refus, ni passe »
+- `test/fermeture-action/action.test.ts` « sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; avec, une demande est créée, qui se lit en attente puis partie »
+- `test/fermeture-lecture/lecture.test.ts` « la dérive dit si un seuil est franchi, au seuil que le chef a déclaré au relevé des mesures »
+- `test/fermeture-lecture/lecture.test.ts` « lire ne change rien : aucune demande n'est créée, aucun fait n'est écrit, le journal n'a pas bougé d'un octet »
+- `test/fermeture-lecture/lecture.test.ts` « `run closing -- --json` se joue dans son propre process, et rend un objet sur une ligne »
+- `test/fusion.test.ts` « un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué »
+- `test/garde-des-gates.test.ts` « un délai illisible rougit sans jouer la suite, au lieu de la laisser sans garde »
+- `test/garde-fous-cli.test.ts` « sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable »
+- `test/relire.test.ts` « sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable »
+- `test/garde-fous-cli.test.ts` « `stop`, `resume`, l'état et chacun de leurs refus ne portent aucun mot français du glossaire »
+- `test/garde-fous.test.ts` « un cook relayé survit à l'arrêt du runtime ; le suivant le liste en cours, le reprend sans le relancer, et écrit sa fin »
+- `test/garde-fous.test.ts` « un cook relayé qui a fini pendant que personne ne tenait le runtime : sa fin est lue à la reprise »
+- `test/garde-fous.test.ts` « un cook relayé que personne ne reprend au démarrage est arrêté, et son interruption notée »
+- `test/garde-fous.test.ts` « un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué »
+- `test/garde-fous.test.ts` « un cook relayé s'arrête au « stop » du chef comme un autre, repris ou non »
+- `test/garde-fous.test.ts` « un cook relayé repris pendant que la cuisine est arrêtée s'arrête aussitôt »
+- `test/garde-fous.test.ts` « ce qu'un cook relayé dit est masqué avant d'être écrit — les secrets qu'il reçoit et la forme des identifiants de Claude —, et ses plafonds tiennent »
+- `test/garde-fous.test.ts` « à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé et ce qu'il fait ; fini, il n'en laisse plus »
+- `test/gates-du-cook.test.ts` « le lanceur joue le script du projet tel quel — sa sortie, son code de sortie — et son reçu porte l'arbre que le cook livrera, ce qui n'était pas commité compris, sans toucher à son index »
+- `test/gates-du-cook.test.ts` « à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte — que la pass reprend sur le même arbre — puis il est effacé »
+- `test/gates-du-cook.test.ts` « un reçu illisible ne compte pas, et un nouveau cook dans le worktree repart sans les reçus du précédent »
+- `test/geste.test.ts` « un projet que cette station ne sert pas est refusé en le disant »
+- `test/geste.test.ts` « une unité de la station qui ne nomme pas son répertoire : refusé, avec le code de systemd — ses projets ne se trouvent pas »
+- `test/geste.test.ts` « sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie »
+- `test/gestes-ecrits.test.ts` « les gestes cités en constantes sont ceux de la box »
+- `test/gestes-sans-retenue.test.ts` « rail remove et pass comment partent sur un compteur que la cuisine ne passe plus, et y sont comptés »
+- `test/github-limite.test.ts` « sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`, et à défaut l'attente est de 60 s »
+- `test/grant.test.ts` « ce qui ne se lit pas est refusé en disant ce qui est attendu, jamais deviné »
+- `test/haut-de-status-en-anglais.test.ts` « sur l'état d'avant, `runtime`, `kitchen` et `backup` disent les mêmes états que `runtime`, `cuisine` et `sauvegarde` d'avant »
+- `test/identites.test.ts` « un jeton est demandé au nom de l'App du rôle, pour ce dépôt seul et avec les droits du rôle »
+- `test/installateur.test.ts` « de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports »
+- `test/installateur.test.ts` « deux projets de suite : chacun reçoit le port de sa porte, distinct, sans qu'aucun n'ait été fourni — celui de l'arbitre est à la box »
+- `test/installateur.test.ts` « lancé sans `sudo`, le vrai geste refuse et ne touche à rien »
+- `test/installation.test.ts` « absent, il est à savoir, pas un manque : une box qui ne sert pas d'app n'en a pas besoin »
+- `test/installation.test.ts` « une racine tenue par le compte de service manque : à qui elle appartient, et la commande qui la remet à root » — skipped on the box (chown needs root); kept in place, unchanged
+- `test/installation.test.ts` « une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme »
+- `test/installation.test.ts` « un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé »
+- `test/installation.test.ts` « une racine absente manque, avec la commande qui la crée »
+- `test/installation.test.ts` « une racine qui est un lien manque »
+- `test/installation.test.ts` « un réglage présent sans `sauvegardes=` ou qui ne se lit pas manque, avec les mots du geste »
+- `test/installation.test.ts` « un réglage qu'un autre compte pourrait écrire manque »
+- `test/installation.test.ts` « toutes les variables absentes sont nommées d'un coup, pas la première »
+- `test/installation.test.ts` « un projet sans station déclarée n'est pas prêt : le runtime démarrerait, mais aucun cook ne partirait — et le geste est dit »
+- `test/installation.test.ts` « une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait »
+- `test/installation.test.ts` « une branche d'intégration que l'origine n'a pas manque, et le dépôt n'est pas jugé à l'aveugle »
+- `test/installation.test.ts` « une origine injoignable manque, et n'est pas prise pour une branche absente »
+- `test/installation.test.ts` « un clone réservé absent manque, avec le geste qui le pose »
+- `test/installation.test.ts` « sans systemd sur la machine, l'unité n'est pas vérifiée et c'est dit »
+- `test/installation.test.ts` « un `claude` que le shell trouve mais pas l'unité manque : c'est le `PATH` de l'unité qui compte »
+- `test/installation.test.ts` « un `claude` que le `PATH` de l'unité donne ne manque pas »
+- `test/installation.test.ts` « sans `PATH` dans ses drop-ins, l'unité reçoit celui de systemd, et c'est lui qui est fouillé »
+- `test/installation.test.ts` « une sauvegarde qui n'est pas programmée est signalée sans rien retenir »
+- `test/installation.test.ts` « un fichier de secrets que le runtime refuserait est un manque de la machine »
+- `test/installation.test.ts` « un projet sans setup n'a rien à mesurer que son worktree »
+- `test/installation.test.ts` « une seule perte suffit à la retenir »
+- `test/installation.test.ts` « un clone à jour de son origine n'a rien à perdre »
+- `test/installation.test.ts` « le clone déjà parti, les worktrees qui restent sont annoncés à blanc, puis retirés — et c'est dit »
+- `test/installation.test.ts` « rejouée, elle ne trouve plus rien à retirer et ne se plaint pas »
+- `test/installation.test.ts` « tant que le runtime du projet tourne, elle refuse »
+- `test/installation.test.ts` « verifier porte une seule ligne de renouvellement, jouée par le systemd injecté »
+- `test/installation/clone/clone.test.ts` « Host key verification failed sous git_protocol ssh : le clone se refait en HTTPS, sans rien changer à la configuration de gh »
+- `test/installation/preparation/blocage-du-setup.test.ts` « la préparation atteint son cook et le blocage dit l'échec en une phrase, sans sortie brute »
+- `test/interrupteur.test.ts` « éteint : le cook en vol finit, sa livraison verte attend sans merge, aucun ticket neuf n'est pris ; rallumé, elle est mergée et la prise reprend »
+- `test/interrupteur.test.ts` « le manager suit l'interrupteur : éteint, allumé à l'ancienne, il ne juge rien ; le projet rallumé, il juge »
+- `test/journal-pas-rejoue.test.ts` « status devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- `test/journal-pas-rejoue.test.ts` « montrer-rail devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- `test/journal-pas-rejoue.test.ts` « garde-fous-cli devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- `test/journal-pas-rejoue.test.ts` « montrer-station devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- `test/journal-pas-rejoue.test.ts` « montrer-pass devant un journal sans projections dit de redémarrer le runtime, sans trace »
+- `test/journal.test.ts` « une lecture seule attend qu'un journal tenu un instant par un autre process se libère, au lieu d'échouer »
+- `test/lectures-sous-condition.test.ts` « avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget »
+- `test/lectures-sous-condition.test.ts` « une issue, une PR ou un commentaire qui change se lit au tick suivant, et seule sa lecture compte »
+- `test/lectures-sous-condition.test.ts` « l'heure passée, les lectures du premier tick sortent du compte »
+- `test/lignes-masquees.test.ts` « borné, quel que soit le texte, le découpage et la borne : ce qui est écrit et compté est ce que le masquage du texte entier donne »
+- `test/limite-github.test.ts` « sans quota dit par GitHub, ou avec un quota large, aucun compte de la box ne retient la cuisine — même au-delà de 2 500 appels dans l'heure »
+- `test/limite-github.test.ts` « la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'heure côté box et 3 600 restants, les sondages partent, sans jamais « budget GitHub épuisé » »
+- `test/limite-github.test.ts` « la station et trois projets, chacun dans son process, lisent le même quota et tiennent ensemble le même compte »
+- `test/garde-fous-cli.test.ts` « une commande inconnue est refusée avec l'usage, sans rien écrire »
+- `test/manager.test.ts` « un jugement n'a ni outil ni worktree, et ne voit pas l'état du runtime »
+- `test/manager.test.ts` « sans roadmap déclarée, aucune issue n'est écartée à ce titre »
+- `test/manager.test.ts` « une dimension que le chef a calibrée n'est pas réécrite, et le commentaire dit ce qui a été laissé »
+- `test/manager.test.ts` « un `chef-changed` d'avant le commentaire d'écart n'est pas commenté après coup »
+- `test/manager.test.ts` « tant que le chef a dit « stop », rien n'est jugé ; à « resume », le manager juge ce qui attendait »
+- `test/manager.test.ts` « le « stop » du chef arrête un jugement en cours, qui repart à « resume » »
+- `test/manager.test.ts` « sans station, le manager juge quand même : seuls les cooks ne partent pas »
+- `test/manager.test.ts` « une décision prise se pose sans rejuger quand GitHub a refusé les labels la première fois »
+- `test/manager.test.ts` « une issue jugée, exécutable ou non, peut être fermée sans que le journal le note : le manager n'en attendait pas le chef »
+- `test/manager.test.ts` « un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118) »
+- `test/manager.test.ts` « le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118) »
+- `test/manager.test.ts` « un journal écrit avant ce fait se rejoue : au premier tour, les issues écartées puis fermées depuis sont constatées fermées »
+- `test/manager.test.ts` « éteint en cours de route, le manager ne juge plus ce qui arrive »
+- `test/miroir-des-gates.test.ts` « un fichier dont le chemin ne fait que contenir celui d'un rôle ou d'un miroir ne compte pas pour lui »
+- `test/mise-a-jour/versions.test.ts` « l'ordre est bien celui de `dpkg --compare-versions` »
+- `test/mode-auto.test.ts` « lancée par son fichier, la commande écrit les règles et rend 0 »
+- `test/montrer-cloison.test.ts` « un journal d'avant la cloison le dit, au lieu de laisser croire qu'elle est ouverte »
+- `test/montrer-cloison.test.ts` « sans cloison ni porte, le chef lit que les projets se voient et que le réseau est ouvert »
+- `test/montrer-cloison.test.ts` « posée, elle dit ce qui est masqué, chaque hôte qui passe avec sa raison, et chaque refus avec son motif »
+- `test/montrer-cloison.test.ts` « une porte que l'unité ne double pas d'un filtre se lit comme telle »
+- `test/montrer-cloison.test.ts` « éprouver lance de vraies sondes : une cloison qui ne masque rien est prise sur le fait »
+- `test/montrer-cloison.test.ts` « éprouver sans cloison posée le dit, et une cloison mal posée est refusée avec son motif »
+- `test/montrer-cloison.test.ts` « une commande inconnue rend l'usage »
+- `test/montrer-rail.test.ts` « le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son état »
+- `test/montrer-rail.test.ts` « sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi »
+- `test/montrer-station.test.ts` « sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi »
+- `test/montrer-station.test.ts` « le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa connexion et son quota »
+- `test/outils.test.ts` « lancerSurPortPose : un port repris avant que l'arbitre n'y écoute est retiré, et le process tient le suivant »
+- `test/outils.test.ts` « lancerSurPortPose : un port repris avant que la porte n'y écoute est retiré, et le process tient le suivant »
+- `test/outils.test.ts` « lancerSurPortPose : la porte sur un port repris à chaque essai, le compte d'essais s'épuise et le dit »
+- `test/outils.test.ts` « lancerSurPortPose : un process qui meurt d'autre chose que d'un port pris n'est pas relancé »
+- `test/paquet/paquet.test.ts` « une commande produit un .deb nommé par sa version et son architecture, et dit son chemin »
+- `test/paquet/paquet.test.ts` « sans le dépôt qui publie le paquet, ou sans mainteneur, la construction est refusée en le disant, sans rien écrire »
+- `test/paquet/paquet.test.ts` « une version que dpkg n'accepterait pas est refusée, sans rien écrire »
+- `test/pass-file-d-attente.test.ts` « une carte livrée quand aucune pass ne tourne est jugée aussitôt, sans attendre son tour »
+- `test/pass-file-d-attente.test.ts` « une livraison qui ne commence pas — GitHub bute sur sa PR — ne tient pas la file : les suivantes sont jugées »
+- `test/pass-relance.test.ts` « une carte livrée qu'aucune pass ne juge est relancée : un jugement est mis en file, et son journal montre pass.started »
+- `test/pass-relance.test.ts` « une carte dont la pass tourne, qui attend son tour, ou déjà mergée est refusée, sans rien écrire ni créer de pass »
+- `test/pass.test.ts` « le second juge qui répond « juge-incertain » : cannot-establish, avec sa raison »
+- `test/pass.test.ts` « une PR que la station n'avait pas pu ouvrir est ouverte par la pass »
+- `test/pass.test.ts` « le reviewer relit le diff après des gates vertes : un autre process que le cook, à son propre calibrage, en lecture seule dans le worktree jetable de la pass »
+- `test/pass.test.ts` « une remarque ne retient rien : la pass est verte, la livraison mergée, et le chef lit la remarque sur l'issue »
+- `test/pass.test.ts` « un ticket sans diff est jugé par le seul reviewer, sur le livrable que le cook a délimité : vert, il est servi sans merge ni grant, et son issue fermée »
+- `test/pass.test.ts` « sous l'identité unique, un merge de la pass ne porte aucun compte : rien ne l'a lu »
+- `test/pass.test.ts` « un setup qui exporte un jeton GitHub ne le donne pas aux gates, qui exécutent le code du cook »
+- `test/pass.test.ts` « sous l'identité unique, ce que le setup exporte pour gh passe aux gates, comme avant »
+- `test/pass.test.ts` « une identité illisible n'empêche ni le merge ni son résultat de s'écrire »
+- `test/pause.test.ts` « demander la pause pose une carte dans la file : la durée attendue, et les tickets en vol qu'elle retiendra — chacun avec ce qui lui arrivera »
+- `test/porte.test.ts` « la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process »
+- `test/preparation-depot/ouvrir.test.ts` « le ticket dit, pour chaque fichier, ce que la branche d'intégration en porte déjà »
+- `test/preparation-depot/setup-en-cuisine.test.ts` « son cook part quand même, sans ce que le setup aurait exporté, avec la phrase et la sortie du setup dans sa consigne »
+- `test/preparation-depot/setup-en-cuisine.test.ts` « le corps du ticket dit, en une phrase, ce qui a échoué — une fois, avant ce qu'il demande de livrer »
+- `test/preparation-depot/setup-en-cuisine.test.ts` « le corps qui le dit déjà n'est pas réécrit »
+- `test/preparation-depot/setup-en-cuisine.test.ts` « un setup qui passe de nouveau : le corps ne dit plus qu'il échoue, et le cook reçoit ce qu'il exporte »
+- `test/preparation-depot/setup-en-cuisine.test.ts` « un setup bloqué ne retient pas la station tant que la préparation attend : c'est elle qui le répare »
+- `test/preparation-depot/setup-en-cuisine.test.ts` « une fois la préparation servie, le setup qu'elle a livré passe avant chaque cook, et le cook reçoit ce qu'il exporte »
+- `test/produit/usage/box.test.ts` « un dépôt est brigade quand sa branche d'intégration porte le runtime de brigade »
+- `test/profils/design.test.ts` « la cuisine lance le ticket de la vue sous le profil design, et le journal le nomme comme tout profil ; le cook du profil occupé, le suivant part en généraliste »
+- `test/profils/domaines.test.ts` « le type du ticket n'a aucun effet : les mêmes tickets, de types différents, donnent le même relevé »
+- `test/profils/domaines.test.ts` « chacun des trois seuils, réglé dans l'environnement du projet, change le relevé »
+- `test/profils/preference.test.ts` « le profil et un généraliste libres : le ticket de son domaine part sous le profil, son cook reçoit son carnet et les leçons du projet, et le journal le dit »
+- `test/profils/preference.test.ts` « le cook du profil occupé : le ticket suivant du domaine part aussitôt avec un généraliste, sans carnet — il ne l'attend pas »
+- `test/profils/preference.test.ts` « un ticket hors de tout domaine, ou sans fiche, part avec un généraliste : aucun carnet, et sa consigne est celle de tout cook »
+- `test/profils/preference.test.ts` « une station distante : le cook qu'elle tire reçoit le carnet du profil comme un cook de la box, et le journal le dit en son nom »
+- `test/projections.test.ts` « effacer les projections et rejouer le journal redonne le même état »
+- `test/projections.test.ts` « des projections perdues se retrouvent en rejouant le journal »
+- `test/projets-station/selection.test.ts` « la branche de la ligne : aucune si le dépôt en déclare une, sinon sa branche par défaut — aucune tant qu'il n'est pas cloné »
+- `test/projets-station/servir.test.ts` « un dépôt coché dans l'app est servi à la lecture suivante : cloné, ses décisions posées, sa ligne écrite — sans aucune configuration à la main »
+- `test/projets-station/servir.test.ts` « un dépôt décoché n'est plus servi à la lecture suivante : sa ligne quitte la configuration, son état et son clone restent »
+- `test/projets-station/servir.test.ts` « appairée par code et sans sélection, elle sert ce que l'app lui demande par l'appairage ; la sélection écrite, c'est elle qu'elle sert »
+- `test/projets-station/servir.test.ts` « sa sélection écrite, elle tient aussi les projets que le chef lui ajoute depuis la page d'un projet (« + station ») : la demande de son appairage les porte, sans la dire principale »
+- `test/projets/acces.test.ts` « une origine qui laisse récupérer et pousser : l'accès est libre »
+- `test/projets/acces.test.ts` « un dépôt en https, sans credential helper : la récupération est refusée vite, et le geste est `gh auth setup-git` »
+- `test/projets/ajout-de-station.test.ts` « cooks from the machine's cores, the workspace folder, and each capability flagged detected or not — with the project read from its clone »
+- `test/projets/ajout-de-station.test.ts` « with nothing overridden, the cores are this machine's own, and the cooks follow them »
+- `test/projets/ajout-de-station.test.ts` « a folder that is no clone of a github.com repository has no project: it is said, nothing is guessed »
+- `test/projets/ajout-de-station.test.ts` « cooks, main or not, and capabilities are enough: the repository comes from the clone's origin, the branch from what the repository declares »
+- `test/projets/ajout-de-station.test.ts` « a repository without the settings file: the branch is the one its CLAUDE.md declares »
+- `test/projets/ajout-de-station.test.ts` « an older call that still names the repository and the branch keeps working, with or without a clone here »
+- `test/projets/ajout-de-station.test.ts` « what cannot be resolved is named field by field, never guessed »
+- `test/projets/ajout-depuis-le-projet.test.ts` « ajouté depuis la page du projet, le Mac en rejoint la cuisine et y cuit : le ticket que seul un Mac peut cuire part chez lui de lui-même, et la pass de la box le sert »
+- `test/projets/copie-locale.test.ts` « sans copie locale, ouvrir le projet le clone dans le dossier que l'app gère, en disant où il en est, et finit le projet ouvert »
+- `test/projets/copie-locale.test.ts` « la commande ouvre le projet sans qu'on lui donne de dossier : celui de BRIGADE_PROJECTS_DIR, une ligne par étape puis l'état »
+- `test/projets/copie-locale.test.ts` « une copie locale qui existe déjà est reprise telle quelle : rien n'est recloné »
+- `test/projets/copie-locale.test.ts` « sans git sur l'ordinateur, l'ouverture dit que git manque, et rien n'est cloné »
+- `test/projets/copie-locale.test.ts` « réseau coupé, ordinateur pas connecté à GitHub, `gh` absent : chaque échec dit sa cause en une phrase »
+- `test/projets/preparer.test.ts` « le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné, rien ne se refait ; introuvable, rien ne reste »
+- `test/projets/preparer.test.ts` « après un clone en échec, le `gh` de la station dit son compte, le type de son jeton — jamais le jeton — et si le propriétaire du dépôt existe »
+- `test/projets/secondaires.test.ts` « de bout en bout : un Mac appairé, ajouté au projet par l'app sans en être la principale, est lu dans son gist et déclaré au journal du projet avec `macos` — aucune commande du chef »
+- `test/projets/tenir.test.ts` « un dépôt qui refuse la récupération : l'accès est bloqué, en une phrase — rien n'est préparé ; le geste fait, le projet est servi à la cadence suivante »
+- `test/projets/tenir.test.ts` « un dépôt qui laisse récupérer mais refuse de pousser : l'accès est bloqué, avec une raison propre au push »
+- `test/promotion/livrer.test.ts` « une leçon promue que rien ne reconfirme redescend, puis disparaît : la PR inscrit sa sortie au carnet, datée et motivée, sans l'effacer »
+- `test/promotion/livrer.test.ts` « retirée par une PR qui la marque `retired`, la leçon n'est pas repromue par la même histoire ; trois rétros nouvelles en font une nouvelle PR de promotion »
+- `test/promotion/livrer.test.ts` « retirée par le revert de sa PR de promotion, la leçon est inscrite `retired`, id gardé ; elle n'est repromue que par trois rétros nouvelles »
+- `test/promotion/livrer.test.ts` « un clone en retard sur la base ne fait rien livrer : le jugement est refait sur la base rapatriée, et la branche préparée disparaît »
+- `test/promotion/livrer.test.ts` « un carnet de la base illisible n'est pas réécrit : rien ne part, et la raison est dite »
+- `test/proteger-branche.test.ts` « la commande du chef, par `gh`, sans le rôle d'administrateur : bloquée, et aucune écriture ne part »
+- `test/rail.test.ts` « deux stations qui se jettent en même temps sur le rail ne prennent jamais le même ticket »
+- `test/rail.test.ts` « deux stations sur un seul ticket : une seule l'obtient »
+- `test/reaction.test.ts` « la réaction en cours se relit dans le journal : le chef y lit le choix et son motif »
+- `test/reglages-projet/au-runtime.test.ts` « a value the writer refuses returns a clear error: no PR, and nothing of it written to the log »
+- `test/reglages-projet/au-runtime.test.ts` « a change the base already carries is answered by the runtime: nothing to propose, and no PR »
+- `test/reglages-projet/closer.test.ts` « `closing --json` and `station` say where each of the closer's values comes from: the repository, the box, or the default »
+- `test/reglages-projet/en-vigueur.test.ts` « a project whose repository has no file: the box's branch, calibrations and ceiling, as before »
+- `test/reglages-projet/en-vigueur.test.ts` « a fresh clone and a station line that names no branch: the project's branch, calibrations and ceiling, nothing entered on the box »
+- `test/reglages-projet/en-vigueur.test.ts` « without the box's calibrations nor the repository's, the runtime refuses to start, naming both places »
+- `test/reglages-projet/en-vigueur.test.ts` « a file on the integration branch that is not the project's settings: the kitchen refuses to open rather than fall back on the box »
+- `test/reglages-projet/en-vigueur.test.ts` « the file on the branch the line names comes first, then the file of the clone's working tree, then the line, then the CLAUDE.md line »
+- `test/reglages-projet/proposer.test.ts` « a change carrying a machine path opens no PR, prepares no branch, and says which setting and why »
+- `test/reglages-projet/proposer.test.ts` « a change carrying a machine-specific limit opens no PR, prepares no branch, and says which setting and why »
+- `test/reglages-projet/proposer.test.ts` « a change carrying a value that is no calibration opens no PR, prepares no branch, and says which setting and why »
+- `test/reglages-projet/proposer.test.ts` « a change that names nothing, or is no object, is refused before anything is prepared »
+- `test/reglages-projet/proposer.test.ts` « a change the base already carries opens no PR and leaves no branch »
+- `test/reglages-projet/proposer.test.ts` « without a settings file, the PR creates it from the branch the CLAUDE.md declares, with the new ceiling »
+- `test/reglages-projet/proposer.test.ts` « removing a setting with null, and a default calibration changed role by role »
+- `test/reglages-projet/proposer.test.ts` « GitHub refusing the PR is said, and nothing is handed to the pass »
+- `test/reglages-projet/reglages.test.ts` « an absolute machine path is refused, and the file is left untouched »
+- `test/reglages-projet/reglages.test.ts` « what is not a project setting, or not a valid one, is refused and named »
+- `test/reglages-projet/seuils.test.ts` « a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file »
+- `test/relance-de-ci.test.ts` « rouge après la relance sur un autre test, qui n'est pas touché non plus : la carte ne dit pas « deux fois », le rouge est un verdict comme avant »
+- `test/relance-de-ci.test.ts` « rouge sur un test que la livraison touche : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- `test/relance-de-ci.test.ts` « rouge sur un journal qui ne se lit pas : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- `test/relance-de-ci.test.ts` « rouge sur un journal qui ne nomme aucun test : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- `test/relance-de-ci.test.ts` « rouge sur un test qui n'est pas dans le dépôt : relancée une fois, puis renvoyée comme avant si elle reste rouge »
+- `test/relance-de-ci.test.ts` « rouge sur un check qui n'est pas un job de GitHub Actions : aucune relance, la livraison est renvoyée comme avant »
+- `test/relance-de-ci.test.ts` « rouge sur une relance que GitHub refuse : aucune relance, la livraison est renvoyée comme avant »
+- `test/relance-de-ci.test.ts` « verte au rejeu : la livraison suit son chemin comme verte, et le ticket dit le test rejoué »
+- `test/relance-de-ci.test.ts` « rouge encore au rejeu : renvoyée à son cook avec le nom du test et son erreur »
+- `test/relance-de-ci.test.ts` « verte au rejeu sur un job dont le journal ne nommait aucun test : le commentaire nomme le job »
+- `test/relance-de-ci.test.ts` « seul rouge d'un job sans exécution verte sur la base : la livraison n'est pas bloquée, le rouge est dit en information »
+- `test/relance-de-ci.test.ts` « le même job, une fois la base verte sur lui : son rouge bloque comme avant »
+- `test/relance-de-ci.test.ts` « deux jobs rouges, la base verte sur l'un : seul le job jamais vert est excusé »
+- `test/relire.test.ts` « le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne »
+- `test/renommage.test.ts` « levée sur un échec, la pause laisse la PR du renommage à jamais sans merge, et une carte qui dit pourquoi — que le « non » du chef ôte »
+- `test/renommage.test.ts` « sur le « oui », l'outil part de la dernière tête de la base ; son arbre passe les gates et la pass avant le merge, mergé dans la même pause, qui est levée ensuite »
+- `test/renommage.test.ts` « gates rouges : rien n'est mergé, la pause est levée sans geste du chef, et la carte de la file dit pourquoi »
+- `test/renommage.test.ts` « conflit avec la base : rien n'est mergé, la pause est levée, et la carte dit le conflit »
+- `test/renommage.test.ts` « au-delà de sa limite, comptée sur l'horloge de la cuisine depuis le « oui », le renommage est abandonné : l'outil arrêté, rien de livré ni de mergé, la pause levée avant l'heure »
+- `test/renouvellement.test.ts` « claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit »
+- `test/renouvellement.test.ts` « rien à renouveler : le passage le consigne sans bruit, et ne demande rien de plus à claude »
+- `test/renouvellement.test.ts` « claude échoue : la date et la nature de l'échec sont consignées, et le passage sort en code non nul »
+- `test/renouvellement.test.ts` « Anthropic refuse le renouvellement : claude vide ses identifiants, le passage dit qu'il faut /login »
+- `test/renouvellement.test.ts` « identifiants réécrits mais statut illisible : c'est un échec, pas un renouvellement »
+- `test/renouvellement.test.ts` « aucune connexion Max sous le compte : l'échec est consigné sans lancer claude »
+- `test/renouvellement.test.ts` « des identifiants plus vieux qu'un jeton ne vit, jamais réécrits : le renouvellement n'a pas eu lieu »
+- `test/renouvellement.test.ts` « un claude introuvable est un échec nommé »
+- `test/renouvellement.test.ts` « claude part dans un environnement vidé : aucune clé ni aucun jeton du compte ne lui passe »
+- `test/renouvellement.test.ts` « le passage n'écrit que le fichier d'état »
+- `test/renvois.test.ts` « `measures` sur un journal où aucun ticket n'a été servi le dit, sans planter »
+- `test/reparation.test.ts` « une création dont la réponse se perd n'ouvre pas une seconde issue : au tick suivant, la pass retrouve la sienne par sa marque »
+- `test/reprise-de-session.test.ts` « sous cloison, la session se retrouve dans le `~/.claude` du projet »
+- `test/reprise.test.ts` « un second runtime démarré pendant qu'un cook du premier est en vol le liste en cours, sans le relancer ni le tuer »
+- `test/reprise.test.ts` « le cook repris finit son travail : sa branche est poussée, sa PR ouverte, il passe la pass et se merge — sans qu'aucun cook neuf ne parte »
+- `test/reprise.test.ts` « un cook qui a fini pendant que personne ne tenait le projet : sa fin est lue au démarrage, et sa livraison part en pass »
+- `test/reprise.test.ts` « un cook repris garde son bail : le temps du remplacement ne compte pas contre lui »
+- `test/requalification.test.ts` « sans décision écrite, une vraie question est dérivée : carte typée dans TODO, le journal le dit, le label reste »
+- `test/requalification.test.ts` « la carte sort de TODO quand le chef retire le label »
+- `test/requalification.test.ts` « sans rien d'attendu, la cuisine reprend le ticket : le label s'en va, le journal dit « taken-back », l'issue est jugée »
+- `test/requalification.test.ts` « quand elle dit la décision attendue, rien ne change : retenue, sans carte, label gardé, écartée comme avant »
+- `test/requalification.test.ts` « une réponse illisible laisse l'issue retenue, sans la relire tant qu'elle ne change pas »
+- `test/reseau.test.ts` « une déclaration illisible n'est pas une déclaration vide : la dernière liste lue tient, et c'est dit une fois »
+- `test/reseau.test.ts` « sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire »
+- `test/sans-capacite.test.ts` « il est renvoyé en réécriture avant TODO : redécoupé, il sort du rail, ses sous-tickets partent, le journal le dit et aucune carte n'est posée »
+- `test/sans-capacite.test.ts` « la réécriture est impossible : le ticket attend en WAITING, 86, et son issue nomme l'accès à donner et la raison — aucune carte dans TODO (#1834) »
+- `test/sans-capacite.test.ts` « une capacité qu'une station fournit garde le comportement actuel : le ticket part, sans renvoi ni carte »
+- `test/sauvegarde.test.ts` « l'instantané se prend pendant qu'une écriture est en cours : il porte ce qui était validé, et rien d'autre »
+- `test/sauvegarde.test.ts` « une sauvegarde porte le journal, son manifeste et les flux bruts — ni le verrou, ni le dépôt, ni les worktrees »
+- `test/sauvegarde.test.ts` « une sauvegarde réussie s'écrit au journal du projet, au nom de la sauvegarde — après l'instantané, qui ne la contient pas »
+- `test/sauvegarde.test.ts` « les flux bruts ne pèsent qu'une fois : seul ce qui est neuf ou a changé est recopié, et rien n'est jamais retiré »
+- `test/sauvegarde.test.ts` « la rotation ne garde que les dernières sauvegardes, et ne touche pas aux flux »
+- `test/sauvegarde.test.ts` « une sauvegarde qui échoue ne laisse rien qui ait l'air d'une sauvegarde, et ne retire aucune des précédentes »
+- `test/sauvegarde.test.ts` « les restes d'une sauvegarde interrompue sont retirés au passage suivant ; une sauvegarde en cours est laissée »
+- `test/sauvegarde.test.ts` « elle pose le journal et les flux dans un répertoire neuf, sans verrou »
+- `test/sauvegarde.test.ts` « elle n'écrase jamais un journal : un répertoire d'état qui en a un est refusé, intact »
+- `test/sauvegarde.test.ts` « sans destination déclarée, la sauvegarde refuse : elle ne la devine pas »
+- `test/sauvegarde.test.ts` « une rétention illisible est un refus, avant d'avoir rien écrit »
+- `test/sauvegarde.test.ts` « un refus de la sauvegarde sort avec le code 2, un échec avec le code 1 »
+- `test/secrets-en-cuisine.test.ts` « un reviewer qui cite ce que les gates ont laissé sur le disque ne publie pas le secret »
+- `test/secrets-en-cuisine.test.ts` « un secret retiré avant les gates : elles ne sont pas jouées, rien n'est renvoyé au cook, et la pass remonte au chef »
+- `test/secrets-en-cuisine.test.ts` « le contrôle de la base, sans ses secrets, n'est pas joué — et dit pourquoi »
+- `test/sortie-attente-capacite/station.test.ts` « seul un ticket en WAITING faute de capacité porte `requiert` dans `facts` : un ticket qui demande ce qu'une station fournit n'en porte pas »
+- `test/sorties-de-ticket-en-anglais.test.ts` « `rail` : le rail de l'état d'exemple ne porte aucun mot français du glossaire, ni ses refus »
+- `test/sorties-du-chef-en-anglais.test.ts` « `manager` : on, off, return, backlog, upstream et leurs refus ne portent aucun mot français du glossaire »
+- `test/sorties-du-chef-en-anglais.test.ts` « `grant` : enable, extend, revoke, l'état et les refus ne portent aucun mot français du glossaire »
+- `test/sorties-du-chef-en-anglais.test.ts` « `station` : la vue, cooks, une décision, remove, help et leurs refus ne portent aucun mot français du glossaire »
+- `test/station-appairee.test.ts` « le ticket qui demande `macos`, mis de côté faute de station, part sur le Mac dès que la principale le déclare ; celui qui demande `ios` reste de côté, et la box ne prend ni l'un ni l'autre »
+- `test/station-decisions.test.ts` « chaque décision a son geste : la station montre la valeur posée, et le journal porte, au nom du chef, la décision, l'ancienne et la nouvelle valeur »
+- `test/station-decisions.test.ts` « reposer la valeur déjà posée n'écrit rien ; une valeur entourée d'espaces est posée sans eux »
+- `test/station-decisions.test.ts` « une valeur invalide est refusée avec ce qui était attendu : rien n'est écrit ni journalisé »
+- `test/station-decisions.test.ts` « retirée, une décision n'est plus décidée, et aucune variable d'environnement n'y supplée : le journal le porte au nom du chef »
+- `test/station-decisions.test.ts` « l'aide montre chaque geste en une ligne, avec ce qu'il attend — ni sudo, ni drop-in, ni éditeur »
+- `test/station-decisions.test.ts` « sans journal, le geste refuse et n'en crée pas »
+- `test/station-decisions.test.ts` « sans journal, une décision le crée au nom du projet que l'unité donne : le runtime d'un projet neuf n'a pas démarré, et ne démarre qu'avec elles »
+- `test/station-distante.test.ts` « son cook reçoit les leçons provisoires du projet, comme un cook de la box, et son lancement dit lesquelles »
+- `test/station-distante.test.ts` « seule une station que le projet déclare distante tire son travail : un nom inconnu ou une station de la box sont refusés, et rien n'est prêté »
+- `test/station-distante.test.ts` « le plafond de jetons l'arrête de même, sur ce que sa station rapporte »
+- `test/station-distante.test.ts` « le « stop » du chef arrête son cook et la retient, comme une station d'ici »
+- `test/station-distante.test.ts` « une demande restée sans lecture trop longtemps n'attend plus personne : aucun ticket n'est prêté à une station qui n'écoute plus »
+- `test/station-distante.test.ts` « un runtime qui redémarre tient ses cooks pour interrompus, comme ceux de la box : le ticket revient, et sa station l'apprend »
+- `test/station-en-anglais.test.ts` « `station` : la vue de l'état d'exemple ne porte aucun mot français du glossaire »
+- `test/station-en-anglais.test.ts` « `station` : `cooks`, chaque décision, `remove` et `help` n'écrivent aucun mot français du glossaire »
+- `test/station-ensemble.test.ts` « les deux stations prennent les tickets du projet, chacune jusqu'à son plafond — et la seconde le dit dans `station` et `facts` »
+- `test/station-ensemble.test.ts` « la box a encore de la place — elle monte par paliers — et la seconde prend quand même ; le ticket qu'elle tient, la box ne le prend pas »
+- `test/station-ensemble.test.ts` « deux stations de plus réclament en même temps : chaque ticket part une fois, sur une seule station, et aucune ne dépasse son plafond »
+- `test/station-ensemble.test.ts` « la connexion Max de la box tombe : la seconde station, qui a la sienne, continue de prendre les tickets »
+- `test/station-ensemble.test.ts` « dans le même cas, un renfort (`distante+ordinaires`) ne reçoit rien : il attend que la box sature, ce qu'une box retenue ne fait pas »
+- `test/station-ensemble.test.ts` « le chef arrête la cuisine sur l'une : l'autre continue de prendre — dans un sens, puis dans l'autre »
+- `test/station-ensemble.test.ts` « la seconde station se perd en pleine cuisson : la box reprend son ticket et continue de prendre les nouveaux »
+- `test/station-ensemble.test.ts` « le ticket que cuit la seconde est jugé par le manager et relu par la pass de la première : la seconde ne reçoit que son cook »
+- `test/station-ordinaires.test.ts` « box saturée — à son plafond —, Mac éligible avec de la place : un ticket ordinaire en attente part sur le Mac »
+- `test/station-ordinaires.test.ts` « box non saturée — elle a de la place, et monte par paliers — : un ticket ordinaire en attente reste sur la box, même quand le Mac le réclame »
+- `test/station-veille.test.ts` « rien de poussé : rien n'est conservé, et le cook suivant repart de la base, comme un premier »
+- `test/station.test.ts` « au branchement, la station annonce son nom, son moteur, ce qu'elle fournit, son plafond de cooks et les cœurs de sa machine »
+- `test/station.test.ts` « un ticket sans calibrage n'est jamais lancé : il passe 86 et un commentaire dit quoi poser »
+- `test/station.test.ts` « le « stop » du chef et le disjoncteur passent avant la base rouge : c'est eux que la station nomme »
+- `test/station.test.ts` « une machine devenue illisible pendant une saturation ne passe pas pour une machine qui respire : rien n'est levé, rien n'est pris »
+- `test/station.test.ts` « un cook qui a commité avant le refus du modèle a livré : son travail est récolté »
+- `test/station.test.ts` « un cook qui a commité et délimité son compte-rendu : seul ce qu'il a délimité est publié en clair, sur le ticket comme dans la PR »
+- `test/station.test.ts` « un cook qui a commité sans rien délimiter n'est pas en échec : son message est son compte-rendu, publié tel quel »
+- `test/station.test.ts` « un cook qui écrit des fichiers, oublie de les commiter et dit avoir fini n'a rien livré : ce n'est pas un ticket sans diff »
+- `test/station.test.ts` « un cook qui conclut sans rien commiter ni rien dire a échoué »
+- `test/station.test.ts` « une branche qui ne peut pas être poussée fait du cook un échec, pas une livraison »
+- `test/station.test.ts` « un cook qui a commité puis s'est arrêté en erreur a fini : son travail est récolté et part en pass »
+- `test/station.test.ts` « un travail récolté qui ne peut pas être poussé reste un échec »
+- `test/station.test.ts` « le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station »
+- `test/station.test.ts` « un quota épuisé après un commit reste un 86 : le ticket attend le retour du quota »
+- `test/station.test.ts` « quota épuisé : le ticket passe 86 jusqu'à l'heure de retour, sans échec ni commentaire »
+- `test/station.test.ts` « une machine sans session le dit dès le démarrage, sans lancer de cook »
+- `test/station.test.ts` « un ticket retiré du rail pendant que son cook tourne : le cook est arrêté »
+- `test/station.test.ts` « un cook qui finit alors que son ticket vient de quitter le rail : sa branche est poussée, aucune PR n'est ouverte, et le chef lit quoi en faire »
+- `test/station.test.ts` « un ticket resté pris par une vie précédente, sans cook, est rendu au démarrage »
+- `test/station.test.ts` « un setup en échec : aucun cook n'est lancé, le ticket est 86 dix minutes avec son motif, et rien n'est compté comme un échec de cook »
+- `test/station.test.ts` « un setup qui bute sur la porte : l'issue nomme l'hôte refusé pendant ce setup, et le geste qui l'ouvre »
+- `test/station.test.ts` « un setup qui échoue encore dix minutes plus tard, pour la même raison, bloque le projet : l'issue l'apprend, sans que l'échec y soit redit »
+- `test/station.test.ts` « la branche d'intégration bouge sous un setup bloqué — un hôte déclaré, un setup corrigé, mergés — : les setups reprennent d'eux-mêmes, sans attendre l'heure des tickets 86 »
+- `test/station.test.ts` « une base qui bouge sans lever la cause : un seul setup est retenté, et le projet est rebloqué sur la nouvelle base »
+- `test/station.test.ts` « un échec de setup dont la cause diffère du précédent ne bloque pas le projet : le ticket est 86 dix minutes, et retenté »
+- `test/station.test.ts` « un hôte refusé que l'échec précédent ne nommait pas fait une autre cause : le projet n'est pas bloqué »
+- `test/station.test.ts` « un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup »
+- `test/station.test.ts` « un worktree qui ne se range pas est gardé, et dit : au journal, à journald, dans `status` — et la station y revient à chaque tick »
+- `test/station/atelier.test.ts` « un projet servi avant l'atelier y déménage : son clone et ses worktrees, tels quels — branche, commits et fichiers non commités compris —, et `git` y retrouve ses liens »
+- `test/station/atelier.test.ts` « déménagé, le worktree d'un cook d'une vie précédente se range sans geste du chef : ce qui y traînait est commité sur sa branche, puis il est retiré »
+- `test/station/cuisine-bac-a-sable.test.ts` « sur un Mac qui a le bac à sable, la cuisine s'ouvre et dit que chaque `claude` y part »
+- `test/station/cuisine-bac-a-sable.test.ts` « hors de macOS, la cuisine n'est pas locale : elle s'ouvre comme avant, sans bac à sable »
+- `test/station/cuisine-jeton.test.ts` « la cuisine de la station sous un jeton : la date du jeton est écrite, le renouvellement n'est ni lu ni écrit »
+- `test/station/cuisine-jeton.test.ts` « la cuisine de la station sans jeton : le renouvellement est lu comme avant »
+- `test/station/cuisine-rail.test.ts` « la cuisine ouverte donne le rail de son journal — celui de `facts` — et n'en donne plus une fois arrêtée »
+- `test/station/portes.test.ts` « deux projets, deux listes : chacun ne joint que ce que son dépôt déclare — ce qu'un projet ouvre ne l'est pas pour l'autre —, et chaque refus va au journal de son projet »
+- `test/station/portes.test.ts` « la porte de la station ne laisse passer qu'Anthropic et GitHub — rien de ce qu'un projet déclare »
+- `test/station/portes.test.ts` « un projet ajouté à la configuration a sa porte ; retiré, il la perd — et le fichier des ports suit »
+- `test/station/portes.test.ts` « relancées, les portes reprennent leurs ports — ceux que la bascule a repris compris ; un port pris, la porte en prend un autre et le dit »
+- `test/stations.test.ts` « le quota est celui du compte : épuisé pour le cook d'une station, il retient toutes les stations du projet »
+- `test/stations.test.ts` « à l'arrêt, plus aucune station ne retient personne »
+- `test/superviseur.test.ts` « le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux »
+- `test/superviseur.test.ts` « sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois »
+- `test/superviseur.test.ts` « ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort »
+- `test/superviseur.test.ts` « un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté »
+- `test/superviseur.test.ts` « une sortie sans saut de ligne n'attend pas la fin du cook en mémoire : passé la borne, elle est écrite, masquée »
+- `test/superviseur.test.ts` « un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne »
+- `test/superviseur.test.ts` « ce qu'un cook a consommé se mesure pendant qu'il tourne »
+- `test/superviseur.test.ts` « le flux brut du cook est gardé tel quel dans son fichier »
+- `test/superviseur.test.ts` « ce que le cook écrit sur sa sortie d'erreur est gardé à côté du flux »
+- `test/superviseur.test.ts` « un cook qui échoue rend son code de sortie »
+- `test/superviseur.test.ts` « un message livré en plusieurs lignes compte pour un tour, et son usage une seule fois »
+- `test/superviseur.test.ts` « les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache »
+- `test/superviseur.test.ts` « un cook qui dépasse son plafond de durée est arrêté, même s'il produit »
+- `test/superviseur.test.ts` « un cook muet est détecté comme inactif et arrêté »
+- `test/superviseur.test.ts` « la commande d'arrêt arrête le cook, une seule fois »
+- `test/superviseur.test.ts` « un cook sourd à SIGTERM est tué après le délai de grâce »
+- `test/superviseur.test.ts` « le motif est remis avant que le signal parte : le cook vit encore quand on le note »
+- `test/superviseur.test.ts` « un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles »
+- `test/superviseur.test.ts` « une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook »
+- `test/tableau/gestes/retenue.test.ts` « la box retient ses appels (pause, quota au-dessus de la réserve) : `choose` posté sous le tableau se joue quand même, et la box répond dessous »
+- `test/tableau/publication/publier.test.ts` « sans tableau, le rafraîchissement crée l'issue « Kitchen board » et l'épingle ; le suivant n'en crée pas de seconde, ni un autre process après lui »
+- `test/tableau/publication/publier.test.ts` « un corps inchangé ne fait aucun appel d'écriture — même quand l'heure avance et que ses durées changent »
+- `test/tableau/rendu/tableau.test.ts` « le tableau montre chaque ligne de la file avec son geste, telle que `status` l'écrit dans son bloc `awaiting` »
+- `test/telephone/projets.test.ts` « la file d'un projet servie au téléphone est celle que l'app de l'ordinateur lit au même instant, sur le même état — avant et après que le rail bouge »
+- `test/telephone/second.test.ts` « le téléphone écrit au second d'un projet et lit sa réponse : elle s'ajoute à la conversation du desktop, que le desktop lit à sa source »
+- `test/telephone/tailnet.test.ts` « un téléphone qui ne connaît que l'adresse du tailnet — celle du QR — s'y appaire et lit les stations, sans jamais joindre le guichet en direct »
+- `test/telephones.test.ts` « qui n'a pas le droit du geste est refusé, pour chacune des quatre, et rien n'est tiré, lu ni révoqué »
+- `test/tests-rejoues.test.ts` « `measures` montre les tests verts seulement au rejeu, après les ratages »
+- `test/tests-touches.test.ts` « sans souche pour lire ce qu'il était — ni --souche, ni branche d'intégration —, ou une souche qui ne l'a pas, le doute joue tout »
+- `test/tirer-par-github/cuisiner.test.ts` « le cook d'une mission, sur un vrai dépôt : son worktree part de la base, le cook y commite, sa branche est poussée sur l'origine et rendue avec son compte-rendu — puis le worktree est rangé »
+- `test/tirer-par-github/station-par-github.test.ts` « sans ssh vers la box, elle obtient un ticket et son bail : sa demande posée dans son gist, la réponse lue au Kitchen board »
+- `test/tirer-par-github/station-par-github.test.ts` « deux stations réclament le même ticket au même instant : une seule l'obtient, l'autre n'en reçoit aucun »
+- `test/tirer-par-github/station-par-github.test.ts` « la station renouvelle son bail par GitHub : son échéance avance au Kitchen board — sans preuve de progrès, elle n'avance pas »
+- `test/tirer-par-github/station-par-github.test.ts` « une station qui se tait perd son bail sans rien faire : il tombe au Kitchen board, la principale reprend le ticket — jamais tenu par deux stations »
+- `test/valeur-tests/historique/historique.test.ts` « le rapport du vrai lanceur, un test qui échoue et un qui réussit : les deux sont inscrits, le dernier échec est la date du tour pour l'un, null pour l'autre »
+- `test/zone-du-86.test.ts` « la station lance le cook du ticket qui attendait la zone d'un ticket remonté ; relancé, le remonté ne cuit pas à côté »
+- `test/appairage/canal.test.ts` « le canal crée un gist secret, en réécrit un fichier sans toucher aux autres, et le relit »
+- `test/appels-par-projet.test.ts` « deux GitHub, deux projets, un faux gh : `status` et les faits de l'app disent le même total, le même projet et la même lecture en tête ; l'heure passée, ils sortent »
+- `test/arbre.test.ts` « arrêter un cook tenu par le runtime tue tout ce qu'il a lancé : ni lui, ni son enfant, ni son petit-enfant ne vit encore »
+- `test/arbre.test.ts` « un cook qui sort de lui-même ne laisse rien derrière lui : ce qu'il a lancé et qui vit encore est tué »
+- `test/arbre.test.ts` « arrêter un cook déjà sorti ne lève pas, tenu ou porté par un relais »
+- `test/budget-des-gates.test.ts` « un passage hors budget, sans ticket ouvert, en ouvre exactement un : sa durée, son processeur, le budget et ce qui le dépasse »
+- `test/budget-des-gates.test.ts` « le run complet sur la base ne se juge pas au budget d'un ticket : il a le sien, plus large »
+- `test/budget-des-gates.test.ts` « le run complet sur la base au-dessus de son budget ouvre un ticket qui le dit, sans demander de tenir le budget d'un ticket »
+- `test/budget-des-gates.test.ts` « la file du projet dit en une ligne que les gates sont hors budget sans ticket sur le rail, et se tait sinon »
+- `test/cloison.test.ts` « sans binaire, rien n'est cloisonné : le lancement part tel quel »
+- `test/cloison.test.ts` « une cloison à moitié posée est un refus de démarrer »
+- `test/cloison.test.ts` « le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt »
+- `test/decisions.test.ts` « les seuils de coût posés pendant que la dérive tourne sont écrits au journal au réveil suivant, et regardés à leur aune »
+- `test/deploy/installer-station.test.ts` « rejouée sur une station installée et connectée : rien ne se redemande, et la station reste active »
+- `test/echeance-de-session.test.ts` « le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants »
+- `test/fermeture-action/action.test.ts` « un geste de l'app mal écrit sort en 2 et n'écrit rien »
+- `test/gates.test.ts` « ce que le runtime garde de la sortie du setup et des gates est masqué »
+- `test/gates.test.ts` « des gates qui citent le jeton longue durée — laissé dans le worktree par un cook — ne le gardent nulle part : leur sortie est masquée, et le compte le dit »
+- `test/gates.test.ts` « coupées par leur garde d'horloge et rouges sur autre chose, ou leur sortie gardée en partie : des gates rouges comme les autres »
+- `test/garde-fous-cli.test.ts` « voir ne modifie pas le journal »
+- `test/identites.test.ts` « chaque geste part sous l'identité de son rôle : le cook livre, la pass merge, le manager tient les issues »
+- `test/installateur.test.ts` « un dépôt, une branche ou un calibrage hors de ce qui est accepté »
+- `test/installation.test.ts` « ceux qui manquent sont créés, ceux qui existent ne sont pas touchés »
+- `test/installation/besoins/besoins.test.ts` « le chef laisse la base au setup du projet : un seul ticket s'ouvre sur le projet, qui nomme le besoin ; le choix n'est plus une carte en attente, et dit son ticket »
+- `test/interrupteur.test.ts` « allumé, `status` porte sa ligne `switch` ; éteint, la ligne le dit, la cuisine se dit SWITCHED OFF et les faits la disent retenue »
+- `test/limite-github.test.ts` « le canal du gist se règle sur le même quota : à la réserve des gestes, il ne lance pas `gh` »
+- `test/paquet/paquet.test.ts` « il porte le runtime, son node, ses unités, le renouvellement et le geste `brigade` — ni tests, ni rien sous /etc, aucune règle sudoers »
+- `test/produit/cadence/cadence.test.ts` « le rôle ne dépose jamais plus que le plafond ; au plafond, les ticks du jour ne déposent rien et le disent une fois ; le lendemain, il reprend »
+- `test/profils/preference.test.ts` « une définition illisible n'est pas un profil : elle est écartée, et nommée »
+- `test/profils/propositions.test.ts` « un profil que le dépôt définit déjà n'est pas proposé, et un « oui » ne remplace jamais une définition »
+- `test/projets/ajout-de-station.test.ts` « nothing from the station's fields is written into the project's repository: the clone stays clean »
+- `test/projets/preparer.test.ts` « avec ses Apps : autorisées, rien à faire ; une App pas installée sur le dépôt, la page où l'installer, en un clic »
+- `test/projets/tenir.test.ts` « un dépôt joignable, où la station peut pousser : servi comme avant, sans accès bloqué »
+- `test/promotion/livrer.test.ts` « une promotion fait une PR, une seule, qui ne touche que le carnet et nomme les rétros qui ont proposé la leçon »
+- `test/reglages-projet/en-vigueur.test.ts` « a branch the clone does not know, or an unreadable file, is said — the resolution goes on, it never throws »
+- `test/reglages-projet/proposer.test.ts` « a change carrying a secret opens no PR, prepares no branch, and says which setting and why »
+- `test/reglages-projet/reglages.test.ts` « a machine-specific limit — cook count, workspace folder — is refused, and the file is left untouched »
+- `test/reseau.test.ts` « le socle laisse passer Anthropic et GitHub, sous-domaines compris, sur 443 et 80 — et rien d'autre »
+- `test/reseau.test.ts` « le dépôt déclare ses registres : un hôte par ligne, ses sous-domaines par `*.`, un autre port par `:port` »
+- `test/reseau.test.ts` « une ligne qui ouvrirait autre chose qu'un hôte n'ouvre rien, et se dit »
+- `test/reseau.test.ts` « le port de la porte n'a pas de défaut, et ne s'écrit pas à moitié »
+- `test/reseau.test.ts` « tout ce qui est lancé passe par la porte, sauf la boucle locale »
+- `test/sauvegarde.test.ts` « une réussite qui ne peut pas s'écrire au journal reste une sauvegarde faite : c'est dit à part, et la rotation a lieu »
+- `test/sortie-attente-capacite/station.test.ts` « `facts` dit ce que la carte en WAITING demande ; donné à `box/playwright`, le ticket revient sur le rail, part chez elle, et ne revient pas en WAITING »
+- `test/station-en-anglais.test.ts` « `station` : chaque refus, y compris ceux de `decisions.ts` et de `stations-declarees.ts`, est en anglais »
+- `test/stations.test.ts` « la connexion Max est celle de la machine : absente au démarrage, elle retient toutes les stations, et l'avertissement les nomme »
+- `test/superviseur.test.ts` « un motif qui ne peut pas être noté n'empêche pas l'arrêt »
+- `test/superviseur.test.ts` « un binaire introuvable est une fin en erreur, pas un cook qui pend »
+- `test/superviseur.test.ts` « un cook qui produit n'est pas pris pour un inactif »
+- `test/tableau/gestes/sans-ssh.test.ts` « `/brigade ask #30 …` sur la box qui tient le second du projet : la demande entre dans sa conversation, et sa réponse est postée sous le geste et portée par le tableau »
+- `test/tests-touches.test.ts` « une commande ajoutée touche les tests qui lisent les scripts, et eux seuls »
+- `test/tests-touches.test.ts` « une commande ajoutée touche le test qui lance un code du produit lisant les scripts »
+- `test/tests-touches.test.ts` « un package.json ajouté, tout se joue — même s'il ne porte que des scripts »
+- `test/urgence.test.ts` « une livraison à merger à la main qui tient toutes les zones : l'urgence porte la cause, la décision, son geste et le début de l'arrêt total — et `status` le dit en première ligne »
+- `test/deploy/installer-station-windows.test.ts` « sans argument et sans dépôt désigné, rien n'est téléchargé : le script dit quoi donner »
+
+## `a3910ab` — jusqua waits 2 s at most by default (1)
+
+The 100 s default of `jusqua` (180 s under Windows) is now 2 s.
+
+- `test/outils.ts`: guard `DELAI_PAR_DEFAUT_MS: 180_000`: brought to 2 s or less, or renamed where it was no wait
+
+## `bf511de` — 100 exceptions go, measured under 1.2 s under load 13 (100)
+
+Kept in place, unchanged, after the in-file concurrency left and the test kitchen's tick went from 100 ms to 20 ms (7f19ad6): each measured 1.2 s at most on the box at a load of 13 for 8 processors.
+
+- `test/appairage/canal.test.ts` « la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt »
+- `test/appairage/rail-du-projet.test.ts` « sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase »
+- `test/appairage/stations-du-chef.test.ts` « sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase »
+- `test/appairage/stations-du-chef.test.ts` « sur un ordinateur neuf connecté à GitHub, les stations déjà appairées — un Mac et shop-box — sont listées avec les projets que chacune porte »
+- `test/base-cli.test.ts` « les refus de la commande ne portent aucun mot français du glossaire »
+- `test/closing/report.test.ts` « après une passe, `run fermeture` en donne le bilan sans rouvrir sa PR : chaque retrait avec son chemin et son motif, chaque candidat laissé avec sa raison, la pente avant et après sur les mêmes merges, et les trois garde-fous avec leur valeur avant, après et leur verdict »
+- `test/closing/run.test.ts` « demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient »
+- `test/commun/etage.test.ts` « `retire C1` : aucun cook d'aucun projet ne la reçoit plus, elle n'est jamais reproposée, un second geste n'écrit rien »
+- `test/fusion.test.ts` « une base rouge qui ne se rapatrie plus : c'est dit une fois, pas à chaque tick ; l'origine revenue sur la même tête, rien n'est rejoué et le rouge reste »
+- `test/fusion.test.ts` « une panne de rapatriement qui change de cause pendant la retenue : le nouveau motif est écrit et dit une fois, la retenue garde sa date, et le même motif répété reste silencieux »
+- `test/main.test.ts` « un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part »
+- `test/main.test.ts` « un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse ; une valeur refusée rend son erreur, sans PR »
+- `test/main.test.ts` « un second runtime sur le même projet refuse de démarrer et dit pourquoi »
+- `test/manager.test.ts` « ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed` »
+- `test/pass-file-d-attente.test.ts` « trois cartes livrées pendant qu'une pass tourne attendent qu'elle finisse, puis sont jugées une à une, dans l'ordre de leur livraison »
+- `test/pass-reprise-des-gates.test.ts` « la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier »
+- `test/pass-reprise-des-gates.test.ts` « les gates du cook étaient rouges : la pass les joue en entier »
+- `test/pass.test.ts` « ce qu'un rangement commite sur une branche déjà livrée n'est pas jugé : la pass juge et merge le commit que l'origine a reçu, celui que GitHub connaît »
+- `test/pass.test.ts` « ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut au lieu d'être mis de côté ; au plus haut calibrage permis, la cuisine l'abandonne en disant pourquoi sur l'issue »
+- `test/pass.test.ts` « un ticket sans diff n'est jamais servi sans avoir été relu : relecture illisible, la cuisine le reprend ; cuisine arrêtée, il attend »
+- `test/pass.test.ts` « une livraison n'est relue qu'une fois sa CI verte : tant qu'elle tourne, aucun reviewer n'est appelé »
+- `test/pass/jugements-de-front.test.ts` « une livraison sans zone se juge seule : elle ne commence pas tant qu'une autre est jugée, et rien d'autre ne l'est pendant qu'elle l'est »
+- `test/poser-decisions.test.ts` « de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef »
+- `test/preparation-depot/station.test.ts` « le ticket qui prépare le dépôt servi, la cuisine prend les autres »
+- `test/preparation-depot/station.test.ts` « tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail »
+- `test/reaction.test.ts` « au second rouge, la pass passe la main : le manager monte d'un cran le label qu'il a posé, sans LLM, puis renvoie »
+- `test/reaction.test.ts` « des relances du manager restées rouges n'ouvrent pas le disjoncteur : il monte tant qu'il lui reste de quoi monter »
+- `test/reaction.test.ts` « éteint pendant le redécoupage, le manager n'en garde rien : aucun sous-ticket ne naîtra derrière un parent qui tient sa zone »
+- `test/reaction.test.ts` « le plafond posé par le chef est relu à chaque réaction, sans redémarrage, et c'est lui que le commentaire nomme »
+- `test/reaction.test.ts` « le plafond que porte le dépôt du projet passe avant celui de la box ; baissé par une PR, il vaut dès la réaction suivante, sans redémarrage »
+- `test/reaction.test.ts` « passé les deux renvois, le manager choisit — monter — et un ticket ne repart jamais à l'identique »
+- `test/reaction.test.ts` « redécoupé, le ticket devient l'épique de ses sous-tickets : il ne tient plus sa zone, et ils partent »
+- `test/reaction.test.ts` « remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO »
+- `test/reaction.test.ts` « remonté sans diff, le ticket n'a pas de PR : le commentaire ne propose pas de la merger, et dit que la cuisine le reprend »
+- `test/reaction.test.ts` « sans plafond posé par le chef, le défaut vaut : le ticket monte, et le commentaire nomme le plafond »
+- `test/reaction.test.ts` « un redécoupage que le LLM ne sait pas faire vaut remontée, sans rien créer »
+- `test/reaction.test.ts` « une montée faite sur GitHub mais dont la note s'est perdue n'est ni refaite ni reniée : le label reste au manager, qui peut monter encore »
+- `test/reaction.test.ts` « une montée que GitHub refuse ne relance rien et ne se redécide pas : elle reprend où elle en était »
+- `test/reaction.test.ts` « une remontée que GitHub empêche de dire, puis dont le chef ferme la PR : le mot du manager est dit quand même »
+- `test/reglages-projet/en-vigueur.test.ts` « a clone whose integration branch carries the file: its branch, calibrations and ceiling are used, the box's values ignored »
+- `test/relance-de-ci.test.ts` « rouge seulement sur un test qu'elle ne touche pas : les jobs en échec sont relancés, sans renvoi ni carte, puis la relance verte est mergée »
+- `test/renvois.test.ts` « `measures --last` mesure les renvois des N derniers tickets servis, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un »
+- `test/reparation.test.ts` « le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart »
+- `test/reparation.test.ts` « rouge puis verte au rejeu : la pass rejoue seule, aucun ticket de réparation n'est ouvert, et la cuisine reprend le travail »
+- `test/reparation.test.ts` « une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule »
+- `test/reparation.test.ts` « une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus »
+- `test/reprise-de-session.test.ts` « un renvoi repris repasse exactement les gates et la relecture d'un renvoi reparti de zéro : rien n'est sauté, rien n'est assoupli »
+- `test/reprise-du-renommage.test.ts` « elle ne touchait aucun fichier déplacé : rien n'est porté, sa branche ne bouge pas »
+- `test/reprise-du-renommage.test.ts` « elle réécrit ce que le renommage réécrit : le conflit est dit, chemin compris, sa branche ne bouge pas, et rien ne reste »
+- `test/reprise-du-renommage.test.ts` « elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier »
+- `test/reprise-du-renommage.test.ts` « le renommage mergé, la pause est levée, et la cuisine reprend seule : les tickets retenus sont repris sur le nouvel arbre — zone et branche sur les nouveaux chemins —, celui qui ne se porte pas est nommé dans la file avec la raison, celui qui ne touchait rien est repris tel quel, et un ticket neuf est pris et mergé »
+- `test/reprise.test.ts` « aucun cook en vol n'est interrompu pendant le remplacement : ni son processus, ni son worktree, ni sa branche — le rangement de la nouvelle vie passe sans y toucher »
+- `test/secrets-en-cuisine.test.ts` « un jeton copié sous un autre nom sur un renvoi : rien n'est poussé, la branche revient à la livraison refusée, et le cook suivant livre »
+- `test/secrets-en-cuisine.test.ts` « un secret commité sur un renvoi ne condamne pas le ticket : la branche revient à la livraison refusée, et le cook suivant livre »
+- `test/secrets-en-cuisine.test.ts` « une livraison qui porte la valeur d'un secret n'est pas poussée : le cook est en échec, et l'issue nomme la variable »
+- `test/station-veille.test.ts` « la box reprend le ticket sur la branche conservée, et repart de ce que le Mac avait poussé — sans redémarrer de zéro »
+- `test/station.test.ts` « deux tickets qui butent sur le même hôte bloquent le projet : plus aucun setup n'est lancé, pour aucun ticket, et le journal n'en redit rien »
+- `test/station.test.ts` « l'accès rétabli, l'essai suivant passe dans le même process, sans redémarrage : le cook part, l'échec et le blocage du projet tombent »
+- `test/station.test.ts` « l'échec porte l'erreur de git, l'heure du prochain essai et le geste, et tient jusqu'à l'essai suivant ; refusé de nouveau, chaque essai repousse cette heure sans lancer de cook »
+- `test/station.test.ts` « quatre cooks partent de front d'un même clone : quatre worktrees, quatre branches poussées, quatre PR »
+- `test/station.test.ts` « un cook qui échoue en laissant du travail non commité : son worktree part quand même, ce qu'il avait écrit est commité sur sa branche locale, et rien n'est poussé »
+- `test/station.test.ts` « un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass »
+- `test/station.test.ts` « un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue »
+- `test/station.test.ts` « un rail de trente tickets ne part pas d'un bloc : la station compte d'avance les cooks qu'elle vient de lancer, et monte par paliers d'une minute »
+- `test/station.test.ts` « un setup en échec sur un renvoi retire le worktree neuf, pas la branche : elle porte la livraison refusée, et le renvoi la reprend »
+- `test/station/main.test.ts` « chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662) »
+- `test/station/main.test.ts` « deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire »
+- `test/station/main.test.ts` « sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet »
+- `test/station/main.test.ts` « un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658) »
+- `test/station/main.test.ts` « une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres »
+- `test/station/portes.test.ts` « le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer »
+- `test/telephone/gestes.test.ts` « « merge » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase »
+- `test/telephone/gestes.test.ts` « « remove » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase »
+- `test/telephone/gestes.test.ts` « un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change »
+- `test/tirer-par-github/station-par-github.test.ts` « sans ssh vers la box, elle rend son travail par sa branche et sa PR : la pass de la principale la juge comme celle de tout cook »
+- `test/appairage/rail-du-projet.test.ts` « sans accès au projet — aucune station de ce compte ne le sert — la réponse le dit en une phrase, avec le geste qui connecte sous un autre compte »
+- `test/appairage/stations-du-chef.test.ts` « sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase, jamais une liste vide sans raison »
+- `test/closing/memory.test.ts` « à la passe suivante, ce qui a été laissé sans que le code autour change n'est pas reproposé ; ce dont le code autour a changé l'est, et son entrée est remplacée »
+- `test/closing/request.test.ts` « le chef renonce à la demande par le même geste : rien ne part, même quand la condition se remplit ; partie, elle ne se rappelle pas »
+- `test/correctif/decision.test.ts` « une proposition que personne ne tranche ne fait rien naître ; « oui » sur une autre en fait une PR qui porte exactement son diff, que la pass juge et merge comme une livraison »
+- `test/projets/acces.test.ts` « un credential helper qui ne donne rien : le geste est de reconnecter gh, puis de le prêter à git »
+- `test/reglage-cli.test.ts` « with no argument, it shows the settings the kitchen applies — the repository's first — and where each comes from »
+- `test/reglages-projet/au-runtime.test.ts` « a new ceiling returns the PR URL; the PR changes only the settings file, and the pass, judging it green under grant, holds it for the chef and never merges it »
+- `test/reglages-projet/closer.test.ts` « two stations serving the project apply the closer's settings of projet.json at their next fetch, with no restart and no box command, over what each box held »
+- `test/renouvellement.test.ts` « un échec garde le dernier renouvellement, et un passage réussi garde le dernier échec »
+- `test/renouvellement.test.ts` « le fichier d'identifiants n'est jamais lu : illisible, il ne change rien, et rien de ce qu'il porte ne sort »
+- `test/station.test.ts` « un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte »
+- `test/station/atelier.test.ts` « sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé »
+- `test/status.test.ts` « avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace »
+- `test/status.test.ts` « sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi »
+- `test/superviseur.test.ts` « un cook qui dépasse son plafond de tokens est arrêté, avec le motif »
+- `test/superviseur.test.ts` « un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook »
+- `test/tableau/budget/cout.test.ts` « N rafraîchissements dont M changent le contenu, sur une heure : `status` dit exactement les appels faits par le client »
+- `test/telephone/gestes.test.ts` « un geste qui ne rend pas de verdict — sa commande sort sur un autre code — rend 502 et une phrase, sans rien changer »
+- `test/test-bloque.test.ts` « un test qui expire en tenant une poignée est rouge, nommé, et son fichier s'arrête »
+- `test/tests-touches.test.ts` « à la station, le script qui joue la suite changé : sa zone joue ses tests proches, où qu'ils soient »
+- `test/tests-touches.test.ts` « à la station, une dépendance, un lockfile, un tsconfig ou le setup changés rejouent toujours tout »
+- `test/tirer-par-github/cuisiner.test.ts` « elle réclame, la réclamation arrive au journal de la principale, qui lui prête le ticket ; elle en lance le cook, pousse sa branche et la rend — la pass de la principale la juge et la sert »
+- `test/valeurs-a-donner.test.ts` « le runtime lancé sur une machine sans configuration refuse de démarrer en les disant toutes, et sort en 2 »
+- `test/verrou-des-gates.test.ts` « un passage tué en cours rend son tour au suivant »
+
+## `f7ec063` — the update and switch of a machine play in memory, on a test clock (7)
+
+mise-a-jour/machine.test.ts and bascule/machine.test.ts no longer drive a real station through dpkg and systemd doubles for seconds; mettre-a-jour.test.ts's 2 s guard runs on mock.timers.
+
+- `test/bascule/machine.test.ts` « installer le paquet reprend les trois projets — journal, décisions et ticket en cours intacts —, retire l'ancien chemin, et la cuisine reprend seule après un arrêt mesuré » — rewritten as three tests of the same file that play the real postinst under a test root with node, systemctl and getent doubles: « installer le paquet joue la bascule avant de recharger systemd et de démarrer la station, puis attend que la station reprenne la cuisine », « une bascule refusée arrête l'installation : systemd n'est pas rechargé, la station ne démarre pas », « une reprise que la station n'a pas encore constatée n'arrête pas l'installation : la station est démarrée quand même »; the projects taken back are covered by bascule/bascule.test.ts
+- `test/mise-a-jour/machine.test.ts` « la version gelée, une version publiée n'est pas installée ; le gel levé, elle l'est » — deleted; covered by mise-a-jour/mettre-a-jour.test.ts « gelée, une version plus récente n'est pas installée… »
+- `test/mise-a-jour/machine.test.ts` « trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage » — rewritten in memory as « trois versions publiées l'une après l'autre passent seules, et la file dit chaque passage » (12.9 s → under 0.5 s); the unit change is covered by paquet/paquet.test.ts « une mise à jour relance ce qui est activé sur le nouveau code… »
+- `test/mise-a-jour/machine.test.ts` « un cook en vol pendant la mise à jour n'est pas interrompu : la station de la nouvelle version le reprend sans le relancer, et sa livraison est servie » — deleted; covered by reprise.test.ts « un second runtime démarré pendant qu'un cook du premier est en vol le liste en cours… », « aucun cook en vol n'est interrompu pendant le remplacement… » and « le cook repris finit son travail… »
+- `test/mise-a-jour/machine.test.ts` « une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée »
+- `test/mise-a-jour/mettre-a-jour.test.ts` « une station qui tourne sans se dire en service dans la garde n'est pas gardée »
+- `test/mise-a-jour/mettre-a-jour.test.ts` « une version qui ne sert plus un projet que la précédente servait n'est pas gardée : le motif nomme le projet et son refus »
+
+## `d61858e` — 22 guards come down to 2 s, or were never waits (22)
+
+Values the rule read as guards but which are no wait (the GitHub quota `plafond: 5000`, production settings a test asserts) are renamed or written in seconds and minutes; delays on an injected clock come down to 2 s; real guards on short processes (gates of the test kitchens, cloison, connexion-max, limite-github…) come down from 60 s or more to 2 s.
+
+- `test/aides/cuisine.ts`: guard `delaiGatesMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/cloison.test.ts`: guard `delaiMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/closing/kitchen.ts`: guard `delaiGatesMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/connexion-max/connecter.test.ts`: guard `delaiMuet: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/correctif/decision.test.ts`: guard `delaiGatesMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/cout-des-gates.test.ts`: guard `delaiMs: 120_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/cout-des-gates.test.ts`: guard `delaiMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/gates.test.ts`: guard `delaiMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/gestes-sans-retenue.test.ts`: guard `plafond: 5000`: brought to 2 s or less, or renamed where it was no wait
+- `test/installation.test.ts`: guard `plafondMs: 900_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/limite-affichee.test.ts`: guard `plafond: 5000`: brought to 2 s or less, or renamed where it was no wait
+- `test/limite-github.test.ts`: guard `plafond: 5000`: brought to 2 s or less, or renamed where it was no wait
+- `test/limite-github.test.ts`: guard `timeout: 110_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/mesures-des-gates.test.ts`: guard `delaiMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/pass.test.ts`: guard `delaiGatesMs: 1_800_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/pass.test.ts`: guard `delaiGatesMs: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/porte.test.ts`: guard `delaiMs: 5000`: brought to 2 s or less, or renamed where it was no wait
+- `test/reglages-projet/gates.test.ts`: guard `delaiGatesMs: 1_500_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/reglages-projet/gates.test.ts`: guard `delaiGatesMs: 100_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/remedes/modes.test.ts`: guard `delaiMs: 5_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/sans-invite.test.ts`: guard `timeout: 60_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/tableau/gestes/retenue.test.ts`: guard `plafond: 5000`: brought to 2 s or less, or renamed where it was no wait
+
+## `3f2f409` — the kitchen tests that went round several turns lose their 5 and 10 min guards (6)
+
+The 300 s / 600 s `timeout` options given for the Windows runner go; their waits are `jusqua`'s 2 s.
+
+- `test/closing/report.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/decoupage.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/fusion.test.ts`: guard `timeout: 300_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/pass.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/reaction.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
+- `test/reprise-de-session.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
+
+## `4b6c673` — the sandbox no longer installs and runs pnpm 10, and the Windows runner is no test (6)
+
+test/support/windows.ts, the runner of the suite under Windows, leaves the rule (its guards are the CI job's, like package.json's `test` script).
+
+- `test/bac-a-sable/configuration.test.ts` « dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert »
+- `test/bac-a-sable/configuration.test.ts` « sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance un script sans chercher sa version ; sans les réglages, il meurt de ENGINE_IDENTITY_UNVERIFIABLE » — deleted (it installed pnpm 10 from the network and ran it: pnpm's behaviour, not the runtime's); the runtime's part is covered by « les réglages du bac à sable posent la désactivation du changement de version de pnpm » (same file)
+- `test/bac-a-sable/configuration.test.ts`: guard `timeout: 90_000`: gone with the pnpm 10 test it bounded
+- `test/support/windows.ts`: guard `garde: 60_000`: the suite's runner under Windows is no test and leaves the rule; its guards are the CI job's, like those of package.json's `test` script
+- `test/support/windows.ts`: guard `timeout: 300000`: the suite's runner under Windows is no test and leaves the rule; its guards are the CI job's, like those of package.json's `test` script
+- `test/support/windows.ts`: guard `timeout: 60_000`: the suite's runner under Windows is no test and leaves the rule; its guards are the CI job's, like those of package.json's `test` script
+
+## `176ac16` — an hour of ticks plays four of them and moves the clock over the rest (2)
+
+lectures-sous-condition.test.ts: 10.3 s → 0.47 s, its 600 s timeout gone.
+
+- `test/lectures-sous-condition.test.ts` « une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus »
+- `test/lectures-sous-condition.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
+
+## `9a45d0e` — the add-a-project acceptance on a real station and its real cadence goes (2)
+
+- `test/0-en-premier/recette.test.ts` « ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration » — deleted with its real station and real 30 s cadence (9a45d0e), then rewritten (89731f4) as projets/recette.test.ts, same title: the station's cadence reader (projets/tenir.ts) and its publication (appairage/presence.ts) on an in-memory gist and a clock the test moves, with the service's own CADENCE_MS and ECART_MINIMAL_MS; listed 150 s after the journey opened, under the spec's ten minutes
+- `test/0-en-premier/recette.test.ts`: guard `timeout: 300_000`: gone with its file
+
+## `496293d` — the English check of the commands plays them in the test's process (6)
+
+Rewritten in place: a command with `principal` plays in the test's process (0.03 to 0.2 s each).
+
+- `test/exploitation-en-anglais.test.ts` « `installation` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `manager` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `rail` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `station` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « `switch` : ses sorties et ses refus ne portent aucun mot français du glossaire »
+- `test/exploitation-en-anglais.test.ts` « un ancien nom de commande répond en anglais, et dit le nouveau »
+
+## `95be31a` — the installation command plays in the test's process, and its last step starts no runtime (3)
+
+Rewritten in place.
+
+- `test/installation.test.ts` « `setup` mesure le setup et dit si un worktree neuf par cook tient »
+- `test/installation.test.ts` « `setup` sur un setup en échec sort en 1 avec ce qu'il a dit »
+- `test/installation.test.ts` « après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste » — rewritten in place as « après « terminée », la liste des étapes n'en porte aucune à faire, et le runtime démarre sur l'environnement vérifié, ses stations déclarées »: it reads what main.ts reads before writing anything, on the verified environment (0.2 s); a cook launched on a calibrated ticket is covered by station.test.ts « un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass »
+
+## `5b6a99c` — the real station no longer waits three seconds for its door, nor serves a project added then withdrawn (2)
+
+- `test/station/main.test.ts` « sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre » — rewritten: the three-second wait for the door is proven in memory by station/portes.test.ts « la station attend sa porte avant de rien joindre… » (5 ms step, 20 ms patience); the real-process test is renamed « sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre » (1.1 s)
+- `test/station/main.test.ts` « un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela » — deleted (6 to 9 s); covered by station/station.test.ts « un projet ajouté s'ouvre, un projet retiré s'arrête, une ligne changée rouvre son projet… » and « un projet qu'un autre runtime tient encore est repris dès qu'il est libre… »
+
+## `ba05f1e` — the chef's decisions during a cook: one from a process of its own, the rest in the test's process (1)
+
+Rewritten in place: 5.3 s → 0.34 s.
+
+- `test/station-decisions.test.ts` « en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré »
+
+## `c4681a7` — the remote station on the real runtime goes (1)
+
+- `test/main.test.ts` « sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici » — deleted (4.4 s); covered by station-distante.test.ts « annoncée, elle reçoit le ticket dont elle fournit tout ce qu'il demande… », « son bail ne se renouvelle que sur une preuve de travail… » and « absente, elle ne retient que les tickets qui la demandent… »; the remote station's startup line is read by main.test.ts « un projet qui déclare trois stations démarre avec les trois… »
+
+## `0085531` — fourteen more exceptions go (14)
+
+Kept in place: measured at 0.9 s at most in the full suite on the box at load 5 to 8, or rewritten earlier in this branch (0.4 to 0.8 s alone).
+
+- `test/appairage/rail-du-projet.test.ts` « sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box »
+- `test/closing/report.test.ts` « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non »
+- `test/closing/run.test.ts` « un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part »
+- `test/commandes.test.ts` « taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé »
+- `test/commandes.test.ts` « un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris »
+- `test/cout-des-gates.test.ts` « le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts` »
+- `test/cuisson-de-bout-en-bout.test.ts` « arrêté, le cook ne laisse aucun process — ni lui, ni son enfant, ni son petit-enfant —, son worktree est rangé, et le cook suivant en reçoit un neuf »
+- `test/fusion.test.ts` « un merge à la main casse la base : c'est vu et dit sur son issue, plus rien n'est jugé ni mergé, les livraisons des cooks déjà partis attendent sans verdict — et sont jugées seules quand la base est réparée »
+- `test/gates.test.ts` « arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant »
+- `test/main.test.ts` « avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN » — deleted; covered by station.test.ts « avec un jeton à son emplacement, le cook le reçoit dans CLAUDE_CODE_OAUTH_TOKEN… » and claude.test.ts « la session de la machine se demande au binaire, sans lancer de cook »
+- `test/projets-station/station.test.ts` « sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main et le suit dans son enregistrement »
+- `test/reseau.test.ts` « le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien »
+- `test/closing/pass.test.ts` « ce que la passe retire passe par la pass et le merge normaux : sa PR est jugée fusionnée avec la base — gates, reviewer —, mergée sous le grant `merge`, et rien n'est commité sur la branche d'intégration »
+- `test/commun/etage.test.ts` « la leçon entre à l'étage commun, n'est plus proposée, et le cook d'un troisième projet la reçoit dans sa consigne »
+
+## `aa8d124` — the hang guard's own test plays in the test's process (1)
+
+Rewritten in place: test-hang-guard/garde.test.ts plays the guard's wrapper (`enveloppe`) on a runner that calls the test's function, with a 50 ms limit: 165 ms.
+
+- `test-hang-guard/garde.test.ts` « a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass »
+
+## `3db03a6` — the uninstall's step under the service account plays in the test's process (8)
+
+Rewritten in place: every test of desinstallateur.test.ts takes 0.07 to 0.32 s (the file: 32.8 s → 5.1 s).
+
+- `test/desinstallateur.test.ts` « chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi »
+- `test/desinstallateur.test.ts` « confirmée par le nom du projet : elle retire ce que le plan listait, et rien d'autre — le journal reste, les autres projets aussi »
+- `test/desinstallateur.test.ts` « le journal du projet : gardé par défaut, retiré par `--supprimer-le-journal` — le plan le dit dans les deux cas, et ne change rien »
+- `test/desinstallateur.test.ts` « le journal n'est supprimé qu'avec `--supprimer-le-journal` : l'état part alors avec le projet, pas ses sauvegardes »
+- `test/desinstallateur.test.ts` « le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue »
+- `test/desinstallateur.test.ts` « les ports du projet désinstallé redeviennent attribuables : le projet suivant reçoit le sien »
+- `test/desinstallateur.test.ts` « un clone qui contient l'état n'est jamais supprimé : la garantie du runtime retient le geste, plan compris »
+- `test/desinstallateur.test.ts` « un projet désinstallé se réinstalle sur son journal, et une désinstallation rejouée ne trouve plus rien »
+
+## `b457188` — the arbiter command plays in the test's process (2)
+
+- `test/arbitre-cli.test.ts` « ce que le process de la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus » — rewritten in place, in the test's process, as « ce que la commande écrit ne porte aucun mot français du glossaire : l'état, les réglages, les refus » (0.04 s)
+- `test/sorties-du-chef-en-anglais.test.ts` « `arbiter` : l'état, weight, remove et les refus ne portent aucun mot français du glossaire »
+
+## `d10a5d6` — base's glossary check and the old words of each command play in the test's process (2)
+
+Rewritten in place: 2 s → 0.17 s, 2.2 s → 0.4 s.
+
+- `test/base-cli.test.ts` « `base` et `base replay` sur un état d'exemple, du jamais contrôlé au rouge rejoué : aucune ligne ne porte de mot français du glossaire »
+- `test/commandes.test.ts` « chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient »
+
+## `86e5414` — the end-to-end runs of the real runtime and station process go, their behaviours covered in-process (11)
+
+- `test/main.test.ts` « désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne » — deleted; covered by arbitrage.test.ts « un runtime qui s'arrête proprement rend sa part… », « un arbitre qui n'a jamais été là : la connexion refusée suffit… », « sans arbitre désigné, le projet tourne comme avant… »; the startup line without an arbiter is read by main.test.ts « sans arbitre désigné, le runtime le dit d'une ligne… »
+- `test/main.test.ts` « le manager est branché, et suit l'interrupteur du projet : allumé par défaut au premier démarrage, il sonde les issues ouvertes sans geste du chef » — deleted; covered by interrupteur.test.ts « le manager suit l'interrupteur… », manager-cli.test.ts « allumer ou éteindre le manager seul est refusé… », and main.test.ts « le runtime démarre, tourne, et s'arrête proprement sur SIGTERM » for the switch main.ts sets
+- `test/main.test.ts` « les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail » — deleted; covered by alimenter.test.ts « après un redémarrage, le rail est celui d'avant — sans rien redemander à GitHub », « les issues ouvertes qui portent le label arrivent sur le rail, une fois » and « GitHub en panne n'arrête pas le runtime… »
+- `test/main.test.ts` « sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée » — deleted; covered by pass.test.ts « verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée » and « ce qu'un rangement commite sur une branche déjà livrée n'est pas jugé… » (real git, the project's gates.sh)
+- `test/main.test.ts` « tué sans préavis puis relancé, le runtime retrouve son journal et y note l'interruption » — deleted; covered by runtime.test.ts « au démarrage, les projections sont recalculées depuis le journal… » and verrou.test.ts « le verrou d'un autre process est refusé, puis se reprend dès qu'il est tué… »
+- `test/main.test.ts` « un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée » — deleted; covered by reprise.test.ts « un second runtime démarré pendant qu'un cook du premier est en vol le liste en cours… », « aucun cook en vol n'est interrompu pendant le remplacement… » and « le cook repris finit son travail… »
+- `test/main.test.ts` « une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part » — deleted; covered by identites.test.ts « chaque geste part sous l'identité de son rôle… », depot.test.ts « la branche d'un cook est poussée avec le jeton courant, qui n'est dans aucun argument », pass.test.ts « un merge de la pass porte son identité »
+- `test/main.test.ts` « une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire » — deleted; covered by station.test.ts « un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass », « le cook commente son ticket… » and « le calibrage du ticket est celui du cook… »
+- `test/station/main.test.ts` « deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service » — deleted; covered by station/station.test.ts « chaque projet de la configuration est ouvert avec son environnement… » and, on the real process, station/main.test.ts « deux projets cuisinés par le même process… »
+- `test/station/main.test.ts` « la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie » — deleted; covered by reprise.test.ts (the three tests named above) and pass.test.ts « ce qu'un rangement commite sur une branche déjà livrée n'est pas jugé… »
+- `test/station/main.test.ts` « une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station » — deleted; covered by identites.test.ts, depot.test.ts and station.test.ts (as for main.test.ts's « une identité par rôle, de bout en bout… »)
+
+## `a136f4a` — the gesture's refusals and helps launch together (3)
+
+Rewritten in place (0.8 and 0.3 s); commun/etage.test.ts's threshold test already played in-process (0.27 s).
+
+- `test/geste.test.ts` « `--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime »
+- `test/geste.test.ts` « une commande qui n'est pas du runtime est refusée, en nommant celles de la station »
+- `test/commun/etage.test.ts` « le seuil est un réglage, deux par défaut : à trois, une leçon de deux projets n'est plus proposée ; trois projets la font revenir »
+
+## `02cbbbc` — steps across a restart on the test's runtime; two runs of the real runtime go; the closing trigger waits three ticks (9)
+
+etapes.test.ts runs the test's own runtime twice (3.8 s → 0.07 s); closing/trigger.test.ts waits three ticks instead of five or ten; the closing run/report tests play in the test's process with the fake closer (0.35 to 0.65 s).
+
+- `test/closing/report.test.ts` « une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini »
+- `test/closing/run.test.ts` « la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien »
+- `test/closing/run.test.ts` « un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant »
+- `test/closing/trigger.test.ts` « once a pass is requested, no second one is requested the same day, whatever the merges or thresholds; a day later the runtime requests again, and the chef's gesture is never capped »
+- `test/closing/trigger.test.ts` « with the closer set, 19 merges request nothing; the 20th requests a pass, which leaves with no gesture from the chef »
+- `test/closing/trigger.test.ts` « with the closer set, a crossed drift threshold requests a pass even under 20 merges »
+- `test/decisions.test.ts` « posées pendant qu'il tourne, ses stations et ses seuils sont lus au réveil suivant : même process, aucun redémarrage » — deleted (real runtime, 2.6 s); covered in-process by decisions.test.ts « en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant… », « les seuils de coût posés pendant que la dérive tourne… » and « chacune, posée au support, est lue à la lecture suivante… »
+- `test/declarer-stations.test.ts` « de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage » — deleted (real runtime, 3.7 s); covered by declarer-stations.test.ts « la déclaration choisie est posée au journal comme décision du chef… », decisions.test.ts « en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant… » and main.test.ts « un projet qui ne déclare aucune station démarre quand même… »
+- `test/etapes.test.ts` « après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite »
+
+## `b5068de` — the gates' turn lock is seen held by a fact, not by a second and a half of sleep (5)
+
+verrou-des-gates.test.ts 2.6 s → 1.04 s; garde-des-gates.test.ts's two tests take 1.5 s, the guard of gates.sh (whole seconds, 1 s at least) included; duree-des-gates.test.ts's two take 0.6 and 0.8 s.
+
+- `test/duree-des-gates.test.ts` « le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage »
+- `test/duree-des-gates.test.ts` « les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond »
+- `test/garde-des-gates.test.ts` « un test en échec avant la coupure garde la ligne d'un rouge »
+- `test/garde-des-gates.test.ts` « une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué »
+- `test/verrou-des-gates.test.ts` « le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu »
+
+## `cf86dfc` — the idle cook speaks once launched, and its idle guard comes down from 1.5 s to 0.7 s (1)
+
+Rewritten in place: 1.6 s → 0.8 s.
+
+- `test/station.test.ts` « un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté »
+
+## `e267140` — a backup restored on a new machine restarts the test's runtime, not a real one (1)
+
+Rewritten in place: 4.2 s → 0.19 s.
+
+- `test/sauvegarde.test.ts` « restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi »
+
+## `1f1b6ed` — the computer's side of the phone gestures plays in the test's process (2)
+
+- `test/telephone/gestes.test.ts` « après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine » — deleted (2.6 to 4.2 s); each gesture's effect is covered by telephone/gestes.test.ts « « remove » du téléphone change la station comme le même geste de l'ordinateur… », « « merge » du téléphone change la station comme le même geste de l'ordinateur… » and « « back-to-kitchen » du téléphone change la station comme `/brigade arrived`… »
+- `test/telephones.test.ts` « le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station »
+
+## `30b9c32` — the package's station and its doors start together, as systemd starts them (1)
+
+Rewritten in place: 1.17 s → 0.77 s.
+
+- `test/paquet/paquet.test.ts` « le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non »
+
+## `9a42db9` — the Windows installer is played by one PowerShell per file (13)
+
+Rewritten in place: one pwsh per file, the served releases built once, a launcher double where no test watches the station, the 5 s relaunch no longer waited for (title extended). Measured with pwsh 7.4: 0.02 to 1.6 s a test. Not played on the box, which has no pwsh.
+
+- `test/deploy/installer-station-windows.test.ts` « la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé ni écrit au registre » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « sans winget, un outil qui manque est nommé, avec où le prendre, et rien n'est installé » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « une connexion GitHub ratée est dite, et la connexion Claude n'est pas tentée » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « une connexion Claude ratée est dite, avec de quoi la reprendre : rejouer la même commande » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « ailleurs que sous Windows, sur une architecture sans node, ou sans curl.exe : refusé avant tout téléchargement » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « il ne double pas la station que l'app tient : il attend qu'elle la rende » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « une station tombée est relancée cinq secondes plus tard » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions » — kept in place (rewritten as above), not played on the box
