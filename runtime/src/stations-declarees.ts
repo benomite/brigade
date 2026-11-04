@@ -6,7 +6,7 @@
 //
 // Une station tourne sur la machine du runtime, sauf celle que le projet dit
 // `distante` : celle-là vit ailleurs — le poste du chef —, et la box n'a aucun
-// chemin vers elle. C'est elle qui vient tirer son travail, par GitHub (`tirer-par-github/`).
+// chemin vers elle. C'est elle qui vient tirer son travail.
 //
 // Une station distante tourne sans cloison, sur le poste du chef : elle ne
 // prend que les tickets qui demandent une de ses capacités. Déclarée aussi

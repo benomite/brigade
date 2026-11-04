@@ -54,7 +54,6 @@ function leMac(t: TestContext, lire: () => LectureDesAppairees | Promise<Lecture
   // enregistrement, où l'app écrit sa sélection : ici, le même gist.
   const source = options.appairee === false ? { source: async () => ({ gist: GIST_MAC, lus: { ...gist }, fichier: FICHIER_PROJETS, brut: gist[FICHIER_PROJETS]!, demande: lireDemande(gist[FICHIER_PROJETS]!) }) } : {};
   const lignes: string[] = [];
-  // Ce que la station passe à la boucle qui cuit pour les cuisines rejointes (`tirer-par-github/cuisiner.ts`).
   let relectures = 0;
   const projets = tenirProjetsDeLApp({
     racine,

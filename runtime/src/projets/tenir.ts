@@ -21,12 +21,8 @@
 // Les stations que l'app appaire à un projet en plus de sa principale, la
 // principale les lit dans les gists appairés du compte, les déclare au journal
 // du projet et dit dans son suivi si chacune est atteinte (`secondaires.ts`).
-// Ce qu'elles lui demandent par GitHub — réclamer un ticket, renouveler un
-// bail —, elle le lit dans leur gist à chaque cadence et le relaie au journal du
-// projet, dont le runtime décide (`tirer-par-github/`). Un projet servi sur
-// l'état GitHub seul n'a plus de rail au journal : elle y répond elle-même, par
-// les faits de GitHub, et la station y prend et cuit ses tickets comme elle
-// (`tirer-par-github/sur-github-seul.ts`, #2219).
+// Elle ne relaie plus rien de ce qu'elles demandent (#2061) : sur l'état GitHub
+// seul, chaque station prend ses tickets sur GitHub (`brigade-github.ts`).
 //
 // Un projet que l'app lui demande alors qu'une autre station appairée du
 // compte le sert déjà — coché sur la page de la station, ou ajouté depuis la
