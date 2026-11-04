@@ -120,27 +120,11 @@ The second reads the queue at the start of its session and after a compaction, f
 sentence; an older box, or an empty `fileDeStatus`, is not read as an empty queue. `fileDeStatus` is
 never removed from a body that is too long.
 
-### `distantes` — the main station's arbitration, for a second station with no ssh
+### `distantes` — removed (#2061)
 
-A second station asks through GitHub only: it writes its request in its own paired gist, one file
-per slot — `brigade-pull.<owner>.<repo>.claim.json` (claim a ticket, or announce itself),
-`….renew.<run>.json` and `….deliver.<run>.json` per cook — holding
-`{"brigade":"pull","format":1,"id","depot","le","verb",…}` with the fields of the matching `pull`
-request. To hand back, the station pushes its mission's branch to the origin, then posts `deliver`;
-the main station opens its PR, and its pass judges it as any cook's. At each reading (thirty
-seconds), the main station relays each new request under five minutes old to the log, once, and
-answers as it does `pull`, one request at a time. The answer is published here
-(`runtime/src/tirer-par-github/`):
-
-| Field | What it holds |
-|---|---|
-| `attributions[]` | Each ticket a remote station holds: `ticket`, `station`, `run`, `bailJusqua` — its lease's end, which a renewal moves forward. A station that goes silent lets it pass: the main station stops its cook and the ticket returns to the rail |
-| `reponses[]` | The latest answer to each slot of each station, for fifteen minutes: `demande` (the request's `id`), `station`, `geste` (`announce`, `claim`, `renew`, `deliver`), `run` (`null` for a claim), `le`, `reponse` — what `pull` would have printed, except a claimed mission's `args`, published without the brief (`args` is `["-p", prompt, ...suiteDesArgs]`) |
-
-`distantes` is the last thing removed from a body that is too long (see `resserre`): it is the only
-channel through which a second station reads its mission and the answers to its renewals. Removed,
-the box lends a ticket the station never sees, and stops it at the idleness cap with 0 turns and 0
-tokens (#2095).
+The board no longer carries the main station's answers to the second stations: the claim relay
+through the stations' gists is gone with the old path. Every station takes its tickets on GitHub
+itself (`runtime/src/brigade-github.ts`). A block written before still reads; the field is ignored.
 
 ### `activites` — what each cook is doing, for an app connected to GitHub
 

@@ -167,40 +167,12 @@ brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:c
 - **One kitchen per project, run by the main station.** The rail, the manager and the pass run only on
   the first station; the second only cooks, and its deliveries go through the first station's pass and
   reviewer.
-- **How a second station cooks, through GitHub only.** The station alone writes its requests in its
-  own paired gist, one file per slot (`brigade-pull.<owner>.<repo>.<slot>.json`,
-  `runtime/src/tirer-par-github/demande.ts`). The main station reads them every thirty seconds, relays
-  each fresh one to the project's log once, and publishes its answer on the Kitchen board (`distantes`,
-  [`tableau-de-cuisine.md`](tableau-de-cuisine.md)): `claim`, `renew.<run>` (with the proof of its
-  worktree), `deliver.<run>` (once the branch is pushed to the origin; the main station fetches it,
-  opens the PR, and the pass judges it as any cook's). A silent station stops renewing: at the
-  deadline its cook is stopped, the ticket goes back to the rail, and the station learns it from its
-  next answer (`stopped`, `lease`). The box only sees the cook in what its renewals report, so the
-  station renews every third of the lease and **at most every quarter of the idleness cap**
-  (`intervalleDeRenouvellement`): at a third of a 30-minute lease alone, the first renewal left at 10
-  minutes — the cap itself —, and the box stopped every cook longer than that at 0 turns and 0 tokens
-  (#2095).
-  Each `claim` carries `since`, the instant the station started at its clock: a station whose cook
-  ended with 0 turns and 0 tokens takes no more tickets (`held: unstartable`) until a claim says it
-  started after that failure — restarting it is the gesture (see "A cook that cannot start" in
-  [`station-cook.md`](station-cook.md)).
+- **How a second station cooks: removed (#2061).** The claim relay — requests in the station's gist,
+  relayed to the main station's log or answered on the Kitchen board — is gone with the old path.
+  Every project is on the GitHub-only state: a station that cooks a project serves it itself and
+  takes its tickets on GitHub (`runtime/src/brigade-github.ts`).
 - **The same sandbox guard as `ordinaires`**: with no sandbox said, or an unavailable one, it takes
   only the tickets that ask for one of its capabilities.
-- **On the GitHub-only state** (`githubOnlyState`, [`reglages.md`](../reglages.md); #2219), the
-  project's log no longer holds the rail, so the main station does not relay the requests to it: it
-  answers them itself from GitHub (`runtime/src/tirer-par-github/sur-github-seul.ts`), on the same
-  Kitchen board. A `claim` gets the first free ticket in the turn's order (`prio:`, then the oldest),
-  calibrated, whose zone no open PR holds, taken by a claim comment **in the second station's name**
-  (`github-etat/prise.ts`): when the main station's own turn and the second station want the same
-  ticket, the earliest claim comment wins and the other takes the next one — a ticket is never taken
-  twice. Its mission is a turn cook's (`cook/<n>-github`, resumed from the origin when an open PR
-  carries it), always in the workstation's sandbox: a station without one gets nothing. `renew` is
-  accepted while the station holds the ticket on its issue (the chef removing `taken` or `fire` stops
-  its cook); `deliver` opens the PR and puts the ticket `in-pass`, where any station reviews and
-  merges it — or, with no delivery, gives the ticket back on its issue and says why. The switch is
-  read on the integration branch of the main station's clone the first time a second station asks,
-  as the kitchen reads it when it opens. A silent second station keeps its claims: their lease is not
-  part of this.
 
 `station` (its `ordinary tickets` line: `taken alongside the box's stations, as one more station of the
 project …`) and `facts` (the `ensemble` field of `stations`) say it.
@@ -214,13 +186,13 @@ and capabilities are those set in the app, and changing them there changes the d
 reading. It provides what the pairing says of its computer and what the chef ticked, plus `code` and
 `raisonnement`, `macos` on a Mac, and what the installation **detects** there without launching
 anything (Chrome, the Android SDK, a Postgres server, …; `capacitesDeLaMachine`,
-`runtime/src/projets/ajout-de-station.ts`). It works through GitHub like any second station.
+`runtime/src/projets/ajout-de-station.ts`). 
 
 - **Adding it is the only gesture** (#1830). Whether the chef ticks the project on the station's own
   page or adds the computer from the project's Cooks page ("+ station"), the station joins the
   kitchen that runs (`runtime/src/projets/rejoindre.ts`), publishes it in
-  `brigade-cuisines-rejointes.json` of its paired gist, and opens its claim loop
-  (`runtime/src/tirer-par-github/cuisiner.ts`). A station with a selection still reads the projects
+  `brigade-cuisines-rejointes.json` of its paired gist; it no longer cooks there through the main
+  station (the claim relay is gone, #2061). A station with a selection still reads the projects
   added from a project's page in its pairing gist's request (`runtime/src/projets-station/source.ts`).
   While no station serves the project, it opens no kitchen and joins at the next reading.
 - **One path for every project the main station serves** (#1923), whether the app asked for it or a
