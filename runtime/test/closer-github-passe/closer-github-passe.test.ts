@@ -273,7 +273,7 @@ describe("the merges the clone says", () => {
     commiter(clone, "squash.txt");
     git(clone, "push", "-q", "origin", BASE);
     git(clone, "update-ref", `refs/remotes/origin/${BASE}`, `${BASE}~2`);
-    const lus = await lectureDuClone({ depot: { rapatrier: async () => void git(clone, "fetch", "-q", "origin") }, clone, base: BASE, env: ENV_GIT }).merges();
+    const lus = await lectureDuClone({ depot: { rapatrier: async () => git(clone, "fetch", "-q", "origin") }, clone, base: BASE, env: ENV_GIT }).merges();
     // The squash, the merge, then the base's first commit: the delivery's own commit is not a first parent.
     assert.deepEqual(lus.map(({ ticket }) => ticket), [null, 42, null]);
     assert.ok(lus.every(({ at }) => !Number.isNaN(Date.parse(at))));
