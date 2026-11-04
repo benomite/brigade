@@ -63,39 +63,36 @@ stays what the runtime assumes.
 
 ### What you create at GitHub
 
-Once per project, by someone who administers the organization. **This path could not be played from
-a dev session**: it is the recipe.
+Once per project, by the chef, on his **personal GitHub account**. No organization is needed. Every
+station is equal: each receives the three App IDs and keys through the app, and none keeps them in
+a place of its own.
 
-1. **Three GitHub Apps**, on the **organization** (*Settings → Developer settings → GitHub Apps*),
-   named `<project>-cook`, `<project>-pass`, `<project>-manager`. No webhook, no organization or
-   account right, *Only on this account*. Repository rights — cook: *Contents* and *Pull requests*
-   read/write; pass: the same, plus *Issues* read/write, *Checks* and *Commit statuses* read;
-   manager: *Issues* read/write. **No *Workflows* right** for the cook App: a ticket touching
-   `.github/workflows/` cannot be pushed, and its failure says so. Giving less makes the token be
-   refused (`jeton refusé`, journald, French).
-2. **Install each on the project's repository alone** (*Only select repositories*), noting its
-   **private key** (`.pem`, given once) and *App ID*.
-3. **On the box**, a directory only the service account reads:
+1. **Create three GitHub Apps** on your account (*Settings → Developer settings → GitHub Apps →
+   New GitHub App*), named `<project>-cook`, `<project>-pass` and `<project>-manager`. For each: no
+   webhook, *Only on this account*, no organization or account right, and the repository rights of
+   its role:
+   - **cook**: *Contents* and *Pull requests*, read and write. **No *Workflows* right**: a ticket
+     touching `.github/workflows/` cannot be pushed, and its failure says so.
+   - **pass**: *Contents* and *Pull requests*, read and write; *Issues*, read and write; *Checks*
+     and *Commit statuses*, read.
+   - **manager**: *Issues*, read and write.
 
-   ```bash
-   sudo install -d -m 700 -o <account> /etc/brigade/<project>/apps
-   # For each of the three roles: cook, pass, manager
-   echo <App ID> | sudo -u <account> tee /etc/brigade/<project>/apps/<role>.id
-   sudo install -m 600 -o <account> <the downloaded key>.pem /etc/brigade/<project>/apps/<role>.pem
-   ```
-
-   then in the drop-in: `Environment=BRIGADE_GITHUB_APPS_DIR=/etc/brigade/<project>/apps`. A missing
-   file, a key readable by anyone else, a non-key file, or two roles under one App: the runtime
-   **refuses to start**, naming the file. Never copy these keys into the drop-in, a readable backup
-   or the repository.
-4. **Remove the GitHub account from the machine**: `sudo -u <account> gh auth logout`, no SSH key of
-   the account at GitHub, no `GH_TOKEN` in the drop-in. On a private repository, make the first
-   clone with a token of yours, not left in `origin`'s address.
-5. **The branch rule that reserves the merge** — add a rule, do not remove one. An active *ruleset*
+   Giving less makes GitHub refuse the token (`jeton refusé`, in journald).
+2. **Install each App on the project's repository alone** (*Install App → Only select repositories*).
+3. **Note each App ID** (shown on the App's settings page).
+4. **Download each App's private key** (*Private keys → Generate a private key*). It is a `.pem`
+   file, given once.
+5. **Hand the three IDs and keys to the app**, which gives them to any station that runs the
+   project. A station receives them from the app, never from a file it keeps by hand.
+6. **Reserve the merge** with a branch rule — add a rule, do not remove one. An active *ruleset*
    on the integration branch (*Settings → Rules → Rulesets*, or `gh api -X POST
    repos/<owner>/<repo>/rulesets`) with **Restrict updates**, **Restrict deletions**, **Block force
    pushes** (`update`, `deletion`, `non_fast_forward`); in the *Bypass list*, the **pass** App
-   (`Integration`, *Always*) and the humans who merge. Neither the cook nor manager App.
+   (`Integration`, *Always*) and the humans who merge. Neither the cook nor the manager App.
+
+**Keys are never written to the repository, a backup or a log.** A `.pem` is a secret: do not commit
+it, do not copy it into a backup, do not paste it into a log, a comment or an issue. The App IDs are
+not secret, but they stay with the keys they belong to.
 
 At start the runtime states its mode: `GitHub — une identité par rôle (cook, pass, manager) …` or
 `GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). A badly
