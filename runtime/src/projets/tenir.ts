@@ -88,9 +88,6 @@ import { ENQUETE_MUETTE, enqueter, lireLEchecDuClone, type Enquete } from "./ech
 import { repondeurDeRemedes } from "../remedes/distant.ts";
 import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
 import { REMEDES, type Registre } from "../remedes/registre.ts";
-import { relayerLesDemandes } from "../tirer-par-github/relayer.ts";
-import { repondreSurGitHubSeul } from "../tirer-par-github/sur-github-seul.ts";
-import { clientDuTour, surGitHubSeul as interrupteurAllume, type GitHubDuTour } from "../brigade-github.ts";
 import { lireALaBase } from "../depot.ts";
 import { reglagesALaBase } from "../reglages-projet/en-vigueur.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, type Regle } from "../reseau.ts";
@@ -164,18 +161,6 @@ export type OptionsProjets = {
   // La plateforme de sa machine (`process.platform` par défaut) : un Mac fournit
   // `macos` à la cuisine qu'il rejoint (`rejoindre.ts`).
   plateforme?: string;
-  // Les cuisines qu'elle a rejointes, à chaque lecture, et son gist
-  // d'appairage, où elle pose ses demandes : la station y cuit
-  // (`tirer-par-github/cuisiner.ts`). Absent : elle n'y cuit pas.
-  surLesRejointes?: (rejointes: readonly CuisineRejointe[], gist: string) => void;
-  // Un projet qu'elle sert est-il sur l'état GitHub seul (`brigade-github.ts`) ?
-  // Allumé : sa branche d'intégration et la liste réseau que son dépôt déclare ;
-  // éteint, null. Par défaut, l'interrupteur que sa branche d'intégration porte
-  // dans son clone, lu une fois, comme sa cuisine le lit à son ouverture.
-  surGitHubSeul?: (projet: { nom: string; depot: string }) => { base: string; hotes: () => Regle[] } | null;
-  // Le client GitHub qui répond, sur l'état GitHub seul, à ce que ses stations
-  // secondaires demandent — par défaut, celui de son `gh`.
-  githubDuTour?: (projet: { nom: string; depot: string }, base: string) => { github: GitHubDuTour; fermer(): void };
 };
 
 // Ce que l'app demande, tel qu'une lecture le rend : le gist où la station le
@@ -331,75 +316,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     return trouvees;
   };
 
-  // L'interrupteur de l'état GitHub seul de chaque projet, tel que son clone
-  // l'a dit la première fois : sa cuisine ne le relit qu'à sa réouverture.
-  const interrupteurs = new Map<string, boolean>();
-  const surGitHubSeul =
-    options.surGitHubSeul ??
-    ((projet: { nom: string; depot: string }) => {
-      const clone = cloneDe(projet.nom);
-      const envGit = { ...process.env, ...env };
-      const { branche } = brancheDuProjet(clone, null, envGit);
-      if (branche === null) return null;
-      let allume = interrupteurs.get(projet.nom);
-      if (allume === undefined) {
-        try {
-          allume = interrupteurAllume(reglagesALaBase({ clone, base: branche }, envGit));
-        } catch {
-          return null;
-        }
-        interrupteurs.set(projet.nom, allume);
-      }
-      if (!allume) return null;
-      const hotes = () => {
-        try {
-          return reglesDuProjet(lireDeclaration(lireALaBase({ clone, base: branche }, DECLARATION_RESEAU, envGit) ?? "").hotes);
-        } catch {
-          return reglesDuProjet([]);
-        }
-      };
-      return { base: branche, hotes };
-    });
-  const githubDuTour =
-    options.githubDuTour ??
-    ((projet: { nom: string; depot: string }, base: string) => {
-      const github = ouvrirGitHub({ depot: projet.depot, bin: gh, projet: projet.nom });
-      try {
-        return { github: clientDuTour(github, base), fermer: () => github.fermer() };
-      } catch (erreur) {
-        github.fermer();
-        throw erreur;
-      }
-    });
-  // Ce que ses stations secondaires demandent sur l'état GitHub seul : elle y
-  // répond par les faits de GitHub, et sa réponse se publie au Kitchen board.
-  const repondreAuxSecondaires = async (projet: { nom: string; depot: string }, secondaires: readonly StationSecondaire[], allume: { base: string; hotes: () => Regle[] }) => {
-    let tour: { github: GitHubDuTour; fermer(): void } | null = null;
-    try {
-      tour = githubDuTour(projet, allume.base);
-      const { repondues, panne } = await repondreSurGitHubSeul({ repertoireEtat: etatDe(projet.nom), depot: projet.depot, base: allume.base, secondaires, lire: (id) => canal.lire(id), github: tour.github, hotes: allume.hotes, maintenant });
-      for (const { station: nom, verb, dit } of repondues) dire(`brigade : station — ${projet.nom} : ${nom} demande par GitHub (${verb}), répondu sur l'état GitHub seul : ${dit}`);
-      if (panne !== null) throw new Error(panne);
-    } catch (erreur) {
-      direUneFois(`github-seul ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : ce que ses stations secondaires demandent par GitHub reste sans réponse sur l'état GitHub seul, la station réessaie : ${message(erreur)}`);
-    } finally {
-      tour?.fermer();
-    }
-  };
-
-  // Ce que les stations secondaires d'un projet demandent par GitHub, relayé à son journal.
-  const relayerLesSecondaires = async (projet: { nom: string; depot: string }) => {
-    const secondaires = secondairesConnues.get(projet.nom) ?? [];
-    if (secondaires.length === 0) return;
-    const allume = surGitHubSeul(projet);
-    if (allume !== null) return repondreAuxSecondaires(projet, secondaires, allume);
-    try {
-      const { relayees } = await relayerLesDemandes({ repertoireEtat: etatDe(projet.nom), depot: projet.depot, secondaires, lire: (id) => canal.lire(id), maintenant });
-      for (const { station: nom, verb } of relayees) dire(`brigade : station — ${projet.nom} : ${nom} demande par GitHub (${verb}), relayé au journal du projet`);
-    } catch (erreur) {
-      direUneFois(`relais ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : ce que ses stations secondaires demandent par GitHub n'est pas relayé, la station réessaie : ${message(erreur)}`);
-    }
-  };
   // Les projets dont la station est la principale par l'app, à la dernière lecture : le reste de ce qu'elle sert
   // (une ligne écrite à la main, ou l'app muette) passe par `lesServisSansDemande`, la même jonction.
   let tenusParLaDemande = new Set<string>();
@@ -411,8 +327,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     if (lue === null || arrete) return;
     for (const projet of projets) {
       tenirLesSecondaires(projet, lue);
-      await relayerLesSecondaires(projet);
-      if (arrete) return;
     }
   };
 
@@ -758,13 +672,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         const secondaires = tenirLesSecondaires(demande.projets[rang]!, lesAppairees);
         if (secondaires.length > 0) suivi[rang] = { ...dit, secondaires };
       }
-      // Ce que ces stations demandent par GitHub — réclamer un ticket, renouveler
-      // un bail —, relayé au journal du projet à chaque lecture : son runtime en
-      // décide, et publie sa réponse au Kitchen board (`tirer-par-github/`).
-      for (const [rang] of principaux) {
-        await relayerLesSecondaires(demande.projets[rang]!);
-        if (arrete) return;
-      }
     }
     // Un besoin que le chef laisse au setup du projet : la principale ouvre sur
     // le projet le ticket qui le lui demande, une fois, et son choix le dit.
@@ -806,7 +713,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       if (arrete) return;
       if (rejointesDoc !== rejointesPubliees && (await canal.ecrire(appairage, { [FICHIER_REJOINTES]: rejointesDoc })) !== "absent") rejointesPubliees = rejointesDoc;
       if (arrete) return;
-      options.surLesRejointes?.(rejointes, appairage);
     }
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.
     const compare = JSON.stringify({ suivi, onboarding });

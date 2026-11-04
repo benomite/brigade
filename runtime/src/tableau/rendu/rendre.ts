@@ -90,7 +90,7 @@ const sansLesEtapesPassees = (tableau: Tableau): Tableau =>
 const sansCeQuiRetient = (tableau: Tableau): Tableau =>
   tableau.avantLeRail === undefined ? tableau : { ...tableau, avantLeRail: { ...tableau.avantLeRail, issues: tableau.avantLeRail.issues.map((issue) => ({ ...issue, dit: "" })) } };
 
-const sans = (champ: "distantes" | "gestes" | "activites") => (tableau: Tableau): Tableau => {
+const sans = (champ: "gestes" | "activites") => (tableau: Tableau): Tableau => {
   const { [champ]: _retire, ...reste } = tableau;
   return reste;
 };
@@ -99,12 +99,8 @@ const sans = (champ: "distantes" | "gestes" | "activites") => (tableau: Tableau)
 // l'historique et les blocs secondaires d'abord — les étapes passées des cooks,
 // le texte des relectures des livrés, les gestes du chef déjà joués, les
 // activités des cooks, les livraisons qui attendent, les diffs des
-// corrections —, puis ce qui retient chaque issue avant le rail, et ces issues ;
-// le relais des stations distantes (`distantes`) en dernier. Il n'est pas un
-// historique : c'est le seul canal par lequel une station qui tire par GitHub
-// lit sa mission et les réponses à ses renouvellements. Retiré, la box lui
-// prête un ticket que la station ne voit jamais, et l'arrête pour inactivité
-// au bout du plafond, à 0 tour et 0 token (#2095). Le rail (`faits`,
+// corrections —, puis ce qui retient chaque issue avant le rail, et ces issues.
+// Le rail (`faits`,
 // `lignesDuRail`), la file du chef avec ses cartes (TODO) et l'état de la cuisine
 // ne sont jamais retirés (ticket 2157) : si le corps ne tient pas encore, il
 // reste trop long plutôt que d'écarter ce que le chef lit d'abord.
@@ -117,7 +113,6 @@ const RESSERREMENTS: Array<{ quoi: Resserre[]; retirer(tableau: Tableau): Tablea
   { quoi: ["faits.corrections.diff"], retirer: (tableau) => dansLesFaits(tableau, "corrections", "diff") },
   { quoi: ["avantLeRail.dit"], retirer: sansCeQuiRetient },
   { quoi: ["avantLeRail"], retirer: ({ avantLeRail: _avant, ...reste }) => reste },
-  { quoi: ["distantes"], retirer: sans("distantes") },
 ];
 
 // Le corps de l'issue, généré à `genereLe`. Trop long pour GitHub, la partie

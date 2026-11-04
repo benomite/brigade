@@ -8,8 +8,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
 import { lireSeuilCommun } from "../commun/etage.ts";
-import { detecter, sondesDeLaMachine } from "../bac-a-sable/detection.ts";
-import { pourLaBox } from "../bac-a-sable/ordinaires.ts";
+import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { lireCaches, PLATEFORME_LOCALE, verifier } from "../bac-a-sable/local.ts";
 import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
@@ -19,12 +18,7 @@ import { masquerLaConsole } from "../jeton-claude.ts";
 import { installerLimite, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
-import { machineDe } from "../projets/preparer.ts";
-import type { CuisineRejointe } from "../projets/rejoindre.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
-import { clientGitHubDuTableau } from "../tableau/publication/client.ts";
-import { cuisinerPourLaPrincipale, tenirLesCuisinesRejointes } from "../tirer-par-github/cuisiner.ts";
-import { lecteurDuTableau } from "../tirer-par-github/demander.ts";
 import { sourceDesProjets } from "../projets-station/source.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
@@ -163,30 +157,6 @@ const enregistrement = tenirEnregistrement({ racine, canal, identite, dire });
 // chef, elle ne reprend aucun projet sans bac à sable : la vérification est
 // celle de `bac-a-sable/verifier.ts`.
 const locale = process.platform === PLATEFORME_LOCALE;
-// Les cuisines qu'elle a rejointes — un projet qu'une autre station servait
-// déjà quand le chef le lui a ajouté (projets/rejoindre.ts) : elle y cuit
-// comme une station de plus, par GitHub seulement (tirer-par-github/cuisiner.ts).
-const gh = process.env.BRIGADE_GH_BIN || "gh";
-const claude = process.env.BRIGADE_CLAUDE_BIN || "claude";
-const maison = process.env.HOME ?? homedir();
-const rejointes = tenirLesCuisinesRejointes((rejointe: CuisineRejointe, gist: string) => {
-  const { clone, worktrees } = lieuxDuProjet(racine, rejointe.nom, maison);
-  return cuisinerPourLaPrincipale({
-    station: `${machineDe(identite.nom)}/claude`,
-    depot: rejointe.depot,
-    gist,
-    canal,
-    lireLeTableau: lecteurDuTableau(clientGitHubDuTableau({ depot: rejointe.depot, bin: gh, projet: rejointe.nom })),
-    cooks: rejointe.cooks,
-    clone,
-    worktrees,
-    claude,
-    env: process.env,
-    gh,
-    bacASable: () => pourLaBox(detecter(sondesDeLaMachine(claude)), { home: maison, worktrees, caches: lireCaches(process.env) }),
-    dire,
-  });
-});
 const projetsDeLApp = tenirProjetsDeLApp({
   racine,
   canal,
@@ -201,7 +171,6 @@ const projetsDeLApp = tenirProjetsDeLApp({
   // Les stations que l'app appaire à ses projets en plus d'elle, lues dans les
   // gists appairés du compte de son `gh` (projets/secondaires.ts).
   lireLesAppairees: () => lireLesStationsEtLeursGists({ gh: process.env.BRIGADE_GH_BIN || "gh" }),
-  surLesRejointes: (lues, gist) => rejointes.tenir(lues, gist),
   apresEcriture: () => {
     station.relire();
     void presence.publier();
@@ -240,8 +209,6 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     void fermerLeGuichet();
     projetsDeLApp.arreter();
-    // Ses cooks pour une cuisine rejointe s'arrêtent : leur bail tombe chez la principale.
-    void rejointes.arreter();
     miseAJour?.arreter();
     station.arreter(signal);
     connexion.arreter();

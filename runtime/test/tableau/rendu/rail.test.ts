@@ -209,33 +209,22 @@ test("même un rail énorme n'est jamais retiré du bloc : la file, TODO et l'é
   assert.deepEqual(lu.tableau.cuisine, tableau.cuisine);
 });
 
-test("trop long, le corps écarte d'abord les gestes et les activités, garde le relais des stations distantes et le rail, et le dit en une ligne (#2095)", (t) => {
+test("trop long, le corps écarte d'abord l'historique — le texte des relectures, les gestes déjà joués — et garde le rail, et le dit en une ligne (#2095)", (t) => {
   const { tableau } = projet(t);
-  const lourd = "x".repeat(40_000);
-  const distantes: Tableau["distantes"] = { attributions: [], reponses: [{ demande: "d", station: "s", geste: "claim", run: null, le: "2026-10-12T10:00:00Z", reponse: { ok: true, texte: lourd } }] };
+  const lourd = "x".repeat(70_000);
   const gros: Tableau = {
     ...tableau,
-    distantes,
     gestes: [{ commentaire: 1, url: "u", le: "2026-10-12T10:00:00Z", geste: "merge", ticket: 1, etat: "pris", traiteLe: "2026-10-12T10:00:00Z", reponse: lourd }],
   };
   const corps = rendreLeTableau(gros, GENERE_LE);
   assert.ok(corps.length <= LONGUEUR_MAX_DU_CORPS, `${corps.length}`);
   const lu = lireLeTableau(corps);
   assert.ok(lu.lu);
-  // Une station qui tire par GitHub n'a que ce relais pour lire sa mission :
-  // il reste, c'est l'historique — le texte des relectures, les gestes déjà joués — qui part.
   assert.deepEqual(lu.tableau.resserre, ["faits.livres.relecture", "gestes"]);
-  assert.deepEqual(lu.tableau.distantes, distantes);
   assert.deepEqual((lu.tableau.faits as FaitsDuTableau).rail, (tableau.faits as FaitsDuTableau).rail);
   assert.deepEqual(lu.tableau.lignesDuRail, tableau.lignesDuRail);
   assert.ok(corps.includes("Left out of the block to fit: faits.livres.relecture, gestes."));
   assert.equal(rendreLeTableau(lu.tableau, GENERE_LE), corps);
-
-  // Le relais seul trop lourd ne part qu'en dernier, quand plus rien d'autre ne peut partir.
-  const seul = lireLeTableau(rendreLeTableau({ ...tableau, distantes: { ...distantes, reponses: [{ ...distantes.reponses[0]!, reponse: { ok: true, texte: "x".repeat(70_000) } }] } }, GENERE_LE));
-  assert.ok(seul.lu);
-  assert.equal(seul.tableau.resserre?.at(-1), "distantes");
-  assert.equal(seul.tableau.distantes, undefined);
 });
 
 test("la taille notée par la publication se relit pour `status`, par projet", (t) => {

@@ -121,21 +121,6 @@ export type FaitsPublies = { [champ: string]: unknown };
 // `  #<ticket>  <état>  <priorité>  <détail>  <titre>`.
 export type LigneDuRail = { ticket: number; priorite: number | null; ligne: string };
 
-// Ce que la box a prêté aux stations distantes, et ce qu'elle a répondu à
-// celles qui le lui demandent par GitHub (#1793, tirer-par-github/) : c'est ici
-// qu'une station sans ssh vers la box lit sa réponse. Retiré en premier d'un
-// corps trop long (rendre.ts) : le chemin que l'épique #2053 supprime, et il est borné (tirer-par-github/tableau.ts).
-// `attributions` : chaque ticket qu'une station distante tient — son run, et
-// l'échéance de son bail, qui avance à chaque renouvellement.
-export type AttributionPubliee = { ticket: number; station: string; run: string | null; bailJusqua: string | null };
-// `demande` : l'id que la station a donné à sa demande ; `geste` : `announce`,
-// `claim`, `renew` ; `run` : celui d'un renouvellement ; `le` : l'heure de la
-// réponse. `reponse` : celle du runtime, telle que le runtime la rend, sauf la
-// mission d'un `claim` — ses arguments de `claude` sans la consigne, qu'ils
-// répéteraient (`suiteDesArgs`).
-export type ReponsePubliee = { demande: string; station: string; geste: string; run: string | null; le: string; reponse: { ok: boolean; [champ: string]: unknown } };
-export type DistantesPubliees = { attributions: AttributionPubliee[]; reponses: ReponsePubliee[] };
-
 // Ce que fait chaque cook du projet, publié pour une app qui n'a que GitHub
 // (#1844) : à la place du terminal du cook, qu'elle suivait par ssh. Une entrée
 // par ticket, son dernier cook — celui qui tourne, ou celui qui a fini depuis
@@ -180,11 +165,11 @@ export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite:
 export type AvantLeRailPublie = { lu: string; issues: IssueAvantLeRailPubliee[] };
 
 // Ce qu'un corps trop long pour GitHub a retiré du bloc, dans l'ordre où il l'a
-// retiré (rendre.ts) : le relais des stations distantes, les étapes passées des
-// cooks, les relectures des livrés, les gestes du chef, les activités des cooks,
+// retiré (rendre.ts) : les étapes passées des cooks, les relectures des livrés, les gestes du chef, les activités des cooks,
 // les diffs des corrections, les livraisons qui attendent, ce qui retient chaque
 // issue avant le rail, puis ces issues. `faits` et `lignesDuRail` ne sont plus
-// retirés : ils restent dans le type pour lire un bloc écrit avant (ticket 2157).
+// retirés (ticket 2157), ni `distantes`, le relais des stations distantes que
+// #2061 a retiré : ils restent dans le type pour lire un bloc écrit avant.
 export type Resserre = "distantes" | "gestes" | "activites" | "activites.etapes" | "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "avantLeRail.dit" | "avantLeRail" | "faits" | "lignesDuRail";
 
 // `lu` : l'heure de la lecture de l'état — les durées que les lignes disent se
@@ -197,9 +182,7 @@ export type Resserre = "distantes" | "gestes" | "activites" | "activites.etapes"
 // tête à `end awaiting` comprises — ce que le second relaie à son ouverture,
 // lu ici sans ssh (`laFileDuSecond`) ; absent d'un bloc écrit avant lui.
 // `resserre` : ce que le corps a dû retirer du bloc pour tenir dans une issue —
-// absent quand rien ne l'a été. `distantes` : ce que la box a prêté aux
-// stations distantes et répondu à leurs demandes par GitHub — absent quand
-// aucune ne tient de ticket ni n'a rien demandé. `activites` : ce que fait
+// absent quand rien ne l'a été. `activites` : ce que fait
 // chaque cook du projet (#1844), lu ici sans ssh (`lesActivitesDesCooks`) —
 // vide quand aucun ne tourne ni n'a fini depuis peu, absent d'un bloc écrit
 // avant lui. `avantLeRail` : ce qui est avant le rail (#1836) — absent d'un
@@ -214,7 +197,6 @@ export type Tableau = {
   faits?: FaitsPublies;
   lignesDuRail?: LigneDuRail[];
   fileDeStatus?: string[];
-  distantes?: DistantesPubliees;
   activites?: ActiviteDuCook[];
   avantLeRail?: AvantLeRailPublie;
   resserre?: Resserre[];

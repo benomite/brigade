@@ -10,12 +10,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { PASS_MAX, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { PASS_MAX, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
-import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
 import { jusqua } from "./outils.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
@@ -208,9 +207,8 @@ const verdictDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?
 
 // Un projet ouvert sur le chemin GitHub seul, arrêté en fin de test.
 function ouvrir(t: TestContext, station: StationGitHub) {
-  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("l'ancien chemin ne doit pas s'ouvrir"), station: () => station, intervalleMs: 5, avertir: () => {} });
-  assert.equal(ouvert.chemin, "github");
-  if (ouvert.chemin !== "github") throw new Error("inaccessible");
+  const ouvert = brancherBrigadeGithub({ station: () => station, intervalleMs: 5, avertir: () => {} });
+  assert.equal(ouvert.refus, undefined);
   t.after(() => ouvert.arreter());
   return ouvert;
 }
@@ -565,52 +563,33 @@ test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base
   assert.equal(faux.mergee(10)?.mergeePar, "A");
 });
 
-test("switch off: the old path opens as is, and the GitHub-only station is never built", () => {
-  for (const reglages of [null, {}, { githubOnlyState: false }]) {
-    const ancien = { stations: ["box"], decisions: "les décisions" };
-    const ouvert = brancherBrigadeGithub({ reglages, ancien: () => ancien, station: () => assert.fail("rien du chemin GitHub seul ne se construit"), avertir: () => assert.fail("rien à dire") });
-    assert.deepEqual(ouvert, { chemin: "ancien", ancien });
-    // Le même objet, pas une copie : l'ancien chemin reçoit ce qu'il recevait.
-    assert.equal(ouvert.chemin === "ancien" && ouvert.ancien, ancien);
-  }
-});
-
-test("switch on, but this runtime cannot serve it: it says why, and the old path opens", () => {
+test("a runtime that cannot serve the project says why, and cooks nothing for it", async () => {
   const dits: string[] = [];
-  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => "ancien", station: () => ({ refus: "no claim module" }), avertir: (texte) => dits.push(texte) });
-  assert.deepEqual(ouvert, { chemin: "ancien", ancien: "ancien" });
-  assert.match(dits.join("\n"), /GitHub-only state is on .* no claim module; the old path is kept/);
+  const decisions: unknown[] = [];
+  const ouvert = brancherBrigadeGithub({ station: () => ({ refus: "no station on this machine" }), avertir: (texte) => dits.push(texte), noter: (decision) => decisions.push(decision) });
+  assert.equal(ouvert.refus, "no station on this machine");
+  assert.deepEqual(ouvert.enCuisine(), []);
+  await ouvert.arreter();
+  assert.deepEqual(decisions, [{ etat: "refused", reason: "no station on this machine" }]);
+  assert.match(dits.join("\n"), /cannot serve the project on GitHub-only state — no station on this machine; it cooks nothing for it/);
 });
 
-test("switch on: a ticket goes from fire to merged with no call to the relay, the mailbox or the log", async (t) => {
+test("a ticket goes from fire to merged, and the module imports neither the relay, nor the mailbox, nor the log", async (t) => {
   const faux = new FauxGitHub();
   faux.feu(1);
-  // L'ancien chemin, tel que la station l'ouvre : le relais de prise, la boîte
-  // aux lettres du Kitchen board et le journal.
-  const appels = { relais: 0, boite: 0, journal: 0 };
-  const ouvert = brancherBrigadeGithub({
-    reglages: { githubOnlyState: true },
-    ancien: () => {
-      appels.relais += 1;
-      appels.boite += 1;
-      appels.journal += 1;
-    },
-    station: () => faux.station("A"),
-    intervalleMs: 5,
-    avertir: () => {},
-  });
-  t.after(() => ouvert.chemin === "github" && ouvert.arreter());
+  const ouvert = ouvrir(t, faux.station("A"));
   await jusqua(() => faux.mergee(1) !== undefined);
-  assert.deepEqual(appels, { relais: 0, boite: 0, journal: 0 });
+  assert.deepEqual(ouvert.enCuisine(), []);
 
-  // Et le module n'en importe aucun.
   const source = readFileSync(join(import.meta.dirname, "../src/brigade-github.ts"), "utf8");
   const imports = [...source.matchAll(/^import .* from "([^"]+)";$/gm)].map(([, module]) => module ?? "");
   assert.ok(imports.includes("./github-etat/etats.ts") && imports.includes("./github-etat/fusion.ts"));
   assert.deepEqual(
-    imports.filter((module) => /relais|tirer-par-github|tableau|distantes|journal|porte-journal|base\.ts|rail\.ts|alimenter/.test(module)),
+    imports.filter((module) => /relais|tirer-par-github|tableau|distantes|journal|porte-journal|base\.ts|rail\.ts|alimenter|reglages/.test(module)),
     [],
   );
+  // Ni interrupteur, ni ancien chemin.
+  assert.doesNotMatch(source, /githubOnlyState|surGitHubSeul|ancien:/);
 });
 
 // Le client GitHub du runtime, réduit à ce que la station GitHub seul appelle.
@@ -757,11 +736,6 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
   assert.deepEqual(fait, ["reprendre 13-github cook/13-github", "retirer 13-github -"]);
 });
 
-test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {
-  const refus = stationDuDepot({ prise: null } as unknown as Parameters<typeof stationDuDepot>[0]);
-  assert.deepEqual(refus, { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" });
-});
-
 for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
   test(`the station declared \`${nom}\` runs on GitHub only: it takes the ticket, signs its verdict and merges, under its name as declared`, async (t) => {
     const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
@@ -810,22 +784,6 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
     assert.equal(faux.mergee(12)?.mergeePar, nom);
   });
 }
-
-test("the switch is on for brigade, in its project settings file, and off for a project whose file does not set it", () => {
-  const texte = readFileSync(join(import.meta.dirname, "../../.claude/brigade/projet.json"), "utf8");
-  const brigade = reglagesDuTexte(texte);
-  assert.equal(surGitHubSeul(brigade), true);
-  // Le fichier de brigade est tel que l'écriture le rendrait.
-  assert.equal(texteDuFichier(brigade), texte);
-
-  assert.equal(surGitHubSeul(reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main" }))), false);
-  assert.equal(surGitHubSeul(null), false);
-  assert.equal(surGitHubSeul(reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: false }))), false);
-  assert.throws(
-    () => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: "yes" })),
-    (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.cle === "githubOnlyState",
-  );
-});
 
 test("a ticket whose zone is held by another open PR is held back, and claimed once that PR is closed (#2188)", async () => {
   const faux = new FauxGitHub();

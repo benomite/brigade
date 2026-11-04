@@ -1,25 +1,15 @@
-// The old-path loops that read the log, once the GitHub-only switch is on. The
-// log is then stale: each loop stops at its entry (it asks `perimee()`), and
+// The old-path loops that read the log. GitHub is the only state (#2061): the
+// log is stale, each loop stops at its entry (it asks `perimee()`), and
 // the stale `cook/<n>-github` branches are cleaned from what GitHub says.
 import { execFile } from "../../sans-invite.ts";
 import type { GitHub } from "../../github.ts";
-import { surGitHubSeul } from "../../brigade-github.ts";
-import type { ReglagesProjet } from "../../reglages-projet/reglages.ts";
 import type { Runtime } from "../../runtime.ts";
 
-// The loops that stop with the switch on, by the name the guard tests carry.
+// The loops that stop, by the name the guard tests carry.
 export const BOUCLES_PERIMEES = ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup"] as const;
 
-// True while the old path must not read the log. Read at each entry, never
-// kept: the switch is the one the project settings carry.
+// True while the old path must not read the log. Read at each entry.
 export type Perimee = () => boolean;
-
-// The guard of a project. `refusee` tells that the GitHub-only station could
-// not open (the old path is then kept, whatever the switch says); it is read
-// lazily, since the loops are branched before the station is tried.
-export const boucleAncienneArretee = (reglages: Pick<ReglagesProjet, "githubOnlyState"> | null, refusee: () => boolean = () => false): Perimee => {
-  return () => surGitHubSeul(reglages) && !refusee();
-};
 
 const BRANCHE_COOK = /^cook\/(\d+)-github$/;
 

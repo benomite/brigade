@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { avecRail } from "../../../src/alimenter.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
-import { boucleAncienneArretee, BOUCLES_PERIMEES, elaguerBranchesPerimees } from "../../../src/github-seul/boucles-perimees/boucles-perimees.ts";
+import { BOUCLES_PERIMEES, elaguerBranchesPerimees } from "../../../src/github-seul/boucles-perimees/boucles-perimees.ts";
 import { brancherCadence } from "../../../src/produit/cadence/brancher.ts";
 import { principal } from "../../../src/produit/cadence/commande.ts";
 import { lireLaCadence } from "../../../src/produit/cadence/etat.ts";
@@ -35,18 +35,6 @@ const laisserPasser = async (journal: { tout(): Array<{ type: string }> }, combi
 };
 
 describe("the guard", () => {
-  test("stops the old path with the switch on, unless the GitHub-only station was refused", () => {
-    assert.equal(boucleAncienneArretee({ githubOnlyState: true })(), true);
-    assert.equal(boucleAncienneArretee({ githubOnlyState: false })(), false);
-    assert.equal(boucleAncienneArretee({})(), false);
-    assert.equal(boucleAncienneArretee(null)(), false);
-    let refusee = false;
-    const garde = boucleAncienneArretee({ githubOnlyState: true }, () => refusee);
-    assert.equal(garde(), true);
-    refusee = true;
-    assert.equal(garde(), false);
-  });
-
   test("names the loops it stops", () => {
     assert.deepEqual([...BOUCLES_PERIMEES], ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup"]);
   });

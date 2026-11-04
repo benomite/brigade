@@ -17,7 +17,7 @@ import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree,
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherFermeture } from "./closing/run.ts";
-import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
+import { brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
@@ -173,9 +173,8 @@ try {
     void entretenues.entretenir();
     socle.surReveil((cause) => void (cause === "tick" && entretenues.entretenir()));
   }
-  // Switch on, the old-path loops that read the log stop at their entry (#2218), unless the GitHub-only station is refused below.
-  let stationRefusee = false;
-  const perimee = boucleAncienneArretee(duDepot.reglages, () => stationRefusee);
+  // The old-path loops that read the log stop at their entry (#2218): GitHub is the only state (#2061).
+  const perimee = () => true;
   const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail, perimee }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
@@ -191,25 +190,20 @@ try {
   // Les changements des réglages du projet que le chef demande, après la pass
   // à qui chacun remet sa PR : elle la retient pour lui (#1308).
   const reglee = brancherReglages(renommee, { depot, github: githubs.station, base: station.base, env });
-  // L'interrupteur de l'état GitHub seul (#2060), lu sur la branche
-  // d'intégration à l'ouverture. Éteint, la station est l'ancienne, telle
-  // quelle. Allumé, elle ne lance plus aucun cook — ni déclaré, ni relu des
-  // décisions — et c'est la station GitHub seul qui prend, cuisine, relit et
-  // merge, sous l'identité de la pass.
+  // L'état GitHub seul (#2061) : la station ne lance aucun cook de l'ancien
+  // chemin — ni déclaré, ni relu des décisions — et c'est la station GitHub
+  // seul qui prend, cuisine, relit et merge, sous l'identité de la pass.
   const ici = stations.find((declaree) => !declaree.distante);
-  const ouvert = brancherBrigadeGithub({
-    reglages: duDepot.reglages,
+  projetGitHub = brancherBrigadeGithub({
     noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
-    ancien: () => ({ stations, decisions }),
-    station: () => {
-      const ouverte =
+    station: () =>
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
         : stationDuDepot({
             nom: ici.nom,
-            // Pas plus de cooks que la machine n'en porte, comme l'ancien chemin
-              // (`plafondDesCoeurs`) : une station déclarée à 30 en tiendrait 30.
-              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+            // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
+            // une station déclarée à 30 en tiendrait 30.
+            places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
             base: station.base,
             depotGitHub: rail.depot,
             github: githubs.pass,
@@ -223,18 +217,14 @@ try {
             graceMs: reglages.graceMs,
             reviewer: reviewer.calibrage,
             flux: join(repertoireEtat, "github-seul"),
-            // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
-            // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
+            // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
-          });
-      if ("refus" in ouverte) stationRefusee = true;
-      return ouverte;
-    },
+          }),
   });
-  if (ouvert.chemin === "github") projetGitHub = ouvert;
   const servie = brancherStation(reglee, {
     perimee,
-    ...(ouvert.chemin === "ancien" ? ouvert.ancien : { stations: [], decisions: { ...decisions, stations: () => [] } }),
+    stations: [],
+    decisions: { ...decisions, stations: () => [] },
     repertoireEtat,
     depot,
     github: githubs.station,
@@ -252,7 +242,7 @@ try {
     seuils: station.seuils,
     gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
-    arbitre: arbitre === null || ouvert.chemin === "github" ? null : joindreArbitre(arbitre),
+    arbitre: null,
     leconsInjectees,
     // Là où le « oui » du chef les écrit : le clone du projet.
     profils: () => lireLesProfils(station.clone, (texte) => console.error(texte)),
