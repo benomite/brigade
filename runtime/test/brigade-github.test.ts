@@ -188,7 +188,18 @@ class FauxGitHub {
     return priseDeLaStation(github, station);
   }
 
-  station(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
+  // Un tour du faux attend ses relectures, qui tournent hors du tour (#2329) :
+  // `horsDuTour` laisse le tour rendre la main pendant qu'elles tournent.
+  station(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void; horsDuTour?: boolean } = {}): StationGitHub {
+    const station = this.stationSeule(nom, options);
+    if (options.horsDuTour === true) return station;
+    return { ...station, tour: async () => {
+      await station.tour();
+      await station.relu();
+    } };
+  }
+
+  stationSeule(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
@@ -623,6 +634,37 @@ test("a base still red after its re-run holds as before, and neither another sta
   assert.equal(avertis.filter((texte) => texte.includes("re-run")).length, 1);
 });
 
+test("a review runs off the turn: while one delivery's review runs, the turn reviews and merges another one (#2329)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(51);
+  faux.feu(52);
+  let liberer = () => {};
+  const retenue = new Promise<void>((resoudre) => (liberer = resoudre));
+  const a = faux.station("A", {
+    places: 2,
+    horsDuTour: true,
+    juger: async (ticket) => {
+      if (ticket.number === 51) await retenue;
+      return { verdict: "approve", motif: "" };
+    },
+  });
+  await a.tour();
+  await jusqua(() => a.enCuisine().length === 0);
+  // #51 se relit encore : les tours suivants relisent, mettent à jour et mergent #52.
+  for (let i = 0; i < 20 && faux.mergee(52) === undefined; i += 1) {
+    await a.tour();
+    await new Promise((resoudre) => setImmediate(resoudre));
+  }
+  assert.equal(faux.mergee(52)?.mergeePar, "A");
+  assert.equal(faux.mergee(51), undefined);
+  liberer();
+  for (let i = 0; i < 4 && faux.mergee(51) === undefined; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(51)?.mergeePar, "A");
+});
+
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);
@@ -773,7 +815,10 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
   if ("refus" in station) return;
   await station.tour();
   await station.calme();
-  for (let tour = 0; tour < 3 && faux.mergee(11) === undefined; tour += 1) await station.tour();
+  for (let tour = 0; tour < 3 && faux.mergee(11) === undefined; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
   assert.equal(faux.mergee(11)?.mergeePar, "box");
   assert.equal(faux.mergee(11)?.branche, "cook/11-github");
   assert.deepEqual(fait, ["preparer 11-github", "ranger cook/11-github", "pousser cook/11-github", "reprendre review-11-github cook/11-github", "retirer review-11-github"]);
@@ -883,7 +928,10 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
     if ("refus" in station) return;
     await station.tour();
     await station.calme();
-    for (let tour = 0; tour < 3 && faux.mergee(12) === undefined; tour += 1) await station.tour();
+    for (let tour = 0; tour < 3 && faux.mergee(12) === undefined; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
     assert.ok((faux.commentaires.get(12) ?? []).some((c) => c.body.endsWith(`Taken by station \`${nom}\`.`)));
     assert.match(verdictDe(faux, faux.mergee(12)?.number ?? 0)[0]?.body ?? "", new RegExp(`^<!-- brigade:verdict station=${nom} verdict=approve `));
     assert.equal(faux.mergee(12)?.mergeePar, nom);

@@ -153,6 +153,8 @@ export type StationGitHub = {
   enCuisine(): number[];
   // Attend que ses cooks en vol aient fini.
   calme(): Promise<void>;
+  // Attend les relectures et les merges en cours, hors du tour (#2329).
+  relu(): Promise<void>;
   // Le tour ne reprendra pas : ce qu'il tient chez l'arbitre est rendu.
   quitter?(): Promise<void>;
 };
@@ -207,6 +209,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // d'elles changée (#2198) : une PR approuvée dont la CI tourne encore ne
   // coûte pas un merge refusé à chaque tour.
   const tentees = new Map<number, string>();
+  // Les livraisons que la station relit et merge en ce moment, hors du tour (#2329).
+  const enRelecture = new Map<number, Promise<void>>();
+  // Un merge à la fois : chaque merge attend le précédent.
+  let serie: Promise<unknown> = Promise.resolve();
+  const enSerie = <T>(faire: () => Promise<T>): Promise<T> => {
+    const suite = serie.then(faire, faire);
+    serie = suite.catch(() => undefined);
+    return suite;
+  };
 
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
@@ -314,11 +325,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // de check sur la PR : rouge, il ne la retient pas.
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
         if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name))) continue;
+        // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
+        // de plusieurs minutes ne retient plus les merges, les autres relectures
+        // ni les prises. Les merges, eux, passent un à un.
+        if (enRelecture.has(ticket.number) || enRelecture.size >= PASS_MAX) continue;
+        const relireEtFusionner = async () => {
         try {
           const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           if (tentees.get(pr.number) !== tentee) {
-            const fusion = await fusionner(pr, github);
+            const fusion = await enSerie(() => fusionner(pr, github));
             if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
@@ -329,7 +345,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        } finally {
+          enRelecture.delete(ticket.number);
         }
+        };
+        enRelecture.set(ticket.number, relireEtFusionner());
       }
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
@@ -403,8 +423,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   return {
     tour,
     enCuisine: () => [...enVol.keys()],
+    relu: async () => {
+      while (enRelecture.size > 0) await Promise.all(enRelecture.values());
+    },
     calme: async () => {
-      while (enVol.size > 0) await Promise.all(enVol.values());
+      while (enVol.size > 0 || enRelecture.size > 0) await Promise.all([...enVol.values(), ...enRelecture.values()]);
     },
     quitter: async () => {
       await gardes?.quitter();
