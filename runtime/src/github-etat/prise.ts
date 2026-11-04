@@ -113,18 +113,27 @@ export async function prendre(issue: Pick<Issue, "number" | "labels">, { github,
 }
 
 // Lâche le ticket que la station tient : un commentaire de lâcher, puis le
-// retrait de `taken`. Rend faux, sans rien écrire, si une autre station le
-// tient. Si personne ne le tient mais que `taken` y reste — un lâcher dont le
-// retrait a échoué —, le label orphelin est retiré, et le rendu est faux : la
-// station n'a rien lâché, le ticket redevient prenable au tour suivant.
+// retrait de `taken`. Rend faux, sans rien écrire, si elle ne le tient pas.
 export async function lacher(issue: Pick<Issue, "number" | "labels">, { github, station }: Contexte): Promise<boolean> {
   const tient = await lireTenant(issue.number, github);
-  if (tient === null) {
-    if (issue.labels.includes(PRIS)) await github.delabelliser(issue.number, PRIS);
-    return false;
-  }
-  if (tient.station !== station) return false;
+  if (tient?.station !== station) return false;
   await github.commenter(issue.number, corpsDeLacher(station));
   if (issue.labels.includes(PRIS)) await github.delabelliser(issue.number, PRIS);
+  return true;
+}
+
+// Retire le `taken` d'un ticket que personne ne tient : le reste d'un lâcher
+// dont le retrait a échoué. Sans ce retrait, le ticket reste exclu de ceux à
+// prendre. Rend vrai si le label est parti. Un ticket tenu, par elle ou par une
+// autre, n'est pas touché ; un label déjà parti entre la lecture et le retrait
+// (GitHub répond 404) n'est pas une erreur.
+export async function purger(issue: Pick<Issue, "number" | "labels">, { github }: Pick<Contexte, "github">): Promise<boolean> {
+  if (!issue.labels.includes(PRIS)) return false;
+  if ((await lireTenant(issue.number, github)) !== null) return false;
+  try {
+    await github.delabelliser(issue.number, PRIS);
+  } catch (erreur) {
+    if (!/\b404\b|not found/i.test(erreur instanceof Error ? erreur.message : String(erreur))) throw erreur;
+  }
   return true;
 }
