@@ -158,7 +158,18 @@ export type StationGitHub = {
   relu(): Promise<void>;
   // Le tour ne reprendra pas : ce qu'il tient chez l'arbitre est rendu.
   quitter?(): Promise<void>;
+  // Le délai avant le prochain tour quand le pass attend un fait proche — une
+  // relecture à lancer, une CI qui finit —, ou undefined : l'intervalle (#2333).
+  attente?(): number | undefined;
+  // Posé par la boucle : relance un tour tout de suite, sans attendre l'intervalle.
+  reveil?: () => void;
 };
+
+// Après une livraison, un verdict ou une fusion qui attend (sa CI, la mise à
+// jour de sa branche), la station tourne de nouveau dans les secondes, quelques
+// fois, puis reprend son intervalle (#2333). Un tour coûte 2 points GraphQL.
+export const TOURS_PRESSES = 4;
+export const ATTENTE_PRESSEE_MS = 30_000;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -211,6 +222,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // d'elles changée (#2198) : une PR approuvée dont la CI tourne encore ne
   // coûte pas un merge refusé à chaque tour.
   const tentees = new Map<number, string>();
+  // Les tours pressés qui restent, et le réveil que la boucle a posé.
+  let presses = 0;
+  const presser = () => {
+    presses = TOURS_PRESSES;
+  };
   // Les livraisons que la station relit et merge en ce moment, hors du tour (#2329).
   const enRelecture = new Map<number, Promise<void>>();
   // Un merge à la fois : chaque merge attend le précédent.
@@ -235,6 +251,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // `in-pass` avant le retrait de `taken` : entre les deux, aucune
         // station ne lit le ticket libre.
         await github.labelliser(issue, [LABEL_IN_PASS]);
+        // Livrée : sa relecture part tout de suite, pas au prochain tour (#2333).
+        presser();
+        station.reveil?.();
         await github.delabelliser(issue, LABEL_TAKEN);
         return;
       }
@@ -342,6 +361,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           if (tentees.get(pr.number) !== tentee) {
             const fusion = await enSerie(() => fusionner(pr, github));
+            // Mergée, mise à jour ou en attente de sa CI : le pass bouge, le prochain tour vient vite.
+            presser();
             if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
@@ -427,8 +448,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     await gardes?.redire(enVol.size);
   };
 
-  return {
+  const station: StationGitHub = {
     tour,
+    attente: () => {
+      if (presses === 0) return undefined;
+      presses -= 1;
+      return ATTENTE_PRESSEE_MS;
+    },
     enCuisine: () => [...enVol.keys()],
     relu: async () => {
       while (enRelecture.size > 0) await Promise.all(enRelecture.values());
@@ -440,6 +466,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await gardes?.quitter();
     },
   };
+  return station;
 }
 
 // L'interrupteur, tel que les réglages du dépôt le portent.
@@ -483,15 +510,31 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
   let arrete = false;
   let minuterie: NodeJS.Timeout | undefined;
   let enCours: Promise<void> = Promise.resolve();
+  let enTour = false;
+  // Un réveil pendant un tour en demande un autre juste après lui.
+  let reveille = false;
   const tourner = () => {
+    enTour = true;
+    reveille = false;
     enCours = (async () => {
       try {
         await station.tour();
       } catch (erreur) {
         avertir(`brigade : tour GitHub seul — ${message(erreur)}`);
       }
-      if (!arrete) minuterie = setTimeout(tourner, intervalleMs);
+      enTour = false;
+      if (!arrete) minuterie = setTimeout(tourner, reveille ? 0 : Math.min(station.attente?.() ?? intervalleMs, intervalleMs));
     })();
+  };
+  // Un fait du pass (une livraison) relance un tour sans attendre l'intervalle (#2333).
+  station.reveil = () => {
+    if (arrete) return;
+    if (enTour) {
+      reveille = true;
+      return;
+    }
+    clearTimeout(minuterie);
+    minuterie = setTimeout(tourner, 0);
   };
   tourner();
   return {

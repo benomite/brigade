@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { PASS_MAX, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -685,6 +685,50 @@ test("a review runs off the turn: while one delivery's review runs, the turn rev
     await a.calme();
   }
   assert.equal(faux.mergee(51)?.mergeePar, "A");
+});
+
+test("a delivery, a verdict or a merge waiting on its CI presses the next turns: 30 s, a few times, then the interval again (#2333)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(61);
+  const a = faux.station("A");
+  assert.equal(a.attente?.(), undefined);
+  await a.tour();
+  await a.calme();
+  // Livrée : pressée.
+  const attentes = Array.from({ length: TOURS_PRESSES + 1 }, () => a.attente?.());
+  assert.deepEqual(attentes, [...Array.from({ length: TOURS_PRESSES }, () => ATTENTE_PRESSEE_MS), undefined]);
+});
+
+test("the loop turns at once when the station wakes it, after a pressed wait when it asks, and at its interval otherwise (#2333)", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let tours = 0;
+  const attentes: Array<number | undefined> = [30_000, undefined];
+  const station: StationGitHub = {
+    tour: async () => {
+      tours += 1;
+    },
+    enCuisine: () => [],
+    calme: async () => {},
+    relu: async () => {},
+    attente: () => attentes.shift(),
+  };
+  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("old path"), station: () => station, intervalleMs: 120_000, avertir: () => {} });
+  t.after(() => (ouvert.chemin === "github" ? ouvert.arreter() : undefined));
+  const fini = async () => {
+    for (let i = 0; i < 5; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
+  };
+  await fini();
+  assert.equal(tours, 1);
+  t.mock.timers.tick(30_000);
+  await fini();
+  assert.equal(tours, 2, "pressé : 30 s");
+  t.mock.timers.tick(60_000);
+  await fini();
+  assert.equal(tours, 2, "plus pressé : l'intervalle");
+  station.reveil?.();
+  t.mock.timers.tick(0);
+  await fini();
+  assert.equal(tours, 3, "réveillé : tout de suite");
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
