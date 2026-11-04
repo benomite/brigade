@@ -255,6 +255,8 @@ export function configStation(env: Record<string, string | undefined>): ConfigSt
 }
 
 export type OptionsStation = {
+  // True once the GitHub-only switch is on: the remote stations' gist rail and the cleanup read the stale log, so they stop (#2218).
+  perimee?: () => boolean;
   // Les stations que le projet déclare, dans l'ordre où il les écrit.
   stations: StationDeclaree[];
   // Les décisions du chef : présentes, les stations y sont relues à chaque
@@ -738,8 +740,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // ici ou qu'elle tire son travail : le « stop » du chef, l'interrupteur du
   // projet éteint, son arrêt de cette
   // station, le disjoncteur, la pause du renommage, la base rouge, sa
-  // connexion, son quota, son plafond de cooks. L'arrêt d'une station ne
-  // retient que ses prises : ses cooks en cours finissent.
+  // connexion, son quota, son dernier cook qui n'a pas pu démarrer, son
+  // plafond de cooks. L'arrêt d'une station ne retient que ses prises : ses
+  // cooks en cours finissent.
   const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof etatDesGardeFous>, rouge: boolean, instant: string, enPause: boolean): Retenue | null => {
     if (garde.stoppedAt !== null) return "stopped";
     if (projetEteint(base)) return "off";
@@ -749,6 +752,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (rouge) return "base";
     if (etat?.disconnectedAt) return "disconnected";
     if (etat?.quotaUntil && etat.quotaUntil > instant) return "quota";
+    if (etat?.unstartable) return "unstartable";
     const plafond = plafondDeCooks(etat ?? { maxCooks: cooks, cores: null, cap: null });
     if (plafond !== null && cooksDe(nom) >= plafond) return "cap";
     return null;
@@ -824,14 +828,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // retient aussi la distante, ou se lève sans qu'un ticket change de
   // machine. Sans station d'ici, personne d'autre ne cuirait un ticket
   // ordinaire. Une station d'ici que le chef a arrêtée n'a pas de place : la
-  // cuisine du projet n'y prend plus rien, elle va où il la laisse. Une
+  // cuisine du projet n'y prend plus rien, elle va où il la laisse. Celle dont
+  // un cook n'a pas pu démarrer non plus : ses tickets vont là où un cook
+  // démarre. Une
   // station de plus du projet (`ensemble`) n'attend pas cet instant : elle
   // cuit à côté de la box, et ce qui retient la box ne la retient pas.
   const boxSaturee = (): boolean => {
     const retenues = ceQuiRetient();
     return declarees.every((declaree) => {
       const retenue = retenues.get(declaree.nom);
-      return retenue === "cap" || retenue === "machine" || retenue === "station-stopped" || (etatStation(base, declaree.nom)?.saturatedCauses.length ?? 0) > 0;
+      return retenue === "cap" || retenue === "machine" || retenue === "station-stopped" || retenue === "unstartable" || (etatStation(base, declaree.nom)?.saturatedCauses.length ?? 0) > 0;
     });
   };
 
@@ -1471,12 +1477,29 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           reprise === null
             ? "Le cook suivant repart de la base."
             : `C'était un renvoi : la branche \`${branche}\` est ramenée à la livraison que la pass avait refusée — ce que ce cook y avait ajouté est perdu —, et le cook suivant en repart.`;
-        rapporter("failed", raison, null);
+        // Ni un tour ni un token : le cook n'a pas pu démarrer, quelle qu'en
+        // soit la cause. La station ne prend plus de ticket plutôt que d'en
+        // tenir un par cook qui ne démarre pas ; celui-ci est revenu en
+        // attente, une autre station le prend. Écrit avant que le ticket ne
+        // quitte la cuisine : la station ne le reprend pas.
+        const sansDemarrer = fin.turns === 0 && fin.tokens === 0;
+        base.transaction(() => {
+          rapporter("failed", raison, null);
+          if (sansDemarrer) noter(station, numero, { type: "station.unstartable", payload: { station, run, reason: raison } });
+        });
+        if (sansDemarrer) {
+          avertir(`brigade : ${station} ne prend plus de ticket — le cook ${run} du ticket #${numero} a fini sans un tour ni un token (${raison}) : il n'a pas pu démarrer. Elle reprend à son redémarrage, ou dès qu'un cook lancé depuis produit un tour`);
+        }
         await commenter(
           numero,
           [
             entete(station, `échoué (${raison})`, calibrage, fin),
             ...(bailTombe === null ? [] : [bailTombe]),
+            ...(sansDemarrer
+              ? [
+                  `**\`${station}\` ne prend plus de ticket** : ce cook a fini sans un tour ni un token, il n'a pas pu démarrer. Plutôt que de tenir un ticket par cook qui ne démarre pas, elle n'en prend plus aucun ; ce ticket est revenu en attente, une autre station peut le prendre. Elle reprend à son redémarrage, ou dès qu'un de ses cooks lancé depuis produit un tour.`,
+                ]
+              : []),
             ...(sansLivrable
               ? [`Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable. Un message n'en est pas un, quelle que soit sa longueur — seul ce qui est délimité est publié et relu.`]
               : []),
@@ -2377,7 +2400,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Le rattrapage : un passage à la fois.
   let rattrape = false;
   const rattraper = async () => {
-    if (arrete || rattrape) return;
+    if (arrete || rattrape || options.perimee?.()) return;
     rattrape = true;
     try {
       await nettoyage.rattraper();
@@ -2416,7 +2439,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Ce qu'une station distante a demandé depuis le dernier réveil, et ce que
   // l'horloge dit de ses cooks et de sa présence.
   const servirLesDistantes = (regarder: boolean) => {
-    if (arrete || !pret) return;
+    if (arrete || !pret || options.perimee?.()) return;
     try {
       distantes.repondre();
       if (regarder) distantes.veiller();

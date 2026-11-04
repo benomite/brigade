@@ -171,6 +171,16 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     assert.ok(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"));
     assert.ok(reglages.sandbox.network.allowedDomains.includes("github.com"));
     assert.equal(reglages.sandbox.network.strictAllowlist, true);
+    // Dans le bac à sable, `gh` n'a aucun identifiant : son ticket lui est
+    // remis en fichier, à côté de son worktree. Sa consigne le nomme au lieu
+    // de `gh`, et ses réglages l'autorisent à le lire (#2095). Ce qui demande
+    // ses capacités part à nu, et lit son ticket par `gh` comme avant.
+    assert.equal(ordinaire.ticketFile, `${worktree}.ticket.md`);
+    assert.ok(ordinaire.prompt.includes(`le fichier \`${worktree}.ticket.md\``), ordinaire.prompt);
+    assert.ok(!ordinaire.prompt.includes("gh issue view"), ordinaire.prompt);
+    assert.ok(reglages.permissions.allow.includes(`Read(/${worktree}.ticket.md)`), JSON.stringify(reglages.permissions.allow));
+    assert.equal(capacite.ticketFile, undefined);
+    assert.ok(capacite.prompt.includes("gh issue view"));
 
     // L'état exposé : réglage, bac à sable, prise.
     assert.deepEqual(etatStation(journal.base, MAC)?.sandbox, { available: true, reason: null, version: "2.1.250", at: etatStation(journal.base, MAC)?.sandbox?.at });

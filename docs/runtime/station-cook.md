@@ -129,6 +129,36 @@ Then reword, recalibrate, or relaunch (remove then set `fire` again).
 A normal state: the ticket goes 86 until the quota's return time (one hour if `claude` gives none),
 then the station serves again.
 
+### A cook that cannot start
+
+*Ticket #2097.* A ticket's cook that ends — stopped by a guardrail, or failed — with **0 turns and 0
+tokens** never started, whatever the cause (the binary missing, a station whose `claude` never talks
+to the model, a remote workstation that went silent at once). Rather than hold one ticket per cook
+that does not start — ten minutes each, until `guard:idle` —, the station writes
+`station.unstartable` (`run`, `reason`: the cook's ending), comments on the ticket, and **takes no
+more tickets**; its running cooks finish. The ticket of that cook is back on the rail: another station
+takes it (for ordinary tickets, a station that cannot start counts as one with no room, like a stopped
+one). A cook that ends with turns says nothing about starting: a failure with turns holds nothing.
+
+`run status` says so whether a ticket waits or not, and the Kitchen board carries the same line in
+its `stations` section and `sansDemarrage` in `cuisine.stations[]`:
+
+```
+stations   box/claude NOT TAKING TICKETS for 2 min — its cook could not start: 14-1a5c0bc9 ended with 0 turns and 0 tokens (guard:idle); its ticket went back to the rail for another station. It takes tickets again when it restarts, or as soon as a cook launched since produces a turn
+```
+
+`run station` says it on its `cook start` line; a ticket that waits reads `withheld by box/claude (the
+station's last cook could not start …)`, reason `unstartable`.
+
+**What lifts it**, read from the log, with no fact of its own:
+
+- **restarting the station** — for a station of this machine, the runtime's restart
+  (`runtime.started`); a remote station says when it started in each claim (`since`, at its clock),
+  and a claim saying it started after the failure lifts it;
+- **a cook launched since that produces a turn** (`cook.progressed` or `cook.exited` with turns): a
+  ticket that was already in the entry when the failure came. A cook launched before proves nothing —
+  its turns may predate the failure.
+
 ### Max connection expired
 
 The station sees it at startup (`claude auth status`) and in a cook's stream. It writes
@@ -243,6 +273,8 @@ Events (* = no ticket):
   cap, `cores`, `remote`, `ordinary`), or is no longer declared. `stations.undeclared`*: none declared,
   no cook leaves. `station.capped`*: `maxCooks` (`0` no limit, `null` for `cooks auto`).
   `station.86`*: quota exhausted until `until`. `station.disconnected`: the Max connection expired.
+  `station.unstartable`: a cook ended with 0 turns and 0 tokens (`run`, `reason`), the station takes
+  no more tickets until it restarts or a cook launched since produces a turn.
 - `station.saturated`*, `station.relieved`*: the machine cannot cope (`resource`: `cpu`, `memory`,
   `disk`; `observed`, `limit`; for memory `limitFrom`: `{ totalMb }` or `env`; `also`), then breathes.
   `station.held`*, `station.released`*: a ticket could leave and is not taken (`reason`, "Several

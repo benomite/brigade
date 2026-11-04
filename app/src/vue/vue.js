@@ -88,6 +88,7 @@ import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
 import { poserTriageDeCooks } from "./triage.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, stationAOuvrir } from "./stations-declarees.js";
+import { auClic, lireLaSaisie, poserLeCloud, saisieDe } from "./stations-cloud/stations-cloud.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -125,6 +126,7 @@ import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
+import { casesDesVersions, poserVersionsDesStations } from "./station-version/station-version.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -289,6 +291,19 @@ let stationsPosees = false;
 // (ticket 1509), d'après le dernier contrôle de l'installation : poserDeclarees le remplit ; poserRail le pose.
 const declareesDuProjet = document.createElement("div");
 declareesDuProjet.id = "declarees-du-projet";
+// Ses stations cloud — leur coût par ticket servi, ses plafonds, « Add a cloud station » —, sous ses stations (ticket
+// 2232) : poserCloud le remplit, d'après ce que le process principal en lit ; poserRail le pose. Tant que le pont ne
+// les offre pas, il reste vide.
+const cloudDuProjet = document.createElement("div");
+cloudDuProjet.id = "cloud-du-projet";
+// Ce que le process principal a lu des stations cloud de chaque projet — ou la ligne d'une lecture qui a échoué —,
+// les projets dont la lecture est partie, et ce que le chef a saisi sur leur bloc.
+/** @type {Map<string, import("../stations-cloud/stations-cloud.ts").VuDuCloud | { refus: string, detail?: string }>} */
+const cloudsLus = new Map();
+/** @type {Set<string>} */
+const cloudsDemandes = new Set();
+/** @type {Map<string, import("./stations-cloud/stations-cloud.js").Saisie>} */
+const saisiesCloud = new Map();
 // Les stations que la box de chaque projet déclare, telles que le dernier contrôle de son installation les a lues
 // (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
 /** @type {Map<string, import("../service.ts").StationsLues>} */
@@ -390,7 +405,11 @@ const blocDesEnregistrees = document.createElement("section");
 blocDesEnregistrees.className = "stations-du-compte";
 blocDesEnregistrees.ariaLive = "polite";
 blocDesEnregistrees.hidden = true;
-stationsDeLAccueil.append(listeDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
+// La version de la station de cet ordinateur à côté de celle de la box (ticket 2191, station-version/) : sous la liste,
+// côte à côte, et ce poste dit en retard quand une station plus haute est publiée. Rien sur le téléphone, qui n'en a pas.
+const versionsDesStations = document.createElement("div");
+versionsDesStations.ariaLive = "polite";
+stationsDeLAccueil.append(listeDesStations, versionsDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
 /** @type {import("./stations-du-compte.js").EtatDuCompte} */
 const etatDesEnregistrees = {};
 let enregistreesAbsentes = true;
@@ -2312,6 +2331,93 @@ function poserDeclarees(projet) {
   declareesDuProjet.replaceChildren(poserLesDeclarees(document, { stations: declarees.get(projet.nom), ...lieuDesStations(projet) }));
 }
 
+// Les stations cloud du projet (stations-cloud/stations-cloud.js, ticket 2232) : lues une fois, puis après chaque ajout.
+// Un pont qui ne les offre pas, ou qui ne rend rien, laisse le bloc vide.
+/** @param {Projet} projet */
+function poserCloud(projet) {
+  if (typeof brigade.stationsCloud !== "function") return cloudDuProjet.replaceChildren();
+  const vu = cloudsLus.get(projet.nom);
+  if (vu === undefined) {
+    if (!cloudsDemandes.has(projet.nom)) void lireCloud(projet);
+    return cloudDuProjet.replaceChildren();
+  }
+  let saisie = saisiesCloud.get(projet.nom);
+  if (saisie === undefined && !("refus" in vu)) saisiesCloud.set(projet.nom, (saisie = saisieDe(vu)));
+  const reprise = repriseDuClavier();
+  cloudDuProjet.replaceChildren(poserLeCloud(document, { vu, saisie: saisie ?? { aLaFois: "", heuresParJour: "", heuresParMois: "", approbation: false, envoi: false }, gestes: gestesDuCloud(projet) }));
+  rendreLeClavier(reprise);
+}
+/** @param {Projet} projet */
+async function lireCloud(projet) {
+  cloudsDemandes.add(projet.nom);
+  /** @type {Awaited<ReturnType<NonNullable<typeof brigade.stationsCloud>>>} */
+  let lu;
+  try {
+    lu = await brigade.stationsCloud?.(projet.nom);
+  } catch (erreur) {
+    lu = { refus: "the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if (lu === undefined) return;
+  cloudsLus.set(projet.nom, lu);
+  if (courant?.nom === projet.nom) poserCloud(courant);
+}
+// Un clic sur « Add a cloud station » : sans plafond, la ligne dit pourquoi ; avant la première station, la liste de ce
+// qu'elle reçoit s'ouvre, à approuver ; sinon, l'ajout part.
+/** @param {Projet} projet @returns {import("./stations-cloud/stations-cloud.js").Gestes} */
+function gestesDuCloud(projet) {
+  const reposer = () => void (courant?.nom === projet.nom && poserCloud(courant));
+  return {
+    ajouter: () => {
+      const vu = cloudsLus.get(projet.nom);
+      const saisie = saisiesCloud.get(projet.nom);
+      if (vu === undefined || "refus" in vu || saisie === undefined || saisie.envoi) return;
+      const clic = auClic(vu, saisie);
+      saisie.rendu = undefined;
+      saisie.retenu = "retenu" in clic ? clic.retenu : undefined;
+      if ("approuver" in clic) saisie.approbation = true;
+      if ("ajouter" in clic) return void ajouterUnCloud(projet, clic.ajouter, false);
+      reposer();
+    },
+    approuver: () => {
+      const saisie = saisiesCloud.get(projet.nom);
+      if (saisie === undefined || saisie.envoi) return;
+      const lue = lireLaSaisie(saisie);
+      if ("retenu" in lue) {
+        saisie.approbation = false;
+        saisie.retenu = lue.retenu;
+        return reposer();
+      }
+      void ajouterUnCloud(projet, lue.plafonds, true);
+    },
+    renoncer: () => {
+      const saisie = saisiesCloud.get(projet.nom);
+      if (saisie !== undefined) saisie.approbation = false;
+      reposer();
+    },
+  };
+}
+// L'ajout part avec ses plafonds — et l'approbation, la première fois —, puis le bloc se relit : ce qu'il a rendu reste dessous.
+/** @param {Projet} projet @param {import("../stations-cloud/stations-cloud.ts").Plafonds} plafonds @param {boolean} approuver */
+async function ajouterUnCloud(projet, plafonds, approuver) {
+  const saisie = saisiesCloud.get(projet.nom);
+  if (saisie === undefined) return;
+  saisie.envoi = true;
+  if (courant?.nom === projet.nom) poserCloud(courant);
+  /** @type {import("../stations-cloud/stations-cloud.ts").CloudAjoute} */
+  let rendu;
+  try {
+    rendu = (await brigade.ajouterStationCloud?.(projet.nom, { plafonds, approuver })) ?? { refus: "No cloud station was added: the app does not offer them yet" };
+  } catch (erreur) {
+    rendu = { refus: "No cloud station was added: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  saisie.envoi = false;
+  saisie.rendu = rendu;
+  if ("fait" in rendu) saisie.approbation = false;
+  cloudsLus.delete(projet.nom);
+  await lireCloud(projet);
+  if (courant?.nom === projet.nom) poserCloud(courant);
+}
+
 // Où tournent les stations d'un projet, et de quoi éditer chacune — dans leur bloc, ou dans « Its stations » (ticket 1786).
 /** @param {Projet} projet @returns {import("./stations-de-cuisson.js").Lieu} */
 function lieuDesStations(projet) {
@@ -3027,6 +3133,18 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
   if (attendu && carte.todo !== undefined) {
     const question = carte.todo.question;
     bon.append(...poserLaCarteDeTodo(projet, ticket, carte.todo).map((posee) => tenirEnMain(projet, ticket, question, bon, posee)));
+  }
+  // Une carte du chef lue de GitHub (projet GitHub seul, ticket 2221) : le texte du commentaire du runtime sous la phrase de sa
+  // sorte. Rien à y répondre : le chef lève le label sur l'issue, dont le numéro est le lien.
+  if (attendu && carte.chef !== undefined) {
+    const duChef = document.createElement("section");
+    duChef.className = "carte-todo";
+    duChef.dataset.sorte = carte.chef.sorte;
+    duChef.dataset.source = "github";
+    const texte = bloc("p", carte.chef.texte);
+    texte.className = "resume-carte";
+    duChef.append(texte);
+    bon.append(duChef);
   }
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
   if (carte.repere === true) {
@@ -4797,11 +4915,12 @@ function poserLeRail(projet) {
   const posees = new Map();
   poserCuisson(projet, posees);
   poserDeclarees(projet);
+  poserCloud(projet);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
   // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -7438,10 +7557,21 @@ function poserStationsDeLAccueil() {
           ? []
           : [bloc("p", "no station yet: install one, then pair it here with “+ station”")]),
   );
+  poserLesVersions();
   const dessous = enregistreesAbsentes ? [] : lectureDuCompte(document, etatDesEnregistrees, gestesDesEnregistrees, stations !== undefined && lignes.length === 0);
   blocDesEnregistrees.hidden = dessous.length === 0;
   blocDesEnregistrees.replaceChildren(...dessous);
   if (stationOuverte !== undefined) poserLesProjetsChoisis();
+}
+
+// Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
+// dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
+/** @type {unknown} */
+let statutDeLaStationVu;
+function poserLesVersions() {
+  if (telephoneVu !== undefined) return versionsDesStations.replaceChildren();
+  const cases = casesDesVersions({ stations: stationsVues?.stations, locale: projetsVus?.locale ?? null, poste: POSTE.nom, statut: statutDeLaStationVu });
+  versionsDesStations.replaceChildren(poserVersionsDesStations(document, cases));
 }
 
 // Les stations du compte, lues par le process principal (stations-du-compte.ts du runtime). Une relecture garde ce qui
@@ -8107,9 +8237,23 @@ brigade.surOffreApk((offre) => inviteDeMiseAJour.offrir(offre));
 const bandeauDeVersion = tenirBandeau(element("nouvelle-version"), document, { telecharger: (url) => brigade.telechargerVersion(url), refuser: (version) => brigade.refuserVersion(version) });
 brigade.surAvisDeVersion((avis) => bandeauDeVersion.recevoir(avis));
 void Promise.resolve(brigade.avisDeVersion()).then((avis) => bandeauDeVersion.recevoir(avis), () => undefined);
+// Le statut de la station de cet ordinateur : lu au lancement, puis à chaque fois que le pont le relit. Une lecture qui
+// échoue le laisse inconnu — la case le dit, sans erreur.
+brigade.surStatutDeLaStation?.((statut) => {
+  statutDeLaStationVu = statut;
+  poserLesVersions();
+});
+void Promise.resolve(brigade.statutDeLaStation?.()).then(
+  (statut) => {
+    statutDeLaStationVu = statut;
+    poserLesVersions();
+  },
+  () => undefined,
+);
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
+  poserLesVersions();
   if (stationOuverte !== undefined) poserPageDeStation();
   poserChoixDesStations();
   poserStationsDuProjet();

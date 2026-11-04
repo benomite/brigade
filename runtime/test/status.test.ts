@@ -211,7 +211,7 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
 
   const sortie = await statut();
   assert.match(sortie, /^awaiting   1 decision awaits the chef — for \d+ s$/m);
-  assert.match(sortie, /^  #7  for \d+ s  green delivery, not merged for lack of a `merge` grant — merge by hand: https:\/\/exemple\.test\/pull\/7 — or enable the grant, for the next ones: `brigade <projet> grant enable merge`  Le ticket sept$/m);
+  assert.match(sortie, /^  #7  for \d+ s  green delivery, not merged for lack of a `merge` grant — merge by hand: https:\/\/exemple\.test\/pull\/7 — or enable the grant, for the next ones: the switch on the `merge` grant's line of the project's Settings  Le ticket sept$/m);
   // Et le chiffre sur lequel accorder, dans le même bloc.
   // Le bilan ferme le bloc, dont la fin se reconnaît sans le lire.
   assert.match(sortie, /^  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open\nend awaiting\n\nrail /m);

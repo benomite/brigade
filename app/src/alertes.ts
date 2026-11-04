@@ -133,6 +133,26 @@ function deLaLimite(faits: Faits | Sans, limite: LimiteDeLApp | undefined): Aler
   ];
 }
 
+// Le rythme des écritures de la box (#2226) : `status` le dit sur sa ligne `github` (`held by the GitHub
+// write budget — N of 450 in the last hour, next write at HH:MM`). GitHub n'a rien refusé : la box
+// retient ses propres écritures, et la ligne tombe d'elle-même quand la fenêtre le permet.
+const ECRITURES_RETENUES = /^held by the GitHub write budget(?![\p{L}\p{N}_])/u;
+function desEcrituresRetenues(status: string | Sans): Alerte[] {
+  const lu = statusLu(status);
+  if (typeof lu !== "string") return [];
+  return tetesDe(lu)
+    .filter(({ titre, valeur }) => titre === "github" && ECRITURES_RETENUES.test(valeur))
+    .map(({ valeur }): Alerte => ({
+      sujet: "github",
+      verifie: true,
+      ton: "jaune",
+      dit: valeur,
+      pourquoi: "the box paces its own writes to GitHub to stay under its limits: no cook is lost, the writes wait their turn",
+      geste: "nothing to do: the writes resume by themselves at the time given",
+      prix: AUCUN,
+    }));
+}
+
 // --- L'urgence ----------------------------------------------------------------
 //
 // Plus rien ne cuit, et c'est le chef que toute la cuisine attend (runtime/src/urgence.ts) : pas une
@@ -631,7 +651,7 @@ const avecBouton = (alerte: Alerte): Alerte => {
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+  return parGravite([...deLUrgence(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
@@ -724,7 +744,7 @@ type Source = "faits" | "status" | "manager" | "controle";
 // Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
 const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   urgence: ["faits"],
-  github: ["faits"],
+  github: ["faits", "status"],
   manager: ["manager"],
   cuisine: ["faits", "status"],
   grant: ["status"],

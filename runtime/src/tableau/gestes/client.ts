@@ -6,7 +6,7 @@
 // chef sont ensemble le geste du chef : ni un quota bas ni la pause de la box
 // ne les retiennent, sans quoi un geste posté resterait sans réponse.
 import { masquerIdentifiants } from "../../identifiants.ts";
-import { COMPTE_DE_LA_MACHINE, lectureDe, limiteDuProcess, prendreUnAppel, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
+import { appelerGitHub, COMPTE_DE_LA_MACHINE, estUneEcriture, lectureDe, limiteDuProcess, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
 import { lancerGhApi } from "../publication/client.ts";
 
 // Un commentaire du tableau. `id` : celui de GitHub, croissant d'un commentaire
@@ -56,16 +56,21 @@ export function clientGitHubDesGestes(options: OptionsClient): ClientDesGestes {
     const jeton = machine ? undefined : options.jeton;
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= jeton ? { ...process.env, GH_TOKEN: await jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, {
-      usage,
-      compte,
-      etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, usage) },
-      gh: bin,
-      env: environnement,
-      maintenant: options.maintenant,
-    });
-    await environnement();
-    return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    return appelerGitHub(
+      limite,
+      {
+        usage,
+        compte,
+        etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, usage), ecriture: estUneEcriture(args) },
+        gh: bin,
+        env: environnement,
+        maintenant: options.maintenant,
+      },
+      async (appel) => {
+        await environnement();
+        return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+      },
+    );
   };
 
   const exiger = (reponse: ReponseHttp, chemin: string, attendu = 200): ReponseHttp => {

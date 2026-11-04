@@ -15,7 +15,7 @@ import { enAnglais } from "./commandes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { limiteDuCompteDeLaStation } from "./github-limite.ts";
-import { appelsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
+import { appelsDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { tailleNotee } from "./tableau/rendu/taille.ts";
@@ -125,7 +125,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     }
     throw erreur;
   }
-  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR));
+  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), false, ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   const taille = tailleNotee(env.BRIGADE_STATION_DIR, etat.projet);
   if (taille !== null) lignes.push(`board       ${taille}`);
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));

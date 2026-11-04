@@ -22,6 +22,7 @@ kind (`product`, `design`): `-- --days <N>` sets it, 7 by default. A card refuse
 | `fault` | **Absent unless the kitchen is idle with cards on the rail** (`runtime/src/cuisine-oisive.ts`). Above everything but `emergency` and `nothing cooks`: `fault      IDLE KITCHEN for <duration> — no cook has run, with <N> cards on the rail: #12, #14`. Four conditions hold together: cards are on the rail (`queued`, `BLOCKED` or `86`); no cook has run for **30 minutes** (`OISIVE_APRES_MS`) — none running, taken or in pass, the latest mark being the end of the last cook (pass reviews included), the runtime's start, the last service, or the project switched back on; the project is not off (runtime running, no "stop", switch on, not every station stopped); and not every card waits for a capability or a third party (`WAITING`, `no-station: …`, `station-absent: …`, or queued only behind such tickets). The cards named are those that should cook. When some await other tickets, the line names the **root of each wait chain**: `— wait chain: #44, #45, #46, #47 → #43 (off the rail, issue still open: label \`fire\` removed)` — the waiting cards, then the root and where it is; chains are separated by ` · `. The second relays this line at opening (`commands/po.md`) |
 | `project` | The log's project, or `unknown — empty log` |
 | `github` | **Absent unless GitHub limits the account's calls.** `GitHub is rate-limiting calls, back around HH:MM`, by the box's clock. See "The calls to GitHub, on the account's real quota, and waiting out the limit" (`station-machine.md`) |
+| `github` (write budget) | **Absent unless the write pacer holds writes.** `held by the GitHub write budget — N of 450 in the last hour, next write at HH:MM`. GitHub refused nothing (#2226, `station-machine.md`) |
 | `runtime` | `running according to the log`, `stopped <duration> ago`, or `never started`. A runtime killed without notice still appears running: the **age of the last tick** betrays it. Beyond a few cadences: `systemctl status brigade@<project>` |
 | `kitchen` | The chef's "stop" and the breaker: `open` or `STOPPED by the chef <duration> ago`, then `breaker closed (… failures in a row, opens at N)` or `breaker OPEN for <duration>` |
 | `connection` | **Absent while the Max connection holds.** Otherwise, per station: `Max MISSING` or `EXPIRED`, since when, the reason, and the gesture — `claude /login` under the service account; the kitchen resumes within the minute. No ticket is taken until then. See "Max connection expired" |
@@ -279,8 +280,9 @@ project's log, and the chef is mentioned there. Its calls are counted to that
 project in the station's counter, the one `status` reads for `board cost`.
 
 The issue is found by its label and its block, never by a stored number. Closed, it is reopened;
-deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh, after each creation or reopening, then
-hourly; refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
+deleted or transferred, recreated; the service log says it. Pinning is checked at the first refresh and after each creation or reopening, never on a timer
+(#2198: a quiet kitchen costs no call; a board the chef unpins stays unpinned until the next one);
+refused (an App without the right), it is said once and retried an hour later. A failed refresh is said once, and retried
 at the next tick.
 
 ## The measures reading

@@ -44,7 +44,7 @@
 // box : un runtime qui redémarre les tient pour interrompus, et leur station
 // l'apprend.
 import type { RuntimeAvecRail } from "./alimenter.ts";
-import { configurerLeCook, constater, dansLeBacASable, type Poste } from "./bac-a-sable/ordinaires.ts";
+import { configurerLeCook, constater, dansLeBacASable, ticketRemisAuCook, type Poste } from "./bac-a-sable/ordinaires.ts";
 import type { ConfigDeBacASable } from "./bac-a-sable/configuration.ts";
 import { complet, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, consigneDeSuite, type Lecture } from "./claude.ts";
@@ -378,10 +378,14 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       const calibrage: Calibrage = { model: ticket.model, effort: ticket.effort };
       const run = nomDeRun(numero);
       // Un ticket ordinaire cuit dans le bac à sable de son poste, jamais à nu.
+      // Son cook n'y a aucun accès à GitHub : la station lui remet son ticket
+      // dans un fichier.
       let bacASable: ConfigDeBacASable | null = null;
+      let remis: string | undefined;
       if (requises(ticket.card).length === 0) {
         if (poste === null) throw new Error(`ticket ordinaire #${numero} prêté à ${nom} sans bac à sable : aucun cook n'est lancé`);
         bacASable = configurerLeCook(poste, run, hotes);
+        remis = ticketRemisAuCook(poste, run);
       }
       // Un ticket que la pass a renvoyé se reprend sur la branche de sa
       // livraison : elle est sur l'origine, c'est de là que la station la tire.
@@ -442,7 +446,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       const cook: EnCours = { station: nom, ticket, calibrage, lance, branche, reprise: repris && { n: repris.returns, pr: repris.pr }, vue: null, progres: maintenant().getTime(), signale: false, livre: false, rendu };
       cooks.set(run, cook);
       void finir(run, cook);
-      const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base, lecons, carnet };
+      const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base, lecons, carnet, ...(remis === undefined ? {} : { remis }) };
       const prompt = repris
         ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
         : suite
@@ -461,6 +465,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
         prompt,
         args: bacASable === null ? argumentsClaude(prompt, calibrage) : dansLeBacASable(argumentsClaude(prompt, calibrage), bacASable),
         ...(bacASable !== null ? { sandbox: true as const } : {}),
+        ...(remis === undefined ? {} : { ticketFile: remis }),
         limits,
         leaseMs: cuisine.dureeBailMs,
         leaseUntil: ticket.leaseUntil ?? new Date(maintenant().getTime() + cuisine.dureeBailMs).toISOString(),

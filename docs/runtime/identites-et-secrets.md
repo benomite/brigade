@@ -32,6 +32,13 @@ The "cook" identity is the one under which the **station** delivers. The cook's 
   `runs/<run>.ticket.md` — title, body, comments with author — outside the worktree. Unreadable
   then: **no cook is launched**, the ticket goes **86** for ten minutes (`ticket-unreadable`), then
   returns to queued.
+- **On the GitHub-only path** (`brigade-github.ts`), the ticket is in the cook's prompt itself,
+  between `<ticket>` and `</ticket>`: body, the zone of its card, the card and the last eight
+  comments (claim marks left out), bounded so the prompt stays a valid argument
+  (`bac-a-sable/hors-github.ts`). Unreadable: no cook, the ticket is released with the reason on
+  the issue. Its environment loses the `gh` tokens on every machine, and `GH_CONFIG_DIR` too in
+  the Mac's sandbox, where `gh` then meets the forbidden `~/.config/gh`. The station pushes the
+  branch and opens the PR, under the cook identity when each role has one.
 - What the station writes on the issue goes out under the **manager** identity: commenting needs
   `issues: write`, which also allows closing and labelling — the cook identity cannot.
 

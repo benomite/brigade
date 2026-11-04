@@ -23,16 +23,17 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
+import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
-import { lacher, prendre } from "./github-etat/prise.ts";
+import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
-import { HORS_CUISINE, type GitHub, type Issue } from "./github.ts";
+import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -44,16 +45,19 @@ export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
 // personne ne tient le ticket, et y pose `taken` si elle l'emporte ; `lacher`
-// la retire.
+// la retire ; `purger` retire le `taken` que personne ne tient plus (facultatif :
+// une prise sans `purger` ne purge pas).
 export type Prise = {
   prendre(issue: Pick<Issue, "number" | "labels">): Promise<{ prise: boolean }>;
   lacher(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
+  purger?(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
 };
 
 // La prise de #2056, liée à la station et au client du tour.
 export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise => ({
   prendre: (issue) => prendre(issue, { github, station }),
   lacher: (issue) => lacher(issue, { github, station }),
+  purger: (issue) => purger(issue, { github }),
 });
 
 // Ce que le tour lit et écrit de GitHub : ce que demandent la relecture et le
@@ -65,11 +69,39 @@ export type GitHubDuTour = GitHubDeLaFusion &
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
-    // La PR qui livre le ticket, ou null.
-    prDuTicket(issue: number): Promise<PRAFusionner | null>;
+    // La PR qui livre le ticket, ou null. `version` change avec tout ce que
+    // GitHub change à la PR.
+    prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
     // Les checks du dernier commit de la branche d'intégration.
-    checksDeLaBase(): Promise<Pick<Check, "outcome">[]>;
+    checksDeLaBase(): Promise<Array<Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>>>;
+    // Le corps de l'issue, où le ticket dit sa zone.
+    corpsDuTicket(issue: number): Promise<string>;
+    // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
+    prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
   };
+
+const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
+
+// La zone d'un ticket : les chemins de sa section `Zone` (un titre markdown),
+// séparés par des virgules ou des lignes, avec ou sans puce et accents graves.
+// Sans section, ou vide, le ticket n'a pas de zone.
+export function zoneDuCorps(corps: string): string[] {
+  const lignes = corps.split(/\r?\n/);
+  const debut = lignes.findIndex((ligne) => /^#{1,6}\s*zone\s*:?\s*$/i.test(ligne.trim()));
+  if (debut === -1) return [];
+  const fin = lignes.findIndex((ligne, rang) => rang > debut && /^#{1,6}\s/.test(ligne.trim()));
+  return lignes
+    .slice(debut + 1, fin === -1 ? undefined : fin)
+    .flatMap((ligne) => ligne.replace(/^\s*[-*+]\s+/, "").split(","))
+    .map((morceau) => normalise(morceau.trim().replace(/^`+|`+$/g, "").trim()))
+    .filter((morceau) => morceau !== "" && !/\s/.test(morceau));
+}
+
+// Deux chemins se recoupent s'ils sont égaux, ou si l'un contient l'autre.
+export const secoupent = (a: string, b: string): boolean => {
+  const [x, y] = [normalise(a), normalise(b)];
+  return x === y || y.startsWith(`${x}/`) || x.startsWith(`${y}/`);
+};
 
 // Le cook d'un ticket pris : la branche qu'il a poussée, ou pourquoi il n'a
 // rien livré.
@@ -109,10 +141,38 @@ export type StationGitHub = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Ce qui juge une livraison : une PR qui y touche attend le chef (`pass.ts`).
+const JUGES = [".claude/brigade/", ".github/workflows/"];
+// Le label d'un ticket qui attend un geste du chef.
+export const A_LA_MAIN = "blocked-on-human";
+
+// Le rang d'un ticket dans l'ordre de service : le plus petit `prio:N` qu'il porte.
+const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
+  Math.min(Number.POSITIVE_INFINITY, ...ticket.labels.map((label) => /^prio:(\d+)$/.exec(label)?.[1]).filter((n) => n !== undefined).map(Number));
+
+// Combien de fois une livraison repart au cook avant de sortir de la cuisine.
+export const RENVOIS_MAX = 2;
+const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
+
+// Le motif d'un verdict, sous son marqueur et sa ligne « Changes requested ».
+const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number) => commentaires.find((c) => c.id === id)?.body.split("\n").slice(2).join("\n").trim() || "see the PR";
+
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const enVol = new Map<number, Promise<void>>();
+  // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
+  // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
+  // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
+  // rende sur l'issue : un échec ne libère jamais une place pour un autre.
+  const aRendre = new Map<number, TicketLu>();
+  let premierTour = true;
+  // Les PR dont la fusion n'a pas abouti — GitHub a refusé le merge, ou la
+  // mise à jour de la branche est demandée —, et ce qu'elles étaient alors :
+  // leur tête, leur version et la base. Elle ne se retente qu'une fois l'une
+  // d'elles changée (#2198) : une PR approuvée dont la CI tourne encore ne
+  // coûte pas un merge refusé à chaque tour.
+  const tentees = new Map<number, string>();
 
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
@@ -121,7 +181,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     try {
       const fait = await cuisiner(ticket, calibrage);
       if ("branche" in fait) {
-        await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+        // Un renvoi pousse sur la branche d'une PR encore ouverte : elle porte
+        // déjà la livraison, il n'en faut pas une seconde.
+        const ouverte = await github.prDuTicket(issue);
+        if (ouverte === null || ouverte.state !== "open") await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
         // `in-pass` avant le retrait de `taken` : entre les deux, aucune
         // station ne lit le ticket libre.
         await github.labelliser(issue, [LABEL_IN_PASS]);
@@ -132,25 +195,87 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — ${message(erreur)}`);
+      aRendre.set(issue, ticket);
     } finally {
       enVol.delete(issue);
     }
   };
 
+  // Renvoie au cook une livraison rouge ou refusée : la raison s'écrit sur
+  // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
+  // la station qui le prend reprend sa branche, sous sa PR. Au-delà de
+  // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
+  const renvoyer = async (ticket: TicketLu, sha: string, raison: string) => {
+    const renvois = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
+    // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
+    if (renvois.some((c) => c.body.includes(` sha=${sha} `))) return;
+    const deja = renvois.length;
+    if (deja >= RENVOIS_MAX) {
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
+      await github.labelliser(ticket.number, [HORS_CUISINE]);
+    } else {
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
+    }
+    await github.delabelliser(ticket.number, LABEL_IN_PASS);
+  };
+
   const tour = async () => {
-    const etatBase = etatDeLaBase(await github.checksDeLaBase());
+    const checksDeLaBase = await github.checksDeLaBase();
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
+    // Les PR ouvertes, lues au premier besoin, une fois par tour.
+    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
-      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, etatBase);
+      // La base ne gèle pas tout le pass : elle ne retient une livraison que
+      // rouge sur un check que cette livraison doit elle-même passer (#2279).
+      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, null);
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
-      if (etat === "pass" && pr !== null) {
+      if (etat === "pass" && pr !== null && pr.enConflit === true) {
+        // En conflit avec la base : ni la mise à jour ni le merge ne passent, et
+        // rien d'autre ne la débloque. Elle repart à un cook, qui la remet sur la
+        // base (#2209).
         try {
-          await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
-          await fusionner(pr, github);
+          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit");
+        } catch (erreur) {
+          avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+        continue;
+      }
+      if (etat === "pass" && pr !== null) {
+        // Une livraison qui touche à ce qui la juge (gates, CI, réglages) ne se
+        // merge pas sur le seul verdict du reviewer : un cook pourrait s'y rendre
+        // vert seul. Comme sur l'ancien chemin, elle attend le chef (#2209).
+        ouvertes ??= await github.prsOuvertes();
+        const sienne = ouvertes.find((ouverte) => ouverte.branche === brancheDuTicket(ticket.number));
+        const juges = sienne?.fichiers.filter((fichier) => JUGES.some((juge) => fichier.startsWith(juge))) ?? [];
+        if (juges.length > 0) {
+          if (!ticket.labels.includes(A_LA_MAIN)) {
+            await github.commenter(ticket.number, `Station \`${nom}\`: this delivery changes what judges it (${juges.map((f) => `\`${f}\``).join(", ")}), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr.number}.`);
+            await github.labelliser(ticket.number, [A_LA_MAIN]);
+          }
+          continue;
+        }
+        // Un workflow qui ne tourne que sur la base (les tests Windows) n'a pas
+        // de check sur la PR : rouge, il ne la retient pas.
+        const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
+        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name))) continue;
+        try {
+          const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
+          const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
+          if (tentees.get(pr.number) !== tentee) {
+            const fusion = await fusionner(pr, github);
+            if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
+            else tentees.delete(pr.number);
+            if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
+            // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
+          }
+          // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
+          if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
@@ -158,14 +283,61 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
       if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN)) libres.push(ticket);
+      // Au premier tour, un `taken` sans cook ici est peut-être une prise
+      // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
+      if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);
+      // À chaque tour, un `taken` que personne ne tient — le retrait d'un
+      // lâcher a échoué, ici ou sur une autre station — perd son label : le
+      // ticket redevient libre au tour suivant. Un ticket en pass, en vol ici
+      // ou déjà à rendre n'est pas un orphelin.
+      if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !aRendre.has(ticket.number)) {
+        try {
+          await prise.purger?.(ticket);
+        } catch (erreur) {
+          avertir(`brigade : purge du \`taken\` de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+      }
     }
+    premierTour = false;
+    for (const [numero, ticket] of aRendre) {
+      try {
+        await prise.lacher({ number: numero, labels: [...new Set([...ticket.labels, LABEL_TAKEN])] });
+        aRendre.delete(numero);
+      } catch (erreur) {
+        // GitHub refuse encore : le ticket garde sa place, le tour suivant réessaie.
+        avertir(`brigade : rendre #${numero} sur ${nom} — ${message(erreur)}`);
+        break;
+      }
+    }
+    // Une zone tenue : un de ses chemins en recoupe un que change une PR
+    // ouverte qui n'est pas celle du ticket.
+    const tenue = async (ticket: TicketLu): Promise<boolean> => {
+      const zone = zoneDuCorps(await github.corpsDuTicket(ticket.number));
+      if (zone.length === 0) return false;
+      ouvertes ??= await github.prsOuvertes();
+      const propre = brancheDuTicket(ticket.number);
+      return ouvertes.some((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
+    };
+    // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
+    // dernier), puis les plus anciens : l'ordre de l'ancien rail (#2209).
+    libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     for (const ticket of libres) {
-      if (enVol.size >= places) break;
+      if (enVol.size + aRendre.size >= places) break;
       if (enVol.has(ticket.number)) continue;
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
-      if (!(await prise.prendre(ticket)).prise) continue;
+      // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
+      if (await tenue(ticket)) continue;
+      let pris: { prise: boolean };
+      try {
+        pris = await prise.prendre(ticket);
+      } catch (erreur) {
+        // La prise a pu partir avant le refus : le ticket est à rendre, et le tour s'arrête là.
+        aRendre.set(ticket.number, ticket);
+        throw erreur;
+      }
+      if (!pris.prise) continue;
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
   };
@@ -195,7 +367,7 @@ export type OptionsDuProjet<A> = {
   avertir?: (message: string) => void;
 };
 
-export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void> };
+export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void>; enCuisine(): number[] };
 
 // Ouvre le projet sur le chemin que dit son interrupteur. Allumé, un tour de
 // la station, puis un autre l'intervalle passé, jusqu'à l'arrêt ; l'ancien
@@ -226,6 +398,8 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
   tourner();
   return {
     chemin: "github",
+    // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
+    enCuisine: () => station.enCuisine(),
     arreter: async () => {
       arrete = true;
       clearTimeout(minuterie);
@@ -238,7 +412,9 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { mettreAJour } = github;
   const { retraitsDeLabels } = github;
+  const { prsOuvertes } = github;
   if (mettreAJour === undefined) throw new Error("this GitHub client cannot update a branch");
+  if (prsOuvertes === undefined) throw new Error("this GitHub client cannot list the files of the open PRs");
   if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
@@ -251,7 +427,12 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
       return derniers;
     },
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
+    // Les tests Windows ne tournent que sur la base, et n'y bloquent rien
+    // (#2087) : rouges, ils ne gèlent pas la cuisine.
     checksDeLaBase: () => github.ci(base),
+    ci: (sha) => github.ci(sha),
+    corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
+    prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang
     // départage, comme leur id, deux commentaires de la même seconde.
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
@@ -276,7 +457,7 @@ export type OptionsDuDepot = {
   depotGitHub: string;
   github: GitHub;
   // Le dépôt de la station, d'où partent les worktrees de ses cooks.
-  depot: Pick<Depot, "preparer" | "reprendre" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff">;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff">;
   // La prise de #2056, liée à la station ; null tant que son module n'est pas
   // dans ce runtime.
   prise: ((github: GitHubDuTour, station: string) => Prise) | null;
@@ -302,28 +483,47 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   if (!/^[A-Za-z0-9._/-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
   if (options.github.retraitsDeLabels === undefined) return { refus: "the GitHub client cannot read the label removals of an issue" };
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
+  if (options.github.prsOuvertes === undefined) return { refus: "the GitHub client cannot list the files of the open PRs" };
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
-  const env = () => environnementClaude(environnementCook(options.env), options.env);
+  // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
+  // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
+  // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
+  const env = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
   const github = clientDuTour(options.github, base);
 
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
-    let lieu: { worktree: string; branche: string };
+    // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
+    // identifiant, et `gh issue view` lui serait refusé.
+    let joint: string;
     try {
-      lieu = await depot.preparer(run);
+      const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+      if (lue === null) throw new Error("the issue no longer exists");
+      joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
+    } catch (erreur) {
+      return { echec: `its ticket could not be read on GitHub: ${message(erreur)}` };
+    }
+    let lieu: { worktree: string; branche: string };
+    // Le run d'un ticket est toujours le même : la branche d'un cook précédent
+    // (livrée, ou refusée par la pass) est encore là, et `preparer` ne sait pas
+    // la recréer. Le cook en repart, comme d'un renvoi — et elle n'est pas à
+    // jeter s'il échoue : elle porte une livraison.
+    const reprise = depot.connait(brancheDuTicket(ticket.number));
+    try {
+      lieu = reprise ? { worktree: await depot.reprendre(run, brancheDuTicket(ticket.number)), branche: brancheDuTicket(ticket.number) } : await depot.preparer(run);
     } catch (erreur) {
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }
     const { worktree, branche } = lieu;
     const flux = join(options.flux, `${run}.flux.jsonl`);
-    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base });
+    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const fin = await lancer({ ...lancement, cwd: worktree, env: env(), flux }).fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(flux), fin.code);
     if (conclusion !== "done") {
-      depot.retirer(worktree, branche);
+      depot.retirer(worktree, reprise ? undefined : branche);
       return { echec: fin.erreur ?? conclusion };
     }
     await depot.ranger(worktree, branche);

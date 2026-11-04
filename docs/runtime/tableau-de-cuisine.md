@@ -38,7 +38,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` |
 | `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed |
 | `cuisine` | The kitchen's state |
-| `gestes` | The chef's latest gestures read under the board, oldest first. An `ask` that was played carries `demande` (the request for the second, word for word) and, when the box holds the project's second, `second`: its answer, or why there is none ([`../tableau-gestes.md`](../tableau-gestes.md), "The second's answer") |
+| `gestes` | The chef's latest gestures read under the board, oldest first ([`../tableau-gestes.md`](../tableau-gestes.md), "What the apps read") |
 | `faits` | The rail view's facts: the object of `facts` |
 | `lignesDuRail` | Each rail ticket's line of `status` |
 | `fileDeStatus` | The queue for the second: the `awaiting` block of `status`, word for word, head line to `end awaiting` included |
@@ -74,7 +74,7 @@ block.
 | `base` | The last check of the integration base: `resultat`, `sha`, `le`, `rougeDepuis`, `reparation` (the ticket repairing it); `null` without a check |
 | `urgence` | Nothing cooks and everything awaits the chef: `depuis`, `retenus`, `decisions` (the `nom` of the lines holding them); `null` otherwise |
 | `cooks[]` | The cooks in progress: `ticket` (`null` for a manager or a judge), `run`, `station`, `modele`, `effort`, `lanceLe`, `coince`, `tours`, `tokens` |
-| `stations[]` | `station`, `distante`, `plafond`, `satureeDepuis`, `saturation`, `retenueDepuis`, `deconnecteeDepuis`, `quotaJusqua` |
+| `stations[]` | `station`, `distante`, `plafond`, `satureeDepuis`, `saturation`, `retenueDepuis`, `deconnecteeDepuis`, `quotaJusqua`, `sansDemarrage` (a cook of the station could not start, it takes no ticket: `depuis`, `run`, `raison`; `null` otherwise, absent from a board written before it) |
 | `plafonds` | A cook's caps: `tokens`, `dureeMs`, `inactiviteMs`; `null` until a runtime set them |
 | `consommation` | `enCours`, and `fenetres` by sliding window (`heures`): `runs`, `reviews`, `judgments`, `turns`, `tokens` |
 | `rubriques[]` | The state as `status` writes it, by section (`titre`, `lignes`), without what only the box can read (worktrees, transcripts, latest events); `rail` gives only its count. The `switch` section is always there: `ON …` or `OFF …`; `ON — not set in the log yet` while no runtime has set it |
@@ -137,7 +137,10 @@ answers as it does `pull`, one request at a time. The answer is published here
 | `attributions[]` | Each ticket a remote station holds: `ticket`, `station`, `run`, `bailJusqua` — its lease's end, which a renewal moves forward. A station that goes silent lets it pass: the main station stops its cook and the ticket returns to the rail |
 | `reponses[]` | The latest answer to each slot of each station, for fifteen minutes: `demande` (the request's `id`), `station`, `geste` (`announce`, `claim`, `renew`, `deliver`), `run` (`null` for a claim), `le`, `reponse` — what `pull` would have printed, except a claimed mission's `args`, published without the brief (`args` is `["-p", prompt, ...suiteDesArgs]`) |
 
-`distantes` is never removed from a body that is too long: it is the arbitration itself, and bounded.
+`distantes` is the last thing removed from a body that is too long (see `resserre`): it is the only
+channel through which a second station reads its mission and the answers to its renewals. Removed,
+the box lends a ticket the station never sees, and stops it at the idleness cap with 0 turns and 0
+tokens (#2095).
 
 ### `activites` — what each cook is doing, for an app connected to GitHub
 
@@ -200,15 +203,15 @@ GitHub refuses a body over 65,536 characters. Too long, the body first shortens 
 then removes from the block, in this order, until it fits; each step that removed something is named
 in `resserre`:
 
-1. `distantes` — the remote stations' relay (the old path epic #2053 removes);
-2. `activites.etapes` — each cook's past steps: what it does right now stays;
-3. `faits.livres.relecture` — the reviews of the served tickets;
-4. `gestes` — the chef's gestures already played;
-5. `activites` — what each cook does, whole;
-6. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
-7. `faits.corrections.diff` — the proposed corrections' diffs;
-8. `avantLeRail.dit` — each `dit` becomes `""`, the issues and their state stay;
-9. `avantLeRail` — the issues before the rail, whole.
+1. `activites.etapes` — each cook's past steps: what it does right now stays;
+2. `faits.livres.relecture` — the reviews of the served tickets;
+3. `gestes` — the chef's gestures already played;
+4. `activites` — what each cook does, whole;
+5. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
+6. `faits.corrections.diff` — the proposed corrections' diffs;
+7. `avantLeRail.dit` — each `dit` becomes `""`, the issues and their state stay;
+8. `avantLeRail` — the issues before the rail, whole;
+9. `distantes` — the remote stations' relay, last: a second station cooks through it alone.
 
 The rail (`faits`, `lignesDuRail`), the queue with its cards (TODO) and `cuisine` are **never** removed
 (`faits` and `lignesDuRail` stay in the type only to read a block written before). The readable part

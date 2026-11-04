@@ -53,8 +53,12 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
     { dire: () => {} },
   );
   let rail;
+  let enCuisine;
   try {
     rail = cuisine.rail?.();
+    // Sur l'ancien chemin, ses cooks en vol sont les tickets pris de son
+    // journal (#2189) : aucun ici — un cook d'avant l'ouverture est rendu.
+    enCuisine = cuisine.enCuisine?.();
   } finally {
     cuisine.arreter("fin du test");
   }
@@ -65,6 +69,7 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
   const lu = (JSON.parse(commande.sortie()) as { rail: Array<{ ticket: number; etat: string; titre: string; url: string }> }).rail;
   assert.deepEqual(rail, lu.map(({ ticket, etat: mot, titre, url }) => ({ ticket, etat: mot, titre, url })));
   assert.deepEqual(rail?.map(({ ticket, etat: mot }) => [ticket, mot]), [[14, "en attente"], [15, "en attente"], [18, "en attente"]]);
+  assert.deepEqual(enCuisine, []);
 });
 
 test("cuisine-rail.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
