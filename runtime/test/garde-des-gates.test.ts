@@ -11,8 +11,13 @@ import { aArreter, ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
-const TEST_FIGE = join(import.meta.dirname, "aides/test-fige.ts");
-const TEST_EN_ECHEC = join(import.meta.dirname, "aides/test-en-echec.ts");
+// Le fichier de tests figé, en shell : un process sous le lanceur qui ne rend
+// jamais la main, comme celui d'un fichier figé dans du code synchrone sous
+// `node --test`. Son témoin apparaît d'un coup, pid compris : qui le voit peut
+// le lire.
+const FICHIER_FIGE = `sh -c 'echo $$ >"$TEMOIN.ecrit" && mv "$TEMOIN.ecrit" "$TEMOIN" && exec sleep 600'`;
+// Ce que le lanceur écrit d'un test en échec.
+const TEST_EN_ECHEC = "echo '✖ un test en échec (0.6ms)'";
 
 function projet(t: TestContext, suite: string): string {
   const racine = repertoireTemporaire(t);
@@ -37,10 +42,8 @@ const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {
 
 // Chaque test a son projet : ils se jouent de front.
 describe("la garde d'horloge des gates", { concurrency: 3 }, () => {
-  test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 1 s clock guard, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
-    // La suite met deux secondes à démarrer — le double du délai de la garde :
-    // c'est une machine chargée, rendue certaine.
-    const racine = projet(t, `sleep 2 && node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
+  test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file never returns, with a clock guard of 0 s once that file is frozen, and expects the guard's kill to take that file's process too; on Windows npm runs the project's `test` script through cmd.exe, which cannot run the shell command standing for the frozen file") }, async (t) => {
+    const racine = projet(t, FICHIER_FIGE);
     const temoin = join(racine, "pid-du-fichier");
     // Si la garde manque son process, il ne doit pas survivre au test.
     aArreter(t, () => {
@@ -52,12 +55,13 @@ describe("la garde d'horloge des gates", { concurrency: 3 }, () => {
     });
 
     // Le délai ne court qu'une fois le fichier d'essai figé, témoin posé : c'est
-    // lui qui doit être trouvé mort, aussi tard qu'il démarre.
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    // lui qui doit être trouvé mort, aussi tard qu'il démarre. Passé ce fait,
+    // la garde n'a rien à attendre de plus.
+    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "0", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     // Aucun test en échec avant la coupure : c'est la ligne que le runtime
     // reconnaît pour rejouer ces gates plus tard, sur une machine saturée.
-    assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 1 s sans rendre la main"], lignes.join("\n"));
+    assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 0 s sans rendre la main"], lignes.join("\n"));
     assert.equal(code, 1);
     // Tuer le lanceur ne suffit pas : le process du fichier lui survivrait.
     assert.ok(existsSync(temoin), "la garde est tombée avant que le fichier d'essai ne démarre");
@@ -66,12 +70,9 @@ describe("la garde d'horloge des gates", { concurrency: 3 }, () => {
     assert.equal(readdirSync(join(racine, ".brigade-state/gates")).length, 1);
   });
 
-  test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays the real gates.sh on a suite that runs a failing test file then a frozen one, and expects the guard's cut line saying tests failed before the cut; on Windows npm runs that suite through cmd.exe, where `;` does not chain two commands, so the two files do not run one after the other") }, async (t) => {
-    // Le fichier en échec rend son verdict avant que l'autre ne se fige.
-    const racine = projet(
-      t,
-      `node --test --test-force-exit ${JSON.stringify(TEST_EN_ECHEC)}; node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`,
-    );
+  test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays the real gates.sh on a suite that reports a failing test then freezes in its next file, and expects the guard's cut line saying tests failed before the cut; on Windows npm runs that suite through cmd.exe, which cannot run its shell commands") }, async (t) => {
+    // Le test en échec est écrit avant que le fichier suivant ne se fige.
+    const racine = projet(t, `${TEST_EN_ECHEC}; ${FICHIER_FIGE}`);
     const temoin = join(racine, "pid-du-fichier");
     aArreter(t, () => {
       try {
@@ -81,11 +82,11 @@ describe("la garde d'horloge des gates", { concurrency: 3 }, () => {
       }
     });
 
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "0", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     assert.deepEqual(
       desTests(lignes),
-      ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 1 s sans rendre la main, et des tests en échec avant la coupure"],
+      ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 0 s sans rendre la main, et des tests en échec avant la coupure"],
       lignes.join("\n"),
     );
     assert.equal(code, 1);
