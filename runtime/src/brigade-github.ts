@@ -146,6 +146,10 @@ export const A_LA_MAIN = "blocked-on-human";
 const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
   Math.min(Number.POSITIVE_INFINITY, ...ticket.labels.map((label) => /^prio:(\d+)$/.exec(label)?.[1]).filter((n) => n !== undefined).map(Number));
 
+// Combien de cooks sans livraison, pour un même ticket, avant qu'il sorte de la cuisine.
+export const ECHECS_MAX = 3;
+const MARQUE_D_ECHEC = "<!-- brigade:echec";
+
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
@@ -187,7 +191,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await github.delabelliser(issue, LABEL_TAKEN);
         return;
       }
-      await github.commenter(issue, `Station \`${nom}\`: the cook stopped without a delivery — ${fait.echec}`);
+      // Le même ticket qui rate cook après cook ne repart pas sans fin : à
+      // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
+      const echecs = (await github.commentaires(issue)).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length + 1;
+      await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${echecs >= ECHECS_MAX ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
+      if (echecs >= ECHECS_MAX) await github.labelliser(issue, [HORS_CUISINE]);
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — ${message(erreur)}`);
