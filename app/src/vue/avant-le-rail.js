@@ -8,7 +8,9 @@
 
 // Le mot de chaque part, à côté de la barre (ticket 2367), et qui agit quand un geste est attendu : la refusée incomplète
 // attend le second, ce n'est pas une panne.
+/** @type {Record<string, string>} */
 const MOTS = { "non-lue": "not read yet", incomplete: "incomplete", epique: "epic, not split", prete: "ready, not fired", "mise-de-cote": "set aside" };
+/** @type {Record<string, string>} */
 const QUI = { incomplete: "the second completes them" };
 
 import { survol } from "./briques.js";
