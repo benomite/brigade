@@ -501,6 +501,18 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
   stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
   switched off are shown as published. The backlog and Served still come from the board, and so does TODO, with
   the chef's `chef-todo` issues added (#2221, below).
+- **A set-aside ticket is in Todo (#2075)**, never in a column of its own and never "outside the columns": an issue
+  labelled `fire` that carries `hors-cuisine` or `blocked-on-human` waits for the chef, whatever its other labels say
+  (a `blocked-on-human` delivery keeps `in-pass`: it is not in Pass). With `waiting` as well, the chef moved it to a
+  third party: it is in Waiting, as any card there. Its card says why in one line, taken from the latest comment of a
+  repository author (`OWNER`, `MEMBER`, `COLLABORATOR`) that names the label — or, for `blocked-on-human`, the station's
+  "this delivery changes what judges it" comment —, the manager's comments aside. The station's comments are said short
+  ("off the kitchen after 2 sends back — the review requested changes", "off the kitchen after 3 cooks without a
+  delivery — …", "changes what judges it: merge PR #2326 by hand"); any other comment, by its first line. A `#N` in the
+  line opens that issue or PR on GitHub on click. With no such comment (a label put by hand), the line says "set aside
+  by hand — no reason on the issue", and the card is still in Todo. No claim is read for it, and the `rail` line of
+  `status` counts it apart (`3 set aside`). *Code: `app/src/tableau/mise-de-cote-github.ts`. Tests:
+  `app/test/tableau/mise-de-cote-github.test.ts`, `app/test/vue/rail/github.test.ts`, `app/test/rail.test.ts`.*
 - A failed GitHub reading of such a project is a failed board reading: the rail keeps its last columns and says it is
   stale (#2151) — never the frozen rail.
 

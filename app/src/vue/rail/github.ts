@@ -18,12 +18,15 @@ import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runt
 import type { Cook } from "../../faits.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
 import type { LectureDuTableauDuDepot, TableauLu } from "../../tableau/lecture.ts";
+import { labelDeMiseDeCote, miseDeCoteDe, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
 import { avecLesEtatsGithub, etatDeLaBaseGithub, lectureConditionnelle, MOT_DE_L_ETAT, ticketDeLaPR, type MemoireDesLectures } from "../../tableau/rail-github.ts";
 import { stationsDesPrises, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
 
 export const FICHIER_DU_PROJET = ".claude/brigade/projet.json";
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
+// Le mot d'un ticket mis de côté (faits.ts, `TONS_DE_TICKET`) : sa carte est dans TODO (#2075).
+const MOT_MIS_DE_COTE = "86";
 // Les mots dont un ticket a une station qui le tient.
 const TENUS = new Set(["pris", "en pass", "base rouge"]);
 
@@ -35,8 +38,8 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // La PR qui livre un ticket, telle que la carte la dit.
 export type PrDuTicket = { numero: number; url: string; le: string };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
-// l'heure de son issue, sa PR ouverte, et la station qui le tient — nulles sans elles.
-export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null };
+// l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (#2075) — nulles sans elles.
+export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote };
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[] };
 
 // L'interrupteur, lu dans le contenu de `projet.json` que l'API de GitHub rend (en base64) : vrai seulement s'il le dit.
@@ -61,7 +64,7 @@ const PAR_PAGE = 100;
 async function toutesLesPages(lire: (chemin: string) => Promise<unknown>, chemin: string): Promise<Brut[]> {
   const toutes: Brut[] = [];
   for (let page = 1; page <= 10; page++) {
-    const lue = liste(await lire(`${chemin}&per_page=${PAR_PAGE}&page=${page}`));
+    const lue = liste(await lire(`${chemin}${chemin.includes("?") ? "&" : "?"}per_page=${PAR_PAGE}&page=${page}`));
     toutes.push(...lue);
     if (lue.length < PAR_PAGE) break;
   }
@@ -75,8 +78,10 @@ export async function interrupteurDuDepot(depot: string, appeler: AppelGitHub): 
   return reponse?.status === 200 ? interrupteurLu(reponse.data) : null;
 }
 
-// Le rail d'un projet sur GitHub seul : ses tickets au label `fire`, chacun dans son état, avec sa PR et sa station. Une
-// lecture qui échoue lève : la lecture du tableau en dit la raison.
+// Le rail d'un projet sur GitHub seul : ses tickets au label `fire`, chacun dans son état, avec sa PR et sa station. Un
+// ticket qui porte `hors-cuisine` ou `blocked-on-human` — sans `waiting` — est mis de côté, quoi que ses autres labels
+// disent : ses commentaires, toutes pages, disent pourquoi (tableau/mise-de-cote-github.ts, #2075). Une lecture qui
+// échoue lève : la lecture du tableau en dit la raison.
 export async function lireLeRailSurGithub(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date }): Promise<RailSurGithub> {
   const { depot, appeler } = options;
   const lire = async (chemin: string) => {
@@ -107,12 +112,14 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   for (const { numero, titre, url, creeLe, labels } of duRail) {
     const pr = livrees.get(numero) ?? null;
     const issueLue: IssueLue = { state: "open", labels, pr: pr === null ? null : { state: "open", merged: false } };
+    const label = labelDeMiseDeCote(labels);
+    const miseDeCote = label === null ? undefined : miseDeCoteDe(depot, label, await toutesLesPages(lire, `/repos/${depot}/issues/${numero}/comments`));
     const dit = etatDuTicket(issueLue, base);
-    const etat = dit === null ? MOT_EN_FILE : MOT_DE_L_ETAT[dit];
+    const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit === null ? MOT_EN_FILE : MOT_DE_L_ETAT[dit];
     const prise = TENUS.has(etat)
       ? tenantDeLIssue(liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)), liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)))
       : null;
-    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise });
+    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(miseDeCote === undefined ? {} : { miseDeCote }) });
   }
   return { lu, tickets };
 }
@@ -143,10 +150,11 @@ function activiteDe({ etat, pr, prise }: TicketSurGithub): { activite?: { fait: 
 }
 
 // Les mots d'état comptés sur la ligne `rail` de `status`, dans son ordre et ses mots.
-const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en pass", "in pass"], ["base rouge", "base red"], ["WAITING", "WAITING"], ["en attente", "queued"]];
+const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en pass", "in pass"], ["base rouge", "base red"], ["WAITING", "WAITING"], ["en attente", "queued"], ["86", "set aside"]];
 
 // Le tableau lu, dont le rail et les cooks sont ceux de GitHub : ses tickets dans l'ordre du service — la priorité, puis
-// le plus ancien —, les lignes de leurs bons, ses compteurs, et ses stations d'après les prises.
+// le plus ancien —, les lignes de leurs bons, ses compteurs, et ses stations d'après les prises. Un ticket mis de côté
+// attend le chef : il entre dans `attend` avec ce qui le met de côté, à la place de ce que le tableau figé en disait (#2075).
 export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub): TableauLu {
   const ranges = [...tickets].sort((a, b) => (a.priorite ?? Number.POSITIVE_INFINITY) - (b.priorite ?? Number.POSITIVE_INFINITY) || a.ticket - b.ticket);
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
@@ -154,6 +162,8 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub):
   const compteurs = objet(avant.compteurs) ?? {};
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
   const { cuisineOisive: _oisive, agents: _agents, ...gardes } = avant;
+  const misDeCote = ranges.flatMap(({ ticket, titre, url, miseDeCote }) => (miseDeCote === undefined ? [] : [{ ticket, titre, url, miseDeCote }]));
+  const attend = misDeCote.length === 0 ? {} : { attend: [...(Array.isArray(gardes.attend) ? (gardes.attend as unknown[]) : []).filter((entree) => !misDeCote.some(({ ticket }) => ticket === objet(entree)?.ticket)), ...misDeCote] };
   // Les lignes de `status` que le rail de GitHub remplace : celles du rail et des cooks dites de GitHub ; celle des
   // stations déclarées à l'ancien chemin — qui n'en lance plus aucun cook — retirée.
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
@@ -188,6 +198,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub):
         ...activiteDe(ticket),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
+      ...attend,
       stations: stationsDesPrises(cooks),
       agents: [],
     },

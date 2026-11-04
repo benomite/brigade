@@ -3117,7 +3117,7 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
   const vuDeTodo = attendu && carte.todo !== undefined ? vuDeLaCarte(carte.todo, etatDeLaCarte(projet, ticket, carte.todo)).vu : undefined;
   const todoRepondue = vuDeTodo === "attente" || vuDeTodo === "jouee";
   if (carte.ligne !== undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
-    const phrase = bloc("p", carte.ligne);
+    const phrase = carte.miseDeCote === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, carte.miseDeCote.liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
   }
@@ -3164,6 +3164,25 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   bon.append(...poserGestesDAttente(projet, carte), ...sortiesDeCapacite.poser(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
+}
+
+// La ligne d'un ticket mis de côté (ticket 2075) : chacun de ses `#N` que la lecture porte s'ouvre d'un clic, sur son issue
+// ou sa PR — l'adresse reste au process principal, comme celle du ticket.
+/** @param {Projet} projet @param {string} ligne @param {number[]} liens */
+function ligneAvecSesNumeros(projet, ligne, liens) {
+  const phrase = document.createElement("p");
+  for (const morceau of ligne.split(/(#\d+)/)) {
+    const numero = /^#\d+$/.test(morceau) ? Number(morceau.slice(1)) : undefined;
+    if (numero === undefined || !liens.includes(numero)) {
+      if (morceau !== "") phrase.append(morceau);
+      continue;
+    }
+    const ouvre = bouton(morceau, () => void ouvrirIssue(projet, numero));
+    ouvre.className = "lien-de-ligne mono";
+    ouvre.title = `open #${numero} on GitHub, in the browser`;
+    phrase.append(ouvre);
+  }
+  return phrase;
 }
 
 // Une carte en panne porte « report to brigade » (ticket 1977) : mise de côté (86), ou remontée parce que la pass n'a
