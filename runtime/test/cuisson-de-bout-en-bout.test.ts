@@ -45,6 +45,8 @@ function cuisineDeBoutEnBout(t: TestContext, scenario: "livre" | "attend") {
   mkdirSync(pids);
   const lieu = cuisine(t, {
     git: true,
+    // De bout en bout : le cook part par son relais, comme à la box.
+    relais: true,
     lieux,
     bin,
     sansGates: true,
