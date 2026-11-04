@@ -276,19 +276,19 @@ describe("la porte", () => {
         if (panne) throw new Error("journal verrouillé");
         return reglesDuProjet(hotes);
       },
-      { delaiMs: 5000, maintenant: () => instant, avertir: (message) => void avertissements.push(message) },
+      { delaiMs: 2000, maintenant: () => instant, avertir: (message) => void avertissements.push(message) },
     );
     const ouvert = (fraiches?: boolean) => autorise(regles(fraiches), "registry.npmjs.org", 443);
 
     assert.equal(ouvert(), false);
     hotes = ["registry.npmjs.org"];
-    instant = 4999;
+    instant = 1999;
     assert.equal(ouvert(), false);
     assert.equal(ouvert(true), true);
     // La liste fraîche devient la liste gardée.
     hotes = [];
     assert.equal(ouvert(), true);
-    instant = 9999;
+    instant = 3999;
     assert.equal(ouvert(), false);
 
     hotes = ["registry.npmjs.org"];
@@ -303,7 +303,7 @@ describe("la porte", () => {
   test("une rafale de refus ne lit le journal qu'une fois : les lectures fraîches ont un plancher", () => {
     let instant = 10_000;
     let lectures = 0;
-    const regles = garderLaListe(() => ((lectures += 1), reglesDuProjet([])), { delaiMs: 5000, plancherFraisMs: 1000, maintenant: () => instant });
+    const regles = garderLaListe(() => ((lectures += 1), reglesDuProjet([])), { delaiMs: 2000, plancherFraisMs: 1000, maintenant: () => instant });
     // La lecture ordinaire d'une connexion qui passe — le rapatriement, par exemple.
     regles();
     assert.equal(lectures, 1);
@@ -323,7 +323,7 @@ describe("la porte", () => {
   });
 
   test("une liste jamais lue et illisible s'en tient au socle", () => {
-    const regles = garderLaListe(() => { throw new Error("journal verrouillé"); }, { delaiMs: 5000, avertir: () => {} });
+    const regles = garderLaListe(() => { throw new Error("journal verrouillé"); }, { delaiMs: 2000, avertir: () => {} });
 
     assert.equal(autorise(regles(), "api.github.com", 443), true);
     assert.equal(autorise(regles(true), "registry.npmjs.org", 443), false);

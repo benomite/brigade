@@ -28,7 +28,7 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   return racine;
 }
 
-const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
+const jouer = (racine: string, delaiMs = 2_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
 describe("les gates", () => {
   test("ce que le runtime garde de la sortie du setup et des gates est masqué", async (t) => {
@@ -40,7 +40,7 @@ describe("les gates", () => {
       worktree: racine,
       ticket: 17,
       env: { ...ENV_ENFANT, DATABASE_URL: "postgres://dev:secret-de-dev@localhost" },
-      delaiMs: 60_000,
+      delaiMs: 2_000,
       masquer: (texte: string) => texte.replaceAll("postgres://dev:secret-de-dev@localhost", "[secret:DATABASE_URL]"),
     };
 
@@ -287,7 +287,7 @@ describe("les gates", () => {
       return spawnSync("ps", ["-o", "stat=", "-p", ecrit.trim()], { encoding: "utf8" }).stdout.startsWith("Z");
     };
     while (!fini() || Date.now() - debut <= plafondMs) {
-      if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
+      if (Date.now() - debut > 2_000) throw new Error("les gates n'ont jamais fini");
     }
 
     const gates = await enCours;
@@ -312,7 +312,7 @@ describe("les gates", () => {
     const racine = worktree(t, { gates: "sleep 30" });
     const abandon = new AbortController();
 
-    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 60_000, signal: abandon.signal });
+    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 2_000, signal: abandon.signal });
     setTimeout(() => abandon.abort(), 50);
 
     assert.equal((await enCours).outcome, "red");
@@ -334,7 +334,7 @@ describe("les gates", () => {
   });
 });
 
-const preparer = (racine: string, delaiMs = 60_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
+const preparer = (racine: string, delaiMs = 2_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
 
 describe("le setup du worktree", () => {
   test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
@@ -372,7 +372,7 @@ describe("le setup du worktree", () => {
       setup: "printf \"export SUR_DEUX_LIGNES=%q\\n\" $'un\\ndeux'",
       gates: 'echo "vu=$SUR_DEUX_LIGNES"',
     });
-    const demande = { worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs: 60_000, canalParFichier: true };
+    const demande = { worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs: 2_000, canalParFichier: true };
 
     const setup = await jouerSetup(demande);
     const { gates, cout } = await jouerGatesMesurees(demande);

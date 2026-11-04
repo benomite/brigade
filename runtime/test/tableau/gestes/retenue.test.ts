@@ -20,6 +20,8 @@ const SANS_BASH = process.platform === "win32" && "le faux `gh` est un script ba
 const PROJET = "brigade";
 const TABLEAU = 4;
 const CARTE: Proposition = { type: "product", resume: "The ticket adds an export.", enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }] };
+// Le quota d'un compte GitHub : un nombre d'appels, pas une durée.
+const APPELS_PAR_HEURE = 5000;
 
 test("la box retient ses appels (pause, quota au-dessus de la réserve) : `choose` posté sous le tableau se joue quand même, et la box répond dessous", { skip: SANS_BASH }, async (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
@@ -35,7 +37,7 @@ test("la box retient ses appels (pause, quota au-dessus de la réserve) : `choos
   // La limite de GitHub atteinte : la cuisine est retenue, alors que le compte a des appels de reste.
   const limite = ouvrirLimite();
   limite.suspendre(Date.now() + 3_600_000);
-  limite.noter("gh", { restant: 3454, plafond: 5000, reset: Date.now() + 3_600_000 });
+  limite.noter("gh", { restant: 3454, plafond: APPELS_PAR_HEURE, reset: Date.now() + 3_600_000 });
   assert.throws(() => limite.prendre("cuisine"), /limite/);
 
   const gh = fauxGh(t);

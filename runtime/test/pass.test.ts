@@ -2038,8 +2038,9 @@ test("un cook de renvoi sans accès à GitHub relit le ticket qui lui a été re
 });
 
 test("les deux délais de la pass ont un défaut de trente minutes, et se règlent en secondes", () => {
-  assert.deepEqual(configPass({}), { delaiGatesMs: 1_800_000, attenteCiMs: 1_800_000 });
-  assert.deepEqual(configPass({ BRIGADE_GATES_TIMEOUT_SECONDS: "60", BRIGADE_CI_WAIT_SECONDS: "90" }), { delaiGatesMs: 60_000, attenteCiMs: 90_000 });
+  const SECONDE = 1000;
+  assert.deepEqual(configPass({}), { delaiGatesMs: 1800 * SECONDE, attenteCiMs: 1800 * SECONDE });
+  assert.deepEqual(configPass({ BRIGADE_GATES_TIMEOUT_SECONDS: "60", BRIGADE_CI_WAIT_SECONDS: "90" }), { delaiGatesMs: 60 * SECONDE, attenteCiMs: 90 * SECONDE });
   assert.throws(() => configPass({ BRIGADE_CI_WAIT_SECONDS: "bientôt" }), ConfigInvalide);
 });
 

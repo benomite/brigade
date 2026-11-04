@@ -33,7 +33,7 @@ test("un git fetch contre un dépôt qui réclame des identifiants échoue vite,
     const debut = Date.now();
     // Le `env` de l'appelant n'a aucun réglage de prompt : c'est le module partagé qui le pose.
     const erreur = await new Promise<Error & { stderr?: string }>((resolu, rejeter) => {
-      const enfant = execFile("git", ["fetch", `http://127.0.0.1:${port}/depot.git`], { env: { PATH: process.env.PATH, HOME: "/nonexistent", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, timeout: 60_000 }, (e, _, stderr) =>
+      const enfant = execFile("git", ["fetch", `http://127.0.0.1:${port}/depot.git`], { env: { PATH: process.env.PATH, HOME: "/nonexistent", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, timeout: 2_000 }, (e, _, stderr) =>
         e ? resolu(Object.assign(e, { stderr })) : rejeter(new Error("le fetch aurait dû échouer")),
       );
       // Un git qui attendrait une réponse sur son entrée resterait ici bloqué : on la laisse ouverte.

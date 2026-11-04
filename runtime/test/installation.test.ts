@@ -1215,6 +1215,7 @@ describe("le coût du setup", () => {
   });
 
   const MO = 1024 ** 2;
+  const MINUTE = 60_000;
   const mesure = { pret: true as const, joue: true, sha: "abc", dureeMs: 60_000, avantOctets: 11 * MO, apresOctets: 400 * MO, sortie: "" };
   const machine = { cooks: 30, entrees: 4, bailMs: 1_800_000, disqueLibre: 100 * 1024 * MO, disqueMinOctets: 5 * 1024 * MO };
 
@@ -1224,7 +1225,7 @@ describe("le coût du setup", () => {
     assert.deepEqual(tenue.disque, { besoin: 30 * 400 * MO, disponible: 95 * 1024 * MO, tient: true });
     // Huit vagues de quatre setups, une minute chacune : la dernière part sept minutes après la première.
     assert.deepEqual(tenue.entree, { vagues: 8, dernierMs: 420_000 });
-    assert.deepEqual(tenue.setup, { plafondMs: 900_000, tient: true });
+    assert.deepEqual(tenue.setup, { plafondMs: 15 * MINUTE, tient: true });
     assert.equal(tenue.tient, true);
   });
 

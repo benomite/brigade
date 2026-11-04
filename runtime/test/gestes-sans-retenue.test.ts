@@ -15,6 +15,8 @@ import { ouvrirRail } from "../src/rail.ts";
 import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, JOUR_HORLOGE, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
+// Le quota d'un compte GitHub : un nombre d'appels, pas une durée.
+const APPELS_PAR_HEURE = 5000;
 
 // Le compteur de la station, chargé : 2 600 appels dans l'heure, 40 restants
 // sur 5 000 selon GitHub, et une pause qui court encore.
@@ -23,7 +25,7 @@ function stationChargee(t: TestContext) {
   const limite = limiteDeLaStation(repertoireTemporaire(t));
   aArreter(t, () => limite.fermer());
   for (let i = 0; i < 2600; i++) limite.prendre("geste");
-  limite.noter("gh", { restant: 40, plafond: 5000, reset: Date.now() + 30 * 60_000 });
+  limite.noter("gh", { restant: 40, plafond: APPELS_PAR_HEURE, reset: Date.now() + 30 * 60_000 });
   limite.suspendre(Date.now() + 10 * 60_000);
   installerLimite(limite);
   return limite;

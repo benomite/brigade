@@ -26,7 +26,7 @@ test("les gates du dépôt déclarent les tests, leur durée, le poids du dépô
   // Le CLAUDE.md et ce qu'il importe, de proche en proche.
   const contexte = statSync(join(racine, "CLAUDE.md")).size + 51 + 30;
 
-  const gates = await jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 60_000 });
+  const gates = await jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 2_000 });
 
   const { gates_s: duree, depot_octets: depot, ...mesures } = gates.measures ?? {};
   assert.deepEqual(mesures, { tests: 12, tests_s: 3.4, doc_octets: contexte + 500, contexte_octets: contexte }, gates.tail);

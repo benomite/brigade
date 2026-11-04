@@ -11,6 +11,8 @@ import { principal as status } from "../src/status.ts";
 import { appeler, repertoireTemporaire } from "./outils.ts";
 
 const TEXTE_BRUT = /request id|terms|HTTP 4|rate limit exceeded/i;
+// Le quota d'un compte GitHub : un nombre d'appels, pas une durée.
+const APPELS_PAR_HEURE = 5000;
 
 test("quand GitHub refuse pour sa limite, status et faits disent la reprise en une ligne, sans le texte de gh ; la ligne tombe avec la pause", async (t) => {
   const repertoire = repertoireTemporaire(t);
@@ -70,12 +72,12 @@ test("quand la box retient ses appels à la réserve des gestes, status le dit �
   t.after(() => limite.fermer());
 
   // Au-dessus de la réserve, rien à dire.
-  limite.noter("gh", { restant: 2000, plafond: 5000, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
+  limite.noter("gh", { restant: 2000, plafond: APPELS_PAR_HEURE, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
   assert.equal(retenueDeLaStation(station, Date.now()), null);
   assert.doesNotMatch(await lire(), /^github /m);
 
   // À la réserve : la box retient, GitHub n'a rien refusé.
-  limite.noter("gh", { restant: 500, plafond: 5000, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
+  limite.noter("gh", { restant: 500, plafond: APPELS_PAR_HEURE, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
   assert.notEqual(retenueDeLaStation(station, Date.now()), null);
   const sortie = await lire();
   assert.match(sortie, /^github {5}the box holds its own calls to keep the reserve for your gestures, back around \d\d:\d\d$/m);

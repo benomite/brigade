@@ -68,6 +68,7 @@ test("what the repository sets wins over the box, setting by setting; without it
 
 test("the gates timeout and the CI wait come from the repository over the environment, and from the environment without it", () => {
   const env = { BRIGADE_GATES_TIMEOUT_SECONDS: "100", BRIGADE_CI_WAIT_SECONDS: "200" };
-  assert.deepEqual(configPass({ ...env, ...variablesDesGatesDuDepot(null) }), { delaiGatesMs: 100_000, attenteCiMs: 200_000 });
-  assert.deepEqual(configPass({ ...env, ...variablesDesGatesDuDepot({ integrationBranch: "v2", gates: { timeoutSeconds: 1500 } }) }), { delaiGatesMs: 1_500_000, attenteCiMs: 200_000 });
+  const SECONDE = 1000;
+  assert.deepEqual(configPass({ ...env, ...variablesDesGatesDuDepot(null) }), { delaiGatesMs: 100 * SECONDE, attenteCiMs: 200 * SECONDE });
+  assert.deepEqual(configPass({ ...env, ...variablesDesGatesDuDepot({ integrationBranch: "v2", gates: { timeoutSeconds: 1500 } }) }), { delaiGatesMs: 1500 * SECONDE, attenteCiMs: 200 * SECONDE });
 });

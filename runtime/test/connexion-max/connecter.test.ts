@@ -62,7 +62,7 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false, 
     root: () => false,
     utilisateur: () => compte,
     afficher: (texte) => void (montre += texte),
-    delaiMuet: muet ? 300 : 60_000,
+    delaiMuet: muet ? 300 : 2_000,
   };
   const lire = (fichier: string) => (existsSync(fichier) ? readFileSync(fichier, "utf8").trim().split("\n") : []);
   return { racine, etc, machine, montre: () => montre, appels: () => lire(appels), environnements: () => lire(environnements) };
