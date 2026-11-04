@@ -155,6 +155,7 @@ main section { padding: 3.5rem 0; }
 
 .demo { border: 3px dashed var(--steel-dk); padding: 2rem 1rem; text-align: center; color: var(--mute); }
 .demo p { margin: 0; }
+.demo video { display: block; width: 100%; max-width: 960px; margin: 0 auto; }
 
 .install { padding-left: 1.4rem; }
 .install li { margin-bottom: .5rem; }
