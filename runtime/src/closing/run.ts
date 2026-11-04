@@ -68,6 +68,8 @@ export const STATION = "closer";
 const PASSE = 0;
 
 export type OptionsFermeture = {
+  // True once the GitHub-only switch is on: the closer reads the stale log and stops (#2218).
+  perimee?: () => boolean;
   // Lus à chaque passe, et jamais pendant qu'elle range : une décision du chef
   // vaut à la suivante, et ne change pas les plafonds de celle qui tourne.
   reglages: ReglagesDeFermeture | (() => ReglagesDeFermeture);
@@ -455,6 +457,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
   };
 
   const desabonner = runtime.surReveil((cause) => {
+    if (options.perimee?.()) return;
     relire();
     declencher();
     passer();

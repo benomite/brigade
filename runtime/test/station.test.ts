@@ -450,7 +450,10 @@ describe("la station", { concurrency: 3 }, () => {
   });
 
   test("un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté", { skip: posixOnly("lets #14 lose its lease while #15 renews it by writing in its worktree, and expects only #14 stopped; on Windows #15's cook had ended too by the last check: the kitchen runs there far slower than the 30 s its silent fake cook (a Git Bash `sleep`) lives") }, async (t) => {
-    const { repertoire, heure, journal, dernier, types, lancements } = cuisine(t, { cooks: 2, scenario: "muet", issues: [issue(14), issue(15)] });
+    // Des cooks qui ont démarré — un tour —, puis se taisent : un cook qui n'a
+    // pas pu démarrer retiendrait la station (`station.unstartable`), et #14 ne
+    // repartirait pas.
+    const { repertoire, heure, journal, dernier, types, lancements } = cuisine(t, { cooks: 2, scenario: "muet-apres-un-tour", issues: [issue(14), issue(15)] });
     await jusqua(() => lancements().length === 2);
 
     heure.avancer(BAIL_MS - 1);

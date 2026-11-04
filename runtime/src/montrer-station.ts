@@ -340,6 +340,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
         : "available",
     );
     ligne(
+      "cook start",
+      etat.unstartable == null
+        ? "cooks start"
+        : `NOT TAKING TICKETS since ${etat.unstartable.since} — ${etat.unstartable.run} ended with 0 turns and 0 tokens (${etat.unstartable.reason}): its cook could not start; it takes tickets again when it restarts, or as soon as a cook launched since produces a turn`,
+    );
+    ligne(
       "withholding",
       etat.heldAt === null || etat.heldReason === null
         ? "none — every servable ticket leaves"

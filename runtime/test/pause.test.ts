@@ -4,7 +4,7 @@
 // suivants font tourner une cuisine sous grant, avec sa pass et sa station.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import { ACCEPTER_LA_PAUSE, attentesDuChef, REFUSER_LA_PAUSE } from "../src/attend.ts";
+import { attentesDuChef } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
@@ -67,7 +67,7 @@ describe("la carte de la pause", () => {
     assert.equal(bloc[0], "awaiting   1 decision awaits the chef — for 5 min");
     assert.equal(
       bloc[1],
-      `  pause  for 5 min  the code rename asks to pause the kitchen for about 45 min — no merge, no new cook until it ends — in flight, held: #12 (taken: its cook finishes its work, then its delivery waits), #14 (in pass: its merge waits) — to agree: \`${ACCEPTER_LA_PAUSE}\`; to decline: \`${REFUSER_LA_PAUSE}\``,
+      `  pause  for 5 min  the code rename asks to pause the kitchen for about 45 min — no merge, no new cook until it ends — in flight, held: #12 (taken: its cook finishes its work, then its delivery waits), #14 (in pass: its merge waits) — to agree or decline: no app button for it yet`,
     );
     sansMotFrancais(bloc);
   });
@@ -105,7 +105,7 @@ describe("la carte de la pause", () => {
     const bloc = blocAttend(statut());
     assert.deepEqual(bloc, [
       "awaiting   nothing awaits the chef",
-      `  paused for the code rename — for 5 min, expected about 45 min — finishing their work: #12 · held: #14 — to end it now: \`${REFUSER_LA_PAUSE}\``,
+      `  paused for the code rename — for 5 min, expected about 45 min — finishing their work: #12 · held: #14 — to end it now: no app button for it yet`,
       "end awaiting",
     ]);
     assert.equal(statut().filter((ligne) => ligne.includes("paused for the code rename")).length, 1);

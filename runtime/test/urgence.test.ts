@@ -276,7 +276,7 @@ test("le disjoncteur ouvert entre dans la file avec ses échecs et son geste, va
   assert.match(ouvert.texte.join("\n"), /#701: exit 1, 4 turns, 1000 tokens/);
   assert.match(ouvert.texte.join("\n"), /#702: exit 2, 5 turns, 2000 tokens/);
   assert.match(ouvert.texte.join("\n"), /#703: exit 3, 6 turns, 3000 tokens/);
-  assert.match(ouvert.texte.join("\n"), /guardrails resume/);
+  assert.match(ouvert.texte.join("\n"), /press the `Resume` button on the breaker line of TODO/);
   assert.equal(ouvert.faits.urgence?.decision, "disjoncteur");
   assert.equal(ouvert.faits.urgence?.cause, "disjoncteur");
   assert.deepEqual(ouvert.faits.urgence?.retenus, [601, 602]);

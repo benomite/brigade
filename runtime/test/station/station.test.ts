@@ -176,6 +176,32 @@ test("les projets servis sont tous ceux de la configuration : ceux que l'app a a
   assert.deepEqual(servie.depots(), { cantine: "acme/cantine", shop: "acme/shop", brigade: "acme/brigade" });
 });
 
+test("la retenue de la mise à jour atteint chaque cuisine, et la station dit les tickets que ses cuisines cuisinent (#2189)", (t) => {
+  const racine = repertoireTemporaire(t);
+  writeFileSync(join(racine, "projets"), "brigade acme/brigade main\nespace acme/espace main\n");
+  const retenues: Array<(() => boolean) | undefined> = [];
+  let seVide = false;
+  const servie = ouvrirStation({
+    racine,
+    env: { BRIGADE_CLAUDE_BIN: "claude" },
+    dire: () => {},
+    relectureMs: 3_600_000,
+    portes: null,
+    retenue: () => seVide,
+    ouvrir: (env, options) => {
+      retenues.push(options.retenue);
+      const projet = env.BRIGADE_PROJECT ?? "";
+      return { projet, repertoireEtat: env.BRIGADE_STATE_DIR ?? "", arreter: () => {}, enCuisine: () => (projet === "brigade" ? [12, 13] : [40]) };
+    },
+  });
+  aArreter(t, () => servie.arreter("fin du test"));
+  assert.equal(retenues.length, 2);
+  assert.deepEqual(retenues.map((r) => r?.()), [false, false]);
+  seVide = true;
+  assert.deepEqual(retenues.map((r) => r?.()), [true, true]);
+  assert.deepEqual(servie.enCuisine().sort((a, b) => a - b), [12, 13, 40]);
+});
+
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
 
 test("sous les portes de la station, chaque projet reçoit le port de la sienne — jamais celui d'un autre projet ni celui de la station", (t) => {

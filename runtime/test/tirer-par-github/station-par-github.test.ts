@@ -283,7 +283,9 @@ describe("une station secondaire tire son travail par GitHub, arbitrée par la p
   });
 
   test("une station qui se tait perd son bail sans rien faire : il tombe au Kitchen board, la principale reprend le ticket — jamais tenu par deux stations", async (t) => {
-    const lieu = service(t, `${BOX}:1:code,${MAC}:1:code:distante+ensemble,${PC}:1:code:distante+ensemble`);
+    // Le cook de la box a démarré — un tour —, même si son bail tombe aussi : la
+    // box reste une station qui démarre ses cooks (`station.unstartable`).
+    const lieu = service(t, `${BOX}:1:code,${MAC}:1:code:distante+ensemble,${PC}:1:code:distante+ensemble`, { scenario: "muet-apres-un-tour" });
     const { github, repertoire, etat, heure, prises, tenues, dernier } = lieu;
     await enAttente(lieu, 17);
     lieu.principale();

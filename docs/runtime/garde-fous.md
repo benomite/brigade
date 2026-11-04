@@ -20,6 +20,29 @@ a single counter, **in launch order**: failures among those launched **after the
 since your last "resume". A manager relaunch counts as a success only once judged green. The caps
 stay **per cook**.
 
+### On the GitHub-only path
+
+A project on the GitHub-only state (`githubOnlyState`, [`../reglages.md`](../reglages.md)) keeps the
+same guardrails (#2213, `runtime/src/github-seul/garde-fous/`). Before each claim, its station reads,
+in this order:
+
+- **the "stop"** and **the breaker**, from the log, as the old station does: either one holds, no
+  ticket is claimed;
+- **the Max quota**: a GitHub-only cook (or review) whose stream says the quota is spent writes
+  `station.86` with its return time (one hour if none is given), and nothing is claimed before it;
+- **the arbiter** ([`cloison-et-arbitre.md`](cloison-et-arbitre.md)), last, for each ticket it is
+  about to claim. Refused, it claims nothing this turn; unreachable, at most one cook at a time. At
+  the end of every turn the project says its state again (cooks running, tickets waiting), and gives
+  its share back when the runtime stops. On this path the arbiter is the GitHub-only station's alone:
+  the old station does not speak for the project.
+
+What holds the station is written once per change (`station.held`, reason `stopped`, `breaker`,
+`quota`, `arbiter` or `unarbitrated`; `station.released` once nothing does). Cooks and reviews are
+launched by the runtime's guardrails, off any ticket and under the station's name: the "stop" stops
+them within the second (the ticket is given back on its issue), their failures count for the
+breaker, the caps are the project's. A cook stopped by a cap counts as a failure here, as any
+launch off a ticket does.
+
 ### The breaker on GitHub
 
 An open breaker is also **an issue of the project's repository**, labeled `brigade:breaker-open`
