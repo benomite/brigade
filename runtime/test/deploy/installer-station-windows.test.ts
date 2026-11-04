@@ -11,8 +11,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, join, relative } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { aArreter, jusqua, repertoireTemporaire } from "../outils.ts";
+import { after, before, describe, test, type TestContext } from "node:test";
+import { aArreter, jusqua, repertoireDuFichier, repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const INSTALLER = join(import.meta.dirname, "../../deploy/windows/installer-station.ps1");
@@ -29,22 +29,84 @@ const saut = posixOnly("the doubles of the Windows commands are POSIX shell scri
 
 type Rendu = { code: number; sortie: string };
 
-function pwsh(commande: string, env: NodeJS.ProcessEnv = process.env): Rendu {
-  const rendu = spawnSync(PWSH as string, ["-NoProfile", "-NonInteractive", "-NoLogo", "-Command", commande], { encoding: "utf8", env });
-  return { code: rendu.status ?? -1, sortie: rendu.stdout + rendu.stderr };
-}
 const cite = (valeur: string) => `'${valeur.replaceAll("'", "''")}'`;
 
-function zipper(source: string, zip: string) {
-  const rendu = pwsh(`[IO.Compression.ZipFile]::CreateFromDirectory(${cite(source)}, ${cite(zip)}, 'Optimal', $true)`);
+// Un PowerShell pour tout le fichier, qui joue chaque commande à son tour — les tests d'un fichier se jouent l'un
+// après l'autre —, sur l'environnement qu'elle donne et lui seul, comme un PowerShell lancé pour elle : en démarrer un
+// par commande coûtait une demi-seconde chacune. Son `PSModulePath` reste le sien : c'est celui qu'un PowerShell se
+// donne en démarrant. Le script joué par `iex` ou comme un fichier ne fait sortir que lui, jamais l'hôte.
+let hote: { jouer: (commande: string, env: NodeJS.ProcessEnv) => Promise<Rendu>; fermer: () => void } | undefined;
+after(() => hote?.fermer());
+function lHote() {
+  if (hote) return hote;
+  const enfant = spawn(PWSH as string, ["-NoProfile", "-NonInteractive", "-NoLogo", "-Command", "-"], {
+    env: { ...process.env, TERM: "dumb", POWERSHELL_TELEMETRY_OPTOUT: "1", POWERSHELL_UPDATECHECK: "Off", DOTNET_CLI_TELEMETRY_OPTOUT: "1" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const lus = { sortie: "", erreur: "" };
+  let lu = () => {};
+  enfant.stdout.setEncoding("utf8").on("data", (bout: string) => ((lus.sortie += bout), lu()));
+  enfant.stderr.setEncoding("utf8").on("data", (bout: string) => ((lus.erreur += bout), lu()));
+  let tour = Promise.resolve();
+  let numero = 0;
+  const jouer = (commande: string, env: NodeJS.ProcessEnv): Promise<Rendu> => {
+    const fin = `@@fin-${++numero}@@`;
+    const poser = Object.entries(env).flatMap(([cle, valeur]) => (valeur === undefined ? [] : [`[Environment]::SetEnvironmentVariable(${cite(cle)}, ${cite(valeur)})`]));
+    const ligne = [
+      "$__modules = $env:PSModulePath",
+      "foreach ($__cle in @([Environment]::GetEnvironmentVariables().Keys)) { [Environment]::SetEnvironmentVariable($__cle, $null) }",
+      "$env:PSModulePath = $__modules",
+      ...poser,
+      `Set-Location -LiteralPath ${cite(process.cwd())}`,
+      "$global:LASTEXITCODE = 0",
+      `try { ${commande} } catch { [Console]::Error.WriteLine($_) }`,
+      `[Console]::Out.WriteLine("${fin} $LASTEXITCODE")`,
+      `[Console]::Error.WriteLine("${fin}")`,
+    ].join("; ");
+    const rendu = tour.then(
+      () =>
+        new Promise<Rendu>((resoudre) => {
+          lu = () => {
+            const finSortie = lus.sortie.indexOf(fin);
+            const finErreur = lus.erreur.indexOf(fin);
+            if (finSortie < 0 || finErreur < 0 || !lus.sortie.slice(finSortie).includes("\n")) return;
+            const code = Number(lus.sortie.slice(finSortie + fin.length).split("\n")[0]?.trim());
+            const rendu = { code: Number.isInteger(code) ? code : -1, sortie: lus.sortie.slice(0, finSortie) + lus.erreur.slice(0, finErreur) };
+            lus.sortie = lus.sortie.slice(lus.sortie.indexOf("\n", finSortie) + 1);
+            lus.erreur = lus.erreur.slice(lus.erreur.indexOf("\n", finErreur) + 1);
+            lu = () => {};
+            resoudre(rendu);
+          };
+          enfant.stdin.write(`${ligne}\n`);
+        }),
+    );
+    tour = rendu.then(() => {});
+    return rendu;
+  };
+  hote = { jouer, fermer: () => void enfant.stdin.end() };
+  return hote;
+}
+const pwsh = (commande: string, env: NodeJS.ProcessEnv = {}): Promise<Rendu> => lHote().jouer(commande, env);
+
+async function zipper(source: string, zip: string) {
+  const rendu = await pwsh(`Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::CreateFromDirectory(${cite(source)}, ${cite(zip)}, 'Optimal', $true)`);
   assert.equal(rendu.code, 0, rendu.sortie);
 }
 
 // Ce que les releases, nodejs.org et claude.ai servent : l'archive du runtime d'une version, un
 // node win-x64 avec ses empreintes, et l'installeur officiel de `claude`, qui pose sa doublure.
-function serveur(t: TestContext, version: string, { empreinteFausse = false } = {}): string {
-  const servi = repertoireTemporaire(t);
-  const construire = repertoireTemporaire(t);
+// Construit une fois par fichier pour chaque version : ce qui est servi ne change pas d'un test à l'autre (un PC
+// y écrit l'installeur de `claude` qui pose sa doublure à lui, avant de jouer la commande).
+const servis = new Map<string, Promise<string>>();
+function serveur(version: string, { empreinteFausse = false } = {}): Promise<string> {
+  const cle = `${version}${empreinteFausse ? "-fausse" : ""}`;
+  const connu = servis.get(cle) ?? construireServi(version, empreinteFausse);
+  servis.set(cle, connu);
+  return connu;
+}
+async function construireServi(version: string, empreinteFausse: boolean): Promise<string> {
+  const servi = repertoireDuFichier("brigade-test-windows-servi-");
+  const construire = repertoireDuFichier("brigade-test-windows-construit-");
   mkdirSync(join(construire, "runtime/src/station"), { recursive: true });
   writeFileSync(join(construire, "runtime/package.json"), `{\n  "name": "brigade-runtime",\n  "version": "${version}",\n  "type": "module"\n}\n`);
   // La station : elle dit ce qu'elle voit, puis tourne — ou s'arrête sur le code qu'on lui donne.
@@ -62,8 +124,8 @@ function serveur(t: TestContext, version: string, { empreinteFausse = false } = 
   // Le node posé : il dit sa version, et pour le reste c'est celui de ces tests.
   writeFileSync(join(construire, "node", nomNode, "node.exe"), `#!/bin/sh\n[ "$1" = -v ] && { echo ${VERSION_NODE}; exit 0; }\nexec "${process.execPath}" "$@"\n`);
   chmodSync(join(construire, "node", nomNode, "node.exe"), 0o755);
-  zipper(join(construire, "runtime"), join(servi, "brigade-station-windows.zip"));
-  zipper(join(construire, "node", nomNode), join(servi, `${nomNode}.zip`));
+  await zipper(join(construire, "runtime"), join(servi, "brigade-station-windows.zip"));
+  await zipper(join(construire, "node", nomNode), join(servi, `${nomNode}.zip`));
   const empreinte = empreinteFausse ? "0".repeat(64) : createHash("sha256").update(readFileSync(join(servi, `${nomNode}.zip`))).digest("hex");
   writeFileSync(join(servi, "SHASUMS256.txt"), `${"1".repeat(64)}  node-${VERSION_NODE}-win-arm64.zip\n${empreinte}  ${nomNode}.zip\n${"2".repeat(64)}  ${nomNode}.7z\n`);
   return servi;
@@ -71,7 +133,7 @@ function serveur(t: TestContext, version: string, { empreinteFausse = false } = 
 
 // Un PC Windows x64, sous un compte ordinaire, où git, `gh` et `claude` sont posés (sauf ceux
 // qu'on retire), et ne sont connectés qu'après leur login.
-function unPC(t: TestContext, servi: string, { manquants = [] as string[], winget = true, curl = true } = {}) {
+function unPC(t: TestContext, servi: string, { manquants = [] as string[], winget = true, curl = true, lanceur = false } = {}) {
   const bin = repertoireTemporaire(t);
   const etat = repertoireTemporaire(t);
   const maison = repertoireTemporaire(t);
@@ -98,7 +160,9 @@ function unPC(t: TestContext, servi: string, { manquants = [] as string[], winge
   doublure(bin, "powershell.exe", `for a do shift; if [ -n "$saute" ]; then saute=; continue; fi; case "$a" in -WindowStyle) saute=1; continue ;; esac; set -- "$@" "$a"; done\nexec "${PWSH}" "$@"`);
   writeFileSync(join(servi, "install.ps1"), `Copy-Item -LiteralPath ${cite(join(reserve, "claude"))} -Destination ${cite(join(maison, ".local/bin/claude"))}\n`);
   mkdirSync(join(maison, ".local/bin"), { recursive: true });
-  // Le registre et le lancement caché, propres à Windows : notés, et le lancement fait pour de vrai.
+  const base = join(local, "brigade-station");
+  // Le registre et le lancement caché, propres à Windows : notés, et le lancement fait — pour de vrai si le test le
+  // demande (`lanceur`).
   const prelude = join(etat, "prelude.ps1");
   writeFileSync(
     prelude,
@@ -106,11 +170,21 @@ function unPC(t: TestContext, servi: string, { manquants = [] as string[], winge
       "function Set-ItemProperty { [CmdletBinding()] param([string]$Path, [string]$Name, $Value) Add-Content -LiteralPath $env:BRIGADE_REGISTRE -Value \"$Path\\$Name=$Value\" }",
       "function Start-Process { param([string]$FilePath, [string]$ArgumentList, [string]$WindowStyle)",
       '  Add-Content -LiteralPath $env:BRIGADE_APPELS -Value "Start-Process $FilePath $ArgumentList -WindowStyle $WindowStyle"',
-      `  Microsoft.PowerShell.Management\\Start-Process -FilePath 'powershell.exe' -ArgumentList $ArgumentList -RedirectStandardOutput ${cite(join(etat, "lanceur.out"))} -RedirectStandardError ${cite(join(etat, "lanceur.err"))} }`,
+      `  $lanceurPid = ${cite(join(base, "lanceur.pid"))}`,
+      // La doublure du lanceur : un node qui ne fait rien, que le script voit vivant — pour les tests qui ne
+      // regardent pas la station tourner. Le vrai lanceur, sinon, attendu jusqu'à ce qu'il écrive son pid : le
+      // script, qui le sonde à la seconde, le trouve alors en marche sans attendre.
+      "  if ($env:BRIGADE_FAUX_LANCEUR) {",
+      `    $faux = Microsoft.PowerShell.Management\\Start-Process -FilePath $env:BRIGADE_FAUX_LANCEUR -ArgumentList '-e', 'setInterval(Object,1e3)' -RedirectStandardOutput ${cite(join(etat, "lanceur.out"))} -PassThru`,
+      "    Set-Content -LiteralPath $lanceurPid -Value $faux.Id",
+      "    return",
+      "  }",
+      `  Microsoft.PowerShell.Management\\Start-Process -FilePath 'powershell.exe' -ArgumentList $ArgumentList -RedirectStandardOutput ${cite(join(etat, "lanceur.out"))} -RedirectStandardError ${cite(join(etat, "lanceur.err"))}`,
+      "  for ($i = 0; $i -lt 100 -and -not ((Test-Path -LiteralPath $lanceurPid) -and ([IO.File]::ReadAllText($lanceurPid) -match '[0-9]')); $i++) { Start-Sleep -Milliseconds 20 }",
+      "}",
       "",
     ].join("\n"),
   );
-  const base = join(local, "brigade-station");
   // Ce que le lanceur a lancé ne survit pas au test : arrêté avant que ses répertoires — et les
   // pids qu'ils notent — ne soient supprimés.
   aArreter(t, () => {
@@ -148,6 +222,7 @@ function unPC(t: TestContext, servi: string, { manquants = [] as string[], winge
       POWERSHELL_TELEMETRY_OPTOUT: "1",
       POWERSHELL_UPDATECHECK: "Off",
       DOTNET_CLI_TELEMETRY_OPTOUT: "1",
+      ...(lanceur ? {} : { BRIGADE_FAUX_LANCEUR: process.execPath }),
     } as NodeJS.ProcessEnv,
     appels: () => lire(appels).split("\n").filter(Boolean),
     registre: () => lire(registre).split("\n").filter(Boolean),
@@ -171,12 +246,12 @@ function unTerminal(t: TestContext): string {
 }
 
 // La commande du guide : le script, collé dans PowerShell (`irm … | iex`).
-function jouer(pc: PC, env: NodeJS.ProcessEnv = {}): Rendu {
-  return pwsh(`. ${cite(pc.prelude)}; Get-Content -Raw ${cite(INSTALLER)} | Invoke-Expression; exit $LASTEXITCODE`, { ...pc.env, ...env });
+function jouer(pc: PC, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
+  return pwsh(`. ${cite(pc.prelude)}; Get-Content -Raw ${cite(INSTALLER)} | Invoke-Expression`, { ...pc.env, ...env });
 }
 // Le script lancé comme un fichier, sur une archive donnée.
-function jouerSur(pc: PC, archive: string): Rendu {
-  return pwsh(`. ${cite(pc.prelude)}; & ${cite(INSTALLER)} ${cite(archive)}; exit $LASTEXITCODE`, pc.env);
+function jouerSur(pc: PC, archive: string, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
+  return pwsh(`. ${cite(pc.prelude)}; & ${cite(INSTALLER)} ${cite(archive)}`, { ...pc.env, ...env });
 }
 
 const vivant = (pid: number) => {
@@ -189,10 +264,18 @@ const vivant = (pid: number) => {
 };
 const pidDe = (fichier: string) => Number.parseInt(lire(fichier), 10);
 
+// Ce que tous les tests du fichier partagent, prêt avant le premier : le PowerShell qui les joue, et ce qui est servi.
+before(async () => {
+  if (saut) return;
+  await serveur("1.2.3");
+  await serveur("1.2.4");
+  await serveur("1.2.3", { empreinteFausse: true });
+});
+
 describe("sous Windows", { skip: saut }, () => {
-  test("la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
-    const rendu = jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
+  test("la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"), { lanceur: true });
+    const rendu = await jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = pc.appels();
     assert.deepEqual(
@@ -215,8 +298,8 @@ describe("sous Windows", { skip: saut }, () => {
   });
 
   test("ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main", async (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
-    assert.equal(jouer(pc).code, 0);
+    const pc = unPC(t, await serveur("1.2.3"), { lanceur: true });
+    assert.equal((await jouer(pc)).code, 0);
     const ps1 = join(pc.base, "lancer-station.ps1");
     const lancement = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1}"`;
     assert.deepEqual(pc.registre(), [`HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\brigade-station="C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ${lancement}`]);
@@ -235,13 +318,13 @@ describe("sous Windows", { skip: saut }, () => {
     assert.ok(vivant(pidDe(join(pc.base, "station.pid"))));
   });
 
-  test("rejouée sans rien de neuf : rien ne se retélécharge, la station n'est pas relancée, et rien ne se redemande", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
+  test("rejouée sans rien de neuf : rien ne se retélécharge, la station n'est pas relancée, et rien ne se redemande", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"));
     const terminal = unTerminal(t);
-    assert.equal(jouer(pc, { BRIGADE_TERMINAL: terminal }).code, 0);
+    assert.equal((await jouer(pc, { BRIGADE_TERMINAL: terminal })).code, 0);
     const lanceur = pidDe(join(pc.base, "lanceur.pid"));
     const deja = pc.appels().length;
-    const rendu = jouer(pc, { BRIGADE_TERMINAL: terminal });
+    const rendu = await jouer(pc, { BRIGADE_TERMINAL: terminal });
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = pc.appels().slice(deja);
     assert.deepEqual(appels.filter((a) => a.startsWith("curl.exe")).map((a) => a.split(" ").at(-1)), ["https://github.com/acme/brigade/releases/download/station/brigade-station-windows.zip"]);
@@ -257,13 +340,14 @@ describe("sous Windows", { skip: saut }, () => {
   });
 
   test("rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui", async (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
-    assert.equal(jouer(pc).code, 0);
+    // La station en marche, pour de vrai ; la version suivante relance la doublure du lanceur.
+    const pc = unPC(t, await serveur("1.2.3"), { lanceur: true });
+    assert.equal((await jouer(pc)).code, 0);
     const ancien = pidDe(join(pc.base, "lanceur.pid"));
     await jusqua(() => existsSync(join(pc.base, "station.pid")));
     const ancienneStation = pidDe(join(pc.base, "station.pid"));
     const deja = pc.appels().length;
-    const rendu = jouerSur(pc, join(serveur(t, "1.2.4"), "brigade-station-windows.zip"));
+    const rendu = await jouerSur(pc, join(await serveur("1.2.4"), "brigade-station-windows.zip"), { BRIGADE_FAUX_LANCEUR: process.execPath });
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.match(readFileSync(join(pc.base, "runtime/package.json"), "utf8"), /"version": "1\.2\.4"/);
     assert.ok(!vivant(ancien) && !vivant(ancienneStation));
@@ -277,9 +361,9 @@ describe("sous Windows", { skip: saut }, () => {
     assert.match(rendu.sortie, /station installed and running -- 1\.2\.4/);
   });
 
-  test("un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé ni écrit au registre", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3", { empreinteFausse: true }));
-    const rendu = jouer(pc);
+  test("un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé ni écrit au registre", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3", { empreinteFausse: true }));
+    const rendu = await jouer(pc);
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /brigade: installation refused -- the checksum of node-v26\.1\.0-win-x64\.zip is not the one nodejs\.org publishes/);
     assert.ok(!existsSync(join(pc.base, "node")));
@@ -287,17 +371,17 @@ describe("sous Windows", { skip: saut }, () => {
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("Start-Process")), []);
   });
 
-  test("sans terminal, la station est installée et la commande dit de la rejouer pour les connexions", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
-    const rendu = jouer(pc);
+  test("sans terminal, la station est installée et la commande dit de la rejouer pour les connexions", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"));
+    const rendu = await jouer(pc);
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("gh") || a.startsWith("claude")), []);
     assert.match(rendu.sortie, /no terminal here for the sign-ins: rerun the same command from a PowerShell window/);
   });
 
-  test("ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"), { manquants: ["git", "gh", "claude"] });
-    const rendu = jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
+  test("ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"), { manquants: ["git", "gh", "claude"] });
+    const rendu = await jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = pc.appels();
     assert.deepEqual(
@@ -313,52 +397,52 @@ describe("sous Windows", { skip: saut }, () => {
     assert.match(rendu.sortie, /the station is signed in to GitHub and to Claude/);
   });
 
-  test("sans winget, un outil qui manque est nommé, avec où le prendre, et rien n'est installé", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"), { manquants: ["gh"], winget: false });
-    const rendu = jouer(pc);
+  test("sans winget, un outil qui manque est nommé, avec où le prendre, et rien n'est installé", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"), { manquants: ["gh"], winget: false });
+    const rendu = await jouer(pc);
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /installation refused -- gh is missing, and so is winget to install it: install gh \(https:\/\/cli\.github\.com\), then rerun the same command/);
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("curl.exe") || a.startsWith("Start-Process")), []);
   });
 
-  test("une connexion GitHub ratée est dite, et la connexion Claude n'est pas tentée", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
+  test("une connexion GitHub ratée est dite, et la connexion Claude n'est pas tentée", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"));
     writeFileSync(join(pc.bin, "gh"), `#!/bin/sh\necho "gh $*" >>"${join(pc.bin, "appels")}"\nexit 1\n`);
-    const rendu = jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
+    const rendu = await jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /brigade: the station is installed, but its GitHub sign-in is not made \(the line above says why\) -- rerun the same command to resume/);
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("claude")), []);
     assert.ok(vivant(pidDe(join(pc.base, "lanceur.pid"))));
   });
 
-  test("une connexion Claude ratée est dite, avec de quoi la reprendre : rejouer la même commande", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
+  test("une connexion Claude ratée est dite, avec de quoi la reprendre : rejouer la même commande", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"));
     writeFileSync(join(pc.bin, "claude"), `#!/bin/sh\necho "claude $*" >>"${join(pc.bin, "appels")}"\nexit 1\n`);
-    const rendu = jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
+    const rendu = await jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) });
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /the station is installed, but its Claude sign-in is not made .*-- rerun the same command to resume/);
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("claude")), ["claude auth status", "claude auth login"]);
     assert.doesNotMatch(rendu.sortie, /the station is signed in to GitHub and to Claude/);
   });
 
-  test("sans argument et sans dépôt désigné, rien n'est téléchargé : le script dit quoi donner", (t) => {
-    const pc = unPC(t, serveur(t, "1.2.3"));
+  test("sans argument et sans dépôt désigné, rien n'est téléchargé : le script dit quoi donner", async (t) => {
+    const pc = unPC(t, await serveur("1.2.3"));
     assert.match(readFileSync(INSTALLER, "utf8"), /\$Depot = \$env:BRIGADE_DEPOT\n\s*if \(-not \$Depot\) \{ \$Depot = '@DEPOT@' \}/);
-    const rendu = jouer(pc, { BRIGADE_DEPOT: "" });
+    const rendu = await jouer(pc, { BRIGADE_DEPOT: "" });
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /no repository is named to download the station from.*BRIGADE_DEPOT=<owner>\/<repo>/);
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("curl.exe")), []);
   });
 
-  test("ailleurs que sous Windows, sur une architecture sans node, ou sans curl.exe : refusé avant tout téléchargement", (t) => {
+  test("ailleurs que sous Windows, sur une architecture sans node, ou sans curl.exe : refusé avant tout téléchargement", async (t) => {
     const cas: [Partial<Parameters<typeof unPC>[2]>, NodeJS.ProcessEnv, RegExp][] = [
       [{}, { OS: "" }, /this command installs a station on Windows -- on Linux or macOS, the command is installer-station\.sh/],
       [{}, { PROCESSOR_ARCHITECTURE: "x86" }, /no node for the architecture x86 \(AMD64, ARM64\)/],
       [{ curl: false }, {}, /curl\.exe is missing to download the station/],
     ];
     for (const [machine, env, attendu] of cas) {
-      const pc = unPC(t, serveur(t, "1.2.3"), machine);
-      const rendu = jouer(pc, env);
+      const pc = unPC(t, await serveur("1.2.3"), machine);
+      const rendu = await jouer(pc, env);
       assert.equal(rendu.code, 1, rendu.sortie);
       assert.match(rendu.sortie, attendu);
       assert.deepEqual(pc.appels().filter((a) => a.startsWith("curl.exe") || a.startsWith("Start-Process")), []);
@@ -372,9 +456,9 @@ describe("sous Windows", { skip: saut }, () => {
 
 describe("le lanceur", { skip: saut }, () => {
   // Installe, puis arrête ce que l'installation a lancé : le lanceur se joue ensuite à la main.
-  function installe(t: TestContext): PC {
-    const pc = unPC(t, serveur(t, "1.2.3"));
-    assert.equal(jouer(pc).code, 0);
+  async function installe(t: TestContext): Promise<PC> {
+    const pc = unPC(t, await serveur("1.2.3"));
+    assert.equal((await jouer(pc)).code, 0);
     for (const fichier of ["lanceur.pid", "station.pid"]) {
       const pid = pidDe(join(pc.base, fichier));
       if (Number.isInteger(pid)) process.kill(pid, "SIGKILL");
@@ -392,7 +476,7 @@ describe("le lanceur", { skip: saut }, () => {
   }
 
   test("il ne double pas la station que l'app tient : il attend qu'elle la rende", async (t) => {
-    const pc = installe(t);
+    const pc = await installe(t);
     writeFileSync(join(pc.racine, "app.pid"), `${process.pid}\n`);
     void lanceur(t, pc);
     await jusqua(() => lire(pc.journal).includes("held by the app"));
@@ -401,15 +485,22 @@ describe("le lanceur", { skip: saut }, () => {
     assert.equal(pidDe(join(pc.racine, "app.pid")), process.pid);
   });
 
-  test("une station tombée est relancée cinq secondes plus tard", async (t) => {
-    const pc = installe(t);
-    void lanceur(t, pc, { FAUSSE_SORTIE: "1" });
-    await jusqua(() => lire(pc.journal).split("\n").filter((l) => l.startsWith("station ")).length >= 2);
+  // Les cinq secondes elles-mêmes ne sont pas attendues : le lanceur dit qu'il relancera, et attend en tenant
+  // toujours le répertoire de la station — il ne rend la main que sur un arrêt net (0) ou un refus (2), ci-dessous.
+  test("une station tombée est relancée cinq secondes plus tard : le lanceur le dit, et attend sans rendre son répertoire", async (t) => {
+    const pc = await installe(t);
+    let fini = false;
+    void lanceur(t, pc, { FAUSSE_SORTIE: "1" }).then(() => (fini = true));
+    await jusqua(() => lire(pc.journal).includes("relaunched in 5 s"));
     assert.match(lire(pc.journal), /this computer's station stopped \(code 1\) -- relaunched in 5 s/);
+    assert.equal(lire(pc.journal).split("\n").filter((l) => l.startsWith("station ")).length, 1);
+    assert.equal(fini, false);
+    assert.ok(vivant(pidDe(join(pc.base, "lanceur.pid"))));
+    assert.equal(pidDe(join(pc.racine, "app.pid")), pidDe(join(pc.base, "lanceur.pid")));
   });
 
   test("une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire", async (t) => {
-    const pc = installe(t);
+    const pc = await installe(t);
     const code = await lanceur(t, pc, { FAUSSE_SORTIE: "2" });
     assert.equal(code, 2);
     assert.equal(lire(pc.journal).split("\n").filter((l) => l.startsWith("station ")).length, 1);
@@ -468,8 +559,8 @@ describe("la même station que sur un Mac", { skip: saut }, () => {
     const vuMac = spawnSync("/bin/sh", [join(baseMac, "lancer-station")], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", BRIGADE_STATION_DIR: racineMac } }).stdout.trim();
 
     // Le PC, sur la même version.
-    const pc = unPC(t, serveur(t, "1.2.3"));
-    assert.equal(jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) }).code, 0);
+    const pc = unPC(t, await serveur("1.2.3"), { lanceur: true });
+    assert.equal((await jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) })).code, 0);
     await jusqua(() => lire(pc.journal).includes("station src/station/main.ts"));
 
     // Ce que la station voit, chaque chemin relatif à la maison du compte.

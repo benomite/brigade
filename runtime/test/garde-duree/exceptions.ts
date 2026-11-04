@@ -7,17 +7,4 @@
 import type { Exception } from "./regle.ts";
 
 export const EXCEPTIONS: Exception[] = [
-  { file: "test/deploy/installer-station-windows.test.ts", test: "la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé ni écrit au registre" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "sans winget, un outil qui manque est nommé, avec où le prendre, et rien n'est installé" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "une connexion GitHub ratée est dite, et la connexion Claude n'est pas tentée" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "une connexion Claude ratée est dite, avec de quoi la reprendre : rejouer la même commande" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "ailleurs que sous Windows, sur une architecture sans node, ou sans curl.exe : refusé avant tout téléchargement" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "il ne double pas la station que l'app tient : il attend qu'elle la rende" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "une station tombée est relancée cinq secondes plus tard" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "une station qui refuse de démarrer (code 2) n'est pas relancée, et rend son répertoire" },
-  { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
 ];
