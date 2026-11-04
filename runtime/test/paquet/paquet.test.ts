@@ -222,7 +222,16 @@ describe("les refus de la construction", { skip: sansDpkgDeb }, () => {
 });
 
 describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: sansSystemd }, () => {
-  const POSTINST = join(PAQUET, "debian/postinst");
+  // Le postinst du paquet, son node pointé hors de la machine : là où le paquet est déjà installé — la box qui joue
+  // ces tests —, il lancerait sinon la bascule réelle sur la racine du système, deux fois par installation jouée.
+  // Ces tests éprouvent une machine sans bascule ; la bascule a les siens (bascule/).
+  const temporaire = mkdtempSync(join(tmpdir(), "brigade-postinst-test-"));
+  after(() => rmSync(temporaire, { recursive: true, force: true }));
+  const POSTINST = join(temporaire, "postinst");
+  const original = readFileSync(join(PAQUET, "debian/postinst"), "utf8");
+  const sansNode = original.replace(/^NODE=\/usr\/lib\/brigade-station\/node\/bin\/node$/m, `NODE=${join(temporaire, "pas-de-node")}`);
+  assert.notEqual(sansNode, original, "le postinst ne nomme plus le node du paquet là où ce test l'attend");
+  writeFileSync(POSTINST, sansNode);
   // Un système vierge : ni compte ni groupe brigade.
   const vierge = { getent: "exit 2", adduser: "", systemctl: 'case "$1" in is-enabled|--quiet) exit 1 ;; esac' };
 

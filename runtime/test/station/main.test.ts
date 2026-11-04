@@ -3,10 +3,10 @@
 // des signaux. Chaque démarrage d'un vrai process coûte près d'une seconde :
 // seul ce que le point d'entrée câble lui-même se joue sur un vrai process. Ce
 // que la station fait de sa configuration et de ses projets se joue ici sur la
-// station qu'il ouvre (`ouvrirStation`), dans le process du test, et sans
-// cuisine dans station.test.ts et portes.test.ts ; les cuisines complètes — un
-// cook jusqu'à sa PR, sous une identité par rôle, repris par la vie suivante —
-// sur la cuisine du test (../station.test.ts, ../identites.test.ts, ../reprise.test.ts).
+// station qu'il ouvre (`ouvrirStation`), dans le process du test — jusqu'à son
+// remplacement pendant qu'un cook tourne —, et sans cuisine dans station.test.ts
+// et portes.test.ts ; les cuisines complètes — un cook jusqu'à sa PR, sous une
+// identité par rôle — sur la cuisine du test (../station.test.ts, ../identites.test.ts).
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -14,15 +14,14 @@ import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { lireLesStationsDuCompte } from "../../src/enregistrement-station/stations-du-compte.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
+import { limiteDeLaStation, REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { REPERTOIRE_DES_TAILLES } from "../../src/tableau/rendu/taille.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { ouvrirCuisine, type Cuisine } from "../../src/station/cuisine.ts";
 import { ecrirePortes } from "../../src/station/portes.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
-import { principal as status } from "../../src/status.ts";
 import { relecteur } from "../aides/opt-B-journal.ts";
-import { aArreter, appeler, BASE, ENV_ENFANT, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { aArreter, BASE, depotGit, ecrireSuite, ENV_ENFANT, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -114,11 +113,13 @@ function stationOuverte(t: TestContext, racine: string, env: Record<string, stri
     },
     portes,
   });
-  aArreter(t, async () => {
+  // Arrêtée comme son process l'arrête sur SIGTERM : ses cuisines, pas leurs cooks.
+  const arreter = async () => {
     station.arreter("SIGTERM");
     for (const cuisine of cuisines) await cuisine.arretee?.();
-  });
-  return { dits, station };
+  };
+  aArreter(t, arreter);
+  return { dits, station, arreter };
 }
 
 // Les réponses du faux `gh` pour un autre dépôt que celui des outils : ses
@@ -261,7 +262,7 @@ describe("la station ouverte dans le process du test", { concurrency: 1 }, () =>
     assert.equal(relire("espace").every((e) => e.project === "espace"), true);
   });
 
-  // Que les appels à GitHub aillent au compteur de la station, que `status` lit : « le process de la station… », plus bas.
+  // Que les appels à GitHub aillent au compteur de la station : « le process de la station : sous ses portes… », plus bas.
   test("chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, et le chef y est mentionné pour ce qui l'attend", { skip: posixOnly("two kitchens create and pin their Kitchen board through the fake gh (a bash script) and a gesture under brigade's board is played by its kitchen alone") }, async (t) => {
     const { racine, env, etat, preparer, configurer, faits } = uneStation(t);
     const projets = [
@@ -316,42 +317,99 @@ describe("la station ouverte dans le process du test", { concurrency: 1 }, () =>
     assert.deepEqual(projets.map((p) => commentes(p).map((appel) => appel.at(-1))), [["repos/acme/brigade/issues/90/comments", "repos/acme/brigade/issues/90/comments"], []]);
   });
 
+
+  // Une mise à jour remplace le process de la station : son unité ne tue que lui (`KillMode=process`,
+  // paquet/paquet.test.ts), et son SIGTERM arrête la station comme ici. Les deux vies se jouent l'une après l'autre
+  // dans le process du test, sur le même état.
+  test("la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison part", { skip: posixOnly("replaces the station while a cook runs through its relay and expects the cook to survive and be resumed by the next station; the fake claude is a bash script, and the relay's survival of its station is a POSIX process group") }, async (t) => {
+    const { racine, env, etat, preparer, configurer, faits } = uneStation(t);
+    aArreter(t, () => tuerLesRelais(etat("brigade")));
+    const { origine, clone } = depotGit(t);
+    const depot = "acme/brigade";
+    const gh = fauxGh(t);
+    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+    gh.repondre(`repos/${depot}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${depot}/pull/40` } });
+    gh.repondre(`repos/${depot}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+    preparer("brigade", { clone: false });
+    // Le cook commite, puis attend qu'on le laisse conclure.
+    const essais = repertoireTemporaire(t);
+    const suite = join(essais, "suite.txt");
+    ecrireSuite(suite, ["commite-puis-attend"]);
+    const feu = join(essais, "feu");
+    configurer(`brigade ${depot} ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
+    const envDeStation = { ...env, FAUX_CLAUDE_SUITE: suite, FAUX_CLAUDE_FEU: feu };
+
+    const premiere = stationOuverte(t, racine, envDeStation);
+    await jusqua(() => faits("brigade", "cook.launched").length === 1);
+    const run = String(faits("brigade", "cook.launched")[0]?.payload.run);
+    const fichierDuPid = join(etat("brigade"), "runs", `${run}.cook.pid`);
+    await jusqua(() => existsSync(fichierDuPid));
+    const pid = Number(readFileSync(fichierDuPid, "utf8"));
+    await jusqua(() => existsSync(join(etat("brigade"), "worktrees", run, "travail.txt")));
+
+    await premiere.arreter();
+    assert.equal(vivant(pid), true);
+
+    stationOuverte(t, racine, envDeStation);
+    await jusqua(() => faits("brigade", "cook.resumed").length === 1);
+    assert.equal(vivant(pid), true);
+    assert.deepEqual(faits("brigade", "cook.interrupted"), []);
+
+    // Laissé conclure, le cook de la première vie livre : sa branche est poussée, sa PR ouverte — sans qu'aucun
+    // cook neuf ne parte. Sa pass, son merge sous grant : reprise.test.ts (« le cook repris finit son travail… »).
+    writeFileSync(feu, "");
+    await jusqua(() => faits("brigade", "cook.reported").length === 1);
+    await mort(pid);
+    assert.deepEqual([faits("brigade", "cook.exited")[0]?.payload.run, faits("brigade", "cook.exited")[0]?.payload.outcome], [run, "ok"]);
+    assert.equal(git(origine, "show", `cook/${run}:travail.txt`), "le travail du cook");
+    assert.ok(gh.appels().some((appel) => appel.at(-1) === `repos/${depot}/pulls` && appel.includes(`head=cook/${run}`)));
+    assert.deepEqual(faits("brigade", "cook.launched").map((e) => e.payload.run), [run]);
+  });
 });
 
 // Chaque test a sa station — racine, configuration, doublures — sur le port 0 : ils se jouent de front.
 describe("la station, son process", { concurrency: 3 }, () => {
-  test("le process de la station : sous ses portes, il sert sa configuration, et sa sortie est le seul journal de service — ce qu'un projet y écrit de lui-même porte son nom ; ses appels à GitHub vont au compteur de la station, que `status` lit (#1662) ; SIGTERM l'arrête, et arrête ses projets", { skip: posixOnly("starts the station process under its doors' ports file and checks its single output, then stops it with SIGTERM; the expected startup line is a RegExp built from a Windows path, whose backslashes it reads as escapes, and SIGTERM kills the station before its handler runs, so neither exit code 0 nor the SIGTERM stop facts can come") }, async (t) => {
-    const { racine, env, preparer, configurer, relire, faits } = uneStation(t);
-    // Le `gh` d'espace ne répond rien : son sondage échoue, et la ligne qui le dit porte son nom.
-    const espace = fauxGh(t);
-    preparer("espace");
-    configurer(`espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+  // Ce que seul le point d'entrée câble, lu sans qu'aucune cuisine ne s'ouvre : ses portes, son compteur, son arrêt.
+  test("le process de la station : sous ses portes, ses projets reçoivent la leur ; ses appels à GitHub vont au compteur de la station (#1662) ; SIGTERM l'arrête", { skip: posixOnly("starts the station process under its doors' ports file, then stops it with SIGTERM; the expected startup line is a RegExp built from a Windows path, whose backslashes it reads as escapes, and SIGTERM kills the station before its handler runs, so exit code 0 cannot come") }, async (t) => {
+    const { racine, env, configurer } = uneStation(t);
     // Le fichier des ports, tel que les portes l'écrivent : la station n'attend pas la sienne. Le process des portes
     // qui l'écrit : portes.test.ts (« le process des portes, tel que son unité le lance… ») ; la station et ses portes
     // lancées ensemble par leurs unités : paquet/paquet.test.ts ; qu'elle attende sa porte, et le dise : portes.test.ts.
     const fichierDesPortes = join(racine, "portes.json");
-    ecrirePortes(fichierDesPortes, { station: 41000, projets: { espace: 41002 } });
+    ecrirePortes(fichierDesPortes, { station: 41000, projets: {} });
+    // Une ligne qui nomme sa porte : sous les portes — et seulement sous elles —, la station la refuse avant
+    // d'ouvrir quoi que ce soit. Que chaque projet reçoive la sienne : « deux projets dans la configuration… », plus haut.
+    configurer("espace acme/espace main BRIGADE_PROXY_PORT=3128\n");
     const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichierDesPortes });
     await station.attendre("station démarrée");
-    const pid = station.process.pid;
+    assert.match(station.sortie(), new RegExp(`station démarrée — pid ${station.process.pid}, configuration ${join(racine, "projets")} ; aucun projet servi`));
+    assert.match(station.sortie(), /brigade \[espace\] : refusé par la station, les autres projets restent servis — BRIGADE_PROXY_PORT ne se règle pas sur sa ligne/);
 
-    assert.match(station.sortie(), new RegExp(`station démarrée — pid ${pid}, configuration ${join(racine, "projets")} ; 1 projet servi : espace`));
-    assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, pid);
-    // Sa porte est celle que les portes lui ont ouverte.
-    await jusqua(() => faits("espace", "isolation.configured").length > 0);
-    assert.equal((faits("espace", "isolation.configured")[0]?.payload.proxy as { port: number }).port, 41002);
-    await station.attendre("brigade [espace] : sondage GitHub en échec");
-    assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
-    // Ses appels à GitHub, comptés au compteur de la station : `status` le lit, et compte celui des tableaux
-    // (le compte exact : tableau/budget/cout.test.ts).
-    const commande = appeler(status, [], { BRIGADE_STATE_DIR: join(racine, "etat", "espace"), BRIGADE_STATION_DIR: racine });
-    assert.equal(await commande.fin, 0, commande.sortie());
-    assert.match(commande.sortie(), /board cost\s+\d+ calls? per hour, all projects/);
+    // Sa présence publiée sur GitHub, l'appel est compté au compteur de la station — celui que `status` lit
+    // (tableau/budget/cout.test.ts).
+    await station.attendre("station à appairer");
+    const compteur = limiteDeLaStation(racine);
+    try {
+      assert.ok(compteur.appels() > 0);
+    } finally {
+      compteur.fermer();
+    }
 
     station.process.kill("SIGTERM");
     assert.equal(await station.fin, 0);
-    assert.deepEqual(relire("espace").at(-1)?.payload, { signal: "SIGTERM" });
     assert.match(station.sortie(), /station arrêtée \(SIGTERM\)/);
+  });
+
+  test("le process de la station : sa sortie est le seul journal de service — ce qu'un projet y écrit de lui-même porte son nom", { skip: posixOnly("starts the station process with one project whose gh fails, and reads its output; the fake gh is a bash script") }, async (t) => {
+    const { env, preparer, configurer, faits } = uneStation(t);
+    // Le `gh` d'espace ne répond rien : son sondage échoue, et la ligne qui le dit porte son nom.
+    const espace = fauxGh(t);
+    preparer("espace");
+    configurer(`espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    const station = lancer(t, STATION, [], env);
+    await station.attendre("brigade [espace] : sondage GitHub en échec");
+    assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
+    assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, station.process.pid);
   });
 
   test("le process de la station relit sa configuration sur SIGHUP, sans attendre sa minuterie ; arrêté par SIGTERM, il l'écrit sur son enregistrement", { skip: posixOnly("rereads the station's configuration on SIGHUP, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
