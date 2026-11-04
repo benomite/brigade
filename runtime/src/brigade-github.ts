@@ -229,6 +229,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, etatBase);
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
+      if (etat === "pass" && pr !== null && pr.enConflit === true) {
+        // En conflit avec la base : ni la mise à jour ni le merge ne passent, et
+        // rien d'autre ne la débloque. Elle repart à un cook, qui la remet sur la
+        // base (#2209).
+        try {
+          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit");
+        } catch (erreur) {
+          avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+        continue;
+      }
       if (etat === "pass" && pr !== null) {
         // Une livraison qui touche à ce qui la juge (gates, CI, réglages) ne se
         // merge pas sur le seul verdict du reviewer : un cook pourrait s'y rendre

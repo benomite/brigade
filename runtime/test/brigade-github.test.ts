@@ -20,7 +20,7 @@ import { jusqua } from "./outils.ts";
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
 type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
-type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; mergeePar: string | null; fichiers: string[] };
+type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; mergeePar: string | null; fichiers: string[] };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
 // de la station qui le fait, et rend la main avant de répondre, pour que deux
@@ -175,7 +175,7 @@ class FauxGitHub {
         this.cuissons.push({ station: nom, issue: ticket.number });
         // Un renvoi : le cook pousse sur la branche de la PR ouverte, sa tête change.
         const ouverte = this.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
-        if (ouverte !== undefined) ouverte.sha = this.sha();
+        if (ouverte !== undefined) Object.assign(ouverte, { sha: this.sha(), enConflit: false });
         return { branche: brancheDuTicket(ticket.number) };
       },
       juger:
@@ -441,6 +441,24 @@ test("a head already sent back is not sent back again, even if a stale list stil
   await a.tour();
   const renvois = (faux.commentaires.get(34) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
   assert.equal(renvois.length, 1);
+});
+
+test("a delivery that conflicts with the base goes back to a cook to merge the base in, then merges (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(36);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.enConflit = true;
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvoi = (faux.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /conflicts with the base/);
+  assert.equal(faux.mergee(36)?.mergeePar, "A");
 });
 
 test("tickets are taken in prio order, then oldest first (#2209)", async () => {

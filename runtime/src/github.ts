@@ -59,6 +59,8 @@ export type PR = {
   state: "open" | "closed";
   merged: boolean;
   enRetard: boolean;
+  // Sa branche ne se fusionne pas avec la base : un conflit, que seul un cook résout.
+  enConflit?: boolean;
   mergeePar: string | null;
   // Ce qui change dès que GitHub change quoi que ce soit à la PR — sa tête, sa
   // base, ce qu'il dit de sa fusion — : l'ETag de sa fiche. Absent s'il n'en
@@ -525,6 +527,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         state: brute.state,
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
         enRetard: brute.mergeable_state === "behind",
+        ...(brute.mergeable_state === "dirty" ? { enConflit: true } : {}),
         mergeePar: brute.merged_by?.login || null,
         ...(version ? { version } : {}),
       };
