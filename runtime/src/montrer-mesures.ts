@@ -11,7 +11,9 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
+import { direLeReleveGitHub, releveGitHubDeLaStation } from "./mesures-github.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
+import { describeCallsPerTicket, measureCallsPerTicket, type PerTicket } from "./mesures/appels-par-ticket.ts";
 import { ciDurationSection } from "./measures/ci-duration.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
 import { decrireRejeux, lireRejeux, mesurerRejeux } from "./tests-rejoues.ts";
@@ -53,6 +55,15 @@ try {
   for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) console.log(ligne);
   console.log("");
   for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) console.log(ligne);
+  // The ledger snapshot (`perTicket`) comes from `github/budget-appels.ts`, which is not on main yet:
+  // until it lands every merged ticket reads as unknown.
+  const perTicket: PerTicket = {};
+  console.log("");
+  for (const ligne of describeCallsPerTicket(measureCallsPerTicket(mergedDeliveries(base), perTicket))) console.log(ligne);
+  // Rien de relevé, c'est aucune minute limitée et aucune écriture.
+  const github = releveGitHubDeLaStation(process.env.BRIGADE_STATION_DIR, Date.now()) ?? { minutesLimitees: 0, pointEcritures: 0 };
+  console.log("");
+  for (const ligne of direLeReleveGitHub(github)) console.log(ligne);
   const ci = await ciDurationSection(process.env.BRIGADE_GITHUB_REPO);
   if (ci.length > 0) console.log("");
   for (const ligne of ci) console.log(ligne);

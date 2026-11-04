@@ -115,3 +115,11 @@ test("le tableau publie la dernière réponse de chaque créneau, tant qu'elle a
   avancer(GARDE_MS + 1);
   assert.equal(distantesDuTableau(journal.base, new Date(INSTANT + GARDE_MS + 1)), null);
 });
+
+test("la raison d'une livraison en échec passe le gist en entier, bien au-delà de deux cents caractères", () => {
+  const raison = `push: ${"git a dit non. ".repeat(100)}`;
+  const fichiers = poserLaDemande(posee({ demande: { verb: "deliver", run: "run-1", ending: "failed", reason: raison, message: null, turns: 1, tokens: 1 } }));
+  const [lue] = demandesDuGist(fichiers, DEPOT);
+  assert.ok(lue?.demande.verb === "deliver");
+  assert.equal(lue.demande.reason, raison);
+});

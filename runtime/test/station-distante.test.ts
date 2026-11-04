@@ -342,7 +342,9 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     const { gh, etat, tirer, reclamer, jusquAu, dernier, compter } = service(t, { stations: lireStations({ BRIGADE_STATIONS: `${MAC}:2:chrome-connecté:distante` }) });
     poser(gh, 16, "- requiert : chrome-connecté");
     poser(gh, 17, "- requiert : chrome-connecté");
-    await jusqua(() => etat(16) === "86" && etat(17) === "86");
+    poser(gh, 18, "- requiert : chrome-connecté");
+    poser(gh, 19, "- requiert : chrome-connecté");
+    await jusqua(() => [16, 17, 18, 19].every((n) => etat(n) === "86"));
     await tirer({ verb: "announce" });
     const [delimite, bavard] = [await reclamer(), await reclamer()];
 
@@ -358,6 +360,20 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     const tard = await tirer({ verb: "deliver", run: delimite.run, ending: "delivered", reason: null, message: null, turns: 1, tokens: 10 });
     assert.deepEqual([tard.ok, !tard.ok && tard.refusal], [false, "stopped"]);
     assert.equal(compter("cook.exited"), 2);
+    // Un push refusé sur la station : le commentaire du ticket porte ce que git a dit, en entier dans un bloc
+    // de code ; une raison courte se lit comme avant.
+    const [long, court] = [await reclamer(), await reclamer()];
+    const dit = `remote: ${"refus ".repeat(80)}\n! [remote rejected] branche -> branche (hook declined)`;
+    await tirer({ verb: "deliver", run: long.run, ending: "failed", reason: `push: ${dit}`, message: null, turns: 1, tokens: 10 });
+    await tirer({ verb: "deliver", run: court.run, ending: "failed", reason: "push: git push : rejected", message: null, turns: 1, tokens: 10 });
+    // Un ticket rendu peut être repris : le commentaire se trouve par la branche du run, non par le numéro.
+    const de = (cook: { branch: string }) => gh.commentaires.find(([, corps]) => corps.startsWith("**Cook") && corps.includes(`échoué (push`) && corps.includes(cook.branch))?.[1] ?? "";
+    await jusqua(() => de(long) !== "" && de(court) !== "");
+    assert.ok(de(long).includes(`\`\`\`\n${dit}\n\`\`\``), "toute la sortie de git est dans un bloc de code");
+    assert.match(de(long), /échoué \(push\)/);
+    assert.ok(!de(long).includes("…"));
+    assert.match(de(court), /échoué \(push: git push : rejected\)/);
+    assert.ok(!de(court).includes("```"));
   });
 
   test("absente, elle ne retient que les tickets qui la demandent : ils sont 86 « station absente », sans cook ni panne, et les autres partent — dans le même lot", async (t) => {

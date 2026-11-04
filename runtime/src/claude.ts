@@ -78,10 +78,12 @@ export function environnementCook(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return { ...Object.fromEntries(garde), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
 }
 
-// Où le cook lit son ticket. Par `gh`, sous l'identité de la machine ; ou dans
+// Où le cook lit son ticket. Par `gh`, sous l'identité de la machine ; dans
 // le fichier que la station lui remet (`remis`), quand chaque rôle a son
-// identité GitHub et que le cook n'en a aucune.
-export function lectureDuTicket(mission: { ticket: number; depot: string; remis?: string }): string {
+// identité GitHub et que le cook n'en a aucune ; ou dans sa consigne même
+// (`joint`, `bac-a-sable/hors-github.ts`).
+export function lectureDuTicket(mission: { ticket: number; depot: string; remis?: string; joint?: string }): string {
+  if (mission.joint !== undefined) return "ci-dessus, entre `<ticket>` et `</ticket>`, où la station te l'a remis avec sa fiche et ses derniers commentaires (tu n'as aucun accès à GitHub : `gh` ne te répondra pas, ne le lance pas)";
   return mission.remis === undefined
     ? `\`gh issue view ${mission.ticket} --repo ${mission.depot} --comments\``
     : `le fichier \`${mission.remis}\`, où la station te l'a remis avec ses commentaires (tu n'as aucun accès à GitHub : \`gh\` ne te répondra pas)`;
@@ -138,7 +140,7 @@ export function blocDuSetup(setup: SetupEnEchec | undefined): string[] {
 // Le profil du cook, en dur au jalon 1. `lecons` : celles du projet qu'il
 // reçoit (`apprentissage/injection.ts`). `carnet` : celui du profil sous
 // lequel il part, s'il en a un (`profils/preference.ts`).
-export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string }): string {
+export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string }): string {
   const { ticket, titre, depot, base } = mission;
   return [
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
@@ -147,12 +149,13 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     ...blocDuCarnet(mission.carnet),
     ...blocDesGates(mission.gates),
     ...blocDuSetup(mission.setup),
+    ...(mission.joint === undefined ? [] : [mission.joint, ""]),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
+    `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis ?? mission.joint)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");

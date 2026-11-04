@@ -14,12 +14,10 @@ import type { Check } from "../../events/pass.ts";
 import type { IssueOuverte } from "../../github.ts";
 import { LABELS_REPARATION, marqueDeReparation, shaDeReparation } from "../../reparation.ts";
 
-export type CheckDeLaBase = Pick<Check, "outcome"> & { name?: string };
+export type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
 
 // Ce que le contrôle lit et écrit de GitHub.
 export type GitHubDeLaBase = {
-  // Les checks du dernier commit de la branche d'intégration.
-  checksDeLaBase(): Promise<CheckDeLaBase[]>;
   // Le dernier commit de la branche d'intégration.
   teteDeLaBase(): Promise<string>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, avec leur corps.
@@ -119,10 +117,9 @@ export function controleDeLaBase({ github, base, maintenant = () => new Date() }
     return ouverture;
   };
 
-  // Lit la base ; rouge, s'assure que son rouge a un ticket de réparation. Si
+  // Lit les checks de la base ; rouges, s'assure que son rouge a un ticket de réparation. Si
   // GitHub refuse la création, l'erreur est rendue : le tour suivant la retente.
-  return async (): Promise<ControleDeLaBase> => {
-    const checks = await github.checksDeLaBase();
+  return async (checks: CheckDeLaBase[]): Promise<ControleDeLaBase> => {
     const etat = etatDeLaBase(checks);
     if (etat !== "red") return { etat, sha: null, reparation: null };
     const sha = await github.teteDeLaBase();

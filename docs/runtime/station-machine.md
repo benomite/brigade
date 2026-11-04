@@ -101,7 +101,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   s`). `status` says it on its `github` line (`the box holds its own calls to keep the reserve for your
   gestures, back around HH:MM`); "GitHub is rate-limiting calls" is kept for when GitHub itself refused.
 - **The chef's gestures are never held by the box.** `rail` (remove, merge, send-back, choose, answer),
-  `pass <ticket> issue|comment|ask` and `manager` fail only if GitHub refuses. They are counted, and
+  `pass <ticket> issue|comment` and `manager` fail only if GitHub refuses. They are counted, and
   spend the reserve.
 - **Shared, not split.** The counter is a SQLite database,
   `<BRIGADE_STATION_DIR>/appels-github/compteur.db`, held together by the station and its projects: they
@@ -123,9 +123,21 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **Writes are paced (#2145).** GitHub's secondary limits cap writes (about 80 a minute and 500 an
   hour per account). Every kitchen write (`gh api` with a method other than GET, or with fields) goes
   through the same counter, per account and for all the station's projects together: at most
-  `ECRITURES_PAR_MINUTE` (30) in any sliding minute and `ECRITURES_PAR_HEURE` (300) in any sliding hour
+  `ECRITURES_PAR_MINUTE` (60) in any sliding minute and `ECRITURES_PAR_HEURE` (450) in any sliding hour
   (`runtime/src/limite-github.ts`). A write over budget does not fail and is not counted: it waits for
   the oldest write of the full window to leave it, then goes. Reads and the chef's gestures are never paced.
+  While writes wait, the pacer says it (#2226): `status` carries a `github` line, `held by the GitHub write
+  budget — N of 450 in the last hour, next write at HH:MM` (N counts the account's writes of the hour;
+  the time is the earliest the next write can go), the app's project view shows the same line, and the
+  station's service log says it once when the hold starts (`brigade : écritures GitHub retenues par le
+  budget — …`) and once when the last waiting write goes (`brigade : écritures GitHub reprises …`).
+- **One queue, four in flight (#2195).** All the station's projects share, in its process, one queue of
+  kitchen calls in arrival order: at most `REQUETES_EN_VOL` (4) GitHub requests are in flight at once, and
+  a freed place goes to the first arrival that can take it. A write the pace holds never lets a later
+  write of the same account pass it, whatever its project; a read is not held behind it. Waiting writes
+  have no timer of their own: the queue holds a single wake-up, at the instant the pace frees its next
+  place. A chef's gesture never waits for a place, but holds one while in flight. A process outside the
+  station (a command) keeps its own queue, under the same shared counter.
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
   (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind (`issue-comments`,
   `pull-requests`, `issues`, `gist`, `gesture`, `board` for the Kitchen board's refresh, `other`) over the
@@ -136,9 +148,12 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **Repeated reads cost nothing while nothing changes (#1419).** Every read the kitchen repeats (an
   issue, its comments, its events, a PR list and detail, its CI, a diff, the station's gist) is asked
   again with the ETag of its last answer (`If-None-Match`). While nothing changed GitHub answers 304,
-  which it does not count: the box takes the call out of its counter and uses the answer it kept. The
-  last page of a full list and `issuesDepuis` (`since=`) stay unconditional. Two identical simultaneous
-  reads make one call. Kept answers live in memory, bounded to 32 MB.
+  which it does not count: the box takes the call out of its counter and uses the answer it kept. A
+  polled list of several pages (the open issues past 100) is asked again page by page, each under its
+  own ETag, and is "unchanged" when every page is (#2198); `issuesDepuis` (`since=`) is conditional
+  too, so the open breaker's tick, which asks the same instant again, costs nothing. Only the last page
+  of a full list stays unconditional. Two identical simultaneous reads make one call. Kept answers live
+  in memory, bounded to 32 MB.
 - **What the chef sees.** During the pause, `status` writes a head line `github     GitHub is
   rate-limiting calls, back around HH:MM`, and `faits` carries `limiteGithub` (resumption instant, ISO;
   absent outside a limit). Both read the pause on the counter, read-only, through `BRIGADE_STATION_DIR`

@@ -60,6 +60,7 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     ordinary: false,
     alongside: false,
     sandbox: null,
+    unstartable: null,
   });
 });
 
