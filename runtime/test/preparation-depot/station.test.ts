@@ -1,7 +1,9 @@
-// Le ticket qui prépare le dépôt, sur une vraie station — un seul process,
-// `station/main.ts` —, dont GitHub est un faux `gh` : tant qu'il n'est pas
-// servi, la cuisine du projet ne prend que lui, même quand un ticket plus
-// ancien attend ; servi, elle prend les autres.
+// Le ticket qui prépare le dépôt, sur une vraie station — celle que
+// `station/main.ts` ouvre, jouée ici dans le process du test —, dont GitHub
+// est un faux `gh` : tant qu'il n'est pas servi, la cuisine du projet ne prend
+// que lui, même quand un ticket plus ancien attend ; servi, elle prend les
+// autres. Le process de la station et son arrêt sur SIGTERM s'éprouvent dans
+// station/main.test.ts.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,13 +11,12 @@ import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
-import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
-import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
-import { posixOnly } from "../support/plateforme.ts";
+import { ouvrirCuisine, type Cuisine } from "../../src/station/cuisine.ts";
+import { ouvrirStation } from "../../src/station/station.ts";
+import { aArreter, BASE, depotGit, ecrireSuite, ENV_ENFANT, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const DEPOT = "acme/shop";
 // Le ticket du chef, plus ancien : sans préparation, c'est lui qui partirait le premier.
 const DU_CHEF = 15;
@@ -29,7 +30,6 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   mkdirSync(compte);
   const etat = join(racine, "etat/shop");
   mkdirSync(etat, { recursive: true });
-  aArreter(t, () => tuerLesRelais(etat));
   // Ce que la station a fait en ajoutant le projet depuis l'app : les décisions
   // du parcours au journal, et le ticket qui prépare le dépôt.
   const journal = ouvrirJournal(etat);
@@ -60,20 +60,33 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   // Chaque cook commite, puis attend : il tient son ticket tant que le test dure.
   const suite = join(repertoireTemporaire(t), "suite.txt");
   ecrireSuite(suite, ["commite-puis-attend", "commite-puis-attend"]);
-  const gists = repertoireTemporaire(t);
-  const station = lancer(t, STATION, [], {
-    ...ENV_GIT,
-    BRIGADE_GH_BIN: FAUX_GH_GISTS,
-    FAUX_GISTS: gists,
-    HOME: compte,
-    BRIGADE_STATION_DIR: racine,
-    BRIGADE_STATION_NOM: "box",
-    BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
-    FAUX_CLAUDE_SUITE: suite,
-    BRIGADE_MAX_LOAD_PER_CORE: "1000000",
-    BRIGADE_MIN_FREE_MEMORY_MB: "0",
-    BRIGADE_MIN_FREE_DISK_MB: "0",
+  const dits: string[] = [];
+  const cuisines: Cuisine[] = [];
+  const station = ouvrirStation({
+    racine,
+    env: {
+      ...ENV_ENFANT,
+      ...ENV_GIT,
+      HOME: compte,
+      BRIGADE_STATION_NOM: "box",
+      BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
+      FAUX_CLAUDE_SUITE: suite,
+      BRIGADE_MAX_LOAD_PER_CORE: "1000000",
+      BRIGADE_MIN_FREE_MEMORY_MB: "0",
+      BRIGADE_MIN_FREE_DISK_MB: "0",
+    },
+    dire: (ligne) => void dits.push(ligne),
+    ouvrir: (env, options) => {
+      const cuisine = ouvrirCuisine(env, options);
+      cuisines.push(cuisine);
+      return cuisine;
+    },
   });
+  aArreter(t, async () => {
+    station.arreter("fin du test");
+    for (const cuisine of cuisines) await cuisine.arretee?.();
+  });
+  aArreter(t, () => tuerLesRelais(etat));
   const faits = (type: string) => {
     const lu = ouvrirJournal(etat, { lectureSeule: true });
     try {
@@ -82,12 +95,12 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
       lu.fermer();
     }
   };
-  return { station, faits };
+  return { dits, faits };
 }
 
-test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("starts the real station with the repository-preparation ticket #20 open and checks only it is taken while the older #15 waits, then expects exit code 0 on SIGTERM; on Windows kill('SIGTERM') terminates the station outright, before its handler runs, so the exit code is null") }, async (t) => {
-  const { station, faits } = uneStation(t, "ouverte");
-  await station.attendre("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
+test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", async (t) => {
+  const { dits, faits } = uneStation(t, "ouverte");
+  await jusqua(() => dits.some((ligne) => ligne.includes("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge")));
   await jusqua(() => faits("cook.launched").length === 1);
   // Une prise et la suivante se font d'un trait, avant que le premier cook ne
   // soit lancé : l'autre ticket, s'il pouvait partir, serait déjà pris.
@@ -99,19 +112,15 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
     faits("ticket.arrived").map((evenement) => evenement.ticket).sort(),
     [DU_CHEF, PREPARATION],
   );
-  station.process.kill("SIGTERM");
-  assert.equal(await station.fin, 0);
 });
 
-test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("starts the real station with the repository-preparation ticket already served and checks #15 is taken next, then expects a clean exit on SIGTERM; on Windows kill('SIGTERM') ends the station at once without running its handler, so it exits with no code") }, async (t) => {
-  const { station, faits } = uneStation(t, "servie");
+test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", async (t) => {
+  const { faits } = uneStation(t, "servie");
   await jusqua(() => faits("cook.launched").length === 1);
   assert.deepEqual(
     faits("ticket.taken").map((evenement) => evenement.ticket),
     [PREPARATION, DU_CHEF],
   );
-  station.process.kill("SIGTERM");
-  assert.equal(await station.fin, 0);
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
