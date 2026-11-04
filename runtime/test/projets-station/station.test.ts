@@ -2,7 +2,8 @@
 // le gist de son enregistrement (#1707) : sans sélection, son journal de
 // service dit qu'elle ne sert aucun projet ; un dépôt choisi, elle le prend en
 // main et en publie le suivi dans le même gist. GitHub est la doublure des
-// gists du compte ; `SIGHUP` lui fait relire tout de suite, sans attendre sa cadence.
+// gists du compte — derrière un frontal qui refuse en shell ce qui n'est pas un
+// gist ; `SIGHUP` lui fait relire tout de suite, sans attendre sa cadence.
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,13 +12,13 @@ import { FICHIER_SELECTION } from "../../src/enregistrement-station/contrat.ts";
 import { FICHIER_LOCAL } from "../../src/enregistrement-station/enregistrer.ts";
 import { FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { AUCUN_PROJET } from "../../src/projets-station/source.ts";
-import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
-import { ENV_GIT, FAUX_CLAUDE, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { ENV_GIT, FAUX_CLAUDE, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
+const GH = join(import.meta.dirname, "gh-de-la-station.sh");
 
 type Gist = { files: Record<string, { filename: string; content: string }> };
 
@@ -31,7 +32,7 @@ test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un d�
   mkdirSync(compte);
   const station = lancer(t, STATION, [], {
     ...ENV_GIT,
-    BRIGADE_GH_BIN: FAUX_GH_GISTS,
+    BRIGADE_GH_BIN: GH,
     FAUX_GISTS: gists,
     HOME: compte,
     BRIGADE_STATION_DIR: racine,
@@ -61,12 +62,9 @@ test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un d�
 
   // Ce qu'elle en fait, elle le publie à côté de son enregistrement : la doublure
   // ne clone rien, mais le projet est le sien.
-  for (;;) {
-    const suivi = lire().files[FICHIER_SUIVI]?.content;
-    if (suivi !== undefined && (JSON.parse(suivi) as { projets: Array<{ nom: string }> }).projets.some(({ nom }) => nom === "shop")) break;
-    assert.equal(station.process.exitCode, null, station.sortie());
-    await new Promise((resoudre) => setTimeout(resoudre, 50));
-  }
+  const suivi = () => lire().files[FICHIER_SUIVI]?.content;
+  await jusqua(() => (JSON.parse(suivi() ?? '{"projets":[]}') as { projets: Array<{ nom: string }> }).projets.some(({ nom }) => nom === "shop"));
+  assert.equal(station.process.exitCode, null, station.sortie());
   // La sélection reste celle de l'app.
   assert.match(lire().files[FICHIER_SELECTION]?.content ?? "", /"acme\/shop"/);
 });
