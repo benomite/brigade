@@ -29,9 +29,10 @@ const PLAFONDS_DU_TEST = { durationMs: 6 * 3_600_000, idleMs: 6 * 3_600_000 };
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
 // Une cuisine à deux stations dont le premier cook — celui de `box/claude`,
-// la première déclarée — ne démarre pas.
-async function sansDemarrer(t: TestContext) {
-  const lieu = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["ne-demarre-pas"], plafonds: PLAFONDS_DU_TEST, issues: [issue(14)] });
+// la première déclarée — ne démarre pas. `relais` : ses cooks survivent au
+// runtime, pour le test qui le redémarre.
+async function sansDemarrer(t: TestContext, relais = false) {
+  const lieu = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["ne-demarre-pas"], plafonds: PLAFONDS_DU_TEST, issues: [issue(14)], relais });
   await jusqua(() => lieu.journal.tout().some((e) => e.type === "station.unstartable"));
   return lieu;
 }
@@ -81,7 +82,8 @@ describe("une station dont un cook n'a pas pu démarrer", () => {
   });
 
   test("redémarrée, elle reprend : le ticket qui attendait part chez elle", async (t) => {
-    const premiere = await sansDemarrer(t);
+    // Par un relais : le cook de l'autre station survit au runtime, et la vie suivante le reprend.
+    const premiere = await sansDemarrer(t, true);
     premiere.gh.poser(issue(15));
     await jusqua(() => etatStation(premiere.journal.base, CLAUDE)?.heldReason === "unstartable");
     premiere.runtime.arreter("test");
