@@ -30,8 +30,8 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
-import { lacher, prendre } from "./github-etat/prise.ts";
+import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -45,16 +45,19 @@ export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
 // personne ne tient le ticket, et y pose `taken` si elle l'emporte ; `lacher`
-// la retire.
+// la retire ; `purger` retire le `taken` que personne ne tient plus (facultatif :
+// une prise sans `purger` ne purge pas).
 export type Prise = {
   prendre(issue: Pick<Issue, "number" | "labels">): Promise<{ prise: boolean }>;
   lacher(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
+  purger?(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
 };
 
 // La prise de #2056, liée à la station et au client du tour.
 export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise => ({
   prendre: (issue) => prendre(issue, { github, station }),
   lacher: (issue) => lacher(issue, { github, station }),
+  purger: (issue) => purger(issue, { github }),
 });
 
 // Ce que le tour lit et écrit de GitHub : ce que demandent la relecture et le
@@ -228,7 +231,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const tour = async () => {
     const checksDeLaBase = await github.checksDeLaBase();
-    const etatBase = etatDeLaBase(checksDeLaBase);
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -236,9 +238,22 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
-      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, etatBase);
+      // La base ne gèle pas tout le pass : elle ne retient une livraison que
+      // rouge sur un check que cette livraison doit elle-même passer (#2279).
+      const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, null);
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
+      if (etat === "pass" && pr !== null && pr.enConflit === true) {
+        // En conflit avec la base : ni la mise à jour ni le merge ne passent, et
+        // rien d'autre ne la débloque. Elle repart à un cook, qui la remet sur la
+        // base (#2209).
+        try {
+          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit");
+        } catch (erreur) {
+          avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+        continue;
+      }
       if (etat === "pass" && pr !== null) {
         // Une livraison qui touche à ce qui la juge (gates, CI, réglages) ne se
         // merge pas sur le seul verdict du reviewer : un cook pourrait s'y rendre
@@ -253,6 +268,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           }
           continue;
         }
+        // Un workflow qui ne tourne que sur la base (les tests Windows) n'a pas
+        // de check sur la PR : rouge, il ne la retient pas.
+        const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
+        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name))) continue;
         try {
           const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
@@ -276,6 +295,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Au premier tour, un `taken` sans cook ici est peut-être une prise
       // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
       if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);
+      // À chaque tour, un `taken` que personne ne tient — le retrait d'un
+      // lâcher a échoué, ici ou sur une autre station — perd son label : le
+      // ticket redevient libre au tour suivant. Un ticket en pass, en vol ici
+      // ou déjà à rendre n'est pas un orphelin.
+      if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !aRendre.has(ticket.number)) {
+        try {
+          await prise.purger?.(ticket);
+        } catch (erreur) {
+          avertir(`brigade : purge du \`taken\` de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        }
+      }
     }
     premierTour = false;
     for (const [numero, ticket] of aRendre) {
@@ -388,10 +418,6 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 }
 
 // Le client du tour, sur le client GitHub du runtime (`github.ts`).
-// Les checks de la base qui disent son état : tous, sauf les tests Windows,
-// qui ne tournent que sur elle et n'y bloquent rien (#2087).
-export const checksQuiJugentLaBase = <C extends { name: string }>(checks: C[]): C[] => checks.filter((check) => !check.name.startsWith("windows "));
-
 export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { mettreAJour } = github;
   const { retraitsDeLabels } = github;
@@ -412,7 +438,7 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
     // Les tests Windows ne tournent que sur la base, et n'y bloquent rien
     // (#2087) : rouges, ils ne gèlent pas la cuisine.
-    checksDeLaBase: async () => checksQuiJugentLaBase(await github.ci(base)),
+    checksDeLaBase: () => github.ci(base),
     ci: (sha) => github.ci(sha),
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
     prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
