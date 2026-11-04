@@ -184,6 +184,7 @@
 0.8	test/zone-du-86.test.ts
 0.8	test/installation/clone/clone.test.ts
 0.8	test/garde-duree/garde-duree.test.ts
+0.8	test/github-seul-etat.test.ts
 0.7	test/mesures-github.test.ts
 0.6	test/projets-station/selection.test.ts
 0.6	test/second/lancement.test.ts

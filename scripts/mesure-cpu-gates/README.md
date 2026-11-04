@@ -63,21 +63,21 @@ The launcher alone left the suite at about 616 s of CPU. The rest came from the 
 
 ### Before and after, on the station (2026-11-04)
 
-The box station: Intel Xeon E5-1620 v2 at 3.7 GHz, 4 physical cores, 8 threads, shared with the other worktrees' cooks (the load at the start of each pass is in the table; it never fell under 7). Both passes on the same base, in the same hour:
-- **Before** is the branch's base, `origin/main` at `0ac4994`, extracted with `git archive` and played by `SUITE_RUNTIME_AVANT=1 SUITE_RUNTIME_DIR=… suite-runtime.sh`: the exact command of `npm test`.
-- **After** is this branch, played by `suite-runtime.sh`.
+The box station: Intel Xeon E5-1620 v2 at 3.7 GHz, 4 physical cores, 8 threads, shared with the other worktrees' cooks (the load at the start of each pass is in the table). Both passes on the same base, a minute apart:
+- **Before** is the branch's base, `origin/main` at `abd1206`, extracted with `git archive` and played by `SUITE_RUNTIME_AVANT=1 SUITE_RUNTIME_DIR=… suite-runtime.sh`: the exact command of `npm test`.
+- **After** is this branch merged with that base, played by `suite-runtime.sh`.
 
 | Whole runtime suite | Before (`npm test`) | After (`suite-runtime.sh`) |
 |---|---|---|
-| Wall clock | 450.7 s | **74.1 s** |
-| CPU (user + system) | 979.9 s | **459.3 s** |
-| Tests run | 4564 | **4566** |
-| Passed / failed / skipped | 4552 / 6 / 6 | 4560 / 0 / 6 |
-| Load at the start (1 min) | 7.55 (20.6 during the pass) | 11.55 |
+| Wall clock | 183.2 s | **73.8 s** |
+| CPU (user + system) | 792.1 s | **459.2 s** |
+| Tests run | 4569 | **4571** |
+| Passed / failed / skipped | 4558 / 5 / 6 | 4565 / 0 / 6 |
+| Load at the start (1 min) | 4.52 | 3.88 |
 
-The six failures before are the measure's, not the base's: the five `enrolement/commande.test.ts` tests, which need a git checkout and fail in an extracted tree, and `mise-a-jour/machine.test.ts`, whose serial scenarios went past their limit under the load (97 s). `diff` of the two `tests.txt`: two tests more after (`npm run` on an old script name, and one in `garde-duree.test.ts` for the 2 s rule's bisection, which this branch brought), four tests renamed (the two that prove less, and two in `commandes.test.ts`), **none gone**.
+The five failures before are the measure's, not the base's: the five `enrolement/commande.test.ts` tests need a git checkout and fail in an extracted tree. `diff` of the two `tests.txt`: two tests more after (`npm run` on an old script name, and one in `garde-duree.test.ts` for the 2 s rule's bisection, which this branch brought), four tests renamed (the two that prove less, and two in `commandes.test.ts`), **none gone**.
 
-Earlier passes of the same branch today, on the same box, before the 19 files `main` added entered `durees.tsv` (unknown, they ran alone): 84.6 s and 104.6 s, with 509 and 487 s of CPU. Larger batches (files under 6 s, batches of 12 s) were tried after: 77.8 s and 458.7 s of CPU, no gain, dropped. The wall clock follows the load the other worktrees put on the box. The CPU does not.
+Four other passes of the branch in the same half hour, on the same box: 75.5, 75.7, 75.9 and 77.4 s, with 461 to 470 s of CPU, all green. The wall clock follows the load the other worktrees put on the box. The CPU does not.
 
 The slowest files before, and the slowest after. Each file is played alone, eight at a time (`profil-runtime.sh`, wall s / CPU s, children included; 894 s of CPU over all the files before, 679 s after). The fourth column is its wall clock inside the suite after.
 
@@ -109,9 +109,9 @@ Profiled on this branch by a module preloaded through `NODE_OPTIONS` that writes
 | Processes other than Node (`git`, `sh`, `dpkg-deb`, `script`), and the Node processes started under a stripped environment (the gesture through its fake `sudo`, 11 s for `geste.test.ts`) | about 110 s |
 | The launcher itself (`spec`, TAP and the 2 s reporter on one stream) | 13.5 s |
 
-The wall clock cannot go below **CPU ÷ threads**: 459 ÷ 8 = **57 s** on this box with nothing else running, and the cadence spec holds 38 s of it alone. The measured 74 to 105 s is that bound with the box shared: at a load of 11 to 17 before the suite starts, it gets about 6 of the 8 threads.
+The wall clock cannot go below **CPU ÷ threads**: 459 ÷ 8 = **57 s** on this box with nothing else running, and the cadence spec holds 38 s of it alone. The measured 74 to 77 s is that bound with the box shared: `vmstat` shows the 8 threads busy from start to end (idle 1 to 5 %), the suite getting about 6 of them.
 
-**Under 60 s on this box, shared as it is, would need the CPU under about 360 s, that is 100 s (22 %) less.** What is left is mostly what the tests prove: processes the product itself starts (uninstall under the service account, the gesture through `sudo`, the station's signals), real `git` repositories, and Node's floors on this CPU (`node -e 0` costs about 85 ms of CPU, each module about 0.8 ms). Lazy imports across the runtime's core (`etat.ts` pulls 163 modules, `decisions.ts` 127) would save at best about 100 ms per process, around 20 s here: a product refactor, not a test one.
+**Under 60 s on this box, shared as it is, would need the CPU under about 360 s, that is 100 s (22 %) less.** What is left is mostly what the tests prove: processes the product itself starts (uninstall under the service account, the gesture through `sudo`, the station's signals), real `git` repositories, and Node's floors on this CPU (`node -e 0` costs about 85 ms of CPU, each module about 0.8 ms). Lazy imports across the runtime's core (`etat.ts` pulls 163 modules, `decisions.ts` 127) would save at best about 100 ms per process, around 20 s here: a product refactor, not a test one. A `spawn` from Node forks the whole process: it costs the parent about 0.8 ms of CPU at a small heap, 7 ms at 300 MB, 20 ms at 1 GB (measured on this box); the test processes end at 136 MB on average, 230 MB at most, so it weighs a few seconds, not the 100 s missing.
 
 ### Reading the number
 
