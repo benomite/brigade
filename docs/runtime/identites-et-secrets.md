@@ -94,6 +94,38 @@ a place of its own.
 it, do not copy it into a backup, do not paste it into a log, a comment or an issue. The App IDs are
 not secret, but they stay with the keys they belong to.
 
+### Where a station keeps them
+
+Each station keeps the three Apps in **its own directory**, `<BRIGADE_STATION_DIR>/apps-github/`:
+`<role>.id` and `<role>.pem` for cook, pass and manager. The directory is `700` and each file `600`,
+readable by the station's service account alone. This is the same on the box and on the chef's Mac.
+The app stores one role at a time (`runtime/src/identites-stations.ts`):
+
+```bash
+BRIGADE_STATION_DIR=<station> node src/identites-stations.ts store <role> <App ID> < <key>.pem
+BRIGADE_STATION_DIR=<station> node src/identites-stations.ts show
+```
+
+The key arrives on standard input, never as an argument, and is never printed back: `show` gives each
+role's App ID and whether its key is there. Storing refuses a file that is not a private key, an
+unknown role, one App for two roles, an existing directory open to other accounts (`chmod 700`;
+nothing is written), and a directory inside a git repository or under `BRIGADE_STATE_DIR`,
+`BRIGADE_BACKUP_DIR` or `BRIGADE_REPO_DIR`. The directory sits next to the projects' state (`etat/`),
+never under it, so a backup never copies it. Every line of a key that is read or stored goes into the
+identifiers mask, so journald, the log and the published texts show `[jeton Claude masqué]` instead.
+
+A project opened after the three Apps are stored acts under them: no restart of the station is
+needed for a project not yet open. **No App stored**: the single identity, as before. **Some roles
+stored but not all**, or a directory open to others: the project **refuses to open**, and the
+missing files are named. `BRIGADE_GITHUB_APPS_DIR`, the box's older setting, is still read first when
+it is set.
+
+On the GitHub-only path, every station claims, labels, judges, merges and reads under the **pass**
+App, and opens the cook's PR under the **cook** App. The rail and the manager act under the
+**manager** App. **Still open**: the claim and verdict readers only trust comments from the owner, a
+member or a collaborator. A comment posted by an App (`<app>[bot]`) is likely to count as `NONE`,
+so trusting the project's own Apps there is the next step.
+
 At start the runtime states its mode: `GitHub — une identité par rôle (cook, pass, manager) …` or
 `GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). A badly
 installed App does not refuse the start: journald says so from the first tick (`identité « pass » :
