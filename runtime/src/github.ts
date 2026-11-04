@@ -113,7 +113,7 @@ export type GitHub = {
   prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
-  // Une requête GraphQL de lecture, ses variables en texte : son \`data\`, ou une erreur.
+  // Une requête GraphQL de lecture, ses variables en texte : son `data`, ou une erreur.
   lireGraphql?(requete: string, variables: Record<string, string | number>): Promise<unknown>;
   // Les checks des derniers commits de la branche d'intégration, mis bout à
   // bout : de quoi dire quel job y a déjà été vu vert.

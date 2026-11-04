@@ -463,7 +463,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       if (parGraphql === null) return github.ci(base);
       try {
         instantane = lireInstantane(await parGraphql(REQUETE, { owner: proprietaire as string, repo: nomDuDepot as string, base: `refs/heads/${base}` }));
-        return instantane.base;
+        return instantane.baseIncomplete ? github.ci(base) : instantane.base;
       } catch (erreur) {
         // GitHub qui limite ses appels se dit comme avant ; toute autre panne de
         // la lecture GraphQL laisse ce tour au REST, sans arrêter la cuisine.
@@ -487,9 +487,14 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       if (lue === undefined) return github.prDeBranche(brancheDuTicket(issue));
       return { number: lue.number, url: "", base, sha: lue.sha, state: "open", merged: false, enRetard: lue.enRetard, ...(lue.enConflit ? { enConflit: true } : {}), mergeePar: null, version: lue.version };
     },
-    ci: async (sha) => instantane?.prs.find((pr) => pr.sha === sha)?.ci ?? github.ci(sha),
+    ci: async (sha) => {
+      const lue = instantane?.prs.find((pr) => pr.sha === sha);
+      return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
+    },
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
-    prsOuvertes: async () => (instantane !== null ? instantane.prs.map(({ branche, fichiers }) => ({ branche, fichiers })) : (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers }))),
+    // Des PR ou des fichiers que la requête a tronqués ou mal rendus (un renommage
+    // perd son ancien chemin) : tout se relit en REST, pour ne rien juger de moins.
+    prsOuvertes: async () => (instantane !== null && !instantane.prsTronquees && !instantane.prs.some((pr) => pr.fichiersIncomplets) ? instantane.prs.map(({ branche, fichiers }) => ({ branche, fichiers })) : (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers }))),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang
     // départage, comme leur id, deux commentaires de la même seconde.
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
@@ -513,7 +518,7 @@ export type OptionsDuDepot = {
   base: string;
   // `owner/name` du projet.
   depotGitHub: string;
-  // L'état du tour lu en une requête GraphQL (#2301) ; \`false\` : le REST
+  // L'état du tour lu en une requête GraphQL (#2301) ; `false` : le REST
   // d'avant, ce que mesurent les tests du coût par ticket.
   graphql?: boolean;
   github: GitHub;
