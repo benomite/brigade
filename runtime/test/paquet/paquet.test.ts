@@ -165,10 +165,10 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     const portes = lireUnite("brigade-station-porte.service");
     assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
 
+    // Lancées ensemble, comme systemd les lance quand la station les réclame (Wants=, After=).
     const lanceesPortes = lancerUnite("brigade-station-porte.service");
-    await lanceesPortes.attendre("portes de la station ouvertes");
     const lancee = lancerUnite("brigade-station.service");
-    await lancee.attendre("station démarrée");
+    await Promise.all([lanceesPortes.attendre("portes de la station ouvertes"), lancee.attendre("station démarrée")]);
     assert.match(lancee.sortie(), new RegExp(`station démarrée — pid ${lancee.process.pid}, configuration ${join(machine, "var/lib/brigade/projets")} ; aucun projet servi`));
   });
 
