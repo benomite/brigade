@@ -12,6 +12,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
+import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "../brigade-github.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { avecRail, configRail } from "../alimenter.ts";
@@ -203,6 +204,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const ici = stations.find((declaree) => !declaree.distante);
     const ouvert = brancherBrigadeGithub({
       reglages: duDepot.reglages,
+      noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
       ancien: () => ({ stations, decisions }),
       station: () => {
         const ouverte =

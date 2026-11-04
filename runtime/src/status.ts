@@ -17,6 +17,7 @@ import { ouvrirJournal, type Journal } from "./journal.ts";
 import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { direLeBudget } from "./github/budget-appels.ts";
 import { appelsDeLaStation, budgetDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
+import { direGitHubSeul, lireGitHubSeul } from "./github-seul-etat.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { tailleNotee } from "./tableau/rendu/taille.ts";
@@ -132,6 +133,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
   if (budget !== null) lignes.push(...direLeBudget(budget).map((texte, i) => `${(i === 0 ? "gh budget" : "").padEnd(11)}${texte}`));
+  const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
+  if (githubSeul !== null) lignes.push(direGitHubSeul(githubSeul));
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
   lignes.push(direCadence(journal.base, maintenant));
   return { lignes, dernierSeq: etat.dernierSeq };
