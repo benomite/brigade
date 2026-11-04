@@ -159,17 +159,19 @@ session() {
   printf '{"type":"user","sessionId":"%s"}\n' "$id" >"$dossier/$id.jsonl"
 }
 
-# Ne rien dire, et rester : le test, ou un garde-fou, y mettra fin. Trente
-# secondes, pas davantage — une suite tuée en plein vol ne laisse pas de faux
-# cook derrière elle.
-rester() { exec sleep 30; }
+# Ne rien dire, et rester : le test, ou un garde-fou, y mettra fin. Deux
+# secondes, pas davantage, la règle des 2 s — une suite tuée en plein vol ne
+# laisse pas de faux cook derrière elle.
+rester() { exec sleep 2; }
 
-# Attendre que le test pose le fichier $1. Cinq minutes au plus, la garde d'un test sous Windows :
-# là, tuer le cook ne tue pas ses enfants, et une boucle sans borne d'un test raté y lançait un
-# `sleep` toutes les 20 ms jusqu'à la fin de la part (#2080).
+# Attendre que le test pose le fichier $1. Deux secondes de sommeil au plus (cent fois 20 ms), la
+# règle des 2 s, et la garde d'un test sous Windows : là, tuer le cook ne tue pas ses enfants, et une
+# boucle sans borne d'un test raté y lançait un `sleep` toutes les 20 ms jusqu'à la fin de la part (#2080).
 attendre_le_feu() {
+  local n=0
   until [ -e "$1" ]; do
-    [ "$SECONDS" -lt 300 ] || exit 1
+    [ "$n" -lt 100 ] || exit 1
+    n=$((n + 1))
     sleep 0.02
   done
 }
@@ -373,8 +375,10 @@ FIN
     # runner lent, le premier butait avant que le suivant parte, et la station retenue ne lançait
     # jamais le troisième.
     quota-quand-lances)
+      n=0
       until [ "$(wc -l <"$FAUX_CLAUDE_TEMOIN/ordre")" -ge "${FAUX_CLAUDE_AU_RANG:-3}" ]; do
-        [ "$SECONDS" -lt 300 ] || exit 1
+        [ "$n" -lt 100 ] || exit 1
+        n=$((n + 1))
         sleep 0.02
       done
       rejouer quota-epuise 1

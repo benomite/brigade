@@ -185,8 +185,8 @@ function fauxOutil(t: TestContext, feu: string): string {
     outil,
     [
       "#!/usr/bin/env bash",
-      // Cinq minutes au plus : sous Windows, l'outil d'un test raté survit au test (#2080).
-      `until [ -e "${feu}" ]; do [ "$SECONDS" -lt 300 ] || exit 1; sleep 0.05; done`,
+      // Deux secondes de sommeil au plus (quarante fois 50 ms), la règle des 2 s : sous Windows, l'outil d'un test raté survit au test (#2080).
+      `n=0; until [ -e "${feu}" ]; do [ $n -lt 40 ] || exit 1; n=$((n + 1)); sleep 0.05; done`,
       "echo renamed > renomme.txt",
       ...MOUVEMENTS.map(([de, vers]) => `printf 'move\\t%s\\t%s\\n' '${de}' '${vers}'`),
       'echo "renamed: 0 unresolved identifier(s)" >&2',
