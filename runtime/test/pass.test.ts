@@ -32,11 +32,6 @@ const HEURE_MS = 3_600_000;
 // Ce que Linux accepte pour un seul argument de commande, son octet nul compris
 // (`MAX_ARG_STRLEN`) : au-delà, le lancement est refusé (`E2BIG`).
 const ARGUMENT_MAX_LINUX = 131_072;
-// Trois livraisons rouges l'une après l'autre — cook, gates, renvoi — avant le
-// fait attendu : quelques secondes sous Linux, d'ordinaire 18 s sur le runner
-// Windows, mais plus de 60 s quand la suite y charge la machine. Sa garde est
-// plus large : elle ne sert qu'à ce qu'un test bloqué finisse par le dire.
-const TROIS_RENVOIS_MS = 300_000;
 const charge = (evenement: { payload: unknown }) => evenement.payload as Record<string, unknown>;
 // Le motif d'une remontée, sans ce que la pass en a dit (`why`).
 const motifDe = (remontee: Record<string, unknown> | undefined) => ({ reason: remontee?.reason, cause: remontee?.cause });
@@ -592,9 +587,9 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.equal(compter("branch.removed"), 1);
   });
 
-  test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et la cuisine reprend le ticket, pas le chef : rien n'est mergé", { timeout: 600_000 }, async (t) => {
+  test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et la cuisine reprend le ticket, pas le chef : rien n'est mergé", async (t) => {
     const { gh, etat, histoire, journal, pass, avertissements, runtime, jusquAu, dernier } = service(t, { grant: true, gates: "rouge" });
-    await jusquAu("pass.kitchen-took-over", 1, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 1);
 
     assert.deepEqual(histoire(), [
       "pass.started",
@@ -855,7 +850,7 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.deepEqual(carteDuTicket(journal.base, 17)?.carte.choix.map(({ suite }) => suite), ["resume", "drop", "close"]);
   });
 
-  test("ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut au lieu d'être mis de côté ; au plus haut calibrage permis, la cuisine l'abandonne en disant pourquoi sur l'issue", { timeout: 600_000 }, async (t) => {
+  test("ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut au lieu d'être mis de côté ; au plus haut calibrage permis, la cuisine l'abandonne en disant pourquoi sur l'issue", async (t) => {
     // Le reviewer ne rend jamais rien de lisible : chaque livraison remonte, non jugée.
     const { gh, journal, etat, dernier, compter, cooks } = service(t, {
       grant: true,
@@ -864,23 +859,23 @@ describe("la pass", { concurrency: 3 }, () => {
       reviewer: { relecture: "relit-illisible" },
     });
     // Les pas de la cuisine sur ce ticket-là : son ticket `fix` a les siens.
-    const jusquAu = (type: string, combien: number, delaiMs: number) => jusqua(() => journal.duTicket(17).filter((e) => e.type === type).length >= combien, delaiMs);
+    const jusquAu = (type: string, combien: number) => jusqua(() => journal.duTicket(17).filter((e) => e.type === type).length >= combien);
     // Renvoyée une fois, puis un ticket `fix` sur sa cause.
-    await jusquAu("pass.kitchen-took-over", 2, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 2);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "fix", issue: 501, reconciled: false });
     // Le `fix` est fermé : il quitte le rail.
     gh.poser({ ...issue(501, []), state: "closed" });
     journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
-    await jusquAu("pass.kitchen-took-over", 3, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 3);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "resume", issue: 501 });
 
     // Renvoyée et corrigée, elle remonte encore : la cuisine ne la laisse pas de côté, elle monte l'effort d'un cran.
-    await jusquAu("pass.kitchen-took-over", 4, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 4);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "raise", from: { model: "opus", effort: "medium" }, to: { model: "opus", effort: "high" } });
     assert.deepEqual(gh.lire(17)?.labels, ["fire", "model:opus", "effort:high"]);
     await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — calibrage monté de `opus` / `medium` à `opus` / `high` (`review-unreadable`).**")));
     // Le rail lit le nouveau calibrage : la livraison repart chez un cook, à ce calibrage, sans consommer de renvoi.
-    await jusquAu("pass.kitchen-took-over", 5, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 5);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "resume" });
     const renvoi = dernier("pass.returned", 17);
     assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
@@ -897,7 +892,7 @@ describe("la pass", { concurrency: 3 }, () => {
     await jusqua(() => cooks().length >= 4);
 
     // De nouveau non jugée, au plus haut calibrage que la cuisine pose : elle l'abandonne, avec sa raison sur l'issue.
-    await jusquAu("pass.kitchen-took-over", 6, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 6);
     const abandon = dernier("pass.kitchen-took-over", 17);
     assert.deepEqual([abandon?.cause, abandon?.move], ["review-unreadable", "drop"]);
     assert.match(String(abandon?.reason), /^son calibrage \(`opus` \/ `high`\) est déjà au plus haut que la cuisine pose/);
@@ -915,7 +910,7 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.deepEqual(carte?.choix.map(({ texte }) => texte), ["Put it back on the rail", "I take it in a dev session", "Close it"]);
   });
 
-  test("au moment d'abandonner un ticket, la cuisine le réessaie une fois si un merge a atterri sur la base depuis son dernier rouge ; abandonné ensuite, ceux qui l'attendent sortent du rail avec lui, et le suivent quand `fire` lui revient (#1902)", { timeout: 600_000 }, async (t) => {
+  test("au moment d'abandonner un ticket, la cuisine le réessaie une fois si un merge a atterri sur la base depuis son dernier rouge ; abandonné ensuite, ceux qui l'attendent sortent du rail avec lui, et le suivent quand `fire` lui revient (#1902)", async (t) => {
     const { gh, journal, dernier, compter } = service(t, {
       grant: true,
       gates: "rouge",
@@ -927,7 +922,7 @@ describe("la pass", { concurrency: 3 }, () => {
     gh.ficher(19, "2026-10-08T09:00:00Z", [MARQUEUR, "- attend : #18"].join("\n"));
     const pas = () => journal.duTicket(17).filter((e) => e.type === "pass.kitchen-took-over").length;
     // Rouge après ses renvois : un ticket `fix` sur sa cause, et #17 l'attend, 86.
-    await jusqua(() => pas() >= 1, TROIS_RENVOIS_MS);
+    await jusqua(() => pas() >= 1);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "returns-exhausted", move: "fix", issue: 501, reconciled: false });
     // Pendant qu'il attend, une autre livraison est mergée sur la base, et sa PR vise désormais `main` : la cuisine n'y peut plus rien.
     journal.ajouter({ project: "brigade", ticket: 99, author: "pass", type: "merge.done", payload: { pr: `https://github.com/${DEPOT}/pull/199`, sha: "autre", by: "pass", reconciled: false } });
@@ -941,7 +936,7 @@ describe("la pass", { concurrency: 3 }, () => {
 
     // Repris, non jugé sur une cause qu'aucun cook ne lève, au plus haut calibrage : la cuisine l'abandonnerait.
     // Un merge a atterri depuis son dernier rouge : elle le réessaie une fois, depuis la base du moment.
-    await jusqua(() => pas() >= 3, TROIS_RENVOIS_MS);
+    await jusqua(() => pas() >= 3);
     assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "retry", merges: 1 });
     const renvoi = dernier("pass.returned", 17);
     assert.deepEqual([renvoi?.n, renvoi?.kitchen], [2, true]);
@@ -949,7 +944,7 @@ describe("la pass", { concurrency: 3 }, () => {
     await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — un essai de plus depuis la base du moment, avant l'abandon (`wrong-base`).**")));
 
     // Non jugé de nouveau : le réessai est fait, elle l'abandonne.
-    await jusqua(() => pas() >= 4, TROIS_RENVOIS_MS);
+    await jusqua(() => pas() >= 4);
     assert.deepEqual([dernier("pass.kitchen-took-over", 17)?.move, compter("pass.kitchen-fix-opening")], ["drop", 1]);
     await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && /^\*\*Cuisine — ticket abandonné \(`wrong-base`\)\.\*\*[\s\S]*sortent du rail avec lui/.test(corps)));
 
@@ -980,7 +975,7 @@ describe("la pass", { concurrency: 3 }, () => {
 
     // Le chef remet `fire` sur #17 : #18 et #19 le suivent d'eux-mêmes.
     gh.poser(issue(17, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T12:00:00Z" }));
-    await jusqua(() => [18, 19].every((numero) => journal.duTicket(numero).filter((e) => e.type === "ticket.arrived").length === 2), TROIS_RENVOIS_MS);
+    await jusqua(() => [18, 19].every((numero) => journal.duTicket(numero).filter((e) => e.type === "ticket.arrived").length === 2));
     assert.deepEqual(gh.labellisations.filter(([numero]) => numero === 18 || numero === 19), [
       [18, ["fire"]],
       [19, ["fire"]],
@@ -1632,9 +1627,9 @@ describe("la pass", { concurrency: 3 }, () => {
     assert.match(cooks()[1]?.args[1] ?? "", new RegExp(`${lecon?.id} : Relecture — constat bloquant`));
   });
 
-  test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix`", { timeout: 600_000 }, async (t) => {
+  test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix`", async (t) => {
     const { gh, etat, pass, journal, dernier, jusquAu } = service(t, { grant: true, reviewer: { relecture: "relit-rouge" } });
-    await jusquAu("pass.kitchen-took-over", 1, TROIS_RENVOIS_MS);
+    await jusquAu("pass.kitchen-took-over", 1);
 
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "still-red", "returns-exhausted", 2]);
     const compte = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;

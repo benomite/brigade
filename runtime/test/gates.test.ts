@@ -13,9 +13,8 @@ import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
 import { ENV_ENFANT, mort, PID_DU_FOND, repertoireTemporaire } from "./outils.ts";
 
 // Les scripts d'essai lancent un `sleep 30` : s'il tenait ce qu'on attend, rien
-// ne reviendrait avant trente secondes. La borne dit « bien avant », pas « vite » :
-// sur une machine chargée, un script d'une ligne prend parfois des secondes.
-const SANS_ATTENDRE_LE_SLEEP_MS = 20_000;
+// ne reviendrait avant trente secondes. La borne est celle de la règle des 2 s.
+const SANS_ATTENDRE_LE_SLEEP_MS = 2_000;
 
 function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   const racine = repertoireTemporaire(t);
@@ -28,7 +27,7 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   return racine;
 }
 
-const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
+const jouer = (racine: string, delaiMs = 2_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
 // Chaque test a son worktree : ils se jouent de front.
 describe("les gates", { concurrency: 3 }, () => {
@@ -41,7 +40,7 @@ describe("les gates", { concurrency: 3 }, () => {
       worktree: racine,
       ticket: 17,
       env: { ...ENV_ENFANT, DATABASE_URL: "postgres://dev:secret-de-dev@localhost" },
-      delaiMs: 60_000,
+      delaiMs: 2_000,
       masquer: (texte: string) => texte.replaceAll("postgres://dev:secret-de-dev@localhost", "[secret:DATABASE_URL]"),
     };
 
@@ -194,8 +193,8 @@ describe("les gates", { concurrency: 3 }, () => {
     );
   });
 
-  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` past a 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
-    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
+  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` past a 300 ms cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
+    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 300);
 
     assert.equal(gates.outcome, "timeout");
   });
@@ -288,7 +287,7 @@ describe("les gates", { concurrency: 3 }, () => {
       return spawnSync("ps", ["-o", "stat=", "-p", ecrit.trim()], { encoding: "utf8" }).stdout.startsWith("Z");
     };
     while (!fini() || Date.now() - debut <= plafondMs) {
-      if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
+      if (Date.now() - debut > 2_000) throw new Error("les gates n'ont jamais fini");
     }
 
     const gates = await enCours;
@@ -313,7 +312,7 @@ describe("les gates", { concurrency: 3 }, () => {
     const racine = worktree(t, { gates: "sleep 30" });
     const abandon = new AbortController();
 
-    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 60_000, signal: abandon.signal });
+    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 2_000, signal: abandon.signal });
     setTimeout(() => abandon.abort(), 50);
 
     assert.equal((await enCours).outcome, "red");
@@ -335,7 +334,7 @@ describe("les gates", { concurrency: 3 }, () => {
   });
 });
 
-const preparer = (racine: string, delaiMs = 60_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
+const preparer = (racine: string, delaiMs = 2_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
 
 describe("le setup du worktree", { concurrency: 3 }, () => {
   test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
@@ -373,7 +372,7 @@ describe("le setup du worktree", { concurrency: 3 }, () => {
       setup: "printf \"export SUR_DEUX_LIGNES=%q\\n\" $'un\\ndeux'",
       gates: 'echo "vu=$SUR_DEUX_LIGNES"',
     });
-    const demande = { worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs: 60_000, canalParFichier: true };
+    const demande = { worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs: 2_000, canalParFichier: true };
 
     const setup = await jouerSetup(demande);
     const { gates, cout } = await jouerGatesMesurees(demande);

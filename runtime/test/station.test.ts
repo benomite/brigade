@@ -1910,7 +1910,7 @@ describe("la station", { concurrency: 3 }, () => {
     assert.deepEqual(lancements(), []);
     assert.match(avertissements[0] ?? "", /plafond de 0,2 s dépassé/);
     // Le setup dort trente secondes : il n'a pas été attendu.
-    assert.ok(Date.now() - debut < 20_000);
+    assert.ok(Date.now() - debut < 2_000);
   });
 
   test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", { skip: posixOnly("stops the runtime while a 30 s setup runs and expects nothing written on the ticket; on Windows the abort kills the setup's process group by negative pid, which does not exist there, so Git Bash and its `sleep` live on and hold the test's temporary directory when it is removed (EPERM)") }, async (t) => {

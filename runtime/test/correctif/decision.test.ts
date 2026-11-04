@@ -90,7 +90,7 @@ function cuisine(t: TestContext) {
     depotGitHub: DEPOT,
     bin: FAUX_CLAUDE,
     env,
-    delaiGatesMs: 60_000,
+    delaiGatesMs: 2_000,
     attenteCiMs: 1_800_000,
     machine: () => MACHINE_CALME,
     maintenant: heure.maintenant,

@@ -2,17 +2,11 @@
 // worktree et les caches du projet, ne lit ni `~/.ssh`, ni les identifiants du
 // chef, ni ses accès de prod, et ne joint que les hôtes de la liste du projet.
 import assert from "node:assert/strict";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
+import { estUneVerification, viseUneVerification } from "../../src/bac-a-sable/verification.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
-import { CACHE_DE_COMPILATION } from "../outils.ts";
 
 const HOME = "/Users/chef";
 const WORKTREE = "/Users/chef/brigade-wt/850-bac-a-sable";
@@ -156,172 +150,11 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   assert.deepEqual(args.slice(4), ["--append-system-prompt", CONSIGNE_DE_REFUS]);
 });
 
-// Un pnpm 10 : celui du poste s'il en est un, sinon un pnpm 10 installé avec
-// npm. Rend le dossier de ses binaires à mettre en tête du PATH (vide pour
-// celui du poste), ou la raison pour laquelle il n'y en a pas.
-// Celui qu'installe npm se garde un jour, hors du test, d'un passage à l'autre :
-// l'installer, c'est le réseau et six secondes de processeur à chaque passage
-// (#1635). Il s'installe à côté puis prend sa place d'un seul geste, et un
-// passage qui le trouve déjà là garde celui-là : deux suites de front ne
-// s'en disputent pas un à moitié écrit.
-const PNPM10 = join(tmpdir(), `brigade-pnpm10-${process.getuid?.() ?? "partage"}`);
-const UN_JOUR_MS = 24 * 60 * 60_000;
-function provisionnerPnpm10(racine: string): { bin: string } | { raison: string } {
-  const poste = spawnSync("pnpm", ["--version"], { encoding: "utf8", cwd: racine });
-  if (poste.status === 0 && Number.parseInt(poste.stdout, 10) >= 10) return { bin: "" };
-  const bin = join(PNPM10, "node_modules", ".bin");
-  if (existsSync(join(bin, "pnpm")) && Date.now() - statSync(PNPM10).mtimeMs < UN_JOUR_MS) return { bin };
-  const prefixe = mkdtempSync(`${PNPM10}.`);
-  const installe = spawnSync("npm", ["install", "--prefix", prefixe, "--no-audit", "--no-fund", "--loglevel=error", "pnpm@10"], { encoding: "utf8", cwd: racine, timeout: 90_000 });
-  if (installe.status === 0 && existsSync(join(prefixe, "node_modules", ".bin", "pnpm"))) {
-    // Le périmé s'écarte avant que le neuf prenne sa place.
-    if (existsSync(PNPM10) && Date.now() - statSync(PNPM10).mtimeMs >= UN_JOUR_MS) renameSync(PNPM10, `${prefixe}.perime`);
-    try {
-      renameSync(prefixe, PNPM10);
-    } catch {
-      // Un autre passage l'a posé entre-temps : c'est le sien qui sert.
-    }
-  }
-  for (const reste of [prefixe, `${prefixe}.perime`]) rmSync(reste, { recursive: true, force: true });
-  if (existsSync(join(bin, "pnpm"))) return { bin };
-  return { raison: `no pnpm 10 on the workstation and none could be installed with npm (no network?): ${installe.stderr.trim().split("\n").at(-1) ?? "npm did not run"}` };
-}
-
-// Un paquet npm réduit à son `package.json`, avec de quoi l'annoncer à pnpm.
-function paquet(racine: string, nom: string, version: string) {
-  const dossier = join(racine, `paquet-${nom}`);
-  mkdirSync(join(dossier, "package"), { recursive: true });
-  writeFileSync(join(dossier, "package", "package.json"), JSON.stringify({ name: nom, version }));
-  execFileSync("tar", ["-czf", join(dossier, "p.tgz"), "-C", dossier, "package"]);
-  const tgz = readFileSync(join(dossier, "p.tgz"));
-  return { version, tgz, shasum: createHash("sha1").update(tgz).digest("hex"), integrity: `sha512-${createHash("sha512").update(tgz).digest("base64")}` };
-}
-
-type Sortie = { status: number | null; stdout: string; stderr: string };
-
-// Le critère du ticket #1320, joué avec le vrai pnpm 10 : sous l'environnement
-// du bac à sable de `claude`, un projet qui fixe dans `packageManager` une autre
-// version de pnpm que celle du poste (le cas de la station Mac) démarre, installe
-// et lance un script sans que pnpm cherche cette version — et sans l'`env` des
-// réglages, il meurt de ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE.
-//
-// Le registre est un faux, joint par `http://` à travers un faux proxy qui
-// enregistre ce qui lui arrive : un hôte `.invalid` n'a pas d'autre chemin que
-// le proxy, donc ce qu'il voit est ce que le proxy du bac à sable verrait. Les
-// variables de proxy sont celles que `claude` pose dans le bac à sable
-// (HTTP(S)_PROXY et http(s)_proxy, NO_PROXY — sandbox-runtime, claude 2.1.300).
-test("sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance un script sans chercher sa version ; sans les réglages, il meurt de ENGINE_IDENTITY_UNVERIFIABLE", { skip: process.platform === "win32" ? "drives a POSIX tar and sh" : false }, async (t) => {
-  const { reglages } = configurer(projet(["registry.npmjs.org"]));
-  assert.equal(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"), true);
-  const racine = mkdtempSync(join(tmpdir(), "pnpm-bac-"));
-  try {
-    const pnpm10 = provisionnerPnpm10(racine);
-    if ("raison" in pnpm10) return t.skip(pnpm10.raison);
-
-    const paquets: Record<string, ReturnType<typeof paquet>> = { pnpm: paquet(racine, "pnpm", "10.0.0"), leaf: paquet(racine, "leaf", "1.0.0") };
-    const vus: string[] = [];
-    const proxy = createServer((req, res) => {
-      const url = req.url ?? "";
-      vus.push(`${req.method} ${url}`);
-      const m = /^http:\/\/registre\.invalid\/([^/]+)(\/-\/.+)?$/.exec(url);
-      const p = m ? paquets[m[1] ?? ""] : undefined;
-      if (!m || !p) {
-        res.statusCode = 404;
-        res.end("{}");
-      } else if (m[2]) {
-        res.end(p.tgz);
-      } else if (!String(req.headers.accept).includes("install-v1")) {
-        // La fiche complète que pnpm lit pour vérifier la signature de sa version : le registre la refuse.
-        res.statusCode = 403;
-        res.end("{}");
-      } else {
-        const tarball = `http://registre.invalid/${m[1]}/-/${m[1]}-${p.version}.tgz`;
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify({ name: m[1], "dist-tags": { latest: p.version }, versions: { [p.version]: { name: m[1], version: p.version, dist: { tarball, shasum: p.shasum, integrity: p.integrity } } } }));
-      }
-    });
-    // Le registre canonique, joint en HTTPS : le proxy coupe, comme un hôte hors de `reseau`.
-    proxy.on("connect", (req, socket) => {
-      vus.push(`CONNECT ${req.url}`);
-      socket.destroy();
-    });
-    await new Promise<void>((fini) => proxy.listen(0, "127.0.0.1", fini));
-    t.after(() => {
-      proxy.closeAllConnections();
-      proxy.close();
-    });
-    const adresse = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
-    const sansProxy = "localhost,127.0.0.1,::1,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
-
-    const projetDir = join(racine, "projet");
-    mkdirSync(projetDir);
-    writeFileSync(
-      join(projetDir, "package.json"),
-      JSON.stringify({ name: "x", packageManager: "pnpm@10.0.0", scripts: { bonjour: "echo bonjour-du-script" }, dependencies: { leaf: "1.0.0" } }),
-    );
-    const lancer = (args: string[], env: Record<string, string>) =>
-      new Promise<Sortie>((fini) => {
-        const enfant = spawn("pnpm", args, {
-          cwd: projetDir,
-          timeout: 90_000,
-          env: {
-            PATH: [pnpm10.bin, process.env.PATH ?? ""].filter(Boolean).join(delimiter),
-            HOME: join(racine, "home"),
-            HTTP_PROXY: adresse,
-            HTTPS_PROXY: adresse,
-            http_proxy: adresse,
-            https_proxy: adresse,
-            NO_PROXY: sansProxy,
-            no_proxy: sansProxy,
-            npm_config_registry: "http://registre.invalid/",
-            npm_config_fetch_retries: "0",
-            npm_config_fetch_retry_mintimeout: "10",
-            npm_config_fetch_retry_maxtimeout: "10",
-            npm_config_update_notifier: "false",
-            // Le pnpm gardé d'un passage à l'autre l'est sous le même chemin :
-            // le cache de compilation de Node lui sert aussi.
-            ...CACHE_DE_COMPILATION,
-            ...env,
-          },
-        });
-        let stdout = "";
-        let stderr = "";
-        enfant.stdout.on("data", (b) => (stdout += b));
-        enfant.stderr.on("data", (b) => (stderr += b));
-        enfant.on("close", (status) => fini({ status, stdout, stderr }));
-      });
-
-    // Sans les réglages : pnpm cherche sa version par le proxy, puis meurt faute de pouvoir la vérifier.
-    const sans = await lancer(["--version"], {});
-    assert.notEqual(sans.status, 0, sans.stdout);
-    // pnpm lève ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE, mais pnpm 10.34 affiche
-    // un échec du changement de version sans son code (` ERROR <message>`) : son
-    // message, avec un registre injoignable (« could not be consulted either »),
-    // est celui de ce code-là, pas celui de ENGINE_IDENTITY_MISMATCH.
-    assert.match(sans.stderr, /ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE|Refusing to run pnpm@10\.0\.0: its npm registry signature could not be verified \(.*could not be consulted either/);
-    assert.equal(vus.includes("GET http://registre.invalid/pnpm"), true, vus.join("\n"));
-
-    // Avec l'`env` des réglages : `--version`, `install` puis un script, sans une requête pour pnpm lui-même.
-    vus.length = 0;
-    const version = await lancer(["--version"], reglages.env);
-    assert.equal(version.status, 0, version.stderr);
-    assert.match(version.stdout, /^\d+\.\d+\.\d+/);
-    assert.equal(vus.length, 0, vus.join("\n"));
-
-    const installation = await lancer(["install"], reglages.env);
-    assert.equal(installation.status, 0, installation.stderr + installation.stdout);
-    assert.equal(existsSync(join(projetDir, "node_modules", "leaf", "package.json")), true);
-    assert.equal(vus.includes("GET http://registre.invalid/leaf"), true, vus.join("\n"));
-    assert.equal(vus.some((v) => v.startsWith("CONNECT ") || v === "GET http://registre.invalid/pnpm"), false, vus.join("\n"));
-
-    const script = await lancer(["run", "bonjour"], reglages.env);
-    assert.equal(script.status, 0, script.stderr);
-    assert.match(script.stdout, /bonjour-du-script/);
-  } finally {
-    rmSync(racine, { recursive: true, force: true });
-  }
-});
-
+// Sans cette variable, pnpm 10 cherche dans le registre la version que fixe le
+// `packageManager` du projet (le cas de la station Mac) pour en vérifier la
+// signature, et meurt de ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE derrière le
+// proxy du bac à sable (#1320). Le vrai pnpm ne se joue pas ici : l'installer,
+// c'était le réseau et six secondes à chaque passage.
 test("les réglages du bac à sable posent la désactivation du changement de version de pnpm", () => {
   assert.deepEqual(configurer(projet()).reglages.env, { npm_config_manage_package_manager_versions: "false" });
 });
@@ -351,7 +184,8 @@ function sortieDuCrochet(commande: string): { permissionDecision?: string; permi
   assert.equal(sortie.status, 0, sortie.stderr);
   return sortie.stdout === "" ? null : (JSON.parse(sortie.stdout) as { hookSpecificOutput: object }).hookSpecificOutput;
 }
-const autorise = (commande: string) => sortieDuCrochet(commande)?.permissionDecision === "allow";
+// Ce que le crochet autorise, jugé dans ce process : il n'autorise que ce que `estUneVerification` accepte.
+const autorise = (commande: string) => estUneVerification(commande);
 
 test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert", () => {
   const permises = [
@@ -441,16 +275,17 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
 test("une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus", () => {
   // Vise une vérification sans en être une : le crochet la refuse lui-même, avec la raison.
   for (const commande of ["pnpm install", "VAR=a curl https://example.com ./node_modules/.bin/x", "./node_modules/.bin/../../usr/bin/curl x", "./node_modules/.bin/eslint -c/tmp/evil.js src", "pnpm test && pnpm lint", "npx vitest run"]) {
-    const sortie = sortieDuCrochet(commande);
-    assert.equal(sortie?.permissionDecision, "deny", commande);
-    assert.equal(sortie?.permissionDecisionReason, CONSIGNE_DE_REFUS, commande);
+    assert.deepEqual([estUneVerification(commande), viseUneVerification(commande)], [false, true], commande);
   }
   // Une autre commande : pas de décision (dontAsk tranche, et lit déjà `git status` seul), la consigne en contexte.
   for (const commande of ["curl https://example.com", "git status", "rm -rf src"]) {
-    const sortie = sortieDuCrochet(commande);
-    assert.equal(sortie?.permissionDecision, undefined, commande);
-    assert.equal(sortie?.additionalContext, CONSIGNE_DE_REFUS, commande);
+    assert.deepEqual([estUneVerification(commande), viseUneVerification(commande)], [false, false], commande);
   }
+  // Ce que le crochet, dans son process, en rend à `claude` : un lancement par sorte de réponse.
+  const refus = sortieDuCrochet("pnpm install");
+  assert.deepEqual([refus?.permissionDecision, refus?.permissionDecisionReason], ["deny", CONSIGNE_DE_REFUS]);
+  const autre = sortieDuCrochet("git status");
+  assert.deepEqual([autre?.permissionDecision, autre?.additionalContext], [undefined, CONSIGNE_DE_REFUS]);
   assert.match(CONSIGNE_DE_REFUS, /pnpm test/);
   // Une vérification acceptée n'est pas refusée.
   assert.equal(sortieDuCrochet("pnpm test")?.permissionDecision, "allow");

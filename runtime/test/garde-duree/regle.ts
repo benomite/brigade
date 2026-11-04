@@ -23,14 +23,18 @@ export function valeur(texte: string): number | null {
   return facteurs.reduce((produit, f) => produit * Number(f.replaceAll("_", "")), 1);
 }
 
+// Les lanceurs de la suite : ils démarrent `node --test` au lieu de tourner dedans. Leurs bornes sont celles
+// d'un job de CI (une part de 25 min, le plafond de secours par test), pas celles d'un test.
+export const LANCEURS = ["test/support/windows.ts"];
+
 export function fichiersDeTest(racine = RACINE_RUNTIME): string[] {
   const trouves: string[] = [];
   const parcourir = (dossier: string): void => {
     for (const e of readdirSync(dossier, { withFileTypes: true })) {
-      const chemin = join(dossier, e.name);
+      const plein = join(dossier, e.name);
       if (e.isDirectory()) {
-        if (chemin !== ICI.replace(/\/$/, "") && !chemin.startsWith(ICI)) parcourir(chemin);
-      } else if (e.name.endsWith(".ts")) trouves.push(chemin);
+        if (plein !== ICI.replace(/\/$/, "") && !plein.startsWith(ICI)) parcourir(plein);
+      } else if (e.name.endsWith(".ts") && !LANCEURS.includes(chemin(racine, plein))) trouves.push(plein);
     }
   };
   parcourir(join(racine, "test"));

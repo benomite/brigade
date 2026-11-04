@@ -29,7 +29,7 @@ test("un dépôt en https, sans credential helper : la récupération est refus�
   git(clone, "remote", "set-url", "origin", distant.url);
   const debut = Date.now();
   const acces = await verifier(t, clone);
-  assert.ok(Date.now() - debut < 30_000, "un accès refusé échoue en secondes, sans attendre une réponse");
+  assert.ok(Date.now() - debut < 2_000, "un accès refusé échoue en secondes, sans attendre une réponse");
   assert.equal(acces.etat, "bloque");
   if (acces.etat !== "bloque") return;
   assert.equal(acces.bloque, "fetch");

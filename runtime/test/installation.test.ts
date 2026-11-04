@@ -1231,7 +1231,8 @@ describe("le coût du setup", { concurrency: 3 }, () => {
     assert.deepEqual(tenue.disque, { besoin: 30 * 400 * MO, disponible: 95 * 1024 * MO, tient: true });
     // Huit vagues de quatre setups, une minute chacune : la dernière part sept minutes après la première.
     assert.deepEqual(tenue.entree, { vagues: 8, dernierMs: 420_000 });
-    assert.deepEqual(tenue.setup, { plafondMs: 900_000, tient: true });
+    // Le setup a la moitié du bail : un quart d'heure.
+    assert.deepEqual(tenue.setup, { plafondMs: machine.bailMs / 2, tient: true });
     assert.equal(tenue.tient, true);
   });
 

@@ -1,12 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXCEPTIONS } from "./exceptions.ts";
-import { chemin, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, racineDuRuntime, valeur } from "./regle.ts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { chemin, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, LANCEURS, racineDuRuntime, valeur } from "./regle.ts";
 
 test("aucune garde de plus de 2 s hors de la liste d'exceptions, et aucune exception de garde périmée", () => {
   const lus = new Set(fichiersDeTest().map((f) => chemin(racineDuRuntime, f)));
   const fautes = jugerLesGardes(gardesDuDepot(), EXCEPTIONS, lus);
   assert.deepEqual(fautes, []);
+});
+
+test("un fichier que le relevé des gardes laisse est un lanceur de la suite : il démarre `node --test`, il ne tourne pas dedans", () => {
+  for (const lanceur of LANCEURS) assert.match(readFileSync(join(racineDuRuntime, lanceur), "utf8"), /"--test"/, lanceur);
+  const lus = fichiersDeTest().map((f) => chemin(racineDuRuntime, f));
+  assert.deepEqual(LANCEURS.filter((l) => lus.includes(l)), []);
 });
 
 test("les exceptions sont uniques : une ligne par fautif", () => {

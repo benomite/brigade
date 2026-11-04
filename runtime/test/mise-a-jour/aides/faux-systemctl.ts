@@ -115,7 +115,7 @@ async function arreter(unite: string): Promise<void> {
   const pid = pidDe(unite);
   if (!vivant(pid)) return;
   process.kill(pid, "SIGTERM");
-  const limite = Date.now() + 30_000;
+  const limite = Date.now() + 2_000;
   while (vivant(pid) && Date.now() < limite) await new Promise((resoudre) => setTimeout(resoudre, 20));
   if (vivant(pid)) process.kill(pid, "SIGKILL");
 }

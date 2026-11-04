@@ -46,21 +46,21 @@ function worktree(t: TestContext, gates: string) {
   return racine;
 }
 
-// Une seconde de processeur, brûlée par un process à part.
-const BRULE = `node -e "while (process.cpuUsage().user < 1e6) for (let i = 0; i < 1e6; i++);"`;
+// Trois dixièmes de seconde de processeur, brûlés par un process à part.
+const BRULE = `node -e "while (process.cpuUsage().user < 3e5) for (let i = 0; i < 1e6; i++);"`;
 
 describe("le coût des gates", { concurrency: 3 }, () => {
-  test("le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts`", { skip: posixOnly("plays gates whose nested bash runs a node process burning one second of processor, and expects that second in the gates' cost, read back through `facts`; Git Bash's `times` does not count the processor time of native Windows programs such as node.exe, so the cost stays far under a second") }, async (t) => {
+  test("le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts`", { skip: posixOnly("plays gates whose nested bash runs a node process burning three tenths of a second of processor, and expects them in the gates' cost, read back through `facts`; Git Bash's `times` does not count the processor time of native Windows programs such as node.exe, so the cost stays far under them") }, async (t) => {
     // Les gates ne calculent rien elles-mêmes : un shell qu'elles lancent en
     // lance un autre, qui brûle.
     const racine = worktree(t, `bash -c '${BRULE}'\necho "gates : VERT"`);
     const { repertoire, journal } = journalALHeure(t, new Date());
 
-    const { gates, cout } = await jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 120_000 });
+    const { gates, cout } = await jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 2_000 });
     noterCoutDesGates(journal, { projet: PROJET, ticket: 17, coureur: "pass", auteur: "pass", gates, cout });
 
     assert.equal(gates.outcome, "green");
-    assert.ok(cout !== null && cout.cpuMs !== null && cout.cpuMs >= 1000, `processeur : ${cout?.cpuMs}`);
+    assert.ok(cout !== null && cout.cpuMs !== null && cout.cpuMs >= 300, `processeur : ${cout?.cpuMs}`);
     assert.ok(cout.durationMs > 0);
     const { latest } = await lireFaits(repertoire);
     assert.deepEqual(
@@ -87,7 +87,7 @@ describe("le coût des gates", { concurrency: 3 }, () => {
     chmodSync(join(racine, ".claude/brigade/worktree-setup.sh"), 0o755);
     const { journal } = journalALHeure(t);
 
-    const { gates, cout } = await jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 60_000 });
+    const { gates, cout } = await jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 2_000 });
     noterCoutDesGates(journal, { projet: PROJET, ticket: 17, coureur: "pass", auteur: "pass", gates, cout });
 
     assert.equal(cout, null);
