@@ -481,6 +481,20 @@ test("a delivery that conflicts with the base goes back to a cook to merge the b
   assert.equal(faux.mergee(36)?.mergeePar, "A");
 });
 
+test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }) });
+  for (let i = 0; i < 8; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
+  assert.equal(echecs.length, 3);
+  assert.match(echecs[2]?.body ?? "", /Taken off the kitchen/);
+  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+});
+
 test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(40, CALIBRE);

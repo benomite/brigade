@@ -208,7 +208,7 @@ test("a ticket GitHub will not give launches no cook: the station says why on th
   await servir();
 
   assert.equal(lances.length, 0);
-  assert.ok(fait.some((ligne) => ligne === `commenter #${NUMERO} Station \`macbook/claude\`: the cook stopped without a delivery — its ticket could not be read on GitHub: HTTP 502`), fait.join("\n"));
+  assert.ok(fait.some((ligne) => ligne.startsWith(`commenter #${NUMERO} `) && ligne.includes("Station `macbook/claude`: the cook stopped without a delivery — its ticket could not be read on GitHub: HTTP 502")), fait.join("\n"));
 });
 
 test("the ticket handed in the prompt is bounded: a long body and long comments are cut, and say so", () => {
