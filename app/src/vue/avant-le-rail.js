@@ -43,7 +43,7 @@ export function poserBarre(doc, vu, { deplie, basculer }) {
     return survol(doc, vu.sans, barre);
   }
   if (vu.compte === 0) barre.dataset.vide = "";
-  for (const { etat, nom, issues } of vu.groupes) {
+  for (const { etat, issues } of vu.groupes) {
     const part = cree(doc, "span");
     part.className = "part";
     part.dataset.etat = etat;

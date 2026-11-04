@@ -2618,7 +2618,6 @@ main > header,
 }
 #rail .amont .avant-le-rail {
   display: flex;
-  gap: 1px;
   align-items: center;
   gap: 8px;
   padding: 0;
