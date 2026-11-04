@@ -381,7 +381,7 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
     return { chemin: "ancien", ancien: options.ancien() };
   }
   avertir("brigade : GitHub-only state — this station takes, cooks, reviews and merges the project's tickets from GitHub only");
-  const intervalleMs = options.intervalleMs ?? 30_000;
+  const intervalleMs = options.intervalleMs ?? 120_000;
   let arrete = false;
   let minuterie: NodeJS.Timeout | undefined;
   let enCours: Promise<void> = Promise.resolve();
