@@ -2899,9 +2899,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           } catch (erreur) {
             if (!arrete) avertir(`brigade : la pass a buté sur la réparation de ${options.base} — ${message(erreur)}`);
           }
-        } while (aRefaire && !arrete);
+          // Allumé pendant la passe, l'interrupteur l'arrête là aussi : elle ne
+          // repasse pas, et ne relance pas le jugement qu'elle vient de voir finir.
+        } while (aRefaire && !arrete && !options.perimee?.());
       } catch (erreur) {
-        if (!arrete) avertir(`brigade : la pass a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+        if (!arrete) avertir(`brigade : la pass a buté —${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
       } finally {
         enCours = false;
       }
