@@ -8,16 +8,17 @@ import { cartesEnTodo } from "../src/carte-todo.ts";
 import { poserDecision } from "../src/decisions.ts";
 import { REDECOUPE } from "../src/events/rail.ts";
 import { MARQUEUR } from "../src/fiche.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { reactionDe } from "../src/projections/reactions.ts";
 import { lireLeDepot } from "../src/reglages-projet/en-vigueur.ts";
 import { texteDuFichier } from "../src/reglages-projet/reglages.ts";
-import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./aides/cuisine.ts";
 import { partagee } from "./aides/opt-C-partage.ts";
 import { projetSurGit } from "./aides/projet-sur-git.ts";
-import { jusqua } from "./outils.ts";
+import { jusqua, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 
@@ -261,10 +262,30 @@ describe("le manager réagit à un échec", { concurrency: 3 }, () => {
     await c.jusquAu("cook.launched", 501);
     assert.deepEqual(c.ticket(501)?.card?.zone, ["runtime/src/rail.ts"]);
     assert.equal(c.ticket(30)?.state, "86");
+  });
 
-    // Un ticket né d'un redécoupage ne se redécoupe pas : ce n'est plus offert.
+  test("un ticket né d'un redécoupage ne se redécoupe pas : ce n'est plus offert au manager", async (t) => {
+    // Le redécoupage de #30 est posé au journal tel que le manager l'écrit
+    // (le test précédent le fait pour de bon) : seuls les tours de son
+    // sous-ticket se cuisent. Ses labels ne sont pas au manager : le second
+    // renvoi part sans jugement, le seul jugement est celui d'après.
+    const lieux = { repertoire: repertoireTemporaire(t), origine: "", clone: "", gh: fauxGitHub(issue(501)), heure: montre() };
+    const journal = ouvrirJournal(lieux.repertoire);
+    const poser = (ticket: number, type: string, payload: Charge) => journal.ajouter({ project: "brigade", ticket, author: "manager", type, payload } as Parameters<typeof journal.ajouter>[0]);
+    const calibrage = { model: "haiku", effort: "low" };
+    const prevu = { title: "Le rail compte ses tickets", context: "", criteria: ["`run rail` affiche le compte"], waitsFor: [], zone: ["runtime/src/rail.ts"], model: "sonnet", effort: "low" };
+    poser(30, "manager.reacted", { verdict: 1, returns: 2, choice: "split", reason: "Deux livrables dans un seul ticket.", proposal: null, run: "reagit-30-0000beef", from: calibrage, to: null, ceiling: calibrage });
+    poser(30, "manager.split", { run: "decoupe-30-0000beef", fingerprint: "empreinte-de-30", reason: "Deux livrables dans un seul ticket.", order: "Le rail d'abord.", tickets: [prevu] });
+    poser(30, "manager.split-creating", { index: 1 });
+    poser(501, "manager.split-created", { epic: 30, index: 1, reconciled: false });
+    poser(501, "manager.split-fired", { epic: 30, index: 1 });
+    poser(30, "manager.split-done", {});
+    journal.fermer();
+    const c = echec(t, { lieux });
+
     await c.jusquAu("pass.escalated", 501);
     assert.match(c.jugements().at(-1)?.args[1] ?? "", /Redécouper n'est pas possible.*Issue #501/s);
+    // Le seul redécoupage est celui posé au journal.
     assert.equal(c.faits("manager.split").length, 1);
   });
 
