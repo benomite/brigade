@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { PASS_MAX, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -345,6 +345,23 @@ test("a station with 3 places never holds more than 3 tickets, even when its coo
   const lachers = [...faux.commentaires.values()].flat().filter((c) => c.body.startsWith("<!-- brigade:lache station=A")).length;
   assert.equal(lachers, 3);
   assert.ok(avertis.some((texte) => /limite d'appels/.test(texte)));
+});
+
+test("with 5 tickets in pass a station with free places claims nothing; at 4 it claims (PASS_MAX, #2300)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 5; n += 1) faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
+  faux.feu(10);
+  const a = faux.station("A", { places: 3 });
+  await a.tour();
+  await a.calme();
+  assert.equal(PASS_MAX, 5);
+  assert.equal(faux.prisesDe("A"), 0);
+  assert.equal(faux.cuissons.length, 0);
+  // One leaves the pass: under the cap, the station claims again.
+  faux.ticket(5).labels.delete(LABEL_IN_PASS);
+  await a.tour();
+  await a.calme();
+  assert.ok(faux.cuissons.some((c) => c.issue === 10));
 });
 
 test("a restarted station gives back, at its first turn, the tickets it held with no cook, then takes only what its places allow (#2179)", async () => {
