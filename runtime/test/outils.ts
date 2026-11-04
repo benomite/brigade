@@ -528,16 +528,12 @@ export function fauxGh(t: TestContext): FauxGh {
 
 // Attend qu'une condition devienne vraie, sans dormir plus que nécessaire.
 // Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
-// par le dire. Il est donc large — sur une machine où d'autres suites tournent
-// au même moment, ce qui prend une demi-seconde en prend facilement dix.
+// par le dire. Il suit la règle des 2 s (#2129) : un test n'a pas plus de deux
+// secondes pour voir ce qu'il attend, et un fait qui en demande davantage se
+// rend plus vite — une horloge injectée, un appel direct —, pas en attendant plus.
 // Sondée toutes les 20 ms : bien des conditions rouvrent et relisent tout un
 // journal, et toutes les 5 ms c'était le gros du processeur de leur fichier.
-// Sous Windows le runner du CI est de deux à trois fois plus lent et sa charge varie d'un run à l'autre :
-// à 60 s, des tests différents de reparation, arbitrage, station ou reprise-du-renommage attendaient en
-// vain, chacun une fois, sur la base comme sur les PR (#2080), et le même commit repassait vert.
-// Sous Linux la CI joue les gates avec toute la suite à la fois (charge 8 sur 4 cœurs) : machine.test.ts
-// attendait 69 s pour 60 s permises. Le plafond par test est de 120 s : l'attente reste en dessous.
-const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 100_000;
+const DELAI_PAR_DEFAUT_MS = 2000;
 export async function jusqua(condition: () => boolean, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {

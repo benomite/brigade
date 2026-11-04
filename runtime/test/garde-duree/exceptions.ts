@@ -224,7 +224,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/limite-github.test.ts", garde: "plafond: 5000" },
   { file: "test/limite-github.test.ts", garde: "timeout: 110_000" },
   { file: "test/mesures-des-gates.test.ts", garde: "delaiMs: 60_000" },
-  { file: "test/outils.ts", garde: "DELAI_PAR_DEFAUT_MS: 180_000" },
   { file: "test/pass.test.ts", garde: "delaiGatesMs: 1_800_000" },
   { file: "test/pass.test.ts", garde: "delaiGatesMs: 60_000" },
   { file: "test/pass.test.ts", garde: "timeout: 600_000" },
