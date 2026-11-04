@@ -745,12 +745,14 @@ describe("la station", { concurrency: 3 }, () => {
     assert.deepEqual(avertissements, ["brigade : machine illisible, la station s'en tient à ce qu'elle savait — statfs : ENOENT"]);
   });
 
-  test("quatre cooks partent de front d'un même clone : quatre worktrees, quatre branches poussées, quatre PR", async (t) => {
-    const numeros = [14, 15, 16, 17];
-    const { origine, gh, etat, dernier, avertissements } = cuisine(t, { git: true, cooks: 4, issues: numeros.map((numero) => issue(numero)) });
-    await jusqua(() => gh.commentaires.length === 4);
+  // Deux suffisent à ce que leurs worktrees, leurs branches et leurs poussées
+  // se croisent sur le même clone ; chaque cook de plus n'y ajoute que son temps.
+  test("deux cooks partent de front d'un même clone : deux worktrees, deux branches poussées, deux PR", async (t) => {
+    const numeros = [14, 15];
+    const { origine, gh, etat, dernier, avertissements } = cuisine(t, { git: true, cooks: 2, tickMs: 25, issues: numeros.map((numero) => issue(numero)) });
+    await jusqua(() => gh.commentaires.length === 2);
 
-    assert.deepEqual(numeros.map(etat), ["pass", "pass", "pass", "pass"]);
+    assert.deepEqual(numeros.map(etat), ["pass", "pass"]);
     const branches = numeros.map((numero) => `cook/${dernier("cook.launched", numero)?.run}`);
     for (const branche of branches) assert.equal(git(origine, "show", `${branche}:travail.txt`), "le travail du cook");
     assert.deepEqual(gh.prs.map((pr) => pr.branche).sort(), [...branches].sort());
