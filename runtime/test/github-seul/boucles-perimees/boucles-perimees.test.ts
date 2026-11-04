@@ -107,14 +107,22 @@ describe("the pass", () => {
     let ciPrete = false;
     const k = cuisine(t, { pass: true, issues: [issue(17, CALIBRE)], perimee: sw.perimee });
     chef(k.repertoire, "grant.activated");
-    k.gh.github.ci = async () => (ciPrete ? [] : [{ name: "tests", outcome: "pending", conclusion: "pending", url: null }]);
-    // Livrée, sa CI en cours : la pass l'attend.
-    await jusqua(() => k.types(17).includes("pass.started"));
+    let lectures = 0;
+    k.gh.github.ci = async () => {
+      lectures += 1;
+      // Livrée, sa CI en cours : le jugement en vol la lit, et l'interrupteur
+      // s'allume là, avant qu'il ne finisse. Allumé dès `pass.started`, il
+      // laissait ce jugement lire une CI déjà verte : sous Windows, ses gates
+      // durent plus que les ticks attendus, et il mergeait (#2378).
+      if (lectures === 1) sw.etat.allume = true;
+      return ciPrete ? [] : [{ name: "tests", outcome: "pending", conclusion: "pending", url: null }];
+    };
+    await jusqua(() => sw.etat.allume);
     // Allumé : le jugement en vol finit sur sa CI en cours, puis plus rien ne repart.
-    sw.etat.allume = true;
     await laisserPasser(k.journal, 2);
     ciPrete = true;
     await laisserPasser(k.journal, 3);
+    assert.equal(lectures, 1);
     assert.equal(k.types(17).includes("merge.done"), false);
 
     sw.etat.allume = false;
