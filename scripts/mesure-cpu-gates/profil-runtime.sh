@@ -5,6 +5,9 @@
 # ne dépend guère de ses voisins, son horloge si : c'est le processeur qu'on lit.
 # Usage : scripts/mesure-cpu-gates/profil-runtime.sh [<fichier-de-sortie>] [<fichiers à la fois>]
 #   Défaut : <worktree>/.brigade-state/profil-runtime.tsv, nproc fichiers à la fois.
+#   PROFIL_RUNTIME_DIR=<dossier runtime> profile ce runtime-là au lieu de celui
+#   du worktree : un arbre extrait de la base, comme SUITE_RUNTIME_DIR de
+#   suite-runtime.sh.
 # Compte deux à trois minutes sur une box de 8.
 set -uo pipefail
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +19,7 @@ SORTIE="$(cd "$(dirname "$SORTIE")" && pwd)/$(basename "$SORTIE")"
 GIT_CORE="$(git --exec-path 2>/dev/null)"
 export ICI PATH="${GIT_CORE:+$GIT_CORE:}$PATH"
 export NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}"
-cd "$WT/runtime" || exit 1
+cd "${PROFIL_RUNTIME_DIR:-$WT/runtime}" || exit 1
 find test test-hang-guard -name '*.test.ts' | LC_ALL=C sort |
   env -u BRIGADE_STATE_DIR -u BRIGADE_PORT xargs -P "$FOIS" -I{} sh -c \
     'printf "%s\t%s\n" "$(python3 -I "$ICI/mesure.py" --silencieux -- node --import ./test-hang-guard/charger.ts --test --test-concurrency=5 --test-force-exit --test-timeout=120000 "$1" 2>/dev/null | sed "s/[a-z_]*=//g" | tr " " "\t")" "$1"' _ {} |

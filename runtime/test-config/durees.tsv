@@ -29,6 +29,7 @@
 4.2	test/installateur.test.ts
 4.1	test/decoupage.test.ts
 3.8	test/produit/cadence/cadence.test.ts
+3.8	test/github-seul/boucles-perimees/boucles-perimees.test.ts
 3.6	test/sorties-du-chef-en-anglais.test.ts
 3.5	test/tests-touches.test.ts
 3.4	test/closing/report.test.ts
@@ -117,6 +118,7 @@
 1.4	test/journal-pas-rejoue.test.ts
 1.4	test/miroir-des-gates.test.ts
 1.4	test/onboarding/suivi.test.ts
+1.4	test/tirer-par-github/sur-github-seul.test.ts
 1.3	test/alimenter.test.ts
 1.3	test/manager-cli.test.ts
 1.3	test/mesures.test.ts
@@ -128,6 +130,7 @@
 1.3	test/pause.test.ts
 1.3	test/proteger-branche.test.ts
 1.3	test/station/cuisine-rail.test.ts
+1.3	test/github/budget-appels.test.ts
 1.2	test/apprentissage/injection.test.ts
 1.2	test/station-ordinaires.test.ts
 1.2	test/station-veille.test.ts
@@ -135,12 +138,16 @@
 1.2	test/stations.test.ts
 1.2	test/tableau/gestes/sans-ssh.test.ts
 1.2	test/breaker-issue.test.ts
+1.2	test/station-update/mettre-a-jour.test.ts
+1.2	test/github-seul/garde-fous/garde-fous.test.ts
 1.1	test/capacites-en-cuisine.test.ts
 1.1	test/correctif/proposer.test.ts
 1.1	test/cout-des-gates.test.ts
 1.1	test/cuisson-par-station.test.ts
 1.1	test/github.test.ts
 1.1	test/remedes/modes.test.ts
+1.1	test/bac-a-sable/hors-github.test.ts
+1.1	test/github-seul/contexte-cook/contexte-cook.test.ts
 1.0	test/projets/secondaires.test.ts
 1.0	test/bas-de-status-en-anglais.test.ts
 1.0	test/cloison.test.ts
@@ -153,6 +160,7 @@
 1.0	test/brigade-github.test.ts
 1.0	test/github-etat/prise.test.ts
 1.0	test/depot-place.test.ts
+1.0	test/station-update/releases.test.ts
 0.9	test/capacite-libre/capacite-libre.test.ts
 0.9	test/enregistrement-station/enregistrer.test.ts
 0.9	test/identites.test.ts
@@ -176,9 +184,13 @@
 0.8	test/zone-du-86.test.ts
 0.8	test/installation/clone/clone.test.ts
 0.8	test/garde-duree/garde-duree.test.ts
+0.7	test/mesures-github.test.ts
 0.6	test/projets-station/selection.test.ts
 0.6	test/second/lancement.test.ts
 0.6	test/gestes-sans-retenue.test.ts
+0.6	test/github-etat/instantane.test.ts
+0.6	test/github-seul/renvois/renvois.test.ts
+0.6	test/github-seul/carte-todo/carte-todo.test.ts
 0.5	test/onboarding/lire.test.ts
 0.5	test/agents-en-cours.test.ts
 0.5	test/arbitre.test.ts
@@ -198,6 +210,8 @@
 0.5	test/urgence.test.ts
 0.5	test/ci-duration.test.ts
 0.5	test/github-seul/priorite-bail/priorite-bail.test.ts
+0.5	test/stations-cloud-secrets/stations-cloud-secrets.test.ts
+0.5	test/stations-cloud/autoscale.test.ts
 0.4	test/abandon-en-chaine.test.ts
 0.4	test/activite-cuisine/cadence.test.ts
 0.4	test/alerte-urgence.test.ts
@@ -221,6 +235,11 @@
 0.4	test/tableau/mention/mention.test.ts
 0.4	test/station/configuration.test.ts
 0.3	test/gestes-ecrits.test.ts
+0.3	test/stations-cloud-cout/stations-cloud-cout.test.ts
+0.3	test/github-seul/second-juge/second-juge.test.ts
+0.2	test/mesures/appels-par-ticket.test.ts
+0.2	test/stations-cloud/plafonds.test.ts
+0.2	test/stations-cloud/fournisseur.test.ts
 0.1	test/activite-cuisine/comptes.test.ts
 0.1	test/activite.test.ts
 0.1	test/aides/opt-B-journal.test.ts

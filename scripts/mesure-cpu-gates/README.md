@@ -5,7 +5,7 @@ Three scripts, run from anywhere in a worktree. They change no test and no gate.
 | Script | What it measures | Takes |
 |---|---|---|
 | `suite-runtime.sh [<out-dir>] [-- <launcher options>]` | the **whole runtime suite, once**, through the ordered launcher `runtime/test-config/suite.ts`: wall clock, CPU, test counts, load, the 10 longest files | 1 to 3 min |
-| `profil-runtime.sh [<out.tsv>] [<files at once>]` | the **CPU of each runtime test file**, each run alone, `nproc` at a time: `cpu_s user_s sys_s wall_s code file`, sorted by CPU | 2 to 3 min |
+| `profil-runtime.sh [<out.tsv>] [<files at once>]` | the **CPU of each runtime test file**, each run alone, `nproc` at a time: `cpu_s user_s sys_s wall_s code file`, sorted by CPU (`PROFIL_RUNTIME_DIR=<dir>/runtime` profiles an extracted base) | 2 to 3 min |
 | `mesure-cpu-gates.sh [<out-dir>]` | the CPU of one full gates run, then of every test file (runtime and app) run one by one (see `docs/profil-cpu-gates.md`) | about 40 min |
 
 ## The whole runtime suite, with its wall clock (#2085)
@@ -50,128 +50,70 @@ To compare the tests run by two passes: `diff <A>/tests.txt <B>/tests.txt` (one 
 - **The same 2 s rule as `npm test`** (#2129): the launcher plays the reporter `test/garde-duree/reporteur.ts` beside `spec`. A test over 2 s that `test/garde-duree/exceptions.ts` does not list is named on stderr and turns the suite red.
 - Temp dir in `/dev/shm` when it has room, Node's compile cache, `git --exec-path` first in `PATH` — as the gates and `npm test` already do.
 
-### Before and after, on the station (#2085)
+### What the tests change (#2085)
 
-Measured on the box station: Intel Xeon E5-1620 v2 at 3.7 GHz, 4 physical cores, 8 threads. Other worktrees were working on it too; the load at the start of each pass is in the table.
-Before is `origin/main` at `d0b5fbd`, extracted with `git archive` and played by `SUITE_RUNTIME_AVANT=1 suite-runtime.sh` (the exact command of `npm test`). After is this branch, played by `suite-runtime.sh`.
+The launcher alone left the suite at about 616 s of CPU. The rest came from the tests starting fewer real processes, where the process is not what they prove:
+- **The runtime, the station and the CLIs start in the test's process** where the test only reads what they say (`appeler`, `demarrerIci`, `jouerLaStation` in `runtime/test/outils.ts`). What depends on the process (start by its file, exit code, a real signal, a lock another process holds) is still proven with `lancer`.
+- **The test kitchen starts its cooks without `relais.ts`** (`sansRelais`, `runtime/test/aides/cuisine.ts`), except where the cook outliving the runtime is the subject (`relais: true`).
+- **The command table plays each script as `npm run` plays it, without `npm`** (`commandes.test.ts`). The real `npm run` is still tested once per kind of name.
+- **The update machine scenarios run side by side**, install and update asynchronous (`mise-a-jour/machine.test.ts`): `spawnSync` froze the file.
+- **Two tests prove less**, and their names say so. No test is deleted or skipped, but the reviewer and the chef should know:
+  - `lectures-sous-condition.test.ts`: the hour of ticks plays the 1st, 2nd and 60th ticks and moves the clock over the other 57. The 60 ticks cost 2,760 processes of the fake `gh`.
+  - `mise-a-jour/machine.test.ts`: two published versions instead of three (the third took the same path as the first), and the first package is built with gzip instead of xz (`paquet.test.ts` still builds the real one).
+
+### Before and after, on the station (2026-11-04)
+
+The box station: Intel Xeon E5-1620 v2 at 3.7 GHz, 4 physical cores, 8 threads, shared with the other worktrees' cooks (the load at the start of each pass is in the table; it never fell under 7). Both passes on the same base, in the same hour:
+- **Before** is the branch's base, `origin/main` at `0ac4994`, extracted with `git archive` and played by `SUITE_RUNTIME_AVANT=1 SUITE_RUNTIME_DIR=… suite-runtime.sh`: the exact command of `npm test`.
+- **After** is this branch, played by `suite-runtime.sh`.
 
 | Whole runtime suite | Before (`npm test`) | After (`suite-runtime.sh`) |
 |---|---|---|
-| Wall clock | 128.4 s | **95.4 s** |
-| CPU (user + system) | 685.6 s | **616.0 s** |
-| Tests run | 4271 | **4272** |
-| Passed / failed / skipped | 4265 / 0 / 6 | 4266 / 0 / 6 |
-| Load at the start | 6.89 | 9.15 |
+| Wall clock | 450.7 s | **74.1 s** |
+| CPU (user + system) | 979.9 s | **459.3 s** |
+| Tests run | 4564 | **4566** |
+| Passed / failed / skipped | 4552 / 6 / 6 | 4560 / 0 / 6 |
+| Load at the start (1 min) | 7.55 (20.6 during the pass) | 11.55 |
 
-`diff` of the two `tests.txt` files gives one more line after: the test of `npm run` on an old script name (`commandes.test.ts`). No test is gone.
+The six failures before are the measure's, not the base's: the five `enrolement/commande.test.ts` tests, which need a git checkout and fail in an extracted tree, and `mise-a-jour/machine.test.ts`, whose serial scenarios went past their limit under the load (97 s). `diff` of the two `tests.txt`: two tests more after (`npm run` on an old script name, and one in `garde-duree.test.ts` for the 2 s rule's bisection, which this branch brought), four tests renamed (the two that prove less, and two in `commandes.test.ts`), **none gone**.
 
-The slowest files, before and after. Each file is played alone, eight at a time (`profil-runtime.sh`, wall s / CPU s, children included). The last column is its wall clock inside the suite after.
+Earlier passes of the same branch today, on the same box, before the 19 files `main` added entered `durees.tsv` (unknown, they ran alone): 84.6 s and 104.6 s, with 509 and 487 s of CPU. Larger batches (files under 6 s, batches of 12 s) were tried after: 77.8 s and 458.7 s of CPU, no gain, dropped. The wall clock follows the load the other worktrees put on the box. The CPU does not.
 
-| File | Before | After | In the suite | Cause, and what was done |
+The slowest files before, and the slowest after. Each file is played alone, eight at a time (`profil-runtime.sh`, wall s / CPU s, children included; 894 s of CPU over all the files before, 679 s after). The fourth column is its wall clock inside the suite after.
+
+| File | Before, alone | After, alone | In the suite | Cause, and what was done |
 |---|---|---|---|---|
-| `test/mise-a-jour/machine.test.ts` | 46.7 / 24.7 | **23.9** / 24.8 | 27.8 | Four machine scenarios, one after the other, and each install or update ran under `spawnSync`, which froze the file. **Fixed**: the scenarios run side by side, and install and update are asynchronous. CPU is the same, since the work is the same. Each scenario declares a 120 s limit to the hang guard: in the loaded suite it goes past 30 s. |
-| `test/0-en-premier/recette.test.ts` | 38.3 / 4.7 | 38.7 / 4.7 | 40.0 | Waits on purpose for the station's real 30 s cadence: the spec measures it. **Not changed**: the launcher starts it first, so it runs under the rest of the suite. |
-| `test/lectures-sous-condition.test.ts` | 32.5 / 25.1 | 32.4 / 24.8 | 44.4 | An hour of ticks over four projects against a fake `gh`, one process per read. The reads of a tick were made concurrent: **no gain measured**. |
-| `test/installation.test.ts` | 31.1 / 25.1 | 31.2 / 25.0 | 38.7 | Real installs, each step a Node process loading about 170 modules. **Not changed.** |
-| `test/pass.test.ts` | 26.8 / 29.3 | 27.3 / 29.4 | 26.1 | The pass played end to end: journal work in the process, then gates, `git` and fake `gh`. **Not changed.** |
-| `test/station.test.ts` | 20.8 / 26.3 | 19.4 / 26.0 | 23.1 | Starts `src/station/main.ts` (289 modules, about 1 s of CPU per start) once per case. **Not changed.** |
-| `test/fusion.test.ts` | 13.9 / 12.6 | 15.2 / 12.9 | 11.0 | Real repositories, merges and `git` processes. **Not changed.** |
-| `test/desinstallateur.test.ts` | 13.2 / 17.5 | 13.9 / 17.5 | 21.0 | Starts `desinstaller-sous-le-compte.ts` (162 modules) once per case. **Not changed.** |
-| `test/reaction.test.ts` | 13.1 / 14.8 | 14.0 / 15.0 | 14.0 | The station's reactions, with real cooks (`relais.ts` and a fake `claude` per cook). **Not changed.** |
-| `test/main.test.ts` | 13.1 / 37.5 | 11.6 / 37.0 | 14.0 | 29 tests, each starting the real runtime (`src/main.ts`, 248 modules, about 0.55 s of CPU per start). **Not changed.** |
-| `test/exploitation-en-anglais.test.ts` | 12.1 / 21.4 | 14.6 / 21.6 | 13.3 | One CLI process (167 modules) per command shown. **Not changed.** |
-| `test/paquet/paquet.test.ts` | 13.0 / 9.9 | 14.4 / 9.9 | 17.1 | Builds real `.deb` packages with `dpkg-deb`. **Not changed.** |
-| `test/commandes.test.ts` | 4.2 / 24.1 | 3.3 / **16.7** | 2.0 | About forty `npm run`, each one an `npm` start (about 0.35 s of CPU) before the script. **Fixed**: each script is played as `npm run` plays it, without `npm`. The real `npm run` is still tested once per kind of name. |
+| `test/mise-a-jour/machine.test.ts` | 52.4 / 27.7 | **19.0** / 23.0 | 17.0 | Machine scenarios one after the other, each install or update under `spawnSync`, which froze the file. **Fixed**: side by side, asynchronous, and two versions instead of three. |
+| `test/0-en-premier/recette.test.ts` | 38.5 / 4.9 | 38.1 / 4.9 | 37.9 | Waits on purpose for the station's real 30 s cadence: the spec measures it. **Not changed**: the launcher starts it first, under the rest of the suite. It is the suite's lower bound. |
+| `test/lectures-sous-condition.test.ts` | 33.0 / 26.3 | **4.3** / 4.4 | 6.0 | An hour of ticks, 2,760 fake `gh` processes. **Fixed**: three ticks played, the clock moved over the 57 others (proves less, see above). |
+| `test/installation.test.ts` | 29.8 / 26.1 | 26.6 / **18.7** | 26.1 | Real installs, one Node process of about 170 modules per step. **Fixed in part**: the CLIs and the runtime in the test's process where only their output is read. The real `git` and setup steps stay. |
+| `test/pass.test.ts` | 29.4 / 29.7 | 25.2 / **16.6** | 19.2 | The pass end to end with real cooks. **Fixed in part**: cooks without a relay (one Node process less per cook). |
+| `test/station.test.ts` | 20.3 / 26.3 | 18.1 / **14.2** | 16.8 | Starts `src/station/main.ts` per case. **Fixed in part**: cooks without a relay, except the two restarts whose cook must outlive the runtime. |
+| `test/fusion.test.ts` | 16.0 / 13.1 | 11.6 / **8.0** | 11.0 | Real repositories and merges. **Fixed in part**: cooks without a relay. |
+| `test/exploitation-en-anglais.test.ts` | 15.6 / 24.0 | **3.9** / 4.0 | 4.6 | One CLI process (167 modules) per command shown. **Fixed**: the commands run in the test's process. |
+| `test/desinstallateur.test.ts` | 15.3 / 19.4 | 13.2 / 18.9 | 14.9 | The product starts `desinstaller-sous-le-compte.ts` under the service account's uid, 33 times. **Not changed**: that process is what it proves. |
+| `test/reaction.test.ts` | 14.9 / 15.1 | 12.0 / **8.1** | 11.4 | The station's reactions with real cooks. **Fixed in part**: cooks without a relay. |
+| `test/main.test.ts` | 12.8 / 40.5 | 11.5 / **22.4** | 10.3 | Tests each starting the real runtime (248 modules). **Fixed in part**: 15 of them start it in the test's process (`demarrerIci`). |
+| `test/commandes.test.ts` | 4.5 / 25.7 | 1.4 / **3.3** | 2.0 | About forty `npm run`, each one an `npm` start. **Fixed**: each script played without `npm`. |
 
-Across the whole suite, the launcher saves what the files repeat. 316 short files run in 37 processes and cost 106 s of CPU, where alone each one pays its start. The suite still costs 616 s.
+The slowest after that are not above: `test/depot.test.ts` 12.0 / 8.9 (16.6 in the suite; real repositories, not changed) and `test/station/main.test.ts` 10.7 / 20.0 (10.3; the station's real process and its signals, not changed).
 
-### Then, fewer real processes per test (#2085, on `origin/main` `2958c14`)
+### Where the CPU goes now, and the bound
 
-The chef chose to keep the target on this box by having the tests start fewer real processes, knowing some of them then prove less of the real process. What changed:
-- **The runtime, the station and the CLIs start in the test's process** where the test only reads what they say (`appeler`, `demarrerIci`, `jouerLaStation` in `runtime/test/outils.ts`). What depends on the process (start by its file, exit code, a real signal, a lock another process holds) is still proven with `lancer`.
-- **The test kitchen starts its cooks without `relais.ts`** (`sansRelais`), except where the cook outliving the runtime is the subject.
-- **Two tests prove less**, and their names say so:
-  - `lectures-sous-condition.test.ts`: the hour of ticks plays the 1st, 2nd and 60th ticks and moves the clock over the other 57. The 60 ticks cost 2,760 processes of the fake `gh`.
-  - `mise-a-jour/machine.test.ts`: two published versions instead of three. The third took the same path as the first. The first package is built with gzip instead of xz (`paquet.test.ts` still builds the real one).
-
-Same box, other worktrees busy on it. Both runs on the same tree and in the same hour: before is `origin/main` at `2958c14` played by `SUITE_RUNTIME_AVANT=1 suite-runtime.sh` (the exact command of `npm test`), after is this branch rebased on it, played by `suite-runtime.sh`.
-
-| Whole runtime suite | Before (`npm test`, `2958c14`) | After (`suite-runtime.sh`) |
-|---|---|---|
-| Wall clock | 175.8 s | **93.3 s** |
-| CPU (user + system) | 815.4 s | **480.0 s** |
-| Tests run | 4347 | **4348** |
-| Passed / failed / skipped | 4341 / 0 / 6 | 4342 / 0 / 6 |
-| Load at the start | 14.73 | 8.19 |
-
-`diff` of the two `tests.txt`: one test more (`npm run` on an old script name). Four tests carry a new name, the two above and the two in `commandes.test.ts`. No test is gone.
-
-The slowest files after, in the suite: `0-en-premier/recette.test.ts` 39.0 s (waits on purpose for the 30 s cadence), `installation.test.ts` 29.0 s, `pass.test.ts` 20.8 s, `mise-a-jour/machine.test.ts` 19.4 s, `depot.test.ts` 18.9 s, `station.test.ts` 17.9 s, `desinstallateur.test.ts` 17.2 s, `closing/run.test.ts` 15.0 s, `bac-a-sable/configuration.test.ts` 11.8 s, `bascule/machine.test.ts` 11.3 s.
-
-**The bound the chef accepted.** The chef accepted the suite as measured here, about 95 s on this box, with under 60 s left to a later, heavier ticket. At 480 s of CPU, the floor on 8 threads is 60 s, even on an idle box. Going under it needs the CPU lowered again: lazy imports in the runtime's core, see below.
-
-### Replayed after the rebase on `origin/main` `ad53189` (#2085)
-
-As the chef asked, the delivery is kept as it is, brought up to the base and played again. Two things the base brought needed a fix:
-- `station-sans-demarrage.test.ts` (new on `main`) stops the runtime and starts it again while the other station's cook runs. Without a relay, that cook dies with the runtime, and the test hung 30 s on the hang guard. It now asks for `relais: true`, as every other restart test does: 0.3 s.
-- The five test files `main` added are now in `durees.tsv`. That reshuffled the batches and exposed a batch-ordering fault: see the batch line above.
-
-Same box, other worktrees busy on it, both passes in the same quarter hour. Before is `origin/main` `ad53189`, extracted and played by `SUITE_RUNTIME_AVANT=1 SUITE_RUNTIME_DIR=…` (above). After is this branch, played by `suite-runtime.sh`.
-
-| Whole runtime suite | Before (`npm test`, `ad53189`) | After (`suite-runtime.sh`) |
-|---|---|---|
-| Wall clock | 241.3 s | **115.6 s** (113.4 s on the pass before) |
-| CPU (user + system) | 842.3 s | **491.2 s** |
-| Tests run | 4419 | **4420** |
-| Passed / failed / skipped | 4407 / 6 / 6 | 4414 / 0 / 6 |
-| Load at the start | 7.21 | 8.01 |
-
-The six failures before are the measure's, not the base's: the five `enrolement/commande.test.ts` tests, which need a git checkout, and one test over 2 s under the load (3.1 s). `diff` of the two `tests.txt`: the same as above, one test more and four renamed, none gone.
-
-The slowest files after, in the suite: `0-en-premier/recette.test.ts` 37.9 s (waits on purpose), `installation.test.ts` 26.4 s, `pass.test.ts` 19.0 s, `depot.test.ts` 17.0 s, `mise-a-jour/machine.test.ts` 16.4 s, `station.test.ts` 16.2 s, `desinstallateur.test.ts` 15.2 s, `closing/run.test.ts` 14.1 s, `bac-a-sable/configuration.test.ts` 11.6 s, `bascule/machine.test.ts` 11.2 s.
-
-At 491 s of CPU, the floor on 8 threads is 61 s on an idle box. With the box shared, the measures land at 113 to 116 s, above the 93 s of the pass before the rebase, also on a shared box. That is load, not cost: CPU is unchanged (480 s then, 491 s now with 72 more tests).
-
-Played again by the next cook on the same head, same commands, in the same ten minutes, the box at a load of 9 to 14:
-
-| Whole runtime suite | Before (`npm test`, `ad53189`) | After, two passes (`suite-runtime.sh`) |
-|---|---|---|
-| Wall clock | 274.0 s | **138.7 s**, 158.6 s |
-| CPU (user + system) | 864.3 s | **505.9 s**, 511.5 s |
-| Tests run | 4419 | **4420**, 4420 |
-| Passed / failed / skipped | 4408 / 5 / 6 | 4414 / 0 / 6, both |
-| Load at the start | 8.78 | 13.15, 9.82 |
-
-The five failures before are the `enrolement/commande.test.ts` tests of the extracted tree. The two passes after run the same tests (`diff` empty), and their `diff` with before is the one above. The wall clock follows the box's load; the CPU, and the ratio to before (0.5 to 0.6 in wall clock, 0.6 in CPU), hold.
-
-### Where the CPU goes, and the bound
-
-Measured before the step above, at 616 s of CPU. The proportions still say where the next seconds are.
-
-Profiled by recording `process.cpuUsage()` and `argv` in every Node process the suite starts (a module preloaded through `NODE_OPTIONS`; that pass cost 663 s, the recording included):
+Profiled on this branch by a module preloaded through `NODE_OPTIONS` that writes, as each Node process exits, its own CPU (`process.resourceUsage()`) and its waited children's (`/proc/self/stat`). For the test's children to inherit it, `ENV_ENFANT` (`runtime/test/outils.ts`) had to pass `NODE_OPTIONS` on, for that pass only. That pass cost 480 s:
 
 | Where | CPU |
 |---|---|
-| 55 test files played alone | 118 s |
-| 316 short files, in 37 batches | 106 s |
-| `src/relais.ts`, started 702 times (one per cook) | 61 s, 87 ms each: a bare Node start |
-| `src/main.ts` (68 starts), `src/station/main.ts` (36 starts) | 37 s, 35 s |
-| Other runtime commands and test doubles the tests start (`bascule/main.ts`, `installation-cli.ts`, `desinstaller-sous-le-compte.ts`, `montrer-*.ts`, fake `gh`, fake `claude`, …) | about 190 s |
-| Processes other than Node (`git`, `sh`, `dpkg-deb`, `sqlite3`) | about 115 s |
+| The test files' own processes (47 alone, 357 files in 41 batches) | 227 s |
+| Runtime processes the tests or the product start: `station/main.ts` (26 starts) 26 s, `main.ts` (24) 18 s, `desinstaller-sous-le-compte.ts` (33) 13 s, `bascule/main.ts` (23) 12 s, the gists fake `gh` (170) 11 s, others | about 130 s |
+| Processes other than Node (`git`, `sh`, `dpkg-deb`, `script`), and the Node processes started under a stripped environment (the gesture through its fake `sudo`, 11 s for `geste.test.ts`) | about 110 s |
+| The launcher itself (`spec`, TAP and the 2 s reporter on one stream) | 13.5 s |
 
-On this CPU, two floors set the cost:
-- `node -e 0` costs **85 ms** of CPU. No V8 or libuv flag lowers it, and the ones that change V8's flags raise it to 120 ms or more.
-- Each module costs **about 0.8 ms**, even with the compile cache: resolution, `package.json` lookups and linking.
-- `src/etat.ts` pulls 163 modules and `src/decisions.ts` 127, so every command that reads a project's state loads at least about 167. No single import edge removes more than 37 of them.
+The wall clock cannot go below **CPU ÷ threads**: 459 ÷ 8 = **57 s** on this box with nothing else running, and the cadence spec holds 38 s of it alone. The measured 74 to 105 s is that bound with the box shared: at a load of 11 to 17 before the suite starts, it gets about 6 of the 8 threads.
 
-The wall clock cannot go below **CPU ÷ threads**: 616 ÷ 8 = 77 s, even on an idle box. The measured 95 s is that bound at about 80 % use.
-
-**Under 60 s on this box would need the CPU under about 400 s, that is 215 s (35 %) less.** Neither the launcher nor the test fixtures can give that. The cost is in what the tests prove: real Node processes of the runtime, about 2000 of them, each paying the two floors above. It would take one of these:
-1. Lazy imports across the runtime's core (`etat.ts`, `decisions.ts` → `manager.ts` → `reaction.ts` → `pass.ts`), so that a command loads only what it runs. That is a refactor of the product, not of the tests, and it saves at best about 100 ms per process, around 50 s in total.
-2. Fewer real processes per test (`relais.ts` per cook, `main.ts` and `station/main.ts` per case). That changes what those tests prove.
-3. A faster station. At 616 s of CPU, 60 s needs the equivalent of about 12 of this box's threads at full use: for example a recent CPU with 8 cores and 16 threads.
+**Under 60 s on this box, shared as it is, would need the CPU under about 360 s, that is 100 s (22 %) less.** What is left is mostly what the tests prove: processes the product itself starts (uninstall under the service account, the gesture through `sudo`, the station's signals), real `git` repositories, and Node's floors on this CPU (`node -e 0` costs about 85 ms of CPU, each module about 0.8 ms). Lazy imports across the runtime's core (`etat.ts` pulls 163 modules, `decisions.ts` 127) would save at best about 100 ms per process, around 20 s here: a product refactor, not a test one.
 
 ### Reading the number
 
 The wall clock is bounded below by **CPU ÷ threads** and by **the longest file**. Read both before blaming a test:
-`suite-runtime.sh` prints the CPU, `profil-runtime.sh` says which files spend it. The longest file in the suite is now `test/0-en-premier/recette.test.ts` (39 s, mostly waiting on purpose), then `test/installation.test.ts` (29 s).
+`suite-runtime.sh` prints the CPU, `profil-runtime.sh` says which files spend it. The longest file in the suite is now `test/0-en-premier/recette.test.ts` (38 s, mostly waiting on purpose), then `test/installation.test.ts` (26 s).
