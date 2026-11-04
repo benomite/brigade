@@ -1298,7 +1298,7 @@ Kept in place, unchanged: these tests were over 2 s because `{ concurrency: 8 }`
 - `test/superviseur.test.ts` « un motif qui ne peut pas être noté n'empêche pas l'arrêt »
 - `test/superviseur.test.ts` « un binaire introuvable est une fin en erreur, pas un cook qui pend »
 - `test/superviseur.test.ts` « un cook qui produit n'est pas pris pour un inactif »
-- `test/tableau/gestes/sans-ssh.test.ts` « `/brigade ask #30 …` sur la box qui tient le second du projet : la demande entre dans sa conversation, et sa réponse est postée sous le geste et portée par le tableau »
+- `test/tableau/gestes/sans-ssh.test.ts` « `/brigade ask #30 …` sur la box qui tient le second du projet : la demande entre dans sa conversation, et sa réponse est postée sous le geste et portée par le tableau » — **deleted** on main by #2169 (`e34111b`), with the board side of 'ask the second' it proved; what remains is covered by « `/brigade ask #30 …` n'est plus un geste : la box le lit comme tout geste inconnu, et le bloc du tableau n'en porte ni demande ni second », same file
 - `test/tests-touches.test.ts` « une commande ajoutée touche les tests qui lisent les scripts, et eux seuls »
 - `test/tests-touches.test.ts` « une commande ajoutée touche le test qui lance un code du produit lisant les scripts »
 - `test/tests-touches.test.ts` « un package.json ajouté, tout se joue — même s'il ne porte que des scripts »
