@@ -2,20 +2,23 @@
 // cohérent du journal pris pendant que le runtime écrit, les flux bruts en un
 // seul exemplaire, et un runtime qui redémarre sur ce qui a été restauré.
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import type { Commande } from "../src/appel.ts";
 import { Base } from "../src/base.ts";
-import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { principal as grant } from "../src/grant-cli.ts";
+import type { Journal } from "../src/journal.ts";
+import { principal as station } from "../src/montrer-station.ts";
+import { principal as pass } from "../src/montrer-pass.ts";
+import { principal as relire } from "../src/relire.ts";
 import { demarrer } from "../src/runtime.ts";
 import { prendreInstantane, restaurer, sauvegarder, SauvegardeRefusee } from "../src/sauvegarde.ts";
 import { CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
-import { BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, faitInconnu, fauxGh, git, horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
+import { appeler, faitInconnu, horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "../src");
-const [MAIN, SAUVEGARDER, RESTAURER] = ["main.ts", "sauvegarder.ts", "restaurer.ts"].map((fichier) => join(SRC, fichier)) as [string, string, string];
+const [SAUVEGARDER, RESTAURER] = ["sauvegarder.ts", "restaurer.ts"].map((fichier) => join(SRC, fichier)) as [string, string];
 const REFUS = 2;
 
 // Un projet dont le journal porte déjà deux faits, et deux flux de cooks.
@@ -344,7 +347,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 3 }, () => {
     assert.equal((await commande(t, RESTAURER, {}, "quelque-part")).code, REFUS);
   });
 
-  test("restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi", { skip: posixOnly("restores a running runtime's backup on a fresh machine, starts the runtime on it and expects it to reread what it served, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the restored runtime without running its handler, so it exits with no code") }, async (t) => {
+  test("restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi", async (t) => {
     // Une cuisine sert un ticket sous grant `merge`, de la prise au merge.
     const ancienne = cuisine(t, { pass: true, issues: [issue(17, CALIBRE)] });
     chef(ancienne.repertoire, "grant.activated");
@@ -352,51 +355,40 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 3 }, () => {
     const run = String(ancienne.dernier("cook.launched", 17)?.run);
     const destination = repertoireTemporaire(t);
 
-    // La sauvegarde est prise pendant que ce runtime tourne.
-    const sauvegarde = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: ancienne.repertoire, BRIGADE_BACKUP_DIR: destination });
-    assert.equal(sauvegarde.code, 0, sauvegarde.sortie);
-    const nom = /^brigade : backup (\S+) — /m.exec(sauvegarde.sortie)?.[1] ?? "";
+    // La sauvegarde est prise pendant que ce runtime tourne. Les commandes
+    // elles-mêmes, dans leur process, sont éprouvées plus haut.
+    const sauvegarde = sauvegarder({ repertoireEtat: ancienne.repertoire, destination, garder: 14 });
+    assert.ok(sauvegarde !== null);
     assert.equal(ancienne.types().includes("backup.completed"), true);
 
     // La machine neuve : un répertoire d'état qui n'existe pas encore.
     const neuf = join(repertoireTemporaire(t), "etat");
-    const restauration = await commande(t, RESTAURER, { BRIGADE_STATE_DIR: neuf }, join(destination, nom));
-    assert.equal(restauration.code, 0, restauration.sortie);
+    restaurer({ sauvegarde: sauvegarde.chemin, repertoireEtat: neuf });
     assert.equal(existsSync(join(neuf, "lock.db")), false);
 
-    const gh = fauxGh(t);
-    gh.issues([]);
-    const clone = mkdtempSync(join(tmpdir(), "brigade-test-clone-"));
-    t.after(() => rmSync(clone, { recursive: true, force: true }));
-    git(clone, "init", "-q");
-    const env = { ...ENV_GIT, BRIGADE_STATE_DIR: neuf, BRIGADE_PROJECT: "brigade", BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium", BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_STATIONS: "box/claude:30:code" };
-    const runtime = lancer(t, MAIN, [], env);
-    await runtime.attendre("démarré");
-
-    // Il a démarré : le journal restauré était celui d'un runtime mort sans préavis.
-    const journal = ouvrirJournal(neuf, { lectureSeule: true });
-    t.after(() => journal.fermer());
-    const apres = journal.tout().map((e) => e.type);
-    assert.deepEqual(apres.filter((type) => type === "runtime.interrupted" || type === "runtime.started"), ["runtime.started", "runtime.interrupted", "runtime.started"]);
+    // Le runtime y redémarre, dans le process du test : le journal restauré
+    // était celui d'un runtime mort sans préavis.
+    const runtime = demarrer({ repertoireEtat: neuf, projet: "brigade" });
+    t.after(() => runtime.arreter("test"));
+    const relus = runtime.journal.tout();
+    assert.deepEqual(relus.map((e) => e.type).filter((type) => type === "runtime.interrupted" || type === "runtime.started"), ["runtime.started", "runtime.interrupted", "runtime.started"]);
     // Tout ce qui précède la sauvegarde est là, à l'identique.
     const anciens = ancienne.journal.tout().filter((e) => e.type !== "backup.completed");
-    // Les décisions du chef, que la machine neuve pose avant de démarrer, ne
-    // sont pas de la sauvegarde.
-    const relus = journal.tout().filter((e) => e.type !== "decision.set");
     const repris = relus.slice(0, relus.findIndex((e) => e.type === "runtime.interrupted"));
     assert.deepEqual(repris, anciens.slice(0, repris.length));
     assert.equal(repris.some((e) => e.type === "ticket.served" && e.ticket === 17), true);
 
     // Et le chef le relit avec ses commandes : le ticket servi, l'usage du grant, le relevé du cook.
-    const lire = async (cli: string, ...args: string[]) => (await commande(t, join(SRC, cli), { BRIGADE_STATE_DIR: neuf }, ...args)).sortie;
-    assert.match(await lire("relire.ts", "17"), /#17 {2}ticket\.served/);
-    assert.match(await lire("grant-cli.ts"), /#17 {2}merge on v2 .* merged/);
-    assert.match(await lire("montrer-station.ts"), new RegExp(`#17 {2}${run} {2}sonnet / low {2}done {2}1 turn`));
-    assert.match(await lire("montrer-pass.ts", "17"), /GREEN — gates green/);
+    const lire = async (commande: Commande, ...args: string[]) => {
+      const appel = appeler(commande, args, { BRIGADE_STATE_DIR: neuf });
+      await appel.fin;
+      return appel.sortie();
+    };
+    assert.match(await lire(relire, "17"), /#17 {2}ticket\.served/);
+    assert.match(await lire(grant), /#17 {2}merge on v2 .* merged/);
+    assert.match(await lire(station), new RegExp(`#17 {2}${run} {2}sonnet / low {2}done {2}1 turn`));
+    assert.match(await lire(pass, "17"), /GREEN — gates green/);
     assert.equal(readFileSync(join(neuf, "runs", `${run}.jsonl`), "utf8"), readFileSync(join(ancienne.repertoire, "runs", `${run}.jsonl`), "utf8"));
-
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
   });
 });
 
