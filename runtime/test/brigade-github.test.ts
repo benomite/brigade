@@ -37,7 +37,20 @@ class FauxGitHub {
   checksDeLaBaseSeule: Array<{ name: string; outcome: "green" | "red" }> = [];
   // Les PR dont la CI est rouge.
   ciRouge = new Set<number>();
+  // Le run de GitHub Actions du check `tests` de la base, que la station peut
+  // relancer (#2323) ; null : un check sans lien, qui ne se relance pas.
+  runDeLaBase: number | null = null;
+  tentatives = new Map<number, number>();
+  // Une relance tourne : le check `tests` de la base est en cours jusqu'à
+  // `finirLaRelance`.
+  relanceEnCours = false;
   private horloge = 0;
+
+  // La relance des jobs de la base finit, verte ou rouge.
+  finirLaRelance(couleur: "green" | "red"): void {
+    this.relanceEnCours = false;
+    this.base = couleur;
+  }
 
   feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
     this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
@@ -107,7 +120,8 @@ class FauxGitHub {
       },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
-        return [{ name: "tests", outcome: this.base }, ...this.checksDeLaBaseSeule];
+        const url = this.runDeLaBase === null ? {} : { url: `https://github.com/faux/depot/actions/runs/${this.runDeLaBase}/job/1` };
+        return [{ name: "tests", outcome: this.relanceEnCours ? ("pending" as const) : this.base, ...url }, ...this.checksDeLaBaseSeule];
       },
       commentaires: async (numero) => {
         await noter("commentaires");
@@ -126,6 +140,15 @@ class FauxGitHub {
         this.ticket(issue).labels.delete(label);
       },
       retraitsDeLabels: async () => [],
+      etatDuRun: async (run) => {
+        await noter("etatDuRun");
+        return { tentative: this.tentatives.get(run) ?? 1, termine: !this.relanceEnCours };
+      },
+      relancerLesEchecs: async (run) => {
+        await noter("relancerLesEchecs");
+        this.tentatives.set(run, (this.tentatives.get(run) ?? 1) + 1);
+        this.relanceEnCours = true;
+      },
       ouvrirPR: async ({ branche, corps }) => {
         await noter("ouvrirPR");
         const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
@@ -164,11 +187,23 @@ class FauxGitHub {
     return priseDeLaStation(github, station);
   }
 
-  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
+  // Un tour du faux attend ses relectures, qui tournent hors du tour (#2329) :
+  // `horsDuTour` laisse le tour rendre la main pendant qu'elles tournent.
+  station(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void; horsDuTour?: boolean } = {}): StationGitHub {
+    const station = this.stationSeule(nom, options);
+    if (options.horsDuTour === true) return station;
+    return { ...station, tour: async () => {
+      await station.tour();
+      await station.relu();
+    } };
+  }
+
+  stationSeule(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
       places: options.places ?? 1,
+      ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",
       github,
       prise: this.prise(github, nom),
@@ -542,6 +577,92 @@ test("a red check that runs only on the base (Windows) holds nothing; a red chec
   assert.equal(faux.mergee(38), undefined);
 });
 
+test("a red base re-runs its failed jobs once: while they run, nothing is held, nothing is sent back, and green after them the pass merges (#2323)", async () => {
+  const faux = new FauxGitHub();
+  const avertis: string[] = [];
+  faux.runDeLaBase = 501;
+  faux.base = "red";
+  faux.feu(39);
+  const a = faux.station("A", { avertir: (texte) => void avertis.push(texte) });
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  // La relance tourne encore : la livraison qui court `tests` s'est mergée, et
+  // la station n'a rien dit d'autre que la relance.
+  assert.equal(faux.relanceEnCours, true);
+  assert.equal(faux.mergee(39)?.mergeePar, "A");
+  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 501 are re-run once before any merge is held"]);
+  assert.deepEqual(faux.commentaires.get(39)?.filter((c) => c.body.includes("sent back")) ?? [], []);
+  faux.finirLaRelance("green");
+  faux.feu(40);
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(40)?.mergeePar, "A");
+  assert.equal(faux.tentatives.get(501), 2);
+  assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
+});
+
+test("a base still red after its re-run holds as before, and neither another station nor a restarted one re-runs it again (#2323)", async () => {
+  const faux = new FauxGitHub();
+  const avertis: string[] = [];
+  const avertir = (texte: string) => void avertis.push(texte);
+  faux.runDeLaBase = 502;
+  faux.base = "red";
+  const a = faux.station("A", { avertir });
+  await a.tour();
+  await a.calme();
+  assert.equal(faux.relanceEnCours, true);
+  faux.finirLaRelance("red");
+  faux.feu(41);
+  // B, et A redémarrée, ne savent pas que A l'a relancée : GitHub le leur dit.
+  const b = faux.station("B", { avertir });
+  const relancee = faux.station("A", { avertir });
+  for (let i = 0; i < 4; i += 1) {
+    for (const station of [a, b, relancee]) {
+      await station.tour();
+      await station.calme();
+    }
+  }
+  assert.equal(faux.mergee(41), undefined);
+  assert.equal(faux.tentatives.get(502), 2);
+  assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
+  assert.equal(avertis.filter((texte) => texte.includes("re-run")).length, 1);
+});
+
+test("a review runs off the turn: while one delivery's review runs, the turn reviews and merges another one (#2329)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(51);
+  faux.feu(52);
+  let liberer = () => {};
+  const retenue = new Promise<void>((resoudre) => (liberer = resoudre));
+  const a = faux.station("A", {
+    places: 2,
+    horsDuTour: true,
+    juger: async (ticket) => {
+      if (ticket.number === 51) await retenue;
+      return { verdict: "approve", motif: "" };
+    },
+  });
+  await a.tour();
+  await jusqua(() => a.enCuisine().length === 0);
+  // #51 se relit encore : les tours suivants relisent, mettent à jour et mergent #52.
+  for (let i = 0; i < 20 && faux.mergee(52) === undefined; i += 1) {
+    await a.tour();
+    await new Promise((resoudre) => setImmediate(resoudre));
+  }
+  assert.equal(faux.mergee(52)?.mergeePar, "A");
+  assert.equal(faux.mergee(51), undefined);
+  liberer();
+  for (let i = 0; i < 4 && faux.mergee(51) === undefined; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(51)?.mergeePar, "A");
+});
+
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);
@@ -673,7 +794,10 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
   if ("refus" in station) return;
   await station.tour();
   await station.calme();
-  for (let tour = 0; tour < 3 && faux.mergee(11) === undefined; tour += 1) await station.tour();
+  for (let tour = 0; tour < 3 && faux.mergee(11) === undefined; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
   assert.equal(faux.mergee(11)?.mergeePar, "box");
   assert.equal(faux.mergee(11)?.branche, "cook/11-github");
   assert.deepEqual(fait, ["preparer 11-github", "ranger cook/11-github", "pousser cook/11-github", "reprendre review-11-github cook/11-github", "retirer review-11-github"]);
@@ -778,12 +902,34 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
     if ("refus" in station) return;
     await station.tour();
     await station.calme();
-    for (let tour = 0; tour < 3 && faux.mergee(12) === undefined; tour += 1) await station.tour();
+    for (let tour = 0; tour < 3 && faux.mergee(12) === undefined; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
     assert.ok((faux.commentaires.get(12) ?? []).some((c) => c.body.endsWith(`Taken by station \`${nom}\`.`)));
     assert.match(verdictDe(faux, faux.mergee(12)?.number ?? 0)[0]?.body ?? "", new RegExp(`^<!-- brigade:verdict station=${nom} verdict=approve `));
     assert.equal(faux.mergee(12)?.mergeePar, nom);
   });
 }
+
+test("a station never claims a ticket that needs a capability it lacks, and claims it once it has every one (#2187)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, [...CALIBRE, "needs:mac"]);
+  faux.feu(2, [...CALIBRE, "needs:mac", "needs:android"]);
+  faux.feu(3);
+  const sans = faux.station("A", { places: 3 });
+  await sans.tour();
+  await sans.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 3 }]);
+  const partielle = faux.station("B", { places: 3, capacites: ["mac"] });
+  await partielle.tour();
+  await partielle.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [3, 1]);
+  const complete = faux.station("C", { places: 3, capacites: ["mac", "android"] });
+  await complete.tour();
+  await complete.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [3, 1, 2]);
+});
 
 test("a ticket whose zone is held by another open PR is held back, and claimed once that PR is closed (#2188)", async () => {
   const faux = new FauxGitHub();

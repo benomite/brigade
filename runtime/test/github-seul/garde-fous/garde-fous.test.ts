@@ -63,6 +63,8 @@ class FauxGitHub {
         return `https://github.com/faux/depot/pull/${this.prs.length}`;
       },
       ci: async () => [],
+      etatDuRun: async () => ({ tentative: 1, termine: true }),
+      relancerLesEchecs: async () => {},
       mettreAJour: async () => {},
       merger: async () => ({ fait: true }),
     };

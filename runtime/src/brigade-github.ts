@@ -32,6 +32,7 @@ import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
+import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -76,7 +77,7 @@ export type GitHubDuTour = GitHubDeLaFusion &
     corpsDuTicket(issue: number): Promise<string>;
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
     prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
-  };
+  } & GitHubDeLaRelance;
 
 const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
 
@@ -123,12 +124,21 @@ export type OptionsDeStation = {
   prise: Prise;
   cuisiner: Cuisiner;
   juger: Juger;
+  // Ce que la station fournit (#2187) : un ticket qui demande une capacité
+  // qu'elle n'a pas, par un label `needs:<capacité>`, n'est jamais pris ici.
+  capacites?: readonly string[];
   // Les garde-fous (#2213) : le « stop », le disjoncteur, le quota et
   // l'arbitre, lus avant chaque prise. Absents, rien ne retient.
   gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
 };
+
+// Le préfixe du label par lequel un ticket demande une capacité.
+export const PREFIXE_BESOIN = "needs:";
+
+// Les capacités qu'un ticket demande, lues de ses seuls labels.
+export const besoinsDuTicket = (labels: readonly string[]): string[] => labels.filter((label) => label.startsWith(PREFIXE_BESOIN)).map((label) => label.slice(PREFIXE_BESOIN.length));
 
 export type StationGitHub = {
   // Un tour : relit et merge ce qui est en pass, puis prend ce que ses places
@@ -138,6 +148,8 @@ export type StationGitHub = {
   enCuisine(): number[];
   // Attend que ses cooks en vol aient fini.
   calme(): Promise<void>;
+  // Attend les relectures et les merges en cours, hors du tour (#2329).
+  relu(): Promise<void>;
   // Le tour ne reprendra pas : ce qu'il tient chez l'arbitre est rendu.
   quitter?(): Promise<void>;
 };
@@ -178,6 +190,7 @@ const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
@@ -191,6 +204,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // d'elles changée (#2198) : une PR approuvée dont la CI tourne encore ne
   // coûte pas un merge refusé à chaque tour.
   const tentees = new Map<number, string>();
+  // Les livraisons que la station relit et merge en ce moment, hors du tour (#2329).
+  const enRelecture = new Map<number, Promise<void>>();
+  // Un merge à la fois : chaque merge attend le précédent.
+  let serie: Promise<unknown> = Promise.resolve();
+  const enSerie = <T>(faire: () => Promise<T>): Promise<T> => {
+    const suite = serie.then(faire, faire);
+    serie = suite.catch(() => undefined);
+    return suite;
+  };
 
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
@@ -251,9 +273,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     renvoyes.add(ticket.number);
   };
 
+  // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
+  const relancerLaBase = relanceDeLaBase(github, avertir, nom);
+
   const tour = async () => {
     renvoyes.clear();
-    const checksDeLaBase = await github.checksDeLaBase();
+    const checksDeLaBase = await relancerLaBase(await github.checksDeLaBase());
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
@@ -295,11 +320,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // de check sur la PR : rouge, il ne la retient pas.
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
         if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name))) continue;
+        // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
+        // de plusieurs minutes ne retient plus les merges, les autres relectures
+        // ni les prises. Les merges, eux, passent un à un.
+        if (enRelecture.has(ticket.number) || enRelecture.size >= PASS_MAX) continue;
+        const relireEtFusionner = async () => {
         try {
           const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           if (tentees.get(pr.number) !== tentee) {
-            const fusion = await fusionner(pr, github);
+            const fusion = await enSerie(() => fusionner(pr, github));
             if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
@@ -310,7 +340,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        } finally {
+          enRelecture.delete(ticket.number);
         }
+        };
+        enRelecture.set(ticket.number, relireEtFusionner());
       }
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
@@ -358,6 +392,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       if (enPass(tickets, renvoyes) >= PASS_MAX) break;
       if (enVol.has(ticket.number)) continue;
+      // Une capacité qui manque à la station : le ticket attend celle qui l'a.
+      if (besoinsDuTicket(ticket.labels).some((besoin) => !capacites.has(besoin))) continue;
       // Un ticket sans calibrage complet ne part pas.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
@@ -382,8 +418,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   return {
     tour,
     enCuisine: () => [...enVol.keys()],
+    relu: async () => {
+      while (enRelecture.size > 0) await Promise.all(enRelecture.values());
+    },
     calme: async () => {
-      while (enVol.size > 0) await Promise.all(enVol.values());
+      while (enVol.size > 0 || enRelecture.size > 0) await Promise.all([...enVol.values(), ...enRelecture.values()]);
     },
     quitter: async () => {
       await gardes?.quitter();
@@ -504,6 +543,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
     commenter: (numero, corps) => github.commenter(numero, corps),
     retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
+    etatDuRun: (run) => github.etatDuRun(run),
+    relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     merger: (numero, sha) => github.merger(numero, sha),
     labelliser: (numero, labels) => github.labelliser(numero, labels),
@@ -540,6 +581,8 @@ export type OptionsDuDepot = {
   reviewer: Calibrage;
   // Où s'écrit le flux de chaque lancement.
   flux: string;
+  // Ce que la station fournit, tel que le projet le déclare.
+  capacites?: readonly string[];
   lancer?: Lancer;
   // Les garde-fous (#2213), dont le lancement gardé des cooks et des
   // relectures.
@@ -630,5 +673,5 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
+  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
 }
