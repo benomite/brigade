@@ -20,7 +20,6 @@ import { appelsDeLaStation, budgetDeLaStation, ecrituresRetenuesDeLaStation, pau
 import { direGitHubSeul, lireGitHubSeul } from "./github-seul-etat.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
-import { tailleNotee } from "./tableau/rendu/taille.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -128,8 +127,6 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     throw erreur;
   }
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), false, ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
-  const taille = tailleNotee(env.BRIGADE_STATION_DIR, etat.projet);
-  if (taille !== null) lignes.push(`board       ${taille}`);
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
   if (budget !== null) lignes.push(...direLeBudget(budget).map((texte, i) => `${(i === 0 ? "gh budget" : "").padEnd(11)}${texte}`));

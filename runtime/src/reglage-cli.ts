@@ -17,18 +17,16 @@
 //   setting closer-lines <n>             … son plafond de lignes retirées
 //   setting <closer…> default            propose de le retirer du fichier
 //
-// Une proposition passe par `proposerAuRuntime` : le crible de l'écriture
-// d'abord — un refus n'écrit rien —, puis la demande au journal du runtime du
-// projet, qui ouvre la PR et la remet à la pass. La réponse est une ligne de
-// JSON, sous les noms des faits `setting.proposed` et `setting.refused` : la PR
-// ouverte, ou pourquoi il n'y en a pas. Le code de sortie est 0 pour une PR
-// ouverte, 1 pour un refus dit, 2 pour un usage qui ne se lit pas.
+// Une proposition n'ouvre plus de PR (#2061) : c'est la pass de l'ancien chemin
+// qui la jugeait et la mergeait, et elle n'est plus. La réponse est une ligne
+// de JSON qui le dit, sous le nom du fait `setting.refused`, avec le fichier à
+// changer par une PR sur GitHub. Le code de sortie est 1 pour ce refus, 2 pour
+// un usage qui ne se lit pas.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { configFermeture, provenancesDeFermeture } from "./closing/settings.ts";
 import { decisionsPosees, environnementDecide } from "./decisions.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { plafondDuProjet } from "./reagir.ts";
-import { proposerAuRuntime } from "./reglages-projet/au-runtime.ts";
 import { avecLaBrancheDuDepot, brancheDuProjet, reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
 import { FICHIER, ROLES, type Role } from "./reglages-projet/reglages.ts";
 
@@ -104,9 +102,7 @@ function enVigueur(env: Record<string, string | undefined>) {
   };
 }
 
-// `delaiMs` : combien de temps attendre la réponse du runtime — par défaut,
-// celui de `proposerAuRuntime`.
-export async function principal({ args, env, dire, redire }: Appel, delaiMs?: number): Promise<void> {
+export async function principal({ args, env, dire, redire }: Appel): Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade: ${message}`);
     throw new Sortie(code);
@@ -126,12 +122,7 @@ export async function principal({ args, env, dire, redire }: Appel, delaiMs?: nu
   }
   const changement = changementDesMots(args);
   if (changement === null) echouer(2, `“${args.join(" ")}” is not a setting change\n${USAGE}`);
-  const reponse = await proposerAuRuntime(changement, { repertoireEtat, projet, auteur: "chef", ...(delaiMs === undefined ? {} : { delaiMs }) });
-  if (reponse.ok) {
-    dire(JSON.stringify({ ok: true, pr: reponse.pr, number: reponse.numero, branch: reponse.branche, settings: reponse.reglages }));
-    return;
-  }
-  dire(JSON.stringify({ ok: false, reason: reponse.motif, key: reponse.cle, message: reponse.message }));
+  dire(JSON.stringify({ ok: false, reason: "no-runtime", key: Object.keys(changement)[0] ?? null, message: `the kitchen no longer opens a settings PR: change ${FICHIER} by a pull request on GitHub` }));
   throw new Sortie(1);
 }
 

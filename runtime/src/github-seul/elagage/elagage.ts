@@ -1,15 +1,8 @@
-// The old-path loops that read the log. GitHub is the only state (#2061): the
-// log is stale, each loop stops at its entry (it asks `perimee()`), and
-// the stale `cook/<n>-github` branches are cleaned from what GitHub says.
+// The stale `cook/<n>-github` branches, cleaned from what GitHub says: a
+// branch whose issue is closed is deleted, locally and on the origin.
 import { execFile } from "../../sans-invite.ts";
 import type { GitHub } from "../../github.ts";
 import type { Runtime } from "../../runtime.ts";
-
-// The loops that stop, by the name the guard tests carry.
-export const BOUCLES_PERIMEES = ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup"] as const;
-
-// True while the old path must not read the log. Read at each entry.
-export type Perimee = () => boolean;
 
 const BRANCHE_COOK = /^cook\/(\d+)-github$/;
 
@@ -42,14 +35,14 @@ export async function elaguerBranchesPerimees(options: OptionsElagage): Promise<
   return retirees;
 }
 
-// Cleans the stale branches at each tick, one pass at a time, while the old
-// path is stopped. Its `arreter` takes it along.
-export function brancherElagageGithub<R extends Runtime>(runtime: R, options: OptionsElagage & { perimee: Perimee }): R {
+// Cleans the stale branches at each tick, one pass at a time. Its `arreter`
+// takes it along.
+export function brancherElagageGithub<R extends Runtime>(runtime: R, options: OptionsElagage): R {
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   let arrete = false;
   let occupe = false;
   const desabonner = runtime.surReveil((cause) => {
-    if (cause !== "tick" || arrete || occupe || !options.perimee()) return;
+    if (cause !== "tick" || arrete || occupe) return;
     occupe = true;
     void elaguerBranchesPerimees(options)
       .then((retirees) => {

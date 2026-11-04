@@ -7,14 +7,8 @@
 // La décision porte le nom de la station : elle ne vaut que pour elle. Le
 // projet changé de station, la décision n'est pas reprise — la nouvelle
 // station, si elle n'a pas de bac à sable non plus, redemande.
-//
-// Comme la préparation (`preparation-depot/attendre.ts`), c'est le rail que
-// lisent les stations qui est retenu ; le journal du projet est relu à chaque
-// prise : la décision posée vaut à la suivante, sans redémarrage.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { RuntimeAvecRail } from "../alimenter.ts";
-import type { Rail } from "../rail.ts";
 
 // Dans le répertoire d'état du projet.
 export const FICHIER = "decision-sans-bac-a-sable.json";
@@ -48,32 +42,4 @@ export function accepterSansBacASable(options: { repertoireEtat: string; station
 // pas décidé pour elle.
 export function decisionAttendue(faits: { station: string | null; sansBacASable: boolean | null; decision: Pick<DecisionSansBacASable, "station"> | null }): boolean {
   return faits.station !== null && faits.sansBacASable === true && faits.decision?.station !== faits.station;
-}
-
-export type OptionsRetenue = {
-  repertoireEtat: string;
-  // La station qui ouvre cette cuisine.
-  station: string;
-  // Une ligne du journal de service de la station.
-  dire: (ligne: string) => void;
-};
-
-export function retenirSansDecision<R extends RuntimeAvecRail>(runtime: R, options: OptionsRetenue): R {
-  const { repertoireEtat, station } = options;
-  const { journal } = runtime;
-  let dit: "retenu" | "libre" | null = null;
-  const retenu = (): boolean => {
-    const cloison = journal.duType("isolation.configured", 1)[0]?.payload;
-    const retenue = decisionAttendue({ station, sansBacASable: cloison === undefined ? null : cloison.sandbox === null, decision: lireDecisionSansBacASable(repertoireEtat) });
-    if (retenue && dit !== "retenu") options.dire(`brigade : ${station} cuit sans bac à sable — aucun cook ne part avant que le chef ait choisi : continuer sans, ou une autre station`);
-    if (!retenue && dit === "retenu") options.dire(`brigade : le chef a décidé pour ${station} — le rail démarre`);
-    dit = retenue ? "retenu" : "libre";
-    return retenue;
-  };
-  const rail: Rail = {
-    ...runtime.rail,
-    prendre: (qui, enCuisine, seul) => (retenu() ? null : runtime.rail.prendre(qui, enCuisine, seul)),
-    servables: (enCuisine, preneuses, seul) => (retenu() ? 0 : runtime.rail.servables(enCuisine, preneuses, seul)),
-  };
-  return { ...runtime, rail };
 }

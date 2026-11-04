@@ -6,7 +6,6 @@
 // table after 3 pm, it is the reader who compares with the current time.
 import type { Base } from "../base.ts";
 import { geste } from "../geste.ts";
-import type { FaitDistante } from "../events/remote.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import type { FaitRenouvellement } from "../events/renewal.ts";
 import type { FaitRuntime } from "../events/runtime.ts";
@@ -99,7 +98,6 @@ export type CookDeStation = {
 type Ecoutes =
   | FaitStation
   | Extract<FaitGardeFous, { type: "cook.launched" | "cook.progressed" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
-  | Extract<FaitDistante, { type: "remote.asked" }>
   | Extract<FaitRuntime, { type: "runtime.started" }>
   | Extract<FaitRenouvellement, { type: "session.restored" }>;
 
@@ -311,24 +309,8 @@ export const stations = definirProjection<Ecoutes>({
       base.executer("DELETE FROM stations WHERE station = ?", payload.station);
       base.executer("DELETE FROM stations_sans_demarrage WHERE station = ?", payload.station);
     },
-    // Only a station the project declares has a presence: a request made
-    // under another name creates nobody.
-    "remote.asked": (base, { at, payload }) => {
-      if (!texte(payload.station)) return;
-      base.executer("UPDATE stations SET seen_at = ? WHERE station = ? AND remote = 1", at, payload.station);
-      // It says it started after its cook could not: restarted, it takes
-      // tickets again. Its clock is compared with the box's — a restart comes
-      // minutes after the cook that could not start, not seconds.
-      const depuis = payload.verb === "claim" && texte(payload.since) ? Date.parse(payload.since) : Number.NaN;
-      if (Number.isNaN(depuis)) return;
-      const tenue = base.lire<{ since: string }>(
-        "SELECT since FROM stations_sans_demarrage WHERE station = ? AND station IN (SELECT station FROM stations WHERE remote = 1)",
-        payload.station,
-      )[0];
-      if (tenue !== undefined && depuis > Date.parse(tenue.since)) base.executer("DELETE FROM stations_sans_demarrage WHERE station = ?", payload.station);
-    },
     // The runtime restarts: the stations of this machine restart with it. A
-    // remote one runs on its workstation, it says so itself (`remote.asked`).
+    // remote one ran on its workstation.
     "runtime.started": (base) => {
       base.executer("DELETE FROM stations_sans_demarrage WHERE station NOT IN (SELECT station FROM stations WHERE remote = 1)");
     },

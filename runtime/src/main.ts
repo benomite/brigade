@@ -5,36 +5,25 @@ import { plafondDesCoeurs } from "./projections/stations.ts";
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
+import { brancherRepriseParGitHub } from "./breaker-resume-github.ts";
 import { noterGitHubSeul } from "./github-seul-etat.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "./brigade-github.ts";
-import { avecRail, configRail } from "./alimenter.ts";
+import { configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
-import { sessionClaude } from "./claude.ts";
-import { brancherJeton, configJeton, direJeton, environnementClaude, masquerLaConsole } from "./jeton-claude.ts";
+import { brancherJeton, configJeton, direJeton, masquerLaConsole } from "./jeton-claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
-import { brancherFermeture } from "./closing/run.ts";
-import { brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
-import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
+import { brancherElagageGithub, elagageDuClone } from "./github-seul/elagage/elagage.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
-import { brancherCadence } from "./produit/cadence/brancher.ts";
-import { brancherPass, configPass } from "./pass.ts";
 import { plafondDuProjet } from "./reagir.ts";
-import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
-import { CARNET_PATH } from "./carnet/carnet.ts";
-import { brancherCarnet } from "./promotion/livrer.ts";
-import { brancherRenommage } from "./pause/renommage.ts";
-import { brancherReglages } from "./reglages-projet/au-runtime.ts";
-import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
-import { lirePlafondDesLecons } from "./apprentissage/injection.ts";
-import { leconsDeLEtageCommun } from "./commun/installation.ts";
+import { lireLeDepot } from "./reglages-projet/en-vigueur.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -42,16 +31,8 @@ import { configSecrets, DECLARATION } from "./secrets.ts";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
-import { lireLesProfils } from "./profils/preference.ts";
-import { brancherStation, configStation, depotDeStation } from "./station.ts";
+import { configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
-import { unSeulEcrivainSurGitHub } from "./board-single-writer.ts";
-import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
-import { brancherLeTableau, ouvertesDuDepot } from "./tableau/publication/publier.ts";
-import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
-import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
-import { mentionsDuTableau } from "./tableau/mention/mention.ts";
-import { ouvrirGitHub } from "./github.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
@@ -120,18 +101,11 @@ try {
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
-  const delais = configPass({ ...process.env, ...variablesDesGatesDuDepot(duDepot.reglages) });
   const reviewer = configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
   lireSeuils(decide);
-  // Les seuils des leçons : un réglage de l'unité du projet, lu une fois.
-  const seuilsDesLecons = lireSeuilsDesLecons(decide);
-  // Combien de leçons provisoires reçoit le cook d'un ticket : un réglage de
-  // l'unité du projet, lu une fois.
-  const leconsInjectees = lirePlafondDesLecons(decide);
-  configFermeture(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   jeton = configJeton(process.env, { repertoireEtat, clone: station.clone });
@@ -173,26 +147,9 @@ try {
     void entretenues.entretenir();
     socle.surReveil((cause) => void (cause === "tick" && entretenues.entretenir()));
   }
-  // The old-path loops that read the log stop at their entry (#2218): GitHub is the only state (#2061).
-  const perimee = () => true;
-  const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail, perimee }));
-  // La pass avant la station : c'est elle que la station réveille quand un
-  // cook a livré.
-  const pass = brancherPass(garde, { ...delais, perimee, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(process.env.BRIGADE_STATION_DIR ? { etageCommun: { racine: process.env.BRIGADE_STATION_DIR, expiration: seuilsDesLecons.expirationPromue } } : {}) });
-  // La fermeture avant la station : c'est par son rail que la station se voit
-  // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
-  const fermee = brancherFermeture(pass, { perimee, reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
-  // Le carnet des leçons après la pass, à qui il remet ses PR : elles n'attendent pas le chef.
-  const apprise = brancherCarnet(fermee, { depot, github: githubs.station, base: station.base, seuils: seuilsDesLecons, carnetALaBase: () => lireALaBase(station, CARNET_PATH), env });
-  // Le renommage du code après la pass, à qui il remet sa PR : il ne part que
-  // sur le « oui » du chef à la pause, et la lève lui-même à sa fin.
-  const renommee = brancherRenommage(apprise, { depot, github: githubs.station, base: station.base, env, cloison });
-  // Les changements des réglages du projet que le chef demande, après la pass
-  // à qui chacun remet sa PR : elle la retient pour lui (#1308).
-  const reglee = brancherReglages(renommee, { depot, github: githubs.station, base: station.base, env });
-  // L'état GitHub seul (#2061) : la station ne lance aucun cook de l'ancien
-  // chemin — ni déclaré, ni relu des décisions — et c'est la station GitHub
-  // seul qui prend, cuisine, relit et merge, sous l'identité de la pass.
+  const garde = brancherGardeFous(reglages, socle);
+  // L'état GitHub seul, seul chemin (#2061) : c'est la station GitHub seul qui
+  // prend, cuisine, relit et merge, sous l'identité de la pass.
   const ici = stations.find((declaree) => !declaree.distante);
   projetGitHub = brancherBrigadeGithub({
     noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
@@ -222,47 +179,15 @@ try {
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
           }),
   });
-  const servie = brancherStation(reglee, {
-    perimee,
-    stations: [],
-    decisions: { ...decisions, stations: () => [] },
-    repertoireEtat,
-    depot,
-    github: githubs.station,
-    depotGitHub: rail.depot,
-    base: station.base,
-    bin: station.bin,
-    env,
-    secrets,
-    cloison,
-    sansIdentite: identites !== null,
-    session: () => sessionClaude(station.bin, environnementClaude(process.env, process.env)),
-    dureeBailMs: rail.dureeBailMs,
-    presenceMs: station.presenceMs,
-    entreesMax: station.entreesMax,
-    seuils: station.seuils,
-    gardeTranscriptsMs: station.gardeTranscriptsMs,
-    apresCook: pass.reveillerPass,
-    arbitre: null,
-    leconsInjectees,
-    // Là où le « oui » du chef les écrit : le clone du projet.
-    profils: () => lireLesProfils(station.clone, (texte) => console.error(texte)),
-    // L'étage commun, si ce projet est servi par une station : aucun sinon.
-    commun: () => leconsDeLEtageCommun(process.env.BRIGADE_STATION_DIR),
-  });
-  // Le manager en dernier : il ne lance que des jugements et des découpages,
-  // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
   brancherDerive(socle, decisions.seuils);
-  const manage = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
-  // Le rôle produit, que le rail vide réveille quand le chef l'a allumé : sous l'identité du manager, par un GitHub à lui.
-  const sesRoles = identites;
-  const dirige = brancherCadence(manage, { perimee, github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison });
+  // Le manager : il ne lance que des jugements et des découpages.
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
+  const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
-  // Les branches `cook/<n>-github` dont l'issue est fermée, retirées tant que l'ancien chemin est arrêté.
-  const elaguee = brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env }), perimee });
   const suivie = brancherSession(elaguee, session, undefined, jeton);
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
@@ -270,31 +195,10 @@ try {
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
   const alertee = brancherAlerteUrgence(datee);
-  // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts).
+  // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
+  // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
   brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
-  // Le tableau de la cuisine ne lance rien non plus : il publie, dans le dépôt
-  // du projet, ce que `status` dit — sous l'identité du manager, s'il en a une.
-  // Il n'écrit que le tableau d'un projet que cette station sert (board-single-writer.ts).
-  const tableau = unSeulEcrivainSurGitHub(clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }), { depot: rail.depot, gh: rail.gh, env: process.env });
-  // Les gestes que le chef y poste se lisent et se répondent sous la même
-  // identité ; ils se jouent comme ses gestes locaux, sous celle de la pass —
-  // qui merge et commente les tickets —, sans que la box retienne leurs appels.
-  const roles = identites;
-  const roleDesGestes = roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {};
-  const clientDesGestes = clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) });
-  const gestes = gestesDuTableau({
-    client: clientDesGestes,
-    journal: alertee.journal,
-    projet,
-    repertoireEtat,
-    repoDir: station.clone,
-    github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
-    // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
-    githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
-  });
-  // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
-  const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
-  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }), ouvertes });
+  runtime = brancherRepriseParGitHub(alertee, { github: githubs.rail });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

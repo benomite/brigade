@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { abandonsAuChef } from "./abandon-au-chef.ts";
-import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
+import { DE_CONFIANCE, priorite } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -38,13 +38,9 @@ import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAtte
 import { labelsMontes } from "./projections/reactions.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
-import { ouvrirReaction } from "./reaction.ts";
 import { ouvrirRequalification } from "./requalifier.ts";
-import { ouvrirSansCapacite } from "./sans-capacite.ts";
-import { brancherLeTriage } from "./carte-todo.ts";
-import { ouvrirTriage } from "./triage/triage.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
 // Le nom sous lequel les jugements figurent au journal, à la place d'une
@@ -108,8 +104,6 @@ export type OptionsManager = ConfigManager & {
   bin: string;
   // L'environnement dont part celui des jugements. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
-  // Celui dont part l'agent de triage. Par défaut, celui des jugements.
-  envDuTriage?: NodeJS.ProcessEnv;
   // La cloison dans laquelle partent les jugements.
   cloison?: Cloison | null;
   // Le bac à sable d'une cuisine locale, sur le Mac du chef : les jugements y
@@ -158,8 +152,8 @@ const dimension = (labels: string[], prefixe: string) => labels.filter((label) =
 const deCalibrage = (label: string) => label.startsWith("model:") || label.startsWith("effort:");
 
 // Rend le runtime, augmenté de son manager. Son `arreter` l'emporte avec lui.
-export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsManager): R {
-  const { journal, projet, rail } = runtime;
+export function brancherManager<R extends Runtime & GardeFous>(runtime: R, options: OptionsManager): R {
+  const { journal, projet } = runtime;
   const { base } = journal;
   const { github } = options;
   const maintenant = options.maintenant ?? (() => new Date());
@@ -523,23 +517,6 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     signature,
   });
 
-  const reaction = ouvrirReaction({
-    journal,
-    projet,
-    rail,
-    github,
-    depotGitHub: options.depotGitHub,
-    plafond: () => options.decisions?.plafond() ?? options.plafond,
-    noter,
-    demander,
-    peutJuger,
-    redecouper: decoupage.redecouper,
-    arrete: () => arrete,
-    eteint: () => !managerAllume(base),
-    avertir,
-    signature,
-  });
-
   const requalification = ouvrirRequalification({
     journal,
     projet,
@@ -549,37 +526,6 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     demander,
     peutJuger,
     arrete: () => arrete,
-    avertir,
-    signature,
-  });
-
-  // Devant TODO : chaque carte y passe par l'agent de triage, tant que le
-  // manager est allumé.
-  const triage = ouvrirTriage({
-    journal,
-    projet,
-    rail,
-    github,
-    depotGitHub: options.depotGitHub,
-    demander: (sujet, consigne, lire) => demander(sujet, consigne, lire, options.envDuTriage ?? options.env ?? process.env),
-    peutJuger,
-    redecouper: (ticket, commentaires, echec) => decoupage.redecouper(ticket, commentaires, echec),
-    maintenant,
-    arrete: () => arrete,
-    avertir,
-  });
-  const debrancherLeTriage = brancherLeTriage(base, () => !arrete && managerAllume(base));
-
-  const sansCapacite = ouvrirSansCapacite({
-    journal,
-    projet,
-    rail,
-    github,
-    noter,
-    redecouper: decoupage.redecouper,
-    peutJuger,
-    arrete: () => arrete,
-    eteint: () => !managerAllume(base),
     avertir,
     signature,
   });
@@ -640,22 +586,8 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   const tour = async () => {
-    if (!managerAllume(base)) {
-      // Éteint, il ne trie plus : ce qu'il retenait entre dans TODO.
-      triage.relacher("the manager is off: the triage holds no card");
-      return;
-    }
-    // Les cartes d'abord : celles qui attendent leur triage ne sont devant
-    // personne.
-    await triage.traiter();
-    if (arrete || !managerAllume(base)) return;
-    // Avant le sondage : une pass rouge ne modifie aucune issue.
-    await reaction.traiter();
-    if (arrete || !managerAllume(base)) return;
-    // Un ticket sans station est repris avant d'atteindre le chef.
-    await sansCapacite.traiter();
-    if (arrete || !managerAllume(base)) return;
-    // De même : l'état d'un ticket change sans qu'aucune issue bouge.
+    if (!managerAllume(base)) return;
+    // L'état d'un ticket change sans qu'aucune issue bouge.
     await decoupage.suivre();
     if (arrete) return;
     const sondage = await github.ouvertes();
@@ -775,7 +707,6 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     arreter(signal) {
       arrete = true;
       desabonner();
-      debrancherLeTriage();
       runtime.arreter(signal);
     },
   };
