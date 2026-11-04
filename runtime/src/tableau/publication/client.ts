@@ -10,7 +10,7 @@
 import { decouper } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { LECTURE_DU_TABLEAU } from "../budget/cout.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
+import { appelerGitHub, COMPTE_DE_LA_MACHINE, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
 import { execFile } from "../../sans-invite.ts";
 
 // Une issue telle que le tableau la lit.
@@ -104,9 +104,10 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
     const limite = options.limite ?? limiteDuProcess();
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU, ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant });
-    await environnement();
-    return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    return appelerGitHub(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU, ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant }, async (appel) => {
+      await environnement();
+      return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
+    });
   };
 
   const exiger = (reponse: ReponseHttp, chemin: string, attendu = 200): ReponseHttp => {

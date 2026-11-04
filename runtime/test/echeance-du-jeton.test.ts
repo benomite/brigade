@@ -48,7 +48,7 @@ function cuisine(t: TestContext) {
 }
 
 const GESTE = (jeton: string) =>
-  `remake the token — \`claude setup-token\` under the service account: delete ${jeton}, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date`;
+  `remake the token on the station (${jeton}; docs/installation-station.md, step 5) — no app button for it yet; the station reads the new token and its date`;
 
 test("la vie d'un jeton est d'un an, et l'échéance s'annonce des semaines avant", () => {
   assert.equal(VIE_DU_JETON_JOURS, 365);

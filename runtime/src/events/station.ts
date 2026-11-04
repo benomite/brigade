@@ -29,7 +29,10 @@ export type OrigineDuSeuil = { totalMb: number } | "env";
 // `station-stopped` : le chef a arrêté la cuisine du projet sur cette station
 // seule (`station.stopped`) ; ses cooks en cours finissent. `off` : l'interrupteur
 // du projet est éteint (`interrupteur.ts`) ; ses cooks en cours finissent.
-export type Retenue = "stopped" | "off" | "station-stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+// `unstartable` : le dernier cook d'un ticket de la station a fini sans un tour
+// ni un token — il n'a pas pu démarrer (`station.unstartable`) ; ses cooks en
+// cours finissent.
+export type Retenue = "stopped" | "off" | "station-stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "unstartable" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
@@ -187,4 +190,14 @@ export type FaitStation =
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le
   // « reprendre » du chef. `run` : le cook qui l'a révélé, s'il y en a un.
-  | { type: "station.disconnected"; payload: { station: string; reason: string; run: string | null } };
+  | { type: "station.disconnected"; payload: { station: string; reason: string; run: string | null } }
+  // Le cook d'un ticket a fini — arrêté par un garde-fou, ou en échec — sans
+  // un tour ni un token : il n'a pas pu démarrer. La station ne prend plus de
+  // ticket, quelle qu'en soit la cause, plutôt que d'en tenir un par cook qui
+  // ne démarre pas ; le ticket de ce cook est revenu en attente, une autre
+  // station le prend. `run` : ce cook ; `reason` : sa fin (`guard:idle`, le
+  // motif de l'échec). Levé par le journal, sans fait à lui : au redémarrage
+  // de la station — le runtime d'ici (`runtime.started`), ou une station
+  // distante qui réclame en disant avoir démarré depuis (`since`) —, ou dès
+  // qu'un cook de la station lancé depuis produit un tour.
+  | { type: "station.unstartable"; payload: { station: string; run: string; reason: string } };

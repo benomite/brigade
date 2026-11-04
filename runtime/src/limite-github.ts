@@ -108,19 +108,41 @@ const MINUTE_MS = 60_000;
 
 // Une écriture de la cuisine que le rythme retient : elle ne part pas, n'est pas
 // comptée, et peut repartir à `jusqua`. Ce n'est pas un refus de GitHub :
-// `prendreUnAppel` attend, puis la reprend.
+// elle attend son tour dans la file d'`appelerGitHub`, puis part.
 export class EcritureEspacee extends Error {
   readonly jusqua: number;
-  constructor(jusqua: number, dansMs: number) {
+  // Les écritures du compte comptées sur l'heure écoulée.
+  readonly ecrites: number;
+  constructor(jusqua: number, dansMs: number, ecrites = 0) {
     super(`écritures GitHub espacées : ${ECRITURES_PAR_MINUTE} par minute et ${ECRITURES_PAR_HEURE} par heure au plus — la suivante part dans ${Math.ceil(dansMs / 1000)} s`);
     this.name = "EcritureEspacee";
     this.jusqua = jusqua;
+    this.ecrites = ecrites;
   }
+}
+
+type Lire = <T>(sql: string, ...params: Array<string | number>) => T[];
+
+// L'instant où la prochaine écriture du compte peut partir : la sortie de la
+// fenêtre de la plus ancienne des écritures, pour la fenêtre pleine — null si
+// aucune ne l'est, la prochaine part tout de suite.
+function prochaineEcriture(lire: Lire, compte: string, instant: number): number | null {
+  for (const [fenetre, plafond] of [
+    [MINUTE_MS, ECRITURES_PAR_MINUTE],
+    [FENETRE_MS, ECRITURES_PAR_HEURE],
+  ] as const) {
+    const ecrites = lire<{ instant: number }>("SELECT instant FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ? ORDER BY instant DESC LIMIT ?", compte, instant - fenetre, plafond);
+    const plusAncienne = ecrites[plafond - 1];
+    if (plusAncienne !== undefined) return plusAncienne.instant + fenetre;
+  }
+  return null;
 }
 
 // Vrai si l'appel `gh api` écrit : une méthode autre que GET, ou des champs sans
 // méthode dite — `gh api` envoie alors un POST.
 export function estUneEcriture(args: readonly string[]): boolean {
+  // Une requête GraphQL part en POST, mais seule une mutation écrit (#2301).
+  if (args.includes("graphql")) return args.some((arg) => /^query=\s*mutation\b/.test(arg));
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i] ?? "";
     const methode = arg === "-X" || arg === "--method" ? args[i + 1] : /^--method=(.+)$/.exec(arg)?.[1] ?? (/^-X(.+)$/.exec(arg)?.[1]);
@@ -234,7 +256,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number } | { appel: number; alerte: AlerteDeBudget | null } => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { appel: number; alerte: AlerteDeBudget | null } => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -248,14 +270,8 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           // Le rythme des écritures du compte, tous projets ensemble : la
           // suivante part quand la plus ancienne de la fenêtre pleine en sort.
           if (etiquette?.ecriture === true) {
-            for (const [fenetre, plafond] of [
-              [MINUTE_MS, ECRITURES_PAR_MINUTE],
-              [FENETRE_MS, ECRITURES_PAR_HEURE],
-            ] as const) {
-              const ecrites = base.lire<{ instant: number }>("SELECT instant FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ? ORDER BY instant DESC LIMIT ?", compte, instant - fenetre, plafond);
-              const plusAncienne = ecrites[plafond - 1];
-              if (plusAncienne !== undefined) return { espacer: plusAncienne.instant + fenetre };
-            }
+            const espacer = prochaineEcriture((sql, ...params) => base.lire(sql, ...params), compte, instant);
+            if (espacer !== null) return { espacer, ecrites: base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ?", compte, instant - FENETRE_MS)[0]?.n ?? 0 };
           }
         }
         const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
@@ -281,7 +297,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         }
         return refus.appel;
       }
-      if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()));
+      if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()), refus.ecrites);
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
@@ -507,19 +523,154 @@ export async function rafraichirLeQuota(limite: Limite, options: { gh: string; e
 // échoue ne se retente pas avant `RAFRAICHIR_MS`.
 const confirmations = new WeakMap<Limite, Map<string, number>>();
 
-// Prend un appel, comme `limite.prendre`, et le rend — mais une décision de la cuisine qui
-// se prendrait sur un quota bas lu depuis trop longtemps se confirme d'abord
-// auprès de `gh api rate_limit` : GitHub a pu voir passer depuis les appels du
-// Mac, ou commencer une autre fenêtre. `env` : celui de l'appel, demandé
-// seulement s'il faut le confirmer.
-export async function prendreUnAppel(
-  limite: Limite,
-  options: { usage?: Usage; compte?: string; etiquette?: Etiquette; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number; attendre?: (ms: number) => Promise<void> },
-): Promise<number> {
+// Les requêtes de la box à GitHub en vol en même temps, au plus (#2195) : GitHub
+// plafonne aussi les requêtes simultanées d'un compte (limite secondaire). Un
+// geste du chef n'attend jamais de place, mais en occupe une tant qu'il est en vol.
+export const REQUETES_EN_VOL = 4;
+
+export type OptionsAppel = {
+  usage?: Usage;
+  compte?: string;
+  etiquette?: Etiquette;
+  gh: string;
+  env?: () => Promise<NodeJS.ProcessEnv | undefined>;
+  maintenant?: () => number;
+  // Le réveil de la file, quand une écriture attend que le rythme libère une
+  // place : par défaut, un `setTimeout`. Un test y met son horloge.
+  attendre?: (ms: number) => Promise<void>;
+};
+
+// Un appel de la cuisine qui attend dans la file : une place en vol, et pour une
+// écriture, une place au rythme de son compte.
+type EnAttente = {
+  usage: Usage;
+  compte: string;
+  etiquette: Etiquette | undefined;
+  maintenant: () => number;
+  attendre: (ms: number) => Promise<void>;
+  partir: (appel: number) => void;
+  echouer: (erreur: unknown) => void;
+  // Vrai dès que le rythme la retient, elle ou une écriture du même compte arrivée avant elle : le journal le dit (#2226).
+  retenue: boolean;
+};
+
+// La file des appels de la cuisine, une par compteur — donc une pour la station
+// et tous les projets qu'elle sert dans son process (#2195). Choix : une seule
+// file dans l'ordre d'arrivée, pas un minuteur par appel en attente. Une place
+// en vol qui se libère, ou la place que le rythme rend, part au premier arrivé
+// qui peut la prendre : une écriture ne double jamais une écriture plus ancienne
+// du même compte, quel que soit son projet. Une lecture, que le rythme ne retient
+// pas, passe devant une écriture qu'il retient — mais pas devant une lecture
+// arrivée avant elle. La file n'a qu'un réveil : l'instant où le rythme rend sa
+// prochaine place.
+type File = {
+  // Demande un appel : il part dès que la file le laisse partir.
+  prendre(usage: Usage, compte: string, etiquette: Etiquette | undefined, maintenant: () => number, attendre: (ms: number) => Promise<void>): Promise<number>;
+  // Une requête en vol s'achève : sa place passe au suivant.
+  liberer(): void;
+};
+
+const files = new WeakMap<Limite, File>();
+
+function fileDe(limite: Limite): File {
+  const deja = files.get(limite);
+  if (deja !== undefined) return deja;
+  const attente: EnAttente[] = [];
+  let enVol = 0;
+  // L'instant du réveil armé le plus proche, Infinity s'il n'y en a pas.
+  let reveil = Number.POSITIVE_INFINITY;
+
+  const armer = (jusqua: number, par: EnAttente) => {
+    reveil = jusqua;
+    par
+      .attendre(Math.max(50, jusqua - par.maintenant()))
+      .catch(() => {})
+      .then(() => {
+        if (reveil === jusqua) reveil = Number.POSITIVE_INFINITY;
+        pomper();
+      });
+  };
+
+  const retenir = (entree: EnAttente, espacee: EcritureEspacee) => {
+    if (entree.retenue) return;
+    entree.retenue = true;
+    commencerLaRetenue(espacee);
+  };
+  const sortir = (entree: EnAttente) => {
+    attente.splice(attente.indexOf(entree), 1);
+    if (entree.retenue) finirLaRetenue();
+  };
+
+  // Fait partir, dans l'ordre d'arrivée, tout ce qui peut partir.
+  const pomper = () => {
+    // Les comptes dont une écriture attend le rythme : les suivantes restent derrière elle.
+    const retenus = new Map<string, EcritureEspacee>();
+    let prochain: { jusqua: number; par: EnAttente } | null = null;
+    for (const entree of [...attente]) {
+      if (enVol >= REQUETES_EN_VOL) break;
+      const devant = entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined;
+      if (devant !== undefined) {
+        retenir(entree, devant);
+        continue;
+      }
+      let appel: number;
+      try {
+        appel = limite.prendre(entree.usage, entree.compte, entree.etiquette);
+      } catch (erreur) {
+        if (erreur instanceof EcritureEspacee) {
+          retenus.set(entree.compte, erreur);
+          retenir(entree, erreur);
+          if (prochain === null || erreur.jusqua < prochain.jusqua) prochain = { jusqua: erreur.jusqua, par: entree };
+          continue;
+        }
+        sortir(entree);
+        entree.echouer(erreur);
+        continue;
+      }
+      sortir(entree);
+      enVol += 1;
+      entree.partir(appel);
+    }
+    if (prochain !== null && prochain.jusqua < reveil) armer(prochain.jusqua, prochain.par);
+  };
+
+  const file: File = {
+    prendre(usage, compte, etiquette, maintenant, attendre) {
+      // Un geste du chef ne fait jamais la queue.
+      if (usage === "geste") {
+        const appel = limite.prendre(usage, compte, etiquette);
+        enVol += 1;
+        return Promise.resolve(appel);
+      }
+      return new Promise<number>((partir, echouer) => {
+        attente.push({ usage, compte, etiquette, maintenant, attendre, partir, echouer, retenue: false });
+        pomper();
+      });
+    },
+    liberer() {
+      enVol = Math.max(0, enVol - 1);
+      pomper();
+    },
+  };
+  files.set(limite, file);
+  return file;
+}
+
+// Fait une requête à GitHub sous le compteur : prend son appel, comme
+// `limite.prendre`, lance `requete` avec lui, et rend sa place en vol quand elle
+// s'achève, qu'elle aboutisse ou non. Un appel de la cuisine attend dans la file
+// (`fileDe`) : une écriture que le rythme retient ne rate pas, elle part plus
+// tard (#2145), dans l'ordre d'arrivée (#2195). Une décision de la cuisine qui se
+// prendrait sur un quota bas lu depuis trop longtemps se confirme d'abord auprès
+// de `gh api rate_limit` : GitHub a pu voir passer depuis les appels du Mac, ou
+// commencer une autre fenêtre. `env` : celui de l'appel, demandé seulement s'il
+// faut le confirmer.
+export async function appelerGitHub<T>(limite: Limite, options: OptionsAppel, requete: (appel: number) => Promise<T>): Promise<T> {
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const usage = options.usage ?? "cuisine";
+  const maintenant = options.maintenant ?? Date.now;
   if (usage === "cuisine" && limite.aConfirmer(compte)) {
-    const instant = (options.maintenant ?? Date.now)();
+    const instant = maintenant();
     const tentees = confirmations.get(limite) ?? new Map<string, number>();
     confirmations.set(limite, tentees);
     const derniere = tentees.get(compte);
@@ -528,17 +679,72 @@ export async function prendreUnAppel(
       await rafraichirLeQuota(limite, { gh: options.gh, env: await options.env?.(), compte });
     }
   }
-  // Une écriture que le rythme retient attend son tour, puis repart : elle ne
-  // rate pas, elle part plus tard (#2145).
   const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
-  for (;;) {
-    try {
-      return limite.prendre(usage, compte, options.etiquette);
-    } catch (erreur) {
-      if (!(erreur instanceof EcritureEspacee)) throw erreur;
-      await attendre(Math.max(50, erreur.jusqua - (options.maintenant ?? Date.now)()));
-    }
+  const file = fileDe(limite);
+  const appel = await file.prendre(usage, compte, options.etiquette, maintenant, attendre);
+  try {
+    return await requete(appel);
+  } finally {
+    file.liberer();
   }
+}
+
+// Prend un appel et le rend, sans requête à tenir en vol : sa place se libère aussitôt.
+export function prendreUnAppel(limite: Limite, options: OptionsAppel): Promise<number> {
+  return appelerGitHub(limite, options, async (appel) => appel);
+}
+
+// Le journal de la station dit la retenue des écritures une fois quand elle
+// commence et une fois quand elle finit, quel que soit le nombre d'écritures qui
+// attendent : la première qui attend ouvre, la dernière qui repart ferme (#2226).
+let direLaRetenueDansLeJournal: ((ligne: string) => void) | null = null;
+let enAttente = 0;
+
+export function journaliserLaRetenue(dire: (ligne: string) => void): void {
+  direLaRetenueDansLeJournal = dire;
+}
+
+function commencerLaRetenue(erreur: EcritureEspacee): void {
+  enAttente += 1;
+  if (enAttente === 1) direLaRetenueDansLeJournal?.(`brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`);
+}
+
+function finirLaRetenue(): void {
+  enAttente -= 1;
+  if (enAttente === 0) direLaRetenueDansLeJournal?.("brigade : écritures GitHub reprises, le budget ne retient plus la cuisine");
+}
+
+// Ce que le budget des écritures retient sur le compteur de la station dont
+// `racine` est le répertoire : les écritures de l'heure et l'instant de la
+// prochaine, pour le compte dont la prochaine part le plus tôt. Lu sans rien
+// écrire ni rien créer, comme `pauseDeLaStation`. Null si rien n'est retenu.
+export function ecrituresRetenuesDeLaStation(racine: string | undefined, maintenant: number): { ecrites: number; reprise: number } | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    const lire: Lire = (sql, ...params) => base!.lire(sql, ...params);
+    const comptes = lire<{ compte: string }>("SELECT DISTINCT compte FROM appels WHERE ecriture = 1 AND instant > ?", maintenant - FENETRE_MS);
+    let plusTot: { ecrites: number; reprise: number } | null = null;
+    for (const { compte } of comptes) {
+      const reprise = prochaineEcriture(lire, compte, maintenant);
+      if (reprise === null || (plusTot !== null && reprise >= plusTot.reprise)) continue;
+      const ecrites = lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ?", compte, maintenant - FENETRE_MS)[0]?.n ?? 0;
+      plusTot = { ecrites, reprise };
+    }
+    return plusTot;
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// La ligne de `status` : ce qui retient les écritures, combien l'heure en compte, et quand la suivante part.
+export function direLesEcrituresRetenues({ ecrites, reprise }: { ecrites: number; reprise: number }): string {
+  return `held by the GitHub write budget — ${ecrites} of ${ECRITURES_PAR_HEURE} in the last hour, next write at ${heure(reprise)}`;
 }
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
@@ -597,6 +803,12 @@ export function retenueDeLaStation(racine: string | undefined, maintenant: numbe
     base?.fermer();
   }
 }
+
+// L'heure de ce process, en HH:MM.
+const heure = (instant: number): string => {
+  const d = new Date(instant);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
 
 // La ligne qui le dit, en une phrase, l'heure étant celle de ce process.
 export function direLaLimite(jusqua: number): string {
