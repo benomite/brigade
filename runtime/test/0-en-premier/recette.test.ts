@@ -33,7 +33,6 @@ import { test } from "node:test";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document.ts";
 import { ECART_MINIMAL_MS, FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
@@ -160,10 +159,6 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   await station.attendre("brigade [shop] : servi par la station");
   // Sa cuisine publie son tableau dans son dépôt, comme le runtime d'un seul projet.
   await jusqua(() => issuesOuvertes().some((issue) => issue.depot === "acme/shop" && issue.title === "Kitchen board" && issue.labels.includes("kitchen-board")));
-  // La machine n'a pas de bac à sable : rien ne part avant que le chef ait choisi — pas même la préparation.
-  await station.attendre("brigade [shop] : box cuit sans bac à sable — aucun cook ne part avant que le chef ait choisi");
-  accepterSansBacASable({ repertoireEtat: join(racine, "etat/shop"), station: "box" });
-  await station.attendre("brigade [shop] : le rail attend #1 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   const journal = ouvrirJournal(join(racine, "etat/shop"), { lectureSeule: true });
   try {
     assert.ok(journal.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "shop"));

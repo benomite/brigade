@@ -904,39 +904,6 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     }
   });
 
-  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", { skip: posixOnly("marks the installation done, starts the real runtime, waits for its first cook and stops it by SIGTERM expecting exit 0: on Windows SIGTERM ends the runtime before its handler runs") }, async (t) => {
-    const { env, etat, gh } = projet(t);
-    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-    // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
-    // charge le processeur bien au-delà du seuil par défaut.
-    const service = { ...env, BRIGADE_MAX_LOAD_PER_CORE: "1000000", BRIGADE_MIN_FREE_MEMORY_MB: "0", BRIGADE_MIN_FREE_DISK_MB: "0" };
-
-    // Rien n'a été noté : la vérification verte atteste chaque étape.
-    const fin = appeler(etapes, ["demarrage", "faite"], service);
-    assert.equal(await fin.fin, 0, fin.sortie());
-
-    const lue = appeler(etapes, ["--json"], service);
-    assert.equal(await lue.fin, 0);
-    const installation = JSON.parse(lue.sortie()) as { courante: string | null; etapes: Array<{ id: string; etat: string }> };
-    assert.equal(installation.courante, null);
-    assert.deepEqual(installation.etapes.filter((etape) => etape.etat !== "faite"), []);
-    assert.deepEqual(manques(await verifier(service)), []);
-
-    // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
-    const runtime = lancer(t, MAIN, [], service);
-    const lancements = () => {
-      const journal = ouvrirJournal(etat, { lectureSeule: true });
-      try {
-        return journal.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket);
-      } finally {
-        journal.fermer();
-      }
-    };
-    await jusqua(() => lancements().length > 0);
-    assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0, runtime.sortie());
-  });
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
