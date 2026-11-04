@@ -62,8 +62,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/station.test.ts", test: "un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté" },
   { file: "test/station/main.test.ts", test: "deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service" },
   { file: "test/station/main.test.ts", test: "la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie" },
-  { file: "test/station/main.test.ts", test: "sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre" },
-  { file: "test/station/main.test.ts", test: "un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela" },
   { file: "test/station/main.test.ts", test: "une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station" },
   { file: "test/telephone/gestes.test.ts", test: "après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine" },
   { file: "test/telephones.test.ts", test: "le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station" },

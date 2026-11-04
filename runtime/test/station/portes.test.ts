@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirPorte } from "../../src/porte.ts";
-import { ecrirePortes, lirePortes, tenirPortes } from "../../src/station/portes.ts";
+import { attendrePorteDeLaStation, ecrirePortes, lirePortes, tenirPortes } from "../../src/station/portes.ts";
 import { jusqua, lancer, repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -151,6 +151,23 @@ describe("les portes de la station", () => {
     assert.deepEqual([apres.station, apres.projets.calcul], [avant.station, avant.projets.calcul]);
     assert.notEqual(apres.projets.espace, pris);
     assert.ok(troisiemes.lignes.includes(`brigade [espace] : le port ${pris} de sa porte est pris (EADDRINUSE) : elle en prend un autre`), troisiemes.lignes.join("\n"));
+  });
+
+  test("la station attend sa porte avant de rien joindre : passé sa patience, elle dit laquelle elle attend, une fois, et sort par elle dès que son port est écrit", async (t) => {
+    const fichier = join(repertoireTemporaire(t), "portes.json");
+    const dits: string[] = [];
+    let attendue: number | null = null;
+    const attente = attendrePorteDeLaStation(fichier, { dire: (ligne) => void dits.push(ligne), pasMs: 5, patienceMs: 20 }).then((port) => (attendue = port));
+    await jusqua(() => dits.length > 0);
+    assert.deepEqual(dits, [`brigade : la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier} (journalctl -u brigade-station-porte.service)`]);
+    // Les ports des projets écrits, pas encore le sien : elle attend toujours.
+    ecrirePortes(fichier, { station: null, projets: { brigade: 41001 } });
+    await new Promise((resoudre) => setTimeout(resoudre, 30));
+    assert.equal(attendue, null);
+    ecrirePortes(fichier, { station: 41000, projets: { brigade: 41001 } });
+    await attente;
+    assert.equal(attendue, 41000);
+    assert.equal(dits.length, 1);
   });
 
   test("le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer", { skip: posixOnly("runs the doors process as its unit does and expects it to write its ports, reread its configuration on SIGHUP, close on SIGTERM and refuse to start without a ports file; Windows cannot send SIGHUP, and kill('SIGTERM') ends the process before its handler runs") }, async (t) => {

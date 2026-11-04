@@ -2,15 +2,12 @@
 // tous les projets de sa configuration, piloté par cette configuration et par
 // des signaux.
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { lireLesStationsDuCompte } from "../../src/enregistrement-station/stations-du-compte.ts";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
-import { REPERTOIRE_DES_TAILLES } from "../../src/tableau/rendu/taille.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { principal as status } from "../../src/status.ts";
@@ -102,27 +99,9 @@ function issuesDe(gh: FauxGh, depot: string, liste: ReturnType<typeof issueGitHu
   gh.repondre(`repos/${depot}/issues?labels=fire&state=open&per_page=100`, { corps: liste });
 }
 
-// Ce que la machine porte, hors de l'état des projets et de la configuration :
-// chaque fichier, et ce qu'il contient.
-function photographier(racine: string, sauf: string[]): Record<string, string> {
-  const photo: Record<string, string> = {};
-  const parcourir = (repertoire: string) => {
-    for (const entree of readdirSync(repertoire, { withFileTypes: true })) {
-      const chemin = join(repertoire, entree.name);
-      if (sauf.includes(chemin)) continue;
-      if (entree.isDirectory()) {
-        photo[`${relative(racine, chemin)}/`] = "";
-        parcourir(chemin);
-      } else photo[relative(racine, chemin)] = `${statSync(chemin).mtimeMs} ${createHash("sha256").update(readFileSync(chemin)).digest("hex")}`;
-    }
-  };
-  parcourir(racine);
-  return photo;
-}
-
 describe("la station, son process", () => {
   test("deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service", { skip: posixOnly("serves two projects from one station process and checks each one's log, sandbox and gh in its single output, then stops it with SIGTERM; the expected startup line is a RegExp built from a Windows path, whose backslashes it reads as escapes, and SIGTERM kills the station before its handler runs, so neither exit code 0 nor the SIGTERM stop facts can come") }, async (t) => {
-    const { racine, compte, env, preparer, configurer, relire } = uneStation(t);
+    const { racine, compte, gists, env, preparer, configurer, relire } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
     // Le `gh` d'espace ne répond rien : son sondage échoue, et la ligne qui le dit porte son nom.
@@ -165,71 +144,12 @@ describe("la station, son process", () => {
     await station.attendre("brigade [espace] : sondage GitHub en échec");
     assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
 
+    await station.attendre("station enregistrée sous le compte GitHub");
+
     station.process.kill("SIGTERM");
     assert.equal(await station.fin, 0);
     for (const projet of ["brigade", "espace"]) assert.deepEqual(relire(projet).at(-1)?.payload, { signal: "SIGTERM" }, projet);
     assert.match(station.sortie(), /station arrêtée \(SIGTERM\)/);
-  });
-
-  test("un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela", { skip: posixOnly("adds then withdraws a project by editing the station's configuration and checks nothing else on the machine was written, then stops the station with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
-    const { machine, racine, gists, env, preparer, configurer, relire, faits } = uneStation(t);
-    const brigade = fauxGh(t);
-    brigade.issues([]);
-    const espace = fauxGh(t);
-    issuesDe(espace, "acme/espace", []);
-    preparer("brigade");
-    preparer("espace");
-    const ligneBrigade = `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\n`;
-    configurer(ligneBrigade);
-    const station = lancer(t, STATION, [], env);
-    await station.attendre("station démarrée");
-    const pid = station.process.pid;
-    assert.match(station.sortie(), /1 projet servi : brigade/);
-    assert.deepEqual(faits("espace", "runtime.started"), []);
-    // Sa présence et son enregistrement sur GitHub publiés, la station n'écrit plus rien d'elle-même.
-    await station.attendre("station à appairer");
-    await station.attendre("station enregistrée sous le compte GitHub");
-
-    // Tout ce que la machine porte, sauf l'état des projets, la configuration
-    // elle-même, ce que la station dit de ce qu'elle sert (`en-service`, que
-    // sa mise à jour attend) et le compteur de ses appels à GitHub, que chaque
-    // sondage écrit, et la taille du board de chaque projet, que chaque
-    // rafraîchissement écrit.
-    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR), join(racine, REPERTOIRE_DES_TAILLES)];
-    const avant = photographier(machine, sauf);
-
-    // Ajouter : une ligne de plus, rien d'autre.
-    appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
-    await jusqua(() => faits("espace", "runtime.started").length === 1);
-    assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, pid);
-    await station.attendre("brigade [espace] : servi par la station");
-    await jusqua(() => espace.appels().length > 0);
-
-    // Retirer : la ligne s'en va ; le projet s'arrête, la station et l'autre projet restent.
-    configurer(ligneBrigade);
-    await jusqua(() => faits("espace", "runtime.stopped").length === 1);
-    assert.deepEqual(faits("espace", "runtime.stopped")[0]?.payload, { signal: "removed" });
-    await station.attendre("brigade [espace] : retiré de la configuration : la station ne le sert plus");
-    assert.equal(vivant(pid), true);
-    assert.deepEqual(faits("brigade", "runtime.stopped"), []);
-    const sondes = espace.appels().length;
-
-    // Rajouté, il repart de son journal : son verrou a été rendu, rien n'est interrompu.
-    appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
-    await jusqua(() => faits("espace", "runtime.started").length === 2);
-    assert.deepEqual(faits("espace", "runtime.interrupted"), []);
-    await jusqua(() => espace.appels().length > sondes);
-    configurer(ligneBrigade);
-    await jusqua(() => faits("espace", "runtime.stopped").length === 2);
-
-    // Ni unité, ni drop-in, ni compte, ni clone : rien hors de l'état des projets n'a bougé.
-    assert.deepEqual(photographier(machine, sauf), avant);
-    // Et dans l'état, seul celui du projet ajouté puis retiré a été écrit — par la station elle-même.
-    assert.deepEqual(readdirSync(join(racine, "etat")).sort(), ["brigade", "espace"]);
-    assert.equal(relire("espace").every((e) => e.project === "espace"), true);
-
-    station.process.kill("SIGTERM");
-    assert.equal(await station.fin, 0);
     // Arrêtée proprement, elle l'a écrit sur son enregistrement : l'app connectée au même compte la lit
     // indisponible (enregistrement-station/, dont `enregistrer.test.ts` éprouve chaque écriture).
     const lu = await lireLesStationsDuCompte({ gh: FAUX_GH_GISTS, env: { ...process.env, FAUX_GISTS: gists } });
@@ -241,6 +161,8 @@ describe("la station, son process", () => {
     assert.ok(arretee?.stoppedAt);
   });
 
+  // Un projet ajouté à la configuration, puis retiré, sans redémarrer : `station.test.ts` (« un projet ajouté
+  // s'ouvre, un projet retiré s'arrête… », et « un projet qu'un autre runtime tient encore est repris… »).
   test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres", { skip: posixOnly("gives the station a configuration with two refused lines and expects it to name them and serve the valid project, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { env, preparer, configurer, faits } = uneStation(t);
     const brigade = fauxGh(t);
@@ -260,7 +182,9 @@ describe("la station, son process", () => {
     assert.equal(await station.fin, 0);
   });
 
-  test("sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("starts the station under its doors (tenir-portes.ts) and expects each project's proxy on a port of its own, then stops both processes with SIGTERM expecting exit 0; on Windows SIGTERM kills them before their handlers run, and a project's isolation.configured fact did not even come within the test's one-minute wait") }, async (t) => {
+  // Qu'elle attende sa porte avant de rien joindre se prouve sur `attendrePorteDeLaStation` (portes.test.ts) : ici,
+  // les portes sont ouvertes avant elle, comme leur unité, que la sienne précède.
+  test("sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("starts the station under its doors (tenir-portes.ts) and expects each project's proxy on a port of its own, then stops both processes with SIGTERM expecting exit 0; on Windows SIGTERM kills them before their handlers run, and a project's isolation.configured fact did not even come within the test's one-minute wait") }, async (t) => {
     const { racine, env, preparer, configurer, faits } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
@@ -271,13 +195,12 @@ describe("la station, son process", () => {
     configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
     const fichier = join(racine, "portes.json");
 
-    const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
-    await station.attendre(`la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier}`);
-    assert.deepEqual(faits("brigade", "runtime.started"), []);
-
     const portes = lancer(t, PORTES, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
+    await portes.attendre("portes de la station ouvertes");
+    const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
     await station.attendre("station démarrée");
     assert.match(station.sortie(), /2 projets servis : brigade, espace/);
+    assert.doesNotMatch(station.sortie(), /la station attend sa porte/);
     const ports = lirePortes(fichier);
     assert.equal(new Set([ports.station, ports.projets.brigade, ports.projets.espace]).size, 3);
     for (const projet of ["brigade", "espace"]) {
