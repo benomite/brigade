@@ -10,8 +10,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { PASS_MAX, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
+import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
 import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
@@ -19,8 +20,8 @@ import { jusqua } from "./outils.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
-type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed" };
-type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; mergeePar: string | null };
+type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
+type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; mergeePar: string | null; fichiers: string[] };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
 // de la station qui le fait, et rend la main avant de répondre, pour que deux
@@ -33,10 +34,21 @@ class FauxGitHub {
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
   base: "green" | "red" = "green";
+  // Des checks qui ne tournent que sur la base, jamais sur une PR (les tests Windows).
+  checksDeLaBaseSeule: Array<{ name: string; outcome: "green" | "red" }> = [];
+  // Les PR dont la CI est rouge.
+  ciRouge = new Set<number>();
   private horloge = 0;
 
-  feu(number: number, labels: string[] = CALIBRE): void {
-    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open" });
+  feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
+    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
+  }
+
+  // Une PR ouverte qui n'est celle d'aucun ticket du faux, et les fichiers qu'elle change.
+  prOuverte(fichiers: string[], branche = "cook/autre"): PR {
+    const pr: PR = { number: 2000 + this.prs.length, issue: 0, branche, sha: this.sha(), state: "open", merged: false, enRetard: false, mergeePar: null, fichiers };
+    this.prs.push(pr);
+    return pr;
   }
 
   ticket(number: number): Ticket {
@@ -59,7 +71,7 @@ class FauxGitHub {
     return this.appels.filter((appel) => appel.station === station).length;
   }
 
-  private sha(): string {
+  sha(): string {
     this.horloge += 1;
     return this.horloge.toString(16).padStart(40, "0");
   }
@@ -86,9 +98,17 @@ class FauxGitHub {
         const pr = this.prs.findLast((p) => p.issue === issue);
         return pr === undefined ? null : { ...pr };
       },
+      corpsDuTicket: async (issue) => {
+        await noter("corpsDuTicket");
+        return this.ticket(issue).corps;
+      },
+      prsOuvertes: async () => {
+        await noter("prsOuvertes");
+        return this.prs.filter((p) => p.state === "open").map((p) => ({ branche: p.branche, fichiers: [...p.fichiers] }));
+      },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
-        return [{ outcome: this.base }];
+        return [{ name: "tests", outcome: this.base }, ...this.checksDeLaBaseSeule];
       },
       commentaires: async (numero) => {
         await noter("commentaires");
@@ -112,8 +132,13 @@ class FauxGitHub {
         const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
         const number = 1000 + this.prs.length;
         // En retard sur sa base dès l'ouverture : la mise à jour se joue.
-        this.prs.push({ number, issue: Number(ferme), branche, sha: this.sha(), state: "open", merged: false, enRetard: true, mergeePar: null });
+        this.prs.push({ number, issue: Number(ferme), branche, sha: this.sha(), state: "open", merged: false, enRetard: true, mergeePar: null, fichiers: [] });
         return `https://github.com/faux/depot/pull/${number}`;
+      },
+      ci: async (sha) => {
+        await noter("ci");
+        const pr = this.prs.find((p) => p.sha === sha);
+        return [{ name: "tests", outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }];
       },
       mettreAJour: async (numero, sha) => {
         await noter("mettreAJour");
@@ -140,7 +165,7 @@ class FauxGitHub {
     return priseDeLaStation(github, station);
   }
 
-  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger } = {}): StationGitHub {
+  station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
@@ -151,6 +176,9 @@ class FauxGitHub {
       cuisiner: async (ticket) => {
         if (options.cuisiner) return options.cuisiner(ticket.number);
         this.cuissons.push({ station: nom, issue: ticket.number });
+        // Un renvoi : le cook pousse sur la branche de la PR ouverte, sa tête change.
+        const ouverte = this.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
+        if (ouverte !== undefined) Object.assign(ouverte, { sha: this.sha(), enConflit: false });
         return { branche: brancheDuTicket(ticket.number) };
       },
       juger:
@@ -159,10 +187,22 @@ class FauxGitHub {
           this.relectures.push({ station: nom, pr: pr.number });
           return { verdict: "approve", motif: "" };
         }),
-      avertir: (texte) => assert.fail(texte),
+      avertir: options.avertir ?? ((texte) => assert.fail(texte)),
     });
   }
+
+  // Les tickets qui portent `taken` en ce moment.
+  pris(): number[] {
+    return [...this.tickets.values()].filter((t) => t.labels.has(LABEL_TAKEN)).map((t) => t.number);
+  }
+
+  // Les commentaires de prise postés par la station, tous tickets confondus.
+  prisesDe(station: string): number {
+    return [...this.commentaires.values()].flat().filter((c) => c.station === station && c.body.startsWith("<!-- brigade:prise")).length;
+  }
 }
+
+const zoneDe = (...chemins: string[]) => `## Context\n\nwhatever\n\n## Zone\n\n${chemins.map((c) => `- \`${c}\``).join("\n")}\n\n## Acceptance\n\n- done\n`;
 
 const verdictDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?? []).filter((c) => c.body.startsWith("<!-- brigade:verdict"));
 
@@ -282,6 +322,228 @@ test("a cook that delivers nothing gives the ticket back on the issue, which ano
   assert.deepEqual(faux.cuissons, [{ station: "B", issue: 6 }]);
 });
 
+test("a station with 3 places never holds more than 3 tickets, even when its cooks throw at once (GitHub limiting its calls, #2179)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 13; n += 1) faux.feu(n);
+  const avertis: string[] = [];
+  const a = faux.station("A", {
+    places: 3,
+    cuisiner: async () => {
+      throw new Error("GitHub a atteint sa limite d'appels");
+    },
+    avertir: (texte) => avertis.push(texte),
+  });
+  await a.tour();
+  await a.calme();
+  // Trois prises, pas treize : un cook qui lève garde sa place.
+  assert.equal(faux.prisesDe("A"), 3);
+  assert.equal(faux.pris().length, 3);
+  // Le tour suivant rend les trois sur l'issue avant d'en prendre d'autres.
+  await a.tour();
+  await a.calme();
+  assert.ok(faux.pris().length <= 3, `taken: ${faux.pris().join(", ")}`);
+  const lachers = [...faux.commentaires.values()].flat().filter((c) => c.body.startsWith("<!-- brigade:lache station=A")).length;
+  assert.equal(lachers, 3);
+  assert.ok(avertis.some((texte) => /limite d'appels/.test(texte)));
+});
+
+test("with 5 tickets in pass a station with free places claims nothing; at 4 it claims (PASS_MAX, #2300)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 5; n += 1) faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
+  faux.feu(10);
+  const a = faux.station("A", { places: 3 });
+  await a.tour();
+  await a.calme();
+  assert.equal(PASS_MAX, 5);
+  assert.equal(faux.prisesDe("A"), 0);
+  assert.equal(faux.cuissons.length, 0);
+  // One leaves the pass: under the cap, the station claims again.
+  faux.ticket(5).labels.delete(LABEL_IN_PASS);
+  await a.tour();
+  await a.calme();
+  assert.ok(faux.cuissons.some((c) => c.issue === 10));
+});
+
+test("a restarted station gives back, at its first turn, the tickets it held with no cook, then takes only what its places allow (#2179)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 1; n <= 5; n += 1) faux.feu(n);
+  // Un runtime d'avant a pris les cinq, puis s'est arrêté sans les rendre.
+  const avant = faux.station("A", { places: 5, cuisiner: () => new Promise(() => {}) });
+  void avant.tour();
+  await jusqua(() => faux.pris().length === 5);
+  // Un sixième, pris par une autre station : il n'est pas à A de le rendre.
+  faux.feu(6);
+  const b = faux.station("B", { cuisiner: () => new Promise(() => {}) });
+  void b.tour();
+  await jusqua(() => faux.pris().includes(6));
+  const apres = faux.station("A", { places: 2, cuisiner: () => new Promise(() => {}) });
+  await apres.tour();
+  await apres.calme();
+  const lachersDeA = [...faux.commentaires.values()].flat().filter((c) => c.body.startsWith("<!-- brigade:lache station=A")).length;
+  assert.equal(lachersDeA, 5);
+  assert.ok(faux.ticket(6).labels.has(LABEL_TAKEN), "#6 stays B's");
+  // Rendus à ce tour, ils ne sont repris qu'au suivant, et pas plus que ses places.
+  assert.deepEqual(faux.pris(), [6]);
+  await apres.tour();
+  assert.deepEqual(faux.pris(), [1, 2, 6]);
+});
+
+test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then off the kitchen after 2 sends back (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(31);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 31);
+  assert.ok(pr);
+  faux.ciRouge.add(pr.number);
+  for (let i = 0; i < 12; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(31), undefined);
+  const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.equal(renvois.length, 3);
+  assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
+  assert.match(renvois[2]?.body ?? "", /Taken off the kitchen/);
+  assert.ok(faux.ticket(31).labels.has("hors-cuisine"));
+  // Recuisiné deux fois, sous la même PR : aucune seconde PR.
+  assert.equal(faux.cuissons.filter((c) => c.issue === 31).length, 3);
+  assert.equal(faux.prs.filter((p) => p.issue === 31).length, 1);
+});
+
+test("a delivery the review refuses goes back to a cook with the review's reason (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(32);
+  let refus = true;
+  const a = faux.station("A", { juger: async () => (refus ? { verdict: "request-changes", motif: "tests missing for the empty case" } : { verdict: "approve", motif: "" }) });
+  for (let i = 0; i < 3; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvoi = (faux.commentaires.get(32) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /the review requested changes: tests missing for the empty case/);
+  refus = false;
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(32)?.mergeePar, "A");
+});
+
+test("a delivery that changes what judges it is never merged on the review alone: it waits for the chef, said once (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(33);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 33);
+  assert.ok(pr);
+  pr.fichiers = [".github/workflows/tests.yml", "runtime/src/x.ts"];
+  for (let i = 0; i < 5; i += 1) await a.tour();
+  assert.equal(faux.mergee(33), undefined);
+  assert.ok(faux.ticket(33).labels.has("blocked-on-human"));
+  const dits = (faux.commentaires.get(33) ?? []).filter((c) => /changes what judges it \(`\.github\/workflows\/tests\.yml`\)/.test(c.body));
+  assert.equal(dits.length, 1);
+});
+
+test("a head already sent back is not sent back again, even if a stale list still shows it in pass (#2189)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(34);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "not wired" }) });
+  await a.tour();
+  await a.calme();
+  await a.tour();
+  // La liste lue sous ETag porte encore `in-pass` : le tour revoit la même tête refusée.
+  faux.ticket(34).labels.add(LABEL_IN_PASS);
+  faux.ticket(34).labels.delete(LABEL_TAKEN);
+  await a.tour();
+  await a.tour();
+  const renvois = (faux.commentaires.get(34) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.equal(renvois.length, 1);
+});
+
+test("a delivery that conflicts with the base goes back to a cook to merge the base in, then merges (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(36);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.enConflit = true;
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvoi = (faux.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /conflicts with the base/);
+  assert.equal(faux.mergee(36)?.mergeePar, "A");
+});
+
+test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }) });
+  for (let i = 0; i < 8; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
+  assert.equal(echecs.length, 3);
+  assert.match(echecs[2]?.body ?? "", /Taken off the kitchen/);
+  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+});
+
+test("a send-back whose label removal failed is completed at the next turn, without a second comment (#2319)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(39);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "no" }), avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  await a.tour();
+  // Le renvoi est écrit, mais \`in-pass\` est resté : son retrait avait échoué.
+  faux.ticket(39).labels.add(LABEL_IN_PASS);
+  faux.ticket(39).labels.delete(LABEL_TAKEN);
+  await a.tour();
+  assert.equal(faux.ticket(39).labels.has(LABEL_IN_PASS), false);
+  assert.equal((faux.commentaires.get(39) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi")).length, 1);
+});
+
+test("tickets are taken in prio order, then oldest first (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(40, CALIBRE);
+  faux.feu(41, [...CALIBRE, "prio:2"]);
+  faux.feu(42, [...CALIBRE, "prio:0"]);
+  faux.feu(43, [...CALIBRE, "prio:1"]);
+  faux.feu(44, [...CALIBRE, "prio:0"]);
+  const a = faux.station("A", { places: 1 });
+  for (let i = 0; i < 5; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
+});
+
+test("a red check that runs only on the base (Windows) holds nothing; a red check the PR also runs holds its merge (#2279)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(37);
+  faux.checksDeLaBaseSeule = [{ name: "windows tests (2/4)", outcome: "red" }];
+  const a = faux.station("A");
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(37)?.mergeePar, "A");
+  faux.feu(38);
+  faux.base = "red";
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(38), undefined);
+});
+
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);
@@ -369,6 +631,7 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     delabelliser: bas.delabelliser,
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
+    prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
     issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
   };
   return client as GitHub;
@@ -397,6 +660,7 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
     depotGitHub: "faux/depot",
     github: fauxClient(faux),
     depot: {
+      connait: () => false,
       preparer: async (run) => {
         fait.push(`preparer ${run}`);
         return { worktree: join(repertoire, run), branche: `cook/${run}` };
@@ -445,6 +709,54 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Remark \(`a\.ts`\): a nit/);
 });
 
+test("a ticket whose branch a previous cook left in the clone is resumed from that branch, not prepared anew, and a failed resume keeps the branch", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(13);
+  const fait: string[] = [];
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, fluxQuiConclut("done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: { reason: "tokens", limit: 1, observed: 2 }, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: (branche) => branche === "cook/13-github",
+      preparer: async () => assert.fail("`git worktree add -b` cannot recreate a branch the clone already has"),
+      reprendre: async (run, branche) => {
+        fait.push(`reprendre ${run} ${branche}`);
+        return join(repertoire, run);
+      },
+      retirer: (worktree, branche) => void fait.push(`retirer ${worktree.slice(repertoire.length + 1)} ${branche ?? "-"}`),
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => [],
+      diff: () => "",
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(fait, ["reprendre 13-github cook/13-github", "retirer 13-github -"]);
+});
+
 test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {
   const refus = stationDuDepot({ prise: null } as unknown as Parameters<typeof stationDuDepot>[0]);
   assert.deepEqual(refus, { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" });
@@ -467,6 +779,7 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
       depotGitHub: "faux/depot",
       github: fauxClient(faux, nom),
       depot: {
+        connait: () => false,
         preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
         reprendre: async (run) => join(repertoire, run),
         retirer: () => {},
@@ -512,4 +825,75 @@ test("the switch is on for brigade, in its project settings file, and off for a 
     () => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: "yes" })),
     (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.cle === "githubOnlyState",
   );
+});
+
+test("a ticket whose zone is held by another open PR is held back, and claimed once that PR is closed (#2188)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE, zoneDe("runtime/src/a.ts", "docs/"));
+  const autre = faux.prOuverte(["runtime/src/b.ts", "docs/runtime/README.md"]);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.equal(faux.prisesDe("A"), 0);
+  // La PR qui tenait la zone est fermée : le ticket est pris au tour suivant.
+  autre.state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
+});
+
+test("a free zone is claimed, a zone inside or around a changed folder is held, an own PR holds nothing (#2188)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE, zoneDe("app/src/x.ts"));
+  faux.feu(2, CALIBRE, zoneDe("runtime/src/deep/file.ts"));
+  faux.feu(3, CALIBRE, zoneDe("runtime"));
+  faux.feu(4, CALIBRE, zoneDe("scripts/x.sh"));
+  faux.feu(5, CALIBRE);
+  faux.prOuverte(["runtime/src"]);
+  // La PR du ticket 4 : elle change sa propre zone.
+  faux.prOuverte(["scripts/x.sh"], brancheDuTicket(4));
+  const a = faux.station("A", { places: 5 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [1, 4, 5]);
+});
+
+test("the open PRs are read only when a ticket has a zone (#2188)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  assert.ok(!faux.appels.some((appel) => appel.quoi === "prsOuvertes"));
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
+});
+
+test("the zone of a ticket is read from its Zone section", () => {
+  assert.deepEqual(zoneDuCorps(zoneDe("a/b.ts", "c/")), ["a/b.ts", "c"]);
+  assert.deepEqual(zoneDuCorps("## Zone\n\n`a.ts`, ./b/\n"), ["a.ts", "b"]);
+  assert.deepEqual(zoneDuCorps("## Context\n\nno zone here"), []);
+  assert.ok(secoupent("runtime", "runtime/src/a.ts"));
+  assert.ok(!secoupent("runtime", "runtime2/a.ts"));
+});
+
+test("a taken label nobody holds — a release whose removal failed, left by another station — is removed at any turn, and the ticket is taken again (#2206)", async () => {
+  const faux = new FauxGitHub();
+  const b = faux.station("B", { cuisiner: () => new Promise(() => {}) });
+  // B a déjà passé son premier tour : rien n'est plus rendu par redémarrage.
+  await b.tour();
+  // A a lâché #7 — le commentaire est parti — mais le retrait du label a échoué.
+  faux.feu(7, [...CALIBRE, LABEL_TAKEN]);
+  const a = faux.pour("A");
+  await a.commenter(7, corpsDePrise("A"));
+  await a.commenter(7, corpsDeLacher("A"));
+  // Un ticket que A tient vraiment garde son label.
+  faux.feu(8, [...CALIBRE, LABEL_TAKEN]);
+  await a.commenter(8, corpsDePrise("A"));
+  await b.tour();
+  assert.ok(!faux.ticket(7).labels.has(LABEL_TAKEN), "the stale label is gone");
+  assert.ok(faux.ticket(8).labels.has(LABEL_TAKEN), "#8 stays A's");
+  await b.tour();
+  assert.deepEqual(faux.pris(), [7, 8]);
+  assert.equal(faux.prisesDe("B"), 1);
 });

@@ -47,9 +47,9 @@ import type { ClientDuTableau, IssueDuTableau } from "./client.ts";
 // Le label par lequel le tableau se retrouve dans son dépôt.
 export const LABEL_DU_TABLEAU = "kitchen-board";
 export const LABELS_DU_TABLEAU = [LABEL_DU_TABLEAU, HORS_CUISINE];
-// L'épinglage se vérifie au premier rafraîchissement, à chaque issue créée ou
-// rouverte, puis à cet intervalle : le chef a pu la désépingler. Un échec se
-// retente au même intervalle.
+// L'épinglage se vérifie au premier rafraîchissement et à chaque issue créée ou
+// rouverte — jamais sur une minuterie : une cuisine qui ne bouge pas ne coûte
+// aucun appel (#2198). Un échec se retente à cet intervalle.
 export const VERIFIER_L_EPINGLE_MS = 3_600_000;
 
 // Une durée telle que `status` l'écrit (etat.ts, `dureeEn`) : « 42 s », « 4 min », « 2 h 04 », « 3 d ».
@@ -126,8 +126,9 @@ export function publierLeTableau(options: OptionsPublication): Publication {
   let numero: number | null = null;
   // Le tableau que ce process connaissait, et qui n'est plus dans le dépôt.
   let disparu: number | null = null;
-  // Le dernier contrôle de l'épinglage, en millisecondes — réussi ou non.
-  let epingleVuLe: number | null = null;
+  // L'épinglage : à vérifier au prochain rafraîchissement (null), vérifié
+  // (`true`), ou l'instant de son dernier échec, en millisecondes.
+  let epingleVuLe: number | true | null = null;
 
   // Le tableau du dépôt : celui de ce process s'il y est encore, sinon celui que
   // le label et le marqueur désignent — un ouvert d'abord, le plus ancien.
@@ -144,10 +145,11 @@ export function publierLeTableau(options: OptionsPublication): Publication {
   };
 
   const epingler = async (cible: number, maintenant: Date, gestes: Geste[]) => {
-    if (epingleVuLe !== null && maintenant.getTime() - epingleVuLe < VERIFIER_L_EPINGLE_MS) return;
+    if (epingleVuLe === true || (epingleVuLe !== null && maintenant.getTime() - epingleVuLe < VERIFIER_L_EPINGLE_MS)) return;
     epingleVuLe = maintenant.getTime();
     try {
       if (await client.epingler(cible)) gestes.push("epingle");
+      epingleVuLe = true;
     } catch (erreur) {
       avertir(`brigade : Kitchen board #${cible} de ${depot} non épinglé, réessayé dans une heure — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }

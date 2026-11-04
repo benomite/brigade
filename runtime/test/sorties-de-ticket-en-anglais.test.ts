@@ -1,5 +1,5 @@
 // Les sorties des commandes qui parlent d'un ticket sont en anglais (#931) : `rail` (avec `remove`, `priority`, `merge`),
-// `pass` (avec `issue`, `comment`, `ask`), `log` et `waiting` (`set`, `resume`, `arrived`). Un état d'exemple qui
+// `pass` (avec `issue`, `comment`), `log` et `waiting` (`set`, `resume`, `arrived`). Un état d'exemple qui
 // porte un rail, des livraisons en pass et des attentes passe dans le test de glossaire : aucune ligne, refus compris,
 // ne garde un mot de la colonne « français » du glossaire. La sortie `--json` de `pass` garde ses clés.
 import assert from "node:assert/strict";

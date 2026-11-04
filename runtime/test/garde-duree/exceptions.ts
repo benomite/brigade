@@ -1442,7 +1442,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/superviseur.test.ts", test: "un motif qui ne peut pas être noté n'empêche pas l'arrêt" },
   { file: "test/superviseur.test.ts", test: "un binaire introuvable est une fin en erreur, pas un cook qui pend" },
   { file: "test/superviseur.test.ts", test: "un cook qui produit n'est pas pris pour un inactif" },
-  { file: "test/tableau/gestes/sans-ssh.test.ts", test: "`/brigade ask #30 …` sur la box qui tient le second du projet : la demande entre dans sa conversation, et sa réponse est postée sous le geste et portée par le tableau" },
   { file: "test/tests-touches.test.ts", test: "une commande ajoutée touche les tests qui lisent les scripts, et eux seuls" },
   { file: "test/tests-touches.test.ts", test: "une commande ajoutée touche le test qui lance un code du produit lisant les scripts" },
   { file: "test/tests-touches.test.ts", test: "un package.json ajouté, tout se joue — même s'il ne porte que des scripts" },

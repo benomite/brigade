@@ -36,6 +36,7 @@ import type { Terminal } from "../terminaux.ts";
 import type { DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
 import type { Ouverture, Progres, StationsDuChef } from "../premier-lancement.ts";
 import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
+import type { AjoutCloud, CloudAjoute, VuDuCloud } from "../stations-cloud/stations-cloud.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
@@ -81,6 +82,12 @@ export type Pont = {
   // Change une station déclarée, seule (ticket 1510) : son plafond et ses capacités, ce poste qui la joue — ou la retire.
   // Ses stations relues arrivent par `surGuide` ; ce qu'il en advient, en une ligne.
   changerUneStation(projet: string, station: string, voulu: StationVoulue): Promise<StationChangee | { refus: string }>;
+  // Les stations cloud du projet (ticket 2232, épique 2223) : ce qu'elles coûtent, ses plafonds, ce qu'une station
+  // reçoit et si le chef l'a approuvé — puis l'ajout d'une, avec ses plafonds et, la première fois, l'approbation.
+  // Optionnels : aucune commande du runtime ne les publie encore, et le process principal ne les offre pas ; tant
+  // qu'il ne les offre pas, l'onglet Cooks ne pose pas leur bloc (stations-cloud/stations-cloud.js).
+  stationsCloud?(projet: string): Promise<VuDuCloud | { refus: string; detail?: string } | undefined>;
+  ajouterStationCloud?(projet: string, ajout: AjoutCloud): Promise<CloudAjoute>;
   // Protège la branche d'intégration sur GitHub.
   proteger(projet: string): Promise<{ refus: string } | undefined>;
   // Répond à la décision courante — deux valeurs quand elle se répond avec une autre.
@@ -224,6 +231,11 @@ export type Pont = {
   surAvisDeVersion(recevoir: (avis: AvisDeVersion | undefined) => void): void;
   telechargerVersion(url: string): Promise<boolean>;
   refuserVersion(version: string): Promise<boolean>;
+  // Le statut de la station de cet ordinateur (le ticket 2191, épique 2182 ; le contrat du runtime, ticket 2189) : la version
+  // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
+  // alors sa version inconnue (station-version/station-version.js).
+  statutDeLaStation?(): Promise<unknown>;
+  surStatutDeLaStation?(recevoir: (statut: unknown) => void): void;
   // L'app Android seule (le ticket 1161) : le téléphone s'appaire au guichet d'une station qui tourne
   // (runtime/src/telephone/guichet.ts) avec le code qu'elle montre — `POST /pairing`. Appairé, le pont
   // garde son jeton, que la vue ne voit jamais, et `telephone` le dit au lancement suivant. Refusé ou

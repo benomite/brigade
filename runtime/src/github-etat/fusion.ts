@@ -19,7 +19,9 @@
 // passe la merge. Si la base bouge entre la lecture et le merge, c'est GitHub
 // qui refuse : le refus est rendu tel quel, la station suivante relira la PR.
 import { DE_CONFIANCE } from "../alimenter.ts";
+import type { Check } from "../events/pass.ts";
 import type { Merge, PR } from "../github.ts";
+import { etatDeLaBase } from "./etats.ts";
 
 export type Verdict = "approve" | "request-changes";
 
@@ -42,10 +44,12 @@ export type GitHubDeLaFusion = {
   mettreAJour(numero: number, sha: string): Promise<void>;
   // Merge la PR, à condition que sa tête soit encore `sha`.
   merger(numero: number, sha: string): Promise<Merge>;
+  // Les checks de la CI sur le commit `sha`.
+  ci(sha: string): Promise<Pick<Check, "outcome" | "name">[]>;
 };
 
 // La PR telle que la relecture et le merge la lisent.
-export type PRAFusionner = Pick<PR, "number" | "sha" | "state" | "merged" | "enRetard">;
+export type PRAFusionner = Pick<PR, "number" | "sha" | "state" | "merged" | "enRetard" | "enConflit">;
 
 // Le verdict qui fait foi : la station qui l'a rendu, sur quelle tête.
 export type VerdictRendu = { station: string; verdict: Verdict; sha: string; commentaire: number };
@@ -99,9 +103,10 @@ export async function relire(pr: PRAFusionner, { github, station, juger }: Conte
 
 // `mergee` : GitHub a mergé. `mise-a-jour` : la branche était en retard, sa
 // mise à jour est demandée, rien n'est mergé. `non-approuvee` : rien n'est
-// écrit. `close` : la PR n'est plus ouverte. `refusee` : GitHub a refusé le
-// merge, et dit pourquoi.
-export type Fusion = { issue: "mergee" | "mise-a-jour" | "non-approuvee" | "close" } | { issue: "refusee"; motif: string };
+// écrit. `ci-attendue` : la CI de sa tête n'a pas fini, ou rien n'y tourne
+// encore. `ci-rouge` : un check de sa tête est rouge. `close` : la PR n'est
+// plus ouverte. `refusee` : GitHub a refusé le merge, et dit pourquoi.
+export type Fusion = { issue: "mergee" | "mise-a-jour" | "non-approuvee" | "ci-attendue" | "ci-rouge" | "close" } | { issue: "refusee"; motif: string };
 
 // Merge la PR si elle est fusionnable, depuis la station qui appelle, quelle
 // qu'elle soit. En retard sur sa base, la PR approuvée est mise à jour, jamais
@@ -113,6 +118,11 @@ export async function fusionner(pr: PRAFusionner, github: GitHubDeLaFusion): Pro
     await github.mettreAJour(pr.number, pr.sha);
     return { issue: "mise-a-jour" };
   }
+  // Rien n'est mergé sans une CI verte sur la tête même (#2053) : `main` n'exige
+  // aucun check, la station est le seul garde. Sans check, elle attend.
+  const ci = etatDeLaBase(await github.ci(pr.sha));
+  if (ci === "red") return { issue: "ci-rouge" };
+  if (ci !== "green") return { issue: "ci-attendue" };
   const merge = await github.merger(pr.number, pr.sha);
   return merge.fait ? { issue: "mergee" } : { issue: "refusee", motif: merge.motif };
 }

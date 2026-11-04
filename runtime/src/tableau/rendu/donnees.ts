@@ -184,6 +184,7 @@ export function tableauDeLaCuisine(
       retenueDepuis: station.heldAt,
       deconnecteeDepuis: station.disconnectedAt,
       quotaJusqua: station.quotaUntil,
+      sansDemarrage: station.unstartable == null ? null : { depuis: station.unstartable.since, run: station.unstartable.run, raison: station.unstartable.reason },
     })),
     plafonds: gardeFous.limits === null ? null : { tokens: gardeFous.limits.tokens, dureeMs: gardeFous.limits.durationMs, inactiviteMs: gardeFous.limits.idleMs },
     consommation: {

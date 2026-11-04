@@ -318,6 +318,8 @@ export type OptionsRail = Omit<ConfigRail, "communs"> & {
   // Par défaut, le vrai `gh`.
   github?: GitHub;
   maintenant?: () => Date;
+  // True once the GitHub-only switch is on: the log is stale, the rail is no longer fed from it (#2218).
+  perimee?: () => boolean;
 };
 
 // Donne son rail au runtime : sondé dès maintenant puis à chaque tick, et
@@ -334,6 +336,7 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "rail.commons", payload: { paths: communs } });
   }
 
+  const perimee = options.perimee ?? (() => false);
   let arrete = false;
   let enCours = false;
   // La limite de GitHub atteinte se dit une fois, pas à chaque tick d'attente.
@@ -352,7 +355,7 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
   const ecouteurs = new Set<() => void>();
   const sonder = async () => {
     // Un sondage plus lent que le tick n'en lance pas un second.
-    if (enCours || arrete) return;
+    if (enCours || arrete || perimee()) return;
     enCours = true;
     try {
       const ecrits = await alimenter(journal, github, { projet, depot: options.depot }, fiches, retraitsLus);
@@ -379,7 +382,7 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
   // mise à jour à la fois ; un échec se rattrape au réveil suivant.
   let marquage = false;
   const marquer = async () => {
-    if (marquage || arrete) return;
+    if (marquage || arrete || perimee()) return;
     marquage = true;
     try {
       await marquerAttentes(journal, github, projet);
@@ -391,11 +394,12 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
   };
 
   runtime.surReveil((cause) => {
+    if (perimee()) return;
     rail.relever();
     void marquer();
     if (cause === "tick") void sonder();
   });
-  rail.relever();
+  if (!perimee()) rail.relever();
   void marquer();
   void sonder();
 
