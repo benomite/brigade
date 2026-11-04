@@ -211,7 +211,8 @@ describe("la passe de fermeture, en cuisine", () => {
     // Le ticket #8, le premier dans l'ordre de service, veut ce que la passe tient.
     await poser(8, "src/libre");
     await poser(9, "src/ailleurs");
-    await jusqua(() => etat(9) === "pass");
+    // #9 pris, #8 — servi avant lui — a été écarté : il attend.
+    await jusqua(() => types(9).includes("ticket.taken"));
     assert.equal(etat(8), "waiting");
     assert.ok(!types(8).includes("ticket.taken"));
     assert.ok(!types().includes("closing.ended"));
