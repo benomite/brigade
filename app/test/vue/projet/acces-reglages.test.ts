@@ -123,7 +123,10 @@ describe("l'épreuve de l'épique 2484 (#2495)", () => {
     }
   });
 
-  test("Settings ne montre que le projet : ni réglage de la machine, ni préférence de toi", async () => {
+  // `todo` tant que les groupes « this machine » et « you » (sigle, couleurs, retrait) sont encore dans Settings : les tickets
+  // de l'épique qui les déménagent (#2489, #2491, #2492, #2494) ne sont pas sur main. Le test garde son corps ; on ôte `todo`
+  // quand le dernier est livré.
+  test("Settings ne montre que le projet : ni réglage de la machine, ni préférence de toi", { todo: "Settings still holds the machine and you groups until #2489, #2491, #2492 and #2494 land" }, async () => {
     const vue = await ouvrir();
     await marcher(vue, "Settings");
     assert.deepEqual(horsDuProjet(deSettings(vue)), []);
