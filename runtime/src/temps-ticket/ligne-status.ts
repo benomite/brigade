@@ -29,7 +29,7 @@ const minutes = (secondes: number) => `${Math.round(secondes / 60)}m`;
 function mediane(valeurs: number[]): number {
   const tri = [...valeurs].sort((a, b) => a - b);
   const m = tri.length >> 1;
-  return tri.length % 2 === 1 ? tri[m] : (tri[m - 1] + tri[m]) / 2;
+  return tri.length % 2 === 1 ? (tri[m] ?? 0) : ((tri[m - 1] ?? 0) + (tri[m] ?? 0)) / 2;
 }
 
 const total = (t: TempsTicket) => PHASES.reduce((somme, p) => somme + t[p], 0);
@@ -46,7 +46,8 @@ export function direLesTempsDesTickets(enregistrements: TempsTicket[], maxMin: n
   const derniers = enregistrements.slice(-DERNIERS);
   const durees = derniers.map(duree);
   const med = mediane(durees);
-  const plusLent = derniers[durees.indexOf(Math.max(...durees))];
+  const dureeMax = Math.max(...durees);
+  const plusLent = derniers[durees.indexOf(dureeMax)]?.ticket;
   const moyenne = (p: (t: TempsTicket) => number) => mediane(derniers.map(p));
   const phases = [
     `cook ${minutes(moyenne((t) => t.cuisson))} (tests ${minutes(moyenne((t) => t.cuissonTests))})`,
@@ -56,7 +57,7 @@ export function direLesTempsDesTickets(enregistrements: TempsTicket[], maxMin: n
     `merge ${minutes(moyenne((t) => t.merge))}`,
   ].join(" · ");
   const depasse = med > maxMin * 60 ? " — over the max" : "";
-  return `tickets: median ${minutes(med)} (slowest #${plusLent.ticket} ${minutes(Math.max(...durees))}) | ${phases} | max ${maxMin}m${depasse}`;
+  return `tickets: median ${minutes(med)} (slowest #${plusLent} ${minutes(dureeMax)}) | ${phases} | max ${maxMin}m${depasse}`;
 }
 
 function lireJson(chemin: string): unknown {
