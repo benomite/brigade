@@ -41,7 +41,16 @@ function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}
 // Résout dès que le cook a écrit dans son flux : il est lancé, et ce qu'il
 // fait avant de parler (poser un gestionnaire de signal) est fait.
 async function aParle(flux: string): Promise<void> {
-  while (!existsSync(flux) || readFileSync(flux, "utf8") === "") await new Promise((resoudre) => setTimeout(resoudre, 5));
+  await jusqua(() => existsSync(flux) && readFileSync(flux, "utf8") !== "");
+}
+
+// Une valeur coupée en deux écritures : le script écrit la première, une ligne entière en tête, puis attend que
+// le test pose `suite` pour écrire la seconde. La ligne de tête dans le flux dit que le superviseur a reçu la
+// première écriture seule — le tube ne peut plus les lui livrer ensemble, aussi chargée que soit la machine (#2464).
+const attendre = (suite: string) => `until [ -e '${suite}' ]; do sleep 0.01; done`;
+async function premierMorceauRecu(flux: string, suite: string): Promise<void> {
+  await jusqua(() => existsSync(flux) && readFileSync(flux, "utf8") === "avant\n");
+  writeFileSync(suite, "");
 }
 
 // Le délai au bout duquel un cook resté bloqué fait échouer son test au lieu
@@ -58,9 +67,11 @@ const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
 // front, pour que la suite reste de l'ordre de la seconde.
 describe("superviser", { concurrency: true }, () => {
   test("le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux", async (t) => {
-    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const suite = join(repertoire, "suite");
     // La valeur est coupée entre deux écritures, que le tube livre séparément.
-    const script = 'printf \'{"type":"result","result":"la clé est sk-de\'; sleep 0.2; printf \'v-12345678"}\\nfin sans saut de ligne sk-dev-12345678\'; printf "erreur : sk-dev-12345678\\n" >&2';
+    const script = `printf 'avant\\n{"type":"result","result":"la clé est sk-de'; ${attendre(suite)}; printf 'v-12345678"}\\nfin sans saut de ligne sk-dev-12345678'; printf "erreur : sk-dev-12345678\\n" >&2`;
     const supervise = superviser({
       commande: "bash",
       args: ["-c", script],
@@ -72,23 +83,27 @@ describe("superviser", { concurrency: true }, () => {
     });
     aArreter(t, () => supervise.abandonner());
 
+    await premierMorceauRecu(flux, suite);
     await supervise.fin;
 
-    assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"la clé est [secret:CLE]"}\nfin sans saut de ligne [secret:CLE]');
+    assert.equal(readFileSync(flux, "utf8"), 'avant\n{"type":"result","result":"la clé est [secret:CLE]"}\nfin sans saut de ligne [secret:CLE]');
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [secret:CLE]\n");
   });
 
   test("sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois", async (t) => {
-    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const suite = join(repertoire, "suite");
     // Fabriqué, et assemblé ici : la forme n'est écrite en clair nulle part.
     const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
-    const script = `printf '{"type":"result","result":"le jeton est ${jeton.slice(0, 30)}'; sleep 0.2; printf '${jeton.slice(30)}"}\\nfin sans saut de ligne ${jeton}'; printf "erreur : ${jeton}\\n" >&2`;
+    const script = `printf 'avant\\n{"type":"result","result":"le jeton est ${jeton.slice(0, 30)}'; ${attendre(suite)}; printf '${jeton.slice(30)}"}\\nfin sans saut de ligne ${jeton}'; printf "erreur : ${jeton}\\n" >&2`;
     const supervise = superviser({ commande: "bash", args: ["-c", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 2000, flux });
     aArreter(t, () => supervise.abandonner());
 
+    await premierMorceauRecu(flux, suite);
     const fin = await supervise.fin;
 
-    assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"le jeton est [jeton Claude masqué]"}\nfin sans saut de ligne [jeton Claude masqué]');
+    assert.equal(readFileSync(flux, "utf8"), 'avant\n{"type":"result","result":"le jeton est [jeton Claude masqué]"}\nfin sans saut de ligne [jeton Claude masqué]');
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [jeton Claude masqué]\n");
     assert.equal(fin.masques, 3);
   });
@@ -183,7 +198,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(mesure(), { turns: 0, tokens: 0 });
 
     await aParle(flux);
-    while (mesure().turns === 0) await new Promise((resoudre) => setTimeout(resoudre, 5));
+    await jusqua(() => mesure().turns > 0);
 
     assert.deepEqual(mesure(), { turns: 1, tokens: 10 });
   });
