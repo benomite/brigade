@@ -584,10 +584,12 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef retient l'issue pendant son jugement : rien n'est posé, les labels sont relus avant d'écrire", async (t) => {
-    const { gh, jugements, labels, faits, dits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    const feu = join(repertoireTemporaire(t), "feu");
+    const { gh, jugements, labels, faits, dits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, env: { FAUX_CLAUDE_FEU: feu }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 
     gh.poser(issue(30, ["blocked-on-human"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    writeFileSync(feu, "");
     await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
 
     assert.deepEqual(gh.labellisations, []);
@@ -597,10 +599,12 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef lance et calibre l'issue pendant son jugement : le manager n'ajoute aucun label", async (t) => {
-    const { gh, jugements, labels, faits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    const feu = join(repertoireTemporaire(t), "feu");
+    const { gh, jugements, labels, faits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, env: { FAUX_CLAUDE_FEU: feu }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 
     gh.poser(issue(30, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    writeFileSync(feu, "");
     await jusqua(() => faits(30).some((e) => e.type === "manager.commented"));
 
     assert.deepEqual(gh.labellisations, []);
@@ -609,10 +613,12 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("éteint pendant un jugement, le manager ne pose rien ; rallumé, il pose la décision sans rejuger", async (t) => {
-    const { repertoire, gh, jugements, labels, faits, laisserReveiller } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    const feu = join(repertoireTemporaire(t), "feu");
+    const { repertoire, gh, jugements, labels, faits, laisserReveiller } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, env: { FAUX_CLAUDE_FEU: feu }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 
     chef(repertoire, "manager.disabled");
+    writeFileSync(feu, "");
     await jusqua(() => faits(30).some((e) => e.type === "manager.judged"));
     await laisserReveiller();
     assert.deepEqual(gh.labellisations, []);

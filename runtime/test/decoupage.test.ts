@@ -4,6 +4,8 @@
 // en pass, servis —, le test le pose au journal comme le rail d'avant
 // l'écrivait (aides/rail-du-journal.ts).
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { enAmont } from "../src/amont.ts";
 import { marque, MARQUEUR_QUESTION } from "../src/decouper.ts";
@@ -15,7 +17,7 @@ import { decoupageDe, ticketsDEpique } from "../src/projections/splits.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { ouvrirRail } from "./aides/rail-du-journal.ts";
-import { jusqua } from "./outils.ts";
+import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 const EPIQUE = "Le chef veut voir, partout, combien de tickets attendent.";
 
@@ -444,11 +446,13 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
   });
 
   test("le chef pose `epic` pendant le jugement d'une issue : elle est découpée, pas lancée comme un ticket", async (t) => {
-    const c = brigade(t, { manager: { suite: ["juge-ticket-lent"], jugement: "decoupe-tickets" }, issues: [issue(30, [])] });
+    const feu = join(repertoireTemporaire(t), "feu");
+    const c = brigade(t, { manager: { suite: ["juge-ticket-lent"], jugement: "decoupe-tickets" }, env: { FAUX_CLAUDE_FEU: feu }, issues: [issue(30, [])] });
     epique(c);
     await jusqua(() => c.jugements().length === 1);
 
     c.gh.poser(issue(30, ["epic"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    writeFileSync(feu, "");
     await c.decoupee(30);
 
     assert.deepEqual(c.labels(30), ["epic"]);

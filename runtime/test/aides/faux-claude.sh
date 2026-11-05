@@ -757,10 +757,11 @@ FIN
 {"verdict":"weakened","raison":"`.claude/brigade/gates.sh` ne fait plus échouer les tests du runtime : leur code de sortie est avalé par `|| true`.","change":"It no longer fails when the runtime tests fail."}
 FIN
       ;;
-    # Les mêmes, qui prennent leur temps : le chef a le temps d'agir avant la
-    # décision, le découpage, la relecture.
+    # Les mêmes, qui attendent que le chef ait agi avant de rendre la décision,
+    # le découpage, la relecture : le test pose FAUX_CLAUDE_FEU une fois son
+    # geste fait. Une attente fixe se faisait doubler sur un poste chargé (#2464).
     juge-ticket-lent | decoupe-tickets-lent | relit-vert-lent)
-      sleep 0.15
+      attendre_le_feu "$FAUX_CLAUDE_FEU"
       jouer "${1%-lent}"
       ;;
     muet) rester ;;
