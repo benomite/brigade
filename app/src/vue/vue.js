@@ -4890,7 +4890,7 @@ function poserLeRail(projet) {
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
   // Aucune station connue ne sert le projet : la page ne reste pas vide — elle dit pourquoi (ticket 1405). Sur Rail, son
-  // tableau de cuisine se lit quand même, sur GitHub : lu, c'est le même rail que celui d'un projet servi ici, TODO en
+  // rail se lit quand même, sur GitHub (ses issues, labels et PR, #2061) : lu, c'est le même rail que celui d'un projet servi ici, TODO en
   // tête avec ses cartes et leurs gestes (ticket 2076). Tant qu'il ne l'est pas, le rail que sa station publie dit
   // pourquoi (ticket 1435) — GitHub à connecter, aucune station du compte —, sans colonnes à lui. Hors ligne, le signe
   // seul, comme pour tout rail (ticket 1818).
@@ -7786,7 +7786,7 @@ async function seConnecterAGitHub() {
 // Connecté : les stations sont relues, et une ouverture que la connexion retenait repart.
 function connecteAGitHub() {
   delete premier.connexion;
-  // Et son tableau de cuisine : connecté, il se lit peut-être (ticket 2076).
+  // Et son rail sur GitHub : connecté, il se lit peut-être (ticket 2076).
   if (courant !== undefined && railsPublies.has(courant.nom)) relireLeRailPublie(courant);
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
   void relireLePremier();

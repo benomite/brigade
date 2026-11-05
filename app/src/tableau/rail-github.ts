@@ -39,4 +39,3 @@ export function lectureConditionnelle(appeler: AppelGitHub, memoire: MemoireDesL
     return reponse;
   };
 }
-

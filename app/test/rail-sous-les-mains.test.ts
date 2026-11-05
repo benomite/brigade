@@ -220,7 +220,7 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
     await repos();
     assert.deepEqual(vue.dernier("repondreCarte").slice(1), [21, { question: PRODUIT.question, texte: "One per project" }]);
     assert.match((carteDuTicket(vue, 21) ?? assert.fail("pas de carte #21")).textContent, /sending your answer…/);
-    repondre({ repondue: true, dit: "posted on the Kitchen board", commentaire: 7 });
+    repondre({ repondue: true, dit: "posted on the issue", commentaire: 7 });
     await repos();
   });
 });

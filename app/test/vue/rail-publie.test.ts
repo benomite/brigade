@@ -1,5 +1,5 @@
 // Les onglets Rail et Second d'un projet ouvert sur un ordinateur neuf ne restent jamais vides (#1435, épique 1427) :
-// Rail montre le rail du projet — celui de son tableau de cuisine, le même que pour un projet servi ici, TODO en tête
+// Rail montre le rail du projet — celui que ses issues, labels et PR disent sur GitHub, le même que pour un projet servi ici, TODO en tête
 // avec ses cartes et leurs gestes (#2076) —, ou, tant qu'il ne se lit pas, la phrase qui dit pourquoi, d'après le rail
 // que sa station publie (#1432) ; Second montre le second qui part, ou, s'il ne part pas, pourquoi et
 // chaque outil qui manque, et le bouton de la page qui dit comment l'obtenir (#1433). Les modules sont joués devant un faux document, puis la vue

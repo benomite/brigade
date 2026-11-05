@@ -950,8 +950,8 @@ const TIERS_PAS_DONNE = "not given — this station's runtime does not give in `
 
 // Le rail qu'une station publie dans son gist (runtime/src/appairage/rail-du-projet.ts, #1432), lu sur un ordinateur
 // où le projet n'est servi par aucune station connue (#1435) : il ne se dessine plus (#2076). Le rail d'un projet est
-// celui de son tableau de cuisine, lu pour tout projet, quelle que soit la station qui le sert ; tant que ce tableau ne
-// se lit pas, la vue dit pourquoi — d'après ce rail publié quand il le dit mieux (vue/rail-publie.js).
+// celui que ses issues, labels et PR disent sur GitHub (#2061), lu pour tout projet, quelle que soit la station qui le
+// sert ; tant qu'il ne se lit pas, la vue dit pourquoi — d'après ce rail publié quand il le dit mieux (vue/rail-publie.js).
 export type RailDuProjetLu = RailDuProjet;
 
 // Un instant de la box, tel qu'elle l'a donné : son jour et son heure, en UTC.

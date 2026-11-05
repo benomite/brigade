@@ -126,7 +126,6 @@ async function reprise(t: TestContext, autres: Parameters<typeof lectureDesAppai
   await garderUneSeuleCuisine({ racine, lire: async () => lecture.etat, soi: () => ({ gist: MAC.id, nom: "ordi" }), dire: (ligne) => lignes.push(ligne) });
   const gist: Fichiers = { [FICHIER_PROJETS]: documentDeDemande([BRIGADE]) };
   const canal: Canal = { creer: async () => assert.fail("aucun gist créé"), ecrire: async (_id, ecrits) => (Object.assign(gist, ecrits), "ecrit"), lire: async (id) => (id === MAC.id ? { ...gist } : null) };
-  const tenues: string[] = [];
   const projets = tenirProjetsDeLApp({
     racine,
     canal,
@@ -140,12 +139,11 @@ async function reprise(t: TestContext, autres: Parameters<typeof lectureDesAppai
     lireLesAppairees: async () => lecture,
     cadenceDesAppareesMs: 0,
     plateforme: "darwin",
-    surLesRejointes: (rejointes) => void tenues.push(...rejointes.map(({ depot, principale }) => `${depot} ${principale}`)),
   });
   aArreter(t, () => projets.arreter());
   await projets.relire();
   const suivi = (JSON.parse(gist[FICHIER_SUIVI] ?? "null") as { projets: SuiviDuProjet[] } | null)?.projets ?? [];
-  return { racine, gh, gist, suivi, tenues, lignes };
+  return { racine, gh, gist, suivi, lignes };
 }
 
 test("un projet que la box sert : la vraie station de cet ordinateur n'ouvre ni cuisine ni tableau pour lui, et en rejoint la cuisine — l'ordinateur y cuit, déclaré comme cook", { skip: SANS_POSIX }, async (t) => {
@@ -157,13 +155,11 @@ test("un projet que la box sert : la vraie station de cet ordinateur n'ouvre ni 
   assert.equal(ordi.suivi[0]?.etat, "secondaire");
   assert.equal(ordi.suivi[0]?.cuitSur, "box");
   assert.deepEqual(rejointesLues(ordi.gist[FICHIER_REJOINTES]), [{ nom: "brigade", depot: "acme/brigade", principale: "box", cooks: 2, fournit: ["code", "raisonnement", "macos"] }]);
-  assert.deepEqual(ordi.tenues.at(-1), "acme/brigade box");
   assert.ok(ordi.lignes.some((ligne) => ligne.includes("already served by box")));
 });
 
 test("sans autre station qui le serve : la même préparation garde la ligne du bloc, la cuisine s'ouvre ici comme avant", { skip: SANS_POSIX }, async (t) => {
   const ordi = await reprise(t, []);
   assert.deepEqual(servisPar(ordi.racine), ["brigade"]);
-  assert.deepEqual(ordi.tenues, []);
   assert.equal(ordi.suivi[0]?.cuitSur ?? null, null);
 });

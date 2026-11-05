@@ -140,7 +140,7 @@ A ticket that waits for someone else has nothing to do in TODO: the kitchen does
 - **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, grant, decide): it stays in TODO, whatever happens. **You never point it as WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing is named — unless they ask you to put it on hold.
 - **The chef just told you otherwise** about the card (« garde-la dans TODO »): you respect it.
 
-« reprends #8 » is the `resume` button of the card in WAITING, on the same principle. « c'est arrivé, #8 » is posted on the project's Kitchen board, and you do not post it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which posts it, in one line.
+« reprends #8 » is the `resume` button of the card in WAITING, on the same principle. « c'est arrivé, #8 » removes the `waiting` label from the ticket's issue on GitHub, and you do not remove it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which does it, in one line.
 
 ## Out of scope (on purpose)
 
