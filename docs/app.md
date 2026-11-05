@@ -2065,8 +2065,9 @@ reading as the app's Todo (#2460, "What awaits the chef, read from GitHub" below
 items, in the same order, in the same words. No Kitchen board, no box, no station: it works on every project the app knows a
 repository for. So the second sees the queue after a start, a resume or a compaction without thinking of it. The repository
 is the project's `depot`, or the GitHub `origin` of the session's folder. A queue that cannot be read (no repository known,
-GitHub not reached or refusing) is said in that context, in one line starting `file non lue :`, and the hook still exits 0:
-it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
+GitHub not reached or refusing, or the whole reading — lists, then comments, then label events — not done within 30 s, under
+the hook's 45 s, so that `claude` never kills it silent) is said in that context, in one line starting `file non lue :`, and
+the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
 **The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
 `PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refus.ts`. It denies any

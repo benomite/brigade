@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, test, type TestContext } from "node:test";
 import { crochetsDeLaFile, MATCHER } from "../../src/second/crochet-de-la-file.ts";
-import { contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
+import { appelParGh, contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
 import { argumentsDuSecond, reglagesDuSecond, type ReglagesDuSecond } from "../../src/second/lancement.ts";
 import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
@@ -38,13 +38,14 @@ function fauxGh(t: TestContext, code: number, sortie: string, erreur = ""): stri
 }
 
 // Un faux `gh` qui rend, chemin par chemin, ce que GitHub tient du projet (`reponseA`) : il écrit chaque appel reçu.
-function ghDuProjet(t: TestContext): string {
+// `attente` : ce que chaque appel met à répondre, en secondes.
+function ghDuProjet(t: TestContext, attente = 0): string {
   const d = dossier(t);
   const chemins = ["repos/x/issues?labels=fire", "repos/x/issues?labels=chef-todo", "repos/x/issues/8/comments", "repos/x/issues/20/comments"];
   chemins.forEach((chemin, rang) => writeFileSync(join(d, `${rang}.json`), JSON.stringify(reponseA(chemin))));
   const gh = join(d, "gh");
   const cas = ["*labels=fire*", "*labels=chef-todo*", "*/issues/8/comments*", "*/issues/20/comments*"].map((motif, rang) => `  ${motif}) /bin/cat '${join(d, `${rang}.json`)}' ;;`).join("\n");
-  writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\ncase "$2" in\n${cas}\n  *) echo '[]' ;;\nesac\n`);
+  writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\n${attente === 0 ? "" : `sleep ${attente}\n`}case "$2" in\n${cas}\n  *) echo '[]' ;;\nesac\n`);
   chmodSync(gh, 0o755);
   return gh;
 }
@@ -181,6 +182,14 @@ describe("le crochet joué à la main", () => {
     const r = jouer(t, fauxGh(t, 0, "[]"), "brigade", "");
     assert.equal(r.status, 0);
     assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : aucun dépôt GitHub pour ce projet/);
+  });
+
+  test("la lecture entière tient dans son délai, toutes ses vagues d'appels comprises : passé, la file est dite non lue, avant que `claude` ne tue le crochet", { skip: SANS_SH }, async (t) => {
+    // Chaque appel répond en 0,4 s, sous le délai de 0,6 s ; mais les commentaires de #8 ne se demandent qu'une fois les
+    // listes rendues : deux vagues, 0,8 s au moins — la seconde passe l'échéance commune.
+    const lue = await lireLaFile(appelParGh(ghDuProjet(t, 0.4), 600), DEPOT);
+    assert.ok(!lue.lue, JSON.stringify(lue));
+    assert.match(contexteDeLaFile({ nom: "brigade" }, lue), /file non lue : GitHub pas joint\n.*no answer in 1 s/);
   });
 
   test("un gh introuvable : dit, et sort en 0", (t) => {

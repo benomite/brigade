@@ -19,6 +19,8 @@ import { blocDuChef, lireCeQuiAttendLeChef } from "../tableau/attente-du-chef.ts
 import { corpsLu, type AppelGitHub } from "../tableau/client.ts";
 import { EVENEMENT, type Cible } from "./crochet-de-la-file.ts";
 
+// Ce que la lecture entière a pour se faire, toutes ses vagues d'appels comprises — sous le délai du crochet
+// (crochet-de-la-file.ts) : passé, `claude` tue le crochet, et le second n'aurait rien, pas même « file non lue ».
 export const DELAI_MS = 30_000;
 // Ce que la lecture a rendu : le bloc `awaiting` de ce qui attend le chef, et l'heure de la lecture ; ou pourquoi rien ne
 // se lit. `horsLigne` : GitHub n'a pas été joint du tout.
@@ -39,15 +41,21 @@ export const sortieDuCrochet = (contexte: string): string =>
   JSON.stringify({ hookSpecificOutput: { hookEventName: EVENEMENT, additionalContext: contexte } });
 
 // Le `GET` de l'API de GitHub par le `gh` du poste — son compte, son jeton, son réseau. Un refus de GitHub est une
-// réponse (son code, le corps qu'il a rendu) ; un `gh` absent, arrêté ou qui ne dit pas de code HTTP lève.
+// réponse (son code, le corps qu'il a rendu) ; un `gh` absent, arrêté ou qui ne dit pas de code HTTP lève. La lecture de
+// ce qui attend le chef fait plusieurs vagues d'appels (les listes, puis les commentaires, puis les poses de label) : tous
+// partagent une échéance, `delaiMs` après la création de l'appel, et un appel qui la passe lève comme un GitHub muet.
 export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub {
+  const echeance = Date.now() + delaiMs;
+  const muet = () => new Error(`no answer in ${Math.round(delaiMs / 1000)} s`);
   return (chemin) =>
     new Promise((resoudre, rejeter) => {
-      execFile(gh, ["api", chemin.replace(/^\//, "")], { windowsHide: true, timeout: delaiMs, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+      const reste = echeance - Date.now();
+      if (reste <= 0) return rejeter(muet());
+      execFile(gh, ["api", chemin.replace(/^\//, "")], { windowsHide: true, timeout: reste, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre({ status: 200, data: corpsLu(sortie) });
         const http = /\(HTTP (\d{3})\)/.exec(erreurs)?.[1];
         if (http !== undefined) return resoudre({ status: Number(http), data: corpsLu(sortie) });
-        if (erreur.killed === true) return rejeter(new Error(`no answer in ${Math.round(delaiMs / 1000)} s`));
+        if (erreur.killed === true) return rejeter(muet());
         if ((erreur as { code?: unknown }).code === "ENOENT") return rejeter(new Error(`\`${gh}\` is not on this machine`));
         rejeter(new Error(erreurs.trim().split("\n").at(-1) || erreur.message));
       });
