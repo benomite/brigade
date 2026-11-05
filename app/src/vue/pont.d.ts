@@ -337,6 +337,10 @@ export type Pont = {
   // (runtime/src/identites-stations.ts). Absents, ou rien de rendu : cet appareil n'a pas de station.
   appsDeLaStation?(): Promise<import("./identites-github.js").LectureDesApps | undefined>;
   rangerUneApp?(role: import("./identites-github.js").Role, id: string, cle: string): Promise<import("./identites-github.js").RenduDuRangement>;
+  // Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : la liste qu'elle
+  // tient, et un projet ajouté ou retiré — chaque écriture rend la liste écrite. Absents, ou rien de rendu : pas de station.
+  projetsServis?(): Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis | undefined>;
+  servirUnProjet?(depot: string, servi: boolean): Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis>;
   // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.ts) : les stations que le chef a
   // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
   // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.

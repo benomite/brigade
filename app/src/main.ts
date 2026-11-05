@@ -1133,6 +1133,29 @@ ipcMain.handle("rangerUneApp", async (_, roleDeLApp: unknown, id: unknown, cle: 
     return { refus: erreur instanceof AppRefusee ? erreur.message : `the ${roleDeLApp} App could not be stored (${codeDe(erreur)})` };
   }
 });
+// Les projets que la station de cet ordinateur sert elle-même sur GitHub seul, depuis Settings (#2359,
+// vue/projets-servis/) : la liste qu'elle tient dans son répertoire, lue et écrite par ce que le runtime en fait
+// (station-ordinateur/projets-servis.ts). Elle la relit à son tour suivant. Un téléphone n'a pas de station : rien.
+const projetsServisDuRuntime = () => duRuntime<typeof import("../../runtime/src/station-ordinateur/projets-servis.ts")>("station-ordinateur", "projets-servis.ts");
+ipcMain.handle("projetsServis", async () => {
+  if (role.role !== "station") return undefined;
+  try {
+    const { lireProjetsServis } = await projetsServisDuRuntime();
+    return { depots: lireProjetsServis(racineDeLaStation) };
+  } catch (erreur) {
+    return { refus: erreur instanceof Error ? erreur.message : `this station's served projects cannot be read (${codeDe(erreur)})` };
+  }
+});
+ipcMain.handle("servirUnProjet", async (_, depot: unknown, servi: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no station — it serves no project" };
+  if (typeof depot !== "string" || typeof servi !== "boolean") return { refus: "the app sent a project this station cannot read" };
+  try {
+    const { ajouterProjetServi, retirerProjetServi } = await projetsServisDuRuntime();
+    return { depots: servi ? ajouterProjetServi(racineDeLaStation, depot) : retirerProjetServi(racineDeLaStation, depot) };
+  } catch (erreur) {
+    return { refus: erreur instanceof Error ? erreur.message : `the served projects could not be written (${codeDe(erreur)})` };
+  }
+});
 // Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
 // celles-là s'ouvrent depuis l'écran.
 const pagesDuPremier = new Set<string>();
