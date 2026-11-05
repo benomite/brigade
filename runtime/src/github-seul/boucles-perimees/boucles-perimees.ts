@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { execFile } from "../../sans-invite.ts";
 import type { GitHub } from "../../github.ts";
 import { surGitHubSeul } from "../../brigade-github.ts";
+import { estLaPauseDeGitHub } from "../../limite-github.ts";
 import type { ReglagesProjet } from "../../reglages-projet/reglages.ts";
 import type { Runtime } from "../../runtime.ts";
 
@@ -33,41 +34,58 @@ export type OptionsElagage = {
   avertir?: (message: string) => void;
 };
 
-// Deletes the `cook/<n>-github` branches whose issue is closed. A live one (open
-// issue, or an issue GitHub does not answer for) is kept, and so is any other
-// branch. Returns the branches deleted.
-export async function elaguerBranchesPerimees(options: OptionsElagage): Promise<string[]> {
+// The issues read for their branch in one pass, at most (#2436): each read is
+// a GitHub call, and a pass over every branch at each tick, for every project,
+// was a burst that set off GitHub's secondary limit. The next pass goes on
+// from where this one stopped.
+export const BRANCHES_PAR_TOUR = 3;
+
+// Where the passes stand in the sorted branches: the last one examined.
+export type Curseur = { derniere: string | null };
+
+// Deletes the `cook/<n>-github` branches whose issue is closed, examining at
+// most `BRANCHES_PAR_TOUR` of them, after `curseur`, then from the start. A live
+// one (open issue, or an issue GitHub does not answer for) is kept, and so is
+// any other branch. GitHub's pause ends the pass, without a word: the journal
+// already says it. Returns the branches deleted.
+export async function elaguerBranchesPerimees(options: OptionsElagage, curseur: Curseur = { derniere: null }): Promise<string[]> {
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  const cooks = (await options.branches()).filter((branche) => BRANCHE_COOK.test(branche)).sort();
+  const apres = cooks.findIndex((branche) => curseur.derniere !== null && branche > curseur.derniere);
+  const depart = apres === -1 ? 0 : apres;
+  const examinees = [...cooks.slice(depart), ...cooks.slice(0, depart)].slice(0, BRANCHES_PAR_TOUR);
   const retirees: string[] = [];
-  for (const branche of await options.branches()) {
-    const numero = BRANCHE_COOK.exec(branche)?.[1];
-    if (numero === undefined) continue;
+  for (const branche of examinees) {
     try {
-      if ((await options.issueFermee(Number(numero))) !== true) continue;
-      await options.supprimer(branche);
-      retirees.push(branche);
+      if ((await options.issueFermee(Number(BRANCHE_COOK.exec(branche)?.[1]))) === true) {
+        await options.supprimer(branche);
+        retirees.push(branche);
+      }
     } catch (erreur) {
+      if (estLaPauseDeGitHub(erreur)) break;
       avertir(`brigade : stale branch ${branche} not removed — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
+    curseur.derniere = branche;
   }
   return retirees;
 }
 
-// Cleans the stale branches at each tick, one pass at a time, while the old
+// Cleans the stale branches at each tick, a few per pass (`BRANCHES_PAR_TOUR`), while the old
 // path is stopped. Its `arreter` takes it along.
 export function brancherElagageGithub<R extends Runtime>(runtime: R, options: OptionsElagage & { perimee: Perimee }): R {
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   let arrete = false;
   let occupe = false;
+  const curseur: Curseur = { derniere: null };
   const desabonner = runtime.surReveil((cause) => {
     if (cause !== "tick" || arrete || occupe || !options.perimee()) return;
     occupe = true;
-    void elaguerBranchesPerimees(options)
+    void elaguerBranchesPerimees(options, curseur)
       .then((retirees) => {
         if (retirees.length > 0 && !arrete) avertir(`brigade : stale branches removed — ${retirees.join(", ")}`);
       })
       .catch((erreur) => {
-        if (!arrete) avertir(`brigade : stale branches not listed — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+        if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : stale branches not listed — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       })
       .finally(() => {
         occupe = false;

@@ -33,7 +33,7 @@ import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
-import { LimiteGitHubAtteinte } from "./limite-github.ts";
+import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
@@ -575,6 +575,9 @@ export type OptionsDuProjet<A> = {
   station: () => StationGitHub | { refus: string };
   // Entre deux tours. Par défaut, deux minutes.
   intervalleMs?: number;
+  // Avant le premier tour (#2436) : la station décale ses projets, pour ne pas
+  // tous les lire à son démarrage. Par défaut, aucun délai.
+  premierTourMs?: number;
   avertir?: (message: string) => void;
   // Ce que le runtime a décidé de l'interrupteur, pour qu'il se lise ailleurs que dans son log (`github-seul-etat.ts`) : null, éteint.
   noter?: (decision: { etat: "accepted" } | { etat: "refused"; reason: string } | null) => void;
@@ -622,7 +625,8 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
       try {
         await station.tour();
       } catch (erreur) {
-        avertir(`brigade : tour GitHub seul — ${message(erreur)}`);
+        // La pause de GitHub est dite une fois au journal, pas à chaque tour (#2436).
+        if (!estLaPauseDeGitHub(erreur)) avertir(`brigade : tour GitHub seul — ${message(erreur)}`);
       }
       enTour = false;
       const delai = demande === 0 ? 0 : presses > 0 ? presseeMs : intervalleMs;
@@ -645,7 +649,8 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
     presses = TOURS_PRESSES - 1;
     if (echeance - Date.now() > delai) programmer(delai);
   };
-  tourner();
+  if ((options.premierTourMs ?? 0) > 0) programmer(options.premierTourMs as number);
+  else tourner();
   return {
     chemin: "github",
     // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).

@@ -99,6 +99,8 @@ export type OptionsCuisine = {
   // Vrai tant que la station se vide pour sa mise à jour (#2189) : sa cuisine
   // GitHub seul ne prend plus aucun ticket (`retenirLaPrise`).
   retenue?: () => boolean;
+  // Avant le premier tour GitHub seul du projet : la station décale ses projets (#2436).
+  departMs?: number;
 };
 
 // Ouvre la cuisine d'un projet. Toute sa configuration est lue avant de rien
@@ -211,6 +213,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const suiviDuTour = suivreLeTour();
     const ouvert = brancherBrigadeGithub({
       reglages: duDepot.reglages,
+      ...(options.departMs === undefined ? {} : { premierTourMs: options.departMs }),
       noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
       ancien: () => ({ stations, decisions }),
       station: () => {

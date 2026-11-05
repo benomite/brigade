@@ -44,6 +44,7 @@ import { ouvrirSansCapacite } from "./sans-capacite.ts";
 import { brancherLeTriage } from "./carte-todo.ts";
 import { ouvrirTriage } from "./triage/triage.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
+import { estLaPauseDeGitHub } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -760,7 +761,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         } while (aRefaire && !arrete);
       } catch (erreur) {
         // `gh` en panne : rien n'est décidé, le réveil suivant réessaie.
-        if (!arrete) avertir(`brigade : le manager a buté — ${message(erreur)}`);
+        if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : le manager a buté — ${message(erreur)}`);
       } finally {
         enCours = false;
       }
