@@ -192,12 +192,8 @@ outside the guidance, or a diff that does not apply, and the proposal is **disca
 **Nothing goes without your "yes"** (`runtime/src/correctif/decision.ts`). An undecided proposal
 stays in `corrections`. Decided, it leaves; it is decided only once.
 
-You answer on the project's **Kitchen board** (`docs/tableau-gestes.md`): a comment whose first line is
-`/brigade correction yes <proposal>` or `/brigade correction no <proposal>`, with no `#` before the
-number — what the card's two buttons post. The box plays it at its next tick
-(`trancherLaCorrection`) and answers under the comment in one line: done, with the cost,
-or not done (no such proposal, or already answered), nothing written.
-`<proposal>` is the `proposition` of `corrections`.
+You answered on the project's Kitchen board, which no runtime reads since #2061: the app's card says so, and
+nothing is posted. `<proposal>` is the `proposition` of `corrections`.
 
 | Your gesture | What happens |
 |---|---|
@@ -237,11 +233,8 @@ has one proposal at a time, and none once its profile exists.
 **A profile exists only if you say "yes"** (`runtime/src/profils/decision.ts`). An undecided
 proposal stays in `profils`. Decided, it leaves; it is decided only once.
 
-You answer on the **Kitchen board** (`docs/tableau-gestes.md`), like a correction:
-`/brigade profile yes <proposal>` or `/brigade profile no <proposal>`, no `#` before the number;
-`<proposal>` is the `proposition` of `profils`. The box plays it at its next tick (`trancherLeProfil`),
-in the project's clone on the box, and answers under the comment in one line: done, or not done (no
-such proposal, already answered, or a definition already in the repository), nothing written.
+You answered on the Kitchen board, like a correction, which no runtime reads since #2061: the app's card says so,
+and nothing is posted. `<proposal>` is the `proposition` of `profils`.
 
 | Your gesture | What happens |
 |---|---|

@@ -183,7 +183,7 @@ test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand
   assert.match(corps ?? "", /^\*\*WAITING : en attente de le client\.\*\* sa validation écrite du devis/);
   assert.match(corps ?? "", /\*\*de qui\*\* : le client/);
   assert.match(corps ?? "", /\*\*relance\*\* : 21 oct\. 12:00 UTC/);
-  assert.match(corps ?? "", /sa relance ne l'en sort pas\. `\/brigade arrived #8`, posté sur le tableau de la cuisine, le renvoie en cuisine ; `.*waiting resume 8` lui rend l'état qu'il avait avant d'attendre/);
+  assert.match(corps ?? "", /sa relance ne l'en sort pas\. Retirer ce label le renvoie en cuisine ; `.*waiting resume 8` lui rend l'état qu'il avait avant d'attendre/);
   assert.deepEqual(gh.lire(8)?.labels.includes(LABEL_WAITING), true);
   // Rien de neuf : rien ne se redit.
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 0);
@@ -326,7 +326,7 @@ test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'el
   assert.deepEqual([ticketDuRail(journal.base, 8)?.state, ticketDuRail(journal.base, 8)?.waitingFor], ["waiting", null]);
   const refus = lancer("resume", "8");
   assert.deepEqual([refus.code, /not waiting for a third party/.test(refus.erreur)], [1, true]);
-  // « C'est arrivé » n'est pas une commande de la box : il passe par le tableau de la cuisine (`/brigade arrived`).
+  // « C'est arrivé » n'est pas une commande de la box : l'app retire le label `waiting` de l'issue.
   const arrive = lancer("arrived", "8");
   assert.deepEqual([arrive.code, /unknown gesture: “arrived”/.test(arrive.erreur)], [2, true]);
   assert.equal(ticketDuRail(journal.base, 8)?.state, "waiting");

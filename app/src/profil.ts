@@ -7,10 +7,8 @@
 //   - la lecture du champ `profils` de `facts`, champ pour champ (`profilsLus`) ;
 //   - la carte, prête à poser (`carteDeProfil`) : le nom, le domaine, les chiffres qui le justifient
 //     dits en phrases, ses tickets ouvrables, et ce que le profil contiendrait ;
-// Le geste du chef ne passe pas par la box : comme celui d'une correction (correction.ts), il est posté
-// sur le tableau de la cuisine du projet, `/brigade profile yes|no <proposition>` (tableau-gestes/rail.ts,
-// `reponseALaFile`, #1741). La box le joue à son tick suivant ; c'est le runtime qui tranche
-// (runtime/src/profils/decision.ts) — le « yes » y écrit la définition du profil dans le dépôt du projet.
+// Le geste du chef ne part plus de l'app (#2061) : comme celui d'une correction (correction.ts), il était posté sur
+// le tableau de la cuisine, que plus aucun runtime ne lit, et aucune station ne propose plus de profil.
 
 // Une part livrée du premier coup : `premiers` sur `retenus` mergés, `part` entre 0 et 1.
 export type PartLue = { premiers: number; retenus: number; part: number };

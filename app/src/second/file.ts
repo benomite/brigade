@@ -1,36 +1,36 @@
 // La file du projet, lue pour le second par un crochet `SessionStart` (startup, resume, compact) : à l'ouverture
-// de la session et après chaque compaction, `claude` joue ce module, qui lit la file que la box du projet publie sur
-// son tableau de la cuisine (« Kitchen board », runtime/src/tableau/rendu/bloc.ts, `laFileDuSecond`, #1843) et la rend
-// comme contexte additionnel — le second la voit sans y penser (role.md, « On opening »). Rien que GitHub, par le `gh`
-// du poste (#1845) : sans box jointe.
+// de la session et après chaque compaction, `claude` joue ce module, qui lit la file du projet sur GitHub — les cartes
+// du chef (issues au label `chef-todo`) et le rail (issues au label `fire`), comme la vue du rail les lit
+// (tableau/lecture.ts, #2061) — et la rend comme contexte additionnel : le second la voit sans y penser (role.md,
+// « On opening »). Rien que GitHub, par le `gh` du poste : sans box jointe.
 //
 // Le crochet n'est que dans les réglages du lancement de l'onglet Second (lancement.ts, `--settings`), qui le déclarent
 // par crochet-de-la-file.ts : aucun fichier du projet ne le porte, une session `claude` ordinaire du même dossier ne le
 // joue pas.
 //
-// La file publiée est rendue mot pour mot : le bloc `awaiting` de `status`, bords compris, puis l'état de la cuisine
-// dans la forme de `status`. Une file qu'on n'a pas pu lire est dite telle, dans les mots de role.md, au lieu
-// d'échouer en silence — et le crochet sort toujours en 0 : il ne bloque jamais la session.
+// La file est rendue dans la forme de `status` : le bloc `awaiting`, bords compris, une ligne par carte du chef, puis la
+// ligne `rail` et celle de chaque ticket. Une file qu'on n'a pas pu lire est dite telle, dans les mots de role.md, au
+// lieu d'échouer en silence — et le crochet sort toujours en 0 : il ne bloque jamais la session.
 import { execFile } from "node:child_process";
-import { laFileDuSecond } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import { depotDeLOrigine } from "../ajout.ts";
 import { corpsLu, type AppelGitHub } from "../tableau/client.ts";
 import { lireLeTableauDuDepot } from "../tableau/lecture.ts";
+import { fileDuSecond } from "../tableau/rail.ts";
+import { avecLeTodoGithub } from "../tableau/todo-github.ts";
 import { EVENEMENT, type Cible } from "./crochet-de-la-file.ts";
 
 export const DELAI_MS = 30_000;
-// Ce que la lecture a rendu : la file publiée, et l'heure à laquelle la box a lu l'état qu'elle publie ; ou pourquoi
-// rien ne se lit. `horsLigne` : GitHub n'a pas été joint du tout.
+// Ce que la lecture a rendu : la file, et l'heure à laquelle elle a été lue sur GitHub ; ou pourquoi rien ne se lit. `horsLigne` : GitHub n'a pas été joint du tout.
 export type Lecture = { lue: true; depot: string; lu: string; texte: string } | { lue: false; raison: string; horsLigne?: true; sansDepot?: true };
 
 // Ce que le crochet dit au second — la file, ou pourquoi elle n'est pas lue, dans les mots de role.md.
 export function contexteDeLaFile(cible: Cible, lecture: Lecture): string {
-  const entete = `The project's queue, read by the app at the start of this session (or after a compaction) from the Kitchen board the box of ${cible.nom} publishes on GitHub: the \`awaiting\` block of \`brigade ${cible.nom} status\`, word for word, then the kitchen's state. This is your reading: do not run it again.`;
+  const entete = `The project's queue, read by the app at the start of this session (or after a compaction) from the GitHub issues of ${cible.nom}: the cards awaiting the chef (\`chef-todo\`), in the form of the \`awaiting\` block of \`brigade ${cible.nom} status\`, then the rail (\`fire\`). This is your reading: do not run it again.`;
   const non = (phrase: string, suite = "") => `${entete}\n\n${phrase}${suite === "" ? "" : `\n${suite}`}`;
   if (!lecture.lue && lecture.sansDepot === true) return non("file non lue : aucun dépôt GitHub pour ce projet — ni `depot` dans ~/.config/brigade/app.json, ni `origin` GitHub dans son dossier");
   if (!lecture.lue && lecture.horsLigne === true) return non("file non lue : GitHub pas joint", lecture.raison);
-  if (!lecture.lue) return non("file non lue : tableau de la cuisine pas lu", lecture.raison);
-  return `${entete} Published from the state the box read at ${lecture.lu}, on ${lecture.depot}.\n\n${lecture.texte.replace(/\s+$/, "")}`;
+  if (!lecture.lue) return non("file non lue : GitHub pas lu", lecture.raison);
+  return `${entete} Read at ${lecture.lu}, on ${lecture.depot}.\n\n${lecture.texte.replace(/\s+$/, "")}`;
 }
 
 // Le format que `claude` attend d'un crochet `SessionStart` : du JSON sur la sortie standard.
@@ -53,22 +53,13 @@ export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub 
     });
 }
 
-// La file que la box publie dans le corps du tableau de ce dépôt : le tableau est retrouvé comme l'app le retrouve
-// (lecture.ts), et son corps lu par le lecteur que le runtime partage avec les apps.
+// La file de ce dépôt, lue comme la vue du rail la lit (tableau/lecture.ts) : le rail, puis les cartes du chef.
 export async function lireLaFile(appeler: AppelGitHub, depot: string): Promise<Lecture> {
-  let issues: unknown;
-  const lu = await lireLeTableauDuDepot({
-    depot,
-    appeler: async (chemin) => {
-      const reponse = await appeler(chemin);
-      issues = reponse.data;
-      return reponse;
-    },
-  });
+  const lu = await lireLeTableauDuDepot({ depot, appeler });
   if (!lu.lu) return { lue: false, raison: lu.raison, ...(lu.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  const issue = (Array.isArray(issues) ? (issues as Array<{ number?: unknown; body?: unknown }>) : []).find(({ number }) => number === lu.numero);
-  const file = laFileDuSecond(typeof issue?.body === "string" ? issue.body : "");
-  return file.lue ? { lue: true, depot, lu: file.lu, texte: file.texte } : { lue: false, raison: `The Kitchen board of ${depot} (issue ${lu.numero}) does not give the project's queue: ${file.raison}.` };
+  const avecTodo = await avecLeTodoGithub(lu, appeler);
+  if (avecTodo.faits.attend === undefined) return { lue: false, raison: `The cards awaiting the chef in ${depot} (\`chef-todo\`) were not read from GitHub.` };
+  return { lue: true, depot, lu: lu.luLe, texte: fileDuSecond(avecTodo) };
 }
 
 // Ce que le crochet écrit : toujours un contexte, même quand la file n'a pas pu être lue. `dossier` : celui de la

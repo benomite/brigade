@@ -78,14 +78,9 @@ A runtime from before `agents` gives the pass alone, read from the rail's ticket
 all says `nothing running` in one line; one that runs only a pass or the manager shows its cards, and no such line. The
 cards follow the next read: a pass that ends leaves the block. On the narrow screen, one line per agent above the cooks'.
 Nothing in a block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
-when you have stopped it. It posts `/brigade station stop|start <station>` on the project's Kitchen board (#1845,
-`docs/tableau-gestes.md`) with this computer's `gh`, which the project's runtime plays at its
-next tick, wherever it runs (another computer, or this one). The block says `stopping…` until the box has answered under the
-gesture (the board is read again every five seconds, two and a half minutes at most), then rereads the board: the
-line takes the new state without reloading the page. A box that has not read it by then leaves the line saying it is
-posted, and plays it at its next tick. Stopping cuts nothing: the cook in flight finishes — served, or its ticket goes
-back to the rail — and the line stays at `stopped`. What it does is on hover over the button; restarting says its price
-on hover, stopping has none. Refused by the runtime, a line says so under the station, its output on hover. A station
+when you have stopped it. Since #2061 nothing leaves the app: the line under the station says ``nothing was sent: a
+station is no longer stopped or started from the app — stop its runtime on its machine, or remove `fire` from the
+tickets it should not take`` (`SANS_FAIT` in `app/src/gestes-github.ts`). A station
 stopped by your "stop" of the whole kitchen, or that refuses the project, has no button: the resume is on the
 banner, the action for a refusal in the block under the stations line. **On Rail, a single line at the top** says
 what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
@@ -182,26 +177,11 @@ validation (`attend[].carte` in `facts`, see `docs/runtime/manager.md`, "What en
 card says what is expected (`Validate its screen: answer its question.`), then the question, one button per choice — in
 the runtime's order —, and a free-text field with its `send` button, inactive while empty. A design validation shows its
 before and after captures under the question, read without a click like those of a delivery; a card without a screen
-has no capture area. One click on a choice, or `send`, is the answer: it is posted once on the Kitchen board (#1694) —
-no confirmation; each choice's price (a merge, a cook relaunched)
-is on hover. Refused before anything is posted, it stays with its gestures, and a line says why, the box's output on
-hover. Posted, the card stays where it is and says where the answer is (#1841, below). The modules are
-`app/src/carte-todo.ts` and `app/src/vue/carte-todo.js`.
-**A posted answer reads `sent, waiting for the kitchen` until the box replies** (#1841, epic #1838): the card recalls
-`your answer: “…”` — the choice's text, or what the chef wrote —, offers neither its choices nor its field, and says
-`sent, waiting for the kitchen` in a quiet line (what it means on hover), its left edge pulsing slowly like the rail's
-top edge during a reading (#1818). When the box has played it, the card says `played by the kitchen` (the box's line on
-hover) and its edge stops; it leaves TODO with the board that no longer carries it. When the box did not play it, the
-card says `not played by the kitchen: <reason>` in red, the box's line on hover, and gives its choices and field back.
-That state is **read from the Kitchen board, never from the app's memory** (`app/src/tableau/envois.ts`): with each
-board reading where a TODO card waits, the app also reads the board's comments written since the oldest such card
-entered TODO, finds the chef's last `/brigade choose` or `/brigade answer` for each card, and what the box did with it —
-the board's machine block (`tableau.gestes`), or, when the box holds its calls and does not rewrite the block, its reply
-comment under the gesture (`**Done**`, `**Not done**`, `**Not understood**`, linking the gesture; #1840). A gesture left
-unanswered while the box answered a later one was passed over (not the chef's account): it says nothing. So an app
-restarted while the answer still waits shows the card waiting again, never unanswered. Comments that cannot be read
-(no network, GitHub refusing) leave the card as the view last knew it. The reading costs one GitHub call per board
-reading, only while a TODO card waits. Captures: `docs/captures/1841/`.
+has no capture area. **Since #2061 no answer leaves the app**: a click on a choice, or `send`, says `nothing was posted:
+a card of TODO is answered on its issue on GitHub — the station reads the issue, not the app` (`SANS_FAIT` in
+`app/src/gestes-github.ts`), and the card stays as it is. No reading carries `attend[].carte` any more: TODO is the
+`chef-todo` issues ("The chef's TODO, read from GitHub", below). The modules are `app/src/carte-todo.ts` and
+`app/src/vue/carte-todo.js`.
 **Every TODO card takes that one shape** (#1767, epic #1764, `runtime/src/carte-todo/forme.ts`): when `attend[].carte`
 carries `resume` — what happens, in two plain sentences at most —, it heads the card in place of the expected line, then
 the question, the captures, one button per choice and the free-text field. A card with a single gesture (merge a green
@@ -213,7 +193,8 @@ choices without it.
 which ticket and why, and offers `Put it back on the rail`, `I take it in a dev session` and `Close it`; it stays until
 you answer (`docs/runtime/manager.md`, "A ticket the kitchen takes off the rail without serving it"). Each choice's
 price follows its gesture (`app/src/carte-todo.ts`): `drop` says the ticket stays off the rail, `close` that its issue is
-closed — neither says a cook is launched.
+closed — neither says a cook is launched. Since #2061 no reading carries that card: such a ticket is a `chef-todo` card
+of kind `abandoned`, answered on its issue.
 **A kitchen held by its breaker is resumed in one click, from the head of Todo** (#2140, epic #2134): while the
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
 failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
@@ -315,7 +296,8 @@ merging, checking — is followed in the project's space: the app opens the sess
 terminal. Closing it stops nothing on the box, and stopping a project's kitchen does not close the app.
 
 **The app runs one station: this computer's.** It reads and drives, through it, the projects that cook on this
-computer; for the others, it reads the Kitchen board on GitHub and posts gestures there. It launches no `ssh`, opens
+computer; for every project, it reads the rail from the project's GitHub repository and writes the chef's gestures
+there (labels, comments). It launches no `ssh`, opens
 no shell on another machine, and plays no station for a project's box.
 
 Three words look alike, and do not mean the same thing:
@@ -335,7 +317,8 @@ A single file, outside the repo: `~/.config/brigade/app.json`. A name and a fold
 and branch it follows). **You do not have to write it to begin**: the app creates it, and you add a project in
 it from the app. The runtime creates it too, on its first start (`{ "projets": [] }`: no path), and adds the keys a
 file lacks without changing any value it has (`runtime/src/app-par-defaut.ts`). Where a project cooks is not in this
-file: it is read from the Kitchen board on GitHub and from the stations you paired.
+file: it is read from the project's issues on GitHub (the claim comments of its stations) and from the stations you
+paired.
 
 ### On a new computer: your stations and their projects (#1434)
 
@@ -388,11 +371,10 @@ Open one of your projects on this PC: one click, no folder to choose.
 
 ### The age of the rail is always on screen (#2054)
 
-The Rail tab reads the Kitchen board on GitHub every 30 seconds, with no gesture. Above the columns, one quiet line
-says how old the rail shown is — `rail as the box read it 50 min ago, at 7:35 AM` — counted from the time the box read
-the state it published, not from the app's own reading (which is always recent). A rail the box has stopped
-republishing therefore shows its age without hovering. When the board cannot be read again, the old columns are kept
-(#2151, below); offline, the last rail stays dimmed, marked `offline since` (#1818).
+The Rail tab reads the project's GitHub repository every 30 seconds, with no gesture. Above the columns, one quiet
+line says how old the rail shown is — `rail as GitHub said it less than a minute ago, at 7:35 AM`. Since #2061 the
+rail is read from GitHub itself, so that age is counted from the app's own reading. When GitHub cannot be read again,
+the old columns are kept (#2151, below); offline, the last rail stays dimmed, marked `offline since` (#1818).
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
 
@@ -400,8 +382,8 @@ republishing therefore shows its age without hovering. When the board cannot be 
 
 The chef's main screen does not lose a card because a reading went wrong:
 
-- **A failed reading never empties a column.** When GitHub answers but does not give the board — rate limit, a refusal,
-  no answer in time, a board the app cannot read, a box restarting —, the rail keeps the last reading that drew it,
+- **A failed reading never empties a column.** When GitHub answers but does not give the rail — rate limit, a refusal,
+  no answer in time —, the rail keeps the last reading that drew it,
   whole, and one line takes the place of its age: `stale since 4:15 PM — the rail shown was read at 4:14 PM, and the
   readings since have failed`, the reason of the last failure on hover. The time is that of the first failed reading
   of the series; the line goes with the first reading that draws the rail again. This holds for a project no station
@@ -421,7 +403,7 @@ The chef's main screen does not lose a card because a reading went wrong:
 - **Each column that goes from cards to none is logged** by the main process (`app/src/colonnes-videes.ts`), on the
   app's standard error and in `rail-columns.log` next to the projects file (`~/.config/brigade/`): the column, the
   cards it held and where each one is now (another column, outside the columns, or not in the reading), the time of the
-  reading that emptied it and of the box's publication it read, the same for the reading before, and the count of every
+  reading that emptied it and of the state it read, the same for the reading before, and the count of every
   column now. Most lines are ordinary — a cook finishing empties Taken —; they are what explains the next time cards
   vanish while GitHub still holds them. A failed reading empties nothing, and logs nothing.
 
@@ -433,20 +415,20 @@ The chef's main screen does not lose a card because a reading went wrong:
 A project opened from that screen has neither a box nor a station on this computer. Its two tabs
 still show something, always:
 
-- **Rail** shows the project's one rail view (#2076): the rail of its Kitchen board, read on GitHub
-  like the board of any project, whichever station serves it — On the rail, Taken, Pass, then Todo with each card that awaits
-  you and its gestures, Waiting and Served. The app reads the board of
+- **Rail** shows the project's one rail view (#2076): its rail read from its GitHub repository, like
+  that of any project, whichever station serves it — On the rail, Taken, Pass, then Todo with each card that awaits
+  you and its gestures, Waiting and Served. The app reads the repository of
   every project in the projects file, not only of those it knows a station serves: a project whose
   kitchen runs on another station has the same view as one served by this computer. The rail its
-  station publishes in its gist (#1432) no longer draws columns of its own: until the board is read,
+  station publishes in its gist (#1432) no longer draws columns of its own: until GitHub is read,
   it only says why. While it is read, one sentence says so. When it cannot be read, the head is the
   runtime's sentence, its detail in the hover: not signed in to GitHub, with `Sign in to GitHub` (the
-  same action as the first-launch screen; signed in, the rail and the board are read again); no `gh`,
+  same action as the first-launch screen; signed in, the rail is read again); no `gh`,
   with `get the GitHub CLI`; anything else — no station serves the project, its station publishes no
   rail, GitHub refuses or is out of reach — with `read again`. When the rail is published but the
-  board is not read, the head says `Reading the Kitchen board of <project>…`, then, if the board
-  cannot be read, `The rail is not drawn: <why>` — no open Kitchen board, a repository GitHub does
-  not show —, with `read again`, which reads both again; when and for which repository the rail was
+  repository is not read yet, the head says `Reading <project> on GitHub…`, then, if it
+  cannot be read, `The rail is not drawn: <why>` — a repository GitHub does
+  not show, GitHub refusing —, with `read again`, which reads both again; when and for which repository the rail was
   published is in its `?` hover. Cooks keeps its one line: no station serves the project on this
   computer.
 - **Second** starts as the runtime plans it (#1433): the `claude` the PATH gives, and on Windows what
@@ -461,70 +443,71 @@ still show something, always:
   with `try again`.
 
 *Code: `app/src/vue/rail-publie.js` and `app/src/vue/outils-du-second.js` (the screens), `poserRail` in
-`app/src/vue/vue.js` (which view a project gets), `railDuProjet` and the board's watches in `app/src/main.ts`, the
+`app/src/vue/vue.js` (which view a project gets), `railDuProjet` and the rail's watches in `app/src/main.ts`, the
 plan of the second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
 
 ### The project view is the rail view (#1692)
 
 A project has one view: the rail view, with its columns, its ticket cards, its TODO and its
-gestures. Since #1694 it is fed from the project's Kitchen board on GitHub (read with the token of
-this computer's `gh`), with no other machine to reach; the app only has to be connected to
-GitHub. The screen #1588 added for a board read from GitHub — a TODO column and the raw `status`
-sections, with `use the direct link` and its own decision buttons (#1590) — is gone, and so are its
-bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the desktop and the phone.
-The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
-on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
-choice or text, `back to the kitchen` after WAITING (#1740, below), and the "yes" or "no" on a proposed
-correction or cook profile (#1741, below). Since #2076, this is true of every project, whichever station serves it:
-the board of a project served by another station is read too, and its rail is this same view, in the same order — the rail a
-station publishes in its gist only says why the board is not read yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
+gestures. It is fed from the project's GitHub repository (read with the token of this computer's `gh`, #1694, #2061),
+with no other machine to reach; the app only has to be connected to GitHub. The screen #1588 added for a board read
+from GitHub — a TODO column and the raw `status` sections, with `use the direct link` and its own decision buttons
+(#1590) — is gone, and so are its bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the desktop
+and the phone. The gestures of the card and the sheet that have a fact on GitHub are written there by the app itself
+(`app/src/gestes-github.ts`): `remove from the rail` removes the `fire` label from the issue; `back to the kitchen` and
+`it arrived` after WAITING remove `waiting` (#1740, below); the chef's comment is posted on the issue (see "A rail
+card's history and discussion"). The others send nothing and say where to act instead (`SANS_FAIT`): `merge the PR`
+says `merge the delivery's PR on GitHub, or let the station's pass merge it`; a TODO card's choice or text, and the
+"yes" or "no" on a proposed correction or cook profile, have nowhere to go (#1741, below). Since #2076, this is true of
+every project, whichever station serves it: the repository of a project served by another station is read too, and its
+rail is this same view, in the same order — the rail a station publishes in its gist only says why GitHub is not read
+yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
 
-### A GitHub-only project: its rail and its cooks read from GitHub (#2220)
+### The rail and its cooks, read from GitHub (#2220, #2061)
 
-A project whose `.claude/brigade/projet.json` sets `githubOnlyState: true` ([settings](reglages.md)) no longer keeps its
-rail in the log of a station: its stations take, cook, review and merge its tickets on GitHub. Its box still publishes
-the Kitchen board, but the rail there is the old path's, frozen. So, for that project, the Rail and Cooks tabs are
-drawn from GitHub, at each reading of the board (every 30 seconds):
+A project's stations take, cook, review and merge its tickets on GitHub. So the Rail and Cooks tabs are drawn from
+the project's repository alone — nothing comes from a box —, every 30 seconds, with this computer's `gh` token
+(`app/src/tableau/lecture.ts`). Every read is conditional: a 304 costs nothing.
 
-- **Rail**: every open issue labelled `fire`, all pages, in the column of the state its labels, its pull request and
-  the base give (`etatDuTicket`, as the stations read it): On the rail, Taken, Pass (`base red` when the base is red),
-  Waiting — in `prio:` order, then oldest first. A taken card says the station that holds it and since its claim; a
-  card in pass, who cooked it and since its PR, and its PR number on its `right now` line; a queued card, since its
-  issue was opened.
+- **Rail**: every open issue labelled `fire`, all pages, in the column of the state its labels (`taken`, `in-pass`,
+  `waiting`), its open pull request and the base's check-runs give (`etatDuTicket`, as the stations read it): On the
+  rail, Taken, Pass (`base red` when the base is red), Waiting — in `prio:` order, then by number. A taken card says the
+  station that holds it and since its claim; a card in pass, who cooked it and since its PR, and its PR number on its
+  `right now` line; a queued card, since its issue was created.
 - **Cooks**: one station per station holding a claim comment on an issue (`<!-- brigade:prise station=… -->`, the
   earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
   says it as the runtime's `prise.ts` does). Each station is `cooking`, its cooks the cards of the tickets it holds, taken
   or in pass with their PR.
-- What the old path said and the GitHub-only loop does not follow is no longer shown: the idle-kitchen fault, the
-  stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
-  switched off are shown as published. The backlog and Served still come from the board, and so does TODO, with
-  the chef's `chef-todo` issues added (#2221, below).
-- A failed GitHub reading of such a project is a failed board reading: the rail keeps its last columns and says it is
-  stale (#2151) — never the frozen rail.
+- **The head lines** the view reads from `status` are only `rail` (the counts by state) and `cooks`, and the `awaiting`
+  block is one head line counting the TODO cards (below). What only a station's log carries — the project switch and
+  the manager's state, the idle-kitchen fault, a kitchen `held` or stopped, Served — is not read from GitHub, and the
+  view says nothing of it.
+- **Before the rail** (the Backlog, #1836): the other open issues, without `fire`, filed from their labels alone —
+  `hors-cuisine` or `blocked-on-human`: set aside; `epic`: epic not split yet; both a `model:` and an `effort:` label:
+  ready, not fired; otherwise not calibrated yet. If that reading fails, the view says nothing about it: the rail is
+  still shown.
+- **A failed reading** keeps the last columns, said stale (#2151); with nothing read before, it is titled
+  `NOT READ FROM GITHUB`, its reason in one sentence. GitHub not reached at all is offline (#1818): the last rail stays,
+  and says since when.
 
-A project without the switch, or whose `projet.json` GitHub does not return, keeps the rail of its board, its states
-refreshed from GitHub (#2059), as before; once read on, the switch is remembered across a failed reading. Every read is
-conditional: a 304 costs nothing.
+*Code: `app/src/tableau/lecture.ts`, `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in
+`app/src/main.ts`. Tests: `app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`,
+`app/test/tableau/lecture.test.ts`. Captures: `docs/captures/2220/` — `rail-github-seul-avant.png` and `-apres.png`,
+`cooks-github-seul-avant.png` and `-apres.png`.*
 
-*Code: `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in `app/src/main.ts`. Tests:
-`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`. Captures: `docs/captures/2220/` —
-`rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`.*
+### The chef's TODO, read from GitHub (#2221, epic #2209)
 
-### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
-
-For a project whose `.claude/brigade/projet.json` says `githubOnlyState: true`, Todo also lists one card per open issue
-carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the token of this computer's `gh`, conditional
-reads). The card takes its kind and its text from the issue's latest comment that starts with
-`<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read as is): one line
-that says what the kind asks of the chef, then the comment's text. The issue number on the card opens the issue on GitHub. An
-issue with the label and no marked comment still gets a card, which says its comment is missing. A card has nothing to
-answer in the app: the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after
-a gesture). A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
-as it is, never an empty one. A project of the old path (`githubOnlyState` off or absent) shows the Todo it always had.
-Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
-`todo-github-seul-apres.png`.
+Todo lists one card per open issue carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the token
+of this computer's `gh`, conditional reads). The card takes its kind and its text from the issue's latest comment that
+starts with `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read
+as is): one line that says what the kind asks of the chef, then the comment's text. The issue number on the card opens
+the issue on GitHub. An issue with the label and no marked comment still gets a card, which says its comment is missing.
+No answer leaves the app from such a card: the chef acts on the issue — lifts the label, or closes it —, and the card
+leaves Todo at the next reading (thirty seconds, or after a gesture). When those issues cannot be read, Todo says it is
+not read, never that it is empty. Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards
+without the kind and the text) and `todo-github-seul-apres.png`.
 
 ### Changing a ticket's priority (#1739)
 
@@ -532,14 +515,13 @@ A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet
 offers `1` to `9` (`1` is served first) and `none`; nothing is chosen in advance, and the button stays inactive until a
 value is. A click and **the app replaces the label itself on GitHub** (`app/src/priorite.ts`), with the token of this
 computer's `gh`: it reads the issue, puts the new `prio:` label, then removes every other one (`none` removes them all
-and puts none). No Kitchen board, no second: the gesture works with the project's kitchen unreachable. It costs
+and puts none). No box, no second: the gesture works with the project's kitchen unreachable. It costs
 nothing, and asks for no confirmation.
 
 - **Done**: the sheet says `priority changed on GitHub: #22 now carries prio:1 — the box reorders the rail when it reads
-  it`, the issue's address on hover. The card and the sheet show the new priority at once. The box reads the label at
-  its next poll and reorders the rail; until the Kitchen board shows it, the rail keeps showing the priority the app
-  wrote — as long as the board still shows the old one, the box unreachable included. Once the board shows another
-  priority, the board says it.
+  it`, the issue's address on hover. The card and the sheet show the new priority at once. The station reads the label
+  at its next turn and reorders the rail; as long as the rail read from GitHub still shows the old priority, the rail
+  keeps showing the one the app wrote. Once a reading shows another priority, that reading says it.
 - **Failed**: nothing changes on the rail, which keeps the old priority, and the sheet says why in one line — `nothing was
   changed: issue #22 was not read on GitHub`, `nothing was changed: GitHub did not put prio:1 on #22` —, GitHub's answer
   on hover. A refusal after the new label is put (the old one could not be removed) says which `prio:` labels the issue
@@ -553,23 +535,21 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 ### Sending a ticket back to the kitchen after WAITING (#1740)
 
 `it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
-WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app posts `/brigade arrived #<n>` on
-the project's Kitchen board (`app/src/tableau-gestes/rail.ts`, `docs/tableau-gestes.md`), with the token of this
-computer's `gh`. No second, no command: the gesture works with the kitchen unreachable, and the project's runtime plays it
-at its next tick — the ticket leaves WAITING (or TODO) and goes back on the rail, queued, without going through TODO.
+WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `waiting` label
+from the ticket's issue itself (`app/src/gestes-github.ts`, #2061), with the token of this computer's `gh`. No second, no
+command: the gesture works with the kitchen unreachable — the ticket leaves WAITING (or TODO) and goes back on the rail,
+queued, without going through TODO.
 
-- **Posted**: the card says `posted on the Kitchen board — the box plays it at its next tick and answers under it` under
-  its buttons, the comment's address on hover; the sheet says the same under its gestures. While the post is on its way,
-  the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are inactive. The card
-  stays in WAITING until the board, read again, shows the ticket back on the rail.
-- **Not posted**: nothing changes and the card says why in one line, in red — the board not read yet, a ticket the
-  latest board read does not carry, or GitHub refusing the comment (`The gesture could not be posted on the Kitchen board
-  of chef/parade: GitHub refused the comment (HTTP 403): …`). One click tries again.
-- **Refused by the box** (a ticket neither in WAITING nor back from it): the box answers so under the comment, and the
-  rail does not move.
+- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `waiting` — it is queued on the rail
+  again`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
+  is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
+  inactive. An issue that no longer carries `waiting` counts as done.
+- **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
+  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `waiting` from #<n>``,
+  GitHub's answer on hover). One click tries again.
 
 Captures: `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
-through the box), `carte-waiting-arrivee-apres.png` (posted on the board, said on the card),
+through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the card),
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
@@ -781,7 +761,7 @@ The file stays yours, and you can do anything in it:
 - `depot` and `base` are the project's GitHub repository (`<owner>/<name>`) and its integration branch.
 - **Legacy keys are ignored.** A file written by an older version may still carry keys naming an ssh host, a list of boxes or played stations: it is
   read without error, those keys are left alone and nothing is done with them — where a project cooks is read from the
-  Kitchen board and from your paired stations.
+  project's issues on GitHub and from your paired stations.
 - **A project served only by another station is read like any other.** Its rail is read from GitHub whenever a station
   serves it, here or elsewhere. A rail that has returned nothing after a minute stops saying `first read … in
   progress` and says in one line that nothing came back.
@@ -793,9 +773,9 @@ The file stays yours, and you can do anything in it:
   bar and "All projects" follow; nothing has to be relaunched (see "When the file changes").
 - **The second reads the same file.** The second is the PO role: the session the Second tab
   opens in a project's `dossier` takes `nom` (and `depot`, when there is one) from it, and reads on opening the
-  project's queue as its box publishes it on the Kitchen board, with this computer's `gh` (#1845, see "The queue is
-  read for the second, at each start"). It relays what awaits you, word for word. A board that cannot be read is
-  said in one line, never as an empty queue.
+  project's queue from its GitHub issues — the `chef-todo` cards and the `fire` rail —, with this computer's `gh` (see
+  "The queue is read for the second, at each start"). It relays what awaits you, word for word. A queue that cannot be
+  read is said in one line, never as an empty queue.
 
 If the file is refused at launch, the app shows no project: it shows the
 file's path, the reason (`unreadable JSON`, `project no. 2 (parade): "dossier" missing`,
@@ -1171,8 +1151,8 @@ is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` 
 **The paired phone plays them at its station** (#1420). The station's phone desk takes `POST
 /projects/<name>/gestures` (#1412), behind the phone's token — `{"gesture": "merge" | "remove" | "back-to-kitchen",
 "ticket"}`: `merge` and `remove` run the box command for the same button (`rail merge`, `rail remove`), and
-`back-to-kitchen` plays on the project's log the action the box plays for `/brigade arrived #<n>` posted on the Kitchen
-board, which is how the desktop sends it — so the desktop reads the change at its next reading. On the phone, a card's sheet offers the gestures that desk carries,
+`back-to-kitchen` plays `renvoyerEnCuisine` (`runtime/src/attente.ts`) on the project's log — on the desktop, the same
+gesture removes the `waiting` label from the issue (#2061). On the phone, a card's sheet offers the gestures that desk carries,
 and only those — `merge the PR`, `remove from the rail`, `back to the kitchen`, chosen and ordered by the desktop's table
 (`gestes-fiche.ts`); opening the issue or the PR, asking the second and changing the priority are not offered there.
 The Android bridge's reading (`app/android/web/lecture.ts`) sends the gesture with the token, waits up to 130 s for the
@@ -1374,13 +1354,11 @@ one sentence (#877); below, its faults with their button, the projects the app a
 "add a project" flow (see "Add a project to your stations, without a terminal").
 Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
 `status`), what holds tickets back when it is saturated (memory, processor, value and threshold), a field
-and "set the cap" to set it, "back to the default" to remove it. The setting posts `/brigade cooks <N|0|auto>` on the
-Kitchen board of every project that names the station (#1845), and waits for its box to answer under it —
-it applies to all the stations of those projects. Done, the board is read again and the page says the new cap; a box
-that has not read it within two and a half minutes plays it at its next tick, and the sentence says it is posted.
-#1292: the same cap is on each station's line in the Cooks tab, **for that project alone** — `Cooks at once: 3 at most — 8 cores`,
-a field and "set the cap", and "back to the default" when the chef set it. The setting goes to the box of that project only
-(`reglerLePlafond(station, valeur, projet)`). When the station is saturated, one sentence says what holds it (`Saturated on CPU —
+and "set the cap" to set it, "back to the default" to remove it. Since #2061 the setting sends nothing: the page says
+`nothing was changed: a station takes as many tickets as it declares places — change its declaration on its machine`
+(`SANS_FAIT` in `app/src/gestes-github.ts`).
+#1292: the same cap is on each station's line in the Cooks tab — `Cooks at once: 3 at most — 8 cores`,
+a field and "set the cap", which answers the same. When the station is saturated, one sentence says what holds it (`Saturated on CPU —
 load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
 "‹ All projects" takes you back to the home screen, like the **T** square.
 
@@ -1808,8 +1786,8 @@ decision is recorded; the station then republishes the state that says it for go
 
 At the top of a project's space panel, the reading of its station is in **one of seven states**, which do not look alike.
 The reading goes through the gesture of the station that cooks the project on this computer (no other machine is
-reached by the app); a project cooked elsewhere is read from the Kitchen board, which has its own failure line
-("A box that does not return its facts"):
+reached by the app); a project cooked elsewhere is read from its GitHub repository, which has its own failure line
+(`NOT READ FROM GITHUB`, see "The rail and its cooks, read from GitHub"):
 
 | On screen | What the app got | What it shows below |
 |---|---|---|
@@ -1918,13 +1896,13 @@ writes nothing into the project's `.claude/`, nor into any file another session 
 start yourself in the same folder is a plain Claude Code session, not a second.
 
 **The queue is read for the second, at each start.** The launch settings carry a `SessionStart` hook
-(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads the project's Kitchen board on
-GitHub fresh, with this computer's `gh` (`gh api`, #1845), and returns to Claude Code as
-additional context the queue the box publishes there (`fileDeStatus`, `docs/runtime/tableau-de-cuisine.md`): the
-`awaiting` block of `status` word for word, then the kitchen's state in the form of `status`. So the second sees
-the queue after a start, a resume or a compaction without thinking of it. The repository is the project's `depot`,
-or the GitHub `origin` of the session's folder. A queue that cannot be read (no repository known, GitHub not
-reached or refusing, no board, a project whose runtime does not publish the queue yet) is said in that context, in one line
+(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads the project's issues on GitHub
+fresh, with this computer's `gh` (`gh api`), as the rail view reads them (#2061), and returns to Claude Code as
+additional context the project's queue in the form of `status`: the `awaiting` block, one line per `chef-todo` card
+(its number and its title), then the `rail` line and the line of each `fire` ticket (`fileDuSecond` in
+`app/src/tableau/rail.ts`). So the second sees the queue after a start, a resume or a compaction without thinking of
+it. The repository is the project's `depot`, or the GitHub `origin` of the session's folder. A queue that cannot be
+read (no repository known, GitHub not reached or refusing, the `chef-todo` cards not read) is said in that context, in one line
 starting `file non lue :`, and the hook still exits 0: it never blocks the session. By hand, in the project's
 folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
@@ -2562,17 +2540,15 @@ in `docs/runtime/garde-fous.md`) first:
 
 For a ticket in pass or served, `cooked by` is added: who cooked it is not who holds it.
 
-**Under it, `its cook`: what the ticket's cook is doing, as its station publishes it** (#1846, `app/src/vue/activite-du-cook.js`)
-— in place of the cook's terminal, which the app does not follow. The station writes each cook's activity into the
-project's Kitchen board (#1844, `activites`); the app reads it on GitHub with this computer's GitHub account alone —
-no other machine reached (`app/src/tableau/lecture.ts`, `activitesPubliees`) — every 30 seconds with the board, and an
-open sheet follows it without a gesture. While the cook runs: a `cooking` pill, since when, its station, its turns and
-its tokens; `now` and what it is doing (`writing app/src/bon.ts · for 2 min`); then its earlier steps with their time.
-Finished: how it ended (`finished`, `failed`, `stopped by a guardrail`…), when and after how long, its last steps, and
-`open PR #40`, which opens its PR in the browser — or `it opened no PR`. The last line dates what it shows by the
-box's reading, where it comes from in its hover. A ticket with no published cook has no section; a board written by
-a box that does not publish its cooks' activity yet says `its cook's activity unavailable`, why in its hover. With the
-section laid, `right now` is not repeated under it.
+**Under it, `its cook`: what the ticket's cook is doing, as GitHub says it** (#1846, #2061,
+`app/src/vue/activite-du-cook.js`) — in place of the cook's terminal, which the app does not follow. The app reads it
+from the ticket's issue and PR with this computer's GitHub account alone — no other machine reached
+(`app/src/tableau/lecture.ts`, `activitesPubliees`) — every 30 seconds with the rail, and an open sheet follows it
+without a gesture: a `cooking` pill, its station and since its claim; `now` and what the kitchen is doing (`cooking`,
+or `awaiting review and merge` of `PR #40`); and `open PR #40`, which opens its PR in the browser — or `it opened no
+PR`. No turns, tokens or steps: only the station's log carries them. The last line, `as GitHub said at HH:MM UTC`,
+dates what it shows by the app's reading, where it comes from in its hover. A ticket no station has claimed has no
+section. With the section laid, `right now` is not repeated under it.
 
 - **What the queue does not say is not displayed** (#747) — neither the card nor the sheet writes "not given
   by the queue: …" in place of a piece of information: a missing thing has no line. Nor "nobody",
@@ -2590,14 +2566,12 @@ section laid, `right now` is not repeated under it.
   `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
   tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
   above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
-  GitHub: there is nothing to read`. Posting a comment goes through the Kitchen board (#1845,
-  `docs/tableau-gestes.md`), with this computer's `gh`: `/brigade comment #<n> <text>`, which
-  the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`).
-  The app reads the board again every five seconds until the box has answered, two and a half minutes at most; a
-  comment the box has not read by then is said posted, not done — the discussion is read again before you post it
-  again. **"ask the second" writes `/brigade:ask <ticket> ` into the project's Second tab** (#2167) — the ticket
+  GitHub: there is nothing to read`. A comment is posted by the app directly on the ticket's issue (#2061,
+  `commenterLIssue` in `app/src/gestes-github.ts`), with this computer's `gh` token, so under your GitHub account, as
+  written; the sheet then says `comment posted on #<n> — on its issue, under your GitHub account`, and the discussion
+  is read again. Refused, the sheet says why in one line and nothing is posted. **"ask the second" writes `/brigade:ask <ticket> ` into the project's Second tab** (#2167) — the ticket
   number and a trailing space, the cursor at the end, and no Enter: you type your question after it, and your Enter
-  sends it. Nothing goes to the board or to the box, whichever station serves the project; what is in the comment
+  sends it. Nothing goes to GitHub or to the box, whichever station serves the project; what is in the comment
   field is not part of it. A Second that is not running is launched first, and nothing is written into it — click
   again when it is ready.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
@@ -2835,19 +2809,17 @@ section laid, `right now` is not repeated under it.
   does not answer shows none: its last reading is no longer new.
 - **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/avant-le-rail.js`, #1836). An empty rail does
   not mean a finished project. At the head of the rail, next to the 24-hour histogram, a **small stacked bar** shows
-  the open issues of the repository that are not on the rail yet. It comes from the Kitchen board, like the rest of the
-  rail view (`avantLeRail`, `docs/runtime/tableau-de-cuisine.md`): with only a GitHub connection, the bar and its
-  column are right. The box files each issue in one of five states, and the bar draws them in this order, one part
-  each, its length in proportion to its count:
-  - **not read yet** (grey): no calibration and no decision of the manager;
-  - **refused as incomplete** (red): the manager refused it as an incomplete ticket — the second must rewrite it;
-  - **epic, not split yet** (blue): it carries `epic`, or the manager judged it one, or its split is under way;
-  - **ready, not fired** (green): calibrated (`model:`, `effort:`), or put on the rail by the manager, without `fire`;
-  - **set aside** (hatched): it carries `hors-cuisine`, or the manager left it to the chef (a question, a decision
-    issue, `blocked-on-human`…).
+  the open issues of the repository that are not on the rail yet. It is read from GitHub with the rest of the rail
+  view (`avantLeRail` in `app/src/tableau/lecture.ts`, #2061): every open issue without `fire`, filed from its labels
+  alone. The bar has five states, drawn in this order, one part each, its length in proportion to its count:
+  - **not read yet** (grey): neither a `model:` and an `effort:` label, nor any of the labels below — "not calibrated
+    yet";
+  - **refused as incomplete** (red): no label says it, so the reading from GitHub never gives it;
+  - **epic, not split yet** (blue): it carries `epic`;
+  - **ready, not fired** (green): it carries both a `model:` and an `effort:` label, without `fire`;
+  - **set aside** (hatched): it carries `hors-cuisine` or `blocked-on-human`.
 
-  An issue served and still open, a split epic whose tickets carry the work, and an issue that carries `fire` are not
-  counted: they are not before the rail any more. **The bar has no text**: on hover, on the keyboard or on a tap, it
+  An issue that carries `fire` is not counted: it is on the rail. **The bar has no text**: on hover, on the keyboard or on a tap, it
   says its counts — `7 issues before the rail — 2 not read yet · 1 refused as incomplete · …`. **A click unfolds the
   Backlog column**, to the left of "On the rail", and the row scrolls back to show it; a second click on the bar, or
   `fold` in the column's title, folds it again — a new reading does not fold it. The column holds **the rail's
@@ -2857,11 +2829,11 @@ section laid, `right now` is not repeated under it.
   says so in plain words: `nothing on the rail, nothing before it` when there is nothing before it either; otherwise
   how many issues, state by state, and what the manager does with them, according to its state read (`manager`): on,
   it reads them at every wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of
-  guessing. **The app deduces nothing there**: it counts what the board lists and files each issue under the word it
-  carries. A board that is fresh but does not carry the list (a box from before #1836, or one that has not read the
-  open issues yet) shows no bar at all — never "not read". A board that had to leave the list out to fit in an issue,
-  or a list that cannot be read, gives an empty bar outlined in dashes: its hover and the unfolded column say why, and
-  it is not "nothing before the rail".
+  guessing — and the manager's state is not read from GitHub (only the station's log has it). **The view deduces
+  nothing there**: it counts what the reading lists and files each issue under the word it carries. When the open
+  issues could not be read, the view says nothing about them — no bar, never "not read" — and the rail is still
+  shown. A rail reading that fails as a whole gives an empty bar outlined in dashes: its hover and the unfolded column
+  say why, and it is not "nothing before the rail".
 - **How fast tickets are being served (#1811, `app/src/cadence.ts`)**: on the same line as the bar of what is before the rail, a small
   histogram of the last 24 hours — one line high, one thin bar per hour, the hour in progress on the right. Each bar is
   stacked: the tickets **served** in that hour in green at the bottom, the **failed** ones in red on top (a pass that came
@@ -2938,21 +2910,9 @@ this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
 - **"yes, open it as a PR"**, recommended, and **"no"**. The price of the "yes" is in its hover:
   a PR that carries exactly this diff goes through the pass like a delivery — gates, review, CI —,
   on your quota. The action goes out right away: the whole card is what you have to read before.
-- **The answer is posted on the project's Kitchen board** (#1741, `app/src/tableau-gestes/rail.ts`,
-  `docs/tableau-gestes.md`), with the token of this computer's `gh`: `/brigade correction yes <proposal>` or
-  `/brigade correction no <proposal>`, once, for a proposal the latest board read carries. No second, no
-  command: the gesture works with the kitchen unreachable, and the runtime plays it at its next tick
-  (`runtime/src/correctif/decision.ts`).
-- **Posted**: both buttons stay inactive, and a line under them says `your “yes”: posted on the Kitchen board — the box
-  plays it at its next tick and answers under it`, the comment's address on hover — the same words as the other
-  gestures posted on the board. While the post is on its way, the buttons wait (`posting your “yes” on the Kitchen
-  board…`). The board is read again at once; the card leaves the queue with the first read that no longer carries the
-  proposal.
-- **Not posted** — the board not read yet, a proposal the latest board read does not carry, or GitHub refusing the
-  comment: the card stays, and so do its two buttons, and a line says why, what GitHub answered on hover. One click
-  tries again.
-- **Refused by the box** (a proposal already answered, or that no card shows any more): the box answers so under the
-  comment, and nothing is written.
+- **Since #2061 the answer goes nowhere**: no reading carries proposals any more, and a click says `nothing was
+  posted: no station proposes corrections or profiles any more — the answer has nowhere to go` (`SANS_FAIT` in
+  `app/src/gestes-github.ts`).
 
 Captures: `docs/captures/1741/` — `correction-oui-avant.png` (the old path: the answer went to the box, and the card
 left the queue at once), `correction-oui-apres.png` (posted on the board, said on the card),
@@ -2991,13 +2951,8 @@ proposed 10/13/2026, 9:41:05 AM
 - **What the profile would hold**: its skills (the measure proposes none — said, with the why
   on hover), its perimeter, and its starting notebook, lesson by lesson with the retros that carry it.
 - **"yes, create the profile"**, recommended, and **"no"**; what each does is in its hover.
-  The answer is posted like that of a correction, on the project's Kitchen board (#1741): `/brigade profile yes
-  <proposal>` or `/brigade profile no <proposal>`, once, for a proposal the latest board read carries — no
-  command, the kitchen unreachable included. Posted, the card says so under its two inactive buttons, the comment's
-  address on hover, and leaves the queue with the first board read that no longer carries it; not posted, the card
-  stays and a line says why, what GitHub answered on hover. The box plays it at its next tick
-  (`runtime/src/profils/decision.ts`): the "yes" writes the profile's definition in the project's clone on the box,
-  and a definition the repository already has is refused under the comment, the proposal still waiting.
+  Like that of a correction, the answer goes nowhere since #2061: a click says the same `nothing was posted: no station
+  proposes corrections or profiles any more — the answer has nowhere to go`.
 
 Captures: `docs/captures/1741/` — `profil-oui-avant.png` (the old path: the answer went to the box, and the card left
 the queue at once) and `profil-oui-apres.png` (posted on the board, said on the card).
@@ -3081,11 +3036,11 @@ failed reading does not set it.
 
 ### Offline: the last rail read, and one quiet sign (#1818)
 
-The rail is read from the project's Kitchen board on GitHub (#1694). With no network, every reading of that board
-fails at once — the project switch, the kitchen state, the grant state — for one plain cause that is not a fault. A
+The rail is read from the project's GitHub repository (#1694, #2061). With no network, every reading of GitHub
+fails at once — the rail, its cooks, TODO — for one plain cause that is not a fault. A
 reading **that did not reach GitHub at all** (the request threw: no network, no DNS, no answer within its delay —
-`horsLigne` in `tableau/lecture.ts`) is told apart from one that reached it and failed (an HTTP refusal, no board, a
-board the app cannot read), and the app then:
+`horsLigne` in `tableau/lecture.ts`) is told apart from one that reached it and failed (an HTTP refusal, a rate
+limit), and the app then:
 
 - **keeps the last rail it read**, drawn whole — columns, cards, counts — and **dimmed**; the last facts and `status`
   are kept in the main process too (`faits.ts`, `tenirFaits`), so a card's sheet and its addresses still open;
@@ -3101,9 +3056,9 @@ moment the view asks for the facts — the first reading when the bar is laid, o
 done, the network back) — until the main process answers it (`surFaits`). The 30-second readings the main process makes
 on its own do not pulse: the view does not ask for them.
 
-When the network comes back, the rail refreshes on its own: the next reading of the board (every 30 s) — or at once,
+When the network comes back, the rail refreshes on its own: the next reading of GitHub (every 30 s) — or at once,
 when the system says the network is back — redraws it, and the sign goes away. Alarms then appear only for a real
-fault: a board that cannot be read, or GitHub refusing, is said as before, after the same two readings. A failed local command
+fault: GitHub refusing is said as before, after the same two readings. A failed local command
 says nothing about the network: it neither sets nor lifts the offline state.
 
 ### Reporting a failure to brigade (#1977, epic #1973)
@@ -3218,8 +3173,8 @@ computer: `brigade <nom> status` and, for the content tab displayed, `rail`, `st
 (`docs/runtime/exploitation.md`, "Piloter"). The gesture is run from the runtime's folder with the station's directory
 (`BRIGADE_STATION_DIR`), by the `node` that plays the station: the account, the installation and the environment are
 read there. No other machine is reached. A project whose kitchen does not run on this computer is not read this way:
-the app says so in place of the state, and its rail, its cooks and its queue come from the Kitchen board on GitHub
-(`docs/runtime/tableau-de-cuisine.md`).
+the app says so in place of the state, and its rail, its cooks and its queue come from its GitHub repository
+(see "The rail and its cooks, read from GitHub").
 
 **What the app displays can be copied.** Every action the app names — in a tab line, a failure title, a panel — is
 `brigade <nom> <command>`: the form of the doc, with the project's `nom`. What the buttons write into the second is its
@@ -3467,8 +3422,8 @@ account through your `gh`, and cooks the projects of its `station/projets`.
 `BRIGADE_APP_STATION=0` prevents that; `BRIGADE_APP_CONFIG` also moves its directory, next to the
 trial file.
 
-**A project whose kitchen cooks on this computer launches real cooks** as soon as the app is open and the Kitchen
-board has a ticket for it — on your quota, with no permission prompt, in a worktree of its folder. To try it without a
+**A project whose kitchen cooks on this computer launches real cooks** as soon as the app is open and the project
+has a `fire` ticket for it — on your quota, with no permission prompt, in a worktree of its folder. To try it without a
 quota: use the stand-in `claude` above, and a trial file whose projects have no station on this computer.
 
 The fake `claude` says `reçu : /brigade:init` when it is opened on the session.

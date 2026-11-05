@@ -44,7 +44,10 @@ The main-station code is removed from the runtime. Nothing takes a ticket from t
   served under leases (`distantes.ts`, `superviseur-distant.ts`, the `remote.asked` events);
 - the claim relay through the stations' gists, and the Kitchen board: its writer, its gestures and mentions, its
   single-writer guard (`tableau/`, `board-single-writer.ts`). The board issue (#1683) is no longer written; it can be
-  closed;
+  closed. The app no longer reads it either: its rail view, TODO, backlog and the second's queue read the project's
+  issues, labels and PRs (`app/src/tableau/lecture.ts`), and the gestures it posted there are gone — the ones that
+  have a fact on GitHub write it (`fire` or `waiting` removed, a comment on the ticket's issue,
+  `app/src/gestes-github.ts`), the others say where to do it ([app](../app.md));
 - the rail feeding from GitHub (`alimenter.ts` keeps only the repository settings and `prio:`), the lease API of the
   log's rail (`rail.ts` keeps only its words), and the old pass (`pass.ts`) with the PR deliveries that relied on it:
   the lessons notebook, the rename of a pause, the settings PR, the correction PR;
@@ -52,4 +55,5 @@ The main-station code is removed from the runtime. Nothing takes a ticket from t
   the old pass and station (reaction, triage, no capacity).
 
 The log stays: it keeps the chef's decisions, the guardrails, the sessions and the measures, and its old rail and pass
-stay readable as history (`status`, `facts`).
+stay readable as history (`status`, `facts`). Nothing feeds that rail any more and nothing takes a ticket from it: the
+box commands that still write rail facts (`rail`, `waiting`, `pass`) only change that history.

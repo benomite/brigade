@@ -79,7 +79,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const absolu = dossier === "~" || dossier.startsWith("~/") || (sep === "\\" && dossier.startsWith("~\\")) ? join(maison, dossier.slice(1)) : dossier;
     if (!isAbsolute(absolu)) return refuse(`${lequel}: “dossier” must be an absolute path, or start with ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
-    if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app sends the station's actions through the project's Kitchen board`);
+    if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app reads the project on GitHub and sends the station's actions there`);
     const refus = refusDuDossier(absolu);
     const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
     const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);

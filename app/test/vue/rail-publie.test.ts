@@ -216,7 +216,7 @@ function duTableau(faits: Faits, status: string): Dessinable {
   return tenus.attendre(mettreAPart({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "status", texte: status }] })) ?? assert.fail("rien à redessiner");
 }
 const recevoir = (vue: Jouee, recue: Dessinable) => vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-const NON_LU: Dessinable = { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM THE KITCHEN BOARD", erreur: SANS_TABLEAU, atteinte: true, cas: null, duTableau: true };
+const NON_LU: Dessinable = { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM GITHUB", erreur: SANS_TABLEAU, atteinte: true, cas: null, duTableau: true };
 const colonnesDe = (vue: Jouee) => vue.element("rail").dessous("section").filter((section) => section.className === "colonne");
 const nomsEtComptes = (vue: Jouee) => colonnesDe(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
 

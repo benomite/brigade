@@ -34,7 +34,7 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
 export const LECTURE_PUBLIEE = "Reading the rail…";
 // Le rail publié se lit, son tableau pas encore : sa première lecture est en route.
 /** @param {string} projet */
-export const TABLEAU_EN_LECTURE = (projet) => `Reading the Kitchen board of ${projet}…`;
+export const TABLEAU_EN_LECTURE = (projet) => `Reading ${projet} on GitHub…`;
 // Le rail publié se lit, son tableau non : la raison du tableau, telle que sa lecture l'a dite.
 /** @param {string} raison */
 export const TABLEAU_NON_LU = (raison) => `The rail is not drawn: ${raison}`;

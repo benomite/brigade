@@ -3,7 +3,7 @@
 // box (faits.ts, correction.ts). Une proposition, une carte, au-dessus des colonnes du rail — aucune
 // sans proposition. Elle dit ce qu'on attend du chef en tête, la cause, chaque ticket concerné qui
 // s'ouvre d'un clic, la correction en diff — ajouts et retraits chacun de sa classe, son signe gardé —,
-// ce qu'elle a coûté ; « yes » poste l'acceptation sur le tableau de la cuisine, « no » le refus, et la carte
+// ce qu'elle a coûté ; « yes » poste l'acceptation, « no » le refus, et la carte
 // le dit jusqu'à la lecture qui ne la porte plus.
 // Le module de la carte est aussi lu seul, sur un faux document (vue/correction/carte.js).
 import assert from "node:assert/strict";
@@ -19,7 +19,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { POSTE } from "../../src/tableau-gestes/rail.ts";
+import { SANS_FAIT } from "../../src/gestes-github.ts";
 import { ATTENDU, COUTE, ENVOI, NON, OUI, poserCorrection, PRIX_DU_OUI, REPOS } from "../../src/vue/correction/carte.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 import { CORRECTION, FAITS } from "./donnees.ts";
@@ -53,6 +53,8 @@ const cartes = (vue: Jouee) => vue.element("rail").dessous("section").filter((po
 const carte = (vue: Jouee): Faux => cartes(vue)[0] ?? assert.fail("pas de carte de correction dans la file");
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 const { corrections: _, ...SANS } = FAITS;
+// Ce qu'une réponse postée dit : la vue le pose tel quel, d'où qu'il vienne.
+const POSTE = "posted — the station reads it at its next tick";
 const COMMENTAIRE = "https://github.com/acme/parade/issues/1#issuecomment-5012";
 
 describe("la carte d'une correction proposée, dans la file du projet", () => {
@@ -149,7 +151,7 @@ describe("la carte d'une correction proposée, dans la file du projet", () => {
     [OUI, "yes"],
     [NON, "no"],
   ] as const) {
-    test(`« ${libelle} » poste ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition sur le tableau ; postée, la carte le dit, ses réponses inactives, et \`facts\` est relu`, async () => {
+    test(`« ${libelle} » poste ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition ; postée, la carte le dit, ses réponses inactives, et \`facts\` est relu`, async () => {
       const vue = await ouvrir({ corriger: (_projet, _proposition, voulue) => ({ postee: voulue, dit: POSTE, detail: COMMENTAIRE }) });
       recevoir(vue);
       const relectures = vue.appels.filter(({ geste }) => geste === "relireBox").length;
@@ -191,6 +193,18 @@ describe("la carte d'une correction proposée, dans la file du projet", () => {
     assert.equal(cartes(vue).length, 1);
     assert.ok(!carte(vue).textContent.includes(ENVOI.yes));
     assert.ok(carte(vue).dessous("p").some((pose) => pose.className === "postee"));
+  });
+
+  test("ce que le process principal rend aujourd'hui (#2061) : rien n'est posté, la carte reste et la ligne dit pourquoi, sans survol vide", async () => {
+    const vue = await ouvrir({ corriger: () => ({ refus: SANS_FAIT.proposition, detail: "" }) });
+    recevoir(vue);
+    bouton(carte(vue), OUI).click();
+    await repos();
+    assert.equal(cartes(vue).length, 1);
+    const dite = carte(vue).dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("le refus n'est pas dit");
+    assert.equal(dite.children[0]?.textContent, SANS_FAIT.proposition);
+    assert.deepEqual(dite.dessous("button"), []);
+    assert.ok(!bouton(carte(vue), OUI).disabled && !bouton(carte(vue), NON).disabled);
   });
 
   test("rien n'est posté — GitHub refuse le commentaire : la carte reste, ses deux réponses aussi, et une ligne le dit, le détail au survol", async () => {

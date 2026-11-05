@@ -98,9 +98,9 @@ export function reprendre(journal: Journal, projet: string, ticket: number): Tic
 }
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
-// TODO, de WAITING. Le chef le fait par
-// le tableau de la cuisine (`/brigade arrived #<ticket>`, tableau/gestes/) ou
-// par son téléphone (telephone/gestes.ts) : tous deux jouent `renvoyerEnCuisine`.
+// TODO, de WAITING. Le chef le fait par son téléphone (telephone/gestes.ts),
+// qui joue `renvoyerEnCuisine` ; depuis l'ordinateur, l'app retire le label
+// `waiting` de l'issue (app/src/gestes-github.ts, #2061).
 export function cestArrive(journal: Journal, projet: string, ticket: number): TicketRail {
   return journal.base.transaction(() => {
     exigerWaiting(journal, ticket);
@@ -156,7 +156,7 @@ export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: b
     `- **relance** : ${direInstant(attente.followUp)}`,
     `- **à l'arrivée** : ${attente.onArrival}`,
     "",
-    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas, et sa relance ne l'en sort pas. \`/brigade arrived #${ticket}\`, posté sur le tableau de la cuisine, le renvoie en cuisine ; \`${geste(`waiting resume ${ticket}`)}\` lui rend l'état qu'il avait avant d'attendre.`,
+    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas, et sa relance ne l'en sort pas. Retirer ce label le renvoie en cuisine ; \`${geste(`waiting resume ${ticket}`)}\` lui rend l'état qu'il avait avant d'attendre.`,
   ].join("\n");
 }
 

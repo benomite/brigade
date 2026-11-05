@@ -1,16 +1,14 @@
 // L'issue d'un ticket et sa discussion, sur sa fiche — quelle que soit sa carte : ce que le runtime
 // en dit par `pass <ticket> issue` (runtime/src/issue-ticket.ts) — le corps, puis les commentaires
 // du plus ancien au plus récent, chacun avec son auteur et sa date —, le markdown rendu (markdown.ts).
-// Et le commentaire que le chef y ajoute : posté sur le tableau de la cuisine du projet
-// (`/brigade comment #<ticket> <texte>`, docs/tableau-gestes.md, #1845), au clic et seulement au clic. La box
-// le joue à son tick, comme `pass <ticket> comment` : il part sous le `gh` de son compte, celui du chef. Aucun
-// LLM, aucune reformulation : le texte part tel qu'il est écrit. Le geste se compose ici, jamais dans la vue.
+// Et le commentaire que le chef y ajoute : posté sur l'issue du ticket par l'accès GitHub de ce poste, à son nom
+// (gestes-github.ts, #2061), au clic et seulement au clic. Aucun LLM, aucune reformulation : le texte part tel qu'il
+// est écrit. Le geste se compose ici, jamais dans la vue.
 // La demande au second, elle, ne quitte pas le poste : `/brigade:ask <ticket> ` est écrit dans son second, sans Entrée.
 import { echecDe, type Rendu } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { instant } from "./histoire.ts";
 import { liensDe, rendre, type Bloc } from "./markdown.ts";
-import { ditParLaBox, enSuite, type DecisionDuChef, type EtatDuGeste } from "./tableau-gestes/gestes.ts";
 
 // Un message de l'issue, dit : qui l'a écrit, quand (l'heure de GitHub), et son texte rendu.
 // `corps` : c'est le corps de l'issue, le premier message — pas un commentaire.
@@ -18,10 +16,8 @@ export type MessageDit = { auteur: string; at: string; blocs: Bloc[]; corps?: tr
 // La discussion lue : le titre et l'état de l'issue, ses messages dans l'ordre, et les adresses
 // qu'un clic peut y ouvrir — ou pourquoi on n'en lit rien.
 export type Discussion = { titre: string; ouverte: boolean; messages: MessageDit[]; liens: string[] } | { sans: string };
-// Ce qu'il est advenu d'un commentaire : posté — `prix` : ce que la box dit qu'il coûte —, ou pourquoi
-// il ne l'est pas. `peutEtre` : rien ne dit qu'il ne l'est pas — posté sur le tableau sans que la box
-// l'ait encore joué : la discussion se relit avant d'écrire de nouveau.
-export type Commente = { poste: true; prix: string } | { poste: false; refus: string; peutEtre?: true };
+// Ce qu'il est advenu d'un commentaire : posté — `prix` : ce qu'il a coûté, en une ligne —, ou pourquoi il ne l'est pas.
+export type Commente = { poste: true; prix: string } | { poste: false; refus: string };
 
 // GitHub refuse un commentaire plus long.
 export const LONGUEUR_MAX = 65_536;
@@ -68,27 +64,25 @@ export function discussionDe({ lance, erreur, sortie, erreurs }: Rendu, delaiMs:
   return { titre: title, ouverte: state !== "closed", messages, liens: [...new Set(messages.flatMap(({ blocs }) => liensDe(blocs)))] };
 }
 
-// Ce qui poste une décision sur le tableau de ce projet et la suit jusqu'à la réponse de la box (main.ts).
-export type AuTableau = (decision: DecisionDuChef) => Promise<EtatDuGeste>;
+// Ce qui poste le commentaire sur l'issue du ticket (main.ts, gestes-github.ts) : son adresse, ou pourquoi il n'est pas parti.
+export type Poster = (ticket: number, texte: string) => Promise<{ url: string | null } | { raison: string }>;
+export const PRIX = "on its issue, under your GitHub account";
 
-// Le commentaire du chef, posté sur l'issue de ce ticket par la box de ce projet, depuis son tableau.
-// Rien ne part d'un texte vide, ni d'un projet qui ne s'ouvre pas.
-export async function commenter(auTableau: AuTableau, projet: Projet, ticket: unknown, saisi: unknown): Promise<Commente> {
+// Le commentaire du chef, posté sur l'issue de ce ticket. Rien ne part d'un texte vide, ni d'un projet qui ne s'ouvre pas.
+export async function commenter(poster: Poster, projet: Projet, ticket: unknown, saisi: unknown): Promise<Commente> {
   if (!numero(ticket)) return { poste: false, refus: "nothing was posted: the sheet names no ticket" };
   if (!texte(saisi) || saisi.trim() === "") return { poste: false, refus: "nothing was posted: the comment is empty — write something to post" };
   if (saisi.includes("\0")) return { poste: false, refus: "nothing was posted: the comment carries a NUL character" };
   if (saisi.trim().length > LONGUEUR_MAX) return { poste: false, refus: `nothing was posted: GitHub refuses a comment longer than ${LONGUEUR_MAX} characters — this one has ${saisi.trim().length}` };
   if (projet.refus !== undefined) return { poste: false, refus: `nothing was posted: “${projet.nom}” does not open — ${projet.refus}` };
   // Les retours à la ligne du poste sont ceux de GitHub : `\n`.
-  const etat = await auTableau({ geste: "comment", ticket, commentaire: saisi.trim().replace(/\r\n?/g, "\n") });
-  if (etat.etat === "failed") return { poste: false, refus: `nothing was posted: ${enSuite(etat.raison)}` };
-  if (etat.etat === "taken") return { poste: true, prix: ditParLaBox(etat.reponse).prix || "not communicated" };
-  if (etat.etat === "refused") return { poste: false, refus: `nothing was posted: ${ditParLaBox(etat.reponse).dit || "the box does not say why"}` };
-  return { poste: false, refus: "not posted yet: it is on the Kitchen board, and the box posts it on the issue at its next tick — the discussion is read again, check it before posting again", peutEtre: true };
+  const rendu = await poster(ticket, saisi.trim().replace(/\r\n?/g, "\n"));
+  if ("raison" in rendu) return { poste: false, refus: `nothing was posted: ${rendu.raison.replace(/[.\s]+$/, "").replace(/^The /, "the ")}` };
+  return { poste: true, prix: PRIX };
 }
 
 // « ask the second » : `/brigade:ask <ticket> ` — une espace au bout — écrit dans le second du projet, sans Entrée :
-// le chef tape sa question à la suite, et c'est son Entrée qui la fait partir. Rien ne part sur le tableau ni sur la
+// le chef tape sa question à la suite, et c'est son Entrée qui la fait partir. Rien ne part sur GitHub ni sur la
 // box : la commande ne tient qu'au numéro, quelle que soit la station du projet. `inscrire` écrit dans le second de ce
 // projet (main.ts, `terminaux.inscrire`). Rien n'est écrit sans ticket, ni dans un projet qui ne s'ouvre pas.
 export function demanderAuSecond<Ecrit>(inscrire: (commande: string) => Ecrit, projet: Projet, ticket: unknown): Ecrit | { refus: string } {

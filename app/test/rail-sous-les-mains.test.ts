@@ -79,7 +79,7 @@ async function ouvrir(reponses: Reponses = {}, servi = true): Promise<Jouee> {
 // Une lecture du tableau, passée par le process principal tel qu'il est.
 const lu = (faits: Faits, minute: number): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a: a(minute), sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
 // Une lecture du tableau ratée en ligne : GitHub a répondu, mais n'a pas donné le tableau (tableau/lecture.ts).
-const LIMITE = "GitHub refused to list the issues of chef/parade (HTTP 403): API rate limit exceeded for user ID 1.";
+const LIMITE = "GitHub refused to read the rail of chef/parade (HTTP 403): API rate limit exceeded for user ID 1.";
 const ratee = (minute: number): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a: a(minute), erreur: LIMITE, atteinte: true, cas: null, duTableau: true });
 const recevoir = (vue: Jouee, recue: Dessinable) => vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 
@@ -136,7 +136,7 @@ describe("une lecture ratée ne vide aucune colonne (#2151)", () => {
     const vue = await ouvrir();
     recevoir(vue, ratee(2));
     assert.deepEqual(colonnes(vue), []);
-    assert.match(vue.element("rail").textContent, /the rail is not drawn: NOT READ FROM THE KITCHEN BOARD — tried at /);
+    assert.match(vue.element("rail").textContent, /the rail is not drawn: NOT READ FROM GITHUB — tried at /);
   });
 });
 
