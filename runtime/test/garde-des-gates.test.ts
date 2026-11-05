@@ -33,14 +33,21 @@ function jouer(racine: string, env: Record<string, string>): Promise<{ code: num
   });
 }
 
+// Une horloge injectée dans les gates par `BASH_ENV`, que bash lit avant le script : le `sleep 1` de la garde —
+// son délai, réglé à 1 s par ces tests — rend la main tout de suite, la seconde est passée. Tout autre `sleep`
+// reste le vrai (#2464). Le délai ne court qu'une fois le témoin du fichier figé posé (`BRIGADE_GATES_GARDE_APRES`).
+function horlogeDeLaGarde(t: TestContext): Record<string, string> {
+  const fichier = join(repertoireTemporaire(t), "horloge.sh");
+  writeFileSync(fichier, `sleep() { if [ "$*" = 1 ]; then return 0; else command sleep "$@"; fi; }\n`);
+  return { BASH_ENV: fichier };
+}
+
 const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {2})(tests du runtime|délai des tests)/.test(ligne));
 
 // Chaque test a son projet : ils se jouent de front.
 describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
-  test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 1 s clock guard, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
-    // La suite met deux secondes à démarrer — le double du délai de la garde :
-    // c'est une machine chargée, rendue certaine.
-    const racine = projet(t, `sleep 2 && node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
+  test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 1 s clock guard on a clock injected through BASH_ENV, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
+    const racine = projet(t, `node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
     const temoin = join(racine, "pid-du-fichier");
     // Si la garde manque son process, il ne doit pas survivre au test.
     aArreter(t, () => {
@@ -53,7 +60,7 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
 
     // Le délai ne court qu'une fois le fichier d'essai figé, témoin posé : c'est
     // lui qui doit être trouvé mort, aussi tard qu'il démarre.
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { ...horlogeDeLaGarde(t), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     // Aucun test en échec avant la coupure : c'est la ligne que le runtime
     // reconnaît pour rejouer ces gates plus tard, sur une machine saturée.
@@ -81,7 +88,7 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
       }
     });
 
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { ...horlogeDeLaGarde(t), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     assert.deepEqual(
       desTests(lignes),

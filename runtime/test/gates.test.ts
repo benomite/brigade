@@ -30,6 +30,13 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
 
 const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
+// Ce que `gates.sh` écrit quand son plafond de durée est franchi : la mesure,
+// puis la ligne FAIL — sur sa sortie d'erreur.
+const PLAFOND_FRANCHI = [
+  `echo "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)" >&2`,
+  'echo "FAIL  plafond des gates franchi : plus de 165 s de processeur" >&2',
+].join("; ");
+
 // Chaque test a son worktree : ils se jouent de front.
 describe("les gates", { concurrency: 8 }, () => {
   test("ce que le runtime garde de la sortie du setup et des gates est masqué", async (t) => {
@@ -96,12 +103,6 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.match(gates.tail, /ok {4}JSON valide\n.*gates : ROUGE$/s);
   });
 
-  // Ce que `gates.sh` écrit quand son plafond de durée est franchi : la mesure,
-  // puis la ligne FAIL — sur sa sortie d'erreur.
-  const PLAFOND_FRANCHI = [
-    `echo "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)" >&2`,
-    'echo "FAIL  plafond des gates franchi : plus de 165 s de processeur" >&2',
-  ].join("; ");
   const DEPASSEMENT = {
     cpuSeconds: 178.3,
     limitSeconds: 165,
@@ -192,12 +193,6 @@ describe("les gates", { concurrency: 8 }, () => {
         ["green", undefined],
       ],
     );
-  });
-
-  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` past a 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
-    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
-
-    assert.equal(gates.outcome, "timeout");
   });
 
   test("les gates écrivent sur un seul canal : ce que le runtime en garde est dans l'ordre où elles l'ont écrit", { skip: posixOnly("plays gates that check with `[ /dev/fd/1 -ef /dev/fd/2 ]` that their stdout and stderr are one channel; under Git Bash that check does not see stderr, duplicated from stdout by the runtime's `2>&1`, as the same file, so the gates answer \"deux canaux\"") }, async (t) => {
@@ -335,6 +330,26 @@ describe("les gates", { concurrency: 8 }, () => {
   test("un worktree sans gates se reconnaît avant de rien jouer", (t) => {
     assert.equal(aDesGates(worktree(t, {})), false);
     assert.equal(aDesGates(worktree(t, { gates: "exit 0" })), true);
+  });
+});
+
+// Le vrai minuteur, pour attendre un vrai script pendant que l'horloge du plafond est tenue par le test.
+const vraiMinuteur = setTimeout;
+const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
+
+// Le plafond tombe à l'horloge du test, pas à celle du mur : il ne peut ni devancer ce que les gates ont écrit, ni
+// le faire attendre (#2464). Un seul test à la fois — l'horloge tenue est celle de tout le process.
+describe("les gates, à l'horloge du test", () => {
+  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` until the test moves its clock past their 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
+    const ecrites = join(repertoireTemporaire(t), "ecrites");
+    const racine = worktree(t, { gates: `${PLAFOND_FRANCHI}; touch '${ecrites}'; sleep 30 & wait` });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const enCours = jouer(racine, 2000);
+    while (!existsSync(ecrites)) await souffler();
+    t.mock.timers.tick(2000);
+
+    assert.equal((await enCours).outcome, "timeout");
   });
 });
 
