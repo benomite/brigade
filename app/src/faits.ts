@@ -31,7 +31,7 @@ import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrag
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
-import type { MiseDeCote } from "./tableau/mise-de-cote-github.ts";
+import { SANS_RAISON, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
 import type { Repondue } from "./repondues.ts";
@@ -257,8 +257,8 @@ function miseDeCoteLue(brut: unknown): MiseDeCote | undefined {
   });
   return { label: lu.label, raison: lu.raison, liens };
 }
-// La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi : un label posé à la main.
-export const SANS_RAISON = "set aside by hand — no reason on the issue";
+// La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi (tableau/mise-de-cote-github.ts).
+export { SANS_RAISON };
 
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de

@@ -309,8 +309,8 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
         ["part", "mise-de-cote", "2"],
       ],
     );
-    // Sans survol : le titre et les comptes en mots, dont qui agit sur l'incomplète.
-    const mots = "Backlog" + "2 not read yet · 1 incomplete (the second completes them) · 2 epic, not split · 1 ready, not fired · 1 set aside";
+    // Sans survol : le titre et les comptes en mots — ceux que les labels seuls disent, sans état « incomplete » (#2061).
+    const mots = "Backlog" + "3 not read yet · 2 epic, not split · 1 ready, not fired · 2 set aside";
     assert.equal(tete(vue).textContent, mots);
     assert.equal((pose as Faux & { ariaExpanded?: string }).ariaExpanded, "false");
     // Le survol dit les comptes, et lui seul.
