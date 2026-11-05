@@ -78,6 +78,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
+    // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui
+    // sont encore ouvertes : tant qu'il y en a, le ticket n'est pas à prendre.
+    dependancesOuvertes(issue: number): Promise<number[]>;
     // La PR qui livre le ticket, ou null. `version` change avec tout ce que
     // GitHub change à la PR.
     prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
@@ -174,6 +177,16 @@ export type StationGitHub = {
   // tout de suite si `maintenant` (une livraison à relire).
   presser?: (maintenant?: boolean) => void;
 };
+
+// Les issues dont un corps dit dépendre : les numéros d'une ligne `Depends on
+// #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`).
+export function dependancesDuCorps(corps: string): number[] {
+  const numeros = new Set<number>();
+  for (const [, liste = ""] of corps.matchAll(/^[ \t>*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) {
+    for (const [, numero] of liste.matchAll(/#(\d+)/g)) numeros.add(Number(numero));
+  }
+  return [...numeros];
+}
 
 // Après une livraison, un verdict ou une fusion tentée (mergée, branche mise à
 // jour, CI qui tourne encore), la station tourne de nouveau dans les 30 s,
@@ -494,6 +507,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
+      // Une dépendance ouverte retient le ticket ; sans lecture de GitHub, il attend aussi.
+      try {
+        if ((await github.dependancesOuvertes(ticket.number)).length > 0) continue;
+      } catch (erreur) {
+        avertir(`brigade : dépendances de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        continue;
+      }
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       if (await tenue(ticket)) continue;
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
@@ -666,6 +686,11 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       derniers = sonde.issues.filter((issue) => !issue.pr);
       sonde.confirmer();
       return derniers;
+    },
+    dependancesOuvertes: async (numero) => {
+      const dependances = dependancesDuCorps((await github.issue(numero))?.body ?? "").filter((dependance) => dependance !== numero);
+      const etats = await Promise.all(dependances.map(async (dependance) => (await github.issue(dependance))?.state));
+      return dependances.filter((_, rang) => etats[rang] === "open");
     },
     // Une PR ouverte se lit dans l'instantané ; une PR mergée ou fermée n'y est
     // pas, et se lit en REST — ce qui n'arrive qu'une fois par ticket.

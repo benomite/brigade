@@ -26,6 +26,7 @@ function clientDicte() {
   const dicte = { tickets: [] as TicketLu[], checks: [] as Array<{ outcome: "green" | "red"; name?: string }>, merge: { fait: true } as { fait: true } | { fait: false; motif: string } };
   const client = {
     fires: async () => dicte.tickets,
+    dependancesOuvertes: async () => [],
     checksDeLaBase: async () => dicte.checks,
     merger: async () => dicte.merge,
   } as unknown as GitHubDuTour;

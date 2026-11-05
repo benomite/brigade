@@ -116,6 +116,7 @@ test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend
     corpsDuTicket: async () => "",
     prsOuvertes: async () => [],
     fires: async () => tickets,
+    dependancesOuvertes: async () => [],
     prDuTicket: async () => null,
     ouvrirPR: async ({ branche }: { branche: string }) => void ecrits.push(`pr ${branche}`),
     labelliser: async (numero: number, labels: string[]) => void ecrits.push(`+${labels.join(",")} #${numero}`),

@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -57,7 +57,7 @@ class FauxGitHub {
     this.base = couleur;
   }
 
-  feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
+  feu(number: number, labels: string[] = CALIBRE, corps = "the ticket's body"): void {
     this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
   }
 
@@ -109,6 +109,11 @@ class FauxGitHub {
       fires: async () => {
         await noter("fires");
         return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state }));
+      },
+      dependancesOuvertes: async (issue) => {
+        await noter("dependancesOuvertes");
+        // Le vrai client du tour, sur le faux GitHub : la lecture du corps est celle du runtime.
+        return clientDuTour(fauxClient(this, station), "main").dependancesOuvertes(issue);
       },
       prDuTicket: async (issue) => {
         await noter("prDuTicket");
@@ -287,6 +292,33 @@ test("two stations claim the same ticket at once: the earliest claim cooks it, t
   assert.deepEqual(faux.cuissons, [{ station: premiere, issue: 1 }]);
   assert.deepEqual([...faux.ticket(1).labels].sort(), [...CALIBRE, LABEL_IN_PASS].sort());
   assert.equal(faux.prs.length, 1);
+});
+
+test("a ticket whose dependency is open is held back, and claimed once the dependency closes", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, ["model:sonnet", "effort:medium"]);
+  faux.feu(2, CALIBRE, "Context.\n\nDepends on #1");
+  faux.feu(3, CALIBRE, "Depends on #1, #4");
+  faux.feu(4, ["model:sonnet", "effort:medium"]);
+  const a = faux.station("A", { places: 5 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.deepEqual(faux.pris(), []);
+  faux.ticket(1).state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 2 }]);
+  faux.ticket(4).state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map((cuisson: { issue: number }) => cuisson.issue), [2, 3]);
+});
+
+test("the `Depends on` lines of an issue body name its dependencies", () => {
+  assert.deepEqual(dependancesDuCorps("no dependency, see #5"), []);
+  assert.deepEqual(dependancesDuCorps("Depends on #7"), [7]);
+  assert.deepEqual(dependancesDuCorps("intro\nDepends on #7, #8 and #9\nDepends on #7\nrelated to #10"), [7, 8, 9]);
 });
 
 for (const [arretee, restante] of [
@@ -967,7 +999,10 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     retraitsDeLabels: async () => [],
     teteDeLaBase: async () => faux.teteDeLaBase,
     prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
-    issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
+    issue: async (numero) => {
+      const ticket = faux.tickets.get(numero);
+      return ticket === undefined ? null : { ...ticket, labels: [...ticket.labels], createdAt: "", updatedAt: "", url: "", body: ticket.corps };
+    },
   };
   return client as GitHub;
 }
