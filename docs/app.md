@@ -447,7 +447,8 @@ it as written. Captures: `docs/captures/2488/`.
 ### This computer's station, on the Stations tab (#2489, epic #2484)
 
 At the bottom of the **Stations** tab, under **Station settings**, the **Local station** block shows what only this computer's station has, titled
-with its name and `this Mac` (`this PC`). The other stations have none of it. Each setting is one line, as in Settings —
+with its name and `this Mac` (`this PC`), its lines in a card like those of **Station settings** above it. The other
+stations have none of it. Each setting is one line, as in Settings —
 its name with its level label (`this machine` for all of them, `app/src/vue/niveaux.js`), its value, what it implies on
 hover, its one control, and under it what the control returned:
 
@@ -458,7 +459,8 @@ hover, its one control, and under it what the control returned:
 | `Claude connection` | `connected`, `lost`, `unknown` — as the station publishes it on GitHub | lost: `log in`, the button of the station's Max-connection breakdown (the same login as on the station's page) |
 | `paired phones` | their names, machine and pairing day on hover; `no phone paired yet` | `pair a phone`, which opens the "Pair a phone" screen, where each phone is revoked too |
 
-They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
+The sandbox's `ordinary tickets` is the same option as the `ordinary tickets` line of this computer's card in **Station
+settings**: ticked in one, the other reads it at once. They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
 detail on hover. A device with no station (a phone, a workstation) says so in one line. The block is
 `app/src/vue/projet/stations/StationLocale.js`. Settings still shows its own **this machine** lines until a separate ticket
 removes them.

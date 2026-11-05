@@ -184,8 +184,12 @@ export function poserBlocStationLocale(doc, etat, gestes = { regler: () => {}, s
     bloc.append(avec(doc, "p", SANS_STATION(etat.poste), "vide"));
     return bloc;
   }
-  // Son nom, et ce qu'elle est pour le chef : cet ordinateur.
+  // Son nom, et ce qu'elle est pour le chef : cet ordinateur. Ses réglages, dans une carte, comme ceux de chaque station
+  // au-dessus (« Station settings », ReglagesStation.js).
   titre.append(avec(doc, "small", etat.station === undefined ? etat.poste : `${etat.station.nom} · ${etat.poste}`));
-  bloc.append(...dossiers(doc, etat), ...bacASable(doc, etat, gestes), connexion(doc, etat.station, etat.connexionDite ?? "", gestes), telephones(doc, etat.station, etat.telephones, gestes));
+  const carte = doc.createElement("div");
+  carte.className = "carte";
+  carte.append(...dossiers(doc, etat), ...bacASable(doc, etat, gestes), connexion(doc, etat.station, etat.connexionDite ?? "", gestes), telephones(doc, etat.station, etat.telephones, gestes));
+  bloc.append(carte);
   return bloc;
 }

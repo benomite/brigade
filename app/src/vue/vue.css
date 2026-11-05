@@ -8537,14 +8537,25 @@ button.recommande {
   margin: 6px 0 0 16px;
   color: var(--discret);
 }
-.bloc-du-projet[data-bloc="station-locale"] > .reglage {
+/* La carte a l'allure de celles de « Station settings », au-dessus (ticket 2488), alignée comme elles sur la liste. */
+.bloc-du-projet[data-bloc="station-locale"] > .carte {
+  margin: 10px 16px 0;
+  padding: 4px 14px;
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.bloc-du-projet[data-bloc="station-locale"] .carte > .reglage {
   display: grid;
   grid-template-columns: 240px minmax(0, 440px) minmax(0, 1fr);
   align-items: center;
   gap: 2px 12px;
-  margin-left: 16px;
-  padding: 7px 0;
+  padding: 9px 0;
+  font-size: 13px;
   border-top: 1px solid var(--trait-doux);
+}
+.bloc-du-projet[data-bloc="station-locale"] .carte > .reglage:first-child {
+  border-top: 0;
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage .champ > button {
   padding: 3px 12px;
@@ -8577,7 +8588,17 @@ button.recommande {
   color: var(--jaune);
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage input[type="number"] {
-  width: 64px;
+  width: 8ch;
+  padding: 5px 8px;
+  font: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat] {
   padding-left: 0;
