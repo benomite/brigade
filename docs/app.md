@@ -1739,6 +1739,15 @@ the final duration the station froze (« First ticket served 2 h 34 min after th
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
 Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
 
+**Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project: the median total of the last 10
+measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
+waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
+`data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
+`vide` ("No ticket measured yet", never a blank or a zero). The records are those of
+`.claude/brigade/temps-tickets.json` (integer seconds), read from `temps` of the project's view
+(`{ enregistrements, tempsMaxTicketMin }`); until the station publishes it, the block shows its empty state.
+Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of

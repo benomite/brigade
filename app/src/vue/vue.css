@@ -426,6 +426,89 @@ main > header,
 #delai-du-projet .delai[data-delai="fige"] {
   color: var(--texte);
 }
+/* Les temps des derniers tickets (ticket 2346) : une carte ; la médiane en grand, le plus lent dessous, le partage en
+   cinq phases. Passé le plafond, la carte vire au rouge et le dit en toutes lettres — pas seulement par la couleur. */
+#temps-ticket-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#temps-ticket-du-projet .temps-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#temps-ticket-du-projet .temps-ticket[data-temps="depasse"] {
+  border-color: var(--rouge);
+}
+#temps-ticket-du-projet p,
+#temps-ticket-du-projet ul {
+  margin: 0;
+  padding: 0;
+}
+#temps-ticket-du-projet .temps-tete {
+  display: flex;
+  justify-content: space-between;
+  color: var(--discret);
+}
+#temps-ticket-du-projet .temps-mediane {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#temps-ticket-du-projet .temps-valeur {
+  font-size: 22px;
+  color: var(--texte);
+}
+#temps-ticket-du-projet [data-temps="depasse"] .temps-valeur {
+  color: var(--rouge-clair);
+}
+#temps-ticket-du-projet .temps-legende,
+#temps-ticket-du-projet .temps-lent,
+#temps-ticket-du-projet .temps-vide {
+  color: var(--texte-doux);
+}
+#temps-ticket-du-projet .temps-depasse {
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+  padding: 0 8px;
+}
+#temps-ticket-du-projet .temps-barre {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+#temps-ticket-du-projet .temps-part {
+  flex-basis: 0;
+  min-width: 2px;
+  background: var(--bleu);
+}
+#temps-ticket-du-projet .temps-part:nth-child(2) { background: var(--jaune); }
+#temps-ticket-du-projet .temps-part:nth-child(3) { background: var(--vert); }
+#temps-ticket-du-projet .temps-part:nth-child(4) { background: var(--orange); }
+#temps-ticket-du-projet .temps-part:nth-child(5) { background: var(--gris); }
+#temps-ticket-du-projet .temps-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  list-style: none;
+}
+#temps-ticket-du-projet .temps-phase {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--texte-doux);
+}
+#temps-ticket-du-projet .temps-duree {
+  color: var(--texte);
+}
 /* Ce qui bloque le projet (ticket 1399) : une carte, une ligne par blocage. Ce qui est bloqué en tête, en clair ;
    pourquoi dessous, en texte doux ; le bouton du geste, puis le lien qui nomme la page où le faire ; ce qu'une
    commande a dit, replié derrière « details », en second. */
