@@ -320,6 +320,10 @@ export type Pont = {
   reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
   proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
   ouvrirLaProposition(url: string): Promise<boolean>;
+  // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
+  // (`.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (plafonds-duree.ts).
+  plafondsDuree(projet: string): Promise<import("../plafonds-duree.ts").LectureDesPlafonds>;
+  changerPlafondDuree(projet: string, cle: string, saisie: string): Promise<import("../plafonds-duree.ts").RenduDuPlafond>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // « Pair a phone », sur la ligne d'une station de l'accueil (ticket 1598), la station nommée par son gist : un code neuf

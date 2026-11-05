@@ -89,6 +89,9 @@ const pont = {
   reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
   reglagesDuProjet: (projet) => ipcRenderer.invoke("reglagesDuProjet", projet),
   proposerUnReglage: (projet, choix) => ipcRenderer.invoke("proposerUnReglage", projet, choix),
+  // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
+  plafondsDuree: (projet) => ipcRenderer.invoke("plafondsDuree", projet),
+  changerPlafondDuree: (projet, cle, saisie) => ipcRenderer.invoke("changerPlafondDuree", projet, cle, saisie),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // « Pair a phone », sur la ligne d'une station (ticket 1598) : un code et son QR, son état, les téléphones appairés, une révocation.

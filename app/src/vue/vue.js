@@ -4991,7 +4991,7 @@ function poserLeRail(projet) {
   blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
   // Stations et Health : leurs blocs, montés ici, un ticket chacun les remplira (ticket 2485).
   if (onglet === STATIONS) return rail.replaceChildren(poserBlocListeStations(document), poserBlocReglagesStation(document), poserBlocStationLocale(document));
-  if (onglet === SANTE) return rail.replaceChildren(poserBlocTempsTickets(document), poserBlocPlafondsDuree(document), poserBlocCloser(document));
+  if (onglet === SANTE) return poserLaSante(projet);
   const horsLigne = horsLignes.get(projet.nom);
   const perime = perimes.get(projet.nom);
   delete rail.dataset.horsLigne;
@@ -6908,6 +6908,87 @@ function poserLesTempsDesTickets(projet) {
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
 }, 30_000);
+
+// Kitchen > Health (ticket 2490) : le temps des tickets en détail, les plafonds de durée et le closer. Les plafonds du
+// dépôt se lisent sur GitHub par le process principal (plafonds-duree.ts) — à l'ouverture de Health, puis au plus une
+// fois la minute tant qu'il reste ouvert, et après chaque changement. Un champ en cours de frappe n'est pas reposé.
+/** @type {Map<string, import("../plafonds-duree.ts").LectureDesPlafonds>} */
+const plafondsLus = new Map();
+/** @type {Map<string, number>} */
+const plafondsLusLe = new Map();
+const plafondsEnLecture = new Set();
+/** @type {Map<string, Map<string, import("./projet/cuisine/sante/PlafondsDuree.js").Etat>>} */
+const etatsDesPlafonds = new Map();
+/** @type {Set<string>} */
+const autresPlafondsOuverts = new Set();
+// `garder` : la relecture du rail ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
+/** @param {Projet} projet @param {boolean} [garder] */
+function poserLaSante(projet, garder = true) {
+  const tape = /** @type {HTMLElement | null} */ (document.activeElement);
+  if (garder && tape?.tagName === "INPUT" && tape.closest?.('[data-bloc="plafonds-duree"]') && rail.contains(tape)) return;
+  const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
+  etatsDesPlafonds.set(projet.nom, etats);
+  const lecture = plafondsLus.get(projet.nom);
+  rail.replaceChildren(
+    poserBlocTempsTickets(document, vu?.temps),
+    poserBlocPlafondsDuree(document, {
+      ...(lecture === undefined ? {} : { lecture }),
+      ...(vu?.temps === undefined ? {} : { tempsMaxTicketMin: vu.temps.tempsMaxTicketMin }),
+      etats,
+      autresOuverts: autresPlafondsOuverts.has(projet.nom),
+      basculerAutres: (ouvert) => void (ouvert ? autresPlafondsOuverts.add(projet.nom) : autresPlafondsOuverts.delete(projet.nom)),
+      choisir: (cle, choisi) => void etats.set(cle, { ...etats.get(cle), choisi }),
+      changer: (cle, saisie) => void changerUnPlafond(projet, cle, saisie),
+    }),
+    poserBlocCloser(document),
+  );
+  if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);
+}
+/** @param {Projet} projet @param {boolean} [garder] */
+function reposerLaSante(projet, garder = false) {
+  if (courant?.nom === projet.nom && ongletDe(projet) === SANTE && laisse.get(projet.nom) === undefined) poserLaSante(projet, garder);
+}
+/** @param {Projet} projet */
+async function lireLesPlafondsDuree(projet) {
+  if (plafondsEnLecture.has(projet.nom)) return;
+  plafondsEnLecture.add(projet.nom);
+  plafondsLusLe.set(projet.nom, Date.now());
+  /** @type {import("../plafonds-duree.ts").LectureDesPlafonds} */
+  let lue;
+  try {
+    lue = (await brigade.plafondsDuree?.(projet.nom)) ?? { sans: "duration caps unavailable", detail: SANS_PONT };
+  } catch (erreur) {
+    lue = { sans: "duration caps unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  } finally {
+    plafondsEnLecture.delete(projet.nom);
+  }
+  plafondsLus.set(projet.nom, lue);
+  reposerLaSante(projet, true);
+}
+// « save » : le process principal écrit le plafond dans le dépôt. Tant qu'il n'a pas répondu, le bouton dit qu'il s'y
+// met ; écrit, la ligne le dit et la valeur est relue ; refusé, le refus se dit sous le champ, son détail au survol.
+/** @param {Projet} projet @param {string} cle @param {string} saisie */
+async function changerUnPlafond(projet, cle, saisie) {
+  const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
+  etatsDesPlafonds.set(projet.nom, etats);
+  if (etats.get(cle)?.enCours === true) return;
+  etats.set(cle, { ...etats.get(cle), enCours: true, dit: undefined });
+  reposerLaSante(projet);
+  /** @type {import("../plafonds-duree.ts").RenduDuPlafond} */
+  let rendu;
+  try {
+    rendu = (await brigade.changerPlafondDuree?.(projet.nom, cle, saisie)) ?? { refus: "nothing was changed: nothing was sent", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "nothing was changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("fait" in rendu) {
+    etats.set(cle, { dit: { fait: rendu.fait } });
+    const lue = plafondsLus.get(projet.nom);
+    if (lue !== undefined && "plafonds" in lue) plafondsLus.set(projet.nom, { ...lue, plafonds: lue.plafonds.map((plafond) => (plafond.cle === rendu.cle ? { ...plafond, valeur: rendu.valeur } : plafond)) });
+  } else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
+  reposerLaSante(projet);
+}
 
 // Les blocages du projet affiché (ticket 1399). Les gestes que l'app sait faire pour en lever un, par l'identifiant
 // d'action que la station publie : « choose-station » ouvre le choix de la machine, comme le parcours (ticket 1113) —
