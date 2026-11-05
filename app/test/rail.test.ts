@@ -154,7 +154,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
   test("dans la page, il est posé dans la zone centrale, sous le nom du projet et les onglets, en haut — plus dans un onglet", () => {
     const html = readFileSync(join(VUE, "index.html"), "utf8");
     const centre = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
-    const rangs = ["<header>", 'id="onglets"', "</header>", 'id="centre"', 'id="rail"', 'id="contenu"'].map((repere) => centre.indexOf(repere));
+    const rangs = ["<header>", 'id="onglets-du-projet"', "</header>", 'id="centre"', 'id="rail"', 'id="contenu"'].map((repere) => centre.indexOf(repere));
 
     assert.ok(rangs.every((rang) => rang !== -1), "la zone centrale ne porte plus le rail, les onglets ou ce qu'ils montrent");
     assert.deepEqual(rangs, rangs.toSorted((a, b) => a - b));

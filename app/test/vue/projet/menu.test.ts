@@ -1,8 +1,5 @@
-// La page d'un projet en deux onglets (#1184) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris — et
-// Cooks — ce qui tourne : la carte du projet et ses cooks, les stations, la
-// lecture de `station` (plafond, saturation, consommation). Un seul est montré au centre ; le second reste à droite,
-// le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
-// La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// Le menu de la page d'un projet (#2485) : Rail · Stations · Kitchen · Settings, les deux sous-onglets de Kitchen (Health, Cooks),
+// et un bloc monté par onglet. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
@@ -143,8 +140,9 @@ describe("le menu de la page d'un projet (#2485)", () => {
     assert.deepEqual(blocs(vue), ["temps-tickets", "plafonds-duree", "closer"]);
 
     await ouvrirOnglet(vue, "Cooks");
-    const poses = blocs(vue).filter((bloc) => bloc !== undefined);
-    assert.deepEqual(poses, ["specialisations", "cahier"]);
+    const poses = blocs(vue);
+    assert.deepEqual(poses.filter((bloc) => bloc !== undefined), ["specialisations", "cahier"]);
+    assert.ok(poses.some((bloc) => bloc === undefined), "le reste du contenu de Cooks n'est plus posé");
   });
 
   test("Settings s'ouvre par-dessus, depuis le même menu, et garde son contenu", async () => {

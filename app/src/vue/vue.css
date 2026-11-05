@@ -350,14 +350,6 @@ main > header,
   padding-right: 8px;
   border-right: 1px solid var(--trait);
 }
-#onglets {
-  flex: 0 1 auto;
-  align-self: stretch;
-  display: flex;
-  gap: 2px;
-  min-width: 0;
-  overflow-x: auto;
-}
 /* Les onglets des terminaux : le bandeau de la colonne de droite — le second, les shells, « + shell ». */
 #terminaux {
   flex: 1;
@@ -369,7 +361,6 @@ main > header,
 }
 #onglets-du-projet button,
 #onglets-cuisine button,
-#onglets button,
 #terminaux button {
   padding: 10px 14px;
   font-weight: 600;
@@ -379,19 +370,16 @@ main > header,
 }
 #onglets-du-projet button:hover,
 #onglets-cuisine button:hover,
-#onglets button:hover,
 #terminaux button:hover {
   color: var(--texte-doux);
 }
 #onglets-du-projet button:focus-visible,
 #onglets-cuisine button:focus-visible,
-#onglets button:focus-visible,
 #terminaux button:focus-visible {
   outline-offset: -2px;
 }
 #onglets-du-projet button[aria-selected="true"],
 #onglets-cuisine button[aria-selected="true"],
-#onglets button[aria-selected="true"],
 #terminaux button[aria-selected="true"] {
   color: var(--texte);
   border-bottom-color: var(--accent);

@@ -393,8 +393,8 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
 
   test("à cette largeur, ce qui ne tient pas défile ou passe à la ligne : rien ne déborde sans accès", () => {
     // Les onglets et les colonnes du rail défilent ; la colonne centrale peut se rétrécir.
-    assert.equal(regle("#onglets").get("overflow-x"), "auto");
-    assert.equal(regle("#onglets").get("min-width"), "0");
+    assert.equal(regle("#terminaux").get("overflow-x"), "auto");
+    assert.equal(regle("#terminaux").get("min-width"), "0");
     assert.equal(regle("#rail .colonnes").get("overflow-x"), "auto");
     assert.equal(regle("main").get("min-width"), "0");
     // Le nom du projet, en entier, passe à la ligne plutôt que de pousser les onglets.

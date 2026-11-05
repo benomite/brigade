@@ -130,7 +130,7 @@ import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 import { AUCUNE_STATION, aucuneStationNeSert } from "./cooks/sans-station.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
-import { dansLaCuisine, entreeDe, MENU, ouvreAvec, SANTE, SOUS_ONGLETS_DE_LA_CUISINE, STATIONS, TITRE_DE_SETTINGS } from "./projet/menu/menu.js";
+import { dansLaCuisine, entreeDe, MENU, ouvreAvec, SANTE, SOUS_ONGLETS_DE_LA_CUISINE, STATIONS } from "./projet/menu/menu.js";
 import { poserBlocBandeRail } from "./projet/rail/BandeRail.js";
 import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
 import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
@@ -176,7 +176,6 @@ const RAIL = "rail";
 const CUISINE = "cooks";
 // Le menu du projet (ticket 2485) : Rail · Stations · Kitchen · Settings (projet/menu/menu.js) ; Kitchen a deux
 // sous-onglets, Health et Cooks.
-const ONGLETS_DU_PROJET = MENU;
 // Sur un écran étroit — le téléphone (ticket 1186) —, trois colonnes ne tiennent pas : la conversation avec le second
 // est un troisième onglet, à la place du panneau de droite. Et Cooks y est en lecture seule : les lignes des
 // stations, leur état, leurs cooks, et le seul bouton qui lance ou arrête chacune — aucun réglage (stations, plafond,
@@ -233,7 +232,6 @@ const arret = element("arret");
 const espace = element("espace");
 const ongletsDuProjet = element("onglets-du-projet");
 const ongletsDeLaCuisine = element("onglets-cuisine");
-const onglets = element("onglets");
 const contenu = element("contenu");
 const centre = element("centre");
 const rail = element("rail");
@@ -1445,14 +1443,14 @@ function montrer() {
     ...(ouvert === undefined
       ? []
       : [
-          ...ONGLETS_DU_PROJET.map(({ id, titre }) => {
+          ...MENU.map(({ id, titre }) => {
             const cree = bouton(titre, () => choisirOnglet(ouvreAvec(id, ongletDe(ouvert))));
             cree.role = "tab";
             cree.ariaSelected = String(visible === undefined && entreeDe(ongletDe(ouvert)) === id);
             return cree;
           }),
           ...RUBRIQUES.map(({ titre, id }) => {
-            const cree = bouton(titre === "Settings" ? TITRE_DE_SETTINGS : titre, () => activerRubrique(id));
+            const cree = bouton(titre, () => activerRubrique(id));
             cree.role = "tab";
             cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
             return cree;
@@ -1481,7 +1479,6 @@ function montrer() {
         })
       : []),
   );
-  onglets.replaceChildren();
   // À droite, au même niveau : le second, ses shells, et de quoi en ouvrir un. Le second a toujours son onglet.
   const second = secondDuCourant()?.terminal;
   /** @param {string} titre @param {number | undefined} id */
@@ -4991,7 +4988,7 @@ function poserLeRail(projet) {
   const onglet = ongletDe(projet);
   rail.dataset.onglet = onglet === STATIONS || onglet === SANTE || cuisine ? onglet : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : onglet === STATIONS ? "The stations" : onglet === SANTE ? "The kitchen's health" : "The rail";
-  bandeDuRail.replaceChildren(...(onglet === RAIL || onglet === CONVERSATION ? [poserBlocBandeRail(document)] : []));
+  bandeDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
   // Stations et Health : leurs blocs, montés ici, un ticket chacun les remplira (ticket 2485).
   if (onglet === STATIONS) return rail.replaceChildren(poserBlocListeStations(document), poserBlocReglagesStation(document), poserBlocStationLocale(document));
   if (onglet === SANTE) return rail.replaceChildren(poserBlocTempsTickets(document), poserBlocPlafondsDuree(document), poserBlocCloser(document));
