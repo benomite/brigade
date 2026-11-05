@@ -16,7 +16,7 @@
 
 import { boutonAction, lectureIndisponible, survol } from "../briques.js";
 import { refusDit } from "../projets-servis/projets-servis.js";
-import { selectionApres, uneLigneParMachine } from "../stations-du-compte.js";
+import { uneLigneParMachine } from "../stations-du-compte.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../projets-servis/projets-servis.js").LectureDesProjetsServis} LectureDesProjetsServis */
@@ -41,7 +41,7 @@ export const INJOIGNABLE = (/** @type {string} */ nom) => `${nom} could not be g
 export function selectionAvec(selection, depot) {
   const tenue = selection ?? [];
   if (tenue.some((une) => une.toLowerCase() === depot.toLowerCase())) return [...tenue];
-  return selectionApres([...tenue, depot], tenue, depot, true);
+  return [...tenue, depot];
 }
 
 // Les stations proposées après cet ordinateur : une par machine, dans l'ordre des noms (`uneLigneParMachine`), sans
