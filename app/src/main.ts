@@ -1096,6 +1096,33 @@ void duRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>(
   },
   (erreur: unknown) => console.error(`brigade: the second's proposals cannot be followed — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
 );
+// Les GitHub Apps de la station de cet ordinateur, depuis Settings (#2317, vue/identites-github.js) : ce qu'elle a
+// de chaque rôle, et en ranger une, par ce que le runtime en fait (identites-stations.ts : `appsRangees`, `rangerApp`)
+// dans le répertoire de la station. La clé ne fait que passer : rien ne la garde ici, et rien ne la rend à la vue — ni
+// la lecture, ni un refus. Un téléphone n'a pas de station : rien.
+const appsDuRuntime = () => duRuntime<typeof import("../../runtime/src/identites-stations.ts")>("identites-stations.ts");
+const codeDe = (erreur: unknown) => (erreur as NodeJS.ErrnoException | undefined)?.code ?? "error";
+ipcMain.handle("appsDeLaStation", async () => {
+  if (role.role !== "station") return undefined;
+  try {
+    const { appsRangees } = await appsDuRuntime();
+    return { apps: appsRangees(racineDeLaStation) };
+  } catch (erreur) {
+    return { refus: `this station's Apps directory cannot be read (${codeDe(erreur)})` };
+  }
+});
+ipcMain.handle("rangerUneApp", async (_, roleDeLApp: unknown, id: unknown, cle: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no station — it keeps no App" };
+  if (typeof roleDeLApp !== "string" || typeof id !== "string" || typeof cle !== "string") return { refus: "the app sent an App this station cannot read" };
+  const { AppRefusee, rangerApp } = await appsDuRuntime();
+  try {
+    const rangee = rangerApp({ station: racineDeLaStation, role: roleDeLApp, id, cle, env: process.env });
+    return { rangee: { role: rangee.role, id: rangee.id } };
+  } catch (erreur) {
+    // Le refus du runtime ne cite jamais la clé ; une écriture qui échoue, son seul code.
+    return { refus: erreur instanceof AppRefusee ? erreur.message : `the ${roleDeLApp} App could not be stored (${codeDe(erreur)})` };
+  }
+});
 // Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
 // celles-là s'ouvrent depuis l'écran.
 const pagesDuPremier = new Set<string>();

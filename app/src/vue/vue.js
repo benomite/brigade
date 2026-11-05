@@ -79,6 +79,7 @@ import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairage.js";
 import { tenirConversation } from "./telephone/conversation.js";
 import { BOUTON as APPAIRER_UN_TELEPHONE, poserLesTelephones, tenirLesTelephones } from "./telephones-de-station.js";
+import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -259,6 +260,16 @@ const retrait = element("retrait");
 const couleurs = element("couleurs");
 const sigle = element("sigle");
 const ordinaires = element("ordinaires");
+// Les GitHub Apps de la station de cet ordinateur, une ligne par rôle (ticket 2317, identites-github.js) : relues à
+// l'ouverture de chaque projet ; un appareil sans station (le téléphone) n'en pose aucune.
+const appsGithub = element("apps-github");
+const identitesGithub = tenirLesIdentites({ pont: brigade, rendre: () => poserLesAppsGithub() });
+function poserLesAppsGithub() {
+  const etat = identitesGithub.etat;
+  appsGithub.hidden = etat === undefined;
+  appsGithub.replaceChildren(...(etat === undefined ? [] : [poserLesIdentites(document, etat, identitesGithub.gestes)]));
+  poserLesGroupes();
+}
 const reglagesDuProjet = element("reglages-du-projet");
 const avis = element("avis");
 // L'onglet Cooks se lit dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : d'abord ce qui cuit, ce qui
@@ -2551,7 +2562,7 @@ for (const [niveau, aide] of /** @type {const} */ ([
 function poserLesGroupes() {
   videProjet.hidden = !reglagesDuProjet.hidden || !grants.hidden || !arreterCuisine.hidden;
   videProjet.textContent = videProjet.hidden ? "" : "nothing to set: no station reads this project";
-  videMachine.hidden = !ordinaires.hidden || !code.hidden;
+  videMachine.hidden = !ordinaires.hidden || !appsGithub.hidden || !code.hidden;
   videMachine.textContent = videMachine.hidden ? "" : `nothing to set on ${POSTE.nom} for this project`;
 }
 // Le projet dans ton app (ticket 1700) : une ligne du groupe de toi — il est dans la barre, et « Remove from the app »
@@ -8073,6 +8084,7 @@ async function ouvrir(projet) {
   poserSigle(projet);
   poserCouleurs(projet);
   void poserOrdinaires(projet);
+  void identitesGithub.lire();
   poserLesReglagesDuProjet(projet);
   void lireLesReglages(projet);
   brigade.regarder(projet.nom, ++demande);
