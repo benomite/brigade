@@ -245,12 +245,12 @@ describe("la locale d'un shell persistant", () => {
   const locale = (env: Record<string, string>) =>
     execFileSync("/bin/sh", ["-c", `${scriptDeRattachement("brigade-essai-1").split("\nif command")[0]}\nprintf %s "$LANG"`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...env } });
 
-  test("sans locale (app lancée depuis le Dock), le shell reçoit une locale UTF-8", () => {
+  test("sans locale (app lancée depuis le Dock), le shell reçoit une locale UTF-8", { skip: SANS_POSIX }, () => {
     assert.match(locale({}), /UTF-8$/);
     assert.match(locale({ LANG: "C" }), /UTF-8$/);
   });
 
-  test("une locale UTF-8 du chef n'est pas touchée", () => {
+  test("une locale UTF-8 du chef n'est pas touchée", { skip: SANS_POSIX }, () => {
     assert.equal(locale({ LANG: "fr_FR.UTF-8" }), "fr_FR.UTF-8");
   });
 });
