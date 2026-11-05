@@ -64,7 +64,7 @@ import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef } from "./projets/github.ts";
-import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type VuDesProjets } from "./projets/projets.ts";
+import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type DossiersDeLaStation, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
@@ -1020,6 +1020,20 @@ ipcMain.handle("defautsDeStation", async (_, nom: unknown): Promise<DefautsDeLaM
     return { cooks, cooksDit, espaceDeTravail, capacites };
   } catch (erreur) {
     return { refus: "this computer could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+});
+// Les dossiers de la station de cet ordinateur pour un projet (#2489) : où elle garde son clone, où elle pose les
+// worktrees de ses cooks — l'opération du runtime les calcule (`lieuxDuProjet`), sans rien y lancer. Elle les choisit
+// elle-même : ils se lisent, ils ne se changent pas. Un téléphone n'a pas de station.
+ipcMain.handle("dossiersDeLaStation", async (_, nom: unknown): Promise<DossiersDeLaStation> => {
+  if (role.role !== "station") return { refus: "this device runs no station" };
+  if (typeof nom !== "string" || nom === "") return { refus: "its folders could not be read", detail: `${String(nom)} is not a project name` };
+  try {
+    const { lieuxDuProjet } = (await import(pathToFileURL(join(emplacements.runtime, "src", "station", "configuration.ts")).href)) as typeof import("../../runtime/src/station/configuration.ts");
+    const { clone, worktrees } = lieuxDuProjet(racineDeLaStation, nom, process.env.HOME);
+    return { clone, worktrees };
+  } catch (erreur) {
+    return { refus: "its folders could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
 });
 // Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.

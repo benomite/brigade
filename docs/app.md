@@ -15,7 +15,8 @@ gesture the app already makes: this computer serves the project as its Settings 
 selection as on its home page; what each does is in its `?`. Once written, the step closes and one line says which machine
 was given the project — the station joins the list once it takes it; a refusal stays in the step, in one line, its detail
 in a hover; `cancel` closes without writing anything. The narrow screen, which sets nothing, and a project whose
-repository the app does not know have no button. Under the list, **Station settings** sets each station (#2488, below).
+repository the app does not know have no button. Under the list, **Station settings** sets each station (#2488, below), and under it, the **Local station** block shows what only
+this computer's station has (see "This computer's station, on the Stations tab", #2489).
 What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
@@ -442,6 +443,25 @@ it as written. Captures: `docs/captures/2488/`.
 
 *Code: `app/src/vue/projet/stations/ReglagesStation.js`, `reglagesDesStations` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/reglages-station.test.ts`.*
+
+### This computer's station, on the Stations tab (#2489, epic #2484)
+
+At the bottom of the **Stations** tab, under **Station settings**, the **Local station** block shows what only this computer's station has, titled
+with its name and `this Mac` (`this PC`). The other stations have none of it. Each setting is one line, as in Settings —
+its name with its level label (`this machine` for all of them, `app/src/vue/niveaux.js`), its value, what it implies on
+hover, its one control, and under it what the control returned:
+
+| Line | Value | Control |
+|---|---|---|
+| `clone folder`, `worktrees folder` | where the station keeps the project's clone and puts its cooks' worktrees (the runtime's `lieuxDuProjet`, read through `dossiersDeLaStation`) | none: the station chooses them |
+| `sandbox · ordinary tickets`, `cooks at once` | `taken` / `not taken`, the cap or `no limit`; the sandbox unavailable, and why, under it | the checkbox and the number of Settings' **this machine** group — the same call, `reglerOrdinaires`, written to the projects file. Off a Mac, `none on this PC`; a project that does not cook here, one line that says so |
+| `Claude connection` | `connected`, `lost`, `unknown` — as the station publishes it on GitHub | lost: `log in`, the button of the station's Max-connection breakdown (the same login as on the station's page) |
+| `paired phones` | their names, machine and pairing day on hover; `no phone paired yet` | `pair a phone`, which opens the "Pair a phone" screen, where each phone is revoked too |
+
+They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
+detail on hover. A device with no station (a phone, a workstation) says so in one line. The block is
+`app/src/vue/projet/stations/StationLocale.js`. Settings still shows its own **this machine** lines until a separate ticket
+removes them.
 
 ### Cards never vanish while GitHub holds them (#2151)
 

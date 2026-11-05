@@ -8521,3 +8521,71 @@ button.recommande {
   padding: 0;
   color: var(--rouge-clair);
 }
+
+/* La station locale (ticket 2489) : son nom à côté du titre, puis chaque réglage en une ligne, la même que dans Settings —
+   son nom et l'étiquette de son niveau, sa valeur, son contrôle, et dessous ce que le contrôle a rendu. */
+.bloc-du-projet[data-bloc="station-locale"] h3 small {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+}
+.bloc-du-projet[data-bloc="station-locale"] h3,
+#rail .bloc-du-projet[data-bloc="station-locale"] h3 {
+  padding-bottom: 6px;
+}
+.bloc-du-projet[data-bloc="station-locale"] > .vide {
+  margin: 6px 0 0 16px;
+  color: var(--discret);
+}
+.bloc-du-projet[data-bloc="station-locale"] > .reglage {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 440px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  margin-left: 16px;
+  padding: 7px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage .champ > button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage .champ > button.recommande {
+  border-color: var(--accent);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > .nom {
+  color: var(--discret);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit {
+  grid-column: 2 / -1;
+  font-size: 12px;
+  color: var(--discret);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit.refus {
+  color: var(--jaune);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage input[type="number"] {
+  width: 64px;
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat] {
+  padding-left: 0;
+  border-left: 0;
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="connectee"] {
+  color: var(--vert);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="perdue"] {
+  color: var(--rouge-clair);
+}

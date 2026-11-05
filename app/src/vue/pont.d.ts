@@ -280,6 +280,9 @@ export type Pont = {
   // Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (ticket 1307) : ses cooks, le dossier
   // des espaces de travail de sa station, ses capacités détectées — ou pourquoi il n'a pas pu être lu.
   defautsDeStation(nom: string): Promise<DefautsDeLaMachine>;
+  // Les dossiers de la station de cet ordinateur pour un projet (ticket 2489) : son clone, les worktrees de ses cooks —
+  // ou pourquoi ils ne se lisent pas. Absent d'un pont qui n'en a pas (le téléphone).
+  dossiersDeLaStation?(nom: string): Promise<import("../projets/projets.ts").DossiersDeLaStation>;
   // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projets/demenagement.ts).
