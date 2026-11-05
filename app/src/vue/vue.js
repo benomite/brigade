@@ -80,6 +80,7 @@ import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairag
 import { tenirConversation } from "./telephone/conversation.js";
 import { BOUTON as APPAIRER_UN_TELEPHONE, poserLesTelephones, tenirLesTelephones } from "./telephones-de-station.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
+import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -271,6 +272,17 @@ function poserLesAppsGithub() {
   const etat = identitesGithub.etat;
   appsGithub.hidden = etat === undefined;
   appsGithub.replaceChildren(...(etat === undefined ? [] : [poserLesIdentites(document, etat, identitesGithub.gestes)]));
+  poserLesGroupes();
+}
+// Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : une ligne par
+// projet de l'app, et, la liste vide, la ligne qui dit que cet ordinateur n'en sert aucun. Relus à l'ouverture de
+// chaque projet ; un appareil sans station (le téléphone) n'en pose aucun.
+const projetsServis = element("projets-servis");
+const servis = tenirLesProjetsServis({ pont: brigade, rendre: () => poserLesProjetsServisIci() });
+function poserLesProjetsServisIci() {
+  const etat = servis.etat;
+  projetsServis.hidden = etat === undefined;
+  projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom }, servis.gestes)]));
   poserLesGroupes();
 }
 const reglagesDuProjet = element("reglages-du-projet");
@@ -2567,7 +2579,7 @@ for (const [niveau, aide] of /** @type {const} */ ([
 function poserLesGroupes() {
   videProjet.hidden = !reglagesDuProjet.hidden || !grants.hidden || !arreterCuisine.hidden;
   videProjet.textContent = videProjet.hidden ? "" : "nothing to set: no station reads this project";
-  videMachine.hidden = !ordinaires.hidden || !appsGithub.hidden || !code.hidden;
+  videMachine.hidden = !ordinaires.hidden || !appsGithub.hidden || !projetsServis.hidden || !code.hidden;
   videMachine.textContent = videMachine.hidden ? "" : `nothing to set on ${POSTE.nom} for this project`;
 }
 // Le projet dans ton app (ticket 1700) : une ligne du groupe de toi — il est dans la barre, et « Remove from the app »
@@ -8114,6 +8126,7 @@ async function ouvrir(projet) {
   poserCouleurs(projet);
   void poserOrdinaires(projet);
   void identitesGithub.lire();
+  void servis.lire();
   poserLesReglagesDuProjet(projet);
   void lireLesReglages(projet);
   brigade.regarder(projet.nom, ++demande);
@@ -8603,5 +8616,7 @@ brigade.surConfiguration((recue, partis) => {
     for (const [projet, shell] of aDroite) if (shell === id) aDroite.delete(projet);
   }
   configuration = recue;
+  // Un projet ajouté ou retiré a sa ligne parmi les projets servis, ou ne l'a plus.
+  if (servis.etat !== undefined) poserLesProjetsServisIci();
   afficher();
 });

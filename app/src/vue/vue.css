@@ -2380,6 +2380,45 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
+/* Les projets que sert la station de cet ordinateur (ticket 2359, projets-servis/) : la même ligne que les autres
+   réglages, une case par projet. La ligne d'en-tête dit, en clair, quand cet ordinateur n'en sert aucun. */
+#etat .projets-servis > .reglage {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#etat .projets-servis > .reglage.tete > .valeur {
+  grid-column: 2 / -1;
+}
+#etat .projets-servis > .reglage > .nom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  overflow-wrap: anywhere;
+}
+#etat .projets-servis .depot {
+  font-size: 12px;
+}
+#etat .projets-servis .aucun {
+  color: var(--jaune);
+}
+#etat .projets-servis .servi {
+  color: var(--vert);
+}
+#etat .projets-servis .pas-servi {
+  color: var(--discret);
+}
+#etat .projets-servis .champ input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+#etat .projets-servis > .reglage > p.dit.refus {
+  color: var(--jaune);
+}
 /* Le champ du sigle : trois signes, en mono comme la case qui les écrit (la vue lui pose `mono`). */
 #sigle input {
   width: 64px;

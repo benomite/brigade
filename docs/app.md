@@ -2133,7 +2133,7 @@ it is kept on hover:
 | Group | Its settings |
 |---|---|
 | **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
-| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the projects this computer's station serves, one checkbox per project (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
 | **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
@@ -2398,6 +2398,34 @@ station and are never sent to the repository** (what the Apps are for on hover).
 Only this computer's station is reached: a phone has no station, and the lines are not laid there. The modules are
 `app/src/vue/identites-github.js` and, in the main process, `appsDeLaStation` / `rangerUneApp` (`app/src/main.ts`).
 Captures: `docs/captures/2317/`.
+
+### The projects this computer serves, in Settings (#2359, epic #2356)
+
+**A computer's station cooks only the projects you choose for it**, straight from GitHub (`runtime/src/station-ordinateur/`,
+#2357). You choose them in Settings' **this machine** group, under a line `projects this Mac serves` (`this PC` under
+Windows):
+
+- **On a fresh install, none is chosen**, and the line says so in plain words, in yellow: `this Mac serves no project`.
+  Its station then takes no ticket. Once one project or more is chosen, it says `serves 1 project` (`serves 2 projects`…).
+  What choosing does — the station clones the project on this computer and takes its tickets, at its next turn, within
+  two minutes — is on hover.
+- **One line per project of the app**, in the order of the bar: its name and its repository (`chef/parade`), `served`
+  (green) or `not served`, and a checkbox. Ticking it adds the repository to the station's list; unticking it removes
+  it — the station's cooks in flight on it finish and deliver. The line says `saving…` until the station has written
+  the list, and every box waits meanwhile: one project at a time. **The value shown is always the list written**, re-read
+  each time a project's space opens: chosen, closed and reopened, a project is still ticked.
+- A project whose repository the app does not know (added by hand without `depot`) has its checkbox muted, the reason on
+  hover. A repository on the station's list that no project of the app carries keeps its line, ticked, so that you see
+  everything this computer cooks and can untick it.
+- **What does not write is said**: a repository the station refuses reads `nothing was written: …` under its line, the
+  rest of the station's sentence on hover, and the box stays unticked. A list the station cannot read says `projects
+  served here unavailable`, the reason on hover — never `serves no project`.
+
+The list lives in the station's own state (`<station dir>/projets-servis.json`), never in the projects file nor in the
+repository. Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules
+are `app/src/vue/projets-servis/projets-servis.js` and, in the main process, `projetsServis` / `servirUnProjet`
+(`app/src/main.ts`), which call `lireProjetsServis`, `ajouterProjetServi` and `retirerProjetServi` of the runtime.
+Captures: `docs/captures/2359/`.
 
 ### The grants, in Settings
 
