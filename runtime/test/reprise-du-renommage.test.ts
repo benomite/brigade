@@ -237,7 +237,7 @@ describe("la cuisine reprise après le renommage", () => {
           },
         }),
     });
-    const { gh, journal, heure, conclure, etat } = lieu;
+    const { gh, journal, heure, conclure, retenir, etat } = lieu;
     chef(lieu.repertoire, "grant.activated");
     const fiche = (zone: string) => `${MARQUEUR}\n- attend : rien\n- zone : ${zone}`;
     gh.ficher(17, "2026-10-08T09:00:00Z", fiche("runtime/src/garde-fous.ts, runtime/test/garde-fous.test.ts"));
@@ -286,6 +286,11 @@ describe("la cuisine reprise après le renommage", () => {
     await jusqua(() => [17, 19, 20].every((numero) => faits("pass.waiting", numero).some((e) => (e.payload as { reason?: string }).reason === "paused")));
     assert.equal(gh.merges.length, 0);
     assert.equal(appels.length, 0);
+    // Le cook que la cuisine relancera sur #19 commite, puis attend : relivrée
+    // aussitôt, sa branche ne se porterait pas davantage, et la cuisine la
+    // reprendrait encore — `fix`, calibrage monté, abandon — pendant que le
+    // test attend les merges de #17 et #20 (#2439).
+    retenir();
 
     // L'outil finit : le renommage est mergé, la pause levée sans geste du chef.
     writeFileSync(feu, "");
@@ -328,11 +333,14 @@ describe("la cuisine reprise après le renommage", () => {
     assert.match(String((faits("pass.returned", 19).at(-1)?.payload as { findings: string[] }).findings[0]), /ne se porte pas sur l'arbre renommé : conflit sur `runtime\/src\/freeze\/pause\.ts`/);
     assert.equal(faits("merge.done", 19).length, 0);
     assert.equal(attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 19), undefined);
+    // Le cook relancé sur #19 est là, retenu.
+    await jusqua(() => cooks(19) === 2);
 
     // Et la cuisine prend et merge à nouveau, sans geste du chef. La fiche
     // d'un ticket écrite sur les anciens chemins se lit sur les nouveaux.
     gh.ficher(18, "2026-10-08T09:00:00Z", fiche("runtime/src/pause/autre.ts, docs"));
     gh.poser(issue(18));
+    conclure();
     await jusqua(() => faits("merge.done", 18).length === 1);
     assert.equal(cooks(18), 1);
     assert.equal(faits("rename.carried", 18).length, 0);

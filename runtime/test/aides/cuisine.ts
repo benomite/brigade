@@ -756,11 +756,14 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   // Laisse conclure un cook « commite-puis-attend ».
   const conclure = () => writeFileSync(feu, "");
+  // Retient de nouveau les cooks lancés ensuite, après un `conclure` : ils
+  // commitent, puis attendent le suivant.
+  const retenir = () => rmSync(feu, { force: true });
   // Le fichier de secrets de la machine, que le test réécrit comme le ferait le chef.
   const secrets = { fichier: fichierSecrets, poser: poserSecrets };
   // Ce que chaque lancement cloisonné a demandé à `bwrap`.
   const cloisonnes = () => lancementsDuFauxBwrap(temoinDeCloison);
-  return { configClaude, cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
+  return { configClaude, cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, retenir, secrets };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.
