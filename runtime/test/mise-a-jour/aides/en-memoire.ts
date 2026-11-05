@@ -93,12 +93,13 @@ const PAS_MS = 50;
 // Un passage de la mise à jour sur la machine. L'heure et les pauses de la
 // mise à jour sont celles d'une horloge d'essai (`mock.timers`), avancée d'un
 // pas dès que le passage attend : une station qui ne se dit jamais en service
-// épuise sa garde de 2 s en un instant.
-export async function passage(m: MachineEnMemoire, publications: Publications, dites: string[] = []): Promise<Passage> {
+// épuise sa garde de 2 s en un instant. Sans espacement entre deux passages :
+// celui de #2374 a son test, qui le donne avec son heure.
+export async function passage(m: MachineEnMemoire, publications: Publications, dites: string[] = [], options: { espacementMs?: number; maintenant?: () => Date } = {}): Promise<Passage> {
   m.t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
   try {
     let fini = false;
-    const rendu = passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: GARDE_D_ESSAI_MS, pasMs: PAS_MS });
+    const rendu = passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: GARDE_D_ESSAI_MS, pasMs: PAS_MS, espacementMs: 0, ...options });
     rendu.then(
       () => (fini = true),
       () => (fini = true),

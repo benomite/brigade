@@ -134,7 +134,7 @@ export type Pont = {
   lireQuestion(projet: string, ticket: number): Promise<QuestionLue | undefined>;
   // Ce que la fiche dit d'un ticket vivant — ce que son cook fait, ou ce qui le bloque —, d'après
   // la carte cliquée (histoire.ts, `situation`). Rien pour un ticket que la cuisine ne tient pas.
-  situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[] }): Promise<import("../histoire.ts").Situation>;
+  situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[]; question?: string }): Promise<import("../histoire.ts").Situation>;
   // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (gestes-fiche.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
@@ -221,16 +221,14 @@ export type Pont = {
   // `miseAJour`, le pont ne rend aucune offre : `surOffreApk` n'y reçoit jamais rien.
   installerApk(apkUrl: string): Promise<unknown> | void;
   surOffreApk(recevoir: (offre: UpdateOffer) => void): void;
-  // Le bandeau d'une version plus haute (le ticket 1528, mise-a-jour/avis.ts) : la plus haute version publiée au-dessus de
-  // celle qui tourne, avec le lien direct du paquet de ce poste et la ligne du premier lancement — ou rien, si l'app est
-  // à jour, si le chef a écarté cette version, ou si ce poste ne se met pas à jour par là (lancée depuis le dépôt).
+  // La ligne d'une version plus haute (les tickets 1528 et 2431, mise-a-jour/avis.ts) : la plus haute version publiée
+  // au-dessus de celle qui tourne, la version qui tourne, le lien direct du paquet de ce poste et le premier lancement — ou
+  // rien, si l'app est à jour ou si ce poste ne se met pas à jour par là (lancée depuis le dépôt). Rien ne l'écarte.
   // `avisDeVersion` rend la dernière vérification, `surAvisDeVersion` reçoit chacune de celles qui suivent.
-  // `telechargerVersion` ouvre dans le navigateur le lien de l'avis rendu, et lui seul ; `refuserVersion` écarte une
-  // version, et le pont s'en souvient d'un lancement à l'autre — une version plus haute est montrée de nouveau.
+  // `telechargerVersion` ouvre dans le navigateur le lien de l'avis rendu, et lui seul.
   avisDeVersion(): Promise<AvisDeVersion | undefined>;
   surAvisDeVersion(recevoir: (avis: AvisDeVersion | undefined) => void): void;
   telechargerVersion(url: string): Promise<boolean>;
-  refuserVersion(version: string): Promise<boolean>;
   // Le statut de la station de cet ordinateur (le ticket 2191, épique 2182 ; le contrat du runtime, ticket 2189) : la version
   // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
   // alors sa version inconnue (station-version/station-version.js).
@@ -332,6 +330,15 @@ export type Pont = {
   etatDuCodeDeTelephone?(id: string, code: string): Promise<import("../telephones-de-station.ts").RenduDeLEtat>;
   telephonesDeLaStation?(id: string): Promise<import("../telephones-de-station.ts").RenduDeLaListe>;
   revoquerUnTelephone?(id: string, nom: string): Promise<import("../telephones-de-station.ts").RenduDeLaRevocation>;
+  // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —
+  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une, la clé passée au runtime qui la range
+  // (runtime/src/identites-stations.ts). Absents, ou rien de rendu : cet appareil n'a pas de station.
+  appsDeLaStation?(): Promise<import("./identites-github.js").LectureDesApps | undefined>;
+  rangerUneApp?(role: import("./identites-github.js").Role, id: string, cle: string): Promise<import("./identites-github.js").RenduDuRangement>;
+  // Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : la liste qu'elle
+  // tient, et un projet ajouté ou retiré — chaque écriture rend la liste écrite. Absents, ou rien de rendu : pas de station.
+  projetsServis?(): Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis | undefined>;
+  servirUnProjet?(depot: string, servi: boolean): Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis>;
   // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.ts) : les stations que le chef a
   // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
   // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.

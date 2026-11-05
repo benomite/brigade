@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
 import { LECTURES_INTERDITES } from "../../src/bac-a-sable/configuration.ts";
 import { borner, DERNIERS_COMMENTAIRES, environnementHorsGitHub, OCTETS_DU_CORPS, ticketJoint } from "../../src/bac-a-sable/hors-github.ts";
@@ -25,6 +25,10 @@ import { DEPOT, fauxGh, issueGitHub } from "../outils.ts";
 const HOME = "/Users/chef";
 // Le bac à sable de la cuisine locale du Mac du chef.
 const BAC: BacASableLocal = { version: "2.1.300", home: HOME, caches: [], hotes: () => [] };
+// Ses worktrees, comme le Mac les voit : le bac à sable n'y prend que des
+// chemins POSIX, et le cook simulé n'en ouvre aucun — sous Windows, ceux du
+// répertoire temporaire ne seraient pas des chemins absolus du Mac.
+const WORKTREES = `${HOME}/brigade-wt`;
 // L'environnement du runtime sur ce Mac : les jetons du chef, et le
 // répertoire de sa connexion `gh`.
 const JETON_DU_CHEF = "gho_jetonDuChefQuiNeDoitPasSortir0001";
@@ -88,8 +92,8 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
     depotGitHub: DEPOT,
     github: client as GitHub,
     depot: {
-      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
-      reprendre: async (run) => join(repertoire, run),
+      preparer: async (run) => ({ worktree: posix.join(WORKTREES, run), branche: `cook/${run}` }),
+      reprendre: async (run) => posix.join(WORKTREES, run),
       connait: () => false,
       retirer: () => {},
       ranger: async () => null,
@@ -97,6 +101,7 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
       commits: () => 1,
       changes: () => [],
       diff: () => "",
+      tete: () => "a".repeat(40),
     },
     prise: () => ({ prendre: async () => ({ prise: true }), lacher: async () => true }),
     claude: "claude",

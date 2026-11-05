@@ -88,7 +88,7 @@ its start. When the kitchen serves again — or nothing waits any more, or you s
 is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
 GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The
 GitHub limit and the write budget are read from the station's call counter (`BRIGADE_STATION_DIR`), not on the dev
-workstation. The station's service log says each transition (`kitchen held — …`, `kitchen no longer held (served)`).
+workstation. A red base is not announced at once (`runtime/src/retenue/relance-base.ts`, #2283): the failed jobs of the base are re-run once per hold, and `kitchen.held` (hence the entry and the Telegram alert) is written only if the base is still red after the re-run; the other causes re-run nothing. The station's service log says each transition (`kitchen held — …`, `kitchen no longer held (served)`).
 
 The block starts at the **only line that starts with `awaiting`** and ends at the **only
 line exactly `end awaiting`**, bounds included; between them everything is
@@ -452,6 +452,22 @@ twice. `gates.budget-ticket-opened` holds the ticket, the measures, the budget, 
 dimensions and `run` (`ticket` or `base`; absent on older facts, read as `ticket`). GitHub down: the pass says it once, and the next run over
 budget retries. `facts` gives the ticket in `coutDesGates.ticket` — `{ number, openedAt, exceeded, run }`,
 null when none, or when the last was seen closed.
+
+### The time of each served ticket
+
+On the GitHub-only state, the station times each ticket it merges, from its claim to its merge
+(`runtime/src/temps-ticket/mesure.ts`, #2342). At the merge, one record goes to
+`.claude/brigade/temps-tickets.json` in the project's clone (`BRIGADE_REPO_DIR`), a JSON array of
+`{ticket, claimedAt, mergedAt, cuisson, cuissonTests, attentePasse, revue, ci, merge}`: timestamps are ISO,
+durations whole seconds. A ticket recorded again replaces its earlier record.
+
+Each phase runs from the moment the station enters it to the next one, the last to the merge, so the five
+add up to the claim-to-merge time: `cuisson` from the claim (or a send-back) to the cook's delivery, of which
+`cuissonTests` is the gates the cook ran through the launcher (`gates-du-cook.ts`) — 0 when it left no
+receipt —; `attentePasse` until the review starts; `revue` until its verdict; `ci` until the merge is asked of
+GitHub, a branch update included; `merge` until GitHub merged it. The station keeps these marks in memory: a
+phase it did not see — another station reviewed it, or the runtime restarted — is 0, never estimated, and a
+claim it did not see starts the record at the first phase it saw.
 
 ## The daily report of the decisions brigade told about
 

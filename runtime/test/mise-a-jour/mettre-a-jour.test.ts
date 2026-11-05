@@ -11,6 +11,24 @@ import { decrireEtatMiseAJour } from "../../src/mise-a-jour/dire.ts";
 import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mise-a-jour/etat.ts";
 import { machineEnMemoire as machine, passage, publiees } from "./aides/en-memoire.ts";
 
+test("une version passée il y a moins d'une demi-heure retient la suivante, et l'état dit jusqu'à quand ; la demi-heure passée, elle s'installe (#2374)", async (t) => {
+  const m = machine(t, "1.0.0");
+  let heure = Date.now();
+  const maintenant = () => new Date(heure);
+  const premiere = (await passage(m, publiees(["1.0.0", "1.1.0"]), [], { espacementMs: 30 * 60_000, maintenant })).issue;
+  assert.equal(premiere?.quoi, "passee");
+  // L'instant où la station s'est dite en service sur 1.1.0 : la demi-heure part de lui.
+  const passee = Date.parse(premiere?.le ?? "");
+  heure = passee + 10 * 60_000;
+  const { etat, issue } = await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"]), [], { espacementMs: 30 * 60_000, maintenant });
+  assert.equal(issue, null);
+  assert.deepEqual(m.installations, ["1.1.0"]);
+  assert.ok((etat.retenue ?? "").startsWith(`1.2.0 attend ${new Date(passee + 30 * 60_000).toISOString()} : une version au plus toutes les 30 min`), etat.retenue ?? "");
+  heure = passee + 31 * 60_000;
+  assert.equal((await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"]), [], { espacementMs: 30 * 60_000, maintenant })).issue?.quoi, "passee");
+  assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
+});
+
 test("une version plus récente publiée est installée, et gardée quand la station s'y dit en service ; le paquet d'avant reste de côté", async (t) => {
   const m = machine(t, "1.0.0");
   const dites: string[] = [];

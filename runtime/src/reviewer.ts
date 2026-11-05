@@ -148,6 +148,8 @@ export function consigneDeRelecture(mission: Relecture): string {
           "- Ce que ce diff devrait supprimer et ne supprime pas : le code, le test ou le paragraphe de doc qu'il rend inutile, qu'il double, ou qu'il ajoute sans nécessité.",
           "",
           "Tu es dans un worktree où la livraison est fusionnée avec la base telle qu'elle est aujourd'hui — ce qui sera sur la base une fois mergé —, en lecture seule : lis les fichiers autour du diff quand il ne suffit pas à juger. Les gates du projet y sont déjà vertes : ne refais pas leur travail.",
+          "",
+          "Si le diff ajoute du code exporté sous `runtime/`, vérifie qu'il est atteint depuis le point d'entrée que la boîte lance (`runtime/src/station/main.ts`, par `ouvrirStation` / `ouvrirCuisine`), et pas seulement importé par des tests. Remonte les appelants de chaque nouvel export (`Grep` sur son nom) jusqu'à `ouvrirStation` ou `ouvrirCuisine`, et cherche un test qui passe par ce point d'entrée. Un export neuf que seuls ses tests appellent — aucun appelant n'y remonte — est un constat `bloquant` : le module est mergé sans servir, et la panne ne se voit qu'en production.",
         ]
       : [
           "- Ce que le ticket demande et que le livrable ne donne pas.",

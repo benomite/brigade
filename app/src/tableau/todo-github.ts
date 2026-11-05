@@ -6,8 +6,11 @@
 // Un projet GitHub seul est celui dont `.claude/brigade/projet.json` porte `githubOnlyState: true` (docs/reglages.md). Un projet
 // du vieux chemin garde son TODO, celui du tableau de la cuisine : ce module ne lui ajoute rien.
 //
-// Les cartes entrent dans `faits.attend` comme celles du tableau, avec leur `chef` — la sorte et le texte — que la vue
-// pose sur la carte (vue.js, `poserLaCarteDuChef`). Aucune réponse ne part d'une telle carte : le chef la lève sur GitHub.
+// Les cartes entrent dans `faits.attend` comme celles du tableau, avec leur `chef` — la sorte et le texte —, que l'app pose
+// dans la forme de toute carte de TODO (#2434, carte-todo.ts, `carteDuChefDeTodo`) : la question, un bouton par choix, un
+// champ libre. Le commentaire marqué porte ses choix, un par ligne après la question : `- [<geste>] <libellé>`, le geste
+// parmi ceux de la forme unique (runtime/src/carte-todo/forme.ts) — `formeDuChef`. Un commentaire sans choix se lit comme
+// avant ; sa réponse libre joue `resume`. La réponse part du `gh` du chef (tableau-gestes/reponse-github.ts).
 // Les lectures sont conditionnelles (`If-None-Match`, rail-github.ts) : un 304 ne coûte rien au quota.
 import type { AppelGitHub } from "./client.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./rail-github.ts";
@@ -25,6 +28,14 @@ export const TEXTE_SANS_MARQUE = "No readable card on this issue: its marked com
 // Ce que la vue pose sur une carte du chef : la sorte (`blocked`, `merge-by-hand`, `product-question`, `abandoned`, ou
 // ce que le runtime ajoute un jour) et le texte du commentaire.
 export type CarteDuChef = { sorte: string; texte: string };
+
+// Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`).
+export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close"] as const;
+export type GesteDuChef = (typeof GESTES_DU_CHEF)[number];
+export type ChoixDuChef = { texte: string; suite: GesteDuChef };
+// Ce que le texte d'une carte du chef pose : sa question — sa première ligne écrite, nulle sur un texte vide —, ses choix,
+// et le reste, qui la précise.
+export type FormeDuChef = { question: string | null; choix: ChoixDuChef[]; contexte: string };
 export type CarteDuChefLue = CarteDuChef & { ticket: number; titre: string; url: string };
 
 type Brut = Record<string, unknown>;
@@ -35,6 +46,28 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 export function carteDuCommentaire(corps: string): CarteDuChef | null {
   const lu = MARQUE.exec(corps);
   return lu === null ? null : { sorte: (lu[1] as string).toLowerCase(), texte: (lu[2] as string).trim() };
+}
+
+// Un choix : `- [<geste>] <libellé>`, sur sa ligne. Une case à cocher de GitHub (`- [ ]`, `- [x]`) n'en est pas un.
+const CHOIX = new RegExp(`^\\s*[-*]\\s*\\[(${GESTES_DU_CHEF.join("|")})\\]\\s+(\\S.*)$`, "i");
+// La question dite en clair : sans titre, citation ni gras autour.
+const enClair = (ligne: string) => ligne.replace(/^\s*(?:#+|>)\s*/, "").replace(/\*\*|__/g, "").trim();
+
+// La forme d'une carte du chef, lue de son texte : la question est sa première ligne écrite ; chaque ligne
+// `- [<geste>] <libellé>` qui la suit est un choix, dans l'ordre ; le reste, sans ses lignes vides en trop, la précise.
+export function formeDuChef(texte: string): FormeDuChef {
+  const lignes = texte.split(/\r?\n/);
+  const tete = lignes.findIndex((ligne) => ligne.trim() !== "");
+  if (tete === -1) return { question: null, choix: [], contexte: "" };
+  const choix: ChoixDuChef[] = [];
+  const reste: string[] = [];
+  for (const ligne of lignes.slice(tete + 1)) {
+    const lu = CHOIX.exec(ligne);
+    const libelle = lu?.[2]?.trim();
+    if (lu !== null && libelle !== undefined && !choix.some(({ texte: deja }) => deja === libelle)) choix.push({ texte: libelle, suite: (lu[1] as string).toLowerCase() as GesteDuChef });
+    else if (lu === null) reste.push(ligne);
+  }
+  return { question: enClair(lignes[tete] as string), choix, contexte: reste.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
 }
 
 // Le projet est-il GitHub seul ? Son fichier de réglages, lu sur la branche par défaut, le dit. Un fichier absent ou
@@ -75,6 +108,8 @@ export async function lesCartesDuChef(options: { depot: string; appeler: AppelGi
     const cartes: CarteDuChefLue[] = [];
     for (const issue of liste(issues.data)) {
       if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
+      // L'issue du tableau de la cuisine n'est jamais une carte (#2422).
+      if (liste(issue.labels).some(({ name }) => name === "kitchen-board")) continue;
       const commentaires = await commentairesDe(depot, issue.number, appeler);
       if (commentaires === null) return null;
       const carte = commentaires.map(carteDuCommentaire).reverse().find((lue) => lue !== null) ?? { sorte: SORTE_SANS_MARQUE, texte: TEXTE_SANS_MARQUE };

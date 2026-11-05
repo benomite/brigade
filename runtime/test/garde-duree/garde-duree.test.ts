@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXCEPTIONS } from "./exceptions.ts";
-import { chemin, concurrencesDuDepot, concurrencesDuFichier, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, racineDuRuntime, valeur } from "./regle.ts";
+import { chemin, concurrencesDuDepot, concurrencesDuFichier, gardesDuDepot, gardesDuFichier, jugerLesDurees, jugerLesGardes, fichiersDeTest, fichiersDuTitre, lignesChangees, racineDuRuntime, testTouche, valeur, verdict } from "./regle.ts";
 
 test("aucune garde de plus de 2 s hors de la liste d'exceptions, et aucune exception de garde périmée", () => {
   const lus = new Set(fichiersDeTest().map((f) => chemin(racineDuRuntime, f)));
@@ -94,4 +94,38 @@ test("le fichier d'un test se retrouve par son titre, même bâti", () => {
   assert.deepEqual(fichiersDuTitre("le titre exact de ce test, qui est long", sources), ["test/a.test.ts"]);
   assert.deepEqual(fichiersDuTitre("`status` : sa sortie ne porte aucun mot du glossaire", sources), ["test/b.test.ts"]);
   assert.deepEqual(fichiersDuTitre("un titre que personne n'a écrit nulle part ici", sources), []);
+});
+
+test("sur une PR, un test lent ajouté ou changé échoue, nommé et chiffré ; un test lent inchangé est seulement rapporté", () => {
+  const source = ['test("ancien lent", () => {', "  a();", "});", 'test("neuf lent", () => {', "  b();", "});"].join("\n");
+  const diff = ["+++ b/test/z.test.ts", "@@ -4,0 +4,3 @@"].join("\n");
+  const changees = lignesChangees(diff);
+  assert.deepEqual([...(changees.get("test/z.test.ts") ?? [])], [4, 5, 6]);
+  const touche = (m: { test: string }) => testTouche(m.test, source, changees.get("test/z.test.ts")!);
+  const mesures = [
+    { fichiers: ["test/z.test.ts"], test: "ancien lent", ms: 4000 },
+    { fichiers: ["test/z.test.ts"], test: "neuf lent", ms: 3010 },
+  ];
+  const { echecs, rapport } = verdict(mesures, [], joues("test/z.test.ts"), () => true, { genre: "pr", touche });
+  assert.equal(echecs.length, 1);
+  assert.match(echecs[0] ?? "", /neuf lent.*3010 ms.*2000 ms/);
+  assert.equal(rapport.length, 1);
+  assert.match(rapport[0] ?? "", /ancien lent.*4000 ms/);
+});
+
+test("sur une PR, changer le corps d'un test lent le rend jugé", () => {
+  const source = ['test("lent", () => {', "  a();", "});", 'test("autre", () => {});'].join("\n");
+  assert.equal(testTouche("lent", source, new Set([2])), true);
+  assert.equal(testTouche("autre", source, new Set([2])), false);
+});
+
+test("sur main, les tests de plus de 2 s sont rapportés avec leur durée et rien n'échoue ; sans mode, tout échoue", () => {
+  const mesures = [{ fichiers: ["test/z.test.ts"], test: "lent", ms: 2500 }];
+  const main = verdict(mesures, [], joues("test/z.test.ts"), () => true, { genre: "main" });
+  assert.deepEqual(main.echecs, []);
+  assert.equal(main.rapport.length, 1);
+  assert.match(main.rapport[0] ?? "", /lent.*2500 ms/);
+  const strict = verdict(mesures, [], joues("test/z.test.ts"), () => true, { genre: "strict" });
+  assert.equal(strict.echecs.length, 1);
+  assert.deepEqual(strict.rapport, []);
 });

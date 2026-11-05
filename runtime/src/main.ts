@@ -18,10 +18,14 @@ import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherFermeture } from "./closing/run.ts";
 import { boucleAncienneArretee, brancherElagageGithub, elagageDuClone } from "./github-seul/boucles-perimees/boucles-perimees.ts";
+import { brancherCloserGithub, lectureDuClone } from "./closer-github-passe/closer-github-passe.ts";
+import { coutsDesFlux, noterDeriveGithub } from "./closer-github-passe/derive-github.ts";
+import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
+import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherCadence } from "./produit/cadence/brancher.ts";
@@ -229,6 +233,8 @@ try {
             reviewer: reviewer.calibrage,
             flux: join(repertoireEtat, "github-seul"),
             observer: suiviDuTour.envelopper,
+            // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+            clone: station.clone,
             // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
             // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
@@ -278,14 +284,17 @@ try {
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées tant que l'ancien chemin est arrêté.
   const elaguee = brancherElagageGithub(dirige, { ...elagageDuClone({ clone: station.clone, github: githubs.station, env }), perimee });
-  const suivie = brancherSession(elaguee, session, undefined, jeton);
+  // Le closer sur le chemin GitHub seul, tant que l'ancien est arrêté (#2361) : sa passe est une issue que les stations cuisinent,
+  // et il relève la dérive que `status` lit, des flux des cooks GitHub seul.
+  const closee = brancherCloserGithub(elaguee, { perimee, reglages: decisions.fermeture, github: githubs.station, clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
+  const suivie = brancherSession(closee, session, undefined, jeton);
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
   const datee = brancherJeton(suivie, jeton);
   // La retenue ne lance rien : rien de servi depuis 30 min alors que des
   // tickets attendent, elle écrit sa cause et son geste — une fois — dans la
   // file du chef, et l'en ôte quand la cuisine sert de nouveau.
-  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null });
+  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH });
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
   const alertee = brancherAlerteUrgence(retenue);
@@ -312,8 +321,9 @@ try {
     githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
   });
   // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
-  const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
-  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }), ouvertes });
+  const githubDuTableau = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) });
+  const ouvertes = ouvertesDuDepot(githubDuTableau);
+  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }), ouvertes, commentaires: (numero) => githubDuTableau.commentaires(numero) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
@@ -329,6 +339,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   });
 }
 
+// Le mode se retient aussi pour `status`, qui le dit avec les appels de chaque identité (#2316).
+noterLeModeDesIdentites(process.env, projet, identites !== null);
 console.log(
   identites
     ? `brigade : GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`

@@ -16,6 +16,7 @@
 // l'ancien chemin), au tour (les checks rouges de la base) et au compteur des
 // appels de la station (la limite de GitHub, le budget des écritures) — celui
 // d'aucune station sur le poste de dev : ces deux-là n'y sont pas lus.
+import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
 import { attentesDuChef } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
@@ -30,6 +31,7 @@ import { echecsDesGates } from "../reparation.ts";
 import type { Runtime } from "../runtime.ts";
 import type { FaitRetenue } from "./evenements.ts";
 import { retenueEnCours } from "./lire.ts";
+import { relanceDeLaRetenue, type PorteDeLaRelance } from "./relance-base.ts";
 import { cleDeCause, detecterRetenue, diagnostiquer, direCause, SANS_SIGNAL, type Observation, type Retenue, type Signaux } from "./retenue.ts";
 import type { SuiviDuTour } from "./tour.ts";
 
@@ -126,6 +128,12 @@ export type OptionsRetenue = {
   // Le tour GitHub seul, quand le projet est servi ainsi : c'est lui qui est
   // observé, pas le rail du journal.
   tour?: SuiviDuTour | null;
+  // La porte entre le diagnostic et l'annonce : une base rouge relance ses jobs
+  // en échec avant d'alerter (relance-base.ts). Par défaut, celle du tour
+  // GitHub seul, s'il y en a un ; sans tour, aucune relance.
+  relance?: PorteDeLaRelance | null;
+  // La branche d'intégration, que lisent les checks Windows de la base (#2413) ; `main` par défaut.
+  branche?: string;
   maintenant?: () => Date;
   // Une ligne du journal de service.
   dire?: (ligne: string) => void;
@@ -152,14 +160,34 @@ export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<Option
 export function brancherRetenue<R extends Runtime>(runtime: R, options: OptionsRetenue = {}): R {
   const maintenant = options.maintenant ?? (() => new Date());
   const dire = options.dire ?? ((ligne: string) => console.error(`brigade : ${ligne}`));
+  const lancer = (): PorteDeLaRelance | null => {
+    const tour = options.tour;
+    if (options.relance !== undefined) return options.relance;
+    if (!tour) return null;
+    const client = () => {
+      const github = tour.client();
+      if (github === null) throw new Error("the GitHub turn is not open yet");
+      return github;
+    };
+    return relanceDeLaRetenue(
+      { checksDeLaBase: () => client().checksDeLaBase(), etatDuRun: (run) => client().etatDuRun(run), relancerLesEchecs: (run) => client().relancerLesEchecs(run) },
+      { avertir: dire, surFin: () => passer() },
+    );
+  };
+  const porte = lancer();
   const passer = () => {
     try {
       const instant = maintenant();
+      // Un check Windows rouge sur la base a sa carte dans TODO, une seule ; vert, elle en sort (#2413).
+      const checks = options.tour?.vue().checks ?? null;
+      if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, options.branche ?? "main", checks);
       const { observation, signaux } = lireLaCuisine(runtime.journal.base, instant, options);
       // Les signaux ne se lisent que pour une retenue : le compteur de la
       // station n'est pas ouvert à chaque fait écrit au journal.
       const candidate = detecterRetenue(observation, SANS_SIGNAL, instant);
-      const retenue = candidate === null ? null : { ...candidate, ...diagnostiquer(signaux()) };
+      const diagnostiquee = candidate === null ? null : { ...candidate, ...diagnostiquer(signaux()) };
+      // Une base rouge se relance d'abord : rien ne s'annonce avant le verdict.
+      const retenue = porte === null ? diagnostiquee : porte.filtrer(diagnostiquee);
       const transition = annoncerRetenue(runtime.journal, runtime.projet, retenue, observation);
       if (transition === null) return;
       dire(

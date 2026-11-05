@@ -39,6 +39,7 @@ import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import type { MemoireDesLectures } from "./tableau/rail-github.ts";
+import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { avecLeRailGithub } from "./vue/rail/github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
@@ -52,12 +53,13 @@ import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
+import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
 import { tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
-import { chercherUneMiseAJour, posteDe, refuser as refuserLaVersion, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
+import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
@@ -87,6 +89,7 @@ import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { type Propositions, type ReponseDuChef, tenirLesPropositions } from "./second/propositions.ts";
 import { tenirRetraits } from "./retrait.ts";
+import { DOSSIER as DOSSIER_DU_PLUGIN, lancerVraiment, sansPluginApp, tenirLePluginApp } from "./plugin-app.ts";
 import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
@@ -136,14 +139,18 @@ const dire = (canal: string, ...faits: unknown[]) => {
 };
 
 // L'app installée se tient à jour sur les versions publiées (mise-a-jour/) : elle regarde au
-// lancement puis toutes les six heures, télécharge la nouvelle, et l'installe au geste du chef ou
-// à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
+// lancement puis tous les quarts d'heure (#2431), télécharge la nouvelle, et l'installe au geste du
+// chef ou à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
 // Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`. Le même chemin sur
 // un Mac et sous Windows : seuls l'installeur publié qu'elle lit et ce qui le joue sont du poste.
 const dossierDeMiseAJour = join(dirname(cheminConfiguration()), "mise-a-jour");
 const installeur = installeurDuPoste({ plateforme, ressources: process.resourcesPath, executable: process.execPath, pid: process.pid, dossier: dossierDeMiseAJour });
+// Un quart d'heure, et non plus six heures (#2431) : une version publiée le matin se voit dans la matinée. Les deux
+// vérifications ensemble lisent l'API de GitHub au plus trois fois par quart d'heure, loin de ses 60 lectures par heure.
+const CADENCE_DES_VERSIONS_MS = 15 * 60 * 1000;
 const miseAJour = tenirMiseAJour({
   version: app.getVersion(),
+  cadenceMs: CADENCE_DES_VERSIONS_MS,
   inactive: emplacements.facon === "installee" ? undefined : "launched from the repository, it updates through its clone",
   flux: fluxDe(process.env.BRIGADE_APP_MISE_A_JOUR_SOURCE, formatDe(plateforme)),
   dossier: dossierDeMiseAJour,
@@ -156,16 +163,17 @@ const miseAJour = tenirMiseAJour({
 // station n'est pas lancée, sa fenêtre ne s'ouvre pas — l'app se ferme, l'installeur la rouvre sur
 // la nouvelle version.
 const installeeAuLancement = miseAJour.auLancement();
-// Le bandeau d'une version plus haute (#1528, mise-a-jour/avis.ts) : sur l'app installée d'un Mac ou d'un PC, la plus
-// haute version publiée au-dessus de celle qui tourne, avec le lien direct de son paquet — relue au lancement, puis
-// toutes les six heures. La version que le chef écarte est gardée à côté du fichier des projets, hors du dossier que la
-// mise à jour vide. Lancée depuis le dépôt, l'app ne regarde rien : son clone la met à jour.
+// La ligne d'une version plus haute (#1528, #2431, mise-a-jour/avis.ts) : sur l'app installée d'un Mac ou d'un PC, la
+// plus haute version publiée au-dessus de celle qui tourne, avec le lien direct de son paquet — relue au lancement, puis
+// tous les quarts d'heure. Rien ne l'écarte, et une lecture qui ne trouve rien (GitHub muet) ne la retire pas : la
+// version qui tourne ne change pas tant que l'app tourne, une version plus haute connue le reste. Lancée depuis le
+// dépôt, l'app ne regarde rien : son clone la met à jour.
 const posteDeLAvis = emplacements.facon === "installee" ? posteDe(plateforme) : undefined;
-const versionEcartee = join(dirname(cheminConfiguration()), "version-ecartee.json");
 let avisDeVersion: Promise<AvisDeVersion | undefined> = Promise.resolve(undefined);
 const verifierLaVersion = () => {
   if (posteDeLAvis === undefined) return;
-  avisDeVersion = chercherUneMiseAJour({ version: app.getVersion(), poste: posteDeLAvis, fichier: versionEcartee });
+  const precedent = avisDeVersion;
+  avisDeVersion = chercherUneMiseAJour({ version: app.getVersion(), poste: posteDeLAvis }).then(async (avis) => avis ?? (await precedent));
   void avisDeVersion.then((avis) => dire("avisDeVersion", avis));
 };
 let verificationsDeVersion: ReturnType<typeof setInterval> | undefined;
@@ -229,10 +237,19 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 const interrupteursDuRail = new Map<string, boolean>();
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
+// Ses stations, sur l'onglet Cooks, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
+// (#2358, vue/cooks/signes-de-vie.ts) : relu au pas où les stations l'écrivent, deux minutes, par la lecture des stations
+// du compte que la vue fait déjà.
+const signesDeVie = tenirLesSignesDeVie({
+  lire: async () => {
+    const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
+    return lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  },
+});
 const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
   if (!lu.lu) return lu;
-  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail);
+  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail, () => signesDeVie.signes());
   return relu.lu ? avecLesEnvois(await avecLeTodoGithub(relu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : relu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
@@ -435,10 +452,26 @@ const controlerTout = () => {
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
-// Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station.
+// Le plugin de l'app (plugin-app.ts, #2160) : `/brigade:dev` et `/brigade:ask` dans chaque projet qu'elle ouvre, en
+// scope local de son dossier, à la version qu'elle porte — posé dès le lancement, et pour chaque projet qui entre dans
+// le fichier ; retiré du dossier d'un projet retiré de l'app. Un essai lancé avec un `claude` de remplacement
+// (`BRIGADE_CLAUDE_BIN`) ne le pose nulle part : ce remplaçant est une session, pas le gestionnaire de plugins.
+const pluginApp = process.env.BRIGADE_CLAUDE_BIN
+  ? sansPluginApp((ligne) => console.error(ligne))
+  : tenirLePluginApp({
+      lancer: lancerVraiment(process.env),
+      claude: "claude",
+      marketplace: join(dirname(cheminConfiguration()), DOSSIER_DU_PLUGIN),
+      commandes: emplacements.commandes,
+      versionDeLApp: app.getVersion(),
+      dire: (ligne) => console.error(ligne),
+    });
+// Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
+// désinstalle le plugin de l'app de son dossier.
 const retraits = tenirRetraits({
   chemin: cheminConfiguration(),
   retirer: (nom) => suivi.retirer(nom),
+  desinstaller: (projet) => void pluginApp.retirer(projet),
 });
 // Ce que le second de chaque projet propose au chef (second/propositions.ts, #1520) : le canal du runtime
 // (runtime/src/second-propositions/canal.ts, #1519), chargé une fois de celui qui est à côté de l'app. Tant qu'il ne
@@ -474,6 +507,8 @@ const suivi = suivreConfiguration({
     direLAccueil(accueil.relire());
     // Le second de chaque projet qui s'ouvre est suivi dans son dossier tel qu'il est maintenant.
     propositionsDuSecond?.suivre(projets());
+    // Un projet qui vient d'y entrer reçoit le plugin de l'app.
+    void pluginApp.suivre(projets());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
@@ -497,6 +532,8 @@ const affichee = () => pourLaBarre(suivi.configuration(), lisible, cuisines.ici,
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 // Le même, tel que le fichier le déclare.
 const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) => candidat.nom === nom);
+// Les projets du fichier reçoivent le plugin de l'app, à la version qu'elle porte : une app mise à jour le met à jour.
+void pluginApp.suivre(projets());
 
 // Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
 // origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un
@@ -1075,6 +1112,56 @@ void duRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>(
   },
   (erreur: unknown) => console.error(`brigade: the second's proposals cannot be followed — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
 );
+// Les GitHub Apps de la station de cet ordinateur, depuis Settings (#2317, vue/identites-github.js) : ce qu'elle a
+// de chaque rôle, et en ranger une, par ce que le runtime en fait (identites-stations.ts : `appsRangees`, `rangerApp`)
+// dans le répertoire de la station. La clé ne fait que passer : rien ne la garde ici, et rien ne la rend à la vue — ni
+// la lecture, ni un refus. Un téléphone n'a pas de station : rien.
+const appsDuRuntime = () => duRuntime<typeof import("../../runtime/src/identites-stations.ts")>("identites-stations.ts");
+const codeDe = (erreur: unknown) => (erreur as NodeJS.ErrnoException | undefined)?.code ?? "error";
+ipcMain.handle("appsDeLaStation", async () => {
+  if (role.role !== "station") return undefined;
+  try {
+    const { appsRangees } = await appsDuRuntime();
+    return { apps: appsRangees(racineDeLaStation) };
+  } catch (erreur) {
+    return { refus: `this station's Apps directory cannot be read (${codeDe(erreur)})` };
+  }
+});
+ipcMain.handle("rangerUneApp", async (_, roleDeLApp: unknown, id: unknown, cle: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no station — it keeps no App" };
+  if (typeof roleDeLApp !== "string" || typeof id !== "string" || typeof cle !== "string") return { refus: "the app sent an App this station cannot read" };
+  const { AppRefusee, rangerApp } = await appsDuRuntime();
+  try {
+    const rangee = rangerApp({ station: racineDeLaStation, role: roleDeLApp, id, cle, env: process.env });
+    return { rangee: { role: rangee.role, id: rangee.id } };
+  } catch (erreur) {
+    // Le refus du runtime ne cite jamais la clé ; une écriture qui échoue, son seul code.
+    return { refus: erreur instanceof AppRefusee ? erreur.message : `the ${roleDeLApp} App could not be stored (${codeDe(erreur)})` };
+  }
+});
+// Les projets que la station de cet ordinateur sert elle-même sur GitHub seul, depuis Settings (#2359,
+// vue/projets-servis/) : la liste qu'elle tient dans son répertoire, lue et écrite par ce que le runtime en fait
+// (station-ordinateur/projets-servis.ts). Elle la relit à son tour suivant. Un téléphone n'a pas de station : rien.
+const projetsServisDuRuntime = () => duRuntime<typeof import("../../runtime/src/station-ordinateur/projets-servis.ts")>("station-ordinateur", "projets-servis.ts");
+ipcMain.handle("projetsServis", async () => {
+  if (role.role !== "station") return undefined;
+  try {
+    const { lireProjetsServis } = await projetsServisDuRuntime();
+    return { depots: lireProjetsServis(racineDeLaStation) };
+  } catch (erreur) {
+    return { refus: erreur instanceof Error ? erreur.message : `this station's served projects cannot be read (${codeDe(erreur)})` };
+  }
+});
+ipcMain.handle("servirUnProjet", async (_, depot: unknown, servi: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no station — it serves no project" };
+  if (typeof depot !== "string" || typeof servi !== "boolean") return { refus: "the app sent a project this station cannot read" };
+  try {
+    const { ajouterProjetServi, retirerProjetServi } = await projetsServisDuRuntime();
+    return { depots: servi ? ajouterProjetServi(racineDeLaStation, depot) : retirerProjetServi(racineDeLaStation, depot) };
+  } catch (erreur) {
+    return { refus: erreur instanceof Error ? erreur.message : `the served projects could not be written (${codeDe(erreur)})` };
+  }
+});
 // Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
 // celles-là s'ouvrent depuis l'écran.
 const pagesDuPremier = new Set<string>();
@@ -1093,6 +1180,7 @@ ipcMain.handle("stationsDuChef", async (): Promise<StationsDuChef> => {
 ipcMain.handle("stationsDuCompte", async (): Promise<StationsDuCompte> => {
   const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
   const lu = await lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  signesDeVie.poser(lu);
   if (lu.state === "unavailable") return retenirLaPage(lu);
   const github = githubDesStations({ gh: ghIci, delaiMs: 30_000 });
   return avecLeursAjouts(lu, (id) => github.lire(id));
@@ -1262,8 +1350,7 @@ ipcMain.handle("passer", () => {
 ipcMain.handle("miseAJour", () => miseAJour.vu());
 ipcMain.handle("verifierMiseAJour", () => miseAJour.verifier());
 ipcMain.handle("installerMiseAJour", () => miseAJour.installerMaintenant());
-// Le bandeau d'une version plus haute : le dernier avis, son lien ouvert dans le navigateur — celui de l'avis, et lui
-// seul —, et la version que le chef écarte, gardée d'un lancement à l'autre.
+// La ligne d'une version plus haute : le dernier avis, et son lien ouvert dans le navigateur — celui de l'avis, et lui seul.
 ipcMain.handle("avisDeVersion", () => avisDeVersion);
 ipcMain.handle("telechargerVersion", async (_, url: unknown) => {
   if (typeof url !== "string" || (await avisDeVersion)?.url !== url) return false;
@@ -1271,11 +1358,6 @@ ipcMain.handle("telechargerVersion", async (_, url: unknown) => {
     () => true,
     () => false,
   );
-});
-ipcMain.handle("refuserVersion", async (_, version: unknown) => {
-  if (typeof version !== "string" || !refuserLaVersion(versionEcartee, version)) return false;
-  if ((await avisDeVersion)?.version === version) avisDeVersion = Promise.resolve(undefined);
-  return true;
 });
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
@@ -1340,9 +1422,17 @@ ipcMain.handle("corriger", async (_, nom: unknown, proposition: unknown, reponse
 // tableau-gestes/rail.ts), en commentaire `choose` ou `answer`, par le jeton du `gh` de ce poste : ni
 // box jointe. La box la joue à son tick suivant — `rail choose` ou `rail answer` l'écrit sur
 // l'issue, sort la carte de TODO et fait avancer le ticket.
+// Sur un projet GitHub seul, la carte du chef lue de GitHub (#2434) : la réponse est postée sur son issue et son geste joué
+// par l'app même, par le même jeton (tableau-gestes/reponse-github.ts) — ni tableau, ni box.
 ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
+  const chef = faits.chef(vise.nom, ticket);
+  if (chef !== undefined) {
+    const rendu = await repondreSurGithub({ depot: await depotDuProjet(vise), ticket, chef, reponse, client: clientDesLabels });
+    if ("repondue" in rendu) tableaux.oublier();
+    return rendu;
+  }
   const lue = reponseLue(faits.carte(vise.nom, ticket), ticket, reponse);
   if ("refus" in lue) return lue;
   const rendu = await reponseDeCarteAuTableau(tableaux.dernier(vise.nom), lue, clientDesGestes);
@@ -1528,11 +1618,11 @@ void app.whenReady().then(() => {
   });
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
   void retards.relire();
-  // La première vérification des versions publiées, puis une toutes les six heures.
+  // La première vérification des versions publiées, puis une tous les quarts d'heure.
   miseAJour.demarrer();
-  // Et celle du bandeau d'une version plus haute, puis une toutes les six heures.
+  // Et celle de la ligne d'une version plus haute, à la même cadence.
   verifierLaVersion();
-  verificationsDeVersion = setInterval(verifierLaVersion, 6 * 60 * 60 * 1000);
+  verificationsDeVersion = setInterval(verifierLaVersion, CADENCE_DES_VERSIONS_MS);
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
   // Les préférences du chef : lues dans son gist — qui en prend celles du fichier, s'il n'en a encore

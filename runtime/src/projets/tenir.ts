@@ -68,6 +68,7 @@ import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
+import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
 import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
@@ -743,7 +744,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const blocages = lireBlocages(etatDe(dit.nom));
       // Le temps de son ajout à son premier ticket servi (#1401).
       const delai = lireDelai(etatDe(dit.nom));
-      return { ...dit, ...(delai === null ? {} : { delai }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
+      // Les temps des derniers tickets, lus dans le clone du projet (#2346) : seule la principale le tient.
+      const temps = projet.principale && !horsCuisine.has(projet.nom) ? lesTempsDesTickets(cloneDe(dit.nom)) : undefined;
+      return { ...dit, ...(delai === null ? {} : { delai }), ...(temps === undefined ? {} : { temps }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Les stations que l'app appaire au projet en plus de celle-ci : déclarées
     // au journal de chaque projet qu'elle sert en principale, et dites dans son

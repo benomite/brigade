@@ -14,10 +14,11 @@
 #
 # Deux chemins, selon les secrets de signature (#1441, #1526), sur un seul jeu de jobs. Le job
 # `detecter-secrets` regarde leur seule présence. Si aucun des six n'est posé, le chemin NON SIGNÉ
-# construit et publie le .dmg, l'installeur .exe et l'.apk, sans `latest-mac.yml` ni `latest.yml` :
-# une app installée ne se met donc pas à jour vers une app non signée. Sinon, le chemin SIGNÉ
-# (#1441) joue : le .dmg est signé Developer ID, notarisé et agrafé, l'installeur Windows est signé,
-# et la release porte aussi les deux fichiers de mise à jour. Les jobs `mac`, `windows` et `publier`
+# construit et publie le .dmg (signé ad hoc) et son `latest-mac.yml` — l'app installée d'un Mac se met
+# à jour vers lui (#2431) —, l'installeur .exe et l'.apk, sans `latest.yml` : une app installée sous
+# Windows ne se met pas à jour vers un installeur non signé. Sinon, le chemin SIGNÉ (#1441) joue : le
+# .dmg est signé Developer ID, notarisé et agrafé, l'installeur Windows est signé, et la release porte
+# les deux fichiers de mise à jour. Les jobs `mac`, `windows` et `publier`
 # sont les mêmes des deux côtés ; seules leurs étapes de signature, et l'`android` du seul chemin non
 # signé, dépendent de ce choix. Les certificats et identifiants sont des secrets du dépôt, listés
 # dans docs/app-signing-secrets.md.
@@ -279,6 +280,19 @@ jobs:
           set -euo pipefail
           echo "::warning::The builds are unsigned: no signing secret is set."
           npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+      # L'app installée d'un Mac se remplace par ce .dmg (#2431) : son installeur refuse une app dont la
+      # signature, même ad hoc, ne se vérifie pas (app/src/mise-a-jour/installation.ts). Ce qu'il
+      # vérifie se vérifie ici, avant de publier un `latest-mac.yml` qui mènerait à un échec chez le chef.
+      - name: Vérifier ce que l'app installée vérifiera, non signé
+        if: needs.detecter-secrets.outputs.non_signe == 'true'
+        run: |
+          set -euo pipefail
+          dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
+          point=$(mktemp -d "$RUNNER_TEMP/dmg.XXXXXX")
+          hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$point" "$dmg" > /dev/null
+          trap 'hdiutil detach "$point" -force > /dev/null || true' EXIT
+          codesign --verify --deep --strict --verbose=2 "$point/Brigade.app" \
+            || { echo "::error::The unsigned Brigade.app does not pass codesign --verify --deep --strict: installed apps would refuse to update to it."; exit 1; }
       - name: Construire, signer et notariser le .dmg
         if: needs.detecter-secrets.outputs.non_signe != 'true'
         env:
@@ -311,12 +325,8 @@ jobs:
           set -euo pipefail
           dmg="Brigade-${TAG#app-v}-arm64.dmg"
           test -f "$RUNNER_TEMP/dist/$dmg"
-          if [ "$NON_SIGNE" = true ]; then
-            # Une app non signée ne se met pas à jour : la construction écrit `latest-mac.yml`, il ne part pas.
-            rm -f "$RUNNER_TEMP/dist/latest-mac.yml"
-          else
-            grep -qx "path: $dmg" "$RUNNER_TEMP/dist/latest-mac.yml" || { echo "::error::latest-mac.yml does not name $dmg"; cat "$RUNNER_TEMP/dist/latest-mac.yml"; exit 1; }
-          fi
+          # Signé ou non, `latest-mac.yml` part : l'app installée d'un Mac se met à jour par lui (#2431).
+          grep -qx "path: $dmg" "$RUNNER_TEMP/dist/latest-mac.yml" || { echo "::error::latest-mac.yml does not name $dmg"; cat "$RUNNER_TEMP/dist/latest-mac.yml"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: app-mac
@@ -496,7 +506,7 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" renommer --version "$version" --dossier .
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" notes --produit app --version "$version" --commit "$GITHUB_SHA" "${signe[@]}" > "$RUNNER_TEMP/notes.md"
           if [ "$NON_SIGNE" = true ]; then
-            fichiers=("Brigade-$version-mac-arm64.dmg" "Brigade-$version-windows-x64-setup.exe" "Brigade-$version-android.apk")
+            fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" "Brigade-$version-android.apk")
             resume="The builds are unsigned. Published $TAG: ${fichiers[*]}."
           else
             fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" latest.yml)

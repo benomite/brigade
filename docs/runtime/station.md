@@ -177,7 +177,10 @@ A Windows station serves a project like any other. What Windows does differently
 
 - **Launching.** Windows launches only its executables. A shebang script (a `BRIGADE_CLAUDE_BIN` that
   names one, a test double) runs through its interpreter: `node` is the runtime's own, `bash` and `sh`
-  are Git for Windows' (never WSL's). A `.cmd` or `.bat` runs through `cmd.exe`, every argument
+  are Git for Windows' (never WSL's). Git's bash does not read its command line the way Windows
+  programs do: it expands an unquoted argument that holds `*`, `?`, `[`, `{` or `(` as a pattern, and
+  a `[]` with no `]` after it (`labels[]=fire`) kills it before the script runs, with no message. So
+  such an argument goes to it between single quotes, which it reads as they are. A `.cmd` or `.bat` runs through `cmd.exe`, every argument
   escaped; no window opens. A `.cmd` receives no argument that spans several lines, and the cook's
   prompt is one: `claude` must be named by its executable (`claude.exe`), not by an npm `.cmd`
   launcher, or the cook fails at launch and the `error` of its `cook.exited` says why
@@ -328,6 +331,17 @@ Unreadable card, the ticket is **refused** at the take: 86, reason `unreadable-c
 what must be corrected. Readable or removed, it returns by itself (`ticket.released`, reason
 `card-readable`); what remains to be corrected reads in `run rail`. The card is read again when the
 issue changes, and enters the log (`ticket.arrived`, `ticket.changed`, field `card`).
+
+### Relaunching a set-aside ticket
+
+A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks without a delivery, or
+after 2 sends back of the same delivery. To relaunch it, fix the cause, then **remove `hors-cuisine`**
+from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
+the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
+from the removal, which every station reads on GitHub (the issue's label-removal event), so the next
+set-aside needs the full number of failures again. The earlier `brigade:echec` and `brigade:renvoi`
+comments stay on the issue as history. A delivery that was already good needs no `in-pass` by hand:
+it is reviewed again once the ticket is served.
 
 ### The capabilities a ticket asks for
 

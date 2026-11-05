@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
-import { citerArgument, envSansInvite, execFile, execFileSync, interpreteDuShebang, lancementSousWindows, ligneDeCmd, shellsDeGit, type OutilsWindows } from "../src/sans-invite.ts";
+import { argumentPourLeBashDeGit, citerArgument, envSansInvite, execFile, execFileSync, interpreteDuShebang, lancementSousWindows, ligneDeCmd, shellsDeGit, type OutilsWindows } from "../src/sans-invite.ts";
 import { repertoireTemporaire } from "./outils.ts";
 import { windowsOnly } from "./support/plateforme.ts";
 
@@ -213,4 +213,125 @@ test("sous Windows, un script à shebang rangé sous un chemin à espaces part p
   const { script } = rendreSesArguments(t);
   const args = [...DIFFICILES, "ligne 1\nligne 2\n"];
   assert.deepEqual(JSON.parse(execFileSync(script, args, { encoding: "utf8" })), args);
+});
+
+// --- Le bash de Git et sa ligne de commande (#2388) ----------------------------
+//
+// La ligne que Node écrit pour un programme de Windows (libuv, `quote_cmd_arg`) :
+// un argument sans espace, tabulation ni guillemet y part tel quel.
+const ligneDeNode = (args: string[]) => args.map((argument) => (argument === "" || /[ \t"]/.test(argument) ? citerArgument(argument) : argument)).join(" ");
+
+// Ce que le bash et le sh de Git relisent de cette ligne, d'après la source de
+// msys2-runtime (`build_argv`, `quoted` et `globify` de dcrt0.cc, `glob` et
+// `glob0` de glob.cc) : des mots coupés aux espaces, tabulations et sauts de
+// ligne hors citation, `"…"` et `'…'` cités ; le premier est le programme. Un
+// autre mot qui porte un caractère de motif devient un motif, ses caractères
+// cités protégés. Ce qui y resterait à développer lève : « développé » (ce
+// qu'il rendrait dépend des fichiers du dossier), « lu comme un fichier » pour
+// `@fichier`, « meurt » pour un ensemble que glob0 lit au-delà de la fin du mot.
+function relireCommeMsys(ligne: string): string[] {
+  const separateur = (c: string | undefined) => c !== undefined && " \t\n\r".includes(c);
+  const mots: string[] = [];
+  let i = 0;
+  while (i < ligne.length) {
+    if (separateur(ligne[i])) {
+      i += 1;
+      continue;
+    }
+    const debut = i;
+    while (i < ligne.length && !separateur(ligne[i])) {
+      const citation = ligne[i];
+      if (citation !== '"' && citation !== "'") {
+        i += 1;
+        continue;
+      }
+      i += 1;
+      while (i < ligne.length && ligne[i] !== citation) i += citation === '"' && ligne[i] === "\\" ? 2 : 1;
+      i += 1;
+    }
+    mots.push(ligne.slice(debut, i));
+  }
+  const [programme = "", ...suite] = mots;
+  return [programme.replace(/["']/g, ""), ...suite.map(relireLeMot)];
+}
+
+function relireLeMot(mot: string): string {
+  if (mot.startsWith("@")) throw new Error(`lu comme un fichier : ${mot}`);
+  if (!mot.startsWith("~") && !/[?*["'(){}]/.test(mot)) return mot;
+  // Le motif de globify : un caractère cité y est précédé de `\`.
+  const lettres = [...mot];
+  const dos = /^["']?([a-zA-Z]:|\\\\[a-zA-Z][^\\]*\\)/.test(mot);
+  let motif = "";
+  for (let s = 0; s < lettres.length; s++) {
+    const lettre = lettres[s] ?? "";
+    if (lettre !== '"' && lettre !== "'") {
+      motif += dos && lettre === "\\" ? "\\\\" : lettre;
+      continue;
+    }
+    while (++s < lettres.length && lettres[s] !== lettre) {
+      if (lettres[s] === "\\" && (lettres[s + 1] === lettre || lettres[s + 1] === "\\")) s += 1;
+      motif += `\\${lettres[s] ?? ""}`;
+    }
+  }
+  // glob (GLOB_QUOTE) : `\x` est `x` protégé.
+  const signes: { c: string; protege: boolean }[] = [];
+  const brut = [...motif];
+  for (let s = 0; s < brut.length; s++) {
+    if (brut[s] === "\\") signes.push({ c: brut[++s] ?? "\\", protege: true });
+    else signes.push({ c: brut[s] ?? "", protege: false });
+  }
+  const libre = (rang: number, c: string) => signes[rang]?.c === c && signes[rang]?.protege === false;
+  if (libre(0, "~")) throw new Error(`développé : ${mot}`);
+  const accolade = signes.findIndex((_, rang) => libre(rang, "{"));
+  if (accolade !== -1 && signes.some((_, rang) => rang > accolade && libre(rang, "}"))) throw new Error(`développé : ${mot}`);
+  for (let rang = 0; rang < signes.length; rang++) {
+    if (libre(rang, "*") || libre(rang, "?")) throw new Error(`développé : ${mot}`);
+    if (!libre(rang, "[")) continue;
+    // glob0 cherche le `]` dès le premier membre : `[]` ouvre un ensemble, dont
+    // le `]` est membre, et la boucle de ses membres court jusqu'au `]` suivant.
+    const premier = libre(rang + 1, "!") ? rang + 2 : rang + 1;
+    if (!signes.some((_, k) => k >= premier && libre(k, "]"))) continue;
+    if (!signes.some((_, k) => k > premier && libre(k, "]"))) throw new Error(`meurt : ${mot}`);
+    throw new Error(`développé : ${mot}`);
+  }
+  return signes.map(({ c }) => c).join("");
+}
+
+// Ce que le bash de Git relisait mal : un motif, une apostrophe, `@`, un saut de ligne.
+const PIEGES = ["labels[]=in-pass", "labels[]=model:sonnet", "*?", "{a,b}", "~chef", "@fichier", "C:\\dossier\\[1]", "fin\\(", "a\\\\b[", "ligne\nsuivante", "]"];
+
+test("le bash de Git relisait en motif un argument que Node ne cite pas : `labels[]=…` le faisait mourir avant le script, sans un mot (#2388)", () => {
+  assert.throws(() => relireCommeMsys(ligneDeNode(["bash", "-f", "labels[]=in-pass"])), /meurt : labels\[\]=in-pass/);
+  assert.throws(() => relireCommeMsys(ligneDeNode(["bash", "*?"])), /développé/);
+  assert.throws(() => relireCommeMsys(ligneDeNode(["bash", "{a,b}"])), /développé/);
+  assert.throws(() => relireCommeMsys(ligneDeNode(["bash", "@fichier"])), /lu comme un fichier/);
+  assert.deepEqual(relireCommeMsys(ligneDeNode(["bash", "ligne\nsuivante"])), ["bash", "ligne", "suivante"]);
+  // Cité par Node, un argument se relisait déjà tel quel.
+  assert.deepEqual(relireCommeMsys(ligneDeNode(["bash", "a b[]", "Bash(gh pr merge:*)"])), ["bash", "a b[]", "Bash(gh pr merge:*)"]);
+});
+
+test("sous Windows, le bash et le sh de Git relisent chaque argument tel quel : ni motif développé, ni fichier lu, ni bash qui meurt (#2388)", () => {
+  for (const args of [PIEGES, DIFFICILES]) {
+    const script = sousWindows("C:\\t\\faux-claude.sh", args);
+    assert.deepEqual(relireCommeMsys(ligneDeNode([script.commande, ...script.args])), [SHELLS.bash, "C:/t/faux-claude.sh", ...args]);
+    const vieux = sousWindows("C:\\t\\vieux", args);
+    assert.deepEqual(relireCommeMsys(ligneDeNode([vieux.commande, ...vieux.args])), [SHELLS.sh, "-e", "C:/t/vieux", ...args]);
+    const bash = sousWindows("bash", ["-c", 'printf "%s\\n" "$@"', "bash", ...args]);
+    assert.deepEqual(relireCommeMsys(ligneDeNode([bash.commande, ...bash.args])), [SHELLS.bash, "-c", 'printf "%s\\n" "$@"', "bash", ...args]);
+  }
+  // Un argument que le bash relit déjà tel quel part tel quel.
+  assert.deepEqual(sousWindows("C:\\t\\faux-claude.sh", ["-f", "C:\\t\\x", "a b", ""]).args, ["C:/t/faux-claude.sh", "-f", "C:\\t\\x", "a b", ""]);
+  assert.equal(argumentPourLeBashDeGit("labels[]=fire"), "'labels[]=fire'");
+  assert.equal(argumentPourLeBashDeGit("C:\\d\\[1]"), "'C:\\\\d\\\\[1]'");
+  // Les autres programmes relisent la ligne comme la bibliothèque C : rien n'y change.
+  assert.deepEqual(sousWindows("C:\\Users\\Jean Dupont\\faux cook.ts", ["labels[]=fire"]).args, ["C:\\Users\\Jean Dupont\\faux cook.ts", "labels[]=fire"]);
+});
+
+test("sous Windows, un vrai script bash reçoit chaque argument tel quel — `labels[]=…`, un motif, `@`, `~` et un saut de ligne compris (#2388)", { skip: windowsOnly("launches a real bash script through Git's bash, as Windows does") }, (t) => {
+  const dossier = join(repertoireTemporaire(t), "dossier avec espaces");
+  mkdirSync(dossier);
+  const script = join(dossier, "rend ses arguments.sh");
+  writeFileSync(script, "#!/usr/bin/env bash\nprintf '%s\\0' \"$@\"\n");
+  const args = ["-f", ...PIEGES, "a b"];
+  assert.deepEqual(execFileSync(script, args, { encoding: "utf8" }).split("\0").slice(0, -1), args);
 });

@@ -429,6 +429,23 @@ test("branché au runtime : le tableau porte ce qui est avant le rail ; une rele
   assert.equal(relu.tableau.avantLeRail?.lu, "2026-10-08T10:02:00.000Z");
 });
 
+test("branché au runtime : une réparation de base rouge qui cuit se dit au tableau ; échouée, elle entre dans la file avec sa raison (#2341)", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const maintenant = () => new Date("2026-10-08T10:00:00.000Z");
+  const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant });
+  aArreter(t, () => runtime.arreter("SIGTERM"));
+  const { client, issues, ecritures } = fauxClient();
+  const reparation = { ...ouverte(50, ["prio:0", "hors-cuisine"]), body: "Fix.\n\n<!-- brigade:base-rouge sha=abcdef0123456789 -->", association: "OWNER" };
+  const ouvertes = async () => [reparation];
+  const commentaires = async () => [{ body: "<!-- brigade:echec n=2 -->\ngates stay red", author: "bot", association: "OWNER", createdAt: "2026-10-08T09:00:00Z" }];
+  brancherLeTableau(runtime, { client, depot: DEPOT, maintenant, dire: () => {}, avertir: () => {}, ouvertes, commentaires });
+  await jusqua(() => ecritures.length === 2);
+  const publie = lireLeTableau(issues.get(1)?.corps ?? "");
+  assert.ok(publie.lu);
+  assert.deepEqual(publie.tableau.file.map(({ nom, quoi }) => [nom, quoi]), [["#50", "base-rouge"]]);
+  assert.match(publie.tableau.file[0]!.ligne, /gates stay red/);
+});
+
 test("branché au runtime : des issues ouvertes jamais lues, le bloc n'en dit rien ; une relecture ratée se dit une fois et garde la dernière lue", async (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   let instant = Date.parse("2026-10-08T10:00:00.000Z");

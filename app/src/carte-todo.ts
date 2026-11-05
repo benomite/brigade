@@ -11,6 +11,7 @@
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
 import type { EnvoiDeCarte } from "./tableau/envois.ts";
+import { formeDuChef, SORTE_SANS_MARQUE, type CarteDuChef } from "./tableau/todo-github.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
 // au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
@@ -30,7 +31,8 @@ export type EnvoiVu = { commentaire: number; reponse: string; le: string } & ({ 
 // libre, ses captures, absentes sans écran, et la dernière réponse que le tableau montre — absente quand il
 // n'en montre pas, ou que ses commentaires ne sont pas lus.
 export type ChoixDeCarte = { texte: string; prix: string };
-export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu };
+// `contexte` : ce que le commentaire d'une carte du chef lue de GitHub dit après sa question (#2434) — absent ailleurs.
+export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -51,6 +53,37 @@ const PRIX_DE_SUITE: Readonly<Record<string, string>> = {
   close: `${ECRITE}, and its issue is closed: the ticket is not cooked`,
 };
 export const PRIX_DU_TEXTE = PRIX_DE_SUITE.resume as string;
+
+// Une carte du chef lue de GitHub (#2434, tableau/todo-github.ts) : l'app joue elle-même le geste sur GitHub, par le `gh`
+// du chef (tableau-gestes/reponse-github.ts) — aucune box, aucune station ne le joue.
+const POSTEE = "your answer is posted on the issue from your GitHub account";
+const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
+  resume: `${POSTEE}, and the app removes \`hors-cuisine\` and \`chef-todo\`: a station takes the ticket up again and its cook reads your answer`,
+  merge: `${POSTEE}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
+  drop: `${POSTEE}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
+  close: `${POSTEE}, and the app closes the issue: the ticket is not cooked`,
+};
+
+// La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
+// libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
+// commentaire vide : il n'y a rien à quoi répondre.
+export function carteDuChefDeTodo({ sorte, texte }: CarteDuChef): CarteDeTodo | undefined {
+  const { question, choix, contexte } = formeDuChef(texte);
+  if (sorte === SORTE_SANS_MARQUE || question === null) return undefined;
+  return {
+    sorte,
+    question,
+    ...(contexte === "" ? {} : { contexte }),
+    choix: choix.map(({ texte: libelle, suite }) => ({ texte: libelle, prix: PRIX_SUR_GITHUB[suite] as string })),
+    prixDuTexte: PRIX_SUR_GITHUB.resume as string,
+  };
+}
+
+// La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.
+export function carteLueDuChef({ sorte, texte }: CarteDuChef): CarteLue | undefined {
+  const { question, choix } = formeDuChef(texte);
+  return sorte === SORTE_SANS_MARQUE || question === null ? undefined : { type: sorte, question, choix, captures: null };
+}
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const objet = (valeur: unknown): Record<string, unknown> | undefined => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : undefined);

@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -31,6 +31,8 @@ class FauxGitHub {
   prs: PR[] = [];
   commentaires = new Map<number, Array<CommentaireDeVerdict & { station: string }>>();
   appels: Array<{ station: string; quoi: string }> = [];
+  // Les retraits de label, comme GitHub les date.
+  retraits = new Map<number, Array<{ label: string; createdAt: string }>>();
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
   base: "green" | "red" = "green";
@@ -57,7 +59,7 @@ class FauxGitHub {
     this.base = couleur;
   }
 
-  feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
+  feu(number: number, labels: string[] = CALIBRE, corps = "the ticket's body"): void {
     this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
   }
 
@@ -109,6 +111,11 @@ class FauxGitHub {
       fires: async () => {
         await noter("fires");
         return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state }));
+      },
+      dependancesOuvertes: async (issue) => {
+        await noter("dependancesOuvertes");
+        // Le vrai client du tour, sur le faux GitHub : la lecture du corps est celle du runtime.
+        return clientDuTour(fauxClient(this, station), "main").dependancesOuvertes(issue);
       },
       prDuTicket: async (issue) => {
         await noter("prDuTicket");
@@ -162,8 +169,10 @@ class FauxGitHub {
       delabelliser: async (issue, label) => {
         await noter("delabelliser");
         this.ticket(issue).labels.delete(label);
+        this.horloge += 1;
+        this.retraits.set(issue, [...(this.retraits.get(issue) ?? []), { label, createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString() }]);
       },
-      retraitsDeLabels: async () => [],
+      retraitsDeLabels: async (numero) => this.retraits.get(numero) ?? [],
       etatDuRun: async (run) => {
         await noter("etatDuRun");
         return { tentative: this.tentatives.get(run) ?? 1, termine: !this.relanceEnCours };
@@ -287,6 +296,33 @@ test("two stations claim the same ticket at once: the earliest claim cooks it, t
   assert.deepEqual(faux.cuissons, [{ station: premiere, issue: 1 }]);
   assert.deepEqual([...faux.ticket(1).labels].sort(), [...CALIBRE, LABEL_IN_PASS].sort());
   assert.equal(faux.prs.length, 1);
+});
+
+test("a ticket whose dependency is open is held back, and claimed once the dependency closes", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, ["model:sonnet", "effort:medium"]);
+  faux.feu(2, CALIBRE, "Context.\n\nDepends on #1");
+  faux.feu(3, CALIBRE, "Depends on #1, #4");
+  faux.feu(4, ["model:sonnet", "effort:medium"]);
+  const a = faux.station("A", { places: 5 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.deepEqual(faux.pris(), []);
+  faux.ticket(1).state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 2 }]);
+  faux.ticket(4).state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map((cuisson: { issue: number }) => cuisson.issue), [2, 3]);
+});
+
+test("the `Depends on` lines of an issue body name its dependencies", () => {
+  assert.deepEqual(dependancesDuCorps("no dependency, see #5"), []);
+  assert.deepEqual(dependancesDuCorps("Depends on #7"), [7]);
+  assert.deepEqual(dependancesDuCorps("intro\nDepends on #7, #8 and #9\nDepends on #7\nrelated to #10"), [7, 8, 9]);
 });
 
 for (const [arretee, restante] of [
@@ -557,6 +593,26 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
   assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
 });
 
+test("removing hors-cuisine restarts the count of cooks without a delivery (#2430)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }) });
+  for (let i = 0; i < 8 && !faux.ticket(35).labels.has("hors-cuisine"); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+  // Le second relance le ticket : il retire `hors-cuisine`, sur GitHub.
+  await faux.pour("chef").delabelliser(35, "hors-cuisine");
+  for (let i = 0; i < 1; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
+  assert.equal(echecs.length, 4);
+  assert.equal(faux.ticket(35).labels.has("hors-cuisine"), false);
+});
+
 test("a send-back whose label removal failed is completed at the next turn, without a second comment (#2319)", async () => {
   const faux = new FauxGitHub();
   faux.feu(39);
@@ -644,6 +700,8 @@ test("a base still red after its re-run holds as before, and neither another sta
   await a.tour();
   await a.calme();
   assert.equal(faux.relanceEnCours, true);
+  // Tant que la relance tourne, aucun ticket de réparation (#2339).
+  assert.equal(faux.creations.length, 0);
   faux.finirLaRelance("red");
   faux.feu(41);
   // B, et A redémarrée, ne savent pas que A l'a relancée : GitHub le leur dit.
@@ -659,6 +717,11 @@ test("a base still red after its re-run holds as before, and neither another sta
   assert.equal(faux.tentatives.get(502), 2);
   assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
   assert.equal(avertis.filter((texte) => texte.includes("re-run")).length, 1);
+  // Rouge après sa relance : un seul ticket de réparation, quelle que soit la
+  // station, et c'est lui que la base rouge laisse merger (#2339).
+  assert.deepEqual(faux.creations, [900]);
+  assert.ok(faux.ticket(900).corps.includes(`brigade:base-rouge sha=${faux.teteDeLaBase}`));
+  assert.equal(faux.mergee(900)?.mergeePar, "A");
 });
 
 test("a review runs off the turn: while one delivery's review runs, the turn reviews and merges another one (#2329)", async () => {
@@ -731,6 +794,33 @@ test("a review that requests changes presses the next turns: the ticket sent bac
   await a.tour();
   assert.ok(!faux.ticket(62).labels.has(LABEL_IN_PASS), "sent back to a cook");
   assert.deepEqual(pressions.slice(0, 2), [true, false], "the verdict presses");
+});
+
+test("the loop: with a first-turn delay, the first turn waits for it, then the interval runs as before (#2436)", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const tours: number[] = [];
+  const station: StationGitHub = {
+    tour: async () => void tours.push(Date.now() / 1000),
+    enCuisine: () => [],
+    calme: async () => {},
+    relu: async () => {},
+  };
+  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("old path"), station: () => station, intervalleMs: 120_000, premierTourMs: 40_000, avertir: () => {} });
+  t.after(() => (ouvert.chemin === "github" ? ouvert.arreter() : undefined));
+  const fini = async () => {
+    for (let i = 0; i < 10; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
+  };
+  await fini();
+  assert.deepEqual(tours, []);
+  t.mock.timers.tick(39_000);
+  await fini();
+  assert.deepEqual(tours, []);
+  t.mock.timers.tick(1_000);
+  await fini();
+  assert.deepEqual(tours, [40]);
+  t.mock.timers.tick(120_000);
+  await fini();
+  assert.deepEqual(tours, [40, 160]);
 });
 
 test("the loop: a press brings the next turn within 30 s, a delivery's at once, then TOURS_PRESSES turns 30 s apart and the interval again; a quiet kitchen keeps the interval (#2333)", async (t) => {
@@ -808,7 +898,7 @@ test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base
   assert.equal(faux.mergee(10)?.mergeePar, "A");
 });
 
-const reparations = (faux: FauxGitHub) => [...faux.tickets.values()].filter((t) => t.state === "open" && t.corps.includes("brigade:reparation-base"));
+const reparations = (faux: FauxGitHub) => [...faux.tickets.values()].filter((t) => t.state === "open" && t.corps.includes("brigade:base-rouge"));
 
 test("a red main: no PR is merged, and the next turns merge nothing either (#2214)", async () => {
   const faux = new FauxGitHub();
@@ -832,7 +922,7 @@ test("a red commit gets exactly one repair issue, however many turns and station
   const [reparation, ...autres] = reparations(faux);
   assert.deepEqual(autres, []);
   assert.ok(faux.creations.length <= 2);
-  assert.ok(reparation?.corps.includes(`brigade:reparation-base ${faux.teteDeLaBase}`));
+  assert.ok(reparation?.corps.includes(`brigade:base-rouge sha=${faux.teteDeLaBase}`));
   assert.ok(reparation?.labels.has("prio:0") && reparation.labels.has("fire"));
   // Les deux stations ont créé la leur au même instant : la plus récente s'est fermée.
   assert.equal(reparation?.number, 900);
@@ -960,7 +1050,10 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     retraitsDeLabels: async () => [],
     teteDeLaBase: async () => faux.teteDeLaBase,
     prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
-    issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
+    issue: async (numero) => {
+      const ticket = faux.tickets.get(numero);
+      return ticket === undefined ? null : { ...ticket, labels: [...ticket.labels], createdAt: "", updatedAt: "", url: "", body: ticket.corps };
+    },
   };
   return client as GitHub;
 }
@@ -1069,6 +1162,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
       commits: () => 1,
       changes: () => [],
       diff: () => "",
+      tete: () => "a".repeat(40),
     },
     prise: priseDeLaStation,
     claude: "claude",
@@ -1086,6 +1180,66 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
   await station.tour();
   await station.calme();
   assert.deepEqual(fait, ["reprendre 13-github cook/13-github", "retirer 13-github -"]);
+});
+
+// Une station dont le cook reprend la branche que le clone porte déjà, conclut
+// « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
+async function repriseQui(t: TestContext, avance: boolean) {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(14);
+  let tete = "a".repeat(40);
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, fluxQuiConclut("done"));
+    if (avance) tete = "b".repeat(40);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: (branche) => branche === "cook/14-github",
+      preparer: async () => assert.fail("the branch is resumed"),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => [],
+      diff: () => "",
+      tete: () => tete,
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) throw new Error("inaccessible");
+  await station.tour();
+  await station.calme();
+  return faux;
+}
+
+test("a cook that resumes a branch and adds nothing to it delivers nothing: it counts as a failed cook, and the ticket is not put back in pass (#2372)", async (t) => {
+  const faux = await repriseQui(t, false);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+  assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
+});
+
+test("a cook that resumes a branch and moves its head delivers as before (#2372)", async (t) => {
+  const faux = await repriseQui(t, true);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
 });
 
 test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {

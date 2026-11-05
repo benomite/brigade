@@ -99,6 +99,7 @@ export type OptionsDuCook = {
   // Surchargés par les tests.
   preparer?: (mission: Mission, worktree: string) => Promise<void>;
   lireLeTicket?: (mission: Mission) => Promise<string>;
+  empreinte?: (worktree: string) => Promise<string | null>;
   lancer?: (mission: Mission, worktree: string, flux: string) => Supervise;
   pousser?: (worktree: string, branche: string) => Promise<void>;
   ranger?: (worktree: string) => Promise<void>;
@@ -124,6 +125,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
       await git(clone, "worktree", "add", "--quiet", "-B", branch, worktree, `origin/${mission.resumes === null ? mission.base : branch}`);
     });
   const lireLeTicket = options.lireLeTicket ?? ((lue: Mission) => lireLeTicketParGitHub(lue, options.gh));
+  const empreinte = options.empreinte ?? empreinteDuWorktree;
   const lancer =
     options.lancer ??
     ((_mission: Mission, ici: string, flux: string) => superviser({ commande: options.claude, args: mission.args, cwd: ici, env: options.env, plafonds: mission.limits, graceMs: GRACE_MS, flux }));
@@ -185,7 +187,7 @@ export async function cuisinerUneMission(options: OptionsDuCook): Promise<IssueD
           };
         });
         if (fini) return;
-        const reponse = await demander({ verb: "renew", run, proof: await empreinteDuWorktree(worktree), ...cook.mesure() }).catch((erreur: unknown) => {
+        const reponse = await demander({ verb: "renew", run, proof: await empreinte(worktree), ...cook.mesure() }).catch((erreur: unknown) => {
           dire(`brigade : station — #${mission.ticket} : son bail n'a pas pu être renouvelé, elle réessaie : ${message(erreur)}`);
           return null;
         });

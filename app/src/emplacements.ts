@@ -6,8 +6,8 @@
 //   clone, et le `node` est celui qui a joué `npm start` — Electron n'en est pas un. L'app lit le
 //   retard de son clone, et se met à jour par lui (retard.ts, rattrapage.ts).
 // - **Installée** (le .dmg, app/packaging/) : tout est dans le paquet de l'app —
-//   `Contents/Resources/` porte l'app (`app/`), le runtime (`runtime/`) et le `node` qui le joue
-//   (`node/bin/node`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
+//   `Contents/Resources/` porte l'app (`app/`), le runtime (`runtime/`), le `node` qui le joue
+//   (`node/bin/node`) et les commandes du plugin de l'app (`plugin/commands/`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
 //   ne s'y lit du retard d'un clone, rien ne s'y met à jour par `git`.
 //
 // Ouverte depuis le Finder, une app ne reçoit pas le PATH du chef : seulement celui du système.
@@ -31,6 +31,9 @@ export type Emplacements = {
   node: string;
   // Le dossier de l'app dans son clone, dont le retard se lit ; aucun pour l'app installée.
   clone: string | undefined;
+  // Le dossier des commandes que l'app installe dans les projets qu'elle ouvre (plugin-app.ts) :
+  // `commands/` du dépôt, ou leur copie dans le paquet.
+  commandes: string;
 };
 
 export type OptionsEmplacements = {
@@ -47,6 +50,8 @@ export type OptionsEmplacements = {
 export const APP_DU_PAQUET = "app";
 export const RUNTIME_DU_PAQUET = "runtime";
 export const NODE_DU_PAQUET = join("node", "bin", "node");
+// Les commandes du plugin de l'app (plugin-app.ts), copiées de `commands/` du dépôt.
+export const COMMANDES_DU_PAQUET = join("plugin", "commands");
 
 // L'app est installée quand ses sources sont celles du paquet qui la joue : `Resources/app/src`.
 // Depuis le dépôt, Electron est celui de `app/node_modules`, et les sources sont à côté. Ce n'est
@@ -72,6 +77,7 @@ export function emplacementsDe(options: OptionsEmplacements): Emplacements {
       // Une doublure pour les essais, comme depuis le dépôt ; sinon celui du paquet, jamais celui de la machine.
       node: env.BRIGADE_NODE_BIN || join(options.ressources, NODE_DU_PAQUET),
       clone: undefined,
+      commandes: join(options.ressources, COMMANDES_DU_PAQUET),
     };
   }
   return {
@@ -80,6 +86,7 @@ export function emplacementsDe(options: OptionsEmplacements): Emplacements {
     // Le `node` de `npm start` : Electron n'en est pas un.
     node: env.BRIGADE_NODE_BIN || env.npm_node_execpath || "node",
     clone: join(options.src, ".."),
+    commandes: join(options.src, "..", "..", "commands"),
   };
 }
 

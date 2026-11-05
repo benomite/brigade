@@ -38,7 +38,8 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   const hhmm = `${String(reprise.getHours()).padStart(2, "0")}:${String(reprise.getMinutes()).padStart(2, "0")}`;
 
   const sortie = await lire(status);
-  const lignes = sortie.split("\n").filter((ligne) => /GitHub/.test(ligne));
+  // La ligne d'identité (#2316) nomme GitHub aussi : elle n'est pas celle de la limite.
+  const lignes = sortie.split("\n").filter((ligne) => /GitHub/.test(ligne) && !ligne.startsWith("identity"));
   assert.equal(lignes.length, 1);
   assert.match(lignes[0] ?? "", /^github {5}GitHub is rate-limiting calls, back around (\d\d):(\d\d)$/);
   // Une minute près : l'appel a eu lieu un peu après `avant`.

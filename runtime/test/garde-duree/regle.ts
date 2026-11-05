@@ -14,7 +14,8 @@ export type Garde = { file: string; garde: string; ms: number; line: number };
 export const chemin = (racine: string, fichier: string): string => relative(racine, fichier).split(sep).join("/");
 
 const RACINE_RUNTIME = fileURLToPath(new URL("../..", import.meta.url));
-const ICI = fileURLToPath(new URL(".", import.meta.url));
+// Le dossier de la règle, sans séparateur final : sous Windows il s'écrit en `\`.
+const ICI = import.meta.dirname;
 
 // `10_000`, `60 * 1000`, `2 * 60_000` : un produit de littéraux, rien d'autre.
 export function valeur(texte: string): number | null {
@@ -33,7 +34,7 @@ export function fichiersDeTest(racine = RACINE_RUNTIME): string[] {
     for (const e of readdirSync(dossier, { withFileTypes: true })) {
       const complet = join(dossier, e.name);
       if (e.isDirectory()) {
-        if (complet !== ICI.replace(/\/$/, "") && !complet.startsWith(ICI)) parcourir(complet);
+        if (complet !== ICI && !complet.startsWith(ICI + sep)) parcourir(complet);
       } else if (e.name.endsWith(".ts") && !LANCEURS.has(chemin(racine, complet))) trouves.push(complet);
     }
   };
@@ -181,10 +182,11 @@ const sert = (m: Mesure, e: { file: string }): boolean => m.fichiers.includes(e.
 // une exception ne doit pas clignoter selon qu'elle est quiète ou chargée. Un fichier qui n'a pas tourné (suite partielle) ne juge rien.
 // `ecrit(fichier, titre)` dit si ce titre est encore écrit dans ce fichier : un test sauté sur cette machine
 // (Windows, pas de pwsh) ne paraît pas, sans avoir disparu du code.
-export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichiersJoues: Set<string>, ecrit: (fichier: string, titre: string) => boolean = () => false): string[] {
+// `jugee(mesure)` dit si ce test est de ceux qu'on juge (sur une PR : ceux qu'elle ajoute ou change) ; par défaut, tous.
+export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichiersJoues: Set<string>, ecrit: (fichier: string, titre: string) => boolean = () => false, jugee: (m: Mesure) => boolean = () => true): string[] {
   const excuses = exceptions.filter((e): e is { file: string; test: string } => "test" in e);
   const fautes = mesures
-    .filter((m) => m.ms > LIMITE_MS && !excuses.some((e) => e.test === m.test && sert(m, e)))
+    .filter((m) => m.ms > LIMITE_MS && !excuses.some((e) => e.test === m.test && sert(m, e)) && jugee(m))
     .map((m) => `${m.fichiers.join(" ou ") || "fichier inconnu"} : le test « ${m.test} » dure ${Math.round(m.ms)} ms, la limite est ${LIMITE_MS} ms`);
   for (const e of excuses) {
     if (!fichiersJoues.has(e.file)) continue;
@@ -192,6 +194,59 @@ export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichi
     if (vus.length === 0 && !ecrit(e.file, e.test)) fautes.push(`exception périmée : ${nomme(e)} dans ${e.file} — ce test n'existe plus ; retire-le de exceptions.ts`);
   }
   return fautes;
+}
+
+// Les trois façons de juger (#2322). `strict` : toute faute échoue (les gates, la station). `pr` : seuls échouent
+// les tests que la PR ajoute ou change ; les autres tests lents sont rapportés. `main` : tout est rapporté, rien
+// n'échoue, car la durée d'un test suit la charge du runner et ne doit pas rougir `main` après le merge.
+export type Mode = { genre: "strict" } | { genre: "pr"; touche: (m: Mesure) => boolean } | { genre: "main" };
+
+export function verdict(mesures: Mesure[], exceptions: Exception[], fichiersJoues: Set<string>, ecrit: (fichier: string, titre: string) => boolean, mode: Mode): { echecs: string[]; rapport: string[] } {
+  const toutes = jugerLesDurees(mesures, exceptions, fichiersJoues, ecrit);
+  if (mode.genre === "main") return { echecs: [], rapport: toutes };
+  if (mode.genre === "strict") return { echecs: toutes, rapport: [] };
+  const echecs = jugerLesDurees(mesures, exceptions, fichiersJoues, ecrit, mode.touche);
+  return { echecs, rapport: toutes.filter((f) => !echecs.includes(f)) };
+}
+
+// Les lignes ajoutées ou changées par fichier, lues dans un `git diff -U0` (les `+++ b/<fichier>` et les `@@ -a,b +c,d @@`).
+export function lignesChangees(diff: string): Map<string, Set<number>> {
+  const parFichier = new Map<string, Set<number>>();
+  let courant: Set<number> | null = null;
+  for (const ligne of diff.split("\n")) {
+    const f = /^\+\+\+ b\/(.+)$/.exec(ligne);
+    if (f) {
+      courant = new Set();
+      parFichier.set(f[1]!, courant);
+      continue;
+    }
+    if (ligne.startsWith("+++ ")) courant = null; // /dev/null : fichier supprimé
+    const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(ligne);
+    if (h && courant) {
+      const debut = Number(h[1]);
+      const n = h[2] === undefined ? 1 : Number(h[2]);
+      for (let i = 0; i < n; i++) courant.add(debut + i);
+      if (n === 0) courant.add(debut); // suppression pure : la ligne qui la suit est touchée
+    }
+  }
+  return parFichier;
+}
+
+const DECLARATION = /^\s*(?:test|it|describe)(?:\.\w+)?\s*\(/;
+
+// Ce test est-il touché par ces lignes ? Il s'étend de la ligne où son titre est écrit à la veille de la
+// déclaration suivante. Titre introuvable dans ce fichier (titre bâti) : le fichier entier compte.
+export function testTouche(titre: string, source: string, lignes: Set<number>): boolean {
+  if (lignes.size === 0) return false;
+  const texte = source.split("\n");
+  const formes = ecritures(titre);
+  const ou = texte.map((l, i) => (formes.some((e) => l.includes(e)) ? i + 1 : 0)).filter((i) => i > 0);
+  if (ou.length === 0) return true;
+  return ou.some((debut) => {
+    let fin = texte.length;
+    for (let i = debut; i < texte.length; i++) if (DECLARATION.test(texte[i]!)) { fin = i; break; }
+    return [...lignes].some((l) => l >= debut && l <= fin);
+  });
 }
 
 export const racineDuRuntime = RACINE_RUNTIME;

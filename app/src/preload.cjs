@@ -64,13 +64,12 @@ const pont = {
   miseAJour: () => ipcRenderer.invoke("miseAJour"),
   verifierMiseAJour: () => ipcRenderer.invoke("verifierMiseAJour"),
   installerMiseAJour: () => ipcRenderer.invoke("installerMiseAJour"),
-  // Le bandeau d'une version plus haute (ticket 1528, mise-a-jour/avis.ts) : le dernier avis — la version, le lien direct
-  // du paquet de ce poste, la ligne du premier lancement — ou rien ; chaque vérification suivante par `surAvisDeVersion`.
-  // `telechargerVersion` ouvre ce lien dans le navigateur, `refuserVersion` écarte la version d'un lancement à l'autre.
+  // La ligne d'une version plus haute (tickets 1528 et 2431, mise-a-jour/avis.ts) : le dernier avis — la dernière version,
+  // celle qui tourne, le lien direct du paquet de ce poste, le premier lancement — ou rien ; chaque vérification suivante
+  // par `surAvisDeVersion`. `telechargerVersion` ouvre ce lien dans le navigateur. Rien ne l'écarte.
   avisDeVersion: () => ipcRenderer.invoke("avisDeVersion"),
   surAvisDeVersion: (recevoir) => void ipcRenderer.on("avisDeVersion", (_, avis) => recevoir(avis)),
   telechargerVersion: (url) => ipcRenderer.invoke("telechargerVersion", url),
-  refuserVersion: (version) => ipcRenderer.invoke("refuserVersion", version),
   appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
   ajouterAUneStation: (saisie) => ipcRenderer.invoke("ajouterAUneStation", saisie),
@@ -97,6 +96,12 @@ const pont = {
   etatDuCodeDeTelephone: (id, code) => ipcRenderer.invoke("etatDuCodeDeTelephone", id, code),
   telephonesDeLaStation: (id) => ipcRenderer.invoke("telephonesDeLaStation", id),
   revoquerUnTelephone: (id, nom) => ipcRenderer.invoke("revoquerUnTelephone", id, nom),
+  // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
+  appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),
+  rangerUneApp: (role, id, cle) => ipcRenderer.invoke("rangerUneApp", role, id, cle),
+  // Les projets que la station de cet ordinateur sert (ticket 2359) : sa liste, et un projet ajouté ou retiré.
+  projetsServis: () => ipcRenderer.invoke("projetsServis"),
+  servirUnProjet: (depot, servi) => ipcRenderer.invoke("servirUnProjet", depot, servi),
   // Le premier lancement, sur un ordinateur neuf (ticket 1434) : les stations du chef et leurs projets, lus par le
   // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.

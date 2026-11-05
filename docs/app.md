@@ -493,14 +493,50 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
   Waiting — in `prio:` order, then oldest first. A taken card says the station that holds it and since its claim; a
   card in pass, who cooked it and since its PR, and its PR number on its `right now` line; a queued card, since its
   issue was opened.
-- **Cooks**: one station per station holding a claim comment on an issue (`<!-- brigade:prise station=… -->`, the
-  earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
-  says it as the runtime's `prise.ts` does). Each station is `cooking`, its cooks the cards of the tickets it holds, taken
-  or in pass with their PR.
+- **Cooks** (#2358): every station of the project as GitHub tells it, the box and a computer by the same rule, in the
+  same line — none is the main station, none carries "move the kitchen" or a stop button (stopping one station is an
+  old-path gesture the GitHub-only loop does not read). A station of the project is one the app chose the repository
+  for (`selection` of its registration gist), or one holding a claim comment on an issue (`<!-- brigade:prise station=… -->`,
+  the earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
+  says it as the runtime's `prise.ts` does); its name is the one of its claims, `<machine>/claude`. Its sign of life is
+  the `lastSeen` it rewrites in its registration gist every two minutes, read by the main process at that pace
+  (`app/src/vue/cooks/signes-de-vie.ts`). Each line says:
+  - **cooking**, `reached` — it holds a ticket: its cooks are the cards of the tickets it holds, taken or in pass with
+    their PR, within one reading of the board;
+  - **idle**, `reached` — it holds none, and its sign of life is fresh (at most two missed refreshes, the registration
+    contract's rule);
+  - **not reached**, and `last sign of life <date> UTC` on screen — it holds none and has gone silent, or stopped.
+    "open Brigade on that computer" is in the hover.
+  A station holding a ticket with a silent sign of life is still `cooking` (GitHub says so until its lease is taken
+  back), `not reached`. When the signs of life cannot be read, one line says so — the reason in the hover — and only
+  the stations holding a ticket are listed, their pill `no word`. Nothing of the block comes from the old log's
+  `facts`, from the stations it declares, or from the main station the app knows. *Rule:
+  `runtime/src/stations-github/stations.ts`. View: `app/src/vue/cooks/stations-github.js`.*
 - What the old path said and the GitHub-only loop does not follow is no longer shown: the idle-kitchen fault, the
   stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
   switched off are shown as published. The backlog and Served still come from the board, and so does TODO, with
   the chef's `chef-todo` issues added (#2221, below).
+- **Todo holds only what asks something of the chef, and each card asks it (#2422, after #2075).** An issue labelled
+  `fire` that carries `hors-cuisine` or `blocked-on-human` is set aside, whatever its other labels say (a
+  `blocked-on-human` delivery keeps `in-pass`: it is not in Pass); with `waiting` as well, the chef moved it to a third
+  party: it is in Waiting. Then:
+  - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
+    "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the sheet offers `merge the PR`.
+  - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
+    is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
+    (**On the rail**, `86`), with its reason line as before ("off the kitchen after 2 sends back — the CI is red on
+    7579211", "… after 3 cooks without a delivery — the cook committed nothing", "set aside by hand — no reason on the
+    issue"). Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
+    (the convention of #2217) enters Todo, and its card is that question, answered on the card (#2434, in the section
+    "The chef's TODO read from GitHub" below).
+  - **An issue labelled `kitchen-board`** (the Kitchen board itself) is never a card, on the rail or in Todo.
+
+  The reason line is taken from the latest comment of a repository author (`OWNER`, `MEMBER`, `COLLABORATOR`) that names the
+  label — or, for `blocked-on-human`, the station's "this delivery changes what judges it" comment —, the manager's comments
+  aside. The station's comments are said short; any other comment, by its first line. A `#N` in the line opens that issue or
+  PR on GitHub on click. No claim is read for it, and the `rail` line of `status` counts it apart (`3 set aside`). *Code:
+  `app/src/tableau/mise-de-cote-github.ts`, `app/src/vue/rail/github.ts`. Tests: `app/test/tableau/mise-de-cote-github.test.ts`,
+  `app/test/vue/rail/github.test.ts` (the Todo of 2026-11-05: 13 issues, two cards), `app/test/rail.test.ts`.*
 - A failed GitHub reading of such a project is a failed board reading: the rail keeps its last columns and says it is
   stale (#2151) — never the frozen rail.
 
@@ -509,8 +545,11 @@ refreshed from GitHub (#2059), as before; once read on, the switch is remembered
 conditional: a 304 costs nothing.
 
 *Code: `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in `app/src/main.ts`. Tests:
-`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`. Captures: `docs/captures/2220/` —
-`rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`.*
+`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`, `app/test/vue/cooks/stations-github.test.ts`,
+`app/test/vue/cooks/signes-de-vie.test.ts`, `runtime/test/stations-github/stations.test.ts`. Captures:
+`docs/captures/2220/` — `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`;
+`docs/captures/2358/` — `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and
+`-apres.png` (one station cooking, one idle, one silent).*
 
 ### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
 
@@ -519,10 +558,55 @@ carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the 
 reads). The card takes its kind and its text from the issue's latest comment that starts with
 `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read as is): one line
 that says what the kind asks of the chef, then the comment's text. The issue number on the card opens the issue on GitHub. An
-issue with the label and no marked comment still gets a card, which says its comment is missing. A card has nothing to
-answer in the app: the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after
-a gesture). A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
+issue with the label and no marked comment still gets a card, which says its comment is missing, and has nothing to answer:
+the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after a gesture).
+
+**Answering a card on the card (#2434).** A card of the chef read from GitHub — a `chef-todo` issue, or a `hors-cuisine`
+`product-question` (below) — has the shape of every Todo card of the old path (#1281, `runtime/src/carte-todo/forme.ts`): its
+question, one button per choice, a free-text field with `send`, and `ask the second`. GitHub is the only state, and the app
+plays the gesture itself. The convention of the marked comment is extended, not changed:
+
+```
+<!-- brigade:todo kind=product-question -->
+Is every project on GitHub-only now, so the old path can go?
+- [resume] Yes, every project is on GitHub-only: remove the old path
+- [drop] No, keep it waiting
+
+The old path still runs the Kitchen board of two projects.
+```
+
+The question is the comment's first written line; each line `- [<gesture>] <label>` after it is a choice, in order, the
+gesture among `resume`, `merge`, `drop`, `close` (a GitHub check box `- [ ]` or `- [x]`, or another word, is not a choice);
+the rest is drawn under the question. A comment without choices reads as before, and keeps the free-text field. The question
+is said once: the card's line says what its kind asks (`A product question waits for your answer.`), the card asks the
+question, and the sheet says it under `what it asks you`, its head saying what the kind asks (never `what blocks it: not
+communicated`).
+
+A click on a choice, or a typed answer, posts a comment on the issue from the chef's `gh` — `<!-- brigade:reponse
+gesture=<g> -->`, then the chosen label, or the text — then plays the gesture on GitHub (a typed answer plays `resume`):
+
+| gesture | what the app does on GitHub, after the comment |
+|---|---|
+| `resume` | removes `hors-cuisine` and `chef-todo`: the ticket is back on the rail, and its cook reads the answer in the issue |
+| `merge` | merges the PR the card names — the `#N` of the choice's label, else the ticket's open PR (`cook/<n>-…` branch or `Closes #n`); with none, nothing is sent |
+| `drop` | removes `fire`: the ticket leaves the rail, its issue stays open |
+| `close` | closes the issue (`not planned`): the ticket is not cooked |
+
+Every gesture also removes `chef-todo`, and a `product-question` followed by a `brigade:reponse` comment no longer asks
+anything: the card leaves Todo at the next reading, read again right after the answer. Nothing is sent for a card that changed
+since it was read, an empty answer, or a merge with no open PR; a gesture GitHub refuses after the comment is posted is said on
+the card (`your answer is posted on #N, but its gesture (…) was not played — play it on GitHub`), the reason on hover.
+*Code: `formeDuChef` in `app/src/tableau/todo-github.ts`, `carteDuChefDeTodo` in `app/src/carte-todo.ts`,
+`app/src/tableau-gestes/reponse-github.ts`. Test: `app/test/tableau-gestes/reponse-github.test.ts` (#2061 and #1554 rewritten
+with choices, a click on each gesture against a fake GitHub).*
+
+A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
 as it is, never an empty one. A project of the old path (`githubOnlyState` off or absent) shows the Todo it always had.
+**What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
+is the question "Merge PR #N by hand? It changes what judges it." with the PR link and `merge the PR`; a technical
+`hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
+set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
+carrying `kitchen-board` is never a card (the rule, with its reading, is in the GitHub-only rail section above).
 Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
@@ -747,8 +831,10 @@ earlier "ready"** until it has answered.
 
 The `in your app` line of Settings' `you` group has its value `in the bar` and its one control `Remove from the
 app…`, which asks for a `yes, remove "<name>" from the app` before anything happens: a project is not removed by a
-stray click. It takes the project off the bar and out of the projects file, and nothing else: its open terminals are
-stopped, its folder is not touched, nothing is sent to its station — the project stays installed there, its log
+stray click. It takes the project off the bar and out of the projects file, and uninstalls the app's plugin from
+its folder's local Claude Code settings (see "`/brigade:dev` and `/brigade:ask` in every project the app opens"),
+and nothing else: its open terminals are stopped, nothing else in its folder is touched — a `brigade` plugin you
+installed yourself stays —, nothing is sent to its station — the project stays installed there, its log
 intact — and a notice says so over the screen: `"calculus" is removed from the app.` Uninstalling a project from a
 station is not done from the app: it is done on the station itself (`docs/installer.md`, "Uninstall"). To bring the
 project back, add it again with the **+**.
@@ -1068,11 +1154,21 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/main — read at 14:32:07, reread wh
 
 At launch, the Android app checks the manifest of the latest release (`app/src/mise-a-jour/android.ts`). When that check returns an offer, the app puts a prompt at the very top of the window, above every screen: **"Version 1.5.0 is available"**, the release notes under it, and two buttons — **Update** (recommended) and **Not now**. *Update* hands the offer's `apkUrl` to the install step (`brigade.installerApk`); *Not now* closes the prompt, and it does not come back until the next launch. With no update — or a failed check — nothing is shown and the launch is unchanged. The desktop app never gets an offer: it updates itself (`miseAJour`). The view is `app/src/vue/mise-a-jour/invite.js`; the capture is `scripts/capture-ecran` screen `offre-apk` (`docs/captures/1170/`). The Android bridge (`app/android/web/pont.js`) does not yet run the check nor the install: until it does, the prompt is built and tested but nothing sends it an offer.
 
-### The new-version download banner (#1528)
+### The new-version line (#1528, #2431)
 
-When a newer `app-v<version>` release is published, the app puts a banner at the very top of the window, above every screen: **"Version 1.5.0 available — Download"**. *Download* is a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser. On a Mac and on Windows, one line under it says how to open the unsigned build the first time: *right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows. Android has no such line. The **×** at the right dismisses the banner for this version only: the dismissed version is kept next to the projects file (`version-ecartee.json`), so the banner stays hidden after a restart, and a still newer version brings it back. With the app on the latest version — or a failed check — there is no banner.
+When a newer `app-v<version>` release is published and the app does not run it, the app puts **one line** at the very top of the window, above every screen, with the running version and the latest one, then where its own update stands:
 
-The check is `app/src/mise-a-jour/avis.ts` (#1527), run by the main process at launch and every six hours, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no banner. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, and the two gestures `telechargerVersion` (opens the link of the current notice, and only it) and `refuserVersion`. The view is `app/src/vue/mise-a-jour/bandeau.js`; its tests, against a mocked release list, are in `app/test/bandeau-mise-a-jour/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the banner is built and tested for Android but nothing sends it a notice there.
+```
+Brigade 1.0.102 is running — 1.0.105 is out · downloading it, 40 %
+Brigade 1.0.102 is running — 1.0.105 is out · it is downloaded: it installs at the next launch   [Install now]
+Brigade 1.0.102 is running — 1.0.105 is out · installing it — the app relaunches itself…
+Brigade 1.0.102 is running — 1.0.105 is out · it could not update itself — Download
+Brigade 1.0.102 is running — 1.0.105 is out — Download
+```
+
+The suite follows the state of the installed app's update (`miseAJour`, "Launching the app", *Updating it*): downloading, ready with **Install now** (recommended; its price on hover: it closes the app's terminals and relaunches it on the new version — a refusal takes the suite's place), installing. When the update is downloading a version lower than the latest (a newer one came out since), the line names it (`· 1.0.104 is downloaded: …`). When the app does not update itself to it — the update failed (the reason on hover of the line), the release carries no `latest-mac.yml` (one published before #2431), or Android —, the line ends with **Download**, a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser, and its hover says how to open the unsigned build the first time (*right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows; nothing on Android). **Nothing dismisses the line**: it stays until the app runs the latest version, and a check that finds nothing (GitHub silent) does not remove a newer version already known — the running version does not change while the app runs. With the app on the latest version there is no line.
+
+The check is `app/src/mise-a-jour/avis.ts` (#1527), run by the main process at launch and every fifteen minutes, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no line. Its notice carries the latest version, the running one (`courante`) and the package link. Together with the update's own check, it reads GitHub's API at most three times every fifteen minutes. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, the gesture `telechargerVersion` (opens the link of the current notice, and only it), and the update's `surMiseAJour` and `installerMiseAJour`. The view is `app/src/vue/mise-a-jour/bandeau.js`; its tests, against a mocked release list and the update's states, are in `app/test/bandeau-mise-a-jour/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`, taken before #2431). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the line is built and tested for Android but nothing sends it a notice there.
 
 ### Pairing the phone with your projects (#1161)
 
@@ -1725,6 +1821,24 @@ the final duration the station froze (« First ticket served 2 h 34 min after th
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
 Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
 
+**Slowest part** (#2351, epic #2337): one line under the first-ticket line, the sentence `nommerLePlusLent` returns
+for the project (« CI: 7 min median », « a cook spends 70 % of its time in tests »), with its figures on hover. The
+view reads it from `lenteur` of the project's view; **the field is not yet carried by `ProjetVu`**
+(`app/src/projets/projets.ts`) — until the station publishes it and the app relays it, no line shows. No sentence, no
+line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
+
+**Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project: the median total of the last 10
+measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
+waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
+`data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
+`vide` ("No ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone,
+so their sum can differ from the median total. The principal station reads the project's clone
+(`.claude/brigade/temps-tickets.json`, integer seconds, and `tempsMaxTicketMin` of `projet.json`; `lesTempsDesTickets` in
+`runtime/src/temps-ticket/ligne-status.ts`) and publishes `temps` (`{ enregistrements, tempsMaxTicketMin }`) in its
+project tracking, next to `delai`; the app relays it on the project's view. A station that does not publish it yet
+(an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
+Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of
@@ -1983,6 +2097,38 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
 - A project's second starts only at the first click on that project.
 - A project whose folder is not there has no second: its column says why, in its place.
 
+### `/brigade:dev` and `/brigade:ask` in every project the app opens (#2160)
+
+Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
+second, a shell of the app, or a terminal of your own — `/brigade:dev <number>` and `/brigade:ask <number>`
+answer, with nothing to install by hand. These two commands, and only these: no V1 role (`/brigade:po`,
+`/brigade:manager`, `/brigade:designer`, `/brigade:sync`, `/brigade:init`) and no agent — the app and the
+stations replace them.
+
+- **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
+  `.claude/settings.local.json` of the project's folder. If git does not already ignore that file, the app adds
+  `/.claude/settings.local.json` to the clone's `.git/info/exclude` — never to a `.gitignore`: `git status`
+  shows nothing new, and nothing gets committed.
+- **Its marketplace is the app's own**, `brigade-app`, written next to the projects file
+  (`~/.config/brigade/plugin-app/`) from the commands the app ships — `commands/dev.md` and `commands/ask.md`,
+  copied into the installed app under `plugin/commands/`. It is declared once in your Claude Code user settings.
+  The V1 marketplace and plugin (`brigade@brigade`) are not touched.
+- **The version is the app's.** The installed app installs its own version; launched from the repository
+  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the two commands. At launch, each
+  project at another version is updated: after an app update, the installed version is the new app's. A
+  project added while the app runs gets it at once.
+- **Removing a project from the app uninstalls `brigade-app`** from its folder's local scope, and nothing
+  else: a `brigade` V1 plugin you installed yourself stays, and the app's marketplace stays declared for the
+  other projects (removing it would uninstall the plugin from all of them).
+- A failure (`claude` missing, not logged in) installs nothing and is said in the terminal that launched the
+  app (`brigade: the app's plugin was not installed in “calculus” — …`); the next launch tries again.
+- A session already open keeps the commands it started with: Claude Code loads plugins at startup.
+- **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
+  stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
+
+*Code: `app/src/plugin-app.ts`; test: `app/test/plugin-app.test.ts`, against the real `git` and a stand-in
+`claude` that keeps its registry like the real one (claude 2.1.300).*
+
 ### A project's colors
 
 **Each project has two colors, so that you recognize it without reading its name**: its **tab
@@ -2051,7 +2197,7 @@ it is kept on hover:
 | Group | Its settings |
 |---|---|
 | **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
-| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the projects this computer's station serves, one checkbox per project (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
 | **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
@@ -2289,6 +2435,62 @@ running, or when an action is on its way; threshold not crossed (or not declared
 **Where it comes from.** The app runs `closing --json` (#988) and reads the object it returns on one line — nothing is
 recounted, nothing is launched: the command opens the log read-only. The view reads it itself in the
 Cooks tab's output (`app/src/vue/closer/section.js`); the raw object is not shown.
+### This station's GitHub Apps, in Settings (#2317, epic #2313)
+
+**Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on
+your GitHub account, then hand each station their IDs and private keys **through the app** — on the computer that runs
+the station. In Settings' **this machine** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
+station and are never sent to the repository** (what the Apps are for on hover). Then **one line per role**, `cook App`,
+`pass App`, `manager App`:
+
+- **its state**: `configured` (green) with its App ID (`App 1203456`), when the station has the App and its key;
+  `not configured` otherwise (`App 1203456 · no key stored` when only the ID is there). What the role's App does is on
+  hover. A station whose Apps cannot be read says `this station's Apps unavailable`, the reason on hover — never
+  `not configured`.
+- **its form**: an `App ID` field (prefilled with the stored ID, which is not secret), a key field — paste the key, or
+  `choose the .pem file`: the file's name is shown, never its content — and `save`, the recommended gesture while the
+  role is not configured.
+- **`save`** stores the App through the runtime (`runtime/src/identites-stations.ts`, `rangerApp`), in the station's Apps
+  directory, replacing the one before. Stored, the line says `configured` and `stored: its key is not shown again`, and
+  **the key field is empty**: the key leaves the screen, and nothing ever shows it again — the station only says whether
+  it has it. Projects the station opens from then on act under it.
+- **What does not store writes nothing**: an empty App ID (`nothing was written: enter the App's ID`), one that is not
+  an App ID, or a key that is not a PEM private key (`nothing was written: this is not a private key — …`) is said under
+  its field, and nothing leaves the screen. What the station refuses — one App for two roles, a key it cannot read, an
+  Apps directory open to others — is said in one line under the role, the rest of the runtime's sentence on hover.
+
+Only this computer's station is reached: a phone has no station, and the lines are not laid there. The modules are
+`app/src/vue/identites-github.js` and, in the main process, `appsDeLaStation` / `rangerUneApp` (`app/src/main.ts`).
+Captures: `docs/captures/2317/`.
+
+### The projects this computer serves, in Settings (#2359, epic #2356)
+
+**A computer's station cooks only the projects you choose for it**, straight from GitHub (`runtime/src/station-ordinateur/`,
+#2357). You choose them in Settings' **this machine** group, under a line `projects this Mac serves` (`this PC` under
+Windows):
+
+- **On a fresh install, none is chosen**, and the line says so in plain words, in yellow: `this Mac serves no project`.
+  Its station then takes no ticket. Once one project or more is chosen, it says `serves 1 project` (`serves 2 projects`…).
+  What choosing does — the station clones the project on this computer and takes its tickets, at its next turn, within
+  two minutes — is on hover.
+- **One line per project of the app**, in the order of the bar: its name and its repository (`chef/parade`), `served`
+  (green) or `not served`, and a checkbox. Ticking it adds the repository to the station's list; unticking it removes
+  it — the station's cooks in flight on it finish and deliver. The line says `saving…` until the station has written
+  the list, and every box waits meanwhile: one project at a time. **The value shown is always the list written**, re-read
+  each time a project's space opens: chosen, closed and reopened, a project is still ticked.
+- A project whose repository the app does not know (added by hand without `depot`) has its checkbox muted, the reason on
+  hover. A repository on the station's list that no project of the app carries keeps its line, ticked, so that you see
+  everything this computer cooks and can untick it.
+- **What does not write is said**: a repository the station refuses reads `nothing was written: …` under its line, the
+  rest of the station's sentence on hover, and the box stays unticked. A list the station cannot read says `projects
+  served here unavailable`, the reason on hover — never `serves no project`.
+
+The list lives in the station's own state (`<station dir>/projets-servis.json`), never in the projects file nor in the
+repository. Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules
+are `app/src/vue/projets-servis/projets-servis.js` and, in the main process, `projetsServis` / `servirUnProjet`
+(`app/src/main.ts`), which call `lireProjetsServis`, `ajouterProjetServi` and `retirerProjetServi` of the runtime.
+Captures: `docs/captures/2359/`.
+
 ### The grants, in Settings
 
 *Ticket: #1700.* **Is a grant active, and until when?** It is the heaviest authorization in the system — under a
@@ -3376,20 +3578,27 @@ machine. It reads `~/.config/brigade/` as it is — your projects and settings a
 app —, takes the `PATH` of your login shell (to find `claude` and `gh`), and does not update through
 `git`: it keeps itself up to date from the published versions (below). Every merge on `main` that
 changes the app publishes an `app-v<version>` release with the Mac and Windows installers, built by
-the `publier-app` workflow; nobody pushes a tag. Until signing lands (#1441), the published `.dmg` is
-only ad hoc signed, like one you build yourself: copied from another Mac, macOS asks for "Open
-anyway". What it carries, how it is built and tested: [`app/packaging/README.md`](../app/packaging/README.md).
+the `publier-app` workflow; nobody pushes a tag. The builds are not signed (decision of 2026-11-03):
+the published `.dmg` is only ad hoc signed, like one you build yourself — the first time, opened from a
+download, macOS asks for "Open anyway"; after that, the app updates itself (below) and never asks
+again. What it carries, how it is built and tested: [`app/packaging/README.md`](../app/packaging/README.md).
 
-**Updating it** (#1013). The installed app checks at launch, then every six hours, whether a version
-higher than its own is published — an `app-v<version>` release that carries its `latest-mac.yml`. If
-there is one, it announces it with its number and downloads it right away, checked against the
+**Updating it** (#1013, #2431). **How the app updates**: you never download a `.dmg` by hand after the
+first one. The installed app checks at launch, then **every fifteen minutes**, whether a version
+higher than its own is published — an `app-v<version>` release that carries its `latest-mac.yml`. Every
+release carries it, **signed or not**: until #2431 the unsigned path published the `.dmg` without it,
+so an installed app saw no newer version, said nothing and stayed where it was (1.0.102 while 1.0.105
+was out). If there is one, it announces it with its number and downloads it right away, checked against the
 published size and sha512, under `~/.config/brigade/mise-a-jour/`. Once ready, it installs on the
 "install now" action — the app closes, the new one takes its place and reopens —, or, with no
-action, at the next opening, before anything starts in it. The installer checks the signature of the
-new version (the same developer as the one running); if that fails, the app in place is not touched,
-it reopens and says why. A feed that does not answer never stops the app from opening: the error is
-reported, the next check tries again. Launched from the repo, it checks nothing — its clone updates
-it. The state and the actions go through the view's bridge (`miseAJour`, `verifierMiseAJour`,
+action, at the next opening, before anything starts in it. The installer checks the new version's
+signature — its integrity (`codesign --verify --deep --strict`), which an ad hoc signed build passes,
+and, when the running app is signed by an identified developer, that the new one is signed by the
+same; if that fails, the app in place is not touched, it reopens and says why. The `publier-app`
+workflow runs the same check on the unsigned `.dmg` before it publishes it, so a build that installed
+apps would refuse never goes out. A feed that does not answer never stops the app from
+opening: the error is reported, the next check tries again. Launched from the repo, it checks
+nothing — its clone updates it. The state and the actions go through the view's bridge (`miseAJour`, `verifierMiseAJour`,
 `installerMiseAJour`, `surMiseAJour`); the code is in `app/src/mise-a-jour/`. To try it without
 GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that answers like GitHub.
 
@@ -3398,7 +3607,8 @@ GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that a
 `app-v<version>` releases, the same checks, the same states, the same actions and the same words. Only
 two things differ. It reads the release's `latest.yml` and downloads the setup `.exe` it names. A
 release that carries only the Mac's files is not a new version for Windows, and the reverse holds
-too. And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
+too — and while the builds are unsigned, releases carry no `latest.yml`: an installed app on Windows
+does not update itself to an unsigned installer, and the new-version line gives it the **Download** link. And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
 (`app/src/mise-a-jour/windows.ts`). Once the app has quit, the script moves the installed folder aside
 (Windows refuses while one of its files is still open, and then nothing has moved). It runs the setup
 silently (`/S`) into that same folder (`/D=`) and checks that `resources\app\package.json` now holds
@@ -3407,7 +3617,9 @@ puts the old folder back as it was, writes the reason (which the reopened app sh
 The app refuses to update when it does not run from the folder the installer laid out
 (`Uninstall Brigade.exe` next to `Brigade.exe`), or when that folder cannot be written to, and says so.
 
-**What the chef sees of it** (#1014). On "All projects", an **App** section gives the running
+**What the chef sees of it** (#1014, #2431). At the very top of the window, as long as a newer version is
+published and the app does not run it, **one line** says both versions and where the update stands (see
+"The new-version line"). On "All projects", an **App** section gives the running
 version (`Brigade 1.4.0`) — in every state, including up to date, in error or launched from the
 repo; the reason for an error is in the hover of the version. When a higher version is published, a
 line announces it (`version 1.5.0 is available`, with the progress during the download) and carries
@@ -3489,6 +3701,9 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
   moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
+  `plugin-app.ts` (the app's plugin: `/brigade:dev` and `/brigade:ask` installed in local scope in each project,
+  at the app's version, `git status` left clean, and uninstalled from a removed project only — against the real
+  `git` and a stand-in `claude`),
   `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
   `lireDemande` of `runtime/src/installateur.ts`), `ajout.ts` (adding a project: the fields
   with no default, the repository and the branch read from the chosen clone, and the project written to the real projects file),

@@ -19,8 +19,13 @@ import { LimiteGitHubAtteinte } from "./limite-github.ts";
 type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
+// Les checks Windows (jobs de runtime-windows et app-windows : « windows tests
+// (n/8) », « windows app tests ») sont informatifs (#2087) : rouges sur main, ils
+// ne retiennent rien, et la station ne les relance pas (#2323) — une relance de
+// plus n'ajouterait qu'un run en échec, et un mail au chef.
+export const estInformatif = (check: CheckDeLaBase) => /^windows\b/i.test(check.name ?? "");
 // Le run de GitHub Actions d'un check rouge, ou undefined.
-const runRouge = (check: CheckDeLaBase) => (check.outcome === "red" ? jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run : undefined);
+export const runRouge = (check: CheckDeLaBase) => (check.outcome === "red" && !estInformatif(check) ? jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run : undefined);
 
 export type GitHubDeLaRelance = {
   // La tentative en cours d'un run (1 tant que personne ne l'a relancé), et si

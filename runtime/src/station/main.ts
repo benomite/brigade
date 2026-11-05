@@ -16,7 +16,7 @@ import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { lireLesStationsEtLeursGists } from "../appairage/stations-du-chef.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
-import { installerLimite, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
+import { installerLimite, journaliserLaPause, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { machineDe } from "../projets/preparer.ts";
@@ -26,6 +26,7 @@ import { clientGitHubDuTableau } from "../tableau/publication/client.ts";
 import { cuisinerPourLaPrincipale, tenirLesCuisinesRejointes } from "../tirer-par-github/cuisiner.ts";
 import { lecteurDuTableau } from "../tirer-par-github/demander.ts";
 import { sourceDesProjets } from "../projets-station/source.ts";
+import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-ordinateur/servir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { DemandeInvalide, repertoireDuRegistre } from "../enrolement/enrolement.ts";
@@ -116,6 +117,7 @@ if (portes !== null) {
 const limite = installerLimite(limiteDeLaStation(racine));
 journaliserLesAppels(limite, { dire });
 journaliserLaRetenue(dire);
+journaliserLaPause(dire);
 
 // Un seul journal de service pour tous les projets : ce que le code d'un
 // projet y écrit de lui-même porte son nom, comme ce que la station dit pour lui.
@@ -133,8 +135,10 @@ const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConne
 // ticket — et demande sa relance une fois ses cooks finis. Sur une box, ou sans
 // source de versions, elle n'a pas lieu (`configDeLaMiseAJour`).
 let seVide = (): boolean => false;
+// Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
+let choisis: ServiceDeLOrdinateur | null = null;
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
-const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => station.enCuisine(), dire });
+const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
@@ -187,6 +191,21 @@ const rejointes = tenirLesCuisinesRejointes((rejointe: CuisineRejointe, gist: st
     dire,
   });
 });
+// Les projets de sa liste (`station-ordinateur/`) : elle les clone dans ses
+// lieux et les sert elle-même sur GitHub seul, sous son nom, comme la box — sans
+// relais par une autre station. Liste vide, à l'installation : elle n'en sert aucun.
+choisis = servirLesProjetsChoisis({
+  racine,
+  station: `${machineDe(identite.nom)}/claude`,
+  env: process.env,
+  maison,
+  gh,
+  claude,
+  dire,
+  retenue: () => seVide(),
+  dejaServis: () => Object.values(station.depots()),
+});
+const projetsChoisis = choisis;
 const projetsDeLApp = tenirProjetsDeLApp({
   racine,
   canal,
@@ -242,6 +261,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     projetsDeLApp.arreter();
     // Ses cooks pour une cuisine rejointe s'arrêtent : leur bail tombe chez la principale.
     void rejointes.arreter();
+    void projetsChoisis.arreter();
     miseAJour?.arreter();
     station.arreter(signal);
     connexion.arreter();
@@ -257,6 +277,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 process.on("SIGHUP", () => {
   station.relire();
   void projetsDeLApp.relire();
+  void projetsChoisis.tourner();
 });
 
 // Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :

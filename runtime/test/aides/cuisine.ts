@@ -8,6 +8,7 @@ import { avecRail } from "../../src/alimenter.ts";
 import type { Arbitrage } from "../../src/arbitrage.ts";
 import type { Session } from "../../src/claude.ts";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
+import { ecrireSecret } from "../../src/droits.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
 import type { Check } from "../../src/events/pass.ts";
 import type { BacASableLocal } from "../../src/bac-a-sable/local.ts";
@@ -575,7 +576,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: { ...ENV_GIT, ...options.env } }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined, options.secrets?.declares);
   // Le fichier de la machine vit hors de l'état, comme sur la box.
   const fichierSecrets = join(repertoireTemporaire(t), "secrets.env");
-  const poserSecrets = (valeurs: string) => writeFileSync(fichierSecrets, valeurs, { mode: 0o600 });
+  // Écrit comme le runtime écrit les siens : sous Windows, `mode` n'y fait rien,
+  // et l'ACL héritée du répertoire temporaire l'ouvrirait aux Administrators.
+  const poserSecrets = (valeurs: string) => ecrireSecret(fichierSecrets, valeurs);
   if (options.secrets && options.secrets.valeurs !== null) poserSecrets(options.secrets.valeurs);
   const secretsDeLaMachine = options.secrets && options.secrets.valeurs !== null ? fichierSecrets : null;
   const depotDuTest = options.depot?.(depot) ?? depot;
@@ -764,11 +767,14 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   // Laisse conclure un cook « commite-puis-attend ».
   const conclure = () => writeFileSync(feu, "");
+  // Retient de nouveau les cooks lancés ensuite, après un `conclure` : ils
+  // commitent, puis attendent le suivant.
+  const retenir = () => rmSync(feu, { force: true });
   // Le fichier de secrets de la machine, que le test réécrit comme le ferait le chef.
   const secrets = { fichier: fichierSecrets, poser: poserSecrets };
   // Ce que chaque lancement cloisonné a demandé à `bwrap`.
   const cloisonnes = () => lancementsDuFauxBwrap(temoinDeCloison);
-  return { configClaude, cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
+  return { configClaude, cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, retenir, secrets };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.
