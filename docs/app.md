@@ -7,7 +7,15 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 tab opened by default**. Kitchen has two sub-tabs, **Health** and **Cooks**, shown under it, each one click away. Settings opens over
 the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `cuisine/sante/`, `cuisine/cuisiniers/`, `rail/BandeRail.js`) and its own ticket fills it; **Health** shows
-the ticket time in detail and the duration caps (#2490, see "Kitchen > Health" below). What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
+the ticket time in detail and the duration caps (#2490, see "Kitchen > Health" below). **Stations lists the project's stations** (#2487) — the very list Cooks shows, the same lines, kept up to date by
+the same readings — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
+to a station.* **This computer comes first**, as the recommended button, when its station does not serve the project yet;
+then the stations paired with your account that the project is not chosen for — an offline one says so. Each choice is a
+gesture the app already makes: this computer serves the project as its Settings box does, a paired station gets it in its
+selection as on its home page; what each does is in its `?`. Once written, the step closes and one line says which machine
+was given the project — the station joins the list once it takes it; a refusal stays in the step, in one line, its detail
+in a hover; `cancel` closes without writing anything. The narrow screen, which sets nothing, and a project whose
+repository the app does not know have no button. What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
