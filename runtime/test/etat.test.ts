@@ -282,8 +282,10 @@ test("le suivi rend chaque événement écrit par un autre process, une fois, da
   ]);
 });
 
-test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend plus rien", async (t) => {
+// Sur des minuteurs simulés : les relectures du suivi passent sans en attendre une (#2464).
+test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend plus rien", (t) => {
   const { repertoire, journal, noter } = cuisine(t);
+  t.mock.timers.enable({ apis: ["setInterval"] });
   const lecteur = ouvrirJournal(repertoire, { lectureSeule: true });
   t.after(() => lecteur.fermer());
   const lignes: string[] = [];
@@ -291,10 +293,11 @@ test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend 
 
   noter(faitInconnu("ticket.arrived"), 8, "github");
   noter(faitInconnu("ticket.arrived"), 7, "github");
-  await jusqua(() => lignes.length === 1);
+  t.mock.timers.tick(2);
+  assert.equal(lignes.length, 1);
   arreter();
   noter(faitInconnu("ticket.taken"), 7, "station:box");
-  await new Promise((resoudre) => setTimeout(resoudre, 20));
+  for (let i = 0; i < 10; i++) t.mock.timers.tick(2);
 
   assert.deepEqual(lignes, [`2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}`]);
 });

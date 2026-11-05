@@ -201,12 +201,21 @@ test("the loop runs a turn at once, then one per interval, until it stops", asyn
   const { clone } = lieuxDuProjet(racine, "shop", racine);
   mkdirSync(join(clone, ".git"), { recursive: true });
   writeFileSync(join(clone, "CLAUDE.md"), "- **Branche d'intégration** : `main`\n");
+  // Sur une minuterie simulée : chaque intervalle passe sans être attendu (#2464).
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const intervalles = async (n: number, jusquA = () => false) => {
+    for (let i = 0; i < n && !jusquA(); i++) {
+      t.mock.timers.tick(5);
+      await new Promise((suite) => setImmediate(suite));
+    }
+  };
   const service = servirLesProjetsChoisis(options(racine, { ouvrirLeTour: ouvrir, intervalleMs: 5 }));
   t.after(() => service.arreter());
-  await jusqua(() => tours.length >= 3);
+  await intervalles(1000, () => tours.length >= 3);
+  assert.ok(tours.length >= 3, `${tours.length}`);
   await service.arreter();
   const arretee = tours.length;
-  await new Promise((resoudre) => setTimeout(resoudre, 30));
+  await intervalles(10);
   assert.equal(tours.length, arretee);
 });
 

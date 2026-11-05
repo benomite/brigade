@@ -54,9 +54,9 @@ const charge = (evenement: Evenement | undefined) => evenement?.payload as Recor
 
 describe("le manager", { concurrency: 8 }, () => {
   test("éteint, il ne sonde rien et ne juge rien", async (t) => {
-    const { gh, jugements, journal, heure } = brigade(t, { eteint: true, issues: [issue(30, [])] });
+    const { gh, jugements, journal, heure, laisserReveiller } = brigade(t, { eteint: true, issues: [issue(30, [])] });
     heure.avancer(1);
-    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    await laisserReveiller();
 
     assert.equal(gh.sondages.ouvertes, 0);
     assert.equal(jugements().length, 0);
@@ -768,13 +768,14 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("éteint en cours de route, le manager ne juge plus ce qui arrive", async (t) => {
-    const { repertoire, gh, jugements, labels } = brigade(t, { issues: [issue(30, [])] });
+    const { repertoire, gh, jugements, labels, laisserReveiller } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     chef(repertoire, "manager.disabled");
-    await new Promise((resoudre) => setTimeout(resoudre, 30));
+    // Deux réveils passent sous le manager éteint avant que l'issue n'arrive.
+    await laisserReveiller();
     gh.poser(issue(31, []));
-    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    await laisserReveiller();
 
     assert.equal(jugements().length, 1);
   });

@@ -123,27 +123,33 @@ test("chaque tick laisse un battement au journal, avec la cadence attendue, avan
   assert.equal(dernierTick(runtime.journal.base)?.intervalMs, 2);
 });
 
-test("ce que le runtime écrit lui-même ne le réveille pas", async (t) => {
+// Sur des minuteurs simulés : dix tours de veille passent sans en attendre un seul (#2464).
+test("ce que le runtime écrit lui-même ne le réveille pas", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
   const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 2, intervalleTickMs: 60_000 });
   t.after(() => runtime.arreter("test"));
   const reveils: CauseReveil[] = [];
   runtime.surReveil((cause) => reveils.push(cause));
 
   runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...faitInconnu("x.y") });
-  await new Promise((resoudre) => setTimeout(resoudre, 20));
+  for (let i = 0; i < 10; i++) t.mock.timers.tick(2);
 
   assert.deepEqual(reveils, []);
 });
 
-test("un écouteur désabonné, ou un runtime arrêté, ne réveille plus personne", async (t) => {
+test("un écouteur désabonné, ou un runtime arrêté, ne réveille plus personne", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
   const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 2 });
   const reveils: string[] = [];
   const desabonner = runtime.surReveil(() => reveils.push("désabonné"));
   desabonner();
-  await new Promise<void>((resoudre) => runtime.surReveil(() => resoudre()));
+  let reveille = false;
+  runtime.surReveil(() => void (reveille = true));
+  t.mock.timers.tick(2);
+  assert.equal(reveille, true);
   runtime.arreter("test");
   runtime.surReveil(() => reveils.push("après l'arrêt"));
-  await new Promise((resoudre) => setTimeout(resoudre, 20));
+  for (let i = 0; i < 10; i++) t.mock.timers.tick(2);
 
   assert.deepEqual(reveils, []);
 });
