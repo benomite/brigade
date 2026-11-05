@@ -108,6 +108,7 @@ import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
+import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
@@ -4668,22 +4669,26 @@ function poserCuisson(projet, posees = new Map()) {
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const siens = (/** @type {Map<string, any>} */ ou) => new Map([...ou].flatMap(([cle, valeur]) => (cle.startsWith(cleDeCuisson(projet.nom, "")) ? [[cle.slice(cleDeCuisson(projet.nom, "").length), valeur]] : [])));
   const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(projet, tenu.tableau, heureDe(tenu.a)) : [];
-  const pose = stationsDeCuisson(document, {
+  // Sur un écran large, chaque cook en cours est la carte de son ticket ; sur l'écran étroit, une ligne.
+  const carte =
+    etroit() || ongletDe(projet) !== CUISINE
+      ? undefined
+      : (/** @type {import("../faits.ts").Cook} */ cook) => {
+          const carte = carteDuCook(projet.nom, cook);
+          const bon = poserBon(projet, carte, undefined);
+          posees.set(carte, bon);
+          return bon;
+        };
+  // Un projet sur GitHub seul : ses stations telles que GitHub les dit, toutes par la même règle (ticket 2358) — ni celles que
+  // l'ancien journal déclare, ni la principale que l'app lui connaît.
+  const surGithub = poserLesStationsSurGithub(document, { cuisson: stations, pastille, ...(carte === undefined ? {} : { carte }), tete: laCuisine });
+  const pose = surGithub ?? stationsDeCuisson(document, {
     lignes: stations?.lignes,
     enCours: siens(cuissonsEnCours),
     dits: siens(cuissonsDites),
     jouer: (station, geste) => void cuire(projet.nom, station, geste),
     pastille,
-    ...(etroit() || ongletDe(projet) !== CUISINE
-      ? {}
-      : {
-          carte: (/** @type {import("../faits.ts").Cook} */ cook) => {
-            const carte = carteDuCook(projet.nom, cook);
-            const bon = poserBon(projet, carte, undefined);
-            posees.set(carte, bon);
-            return bon;
-          },
-        }),
+    ...(carte === undefined ? {} : { carte }),
     plafonds: accueilVu?.plafonds?.[projet.nom],
     plafondsDits: siens(plafondsDeCuisson),
     saisies: { lire: (station) => plafondsSaisis.get(cleDeCuisson(projet.nom, station)) ?? "", ecrire: (station, valeur) => void plafondsSaisis.set(cleDeCuisson(projet.nom, station), valeur) },

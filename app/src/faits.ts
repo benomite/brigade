@@ -377,6 +377,10 @@ export type Faits = {
   cuisineOisive?: CuisineOisive | null;
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
   stations?: StationDesFaits[];
+  // Les stations d'un projet sur GitHub seul, dites de GitHub par l'app (vue/rail/github.ts, #2358) : leurs prises et
+  // leurs signes de vie, la box comme un ordinateur ; `illisible`, pourquoi leurs signes de vie ne se lisent pas. Absent
+  // des `facts` d'une station.
+  stationsSurGithub?: { illisible: string | null };
   // Ce qui tourne hors des cooks de ticket — la pass, le manager, le triage, le closer (#1971) ; absent d'un runtime
   // d'avant ce champ.
   agents?: AgentLu[];
@@ -716,6 +720,13 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
   };
 }
 
+// `stationsSurGithub`, de la racine de `facts` : posé par l'app sur un projet GitHub seul — rien de mal formé ne le pose.
+function surGithubLu(valeur: unknown): { stationsSurGithub?: { illisible: string | null } } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const { illisible } = valeur as Record<string, unknown>;
+  return { stationsSurGithub: { illisible: typeof illisible === "string" && illisible !== "" ? illisible : null } };
+}
+
 // `githubSeul`, de la racine de `facts` : seul un refus se garde, avec sa raison ; rien de mal formé ne la fait inventer.
 function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: string; since: string } } {
   if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
@@ -837,6 +848,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.stations === undefined
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
+      ...surGithubLu(racine.stationsSurGithub),
       ...(agentsLus(racine.agents) === undefined ? {} : { agents: agentsLus(racine.agents) }),
       ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
       ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
@@ -1368,7 +1380,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...rienNeCuit(status),
     ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites, envois),
-    ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail) }),
+    ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),

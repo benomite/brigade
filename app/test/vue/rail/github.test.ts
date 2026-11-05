@@ -1,6 +1,6 @@
 // Le rail et les cooks d'un projet sur GitHub seul (#2220) : son interrupteur posé dans `projet.json`, la vue du rail range
 // ses issues `fire` d'après leurs labels et leurs PR — en attente, prises, en pass, en WAITING —, et l'onglet Cooks montre
-// les stations qui les tiennent d'après leurs commentaires de prise, jamais le rail figé du tableau de l'ancien chemin.
+// les stations d'après leurs commentaires de prise et leurs signes de vie (#2358), jamais le rail figé du tableau de l'ancien chemin.
 // Un projet de l'ancien chemin garde son rail tel qu'avant (#2059). Joué sur un faux GitHub, puis rendu par le rail de l'app.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -157,16 +157,38 @@ describe("un projet sur GitHub seul : le rail de ses issues, de leurs labels et 
     );
   });
 
-  test("l'onglet Cooks : une station par commentaire de prise qui tient, ses cooks dedans", async () => {
-    const vu = dessine(await avecLeRailGithub(tableauFige(), github()));
+  test("l'onglet Cooks : ses stations dites de GitHub — une qui cuit, une qui attend, une tue —, rien des stations de l'ancien journal (#2358)", async () => {
+    const fige = tableauFige();
+    // L'ancien journal déclarait ce Mac sans qu'il s'y soit annoncé : « not signed in yet ». Il n'en reste rien.
+    (fige.faits as Record<string, unknown>).stations = [{ station: "macbook/claude", distante: true, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "cooking", presente: false, vueLe: null, cooks: [] }];
+    const signe = (name: string, lastSeen: string) => ({ name, lastSeen, stoppedAt: null, refreshMs: 120_000, selection: [DEPOT] });
+    const signes = { lus: [signe("box", "2026-11-04T03:01:00Z"), signe("mac", "2026-11-04T03:00:30Z"), signe("atelier", "2026-11-04T03:01:30Z"), signe("pc", "2026-11-02T18:40:00Z")] };
+    const vu = dessine(await avecLeRailGithub(fige, github(), undefined, undefined, async () => signes));
     assert.deepEqual(
-      vu.stations?.lignes.map(({ station, etat, cooks }) => ({ station, etat, cooks: cooks.map(({ ticket }) => ticket) })),
+      vu.stations?.lignes.map(({ station, etat, presente, vueLe, cooks }) => ({ station, etat, presente, vueLe, cooks: cooks.map(({ ticket }) => ticket) })),
       [
-        { station: "mac/claude", etat: "cooking", cooks: [3] },
-        { station: "box/claude", etat: "cooking", cooks: [2] },
+        { station: "atelier/claude", etat: "idle", presente: true, vueLe: "2026-11-04T03:01:30Z", cooks: [] },
+        { station: "box/claude", etat: "cooking", presente: true, vueLe: "2026-11-04T03:01:00Z", cooks: [2] },
+        { station: "mac/claude", etat: "cooking", presente: true, vueLe: "2026-11-04T03:00:30Z", cooks: [3] },
+        { station: "pc/claude", etat: "silent", presente: false, vueLe: "2026-11-02T18:40:00Z", cooks: [] },
       ],
     );
+    assert.deepEqual(vu.stations?.surGithub, { illisible: null });
+    // Aucune n'a de bouton : arrêter une station est un geste de l'ancien chemin.
+    assert.deepEqual(vu.stations?.lignes.filter(({ etat }) => etat !== "cooking").map(({ geste }) => geste), [null, null]);
     assert.deepEqual(vu.cooks.enCours.map(({ ticket, station }) => `#${ticket} ${station}`), ["#2 box/claude", "#3 mac/claude"]);
+  });
+
+  test("l'onglet Cooks, signes de vie illisibles : les stations qui tiennent un ticket, sans rien dire de leur présence, et pourquoi", async () => {
+    const vu = dessine(await avecLeRailGithub(tableauFige(), github(), undefined, undefined, async () => ({ illisible: "GitHub did not answer" })));
+    assert.deepEqual(
+      vu.stations?.lignes.map(({ station, etat, presente }) => ({ station, etat, presente })),
+      [
+        { station: "box/claude", etat: "cooking", presente: undefined },
+        { station: "mac/claude", etat: "cooking", presente: undefined },
+      ],
+    );
+    assert.deepEqual(vu.stations?.surGithub, { illisible: "GitHub did not answer" });
   });
 
   test("plus de cent tickets : chaque page est lue", async () => {

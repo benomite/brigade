@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { corpsDeLacher, corpsDePrise, tenant } from "../../../../runtime/src/github-etat/prise.ts";
-import { stationsDesPrises, tenantDeLIssue } from "../../../src/vue/cooks/prises.ts";
+import { stationsDeGithub, tenantDeLIssue } from "../../../src/vue/cooks/prises.ts";
 
 type Commentaire = { id: number; body: string; author_association: string; created_at: string };
 const prise = (id: number, station: string, le: string, association = "OWNER"): Commentaire => ({ id, body: corpsDePrise(station), author_association: association, created_at: le });
@@ -41,23 +41,33 @@ describe("qui tient un ticket, d'après son issue", () => {
   });
 });
 
-describe("les stations de l'onglet Cooks, d'après les prises", () => {
-  test("une station par tenant, dans l'ordre de sa première prise, ses cooks dedans ; chacune cuit", () => {
-    const stations = stationsDesPrises([
-      { ticket: 12, titre: "Douze", station: "mac/claude", le: "2026-11-04T03:05:00Z" },
-      { ticket: 7, titre: "Sept", station: "box/claude", le: "2026-11-04T03:00:00Z" },
-      { ticket: 9, titre: "Neuf", station: "box/claude", le: "2026-11-04T03:10:00Z" },
-    ]);
-    assert.deepEqual(
-      stations.map(({ station, cuisson, distante, cooks }) => ({ station, cuisson, distante, cooks: cooks?.map(({ ticket }) => ticket) })),
+describe("les stations de l'onglet Cooks, d'après leurs prises et leurs signes de vie (#2358)", () => {
+  const MAINTENANT = Date.parse("2026-11-04T03:12:00Z");
+  const signe = (name: string, lastSeen: string) => ({ name, lastSeen, stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] });
+
+  test("une station par tenant ou par station choisie pour le dépôt, dans l'ordre de leur nom ; aucune n'est distante", () => {
+    const stations = stationsDeGithub(
       [
-        { station: "box/claude", cuisson: "cooking", distante: false, cooks: [7, 9] },
-        { station: "mac/claude", cuisson: "cooking", distante: false, cooks: [12] },
+        { ticket: 12, titre: "Douze", station: "mac/claude", le: "2026-11-04T03:05:00Z" },
+        { ticket: 7, titre: "Sept", station: "box/claude", le: "2026-11-04T03:00:00Z" },
+        { ticket: 9, titre: "Neuf", station: "box/claude", le: "2026-11-04T03:10:00Z" },
+      ],
+      [signe("box", "2026-11-04T03:11:00Z"), signe("pc", "2026-11-04T03:10:30Z"), signe("atelier", "2026-11-01T08:00:00Z")],
+      "chef/parade",
+      MAINTENANT,
+    );
+    assert.deepEqual(
+      stations.map(({ station, cuisson, distante, presente, vueLe, cooks }) => ({ station, cuisson, distante, presente, vueLe, cooks: cooks?.map(({ ticket }) => ticket) })),
+      [
+        { station: "atelier/claude", cuisson: "silent", distante: false, presente: false, vueLe: "2026-11-01T08:00:00Z", cooks: [] },
+        { station: "box/claude", cuisson: "cooking", distante: false, presente: true, vueLe: "2026-11-04T03:11:00Z", cooks: [7, 9] },
+        { station: "mac/claude", cuisson: "cooking", distante: false, presente: undefined, vueLe: null, cooks: [12] },
+        { station: "pc/claude", cuisson: "idle", distante: false, presente: true, vueLe: "2026-11-04T03:10:30Z", cooks: [] },
       ],
     );
   });
 
-  test("aucune prise, aucune station", () => {
-    assert.deepEqual(stationsDesPrises([]), []);
+  test("aucune prise ni station choisie, aucune station", () => {
+    assert.deepEqual(stationsDeGithub([], null, "chef/parade", MAINTENANT), []);
   });
 });
