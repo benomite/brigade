@@ -177,7 +177,10 @@ A Windows station serves a project like any other. What Windows does differently
 
 - **Launching.** Windows launches only its executables. A shebang script (a `BRIGADE_CLAUDE_BIN` that
   names one, a test double) runs through its interpreter: `node` is the runtime's own, `bash` and `sh`
-  are Git for Windows' (never WSL's). A `.cmd` or `.bat` runs through `cmd.exe`, every argument
+  are Git for Windows' (never WSL's). Git's bash does not read its command line the way Windows
+  programs do: it expands an unquoted argument that holds `*`, `?`, `[`, `{` or `(` as a pattern, and
+  a `[]` with no `]` after it (`labels[]=fire`) kills it before the script runs, with no message. So
+  such an argument goes to it between single quotes, which it reads as they are. A `.cmd` or `.bat` runs through `cmd.exe`, every argument
   escaped; no window opens. A `.cmd` receives no argument that spans several lines, and the cook's
   prompt is one: `claude` must be named by its executable (`claude.exe`), not by an npm `.cmd`
   launcher, or the cook fails at launch and the `error` of its `cook.exited` says why
