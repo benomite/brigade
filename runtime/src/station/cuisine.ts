@@ -316,8 +316,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     const mentions = mentionsDuTableau({ client: clientDesGestes, journal: connectee.journal, projet, avertir: dire });
     // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
-    const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
-    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire, ouvertes });
+    const githubDuTableau = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) });
+    const ouvertes = ouvertesDuDepot(githubDuTableau);
+    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire, ouvertes, commentaires: (numero) => githubDuTableau.commentaires(numero) });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();
