@@ -129,8 +129,8 @@ test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine
   assert.equal((await serveur(t).lancer(commande)).statut, 0);
   const avant = registre.liste();
 
-  const autre = await serveur(t).lancer(commande.replace("--name 'serveur-de-test'", "--name 'intrus'"));
-  const relancee = await serveur(t).lancer(commande);
+  // Les deux refus ne lisent que le registre, sans rien y écrire : ils se jouent de front.
+  const [autre, relancee] = await Promise.all([serveur(t).lancer(commande.replace("--name 'serveur-de-test'", "--name 'intrus'")), serveur(t).lancer(commande)]);
 
   for (const lancee of [autre, relancee]) {
     assert.equal(lancee.statut, 1);
