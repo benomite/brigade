@@ -2,8 +2,8 @@
 // `ssh` (#2134) : un commentaire `/resume` sur l'issue ouverte qui porte le
 // label `brigade:breaker-open` referme le disjoncteur au sondage suivant. Ce qui
 // le referme est `guardrails resume` lui-même, joué dans ce process sur le
-// journal du projet (tableau/gestes-boite/jouer.ts) : la même commande, les
-// mêmes faits, la même réponse.
+// journal du projet (`garde-fous-cli.ts`) : la même commande, les mêmes faits,
+// la même réponse. Le sondage passe à chaque tick (`brancherRepriseParGitHub`).
 //
 // Seul compte un commentaire dont le corps est `/resume`, rien d'autre, posé
 // par qui a la main sur le dépôt (DE_CONFIANCE), après l'ouverture du
@@ -19,7 +19,9 @@ import type { Base } from "./base.ts";
 import type { GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
-import { jouerUnGesteDeBoite } from "./tableau/gestes-boite/jouer.ts";
+import { Sortie, type Appel } from "./appel.ts";
+import { principal as gardeFous } from "./garde-fous-cli.ts";
+import type { Runtime } from "./runtime.ts";
 
 // Le label de l'issue qui dit, sur GitHub, que la cuisine est retenue par son disjoncteur.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
@@ -38,6 +40,25 @@ function repertoireDEtat(base: Base): string {
   const fichier = base.lire<{ file: string }>("PRAGMA database_list")[0]?.file;
   if (!fichier) throw new Error("journal sans fichier : impossible de situer le répertoire d'état");
   return dirname(fichier);
+}
+
+// `guardrails resume` joué dans ce process : sa réponse sur une ligne, ou
+// pourquoi il a refusé.
+type ResultatDeLaCommande = { done: true; dit: string } | { done: false; reason: string };
+const enUneLigne = (lignes: string[]) => lignes.join(" ").replace(/\s+/g, " ").replace(/^brigade : /, "").trim();
+function reprendreLesGardeFous(repertoireEtat: string): ResultatDeLaCommande {
+  const dit: string[] = [];
+  const redit: string[] = [];
+  const appel: Appel = { args: ["resume"], env: { BRIGADE_STATE_DIR: repertoireEtat }, dire: (ligne) => dit.push(ligne), redire: (ligne) => redit.push(ligne) };
+  let code = 0;
+  try {
+    gardeFous(appel);
+  } catch (erreur) {
+    if (!(erreur instanceof Sortie)) return { done: false, reason: `it failed (${erreur instanceof Error ? erreur.message : String(erreur)})` };
+    code = erreur.code;
+  }
+  if (code === 0) return { done: true, dit: enUneLigne(dit) };
+  return { done: false, reason: enUneLigne(redit.length > 0 ? redit : dit) || `the command stopped with code ${code}` };
 }
 
 // Le premier `/resume` qui compte, sur les issues ouvertes labellisées qui ont
@@ -61,11 +82,38 @@ export async function reprendreParGitHub(journal: Journal, github: GitHub): Prom
   const reprise = await repriseDemandee(github, ouvertLe);
   // Le disjoncteur a pu être refermé pendant la lecture : rien ne se rejoue.
   if (reprise === null || etatDesGardeFous(journal.base).breakerOpenedAt !== ouvertLe) return { quoi: "rien" };
-  const joue = await jouerUnGesteDeBoite({ nom: "resume", commande: "guardrails", args: ["resume"] }, repertoireDEtat(journal.base));
+  const joue = reprendreLesGardeFous(repertoireDEtat(journal.base));
   if (!joue.done) {
     console.error(`brigade : \`${REPRENDRE}\` de @${reprise.author} sur #${reprise.issue} non joué — ${joue.reason}`);
     return { quoi: "refusee", reason: joue.reason, ...reprise };
   }
   console.log(`brigade : \`${REPRENDRE}\` de @${reprise.author} sur #${reprise.issue} — ${joue.dit}`);
   return { quoi: "reprise", dit: joue.dit, ...reprise };
+}
+
+// Le sondage à chaque tick, un à la fois : un échec (GitHub injoignable) se
+// dit, et le tick suivant réessaie. Son `arreter` l'emporte.
+export function brancherRepriseParGitHub<R extends Runtime>(runtime: R, options: { github: GitHub; avertir?: (message: string) => void }): R {
+  const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  let arrete = false;
+  let enCours = false;
+  const desabonner = runtime.surReveil((cause) => {
+    if (cause !== "tick" || arrete || enCours) return;
+    enCours = true;
+    void reprendreParGitHub(runtime.journal, options.github)
+      .catch((erreur) => {
+        if (!arrete) avertir(`brigade : \`${REPRENDRE}\` non lu sur GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      })
+      .finally(() => {
+        enCours = false;
+      });
+  });
+  return {
+    ...runtime,
+    arreter(signal: string) {
+      arrete = true;
+      desabonner();
+      runtime.arreter(signal);
+    },
+  };
 }

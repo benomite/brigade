@@ -14,7 +14,6 @@ import { mettreEnAttente } from "../../../../runtime/src/attente.ts";
 import { faits as faitsDuRuntime, lireEtat } from "../../../../runtime/src/etat.ts";
 import type { GitHub } from "../../../../runtime/src/github.ts";
 import { ouvrirJournal, type Journal } from "../../../../runtime/src/journal.ts";
-import { ouvrirRail } from "../../../../runtime/src/rail.ts";
 import { confierAUnHumain as confierAuRuntime } from "../../../../runtime/src/sortie-attente-capacite/sortie.ts";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
@@ -73,7 +72,6 @@ function runtime(t: TestContext) {
     journal.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const rail = ouvrirRail(journal, { projet: PARADE, dureeBailMs: 600_000, maintenant: () => MAINTENANT });
   const arriver = (ticket: number, titre: string, requires: string[] = []) =>
     journal.ajouter({
       project: PARADE,
@@ -83,7 +81,8 @@ function runtime(t: TestContext) {
       payload: { title: titre, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/chef/parade/issues/${ticket}`, card: { waitsFor: [], zone: [`zone/${ticket}/`], problems: [], ...(requires.length === 0 ? {} : { requires }) } },
     });
   arriver(22, "La capture du formulaire", ["chrome-connecté", "code"]);
-  rail.quatreVingtSix(22, { motif: "no-station: chrome-connecté" });
+  // Le 86 que le runtime déclarait d'un ticket qu'aucune station ne peut cuisiner, écrit tel qu'il l'écrivait.
+  journal.ajouter({ project: PARADE, ticket: 22, author: "runtime", type: "ticket.86", payload: { reason: "no-station: chrome-connecté", until: null } });
   arriver(23, "L'export du journal");
   arriver(24, "Le menu du soir");
   mettreEnAttente(journal, PARADE, 24, { quoi: "the client's written approval", qui: "the client" }, MAINTENANT);

@@ -6,7 +6,20 @@ import { candidats, proposer, restants } from "../../src/closing/candidates.ts";
 import { aRetenir, consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, PARTIES_DE_LA_PR, SANS_MOTIF } from "../../src/closing/brief.ts";
 import { configFermeture } from "../../src/closing/settings.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
-import { PROJET } from "./kitchen.ts";
+
+const SUITE = Array.from({ length: 8 }, (_, i) => `const ligne${i + 1} = calculer(${i + 1});\n`).join("");
+// Le projet des tests. L'observation y repère, dans cet ordre :
+//   D1  huit lignes identiques, `src/libre/a.ts` = `src/libre/b.ts`
+//   M1  l'export `inutile` de `src/libre/outils.ts`, que rien ne nomme
+//   M2  l'export `oublie` de `src/tenu/outils.ts`, que rien ne nomme
+// `vivant` et `garde`, que `src/app.ts` appelle, vivent.
+const PROJET: Record<string, string> = {
+  "src/app.ts": 'import { vivant } from "./libre/outils.ts";\nimport { garde } from "./tenu/outils.ts";\nconsole.log(vivant(), garde());\n',
+  "src/libre/outils.ts": "export function vivant() { return 1; }\nexport function inutile() { return 2; }\n",
+  "src/tenu/outils.ts": "export function garde() { return 3; }\nexport function oublie() { return 4; }\n",
+  "src/libre/a.ts": SUITE,
+  "src/libre/b.ts": SUITE,
+};
 
 const textes = (fichiers: Record<string, string | null>) => ({ textes: Object.entries(fichiers).flatMap(([chemin, texte]) => (texte === null ? [] : [{ chemin, texte }])) });
 

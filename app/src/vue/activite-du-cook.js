@@ -1,22 +1,20 @@
 // @ts-check
 // Ce que fait le cook d'un ticket, sur sa fiche (ticket 1846) : à la place de son terminal, que l'app ne suit pas, ce
-// que sa station publie sur le tableau de la cuisine (`activites`, runtime/src/tableau/activites/activites.ts) et que le
-// process principal lit sur GitHub, (tableau/lecture.ts). Tant qu'il tourne : sa pilule `cooking`, sa
-// station, depuis quand, ses tours et ses tokens ; ce qu'il fait en ce moment ; ses derniers gestes. Fini : comment il a
-// fini et quand, et sa PR, qu'un bouton ouvre. La fiche se repose à chaque lecture du tableau : ce qu'elle montre suit le
-// cook. Ce qu'elle montre est daté par la lecture de la box — ses durées se comptent jusqu'à elle, comme `status`.
-// Un ticket sans cook publié n'a pas de section ; une box qui ne publie pas encore l'activité de ses cooks se dit en une
-// ligne, pourquoi au survol.
+// que le process principal en lit sur GitHub (tableau/lecture.ts, ticket 2061) — sa station, depuis sa prise, ce que la
+// cuisine en fait, sa PR. Tant qu'il tourne : sa pilule `cooking`, sa station, depuis quand ; ce qu'il fait en ce
+// moment. Ses tours, ses tokens et ses gestes ne sont que dans le journal de sa station : la fiche les montre quand
+// ils sont donnés. La fiche se repose à chaque lecture du rail : ce qu'elle montre suit le cook, daté par cette lecture.
+// Un ticket sans cook n'a pas de section.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { lectureIndisponible, survol } from "./briques.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
-/** @typedef {import("../../../runtime/src/tableau/rendu/bloc.ts").ActiviteDuCook} Activite */
-/** @typedef {import("../../../runtime/src/tableau/rendu/bloc.ts").EtapeDuCook} Etape */
+/** @typedef {import("../tableau/lecture.ts").ActiviteDuCook} Activite */
+/** @typedef {import("../tableau/lecture.ts").EtapeDuCook} Etape */
 /**
- * Ce que le process principal envoie d'un projet, à chaque lecture de son tableau : l'heure de la lecture de l'état par
- * la box et l'activité de ses cooks — ou pourquoi elle ne se lit pas.
+ * Ce que le process principal envoie d'un projet, à chaque lecture de son rail : l'heure de la lecture et l'activité de
+ * ses cooks — ou pourquoi elle ne se lit pas.
  * @typedef {{ projet: string, lu: string, activites: readonly Activite[] } | { projet: string, sans: string }} Publiees
  */
 
@@ -25,9 +23,9 @@ export const EN_COURS = "cooking";
 export const SANS_PR = "it opened no PR";
 export const INDISPONIBLE = "its cook's activity unavailable";
 // D'où vient ce que la section dit, au survol de sa dernière ligne.
-export const SOURCE = "What the cook's station publishes on the project's Kitchen board, read on GitHub with this computer's GitHub account — nothing else. It is read again with the board, every 30 seconds, and this sheet follows it.";
+export const SOURCE = "What GitHub says of the cook — the claim comment of its station, its PR — read with this computer's GitHub account, nothing else. It is read again with the rail, every 30 seconds, and this sheet follows it.";
 
-// Comment un cook a fini (`fin`, runtime/src/tableau/rendu/bloc.ts), en mots, et la couleur de sa pilule. Un mot qui n'y
+// Comment un cook a fini (`fin`, tableau/lecture.ts), en mots, et la couleur de sa pilule. Un mot qui n'y
 // est pas se dit tel quel, pilule grise.
 /** @type {Readonly<Record<string, { mot: string, ton: string }>>} */
 export const FINS = {
@@ -152,7 +150,7 @@ export function poserLActiviteDuCook(doc, { publiees, ticket, pastille, ouvrirPr
     sans.className = "sans";
     section.append(sans);
   }
-  const source = cree(doc, "small", `as the Kitchen board said at ${heureUtc(publiees.lu)}`);
+  const source = cree(doc, "small", `as GitHub said at ${heureUtc(publiees.lu)}`);
   source.className = "source";
   source.append(survol(doc, SOURCE));
   section.append(source);

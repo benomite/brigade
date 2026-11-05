@@ -1,5 +1,5 @@
-// L'accès des apps à l'API REST de GitHub, pour lire le tableau de la cuisine d'un projet (lecture.ts) : un `GET`, avec
-// le jeton GitHub de l'app quand elle en a un. Ce module ne fait que composer la demande ; ce qui la porte est donné par
+// L'accès des apps à l'API REST de GitHub, pour lire le rail d'un projet (lecture.ts) : un `GET`, avec le jeton GitHub
+// de l'app quand elle en a un ; et un `POST` (`posterParFetch`), pour ce que l'app écrit sur une issue. Ce module ne fait que composer la demande ; ce qui la porte est donné par
 // la plateforme — le `fetch` du desktop (`parFetch`), le HTTP natif du téléphone (app/android/web/lecture.ts) — et le
 // jeton aussi : celui du `gh` de l'ordinateur sur le desktop (jeton-gh.ts), celui du coffre du téléphone sur Android.
 // Il ne parle qu'à GitHub : aucune box, aucune station n'est jointe.
@@ -54,6 +54,43 @@ export function parFetch(options: { fetch?: typeof fetch; delaiMs?: number } = {
       const reponse = await appeler(adresse, { headers: entetes, signal: abandon.signal });
       const etag = reponse.headers?.get("etag");
       return { status: reponse.status, data: corpsLu(await reponse.text()), ...(etag == null ? {} : { etag }) };
+    } catch (erreur) {
+      throw abandon.signal.aborted && abandon.signal.reason instanceof Error ? abandon.signal.reason : erreur;
+    } finally {
+      clearTimeout(garde);
+    }
+  };
+}
+
+// Un `POST` à cette adresse, avec ces en-têtes et ce corps — un objet, que la plateforme écrit en JSON. Lève quand rien
+// n'a répondu.
+export type Poste = (adresse: string, entetes: Record<string, string>, corps: unknown) => Promise<ReponseGitHub>;
+
+// La première phrase de ce que GitHub dit d'un refus, sans son point.
+function messageDe(data: unknown): string | null {
+  const message = typeof data === "object" && data !== null && "message" in data ? data.message : null;
+  if (typeof message !== "string") return null;
+  const phrase = (message.trim().split(/(?<=[.!?])\s/)[0] ?? "").replace(/[.\s]+$/, "");
+  return phrase === "" || phrase.length > 200 ? null : phrase;
+}
+
+// L'erreur d'une demande que GitHub refuse, en une phrase : `quoi` nomme ce qui était demandé.
+export function refusDe(quoi: string, { status, data }: ReponseGitHub): Error {
+  const message = messageDe(data);
+  if (status === 401) return new Error(`GitHub refused the app's GitHub sign-in (HTTP 401)${message === null ? "" : `: ${message}`} — sign in to GitHub again`);
+  return new Error(`GitHub refused ${quoi} (HTTP ${status})${message === null ? "" : `: ${message}`}`);
+}
+
+// Le `POST` par `fetch` — celui de Node sur le desktop. Abandonné passé `delaiMs`.
+export function posterParFetch(options: { fetch?: typeof fetch; delaiMs?: number } = {}): Poste {
+  const appeler = options.fetch ?? fetch;
+  const delai = options.delaiMs ?? DELAI_MS;
+  return async (adresse, entetes, corps) => {
+    const abandon = new AbortController();
+    const garde = setTimeout(() => abandon.abort(new Error(`GitHub gave no answer within ${Math.round(delai / 1000)} s`)), delai);
+    try {
+      const reponse = await appeler(adresse, { method: "POST", headers: entetes, body: JSON.stringify(corps), signal: abandon.signal });
+      return { status: reponse.status, data: corpsLu(await reponse.text()) };
     } catch (erreur) {
       throw abandon.signal.aborted && abandon.signal.reason instanceof Error ? abandon.signal.reason : erreur;
     } finally {

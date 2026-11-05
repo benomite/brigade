@@ -9,9 +9,21 @@ import { Base } from "../../src/base.ts";
 import { corpsDeLaPR, SANS_MOTIF } from "../../src/closing/brief.ts";
 import { candidats } from "../../src/closing/candidates.ts";
 import { CONTEXTE, empreinte, memoire, poserLaMemoire, retenir, trier } from "../../src/closing/memory.ts";
-import { aArreter, BASE, git, jusqua, repertoireTemporaire } from "../outils.ts";
-import { ecrireHistoire } from "./history.ts";
-import { cuisineFermee, PROJET, RETIRER_M1 } from "./kitchen.ts";
+import { aArreter, repertoireTemporaire } from "../outils.ts";
+
+const SUITE = Array.from({ length: 8 }, (_, i) => `const ligne${i + 1} = calculer(${i + 1});\n`).join("");
+// Le projet des tests. L'observation y repère, dans cet ordre :
+//   D1  huit lignes identiques, `src/libre/a.ts` = `src/libre/b.ts`
+//   M1  l'export `inutile` de `src/libre/outils.ts`, que rien ne nomme
+//   M2  l'export `oublie` de `src/tenu/outils.ts`, que rien ne nomme
+// `vivant` et `garde`, que `src/app.ts` appelle, vivent.
+const PROJET: Record<string, string> = {
+  "src/app.ts": 'import { vivant } from "./libre/outils.ts";\nimport { garde } from "./tenu/outils.ts";\nconsole.log(vivant(), garde());\n',
+  "src/libre/outils.ts": "export function vivant() { return 1; }\nexport function inutile() { return 2; }\n",
+  "src/tenu/outils.ts": "export function garde() { return 3; }\nexport function oublie() { return 4; }\n",
+  "src/libre/a.ts": SUITE,
+  "src/libre/b.ts": SUITE,
+};
 
 const textes = (fichiers: Record<string, string>) => ({ textes: Object.entries(fichiers).map(([chemin, texte]) => ({ chemin, texte })) });
 // Ce que l'observation repère sur le projet des tests, chaque candidat sous son nom.
@@ -129,90 +141,4 @@ test("la PR d'une passe dit combien de candidats ne lui ont pas été reproposé
   assert.match(corpsDeLaPR({ ...passe, deja: 2 }), /\n\n2 candidats laissés par une passe précédente, sans que le code autour ait changé depuis, n'ont pas été reproposés au closer\./);
   assert.match(corpsDeLaPR({ ...passe, deja: 1 }), /\n\n1 candidat laissé par une passe précédente, sans que le code autour ait changé depuis, n'a pas été reproposé au closer\./);
   assert.doesNotMatch(corpsDeLaPR(passe), /reproposé/);
-});
-
-describe("la mémoire, en cuisine", { concurrency: 4 }, () => {
-  test("après une passe livrée, la mémoire du projet contient ce que le closer a laissé — son lieu, son motif, l'empreinte de ses alentours —, et rien de ce qu'il a retiré", async (t) => {
-    const { demander, fin, closer, runtime } = cuisineFermee(t);
-    closer.gestes(RETIRER_M1);
-    closer.message("<livrable>\nRetiré : M1.\nLAISSÉ D1 : les deux suites évoluent à part\n</livrable>\n");
-
-    assert.equal((await demander()).code, 0);
-    const passe = await fin();
-    assert.equal(passe.outcome, "delivered");
-    assert.deepEqual(
-      memoire(runtime.journal.base, "brigade").map(({ cle, location, reason, empreinte: e, run }) => ({ cle, location, reason, empreinte: e, run })),
-      [
-        { cle: du("D1").cle, location: ["src/libre/a.ts:1-8", "src/libre/b.ts:1-8"], reason: "les deux suites évoluent à part", empreinte: du("D1").empreinte, run: passe.run },
-        { cle: du("M2").cle, location: ["src/tenu/outils.ts:2"], reason: SANS_MOTIF, empreinte: du("M2").empreinte, run: passe.run },
-      ],
-    );
-  });
-
-  test("à la passe suivante, ce qui a été laissé sans que le code autour change n'est pas reproposé ; ce dont le code autour a changé l'est, et son entrée est remplacée", async (t) => {
-    const cuisine = cuisineFermee(t);
-    const { demander, fin, closer, runtime, types, dernier, clone, avertissements } = cuisine;
-    const lue = () => memoire(runtime.journal.base, "brigade");
-    closer.message("<livrable>\nLAISSÉ D1 : deux modules qui évoluent à part\nLAISSÉ M1 : appelé par un script hors du dépôt\nLAISSÉ M2 : lu par convention\n</livrable>\n");
-
-    // La première passe laisse tout.
-    assert.equal((await demander()).code, 0);
-    const premiere = await fin();
-    assert.equal(premiere.outcome, "nothing");
-    const retenue = lue();
-    assert.deepEqual(
-      retenue.map(({ cle, reason }) => [cle, reason]),
-      [
-        [du("D1").cle, "deux modules qui évoluent à part"],
-        [du("M1").cle, "appelé par un script hors du dépôt"],
-        [du("M2").cle, "lu par convention"],
-      ],
-    );
-
-    // La deuxième : rien n'a changé, rien ne lui est reproposé — elle ne part pas, et dit pourquoi.
-    assert.equal((await demander()).code, 0);
-    await jusqua(() => types().includes("closing.refused"));
-    assert.deepEqual([dernier("closing.refused")?.reason, dernier("closing.refused")?.detail], ["nothing", "les 3 candidats de l'observation ont tous été laissés par une passe précédente, sans que le code autour d'eux ait changé depuis"]);
-    assert.match(avertissements.join("\n"), /passe de fermeture refusée — rien à ranger — les 3 candidats de l'observation ont tous été laissés par une passe précédente/);
-    assert.equal(closer.lancements().length, 1);
-    assert.deepEqual(lue(), retenue);
-
-    // Le code autour de M1 change sur la base : seul M1 lui est reproposé.
-    ecrireHistoire(clone, [{ commit: { "src/libre/outils.ts": "export function vivant() { return 10; }\nexport function inutile() { return 2; }\n" } }]);
-    git(clone, "push", "-q", "origin", `refs/remotes/origin/${BASE}:refs/heads/${BASE}`);
-    closer.message("<livrable>\nLAISSÉ M1 : toujours appelé par le script de déploiement\n</livrable>\n");
-    assert.equal((await demander()).code, 0);
-    await jusqua(() => types().filter((type) => type === "closing.ended").length === 2);
-    const troisieme = dernier("closing.ended");
-    assert.equal(troisieme?.outcome, "nothing");
-    assert.equal(dernier("closing.started")?.candidates, 1);
-    assert.match(closer.consigne(), /- M1 — export `inutile`/);
-    assert.doesNotMatch(closer.consigne(), /- D1 —|- M2 —/);
-    assert.deepEqual(troisieme?.kept?.map(({ id }) => id), ["M1"]);
-    // Son ancienne entrée est remplacée : la nouvelle porte le nouveau motif,
-    // l'empreinte du code tel qu'il est, et la troisième passe.
-    const m1 = lue().find(({ cle }) => cle === du("M1").cle);
-    const ancienne = retenue.find(({ cle }) => cle === du("M1").cle);
-    assert.equal(m1?.reason, "toujours appelé par le script de déploiement");
-    assert.equal(m1?.run, troisieme?.run);
-    assert.notEqual(m1?.empreinte, ancienne?.empreinte);
-    // Les deux autres n'ont pas bougé.
-    assert.deepEqual(
-      lue().filter(({ cle }) => cle !== du("M1").cle),
-      retenue.filter(({ cle }) => cle !== du("M1").cle),
-    );
-  });
-
-  test("ce qu'un autre projet a laissé, au même code, ne retient rien de ce qui est proposé à celui-ci", async (t) => {
-    const { demander, fin, closer, runtime, dernier } = cuisineFermee(t);
-    const tous = [...DU_PROJET.values()];
-    retenir(runtime.journal.base, "autre", { run: "fermeture-autre", at: "2026-10-08T09:00:00.000Z", proposes: tous, laisses: tous.map(({ id, quoi }) => ({ id, what: quoi, reason: "pas sûr", before: false })) });
-    closer.gestes(RETIRER_M1);
-
-    assert.equal((await demander()).code, 0);
-    assert.equal((await fin()).outcome, "delivered");
-    assert.equal(dernier("closing.started")?.candidates, 3);
-    assert.match(closer.consigne(), /- D1 —[\s\S]*- M1 —[\s\S]*- M2 —/);
-    assert.equal(memoire(runtime.journal.base, "autre").length, 3);
-  });
 });

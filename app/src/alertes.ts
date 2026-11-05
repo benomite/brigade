@@ -730,12 +730,12 @@ function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
 
 // --- L'app hors ligne ---------------------------------------------------------------
 //
-// Sans réseau, tout ce que l'app lit du tableau de la cuisine rate d'un coup : le manager, la cuisine, le grant. Trois
+// Sans réseau, tout ce que l'app lit de GitHub rate d'un coup : le manager, la cuisine, le grant. Trois
 // « non vérifié » pour une seule cause, qui n'est pas une panne, et aucun geste qui y change rien (#1818). Dès qu'une
 // lecture n'a pas joint GitHub du tout (tableau/lecture.ts, `horsLigne`), la bande se tait : ni ligne, ni signal — la
 // vue garde le dernier rail lu, et un seul signe dit depuis quand l'app est hors ligne. Ce qui avait été lu n'est pas
-// effacé : à la première lecture qui joint GitHub, la bande se redessine de ce qu'elle dit, et une vraie panne — le
-// tableau illisible, GitHub qui refuse — y entre comme avant.
+// effacé : à la première lecture qui joint GitHub, la bande se redessine de ce qu'elle dit, et une vraie panne —
+// GitHub qui refuse — y entre comme avant.
 
 // --- Ce qui est tenu, projet par projet -----------------------------------------
 

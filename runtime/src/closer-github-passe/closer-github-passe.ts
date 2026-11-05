@@ -1,8 +1,6 @@
-// The closer on the GitHub-only path (#2361). With the switch on, the old
-// closer stops at its entry (#2218): it reads the stale log and launches its
-// own `claude`. This one takes over, project by project, at the closer's
-// cadence, and reads and writes only GitHub — and the project's clone, as the
-// observation always did.
+// The closer on the GitHub-only path (#2361), the only one since the old path
+// went (#2061): project by project, at the closer's cadence, it reads and
+// writes only GitHub — and the project's clone, as the observation always did.
 //
 // A ticket lives entirely in its issue, so a closing pass does too: when the
 // closer is set and `MERGES_PER_PASS` merges reached the integration branch
@@ -42,17 +40,20 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { candidats, proposer, type Candidat } from "../closing/candidates.ts";
 import { direRatio, mesurerRatio } from "../closing/ratio.ts";
 import { lireDepot, type Depot } from "../closing/reading.ts";
-import { MERGES_PER_PASS, ONE_PASS_A_DAY_MS } from "../closing/trigger.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
 import type { ReglagesDeFermeture } from "../events/closing.ts";
 import type { Seuils } from "../events/drift.ts";
-import type { Perimee } from "../github-seul/boucles-perimees/boucles-perimees.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import type { Runtime } from "../runtime.ts";
 import { direJaugeEn } from "../mesures.ts";
 import { execFile } from "../sans-invite.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { releverDerive, ticketDuMerge, type CoutsDesCooks, type DeriveGithub, type MergeDuClone } from "./derive-github.ts";
+
+// The merges since the last pass beyond which a pass is opened.
+export const MERGES_PER_PASS = 20;
+// The shortest gap between two passes of a project: a day.
+export const ONE_PASS_A_DAY_MS = 24 * 60 * 60 * 1000;
 
 // What the pass reads and writes of GitHub.
 export type GitHubDuCloser = {
@@ -74,8 +75,6 @@ export type LectureDuClone = {
 };
 
 export type OptionsCloserGithub = {
-  // True while the GitHub-only switch is on: the pass runs only then.
-  perimee: Perimee;
   // The closer's settings, read at each pass: without a calibration, no pass.
   reglages: () => Pick<ReglagesDeFermeture, "calibration" | "removedLines">;
   github: GitHubDuCloser;
@@ -111,8 +110,8 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 
 const depuisLaPasse = (derniere: Passe | null) => (derniere === null ? Number.NEGATIVE_INFINITY : Date.parse(derniere.createdAt));
 
-// Why a pass is due now, or null: the closer's trigger (`closing/trigger.ts`),
-// on what GitHub and the clone say.
+// Why a pass is due now, or null: `MERGES_PER_PASS` merges since the last pass,
+// at most one a day, never while one is open — on what GitHub and the clone say.
 export function aOuvrir(derniere: Passe | null, merges: MergeDuClone[], maintenant: Date): { merges: number } | null {
   if (derniere !== null && (derniere.state === "open" || maintenant.getTime() - Date.parse(derniere.createdAt) < ONE_PASS_A_DAY_MS)) return null;
   const nouveaux = merges.filter(({ at }) => Date.parse(at) > depuisLaPasse(derniere)).length;
@@ -290,7 +289,7 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
   };
 
   const desabonner = runtime.surReveil((cause) => {
-    if (cause !== "tick" || arrete || occupe || !options.perimee()) return;
+    if (cause !== "tick" || arrete || occupe) return;
     const instant = maintenant().getTime();
     if (instant - derniereFois < ecartMs) return;
     derniereFois = instant;

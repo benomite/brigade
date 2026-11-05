@@ -5,7 +5,7 @@ import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { activitesDesCooksEnCours, cooksEnCours, derniersCooks, mesuresDesCooksEnCours } from "../src/projections/guardrails.ts";
 import { dernierTick, derniereSession, sessionEnCours, sessions } from "../src/projections/sessions.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { FaitGardeFous } from "../src/events/guardrails.ts";
 import type { FaitRuntime } from "../src/events/runtime.ts";

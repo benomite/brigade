@@ -2,130 +2,20 @@
 // journal : ce qu'elle a retiré et laissé, la pente avant et après, et trois
 // garde-fous — dont l'échec se dit en tête, même sous des gates vertes.
 import assert from "node:assert/strict";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
 import type { FaitFermeture } from "../../src/events/closing.ts";
 import type { Gates } from "../../src/events/pass.ts";
 import { direBilan, gardeFous } from "../../src/closing/report.ts";
-import { principal } from "../../src/closing/command.ts";
-import { SANS_MOTIF } from "../../src/closing/brief.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { chef } from "../aides/cuisine.ts";
-import { appeler, BASE, ENV_GIT, git, jusqua, repertoireTemporaire } from "../outils.ts";
-import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
-import { lignes, type Etape } from "./history.ts";
+import { repertoireTemporaire } from "../outils.ts";
 
-// Une passe livrée, jugée par la pass puis mergée ou remontée, avant le fait
-// attendu : quelques secondes sous Linux, plus de 60 s sur le runner Windows,
-// où chaque process coûte cher. Ces gardes sont plus larges : elles ne servent
-// qu'à ce qu'un test bloqué finisse par le dire.
-const PASSE_JUGEE_MS = 300_000;
-const PASSE_JUGEE = { timeout: 600_000 };
-
-// Le numéro de la première PR du GitHub de test.
+// Le numéro de la PR de la passe.
 const PR = 101;
-
-// Deux merges avant le projet : chacun ajoute dix lignes et en retire une.
-const DEUX_MERGES: Etape[] = [
-  { commit: { "stock.txt": lignes(40) } },
-  { merge: { "plats/1.txt": lignes(10), "stock.txt": lignes(39) } },
-  { merge: { "plats/2.txt": lignes(10), "stock.txt": lignes(38) } },
-];
 
 const gates = (outcome: Gates["outcome"], measures?: Record<string, number>): Gates => ({ outcome, code: outcome === "green" ? 0 : 1, failures: [], tail: "", ...(measures ? { measures } : {}) });
 
-// La pass a jugé la base seule, sur sa tête : ce que ses gates y ont déclaré.
-function jugerLaBase({ journal, teteDeLaBase }: ReturnType<typeof cuisineFermee>, mesures: Record<string, number>): void {
-  journal.ajouter({ project: "brigade", ticket: null, author: "pass", type: "base.checked", payload: { sha: teteDeLaBase(), outcome: "green", gates: gates("green", mesures), tickets: [] } });
-}
-
-// Une passe qui retire M1, laisse D1 en le disant et M2 sans rien dire.
-async function livrer({ demander, fin, closer }: ReturnType<typeof cuisineFermee>) {
-  closer.gestes(RETIRER_M1);
-  closer.message("<livrable>\nRetiré : M1.\nLAISSÉ D1 : deux modules qui évoluent à part\n</livrable>\n");
-  const { code, sortie } = await demander();
-  assert.equal(code, 0, sortie);
-  return fin();
-}
-
-// Ce que `run fermeture` dit de la dernière passe : sa ligne `passe`, et son bilan.
-async function lire({ clone, repertoire }: ReturnType<typeof cuisineFermee>): Promise<string[]> {
-  const appel = appeler(principal, [], { ...ENV_GIT, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await appel.fin, 0, appel.sortie());
-  const sortie = appel.sortie().trimEnd().split("\n");
-  return sortie.slice(sortie.findIndex((ligne) => ligne.startsWith("pass ")));
-}
-
-// Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
-describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
-  test("après une passe, `run fermeture` en donne le bilan sans rouvrir sa PR : chaque retrait avec son chemin et son motif, chaque candidat laissé avec sa raison, la pente avant et après sur les mêmes merges, et les trois garde-fous avec leur valeur avant, après et leur verdict", PASSE_JUGEE, async (t) => {
-    const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
-    const { repertoire, types, teteDeLaBase } = cuisine;
-    const base = teteDeLaBase().slice(0, 7);
-    chef(repertoire, "grant.activated");
-    jugerLaBase(cuisine, { couverture: 87.5, verifications: 12 });
-    // La PR de la passe, fusionnée avec la base : ses gates en déclarent autant.
-    cuisine.gates.mesurer({ couverture: 87.5, verifications: 12 });
-
-    const passe = await livrer(cuisine);
-    await jusqua(() => types(PR).includes("merge.done"), PASSE_JUGEE_MS);
-
-    // Le journal porte de quoi le dire : ce qu'elle a retiré, ce qu'elle a
-    // ajouté, et la pente de la base dont elle est partie.
-    assert.deepEqual(passe.removed, [{ id: "M1", what: "export `inutile` of `src/libre/outils.ts:2` — referenced nowhere" }]);
-    assert.deepEqual([passe.removedLines, passe.addedLines], [1, 0]);
-    assert.deepEqual(passe.slope, [20, 50, 100].map((window) => ({ window, merges: 2, added: 20, removed: 2 })));
-
-    const [ligne, ...bilan] = await lire(cuisine);
-    assert.match(ligne ?? "", /^pass {7}fermeture-[0-9a-f]{8}, on 2026-10-\d\d \d\d:\d\d — delivered: 1 line removed in 1 file/);
-    assert.deepEqual(
-      bilan.map((dit) => dit.replace(/merged on 2026-10-\d\d \d\d:\d\d$/, "merged on <date>")),
-      [
-        "summary    the slope falls (10:1 → 6.7:1 over 20 merges) · the three guardrails hold",
-        "           PR #101 — judged green by the pass, merged on <date>",
-        "removed    1 of 3 candidates · 1 line removed, none added, in `src/libre/outils.ts`",
-        "           M1  export `inutile` of `src/libre/outils.ts:2` — referenced nowhere",
-        "left       2, for lack of certainty",
-        "           D1  8 identical lines of code: `src/libre/a.ts:1-8` = `src/libre/b.ts:1-8`  deux modules qui évoluent à part",
-        `           M2  export \`oublie\` of \`src/tenu/outils.ts:2\` — referenced nowhere          ${SANS_MOTIF}`,
-        "slope      added / removed over the same merges: before the pass → with what it removes",
-        "           20 merges   +20 / −2  10:1  →  +20 / −3  6.7:1  falls — only 2 merges on the branch",
-        "           50 merges   +20 / −2  10:1  →  +20 / −3  6.7:1  falls — only 2 merges on the branch",
-        "           100 merges  +20 / −2  10:1  →  +20 / −3  6.7:1  falls — only 2 merges on the branch",
-        `guardrails before the pass → after, by the gates the pass ran: on the base \`${base}\`, then on the PR merged with it`,
-        "           test coverage  87.5 % → 87.5 %            holds",
-        "           gate checks    12 → 12                    holds",
-        "           product state  gates green → gates green  holds",
-      ],
-    );
-  });
-
-  test("une couverture ou un nombre de vérifications en baisse est un échec, dit en tête du bilan — même si les gates sont vertes et que la pass a mergé", PASSE_JUGEE, async (t) => {
-    const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
-    const { repertoire, journal, types } = cuisine;
-    chef(repertoire, "grant.activated");
-    jugerLaBase(cuisine, { couverture: 87.5, verifications: 12 });
-    // Ce que le closer a retiré était vivant : un test est parti avec.
-    cuisine.gates.mesurer({ couverture: 86.9, verifications: 11 });
-
-    await livrer(cuisine);
-    await jusqua(() => types(PR).includes("merge.done"), PASSE_JUGEE_MS);
-    // Les gates étaient vertes, et la pass a mergé : elle ne juge pas ces mesures.
-    const jugement = journal.duTicket(PR).findLast((fait) => fait.type === "pass.judged")?.payload;
-    assert.deepEqual([jugement?.verdict, jugement?.gates.outcome], ["green", "green"]);
-
-    const [, tete, ...suite] = await lire(cuisine);
-    assert.equal(
-      tete,
-      "summary    FAILURE — test coverage : down (87.5 % → 86.9 %), gate checks : down (12 → 11), even if the gates are green — the pass may have removed live code · the slope falls (10:1 → 6.7:1 over 20 merges)",
-    );
-    assert.deepEqual(suite.slice(-3), [
-      "           test coverage  87.5 % → 86.9 %            FAILURE — down",
-      "           gate checks    12 → 11                    FAILURE — down",
-      "           product state  gates green → gates green  holds",
-    ]);
-  });
-
+describe("le bilan d'une passe de fermeture", () => {
   test("un seul garde-fou qui cède suffit, une mesure qui monte ou ne bouge pas tient, et des gates rouges sont l'échec du produit", () => {
     const verdicts = (avant: Gates | null, apres: Gates | null) => gardeFous(avant, apres, "no before", "no after").map(({ verdict, detail }) => [verdict, detail]);
     const base = gates("green", { couverture: 80, verifications: 30 });
@@ -220,67 +110,5 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
       "           gate checks    12 → 12                    holds",
       "           product state  gates green → gates green  holds",
     ]);
-  });
-
-  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non", async (t) => {
-    // Un merge de deux mille lignes ajoutées pour mille retirées : une ligne de
-    // moins n'y change rien qui se lise.
-    const lourde = cuisineFermee(t, { histoire: [{ commit: { "stock.txt": lignes(1100) } }, { merge: { "plats/1.txt": lignes(2000), "stock.txt": lignes(100) } }] });
-    assert.equal((await livrer(lourde)).outcome, "delivered");
-    await jusqua(() => lourde.types(PR).includes("pass.held"));
-    const [, tete, pr, ...suite] = await lire(lourde);
-    assert.match(tete ?? "", / · the slope did not move \(2:1 over 20 merges\): the pass was of no use$/);
-    assert.equal(pr, "           PR #101 — judged green by the pass, not merged: the base's slope only moves at its merge");
-    assert.ok(suite.includes("slope      added / removed over the same merges: before the pass → with what it removes, once its PR is merged"), suite.join("\n"));
-    const fr = (valeur: number) => valeur.toLocaleString("en-US");
-    assert.ok(suite.includes(`           20 merges   +${fr(2000)} / −${fr(1000)}  2:1  →  +${fr(2000)} / −${fr(1001)}  2:1  did not move — only 1 merge on the branch`), suite.join("\n"));
-
-    // Un closer qui ne retire rien : aucune PR, et le bilan garde ce qu'il a laissé.
-    const prudente = cuisineFermee(t, { histoire: DEUX_MERGES });
-    prudente.closer.message("<livrable>\nLAISSÉ M1 : appelé par un script de déploiement hors du dépôt\nLAISSÉ M2 : idem\n</livrable>\n");
-    assert.equal((await prudente.demander()).code, 0);
-    assert.equal((await prudente.fin()).outcome, "nothing");
-    const [, ...bilan] = await lire(prudente);
-    assert.deepEqual(bilan, [
-      "summary    nothing was removed: the slope did not move, the pass was of no use",
-      "left       3, for lack of certainty",
-      `           D1  8 identical lines of code: \`src/libre/a.ts:1-8\` = \`src/libre/b.ts:1-8\`  ${SANS_MOTIF}`,
-      "           M1  export `inutile` of `src/libre/outils.ts:2` — referenced nowhere        appelé par un script de déploiement hors du dépôt",
-      "           M2  export `oublie` of `src/tenu/outils.ts:2` — referenced nowhere          idem",
-    ]);
-  });
-
-  test("une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini", PASSE_JUGEE, async (t) => {
-    const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
-    const { types, clone, teteDeLaBase } = cuisine;
-    cuisine.gates.mesurer({ couverture: 87.5, verifications: 12 });
-    cuisine.gates.regler("rouge");
-
-    await livrer(cuisine);
-    // Rouge une fois fusionnée : la pass joue les gates sur la base seule — vertes.
-    await jusqua(() => types(PR).includes("pass.escalated"), PASSE_JUGEE_MS);
-    assert.equal(cuisine.dernier("closing.ended")?.outcome, "delivered");
-    const base = cuisine.journal.duType("base.checked", 1)[0]?.payload;
-    assert.deepEqual([base?.sha, base?.outcome], [teteDeLaBase(), "green"]);
-    assert.equal(git(clone, "rev-parse", `origin/${BASE}`), teteDeLaBase());
-
-    const [, tete, pr, ...suite] = await lire(cuisine);
-    assert.equal(tete, "summary    FAILURE — product state : the test suite is not green (gates green → gates red) — the pass may have removed live code · the slope falls (10:1 → 6.7:1 over 20 merges)");
-    assert.equal(pr, "           PR #101 — judged red by the pass, not merged: the base's slope only moves at its merge");
-    assert.deepEqual(suite.slice(-3), [
-      "           test coverage  87.5 % → 87.5 %          holds",
-      "           gate checks    12 → 12                  holds",
-      "           product state  gates green → gates red  FAILURE — the test suite is not green",
-    ]);
-
-    // Le chef redemande une passe : refusée, le closer n'étant plus réglé — son
-    // refus est la dernière nouvelle, et le bilan de la passe finie reste lisible.
-    cuisine.runtime.arreter("essai");
-    const seconde = cuisineFermee(t, { lieux: cuisine.lieux, reglages: { calibration: null } });
-    assert.equal((await seconde.demander()).code, 1);
-    const [refus, rappel, bilan] = await lire(seconde);
-    assert.match(refus ?? "", /^pass {7}refused on .* — the closer is not set on this project/);
-    assert.match(rappel ?? "", /^ {11}the last finished pass: fermeture-[0-9a-f]{8}, on .* — delivered: 1 line removed in 1 file/);
-    assert.equal(bilan, tete);
   });
 });

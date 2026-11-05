@@ -1,23 +1,15 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { availableParallelism } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after } from "node:test";
 import { describe, test, type TestContext } from "node:test";
-import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
 import { signalerLArbre } from "../src/arbre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
-import { ROLES } from "../src/identites.ts";
-import { ouvrirJournal } from "../src/journal.ts";
-import { lireRail } from "../src/projections/rail.ts";
-import { proposerAuRuntime } from "../src/reglages-projet/au-runtime.ts";
-import { FICHIER } from "../src/reglages-projet/reglages.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
-import { demander } from "./aides/demander.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
-import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
+import { BASE, DEPOT, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, temporaireDuFichier } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -77,35 +69,6 @@ function relire(repertoire: string) {
   return lecteur.lire(repertoire, "tout", (journal) => journal.tout()).filter((e) => e.type !== "decision.set");
 }
 
-// Un projet sous grant de merge, prêt à voir son ticket 15 servi : ses gates
-// sont vertes quand le cook a écrit `travail.txt`, le faux `gh` mène le ticket
-// jusqu'à sa PR 40 mergée, et le chef a donné le grant avant que le runtime ne
-// démarre.
-function ticketSousGrant(t: TestContext, repertoire: string) {
-  const { origine, clone } = depotGit(t);
-  // Le projet a des gates : elles sont sur la base, donc dans le worktree du cook.
-  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
-  chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
-  git(clone, "add", ".");
-  git(clone, "commit", "-q", "-m", "les gates du projet");
-  git(clone, "push", "-q", "origin", BASE);
-  const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
-  const gh = fauxGh(t);
-  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
-  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-  gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
-  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
-  gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
-  gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
-  gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
-  const avant = ouvrirJournal(repertoire);
-  avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-  avant.fermer();
-  return { origine, clone, gh };
-}
-
 // Le runtime lancé sur son seul environnement, sans rien de plus : plusieurs
 // tests lisent ce qu'il dit et écrit en démarrant, en tournant et en
 // s'arrêtant. Un seul process le leur montre — lancé par le premier qui le
@@ -154,7 +117,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
 describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
-    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
 
     // Ce qu'une autre commande lira pour dire s'il tourne sur le code installé.
     assert.equal(runtime.codeEnService, empreinteDuCode());
@@ -169,7 +132,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
         ["project.switched-on", "brigade", "runtime"],
         ["grant.activated", "brigade", "runtime"],
         ["guard.configured", "brigade", "runtime"],
-        ["station.announced", "brigade", "station:box/claude"],
         ["drift.configured", "brigade", "runtime"],
         ["session.observed", "brigade", "runtime"],
         ["isolation.configured", "brigade", "runtime"],
@@ -193,10 +155,10 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const apres = relire(repertoire);
     assert.deepEqual(apres.slice(0, avant.length), avant);
     assert.deepEqual(
-      apres.map((e) => [e.type, e.payload]).slice(8, 9),
+      apres.map((e) => [e.type, e.payload]).slice(7, 8),
       [["runtime.interrupted", { startedSeq: apres.find((e) => e.type === "runtime.started")?.seq }]],
     );
-    assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
+    assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
   });
 
   test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", { skip: posixOnly("starts a second runtime on a project the first one holds and expects it refused, naming the first one's pid; on Windows the first runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's temporary directories, whose removal then fails (EPERM)") }, async (t) => {
@@ -210,7 +172,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await second.fin, REFUS);
     assert.match(second.sortie(), /refus de démarrer/);
     assert.match(second.sortie(), new RegExp(`pid ${premier.process.pid}`));
-    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
   });
 
   test("sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite", async (t) => {
@@ -231,21 +193,16 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(runtime.journal.find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
   });
 
-  test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", { skip: posixOnly("starts the runtime under the fake bwrap and checks the sandbox line it prints, its isolation.configured fact and the transcripts it tidies; the expected line is a RegExp built from Windows paths, whose backslashes it reads as escapes, so it never matches there") }, async (t) => {
+  test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", { skip: posixOnly("starts the runtime under the fake bwrap and checks the sandbox line it prints and its isolation.configured fact; the expected line is a RegExp built from Windows paths, whose backslashes it reads as escapes, so it never matches there") }, async (t) => {
     // L'état et le clone sous une même racine, que la cloison masque ; le compte à côté.
     const racine = repertoireTemporaire(t);
     const repertoire = join(racine, "etats/brigade");
     const clone = join(racine, "etats/depot");
+    // L'état existe avant le démarrage : les décisions du chef y sont posées.
+    mkdirSync(repertoire, { recursive: true });
     mkdirSync(clone, { recursive: true });
     git(clone, "init", "-q");
     const env = { ...environnement(t, repertoire), BRIGADE_REPO_DIR: clone, BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: join(racine, "compte") };
-    // Deux transcripts laissés par une vie précédente, écrits il y a un mois et il y a une heure.
-    const transcripts = join(repertoire, "claude/projects/-tmp");
-    mkdirSync(transcripts, { recursive: true });
-    for (const [nom, age] of [["vieux.jsonl", 30 * 24 * 3_600_000], ["jeune.jsonl", 3_600_000]] as const) {
-      writeFileSync(join(transcripts, nom), "{}\n");
-      utimesSync(join(transcripts, nom), new Date(Date.now() - age), new Date(Date.now() - age));
-    }
     const runtime = lancer(t, MAIN, [], env);
     await runtime.attendre("démarré");
 
@@ -254,12 +211,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       sandbox: { bin: FAUX_BWRAP, hidden: [join(racine, "etats")], credentials: join(racine, "compte/.claude/.credentials.json") },
       proxy: null,
     });
-
-    // Et le `~/.claude` du projet est rangé dès le démarrage : sept jours de garde.
-    await jusqua(() => relire(repertoire).some((e) => e.type === "transcripts.tidied"));
-    assert.deepEqual(readdirSync(join(repertoire, "claude/projects/-tmp")), ["jeune.jsonl"]);
-    const [rangement] = relire(repertoire).flatMap((e) => (e.type === "transcripts.tidied" ? [e.payload] : []));
-    assert.deepEqual([rangement?.removed, rangement?.kept, rangement?.keepMs], [1, 1, 7 * 24 * 3_600_000]);
   });
 
   test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", { skip: posixOnly("starts the runtime with BRIGADE_MAX_TOKENS=2000000 and reads the ceilings of its guard.configured fact; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
@@ -310,7 +261,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     ["avec un effort de reviewer inconnu", { BRIGADE_REVIEWER_EFFORT: "fort" }, /BRIGADE_REVIEWER_EFFORT invalid/],
     ["avec une roadmap qui n'est pas un numéro d'issue", { BRIGADE_ROADMAP_ISSUE: "roadmap" }, /BRIGADE_ROADMAP_ISSUE invalide/],
     ["avec un nombre d'entrées simultanées nul", { BRIGADE_MAX_SETUPS: "0" }, /invalid BRIGADE_MAX_SETUPS/],
-    ["avec une durée de garde des transcripts illisible", { BRIGADE_TRANSCRIPTS_KEEP_DAYS: "toujours" }, /invalid BRIGADE_TRANSCRIPTS_KEEP_DAYS/],
     ["avec un seuil de mémoire illisible", { BRIGADE_MIN_FREE_MEMORY_MB: "un peu" }, /invalid BRIGADE_MIN_FREE_MEMORY_MB/],
     ["avec un plafond de calibrage inconnu", { BRIGADE_CEILING_EFFORT: "extrême" }, /BRIGADE_CEILING_EFFORT invalid: “extrême”/],
     ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
@@ -335,71 +285,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     });
   }
 
-  function lireLeRail(repertoire: string) {
-    return lecteur.lire(repertoire, "rail", (journal) => lireRail(journal.base)).slice();
-  }
-
-  test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", { skip: posixOnly("starts the runtime with two declared stations and checks each station.announced fact and the stations line, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless" });
-    await runtime.attendre("démarré");
-
-    assert.deepEqual(
-      relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [[e.author, e.payload]] : [])),
-      [
-        // Les deux tournent ici : elles annoncent les cœurs de cette machine.
-        ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 3, cores: availableParallelism() }],
-        ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 1, cores: availableParallelism() }],
-      ],
-    );
-    assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\)/);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
-  });
-
-  test("sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", { skip: posixOnly("lends the ticket only a remote station can cook through announce, claim and renew requests written from outside the runtime, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const gh = fauxGh(t);
-    // Sans cloison sur son poste, elle ne prend que ce qui demande ses capacités.
-    gh.commentaires(16, "<!-- brigade:fiche -->\n**Fiche du ticket**\n- requiert : chrome-connecté");
-    gh.issues([issueGitHub(16, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-    const temoin = join(repertoireTemporaire(t), "temoin");
-    mkdirSync(temoin);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante", FAUX_CLAUDE_TEMOIN: temoin });
-    await runtime.attendre("démarré");
-    assert.match(runtime.sortie(), /brigade : stations — mac\/claude \(1 cook at most; provides: chrome-connecté; remote: it pulls its work, the box never reaches it\)/);
-    assert.deepEqual(
-      relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [e.payload] : [])),
-      [{ station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true }],
-    );
-    // Absente, son ticket est 86 : aucun cook ne part.
-    await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "86"));
-    assert.equal(lireLeRail(repertoire)[0]?.reason, "station-absent: mac/claude");
-
-    // La demande de la station, écrite au journal depuis un autre process que le runtime ; la réponse, relue.
-    const tirer = async (demande: Parameters<typeof demander>[2]) => demander(repertoire, "mac/claude", demande);
-    const annonce = await tirer({ verb: "announce" });
-    assert.ok(annonce.ok && annonce.verb === "announce", JSON.stringify(annonce));
-    assert.deepEqual(annonce.provides, ["chrome-connecté"]);
-    await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "waiting"));
-    const prise = await tirer({ verb: "claim" });
-    assert.ok(prise.ok && prise.verb === "claim" && prise.mission !== null, JSON.stringify(prise));
-    const { mission } = prise;
-    assert.deepEqual([mission.ticket, mission.branch, mission.base, mission.model], [16, `cook/${mission.run}`, BASE, "sonnet"]);
-    assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state, ticket.station]), [[16, "taken", "mac/claude"]]);
-    // Sans preuve, le renouvellement est refusé, et le refus se lit.
-    const sansPreuve = await tirer({ verb: "renew", run: mission.run, proof: null, turns: 1, tokens: 10 });
-    assert.ok(!sansPreuve.ok && sansPreuve.refusal === "no-progress", JSON.stringify(sansPreuve));
-    const renouvele = await tirer({ verb: "renew", run: mission.run, proof: "empreinte-1", turns: 1, tokens: 10 });
-    assert.ok(renouvele.ok, JSON.stringify(renouvele));
-    // Rien n'a été lancé sur la box : ni `claude`, ni worktree.
-    assert.deepEqual(lancementsDuFauxClaude(temoin), []);
-    assert.equal(existsSync(join(repertoire, "worktrees")), false);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
-  });
-
-  test("un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part", { skip: posixOnly("starts the runtime with no station declared and checks the ticket stays waiting and the fake claude is never launched, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
+  test("un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part", { skip: posixOnly("starts the runtime with no station declared and checks the GitHub-only station is refused and the fake claude is never launched, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
@@ -407,44 +293,16 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     mkdirSync(temoin);
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_STATIONS: "", FAUX_CLAUDE_TEMOIN: temoin });
     await runtime.attendre("démarré");
-    await jusqua(() => lireLeRail(repertoire).length === 1);
-    // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
-    await new Promise((resoudre) => setTimeout(resoudre, 300));
+    // Sans station sur cette machine, la station GitHub seul est refusée, et le dit.
+    await runtime.attendre("cannot serve the project on GitHub-only state — the project declares no station on this machine");
 
     assert.match(runtime.sortie(), /brigade : stations — none \(BRIGADE_STATIONS is set neither in the environment nor in the log\): no cook will leave, the tickets stay queued on the rail — set them with `brigade brigade station stations box\/claude:30:code\+raisonnement`/);
     const types = relire(repertoire).map((e) => e.type);
-    assert.deepEqual(types.slice(0, 8), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "stations.undeclared", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(types.slice(0, 7), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
     assert.deepEqual(types.filter((type) => type.startsWith("station.") || type === "cook.launched" || type === "ticket.taken"), []);
-    assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "waiting"]]);
     assert.deepEqual(lancementsDuFauxClaude(temoin), []);
     runtime.process.kill("SIGTERM");
     assert.equal(await runtime.fin, 0);
-  });
-
-  test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail", { skip: posixOnly("kills the runtime, restarts it with a fake gh that answers nothing and expects the same rail, then stops the second one with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const gh = fauxGh(t);
-    gh.commentaires(15, "Un commentaire.", "<!-- brigade:fiche -->\n**Fiche du ticket**\n- attend : #14\n- zone : runtime/src/rail.ts");
-    gh.issues([issueGitHub(14, { labels: ["fire", "prio:1"] }), issueGitHub(15)]);
-    // Une machine sans session : la station ne prend rien, le rail ne bouge que
-    // par GitHub.
-    const sansSession = { FAUX_CLAUDE_SESSION: "absente" };
-    const premier = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), ...sansSession });
-    await premier.attendre("démarré");
-    await jusqua(() => lireLeRail(repertoire).length === 2);
-    const avant = lireLeRail(repertoire);
-    premier.process.kill("SIGKILL");
-    await premier.fin;
-
-    // Un `gh` à qui rien n'a été dicté échoue, comme sans réseau.
-    const second = lancer(t, MAIN, [], { ...environnement(t, repertoire, fauxGh(t)), ...sansSession });
-    await second.attendre("sondage GitHub en échec");
-
-    assert.deepEqual(lireLeRail(repertoire), avant);
-    assert.deepEqual(avant.map((ticket) => [ticket.ticket, ticket.priority, ticket.state]), [[14, 1, "waiting"], [15, null, "waiting"]]);
-    assert.deepEqual(avant.map((ticket) => ticket.card), [null, { waitsFor: [14], zone: ["runtime/src/rail.ts"], problems: [] }]);
-    second.process.kill("SIGTERM");
-    assert.equal(await second.fin, 0);
   });
 
   // L'interrupteur du projet (#1406) : posé allumé au premier démarrage, sans geste du chef.
@@ -475,176 +333,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.ok(relire(repertoire).some((e) => e.type === "project.switched-off" && e.author === "chef"));
     runtime.process.kill("SIGTERM");
     assert.equal(await runtime.fin, 0);
-  });
-
-  // Deux cuisines complètes, chacune avec son dépôt et son `gh` : elles se jouent de front.
-  describe("de bout en bout", { concurrency: 2 }, () => {
-    test("une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", { skip: posixOnly("lets the real runtime turn a calibrated issue into a commit by the fake claude (Git Bash), a pushed branch, a PR and a comment, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the comment did not even come within the test's one-minute wait") }, async (t) => {
-      const repertoire = repertoireTemporaire(t);
-      const { origine, clone } = depotGit(t);
-      const gh = fauxGh(t);
-      gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-      gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
-      gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-      const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
-
-      await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`));
-
-      const journal = relire(repertoire);
-      const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
-      assert.deepEqual([lancement.model, lancement.effort], ["sonnet", "low"]);
-      assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
-      assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "pass"]]);
-      const pr = gh.appels().find((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`) ?? [];
-      assert.equal(pr.includes(`head=cook/${lancement.run}`) && pr.includes(`base=${BASE}`), true);
-      assert.equal(git(clone, "status", "--porcelain"), "");
-      runtime.process.kill("SIGTERM");
-      assert.equal(await runtime.fin, 0);
-    });
-
-    test("avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN", { skip: posixOnly("lets the real runtime launch a cook with the token of BRIGADE_CLAUDE_TOKEN_FILE and expects it in the cook's CLAUDE_CODE_OAUTH_TOKEN; the test writes that file with mode 0o600, which on Windows keeps the ACL inherited from the temporary directory, so the runtime refuses it as readable by others and no cook is launched") }, async (t) => {
-      const repertoire = repertoireTemporaire(t);
-      const { clone } = depotGit(t);
-      const gh = fauxGh(t);
-      gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-      gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
-      gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-      const temoin = join(repertoireTemporaire(t), "temoin");
-      mkdirSync(temoin);
-      const fichier = join(repertoireTemporaire(t), "jeton-claude");
-      writeFileSync(fichier, "sk-ant-oat01-jeton-de-la-machine\n", { mode: 0o600 });
-      const runtime = lancer(t, MAIN, [], {
-        ...environnement(t, repertoire, gh),
-        BRIGADE_REPO_DIR: clone,
-        BRIGADE_CLAUDE_TOKEN_FILE: fichier,
-        FAUX_CLAUDE: "livre",
-        FAUX_CLAUDE_TEMOIN: temoin,
-        // Sans le jeton, `claude auth status` dirait la machine déconnectée, et
-        // aucun cook ne partirait.
-        FAUX_CLAUDE_SESSION: "absente",
-      });
-
-      await jusqua(() => lancementsDuFauxClaude(temoin).length === 1);
-
-      assert.ok(runtime.sortie().includes(`connection of \`claude\` — long-lived token read from ${fichier}, read again at each launch`), runtime.sortie());
-      assert.equal(runtime.sortie().includes("sk-ant-oat01-jeton-de-la-machine"), false);
-      const [cook] = lancementsDuFauxClaude(temoin);
-      assert.equal(cook?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
-      assert.equal(cook?.env.BRIGADE_CLAUDE_TOKEN_FILE, undefined);
-      assert.equal(relire(repertoire).some((e) => e.type === "station.disconnected"), false);
-      runtime.process.kill("SIGTERM");
-      assert.equal(await runtime.fin, 0);
-    });
-
-    test("sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée", { skip: posixOnly("under grant, lets the real runtime judge a cook's delivery with the project's gates, merge it on the judged commit and close the issue, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the closing PATCH did not even come within the test's one-minute wait") }, async (t) => {
-      const repertoire = repertoireTemporaire(t);
-      const { origine, clone, gh } = ticketSousGrant(t, repertoire);
-      // Le cook et le reviewer sont le même binaire : le premier lancé livre, le second relit.
-      const suite = join(repertoire, "suite.txt");
-      ecrireSuite(suite, ["livre"]);
-      const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite });
-
-      await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
-
-      const journal = relire(repertoire);
-      const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
-      const juge = git(origine, "rev-parse", `cook/${lancement.run}`);
-      const verdict = journal.find((e) => e.type === "pass.judged")?.payload as { verdict: string; sha: string; gates: { tail: string }; ci: { outcome: string } };
-      assert.deepEqual([verdict.verdict, verdict.sha, verdict.gates.tail, verdict.ci.outcome], ["green", juge, "gates : VERT", "none"]);
-      assert.deepEqual(
-        gh.appels().find((appel) => appel.includes("PUT")),
-        ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${DEPOT}/pulls/40/merge`],
-      );
-      assert.deepEqual(gh.appels().find((appel) => appel.includes("PATCH"))?.at(-1), `repos/${DEPOT}/issues/15`);
-      assert.deepEqual(
-        journal.map((e) => e.type).filter((type) => /^(pass|grant|merge)\.|^ticket\.served/.test(type)),
-        ["grant.activated", "pass.started", "pass.reviewed", "pass.judged", "grant.used", "merge.done", "ticket.served"],
-      );
-      // La relecture est au journal comme un cook : son calibrage, hors ticket.
-      const relecture = journal.filter((e) => e.type === "cook.launched").at(-1);
-      assert.deepEqual([relecture?.ticket, relecture?.payload.station, relecture?.payload.model, relecture?.payload.effort], [null, "reviewer", "sonnet", "medium"]);
-      assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
-      runtime.process.kill("SIGTERM");
-      assert.equal(await runtime.fin, 0);
-    });
-  });
-
-  test("un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse ; une valeur refusée rend son erreur, sans PR", { skip: posixOnly("has the real runtime open a settings PR for a calibration ceiling and refuse a value carrying a GitHub token, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const { origine, clone } = depotGit(t);
-    const pr = { number: 41, html_url: `https://github.com/${DEPOT}/pull/41`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
-    const gh = fauxGh(t);
-    gh.issues([]);
-    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
-    gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
-    gh.repondre(`repos/${DEPOT}/pulls/41`, { corps: pr });
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone });
-    await jusqua(() => relire(repertoire).some((e) => e.type === "runtime.started"));
-    const appel = { repertoireEtat: repertoire, projet: "brigade" };
-
-    const refusee = await proposerAuRuntime({ calibrationCeiling: { model: "opus", effort: "high" }, githubToken: "ghp_abcdefghijklmnopqrstuvwxyz0123456789" }, appel);
-    assert.ok(!refusee.ok && refusee.motif === "secret" && refusee.cle === "githubToken", JSON.stringify(refusee));
-
-    const reponse = await proposerAuRuntime({ calibrationCeiling: { model: "opus", effort: "high" } }, appel);
-    assert.ok(reponse.ok, JSON.stringify(reponse));
-    assert.equal(reponse.pr, pr.html_url);
-    assert.deepEqual(git(origine, "diff", "--name-only", `${BASE}...${reponse.branche}`).split("\n"), [FICHIER]);
-    const creations = gh.appels().filter((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`);
-    assert.equal(creations.length, 1, "one PR is opened, none for the refused value");
-    assert.ok(creations[0]?.includes(`head=${reponse.branche}`) && creations[0]?.includes(`base=${BASE}`), JSON.stringify(creations));
-    await jusqua(() => relire(repertoire).some((e) => e.type === "pass.entered" && e.ticket === pr.number));
-    assert.equal(JSON.stringify(relire(repertoire)).includes("ghp_"), false);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
-  });
-
-  test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée", { skip: posixOnly("replaces the runtime by SIGTERM while a cook runs, expecting exit 0, the cook alive, resumed by the next runtime, judged and merged; on Windows SIGTERM kills the runtime before its handler runs, so the first exit code is already null") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    aArreter(t, () => tuerLesRelais(repertoire));
-    const { origine, clone, gh } = ticketSousGrant(t, repertoire);
-    // Le cook commite, puis attend qu'on le laisse conclure ; le reviewer relit vert.
-    const suite = join(repertoire, "suite.txt");
-    ecrireSuite(suite, ["commite-puis-attend"]);
-    const feu = join(repertoire, "feu");
-    const env = { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite, FAUX_CLAUDE_FEU: feu };
-    const faits = (type: string) => relire(repertoire).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
-
-    const premier = lancer(t, MAIN, [], env);
-    await jusqua(() => faits("cook.launched").length === 1);
-    const run = String(faits("cook.launched")[0]?.payload.run);
-    const fichierDuPid = join(repertoire, "runs", `${run}.cook.pid`);
-    await jusqua(() => existsSync(fichierDuPid));
-    const pid = Number(readFileSync(fichierDuPid, "utf8"));
-    const worktree = join(repertoire, "worktrees", run);
-    await jusqua(() => existsSync(join(worktree, "travail.txt")));
-
-    // Le remplacement : le runtime s'arrête, le cook continue.
-    premier.process.kill("SIGTERM");
-    assert.equal(await premier.fin, 0);
-    assert.equal(vivant(pid), true);
-    assert.equal(existsSync(worktree), true);
-
-    const second = lancer(t, MAIN, [], env);
-    await jusqua(() => faits("cook.resumed").length === 1);
-    assert.deepEqual(faits("cook.resumed")[0]?.ticket, 15);
-    assert.equal(vivant(pid), true);
-    assert.deepEqual(faits("cook.interrupted"), []);
-
-    writeFileSync(feu, "");
-    await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
-
-    await mort(pid);
-    const juge = git(origine, "rev-parse", `cook/${run}`);
-    assert.equal(git(origine, "show", `cook/${run}:travail.txt`), "le travail du cook");
-    // Un seul cook pour le ticket, lancé par le premier runtime ; sa fin écrite par le second.
-    assert.deepEqual(faits("cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
-    assert.deepEqual(faits("cook.exited").filter((e) => e.ticket === 15).map((e) => [e.payload.run, e.payload.outcome]), [[run, "ok"]]);
-    assert.deepEqual([faits("pass.judged")[0]?.payload.verdict, faits("pass.judged")[0]?.payload.sha], ["green", juge]);
-    assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${DEPOT}/pulls/40/merge`]);
-    assert.equal(faits("merge.done").length, 1);
-    assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
-    second.process.kill("SIGTERM");
-    assert.equal(await second.fin, 0);
   });
 
   test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machine", async (t) => {
@@ -718,115 +406,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(rienEcritParLeRuntime(repertoire), true);
   });
 
-  test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part", { skip: posixOnly("one identity per role end to end: the cook delivers with no token, the PR is opened as cook and merged as pass, no token is written anywhere, then a SIGTERM stop expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the pass's last comment did not even come within the test's one-minute wait") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const { origine, clone } = depotGit(t);
-    mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-    writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
-    chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
-    git(clone, "add", ".");
-    git(clone, "commit", "-q", "-m", "les gates du projet");
-    git(clone, "push", "-q", "origin", BASE);
-    // Le crochet tourne dans le process de `git push` : il en voit l'environnement.
-    const pousse = join(repertoire, "env-du-push");
-    mkdirSync(join(clone, ".git/hooks"), { recursive: true });
-    writeFileSync(join(clone, ".git/hooks/pre-push"), `#!/bin/sh\nenv | grep '^GIT_CONFIG_VALUE_' > '${pousse}'\n`);
-    chmodSync(join(clone, ".git/hooks/pre-push"), 0o755);
-    const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
-    const gh = fauxGh(t);
-    gh.issues([{ ...issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] }), body: "Le corps du ticket privé." } as ReturnType<typeof issueGitHub>]);
-    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
-    gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
-    gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
-    gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
-    gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
-    gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
-    const apps = await fauxGitHubApps(t);
-    const avant = ouvrirJournal(repertoire);
-    avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-    avant.fermer();
-    const suite = join(repertoire, "suite.txt");
-    ecrireSuite(suite, ["livre"]);
-    const temoin = join(repertoire, "temoin");
-    mkdirSync(temoin);
-    const runtime = lancer(t, MAIN, [], {
-      ...environnement(t, repertoire, gh),
-      BRIGADE_REPO_DIR: clone,
-      BRIGADE_GITHUB_APPS_DIR: apps.repertoire,
-      BRIGADE_GITHUB_API_URL: apps.url,
-      // Le compte du service porte un jeton GitHub : il ne doit atteindre personne.
-      GH_TOKEN: "ghp_du_compte",
-      FAUX_CLAUDE: "relit-vert",
-      FAUX_CLAUDE_SUITE: suite,
-      FAUX_CLAUDE_TEMOIN: temoin,
-    });
-
-    // Le dernier geste de la pass : son commentaire, une fois l'issue fermée.
-    await jusqua(() => gh.appels().some((appel) => appel.some((arg) => arg.startsWith("body=**Pass"))));
-    await runtime.attendre("démarré");
-
-    assert.match(runtime.sortie(), /GitHub — une identité par rôle \(cook, pass, manager\)/);
-    // Chaque geste est parti sous l'identité de son rôle, jamais sous le compte de la machine.
-    const sous = (trouver: (appel: string[]) => boolean) => [...new Set(gh.appels().flatMap((appel, i) => (trouver(appel) ? [/^ghs_([a-z]+)_/.exec(gh.jetons()[i] ?? "")?.[1] ?? gh.jetons()[i]] : [])))];
-    assert.deepEqual(sous((appel) => appel.at(-1) === `repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`), ["manager"]);
-    assert.deepEqual(sous((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`), ["cook"]);
-    assert.deepEqual(sous((appel) => appel.includes("PUT")), ["pass"]);
-    assert.deepEqual(sous((appel) => appel.includes("PATCH")), ["pass"]);
-    // Sur l'issue : la station raconte le cook sous l'identité du manager ; la
-    // pass publie son verdict et la relecture du reviewer — qui n'a aucun geste
-    // GitHub — sous la sienne.
-    const commentaire = (debut: string) => (appel: string[]) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments` && appel.some((arg) => arg.startsWith(`body=**${debut}`));
-    assert.deepEqual(sous(commentaire("Cook")), ["manager"]);
-    assert.deepEqual(sous(commentaire("Reviewer")), ["pass"]);
-    assert.deepEqual(sous(commentaire("Pass")), ["pass"]);
-    assert.ok(!gh.jetons().includes(null) && !gh.jetons().includes("ghp_du_compte"));
-    // La branche est partie avec le jeton de l'identité cook.
-    const journal = relire(repertoire);
-    const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
-    assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
-    const entete = `Authorization: Basic ${Buffer.from(`x-access-token:${apps.jetons("cook").at(-1)}`).toString("base64")}`;
-    assert.ok(readFileSync(pousse, "utf8").includes(entete));
-
-    // Le cook, les gates et le reviewer : aucun jeton, aucun compte, et le ticket en fichier.
-    const lances = lancementsDuFauxClaude(temoin);
-    assert.equal(lances.length, 2);
-    for (const lance of lances) {
-      assert.deepEqual(Object.keys(lance.env).filter((nom) => /TOKEN|BRIGADE_|GIT_CONFIG_(COUNT|KEY|VALUE)/.test(nom)), []);
-      assert.equal(lance.env.GH_CONFIG_DIR, join(repertoire, "gh-sans-compte"));
-      assert.ok(!JSON.stringify(lance).includes("ghs_"));
-    }
-    const fichier = join(repertoire, "runs", `${lancement.run}.ticket.md`);
-    assert.ok(lances[0]?.args[1]?.includes(`le fichier \`${fichier}\``));
-    assert.match(readFileSync(fichier, "utf8"), /Le corps du ticket privé\./);
-
-    // Le merge dit sous quelle identité il a été fait.
-    const merge = journal.find((e) => e.type === "merge.done")?.payload;
-    assert.deepEqual([merge?.by, merge?.actor], ["pass", "brigade-pass[bot]"]);
-
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
-    // Ni jeton ni JWT : pas au journal, pas dans un flux, pas dans la sortie du runtime, pas dans le clone.
-    const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
-    assert.ok(apps.jetons("cook").length > 0 && apps.jetons("pass").length > 0 && apps.jetons("manager").length > 0);
-    const ecrits = [
-      JSON.stringify(relire(repertoire)),
-      runtime.sortie(),
-      readFileSync(join(clone, ".git/config"), "utf8"),
-      ...readdirSync(join(repertoire, "runs")).map((nom) => readFileSync(join(repertoire, "runs", nom), "utf8")),
-    ];
-    for (const ecrit of ecrits) for (const secret of secrets) assert.ok(!ecrit.includes(secret), `un jeton s'est écrit : ${ecrit.slice(0, 200)}`);
-  });
-
-  test("un délai de la pass illisible fait refuser de démarrer, sans laisser de journal", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_GATES_TIMEOUT_SECONDS: "longtemps" });
-
-    assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_GATES_TIMEOUT_SECONDS invalide/);
-    assert.equal(rienEcritParLeRuntime(repertoire), true);
-  });
-
   test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pas un refus", () => {
     const unite = readFileSync(join(import.meta.dirname, "../deploy/brigade@.service"), "utf8");
 
@@ -869,43 +448,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     // C'est elle qui sort : aucun filtre, et aucun port d'office.
     assert.doesNotMatch(porte, /^(IPAddressDeny|Environment=BRIGADE_PROXY_PORT)/m);
     assert.match(porte, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
-  });
-
-  test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne", { skip: posixOnly("has the runtime heard by the arbiter of BRIGADE_ARBITER_PORT, then stops it with SIGTERM expecting exit 0 and its share handed back (presence `absent`); on Windows SIGTERM kills the runtime before its handler runs, so it exits with null and never tells the arbiter it left") }, async (t) => {
-    const ouvert = ouvrirArbitre({ repertoire: repertoireTemporaire(t), plafond: 10 });
-    const serveur = await servirArbitre(ouvert, 0);
-    t.after(async () => {
-      await serveur.fermer();
-      ouvert.fermer();
-    });
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port) });
-    await runtime.attendre("démarré");
-    assert.match(runtime.sortie(), new RegExp(`brigade : arbitre — 127\\.0\\.0\\.1:${serveur.port}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`));
-    await jusqua(() => ouvert.etat().projets.some((projet) => projet.projet === "brigade" && projet.presence === "entendu"));
-
-    // Le runtime s'arrête proprement : le projet rend sa part.
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
-    await jusqua(() => ouvert.etat().projets[0]?.presence === "absent");
-    assert.equal(relire(repertoire).some((e) => e.type === "station.unarbitrated"), false);
-
-    // L'arbitre n'est plus là : le runtime démarre quand même, et l'écrit une fois.
-    // Le refus est joué dans le process du runtime, où toute connexion est refusée :
-    // le port d'un arbitre qu'on vient de fermer n'est pas muet pour autant, un
-    // voisin peut l'avoir repris. Celui du test écoute encore — joint, il répondrait.
-    const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port), NODE_OPTIONS: `--import=${SANS_RESEAU}` });
-    await sansLui.attendre("mode dégradé");
-    assert.deepEqual(relire(repertoire).findLast((e) => e.type === "station.unarbitrated")?.payload, { station: "box/claude", reason: "connexion refusée" });
-    sansLui.process.kill("SIGTERM");
-    assert.equal(await sansLui.fin, 0);
-
-    // Sans arbitre désigné : une ligne au démarrage, et le mode dégradé d'avant est levé.
-    const seul = lancer(t, MAIN, [], environnement(t, repertoire));
-    await seul.attendre("démarré");
-    assert.match(seul.sortie(), /brigade : arbitre — aucun \(BRIGADE_ARBITER_PORT n'est pas défini\) : ce projet se tient pour seul sur la machine et sur le compte/);
-    assert.doesNotMatch(seul.sortie(), /mode dégradé/);
-    assert.equal(relire(repertoire).some((e) => e.type === "station.arbitrated"), true);
   });
 
   test("l'arbitre a son unité, unique sur la machine : ni port ni plafond d'office, et ses réglages là où la cloison les masque", () => {

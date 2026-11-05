@@ -67,8 +67,8 @@ export function lignesDuRail(status: string): Map<number, string[]> | undefined 
 // français, `d` en anglais.
 const duree = (jours: string) => String.raw`\d+ (?:s|min|${jours}|h \d\d)`;
 const DUREE = duree("j");
-// En anglais, `status` écrit la durée ; le tableau (runtime/src/tableau/rendu/) écrit l'heure à la place
-// (`2026-10-12 10:00 UTC`), pour que son corps ne change pas à chaque minute (ticket 2153).
+// En anglais, `status` écrit la durée ; le rail lu sur GitHub (vue/rail/github.ts) écrit l'heure à la place
+// (`2026-10-12 10:00 UTC`).
 const HEURE_EN = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d UTC`;
 const DUREE_EN = `(?:${duree("d")}|${HEURE_EN})`;
 type Lu = { tient?: string; depuis: string; bail?: string; bloque?: string; cuisine?: string };
@@ -87,7 +87,7 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
     // `by <station> since <duration>, [STUCK: ][no progress since <duration>, ]lease <duration> left` — or `lease expired since`.
     // Sans bail, sur GitHub seul (vue/rail/github.ts, #2220) : une prise tient jusqu'à son lâcher.
     etats: ["taken"],
-    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN})(?:, ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|until ${HEURE_EN}|expired since ${DUREE_EN})))?$`),
+    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN})(?:, ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|expired since ${DUREE_EN})))?$`),
     lire: ([, tient = "", depuis = "", bail]) => ({ tient, depuis, ...(bail === undefined ? {} : { bail }) }),
   },
   {

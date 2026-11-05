@@ -1,5 +1,5 @@
 // Les onglets Rail et Second d'un projet ouvert sur un ordinateur neuf ne restent jamais vides (#1435, épique 1427) :
-// Rail montre le rail du projet — celui de son tableau de cuisine, le même que pour un projet servi ici, TODO en tête
+// Rail montre le rail du projet — celui que ses issues, labels et PR disent sur GitHub, le même que pour un projet servi ici, TODO en tête
 // avec ses cartes et leurs gestes (#2076) —, ou, tant qu'il ne se lit pas, la phrase qui dit pourquoi, d'après le rail
 // que sa station publie (#1432) ; Second montre le second qui part, ou, s'il ne part pas, pourquoi et
 // chaque outil qui manque, et le bouton de la page qui dit comment l'obtenir (#1433). Les modules sont joués devant un faux document, puis la vue
@@ -216,7 +216,7 @@ function duTableau(faits: Faits, status: string): Dessinable {
   return tenus.attendre(mettreAPart({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "status", texte: status }] })) ?? assert.fail("rien à redessiner");
 }
 const recevoir = (vue: Jouee, recue: Dessinable) => vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-const NON_LU: Dessinable = { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM THE KITCHEN BOARD", erreur: SANS_TABLEAU, atteinte: true, cas: null, duTableau: true };
+const NON_LU: Dessinable = { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM GITHUB", erreur: SANS_TABLEAU, atteinte: true, cas: null, duTableau: true };
 const colonnesDe = (vue: Jouee) => vue.element("rail").dessous("section").filter((section) => section.className === "colonne");
 const nomsEtComptes = (vue: Jouee) => colonnesDe(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
 

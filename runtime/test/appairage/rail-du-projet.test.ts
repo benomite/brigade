@@ -17,7 +17,7 @@ import { FICHIER_RAIL, railDuDocument, type RailsPublies } from "../../src/appai
 import type { Fait } from "../../src/evenements.ts";
 import { principal as facts } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { ouvrirRail } from "../../src/rail.ts";
+import { ouvrirRail } from "../aides/rail-du-journal.ts";
 import { aArreter, appeler, horloge, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { FAUX_GH_GISTS as FAUX_GH } from "./doublure-des-gists.ts";
 

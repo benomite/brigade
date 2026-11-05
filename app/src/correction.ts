@@ -7,11 +7,9 @@
 //   - la lecture du champ `corrections` de `facts`, champ pour champ (`correctionsLues`) ;
 //   - la carte, prête à poser (`carteDeCorrection`) : la cause, les tickets ouvrables, le diff découpé
 //     par fichier — ses lignes ajoutées et retirées comptées et dites à part —, et ce qu'elle a coûté ;
-//   - ce que la vue reçoit du geste du chef (`Rendu`). Le geste ne passe pas par la box : il est posté
-//     sur le tableau de la cuisine du projet, `/brigade correction yes|no <proposition>`
-//     (tableau-gestes/rail.ts, `reponseALaFile`, #1741), par l'accès GitHub de l'app — sans box
-//     jointe. La box le joue à son tick suivant ; c'est le runtime qui tranche
-//     (runtime/src/correctif/decision.ts).
+//   - ce que la vue reçoit du geste du chef (`Rendu`). Il ne part plus de l'app (#2061) : il était posté sur
+//     le tableau de la cuisine, que plus aucun runtime ne lit, et aucune station ne propose plus de correction.
+//     L'app dit pourquoi rien ne part (gestes-github.ts, `SANS_FAIT`).
 
 // Ce que `facts` dit d'une correction proposée (runtime/src/correctif/cartes.ts, `CarteDeCorrection`).
 export type CorrectionLue = {
@@ -159,8 +157,6 @@ export function carteDeCorrection(lue: CorrectionLue): CarteDeCorrection {
 
 // --- Le geste du chef --------------------------------------------------------------
 
-// Ce que la vue reçoit du geste, posté sur le tableau de la cuisine du projet (tableau-gestes/rail.ts,
-// `reponseALaFile`) : la réponse est postée — `dit`, ce que la carte en dit, `detail`, l'adresse du
-// commentaire, pour le survol —, et la box la tranche à son tick suivant ; ou rien n'a été posté, et
-// pourquoi en une ligne — `detail`, ce que l'app a obtenu, pour le survol.
+// Ce que la vue reçoit du geste : la réponse est postée — `dit`, ce que la carte en dit, `detail`, pour le
+// survol — ; ou rien n'a été posté, et pourquoi en une ligne — `detail`, ce que l'app a obtenu, pour le survol.
 export type Rendu = { postee: Reponse; dit: string; detail: string } | { refus: string; detail: string };

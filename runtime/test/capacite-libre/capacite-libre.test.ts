@@ -1,28 +1,22 @@
 // Une capacité hors du catalogue, tapée par le chef dans « What it provides »
 // (#1959, épique #1950) : le nom tapé devient celui qui se déclare, ou il est
-// refusé — vide, illisible, déjà dans le formulaire. Déclaré sur une station,
-// le ticket qui l'attendait en WAITING revient seul sur le rail et part chez
-// elle, comme pour une case du catalogue. Sur une cuisine complète : rail,
-// stations, un faux `claude`, un GitHub de test, et `installation stations
-// set`, la commande que l'app joue au « Save ».
+// refusé — vide, illisible, déjà dans le formulaire —, puis se déclare sur une
+// station, comme une case du catalogue. Sur un journal qui porte un ticket en
+// WAITING faute de station, et `installation stations set`, la commande que
+// l'app joue au « Save ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { capaciteLibre, nomDeCapaciteLibre } from "../../src/capacite-libre/capacite-libre.ts";
 import { CAPACITE } from "../../src/capacites.ts";
 import { principal as stations } from "../../src/declarer-stations.ts";
 import { decrireEtat, lireEtat } from "../../src/etat.ts";
-import { MARQUEUR } from "../../src/fiche.ts";
 import { lireStations } from "../../src/stations-declarees.ts";
-import { cuisine, issue, type Lieux } from "../aides/cuisine.ts";
-import { appeler, jusqua } from "../outils.ts";
+import { cuisine } from "../aides/cuisine.ts";
+import { ouvrirRail } from "../aides/rail-du-journal.ts";
+import { appeler } from "../outils.ts";
 
 const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:2:code+raisonnement,box/playwright:2:navigateur-headless" });
 const DU_FORMULAIRE = ["code", "raisonnement", "navigateur-headless", "docker", "chrome-connecté"];
-
-const poser = (gh: Lieux["gh"], numero: number, ...lignes: string[]) => {
-  if (lignes.length > 0) gh.ficher(numero, "2026-10-08T09:00:00Z", [MARQUEUR, ...lignes].join("\n"));
-  gh.poser(issue(numero));
-};
 
 describe("le nom tapé d'une capacité hors du catalogue", () => {
   test("il se déclare sans blanc autour, ses blancs intérieurs en tirets, sans les accents graves recopiés d'une carte, et sa casse gardée", () => {
@@ -61,11 +55,17 @@ describe("le nom tapé d'une capacité hors du catalogue", () => {
 });
 
 describe("la capacité tapée, déclarée sur une station", { concurrency: 2 }, () => {
-  test("le ticket en WAITING qui l'attendait revient seul sur le rail dès le « Save », et part chez cette station", async (t) => {
-    const { repertoire, gh, journal, etat, lancements, heure } = cuisine(t, { decisions: true, stations: DEUX, scenario: "muet" });
-    poser(gh, 14, "- requiert : enregistrement-ecran");
-    poser(gh, 15, "- requiert : code");
-    await jusqua(() => etat(14) === "86" && lancements().length === 1);
+  test("le ticket en WAITING qui l'attendait le dit sur sa ligne, et le nom tapé se déclare sur la station au « Save »", async (t) => {
+    const { repertoire, journal, heure } = cuisine(t, { decisions: true, stations: DEUX });
+    // Le journal d'avant : #14 demande la capacité qu'aucune station ne fournit, il attend en WAITING.
+    journal.ajouter({
+      project: "brigade",
+      ticket: 14,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: "Ticket 14", priority: null, createdAt: "2026-10-08T09:00:00Z", url: "https://exemple.test/14", card: { waitsFor: [], zone: [], problems: [], requires: ["enregistrement-ecran"] } },
+    });
+    ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: heure.maintenant }).quatreVingtSix(14, { motif: "no-station: enregistrement-ecran" });
     const ligne = () => decrireEtat(lireEtat(journal), heure.maintenant()).find((lue) => lue.startsWith("  #14 ")) ?? "";
     assert.match(ligne(), /WAITING {2}- {2}awaiting a station that provides `enregistrement-ecran`/);
 
@@ -75,15 +75,14 @@ describe("la capacité tapée, déclarée sur une station", { concurrency: 2 }, 
     const sauve = appeler(stations, ["set", "box/playwright", "2", `navigateur-headless+${"capacite" in tapee ? tapee.capacite : ""}`], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await sauve.fin, 0, sauve.sortie());
     assert.match(sauve.sortie(), /box\/playwright réglée/);
-
-    await jusqua(() => etat(14) === "taken");
-    assert.equal(journal.duTicket(14).findLast((e) => e.type === "ticket.released")?.payload.reason, "capabilities-reread");
-    assert.equal(journal.duTicket(14).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
-    assert.doesNotMatch(ligne(), /WAITING|awaiting a station/);
+    const lu = appeler(stations, ["--json"], { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await lu.fin, 0);
+    const { declarees } = JSON.parse(lu.sortie()) as { declarees: { nom: string; fournit: string[] }[] };
+    assert.deepEqual(declarees.find(({ nom }) => nom === "box/playwright")?.fournit, ["navigateur-headless", "enregistrement-ecran"]);
   });
 
   test("déclarée sur une station, la capacité est offerte aux autres : la donner à une seconde ne change rien à la première", async (t) => {
-    const { repertoire } = cuisine(t, { decisions: true, stations: DEUX, scenario: "muet" });
+    const { repertoire } = cuisine(t, { decisions: true, stations: DEUX });
     for (const [station, fournit] of [
       ["box/playwright", "navigateur-headless+enregistrement-ecran"],
       ["box/claude", "code+raisonnement+enregistrement-ecran"],

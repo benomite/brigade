@@ -11,8 +11,7 @@ import { installerLimite, LimiteGitHubAtteinte, limiteDeLaStation } from "../src
 import { principal as pass } from "../src/montrer-pass.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { ouvrirRail } from "../src/rail.ts";
-import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, JOUR_HORLOGE, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -34,7 +33,6 @@ test("rail remove et pass comment partent sur un compteur que la cuisine ne pass
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   aArreter(t, () => journal.fermer());
-  ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
   journal.ajouter({ project: "brigade", ticket: 18, author: "github", type: "ticket.arrived", payload: { title: "Ticket 18", priority: 5, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18" } });
   const gh = fauxGh(t);
   gh.repondre(`repos/${DEPOT}/issues/18/labels/fire`, { corps: [] });

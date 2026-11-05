@@ -3267,7 +3267,7 @@ function poserGestesDAttente(projet, carte) {
           ? `put #${ticket} in WAITING: say what it waits for, from whom, and when to come back to it`
           : id === "attente-reprendre"
             ? `bring #${ticket} back into TODO, now — it stops waiting`
-            : `#${ticket} goes back to the kitchen, without going through TODO — posted on the Kitchen board`;
+            : `#${ticket} goes back to the kitchen, without going through TODO — \`waiting\` removed from its issue`;
       if (arrivee !== undefined && "envoi" in arrivee) pose.disabled = true;
       return pose;
     }),
@@ -4091,7 +4091,7 @@ async function envoyerCommentaire(projet, ticket) {
   // Un texte changé pendant l'envoi n'est pas celui qui est parti : il reste.
   if (rendu.poste && commentaires.get(cle) === texte) commentaires.delete(cle);
   if (ficheDe(projet, ticket)) poserFiche();
-  if (rendu.poste || rendu.peutEtre === true) await lireDiscussion(projet, ticket);
+  if (rendu.poste) await lireDiscussion(projet, ticket);
 }
 
 // « ask the second », au clic : la box compose la demande avec le contexte du champ, et le process
@@ -4446,7 +4446,7 @@ function fraicheur(a) {
 function ageDuRail(publieLe, lu) {
   const minutes = Math.floor(Math.max(0, Date.parse(lu) - Date.parse(publieLe)) / 60_000);
   const age = minutes < 1 ? "less than a minute" : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
-  const dit = bloc("p", `rail as the box read it ${age} ago, at ${heureCourte(publieLe)}`);
+  const dit = bloc("p", `rail as GitHub said it ${age} ago, at ${heureCourte(publieLe)}`);
   dit.className = "age-du-rail";
   dit.title = "The box publishes its rail on GitHub, and the app reads it every 30 seconds: this is the age of what the box published, not of the app's reading.";
   return dit;
@@ -4457,7 +4457,7 @@ function ageDuRail(publieLe, lu) {
 function signePerime({ depuis, raison }, lu) {
   const signe = bloc("p", `stale since ${heureCourte(depuis)} — the rail shown was read at ${heureCourte(lu)}, and the readings since have failed`);
   signe.className = "fraicheur perime";
-  signe.title = `${raison === "" ? "The last reading of the Kitchen board failed." : raison} The cards stay as long as nothing shows they left: the rail is read again every 30 seconds.`;
+  signe.title = `${raison === "" ? "The last reading of GitHub failed." : raison} The cards stay as long as nothing shows they left: the rail is read again every 30 seconds.`;
   return signe;
 }
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
@@ -4945,7 +4945,7 @@ function poserLeRail(projet) {
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
   // Aucune station connue ne sert le projet : la page ne reste pas vide — elle dit pourquoi (ticket 1405). Sur Rail, son
-  // tableau de cuisine se lit quand même, sur GitHub : lu, c'est le même rail que celui d'un projet servi ici, TODO en
+  // rail se lit quand même, sur GitHub (ses issues, labels et PR, ticket 2061) : lu, c'est le même rail que celui d'un projet servi ici, TODO en
   // tête avec ses cartes et leurs gestes (ticket 2076). Tant qu'il ne l'est pas, le rail que sa station publie dit
   // pourquoi (ticket 1435) — GitHub à connecter, aucune station du compte —, sans colonnes à lui. Hors ligne, le signe
   // seul, comme pour tout rail (ticket 1818).
@@ -5667,7 +5667,7 @@ async function ouvrirIssue(projet, ticket) {
 // La PR du cook d'un ticket, depuis sa fiche (ticket 1846) : son adresse reste au process principal, comme celle de l'issue.
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirPrDuCook(projet, ticket) {
-  nonEcrit = (await brigade.ouvrirPrDuCook(projet.nom, ticket)) ? "" : `the PR of #${ticket}'s cook was not opened: the latest Kitchen board read no longer gives it, its address is not https, or the workstation could not open it`;
+  nonEcrit = (await brigade.ouvrirPrDuCook(projet.nom, ticket)) ? "" : `the PR of #${ticket}'s cook was not opened: the latest reading of GitHub no longer gives it, its address is not https, or the workstation could not open it`;
   montrer();
 }
 
@@ -7861,7 +7861,7 @@ async function seConnecterAGitHub() {
 // Connecté : les stations sont relues, et une ouverture que la connexion retenait repart.
 function connecteAGitHub() {
   delete premier.connexion;
-  // Et son tableau de cuisine : connecté, il se lit peut-être (ticket 2076).
+  // Et son rail sur GitHub : connecté, il se lit peut-être (ticket 2076).
   if (courant !== undefined && railsPublies.has(courant.nom)) relireLeRailPublie(courant);
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
   void relireLePremier();

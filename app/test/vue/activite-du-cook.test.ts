@@ -1,12 +1,10 @@
-// Ce que fait le cook d'un ticket, sur sa fiche (#1846) : à la place de son terminal, ce que sa station publie sur le
-// tableau de la cuisine. Le tableau est écrit par le runtime lui-même (rendreLeTableau), lu de GitHub par une doublure
-// de l'API — aucune station jointe —, rangé par lecture.ts comme le process principal le range, puis la vue
-// jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts). Tant qu'il tourne, la fiche suit son cook à
-// chaque lecture ; fini, elle le dit et ouvre sa PR. Aucune page de worktree ne s'y ouvre.
+// Ce que fait le cook d'un ticket, sur sa fiche (#1846) : à la place de son terminal, ce que le process principal en lit
+// sur GitHub (#2061). La lecture du rail est écrite à la main, telle que lecture.ts la rend, puis rangée comme le process
+// principal la range (`activitesPubliees`) ; la vue est jouée telle qu'elle est, devant un faux document
+// (aides/fausse-vue.ts). Tant qu'il tourne, la fiche suit son cook à chaque lecture ; fini, elle le dit et ouvre sa PR.
+// Aucune page de worktree ne s'y ouvre.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { ActiviteDuCook, EtapeDuCook } from "../../../runtime/src/tableau/rendu/bloc.ts";
-import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
@@ -17,10 +15,9 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { activitesPubliees, lireLeTableauDuDepot, type ActivitesPubliees } from "../../src/tableau/lecture.ts";
-import { EN_COURS, INDISPONIBLE, SANS_PR, TITRE } from "../../src/vue/activite-du-cook.js";
+import { activitesPubliees, type ActiviteDuCook, type ActivitesPubliees, type EtapeDuCook } from "../../src/tableau/lecture.ts";
+import { EN_COURS, INDISPONIBLE, SANS_PR, SOURCE, TITRE } from "../../src/vue/activite-du-cook.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
-import { GENERE_LE, ISSUE, TABLEAU } from "../tableau/fixture.ts";
 
 const PARADE = "parade";
 const A = "2026-10-23T10:04:30.000Z";
@@ -74,16 +71,10 @@ const EN_COURS_14: ActiviteDuCook = {
   pr: null,
 };
 
-// Ce que l'app lit du tableau que la box a publié avec ces activités — par GitHub seul, comme main.ts : une doublure de
-// l'API rend l'issue du tableau, écrite par le runtime ; rien d'autre n'est joint.
-async function lu(activites: ActiviteDuCook[] | undefined): Promise<ActivitesPubliees> {
-  const corps = rendreLeTableau({ ...TABLEAU, ...(activites === undefined ? {} : { activites }) }, GENERE_LE);
-  const chemins: string[] = [];
-  const lecture = await lireLeTableauDuDepot({ depot: "chef/parade", appeler: async (chemin) => (chemins.push(chemin), { status: 200, data: [{ ...ISSUE, body: corps }] }) });
-  assert.ok(lecture.lu, lecture.lu ? "" : lecture.raison);
-  assert.ok(chemins.every((chemin) => chemin.startsWith("/repos/chef/parade/")));
-  return activitesPubliees(PARADE, lecture);
-}
+// Ce que la vue reçoit d'une lecture du rail de parade, faite à `A`, qui porte ces activités : rangée comme main.ts la
+// range.
+const lu = (activites: ActiviteDuCook[]): ActivitesPubliees =>
+  activitesPubliees(PARADE, { lu: true, depot: "chef/parade", luLe: A, cuisine: { rubriques: [] }, faits: {}, lignesDuRail: [], activites });
 
 async function ouvrir(): Promise<Jouee> {
   const vue = await jouerLaVue({ demarrage, espace: () => [], ouvrirPrDuCook: () => true });
@@ -113,10 +104,10 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
   test("ouverte sur un cook qui tourne : ce qu'il fait, ses derniers gestes ; la lecture suivante la fait avancer", async () => {
     const vue = await ouvrir();
     await ouvrirLaFiche(vue);
-    // Avant toute lecture du tableau, aucune section : rien n'est inventé.
+    // Avant toute lecture du rail, aucune section : rien n'est inventé.
     assert.equal(section(vue), undefined);
 
-    vue.dire("surActivites", await lu([EN_COURS_14]));
+    vue.dire("surActivites", lu([EN_COURS_14]));
     await repos();
     assert.equal(dite(vue).dessous("h4")[0]?.textContent, TITRE);
     assert.match(dite(vue).textContent, new RegExp(EN_COURS));
@@ -128,18 +119,22 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     assert.doesNotMatch(dite(vue).textContent, new RegExp(SANS_PR));
 
     // La station publie l'étape suivante : la fiche ouverte la montre, sans un geste du chef.
-    vue.dire("surActivites", await lu([{ ...EN_COURS_14, maintenant: TESTE, etapes: [LIT, ECRIT, TESTE], tours: 15 }]));
+    vue.dire("surActivites", lu([{ ...EN_COURS_14, maintenant: TESTE, etapes: [LIT, ECRIT, TESTE], tours: 15 }]));
     await repos();
     assert.equal(maintenant(vue), "nowrunning the testsfor 30 s");
     assert.deepEqual(etapes(vue), ["reading runtime/src/etat.ts", "writing app/src/bon.ts"]);
     assert.match(dite(vue).textContent, /15 turns/);
+    // Sa source, en dernière ligne : GitHub, à l'heure de la lecture — le reste au survol.
+    const source = dite(vue).dessous("small").find((pose) => pose.className === "source") ?? assert.fail("pas de source");
+    assert.match(source.textContent, /^as GitHub said at 10:04 UTC/);
+    assert.equal((source.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, SOURCE);
   });
 
   test("fini : la fiche le dit, et ouvre sa PR d'un bouton ; fini sans PR, une ligne le dit", async () => {
     const vue = await ouvrir();
     await ouvrirLaFiche(vue);
     const fini: ActiviteDuCook = { ...EN_COURS_14, finiLe: "2026-10-23T10:04:10.000Z", fin: "ok", maintenant: null, etapes: [LIT, ECRIT, TESTE], pr: { numero: 40, url: PR } };
-    vue.dire("surActivites", await lu([fini]));
+    vue.dire("surActivites", lu([fini]));
     await repos();
     assert.match(dite(vue).textContent, /finished/);
     assert.doesNotMatch(dite(vue).textContent, new RegExp(EN_COURS));
@@ -149,22 +144,20 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     assert.equal(pr.textContent, "open PR #40");
     pr.click();
     await repos();
-    // La vue nomme le projet et le ticket : l'adresse reste au process principal, lue du même tableau.
+    // La vue nomme le projet et le ticket : l'adresse reste au process principal, lue de la même lecture.
     assert.deepEqual(vue.dernier("ouvrirPrDuCook"), [PARADE, 14]);
 
-    vue.dire("surActivites", await lu([{ ...fini, fin: "failed", pr: null }]));
+    vue.dire("surActivites", lu([{ ...fini, fin: "failed", pr: null }]));
     await repos();
     assert.match(dite(vue).textContent, /failed/);
     assert.match(dite(vue).textContent, new RegExp(SANS_PR));
     assert.equal(boutonPr(vue), undefined);
   });
 
-  test("un tableau d'une box qui ne publie pas encore l'activité de ses cooks : une ligne, pourquoi au survol", async () => {
+  test("une lecture qui ne dit pas l'activité de ses cooks : une ligne, pourquoi au survol", async () => {
     const vue = await ouvrir();
     await ouvrirLaFiche(vue);
-    const publiees = await lu(undefined);
-    assert.ok("sans" in publiees);
-    vue.dire("surActivites", publiees);
+    vue.dire("surActivites", { projet: PARADE, sans: "GitHub did not answer: HTTP 502" });
     await repos();
     assert.match(dite(vue).textContent, new RegExp(INDISPONIBLE));
     assert.doesNotMatch(dite(vue).textContent, /exit code/);
@@ -173,10 +166,10 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
   test("un ticket dont aucun cook n'est publié n'a pas de section ; aucune page de worktree ne s'ouvre de la fiche", async () => {
     const vue = await ouvrir();
     await ouvrirLaFiche(vue);
-    vue.dire("surActivites", await lu([{ ...EN_COURS_14, ticket: 99 }]));
+    vue.dire("surActivites", lu([{ ...EN_COURS_14, ticket: 99 }]));
     await repos();
     assert.equal(section(vue), undefined);
-    vue.dire("surActivites", await lu([EN_COURS_14]));
+    vue.dire("surActivites", lu([EN_COURS_14]));
     await repos();
     assert.ok(!vue.element("fiche").dessous("button").some((bouton) => /browser|page/.test(bouton.textContent)));
     assert.doesNotMatch(vue.element("fiche").textContent, /port \d/);

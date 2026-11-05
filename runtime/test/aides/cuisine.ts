@@ -1,12 +1,9 @@
-// La cuisine des tests : un runtime complet — rail, garde-fous, station, et la
-// pass si le test la demande — sur un dépôt (vrai ou faux), un faux `claude`,
-// de fausses gates et un GitHub de test. Ni réseau, ni quota.
+// La cuisine des tests : le runtime d'un projet — garde-fous, et le manager si
+// le test le demande — sur un dépôt (vrai ou faux), un faux `claude` et un
+// GitHub de test. Ni réseau, ni quota.
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { avecRail } from "../../src/alimenter.ts";
-import type { Arbitrage } from "../../src/arbitrage.ts";
-import type { Session } from "../../src/claude.ts";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import { ecrireSecret } from "../../src/droits.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
@@ -17,15 +14,9 @@ import { poserDecision, suivreDecisions, type ReglagesSuivis } from "../../src/d
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
-import type { Machine } from "../../src/machine.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { brancherPass, type ConfigPass } from "../../src/pass.ts";
-import type { DefinitionDeProfil } from "../../src/profils/definition.ts";
-import type { LeconRecue } from "../../src/apprentissage/injection.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
-import type { Sonde } from "../../src/installation/besoins/fourni.ts";
-import { brancherStation } from "../../src/station.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
 import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, poserJournalVide, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
@@ -440,111 +431,41 @@ export type Lieux = {
 };
 
 export type Options = {
-  // L'interrupteur GitHub seul, allumé : les boucles de l'ancien chemin s'arrêtent à leur entrée (#2218).
-  perimee?: () => boolean;
-  scenario?: string;
-  // Le binaire que la station lance pour `claude` : la doublure en bash, par
-  // défaut.
-  bin?: string;
-  // Ce que l'environnement des lancements porte en plus — celui de la station,
-  // donc de ses cooks, et de son `git`.
+  // Les lieux d'une vie précédente, pour redémarrer dessus.
+  lieux?: Lieux;
+  // Ce que l'environnement des lancements porte en plus.
   env?: Record<string, string>;
-  suite?: string[];
-  session?: Session;
   // Un vrai dépôt git local plutôt que le faux.
   git?: boolean;
   issues?: Issue[];
-  bailMs?: number;
   seuilDisjoncteur?: number;
-  // Le plafond des jugements simultanés de la pass. Par défaut, celui du runtime.
-  jugements?: number;
   plafonds?: Partial<Plafonds>;
-  // Les lieux d'une vie précédente, pour redémarrer dessus.
-  lieux?: Lieux;
   depot?: (depot: Depot) => Depot;
-  // Brancher la pass. Sans elle, un ticket livré reste en pass.
-  pass?: boolean | Partial<ConfigPass>;
-  // Le scénario des relectures du reviewer (« relit-vert » par défaut), ou
-  // leur suite.
-  reviewer?: { relecture?: string; suite?: string[] };
-  // Un projet sans gates.
-  sansGates?: boolean;
-  // Un projet qui a un setup de worktree — la doublure, sur ce scénario.
-  setup?: ScenarioSetup;
   // Brancher le manager : le scénario de ses jugements, ou leur suite, et la
   // roadmap du projet s'il en a une.
   // `plafond` : jusqu'où une montée de calibrage peut aller — celui d'un projet
   // où le chef ne l'a pas posé, par défaut.
-  // `triage` : le scénario de l'agent de triage, ou leur suite — par défaut,
-  // il ne tranche rien et laisse chaque carte entrer dans TODO.
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; triage?: string | string[] };
-  // Les chemins communs du projet.
-  communs?: string[];
-  // Le plafond de cooks tant que le chef n'a rien réglé : un, par défaut — un
-  // test qui veut des cooks de front le dit.
-  cooks?: number;
-  // Les stations que le projet déclare. Par défaut, une seule : `box/claude`,
-  // au plafond de `cooks`.
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond> };
+  // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
-  // Les tickets en entrée à la fois.
-  entrees?: number;
-  // Chaque rôle a son identité GitHub, et le cook aucune.
-  sansIdentite?: boolean;
-  // Les secrets du projet : ce que son dépôt déclare, et ce que la machine
-  // détient — `valeurs` nul : la machine n'a pas de fichier de secrets.
-  secrets?: { declares: string; valeurs: string | null };
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
   cloison?: boolean;
   // Le bac à sable d'une cuisine locale, sur le Mac du chef : chaque `claude`
-  // — cook, reviewer, jugement — y part.
+  // du manager y part.
   bacASable?: BacASableLocal;
-  // `claude` range ses sessions dans un répertoire de configuration à lui
-  // (`CLAUDE_CONFIG_DIR`) : celui du projet sous cloison, un répertoire du
-  // test sinon. Sans, les lancements n'ont ni ce répertoire ni `HOME` : aucun
-  // renvoi ne retrouve la session du cook précédent.
-  configClaude?: boolean;
-  // Le jeton longue durée de la connexion Max, posé dans le fichier que nomme
-  // `BRIGADE_CLAUDE_TOKEN_FILE`. Aucun, par défaut : `claude` porte la
-  // connexion du compte.
-  jeton?: string;
-  // La machine que la station et la pass lisent. Par défaut, une machine qui
-  // respire : aucun test ne dépend de la charge du poste.
-  machine?: () => Machine;
-  // Le nom du projet (« brigade » par défaut), et l'arbitre entre projets que
-  // sa station consulte — aucun, par défaut.
+  // Le nom du projet (« brigade » par défaut).
   projet?: string;
-  arbitre?: Arbitrage;
-  // Ce que la station fait de ce qu'elle aurait imprimé, à la place de le retenir.
-  avertir?: (message: string) => void;
-  // Le délai de présence d'une station distante.
-  presenceMs?: number;
-  // Combien de leçons provisoires du projet reçoit le cook d'un ticket.
-  leconsInjectees?: number;
-  // Les profils de cook que le projet définit, relus à chaque lancement.
-  profils?: () => DefinitionDeProfil[];
-  // Les leçons de l'étage commun de l'installation, relues à chaque lancement.
-  commun?: () => LeconRecue[];
   // Les décisions du chef sont relues au journal : stations, calibrage du
   // reviewer et du manager — celles du test, tant qu'il n'en pose pas d'autres.
   decisions?: boolean;
   // Les réglages que le dépôt du projet porte, relus par-dessus ces décisions
   // (`reglages-projet/en-vigueur.ts`).
   reglagesDuDepot?: ReglagesSuivis;
-  // Ce que la machine fournit au projet, quand la station lit un setup en
-  // échec. Par défaut, rien : aucun test ne dépend de ce que le poste a
-  // installé, ni n'y lance rien.
-  sonde?: Sonde;
 };
 
-// Une machine qui n'a rien de ce qu'un projet peut demander.
-export const SONDE_VIDE: Sonde = { commande: () => false, dossier: () => false, jouer: () => ({ code: null, sortie: "" }), essayer: (_besoin, essai) => essai(), env: {}, maison: "/nulle-part" };
-
-export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, memoireTotale: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
-// La même, avec assez de cœurs pour que leur plafond par défaut (31) ne retienne
-// pas un test qui veut plus de trois cooks de front : sur huit cœurs, une
-// station n'en fait tourner que trois, quoi qu'elle déclare.
-export const MACHINE_VASTE: Machine = { ...MACHINE_CALME, coeurs: 64 };
-
+// Le runtime d'un projet sans station : les garde-fous, et le manager si le
+// test le demande. Les tickets se prennent, se cuisinent et se mergent sur
+// GitHub (`brigade-github.ts`), que d'autres tests éprouvent (#2061).
 export function cuisine(t: TestContext, options: Options = {}) {
   // Arrêté avant que ses répertoires ne soient retirés, même ceux que le test a
   // créés avant la cuisine : sous Windows, un journal encore ouvert empêche de
@@ -558,31 +479,15 @@ export function cuisine(t: TestContext, options: Options = {}) {
     heure: montre(),
   };
   const { repertoire, origine, clone, gh, heure } = lieux;
-  // Les cooks survivent au runtime : la fin du test les tue, après lui.
+  // Les jugements survivent au runtime : la fin du test les tue, après lui.
   finDuTest(t, () => tuerLesRelais(repertoire));
-  // Ce que la station aurait imprimé pour journald.
+  // Ce que le runtime aurait imprimé pour journald.
   const avertissements: string[] = [];
   const temoin = join(repertoire, "temoin");
   mkdirSync(temoin, { recursive: true });
-  const suite = join(repertoire, "suite.txt");
-  // Ce qu'attend un cook « commite-puis-attend » pour conclure.
-  const feu = join(repertoire, "feu");
-  if (options.suite) ecrireSuite(suite, options.suite);
-  const bailMs = options.bailMs ?? BAIL_MS;
   const worktrees = join(repertoire, "worktrees");
-  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: { ...ENV_GIT, ...options.env } }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined, options.secrets?.declares);
-  // Le fichier de la machine vit hors de l'état, comme sur la box.
-  const fichierSecrets = join(repertoireTemporaire(t), "secrets.env");
-  // Écrit comme le runtime écrit les siens : sous Windows, `mode` n'y fait rien,
-  // et l'ACL héritée du répertoire temporaire l'ouvrirait aux Administrators.
-  const poserSecrets = (valeurs: string) => ecrireSecret(fichierSecrets, valeurs);
-  if (options.secrets && options.secrets.valeurs !== null) poserSecrets(options.secrets.valeurs);
-  const secretsDeLaMachine = options.secrets && options.secrets.valeurs !== null ? fichierSecrets : null;
+  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: { ...ENV_GIT, ...options.env } }) : fauxDepot(worktrees, true);
   const depotDuTest = options.depot?.(depot) ?? depot;
-  // Le scénario des fausses gates, que le test change à la main.
-  const fichierGates = join(repertoire, "gates.txt");
-  const fichierSetup = join(repertoire, "setup.txt");
-  if (options.setup) writeFileSync(fichierSetup, options.setup);
   // Ce que la doublure de `bwrap` a reçu, un fichier par lancement.
   const temoinDeCloison = join(repertoire, "temoin-cloison");
   mkdirSync(temoinDeCloison, { recursive: true });
@@ -591,37 +496,19 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const cloison = options.cloison
     ? configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: [repertoire, clone].filter(Boolean).join(":"), HOME: compte }, { repertoireEtat: repertoire, clone: clone || join(repertoire, "depot") })
     : null;
-  // Le fichier du jeton vit hors de l'état, comme sur la box.
-  const fichierJeton = join(repertoireTemporaire(t), "jeton-claude");
-  if (options.jeton !== undefined) writeFileSync(fichierJeton, `${options.jeton}\n`, { mode: 0o600 });
-  // La doublure de `bwrap` ne monte rien : le répertoire du projet lui est
-  // nommé, comme le vrai le monterait à la place de celui du compte.
-  const configClaude = options.configClaude ? (cloison?.claude ?? join(repertoire, "config-claude")) : null;
   const env = {
     ...ENV_GIT,
-    ...(configClaude === null ? {} : { CLAUDE_CONFIG_DIR: configClaude }),
-    ...(options.jeton === undefined ? {} : { BRIGADE_CLAUDE_TOKEN_FILE: fichierJeton }),
     FAUX_BWRAP_TEMOIN: temoinDeCloison,
     BRIGADE_STATE_DIR: repertoire,
-    FAUX_CLAUDE: options.scenario ?? "livre",
-    FAUX_CLAUDE_SUITE: suite,
     FAUX_CLAUDE_TEMOIN: temoin,
-    FAUX_CLAUDE_FEU: feu,
-    FAUSSES_GATES: fichierGates,
-    FAUX_SETUP: fichierSetup,
     ...options.env,
   };
-  const bin = options.bin ?? FAUX_CLAUDE;
 
   // Un répertoire neuf reçoit le journal vide que le fichier a fabriqué une
   // fois : poser tout le schéma coûte plus que l'ouvrir, à chaque cuisine.
   if (options.lieux === undefined) poserJournalVide(repertoire);
-  // Chaque réveil relit le rail, les stations et le journal : toutes les 5 ms
-  // (20 ms pour le tick), c'était l'essentiel du processeur des fichiers de
-  // cuisine. Les tests attendent des faits, pas des durées : 20 ms de veille
-  // et 100 ms de tick ne coûtent que quelques millisecondes par fait attendu.
   const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 20, intervalleTickMs: 100, maintenant: heure.maintenant });
-  const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
+  const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: 1 }];
   // Les décisions du chef, posées au journal : leur seul support.
   const decisions = options.decisions
     ? (() => {
@@ -636,73 +523,11 @@ export function cuisine(t: TestContext, options: Options = {}) {
         return suivreDecisions(socle.journal.base, {}, (message) => void avertissements.push(message), options.reglagesDuDepot);
       })()
     : undefined;
-  const garde = brancherGardeFous(
-    { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3, ...(options.jugements === undefined ? {} : { jugements: options.jugements }) },
-    avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs, ...(options.perimee ? { perimee: options.perimee } : {}) }),
-  );
-  const suiteDuReviewer = join(repertoire, "suite-reviewer.txt");
-  if (options.reviewer?.suite) ecrireSuite(suiteDuReviewer, options.reviewer.suite);
-  const jugee = options.pass
-    ? brancherPass(garde, {
-        ...(options.perimee ? { perimee: options.perimee } : {}),
-        repertoireEtat: repertoire,
-        depot: depotDuTest,
-        github: gh.github,
-        base: BASE,
-        reviewer: { calibrage: CALIBRAGE_DU_REVIEWER },
-        decisions,
-        depotGitHub: DEPOT,
-        bin: FAUX_CLAUDE,
-        // Les relectures ont leur scénario : elles ne consomment pas celui des cooks.
-        env: { ...env, FAUX_CLAUDE: options.reviewer?.relecture ?? "relit-vert", FAUX_CLAUDE_SUITE: suiteDuReviewer },
-        sansIdentite: options.sansIdentite,
-        secrets: secretsDeLaMachine,
-        cloison,
-        bacASable: options.bacASable,
-        delaiGatesMs: 60_000,
-        attenteCiMs: 1_800_000,
-        ...(options.pass === true ? {} : options.pass),
-        machine: options.machine ?? (() => MACHINE_CALME),
-        maintenant: heure.maintenant,
-        avertir: (message) => void avertissements.push(message),
-      })
-    : null;
+  const garde = brancherGardeFous({ ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 }, socle);
   const suiteDuJuge = join(repertoire, "suite-juge.txt");
   if (options.manager?.suite) ecrireSuite(suiteDuJuge, options.manager.suite);
-  const suiteDuTriage = join(repertoire, "suite-triage.txt");
-  const triage = options.manager?.triage;
-  if (Array.isArray(triage)) ecrireSuite(suiteDuTriage, triage);
-  const servie = brancherStation(jugee ?? garde, {
-    ...(options.perimee ? { perimee: options.perimee } : {}),
-    repertoireEtat: repertoire,
-    depot: depotDuTest,
-    github: gh.github,
-    depotGitHub: DEPOT,
-    base: BASE,
-    bin,
-    env,
-    sansIdentite: options.sansIdentite,
-    secrets: secretsDeLaMachine,
-    cloison,
-    bacASable: options.bacASable,
-    session: async () => options.session ?? "connectee",
-    dureeBailMs: bailMs,
-    stations,
-    decisions,
-    entreesMax: options.entrees,
-    machine: options.machine ?? (() => MACHINE_CALME),
-    maintenant: heure.maintenant,
-    avertir: options.avertir ?? ((message) => void avertissements.push(message)),
-    apresCook: jugee?.reveillerPass,
-    arbitre: options.arbitre,
-    presenceMs: options.presenceMs,
-    leconsInjectees: options.leconsInjectees,
-    profils: options.profils,
-    commun: options.commun,
-    sonde: options.sonde ?? SONDE_VIDE,
-  });
   const runtime = options.manager
-    ? brancherManager(servie, {
+    ? brancherManager(garde, {
         calibrage: CALIBRAGE_DU_MANAGER,
         decisions,
         roadmap: options.manager.roadmap ?? null,
@@ -711,59 +536,26 @@ export function cuisine(t: TestContext, options: Options = {}) {
         depotGitHub: DEPOT,
         repertoireEtat: repertoire,
         bin: FAUX_CLAUDE,
-        fichiers: depot.fichiers,
+        fichiers: depotDuTest.fichiers,
         cloison,
         bacASable: options.bacASable,
-        // Les jugements ont leur scénario : ils ne consomment pas celui des cooks.
+        // Les jugements ont leur scénario.
         env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
-        // Le triage aussi : il ne consomme pas celui des jugements.
-        envDuTriage: { ...env, FAUX_CLAUDE: typeof triage === "string" ? triage : "triage-laisse", FAUX_CLAUDE_SUITE: suiteDuTriage },
         maintenant: heure.maintenant,
         avertir: (message) => void avertissements.push(message),
       })
-    : servie;
+    : garde;
   aArreter = runtime;
 
   const { journal } = runtime;
   const types = (ticket?: number) => (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).map((e) => e.type);
   const dernier = (type: string, ticket?: number) =>
     (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).findLast((e) => e.type === type)?.payload as Record<string, unknown> | undefined;
-  const etat = (ticket: number) => runtime.rail.tickets().find((x) => x.ticket === ticket)?.state;
-  // Les lancements du faux `claude`.
+  // Les lancements du faux `claude` : les jugements et les triages du manager.
   const lancements = () => lancementsDuFauxClaude(temoin);
-  // Ceux des cooks, et ceux du reviewer — le seul lancé avec `--tools`.
-  const relectures = () => lancements().filter((lance) => lance.args.includes("--tools"));
-  const cooks = () => lancements().filter((lance) => !lance.args.includes("--tools"));
-  const gates = {
-    regler: (scenario: "vert" | "rouge" | "lent" | "pesant" | "bavard" | "cite-un-jeton" | "plafond" | "rouge-et-plafond") => writeFileSync(fichierGates, scenario),
-    // Les worktrees sur lesquels les gates ont été jouées, dans l'ordre.
-    appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
-    // Le jeton GitHub (`GH_TOKEN`) que chaque passage a vu dans son environnement — vide s'il n'en avait pas.
-    jetons: () => (existsSync(`${fichierGates}.jetons`) ? readFileSync(`${fichierGates}.jetons`, "utf8").slice(0, -1).split("\n") : []),
-    // Le secret du projet (`CLE_API`) que chaque passage a vu — vide s'il n'en avait pas.
-    secrets: () => (existsSync(`${fichierGates}.secrets`) ? readFileSync(`${fichierGates}.secrets`, "utf8").slice(0, -1).split("\n") : []),
-    // Le jeton de la connexion Max (`CLAUDE_CODE_OAUTH_TOKEN`) que chaque passage a vu — vide s'il n'en avait pas.
-    claude: () => (existsSync(`${fichierGates}.claude`) ? readFileSync(`${fichierGates}.claude`, "utf8").slice(0, -1).split("\n") : []),
-  };
-  const setup = {
-    regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
-    // Laisse finir un setup « attend » ou « refuse ».
-    liberer: () => writeFileSync(`${fichierSetup}.go`, ""),
-    // Retient de nouveau les setups suivants, après un `liberer`.
-    retenir: () => rmSync(`${fichierSetup}.go`, { force: true }),
-    // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
-    appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),
-  };
-  // Laisse conclure un cook « commite-puis-attend ».
-  const conclure = () => writeFileSync(feu, "");
-  // Retient de nouveau les cooks lancés ensuite, après un `conclure` : ils
-  // commitent, puis attendent le suivant.
-  const retenir = () => rmSync(feu, { force: true });
-  // Le fichier de secrets de la machine, que le test réécrit comme le ferait le chef.
-  const secrets = { fichier: fichierSecrets, poser: poserSecrets };
   // Ce que chaque lancement cloisonné a demandé à `bwrap`.
   const cloisonnes = () => lancementsDuFauxBwrap(temoinDeCloison);
-  return { configClaude, cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, retenir, secrets };
+  return { cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, lancements, avertissements };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

@@ -2,8 +2,8 @@
 //   npm --prefix runtime run waiting                                          les tickets qui attendent un tiers
 //   npm --prefix runtime run waiting -- set 8 --what "sa validation écrite" --from "le client" [--remind 2026-10-21]
 //   npm --prefix runtime run waiting -- resume 8                              WAITING → TODO, tout de suite
-// « C'est arrivé, on repart » n'est pas une commande de la box : le chef le
-// poste sur le tableau de la cuisine (`/brigade arrived #8`, docs/tableau-gestes.md).
+// « C'est arrivé, on repart » n'est pas une commande de la box : le chef retire
+// le label `waiting` de l'issue, depuis l'app ou sur GitHub.
 // Les anciens mots (`attente`, `poser`, `reprendre`, `--quoi`, `--de`,
 // `--relance`) répondent encore, en disant le nouveau (`commandes.ts`).
 // `--remind` : une date (2026-10-21, ce jour-là à minuit, heure de la box —

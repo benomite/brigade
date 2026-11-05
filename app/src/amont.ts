@@ -1,9 +1,9 @@
-// Ce qui est avant le rail (#1836) : un rail vide ne veut pas dire un projet fini. L'app le lit sur le tableau de la
-// cuisine (`avantLeRail`, docs/runtime/tableau-de-cuisine.md), que tableau/rail.ts rend dans la forme de la sortie de
-// `manager upstream` : les issues ouvertes du dépôt que le rail ne porte pas encore, chacune dans l'un des cinq états
-// que la box publie, avec ce qui la retient en une ligne. L'app n'y déduit rien : elle compte ce que la box liste,
-// range chaque issue sous le mot qu'elle porte, et pose ce que la box en dit, mot pour mot. Une lecture ratée n'est
-// jamais « rien avant le rail ».
+// Ce qui est avant le rail (#1836) : un rail vide ne veut pas dire un projet fini. L'app le lit sur GitHub
+// (`avantLeRail`, tableau/lecture.ts, #2061), que tableau/rail.ts rend dans la forme de la sortie de `manager upstream` :
+// les issues ouvertes du dépôt que le rail ne porte pas encore, chacune dans l'un des cinq états que ses labels disent,
+// avec ce qui la retient en une ligne. Ce module n'y déduit rien : il compte ce que la lecture liste, range chaque
+// issue sous le mot qu'elle porte, et pose ce qu'elle en dit, mot pour mot. Une lecture ratée n'est jamais « rien avant
+// le rail ».
 // En tête du rail, une petite barre empilée — une part par état, de la longueur de son compte, les comptes au survol —
 // qui déplie la colonne Backlog ; et, quand le rail est vide, ce qu'il y a avant lui, et si le manager le lit — son état
 // vient de `manager` (manager.ts).
@@ -37,7 +37,7 @@ export type Issue = { ticket: number; titre: string; dit: string; ouvrable: bool
 export type Groupe = { etat: string; nom: string; issues: Issue[] };
 // Ce que la vue pose, sans rien calculer : le nombre, les groupes et ce que la barre dit au survol (`survol`) — ou,
 // `sans`, pourquoi rien n'est compté. `vide` : ce qui se lit à la place du rail quand aucun ticket n'y est.
-// `nonPublie` : le tableau de la cuisine, lu frais, ne porte pas ce qui est avant le rail — rien n'est dit ni compté,
+// `nonPublie` : la lecture de GitHub, fraîche, ne porte pas ce qui est avant le rail — rien n'est dit ni compté,
 // pas même « pas lu ».
 export type Vu = { projet: string; demande: number; a: string; vide: string } & ({ compte: number; lu: string; groupes: Groupe[]; survol: string } | { sans: string } | { nonPublie: true });
 
@@ -125,9 +125,9 @@ const sortieDe = (lecture: Lecture) => ("erreur" in lecture ? undefined : compre
 // a été refusée — par un runtime d'avant elle, qui ne connaît pas `upstream`. Tout autre vient du
 // geste. Le code, c'est l'app qui l'a écrit, au bout de ce que la commande a rendu (box.ts).
 function sansLecture(lecture: Lecture, informe: string | undefined): string {
-  if (!("erreur" in lecture)) return `${PAS_LU} in what the Kitchen board gave: ${informe ?? "it has no output"}. ${PAS_RIEN}`;
+  if (!("erreur" in lecture)) return `${PAS_LU} in what GitHub gave: ${informe ?? "it has no output"}. ${PAS_RIEN}`;
   const code = Number(/→ exit code (\d+)$/.exec(lecture.erreur)?.[1]);
-  // Lue du tableau de la cuisine (#1694) : sa raison, en une phrase — aucune station n'a été jointe.
+  // Lue de GitHub (#1694) : sa raison, en une phrase — aucune station n'a été jointe.
   const pourquoi = lecture.duTableau === true
     ? lecture.erreur.replace(/[.\s]+$/, "")
     : lecture.atteinte && lecture.cas === null && code === 2

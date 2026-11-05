@@ -3,16 +3,17 @@
 // (faits.ts, carte-todo.ts). Une carte que le runtime a laissée entrer dans TODO montre sa question, un
 // bouton par choix, un champ de texte libre et son bouton « send » ; une validation de design montre ses
 // captures avant et après sur la carte même, un choix de produit sans écran n'a pas de zone de captures.
-// Un clic sur un choix envoie la réponse, et la carte la dit envoyée, en attente de la cuisine, sans autre clic ;
-// puis ce que le tableau de la cuisine en montre — jouée, ou pas jouée et pourquoi —, et cela encore après un
-// redémarrage de l'app (#1841).
+// Un clic sur un choix envoie la réponse, et la carte la dit envoyée, en attente de la cuisine, sans autre clic. Le
+// process principal ne la poste plus nulle part (#2061) : aucune box ne lit plus de tableau de la cuisine, et la carte
+// dit où y répondre. Ce que la vue sait montrer d'une réponse lue — jouée, ou pas jouée et pourquoi — se joue sur le
+// module seul, une réponse écrite à la main.
 // Le module de la carte est aussi lu seul, sur un faux document (vue/carte-todo.js).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { CarteVue } from "../../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { carteDeTodo, carteLue, type Rendu } from "../../src/carte-todo.ts";
+import { carteDeTodo, carteLue, type EnvoiVu, type Rendu } from "../../src/carte-todo.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -22,7 +23,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { Lecture } from "../../src/box.ts";
-import type { EnvoiDeCarte } from "../../src/tableau/envois.ts";
+import { SANS_FAIT } from "../../src/gestes-github.ts";
 import { apresRendu, CHAMP, DEMANDE_EN_ROUTE, DEMANDER, EN_ATTENTE, EN_ATTENTE_DETAIL, ENVOYER, EN_ROUTE, JOUEE, PAS_JOUEE, poserCarteDeTodo, REPOS, vuDeLaCarte } from "../../src/vue/carte-todo.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
@@ -108,19 +109,18 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   await repos();
   return vue;
 }
-// Les faits que la box rend, en JSON, passés par le process principal tel qu'il est : la vue reçoit ce qu'il range —
-// avec, quand la lecture du tableau les porte, les réponses aux cartes que ses commentaires montrent (tableau/envois.ts).
-// `tenus` : le process principal qui les tient ; un neuf, c'est l'app redémarrée.
-function recevoir(vue: Jouee, faits: unknown = FAITS, envois?: EnvoiDeCarte[], tenus = tenirFaits()) {
-  const lecture: Lecture & { envois?: EnvoiDeCarte[] } = { projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }], ...(envois === undefined ? {} : { envois }) };
-  const recue = tenus.recevoir(lecture);
+// Les faits que la box rend, en JSON, passés par le process principal tel qu'il est : la vue reçoit ce qu'il range.
+function recevoir(vue: Jouee, faits: unknown = FAITS) {
+  const lecture: Lecture = { projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] };
+  const recue = tenirFaits().recevoir(lecture);
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
-// Une réponse que le tableau montre, pour la carte de #21 : le second choix, posté à ce commentaire.
-const ENVOI = { ticket: 21, commentaire: 500, url: "https://github.com/chef/parade/issues/7#issuecomment-500", le: A, choix: 2 } as const;
-const attente = (commentaire = 500): EnvoiDeCarte => ({ ...ENVOI, commentaire, etat: "attente" });
-const joue = (commentaire = 500): EnvoiDeCarte => ({ ...ENVOI, commentaire, etat: "joue", dit: "Done — choose #21 2 — cost: the kitchen takes #21 up again" });
-const refuse = (commentaire = 500): EnvoiDeCarte => ({ ...ENVOI, commentaire, etat: "refuse", dit: "Not done — choose #21 2: a cook is working on #21", raison: "a cook is working on #21" });
+// Une réponse lue, pour la carte de #21 : le second choix, posté à ce commentaire. Aucune lecture n'en porte plus
+// (#2061) ; la vue sait encore la montrer, et c'est ce qui est joué ici.
+const ENVOI = { commentaire: 500, reponse: PRODUIT.choix[1]?.texte ?? "", le: A } as const;
+const attente = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "attente" });
+const joue = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "joue", dit: "Done — choose #21 2 — cost: the kitchen takes #21 up again" });
+const refuse = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "refuse", dit: "Not done — choose #21 2: a cook is working on #21", raison: "a cook is working on #21" });
 // La colonne TODO, son compte et ses bons.
 const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Todo") ?? assert.fail("pas de colonne TODO");
 const compte = (vue: Jouee) => todo(vue).dessous("h4")[0]?.dessous("span")[1]?.textContent;
@@ -215,9 +215,9 @@ describe("la carte de TODO, sur le rail du projet", () => {
     enAttente(carte(vue, 21), PRODUIT.choix[1]?.texte ?? "");
     assert.ok(bon(vue, 12) !== undefined, "l'autre carte reste, à trancher");
     assert.equal(choix(carte(vue, 12)).length, 2);
-    // Le tableau est relu tout de suite : la lecture suivante dit ce qu'il en est.
+    // `facts` est relu tout de suite : la lecture suivante dit ce qu'il en est.
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, relectures + 1);
-    // Tant que le tableau ne dit rien de cette réponse, la carte l'attend ; la lecture qui ne la porte plus l'oublie.
+    // Tant qu'aucune lecture n'en dit rien, la carte l'attend ; la lecture qui ne la porte plus l'oublie.
     recevoir(vue);
     enAttente(carte(vue, 21), PRODUIT.choix[1]?.texte ?? "");
     recevoir(vue, { ...FAITS, attend: FAITS.attend?.filter(({ ticket }) => ticket !== 21) });
@@ -268,63 +268,36 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.equal(compte(vue), "2");
   });
 
-  test("les trois états d'une carte, lus du tableau : sans réponse, envoyée et en attente de la cuisine, puis jouée — ou pas jouée et pourquoi", async () => {
-    const vue = await ouvrir();
-    // Sans réponse : la question, ses choix et son champ.
-    recevoir(vue, FAITS, []);
-    assert.equal(choix(carte(vue, 21)).length, 2);
-    assert.equal(ouEnEst(carte(vue, 21)), undefined);
-    // Le geste posté, la box n'a rien dit : envoyée, en attente de la cuisine.
-    recevoir(vue, FAITS, [attente()]);
-    enAttente(carte(vue, 21), PRODUIT.choix[1]?.texte ?? "");
-    // La box l'a jouée : la carte le dit, sa ligne au survol, et son bord ne bat plus.
-    recevoir(vue, FAITS, [joue()]);
-    const jouee = carte(vue, 21);
+  test("ce que le process principal rend aujourd'hui (#2061) : rien n'est posté, la carte reste à trancher et dit où y répondre", async () => {
+    const vue = await ouvrir({ repondreCarte: () => ({ refus: SANS_FAIT.carte, detail: "" }) });
+    recevoir(vue);
+    choix(carte(vue, 21))[0]?.click();
+    await repos();
+    const posee = carte(vue, 21);
+    const refus = posee.dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("pas de ligne de refus");
+    assert.equal(refus.dessous("span")[0]?.textContent, SANS_FAIT.carte);
+    assert.ok(choix(posee).length === 2 && choix(posee).every((pose) => !pose.disabled));
+    assert.equal(ouEnEst(posee), undefined);
+  });
+
+  test("les états d'une réponse lue, sur la carte : envoyée et en attente de la cuisine, puis jouée — ou pas jouée et pourquoi", () => {
+    const doc = { createElement: (balise: string) => new Faux(balise) };
+    const rien = { repondre: () => {}, ecrire: () => {}, demander: () => {} };
+    const lue = (envoi: EnvoiVu) => ({ ...carteDeTodo(carteLue(PRODUIT) ?? assert.fail("carte illisible")), envoi });
+    const poser = (envoi: EnvoiVu) => (poserCarteDeTodo(doc, 21, lue(envoi), REPOS, { captures: [], brouillon: "", cle: "p#21" }, rien) as Faux[])[0] ?? assert.fail("rien de posé");
+    enAttente(poser(attente()), PRODUIT.choix[1]?.texte ?? "");
+    // Jouée : la carte le dit, sa ligne au survol, et son bord ne bat plus.
+    const jouee = poser(joue());
     repondue(jouee, PRODUIT.choix[1]?.texte ?? "", JOUEE);
     assert.equal(jouee.dataset.envoi, "jouee");
     assert.equal(ouEnEst(jouee)?.dessous("button").find((pose) => pose.className === "aide")?.ariaLabel, "Done — choose #21 2 — cost: the kitchen takes #21 up again");
-    // Elle ne l'a pas jouée : la raison en une ligne, sa réponse au survol, et la carte rend ses choix.
-    recevoir(vue, FAITS, [refuse()]);
-    const refusee = carte(vue, 21);
+    // Pas jouée : la raison en une ligne, sa réponse au survol, et la carte rend ses choix.
+    const refusee = poser(refuse());
     assert.equal(refusee.dataset.envoi, undefined);
     const ligne = refusee.dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("pas de ligne de refus");
     assert.equal(ligne.dessous("span")[0]?.textContent, `${PAS_JOUEE}: a cook is working on #21`);
     assert.equal(ligne.dessous("button").find((pose) => pose.className === "aide")?.ariaLabel, "Not done — choose #21 2: a cook is working on #21");
     assert.ok(choix(refusee).length === 2 && choix(refusee).every((pose) => !pose.disabled));
-  });
-
-  test("redémarrée pendant que la réponse attend la cuisine, l'app relit le tableau : la carte le dit encore, jamais sans réponse", async () => {
-    // L'app d'avant : le chef a cliqué, la réponse est postée.
-    const avant = await ouvrir({ repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 500 }) });
-    recevoir(avant);
-    choix(carte(avant, 21))[1]?.click();
-    await repos();
-    enAttente(carte(avant, 21), PRODUIT.choix[1]?.texte ?? "");
-    // L'app redémarrée : une vue neuve, un process principal neuf, rien de ce qui a été cliqué — seul le tableau relu.
-    const apres = await ouvrir();
-    recevoir(apres, FAITS, [attente()], tenirFaits());
-    enAttente(carte(apres, 21), PRODUIT.choix[1]?.texte ?? "");
-    assert.equal(apres.appels.filter(({ geste }) => geste === "repondreCarte").length, 0, "rien n'est reposté");
-    // Le bon ne demande plus de répondre : sa phrase « answer its question » se tait.
-    assert.ok(!(bon(apres, 21)?.dessous("p") ?? []).some((pose) => pose.className === "ligne-carte"));
-    // Puis la box répond : la carte quitte l'attente.
-    recevoir(apres, FAITS, [joue()], tenirFaits());
-    repondue(carte(apres, 21), PRODUIT.choix[1]?.texte ?? "", JOUEE);
-  });
-
-  test("postée d'ici, la carte attend la cuisine tant que le tableau ne montre qu'une réponse plus ancienne", async () => {
-    const vue = await ouvrir({ repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 500 }) });
-    // Une première réponse, refusée : la carte rend ses choix, et le chef répond de nouveau.
-    recevoir(vue, FAITS, [refuse(400)]);
-    choix(carte(vue, 21))[1]?.click();
-    await repos();
-    // Le tableau relu ne montre pas encore la nouvelle : son refus d'avant ne la remplace pas.
-    recevoir(vue, FAITS, [refuse(400)]);
-    enAttente(carte(vue, 21), PRODUIT.choix[1]?.texte ?? "");
-    recevoir(vue, FAITS, [attente(500)]);
-    enAttente(carte(vue, 21), PRODUIT.choix[1]?.texte ?? "");
-    recevoir(vue, FAITS, [joue(500)]);
-    repondue(carte(vue, 21), PRODUIT.choix[1]?.texte ?? "", JOUEE);
   });
 
   test("une carte dans la forme unique montre, dans cet ordre : ce qui se passe, la question, un bouton par choix, le champ libre, puis « ask the second »", async () => {
@@ -451,9 +424,9 @@ describe("le module de la carte, sur un faux document", () => {
     assert.equal(apresRendu(reponse, undefined).etape, "refus");
   });
 
-  test("ce que la carte montre : le geste en route d'ici d'abord, puis ce que le tableau dit — d'une réponse au moins aussi récente", () => {
+  test("ce que la carte montre : le geste en route d'ici d'abord, puis la réponse lue — d'une réponse au moins aussi récente", () => {
     const carte = todoDe(PRODUIT);
-    const lue = (envoi: EnvoiDeCarte) => carteDeTodo(carteLue(PRODUIT) ?? assert.fail("carte illisible"), envoi);
+    const lue = (envoi: EnvoiVu) => ({ ...carte, envoi });
     const postee = { etape: "postee" as const, reponse: { question: PRODUIT.question, choix: 1 }, commentaire: 500 };
     assert.deepEqual(vuDeLaCarte(carte, REPOS), { vu: "repos" });
     assert.deepEqual(vuDeLaCarte(carte, postee), { vu: "attente", reponse: PRODUIT.choix[0]?.texte });

@@ -1,29 +1,33 @@
-// La vue du rail d'un projet, nourrie de GitHub seul (app/src/tableau/rail.ts, #1694) : le tableau de la cuisine que la
-// box publie donne ce que le rail lisait de la station — ses tickets et leur état, les cooks en cours, les cartes, ce qui
-// attend le chef —, sous la forme que ce qui le dessine reçoit déjà (faits.ts, attend.ts, bon.ts, manager.ts, amont.ts).
-// GitHub est une doublure ; tout lancement de processus — le geste de la station d'abord — fait échouer le test.
+// La vue du rail d'un projet, nourrie de GitHub seul (app/src/tableau/rail.ts, #1694, #2061) : la lecture des issues, de
+// leurs labels et des PR du dépôt donne ce que le rail lisait de la station — ses tickets et leur état, les cooks en
+// cours, ce qui attend le chef —, sous la forme que ce qui le dessine reçoit déjà (faits.ts, attend.ts, bon.ts,
+// amont.ts). GitHub est une doublure ; tout lancement de processus — le geste de la station d'abord — fait échouer le
+// test.
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
 import { readFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
-import { decrireEtat, lireEtat } from "../../../runtime/src/etat.ts";
-import { ouvrirJournal } from "../../../runtime/src/journal.ts";
-import { ouvrirRail } from "../../../runtime/src/rail.ts";
-import { tableauDeLaCuisine } from "../../../runtime/src/tableau/rendu/donnees.ts";
-import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
-import { aArreter, horloge, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { mettreAPart, ticketsDe } from "../../src/attend.ts";
 import { GESTE, lancerLa } from "../../src/box.ts";
-import { lignesDuRail } from "../../src/bon.ts";
-import { comprendre, rail, tenirFaits, titreDEchec, type Dessinable } from "../../src/faits.ts";
 import { voir as voirAmont } from "../../src/amont.ts";
-import { voir as voirManager } from "../../src/manager.ts";
+import { tenirFaits, titreDEchec, type Dessinable } from "../../src/faits.ts";
+import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
-import { lectureDuTableau, ouvrirVeilleDuTableau, statusDuTableau, tenirLecturesDuTableau, type LectureDuRail } from "../../src/tableau/rail.ts";
-import { DEPOT, GENERE_LE, githubDuTableau, LU_LE, projetPublie } from "./projet-publie.ts";
+import {
+  amontDuTableau,
+  fileDuSecond,
+  lectureDuTableau,
+  ouvrirVeilleDuTableau,
+  sortieDuTableau,
+  statusDuTableau,
+  tenirLecturesDuTableau,
+  type LectureDuRail,
+} from "../../src/tableau/rail.ts";
+import { avecLeTodoGithub } from "../../src/tableau/todo-github.ts";
 
+const DEPOT = "acme/brigade";
 const LU_PAR_L_APP = new Date("2026-10-12T10:05:00.000Z");
 const PROJET = { nom: "brigade" };
 
@@ -43,17 +47,59 @@ function sansProcessus(t: TestContext): string[] {
   return lances;
 }
 
-async function lu(corps: string): Promise<TableauLu> {
-  const lecture = await lireLeTableauDuDepot({ depot: DEPOT, appeler: githubDuTableau(corps).appeler, maintenant: () => LU_PAR_L_APP });
+const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
+const issue = (number: number, labels: string[], extra: object = {}) => ({
+  number,
+  title: `Ticket ${number}`,
+  html_url: `https://github.com/${DEPOT}/issues/${number}`,
+  created_at: "2026-10-12T08:00:00Z",
+  labels: labels.map((name) => ({ name })),
+  ...extra,
+});
+const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- brigade:prise station=${station} -->`, author_association: "OWNER", created_at: le });
+
+// Le projet sur GitHub : #30 en attente (prio:0), #23 pris par box/claude, #17 en pass (PR #50) cuisiné par mac/claude,
+// #35 en WAITING ; #60, une épique, avant le rail ; #24, une carte du chef (`chef-todo`) qui pose une question.
+// `chemins` : ce qui a été demandé.
+function github(chemins: string[] = []): AppelGitHub {
+  const auFeu = [issue(30, ["fire", "prio:0"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "waiting", "taken"])];
+  return async (chemin) => {
+    chemins.push(chemin);
+    if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok(auFeu);
+    if (chemin.includes("/issues?") && chemin.includes("labels=chef-todo")) return ok([issue(24, ["chef-todo"])]);
+    if (chemin.includes("/issues?")) return ok([...auFeu, issue(60, ["epic"]), issue(24, ["chef-todo"])]);
+    if (chemin.includes("/pulls?")) return ok([{ number: 50, html_url: `https://github.com/${DEPOT}/pull/50`, created_at: "2026-10-12T09:30:00Z", head: { ref: "cook/17-rail" }, body: "" }]);
+    if (chemin === `/repos/${DEPOT}`) return ok({ default_branch: "main" });
+    if (chemin.includes("/commits/main/check-runs")) return ok({ check_runs: [{ conclusion: "success" }] });
+    if (chemin.includes("/issues/23/comments")) return ok([prise(1, "box/claude", "2026-10-12T09:00:00Z")]);
+    if (chemin.includes("/issues/17/comments")) return ok([prise(2, "mac/claude", "2026-10-12T08:30:00Z")]);
+    if (chemin.includes("/issues/24/comments")) return ok([{ body: "<!-- brigade:todo kind=product-question -->\nOne list per project, or one for all?" }]);
+    if (/\/issues\/\d+\/(comments|events)/.test(chemin)) return ok([]);
+    return { status: 404, data: {} };
+  };
+}
+
+// La lecture d'un projet, comme le process principal la fait (main.ts) : le rail, puis TODO.
+async function lireLeProjet(appeler: AppelGitHub): Promise<LectureDuTableauDuDepot> {
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => LU_PAR_L_APP });
+  return lu.lu ? avecLeTodoGithub(lu, appeler) : lu;
+}
+async function lu(appeler: AppelGitHub = github()): Promise<TableauLu> {
+  const lecture = await lireLeProjet(appeler);
   assert.ok(lecture.lu, lecture.lu ? "" : lecture.raison);
   return lecture;
 }
 
-const sortie = (lecture: LectureDuRail, commande: string) => ("erreur" in lecture ? assert.fail(lecture.erreur) : (lecture.sorties.find((s) => s.commande === commande)?.texte ?? assert.fail(`no ${commande}`)));
+// Une lecture faite à la main : ce que `status` et la file du second en tirent seulement.
+const ecrite = (cartes: { ticket: number; titre: string }[]): Pick<TableauLu, "faits" | "cuisine" | "lignesDuRail"> => ({
+  faits: { attend: cartes },
+  cuisine: { rubriques: [{ titre: "kitchen", lignes: ["open"] }, { titre: "rail", lignes: ["1 queued"] }, { titre: "cooks", lignes: ["none running"] }] },
+  lignesDuRail: [{ ticket: 30, priorite: 0, ligne: "  #30  queued  prio:0  since 2026-10-12 08:00 UTC  Ticket 30" }],
+});
 
 // Les lectures que les veilles du rail et des faits rendent, une fois chacune.
-async function lireParLesVeilles(appeler: Parameters<typeof lireLeTableauDuDepot>[0]["appeler"]) {
-  const tableaux = tenirLecturesDuTableau<typeof PROJET>({ lire: () => lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => LU_PAR_L_APP }), fraicheurMs: 60_000 });
+async function lireParLesVeilles(appeler: AppelGitHub) {
+  const tableaux = tenirLecturesDuTableau<typeof PROJET>({ lire: () => lireLeProjet(appeler), fraicheurMs: 60_000 });
   const lectures = new Map<string, LectureDuRail>();
   const { promise: lues, resolve: toutLu } = Promise.withResolvers<void>();
   const recevoir = (commande: string) => (lecture: LectureDuRail) => {
@@ -78,14 +124,16 @@ test("la garde prend le geste de la station lancé par le chemin des veilles : c
   assert.match(lances[0] ?? "", new RegExp(`^/usr/bin/fausse-node ${join("/tmp/runtime", GESTE).replace(/[\\/.]/g, "\\$&")} brigade facts$`));
 });
 
-test("GitHub seul, aucune box jointe : la couche de données du rail rend les tickets et leur état, les cooks en cours, les cartes et ce qui attend le chef", async (t) => {
+test("GitHub seul, aucune box jointe : la couche de données du rail rend les tickets et leur état, les cooks en cours, et les cartes du chef", async (t) => {
   const lances = sansProcessus(t);
-  const { corps } = projetPublie(t);
-  const { appeler, chemins } = githubDuTableau(corps);
-  const { status, facts } = await lireParLesVeilles(appeler);
-  // Les deux veilles ont lu le même tableau : une seule demande à GitHub.
-  assert.equal(chemins.length, 1);
+  const chemins: string[] = [];
+  const { status, facts } = await lireParLesVeilles(github(chemins));
+  // Les deux veilles ont lu le même rail : une seule lecture de GitHub.
+  assert.equal(chemins.filter((chemin) => chemin.includes("labels=fire")).length, 1);
   assert.deepEqual([status.projet, status.demande, facts.projet, facts.demande], ["brigade", 1, "brigade", 2]);
+  // L'âge du rail : l'heure de sa lecture sur GitHub.
+  assert.ok(!("erreur" in facts));
+  assert.equal(facts.publieLe, LU_PAR_L_APP.toISOString());
 
   // Ce que le process principal en fait, tel quel : `status` mis à part, puis les faits reçus.
   const tenus = tenirFaits();
@@ -97,156 +145,95 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
 
   // Les tickets et leur état, chacun dans sa colonne.
   assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
-  assert.deepEqual(colonne("Taken"), [
-    [23, "pris"],
-    [31, "pris"],
-    [39, "pris"],
-  ]);
-  assert.deepEqual(colonne("Pass"), [
-    [17, "en pass"],
-    [20, "en pass"],
-  ]);
-  // #19 attend #21, fermé sans avoir été servi : la cuisine ne l'attend plus, il est sur le rail (#1834).
-  assert.deepEqual(colonne("On the rail")?.slice(0, 2), [
-    [30, "en attente"],
-    [19, "en attente"],
-  ]);
+  assert.deepEqual(colonne("On the rail"), [[30, "en attente"]]);
+  assert.deepEqual(colonne("Taken"), [[23, "pris"]]);
+  assert.deepEqual(colonne("Pass"), [[17, "en pass"]]);
   assert.deepEqual(colonne("Waiting"), [[35, "WAITING"]]);
-  assert.deepEqual(colonne("Served")?.map(([ticket]) => ticket), [40, 41]);
   // Ce qu'une carte tire de la ligne `status` de son ticket : la priorité, et qui la tient.
   const carte30 = tableau.rail.colonnes.flatMap(({ cartes }) => cartes).find(({ ticket }) => ticket === 30);
   assert.equal(carte30?.prio, "prio:0");
   assert.ok(tableau.rail.railLu !== undefined, "les lignes du rail ont été lues");
 
   // Les cooks en cours : quel ticket, sur quelle station.
-  assert.deepEqual(tableau.cooks.enCours.map(({ ticket, station }) => [ticket, station]), [
-    [31, "box/claude"],
+  assert.deepEqual(tableau.cooks.enCours.map(({ ticket, station }) => [ticket, station]).sort(), [
+    [17, "mac/claude"],
     [23, "box/claude"],
   ]);
 
-  // Ce qui attend le chef : TODO, dans l'ordre du bloc `awaiting`, la carte de #24 avec sa question et ses choix. La
-  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826) ; ni #19, qui attendait un ticket fermé sans
-  // avoir été servi (#1834).
+  // Ce qui attend le chef : TODO, la carte de #24 avec sa sorte et son texte.
   const todo = tableau.rail.colonnes.find((c) => c.nom === "Todo")?.cartes ?? [];
   assert.deepEqual(todo.map(({ ticket }) => ticket), [24]);
   assert.ok(todo.every(({ attendu }) => attendu));
   assert.ok(tableau.rail.attendLu !== undefined, "le bloc `awaiting` a été pris");
-  const carte24 = todo.find(({ ticket }) => ticket === 24);
-  assert.equal(carte24?.todo?.question, "One list per project, or one for all?");
-  assert.deepEqual(carte24?.todo?.choix.map(({ texte }) => texte), ["One per project.", "One for all."]);
-  // Ce que le bloc dit de #24, mot pour mot, est sur sa carte.
-  assert.ok((carte24?.attend ?? []).length > 0);
+  assert.deepEqual(todo[0]?.chef, { sorte: "product-question", texte: "One list per project, or one for all?" });
 
   assert.deepEqual(lances, [], "aucun processus n'est parti");
 });
 
-test("le rail tiré du tableau est celui que la station rendait, du même état au même instant", async (t) => {
-  sansProcessus(t);
-  const { corps, facts, statusDuRail: status } = projetPublie(t);
-  const publie = await lu(corps);
-  const parLeTableau = lectureDuTableau(publie, "brigade", 1, ["facts", "status"]);
-  const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: sortie(parLeTableau, "status") }] });
-  const parLaStation = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
-  assert.ok(!("erreur" in montree) && !("erreur" in parLaStation));
-  // Le bloc `awaiting`, mot pour mot.
-  assert.equal(montree.attend, parLaStation.attend);
-  // Les lignes du rail, mot pour mot.
-  assert.deepEqual(lignesDuRail(montree.sorties[0]?.texte ?? ""), lignesDuRail(parLaStation.sorties[0]?.texte ?? ""));
-  // Le rail entier — colonnes, cartes, ce qu'elles disent.
-  const deux = (faits: string, m: typeof montree) => {
-    const lus = comprendre(faits);
-    assert.ok(!("informe" in lus), "informe" in lus ? lus.informe : "");
-    return rail(lus, { bloc: m.attend ?? "", a: m.a }, { texte: m.sorties[0]?.texte ?? "", a: m.a });
-  };
-  assert.deepEqual(deux(sortie(parLeTableau, "facts"), montree), deux(facts, parLaStation));
-});
-
-test("la sortie de `status` refaite du tableau : ses rubriques, le bloc `awaiting` de la file juste avant la ligne `rail`, et sous elle la ligne de chaque ticket", async (t) => {
-  const { corps } = projetPublie(t);
-  const publie = await lu(corps);
+test("la sortie de `status` refaite de la lecture : ses rubriques, le bloc `awaiting` juste avant la ligne `rail`, et sous elle la ligne de chaque ticket", async () => {
+  const publie = await lu();
   const texte = statusDuTableau(publie);
   const lignes = texte.split("\n");
   const rangRail = lignes.findIndex((l) => /^rail\s/.test(l));
   const finAwaiting = lignes.indexOf("end awaiting");
   assert.ok(lignes.findIndex((l) => l.startsWith("awaiting   ")) < finAwaiting && finAwaiting < rangRail);
-  assert.deepEqual(lignes.slice(rangRail + 1, rangRail + 1 + (publie.lignesDuRail?.length ?? 0)), publie.lignesDuRail?.map(({ ligne }) => ligne));
-  assert.match(texte, /^project {4}/m);
+  assert.equal(lignes[rangRail], "rail       1 taken · 1 in pass · 1 WAITING · 1 queued");
+  assert.deepEqual(lignes.slice(rangRail + 1, rangRail + 1 + publie.lignesDuRail.length), publie.lignesDuRail.map(({ ligne }) => ligne));
+  assert.match(texte, /^cooks {6}2 running$/m);
   // Ce que seule la box lit n'y est pas : les derniers événements.
   assert.doesNotMatch(texte, /^latest events$/m);
-  // Une file vide : le bloc le dit, comme `status`.
-  assert.match(statusDuTableau({ ...publie, file: [], bilans: [] }), /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
+  // Les rubriques d'avant `rail` restent avant le bloc, celles d'après après lui.
+  const main = statusDuTableau(ecrite([])).split("\n");
+  assert.deepEqual(main, ["kitchen    open", "", "awaiting   nothing awaits the chef", "end awaiting", "", "rail       1 queued", "  #30  queued  prio:0  since 2026-10-12 08:00 UTC  Ticket 30", "", "cooks      none running", ""]);
 });
 
-// Un projet dont le reste du rail attend une capacité qu'aucune station ne fournit (#1751) : #12 mis de côté
-// `no-station`, le manager allumé qui le reprend avant le chef, #15 qui l'attend, #17 qui attend #20, sans lien avec lui.
-// `libre` : un ticket de plus, que rien ne retient — il peut cuire. Le tableau que la box en publie, et son `status`.
-function railSansStation(t: TestContext, { libre = false }: { libre?: boolean } = {}) {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge("2026-10-12T09:00:00.000Z") });
-  aArreter(t, () => journal.fermer());
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "project.switched-on", payload: { cause: "default" } });
-  const arriver = (ticket: number, waitsFor: number[], requires: string[] = []) =>
-    journal.ajouter({
-      project: "brigade",
-      ticket,
-      author: "github",
-      type: "ticket.arrived",
-      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor, zone: [`zone/${ticket}/`], problems: [], requires } },
-    });
-  arriver(12, [], ["macos"]);
-  arriver(15, [12]);
-  arriver(17, [20]);
-  if (libre) arriver(18, []);
-  ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 }).quatreVingtSix(12, { motif: "no-station: macos" });
-  const etat = lireEtat(journal, LU_LE);
-  return { corps: rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE), status: decrireEtat(etat, LU_LE, undefined, null, null, null, null, true).join("\n") };
-}
-
-test("la cuisine au repos faute de station : le bloc `awaiting` refait du tableau ne porte plus de ligne « kitchen idle », comme celui de `status`", async (t) => {
-  const { corps, status } = railSansStation(t);
-  const publie = await lu(corps);
-  const texte = statusDuTableau(publie);
-
-  assert.match(texte, /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
-  assert.doesNotMatch(texte, /kitchen idle|needs a human/);
-  assert.doesNotMatch(status, /kitchen idle|needs a human/);
-  // Mot pour mot le bloc que la box écrit ; la file du tableau est vide.
-  const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte }] });
-  const parLaStation = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
-  assert.ok(!("erreur" in montree) && !("erreur" in parLaStation));
-  assert.equal(montree.attend, parLaStation.attend);
-  assert.deepEqual(publie.file, []);
-  assert.deepEqual(ticketsDe(montree.attend ?? ""), []);
+test("le bloc `awaiting` de `status` : sa tête compte les cartes du chef, sans ligne de ticket — rien n'y est daté", () => {
+  const bloc = (cartes: { ticket: number; titre: string }[]) => mettreAPart({ projet: "brigade", demande: 1, a: LU_PAR_L_APP.toISOString(), sorties: [{ commande: "status", texte: statusDuTableau(ecrite(cartes)) }] });
+  const aucune = bloc([]);
+  const une = bloc([{ ticket: 24, titre: "Ticket 24" }]);
+  const deux = bloc([{ ticket: 24, titre: "Ticket 24" }, { ticket: 25, titre: "Ticket 25" }]);
+  assert.ok(!("erreur" in aucune) && !("erreur" in une) && !("erreur" in deux));
+  assert.match(aucune.attend ?? "", /^awaiting {3}nothing awaits the chef\nend awaiting/);
+  assert.match(une.attend ?? "", /^awaiting {3}1 decision awaits the chef\nend awaiting/);
+  assert.match(deux.attend ?? "", /^awaiting {3}2 decisions await the chef\nend awaiting/);
+  assert.deepEqual(ticketsDe(deux.attend ?? ""), []);
+  // Ce qui n'est pas une carte n'est pas compté.
+  assert.match(statusDuTableau({ ...ecrite([]), faits: { attend: [{ titre: "sans numéro" }, null] } }), /^awaiting {3}nothing awaits the chef$/m);
+  assert.match(statusDuTableau({ ...ecrite([]), faits: {} }), /^awaiting {3}nothing awaits the chef$/m);
 });
 
-test("un ticket peut encore cuire : ni le bloc `awaiting` refait du tableau ni celui de `status` ne disent la cuisine au repos", async (t) => {
-  const { corps, status } = railSansStation(t, { libre: true });
-  const texte = statusDuTableau(await lu(corps));
-
-  assert.match(texte, /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
-  assert.doesNotMatch(texte, /kitchen idle/);
-  assert.doesNotMatch(status, /kitchen idle/);
+test("la file du second : le bloc `awaiting`, une ligne par carte du chef, puis la ligne `rail` et celle de chaque ticket", async () => {
+  assert.equal(
+    fileDuSecond(ecrite([{ ticket: 24, titre: "One list?" }, { ticket: 25, titre: "Merge by hand" }])),
+    ["awaiting   2 decisions await the chef", "  #24  One list?", "  #25  Merge by hand", "end awaiting", "", "rail       1 queued", "  #30  queued  prio:0  since 2026-10-12 08:00 UTC  Ticket 30", ""].join("\n"),
+  );
+  assert.equal(fileDuSecond(ecrite([])).split("\n").slice(0, 2).join("\n"), "awaiting   nothing awaits the chef\nend awaiting");
+  // Les lignes de la file sont celles que le second relaie : les tickets du bloc se relisent.
+  assert.deepEqual(ticketsDe(fileDuSecond(ecrite([{ ticket: 24, titre: "One list?" }])).split("\nend awaiting")[0] ?? "").map(({ ticket }) => ticket), [24]);
+  // Sans rubrique `rail` : le nombre de ses lignes.
+  assert.match(fileDuSecond({ ...ecrite([]), cuisine: { rubriques: [] } }), /^rail {7}1 on the rail$/m);
+  // Lue de GitHub, avec TODO.
+  assert.match(fileDuSecond(await lu()), /^awaiting {3}1 decision awaits the chef\n {2}#24 {2}Ticket 24\nend awaiting\n\nrail {7}1 taken · 1 in pass · 1 WAITING · 1 queued\n/);
 });
 
-test("le manager suit l'interrupteur du projet, que le tableau porte : sa ligne se lit comme celle de `manager`", async (t) => {
-  const { corps } = projetPublie(t);
-  const publie = await lu(corps);
-  const interrupteur = publie.cuisine.rubriques.find(({ titre }) => titre === "switch")?.lignes[0];
-  const avec: TableauLu = interrupteur === undefined ? { ...publie, cuisine: { ...publie.cuisine, rubriques: [...publie.cuisine.rubriques, { titre: "switch", lignes: ["ON since 2026-10-12T08:00:00.000Z (by chef) — the manager judges and splits"] }] } } : publie;
-  const vu = voirManager(lectureDuTableau(avec, "brigade", 1, ["manager"]));
-  assert.ok(!("sans" in vu), JSON.stringify(vu));
-  assert.equal(vu.interrupteur.allume, true);
-  // Sans la ligne, le manager n'est pas dit : jamais « éteint ».
-  const sans = { ...avec, cuisine: { ...avec.cuisine, rubriques: avec.cuisine.rubriques.filter(({ titre }) => titre !== "switch") } };
-  const lecture = lectureDuTableau(sans, "brigade", 1, ["manager"]);
-  assert.ok("erreur" in lecture && lecture.duTableau === true);
-  assert.match(lecture.erreur, /^The project switch is not on the Kitchen board of acme\/brigade \(issue 7\)/);
+test("ce qui est avant le rail : la sortie de `manager upstream`, chaque issue avec l'adresse de son issue", async () => {
+  const publie = await lu();
+  const lecture = lectureDuTableau(publie, "brigade", 1, ["manager upstream"]);
+  const vu = voirAmont(lecture);
+  assert.ok("compte" in vu, JSON.stringify(vu));
+  assert.deepEqual(vu.groupes.map(({ etat, issues }) => [etat, issues.map(({ ticket }) => ticket)]), [
+    ["non-lue", [24]],
+    ["epique", [60]],
+  ]);
+  assert.deepEqual(JSON.parse(amontDuTableau(publie) ?? "null").issues[1], { ticket: 60, titre: "Ticket 60", priorite: null, etat: "epique", dit: "it carries `epic`: not split yet", url: `https://github.com/${DEPOT}/issues/60` });
 });
 
-test("ce que le tableau ne porte pas — ce qui est en amont du rail — n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
+test("ce qui est avant le rail qui n'a pas été lu n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
   const lances = sansProcessus(t);
-  const { corps } = projetPublie(t);
-  const lecture = lectureDuTableau(await lu(corps), "brigade", 1, ["manager upstream"]);
-  assert.ok("erreur" in lecture && lecture.duTableau === true);
+  const { avantLeRail: _avant, ...sansAmont } = await lu();
+  assert.equal(amontDuTableau(sansAmont), undefined);
+  const lecture = lectureDuTableau(sansAmont, "brigade", 1, ["manager upstream"]);
+  assert.ok("erreur" in lecture && lecture.duTableau === true && lecture.pasPublie === true);
   const vu = voirAmont(lecture);
   assert.ok("nonPublie" in vu);
   assert.ok(!("sans" in vu) && !("compte" in vu));
@@ -254,36 +241,48 @@ test("ce que le tableau ne porte pas — ce qui est en amont du rail — n'est n
   assert.deepEqual(lances, []);
 });
 
-test("un tableau qui ne se lit pas, ou qui ne porte pas le rail : un échec en une phrase, dit comme tel — ni « station injoignable », ni un rail vide", async (t) => {
-  const { corps } = projetPublie(t);
-  const non: LectureDuTableauDuDepot = { lu: false, depot: DEPOT, luLe: LU_PAR_L_APP.toISOString(), raison: "GitHub could not be reached to read the Kitchen board of acme/brigade: getaddrinfo ENOTFOUND api.github.com." };
+test("une commande que GitHub ne porte pas : elle n'est pas lue, et la phrase dit que seul le journal de la station la porte", async () => {
+  const publie = await lu();
+  assert.deepEqual(sortieDuTableau(publie, "manager"), { raison: "`manager` is not read from GitHub for acme/brigade: only the station's log carries it.", pasPublie: true });
+  assert.deepEqual(sortieDuTableau(publie, () => "composée"), { raison: "This reading is not read from GitHub for acme/brigade: only the station's log carries it.", pasPublie: true });
+  // La première qui ne se lit pas fait l'échec de la lecture entière.
+  const lecture = lectureDuTableau(publie, "brigade", 2, ["facts", "manager", "status"]);
+  assert.deepEqual(lecture, { projet: "brigade", demande: 2, a: LU_PAR_L_APP.toISOString(), erreur: "`manager` is not read from GitHub for acme/brigade: only the station's log carries it.", atteinte: true, cas: null, duTableau: true, pasPublie: true });
+});
+
+test("une lecture réussie : chaque sortie dans l'ordre demandé, et l'heure de la lecture de GitHub", async () => {
+  const publie = await lu();
+  const lecture = lectureDuTableau(publie, "brigade", 4, ["facts", "status"]);
+  assert.ok(!("erreur" in lecture));
+  assert.deepEqual(lecture.sorties.map(({ commande }) => commande), ["facts", "status"]);
+  assert.deepEqual(JSON.parse(lecture.sorties[0]?.texte ?? ""), publie.faits);
+  assert.equal(lecture.sorties[1]?.texte, statusDuTableau(publie));
+  assert.equal(lecture.a, LU_PAR_L_APP.toISOString());
+  assert.equal(lecture.publieLe, LU_PAR_L_APP.toISOString());
+});
+
+test("GitHub qui ne se lit pas : un échec en une phrase, dit comme tel — ni « station injoignable », ni un rail vide ; hors ligne, il le reste", () => {
+  const non: LectureDuTableauDuDepot = { lu: false, depot: DEPOT, luLe: LU_PAR_L_APP.toISOString(), raison: "GitHub refused to read the rail of acme/brigade (HTTP 403)." };
   const rate = lectureDuTableau(non, "brigade", 3, ["facts"]);
   assert.deepEqual(rate, { projet: "brigade", demande: 3, a: LU_PAR_L_APP.toISOString(), erreur: non.raison, atteinte: true, cas: null, duTableau: true });
   assert.ok("erreur" in rate);
-  assert.equal(titreDEchec(rate), "NOT READ FROM THE KITCHEN BOARD");
+  assert.equal(titreDEchec(rate), "NOT READ FROM GITHUB");
   const recue = tenirFaits().recevoir(rate);
   assert.ok("titre" in recue && "erreur" in recue);
-  assert.equal(recue.titre, "NOT READ FROM THE KITCHEN BOARD");
+  assert.equal(recue.titre, "NOT READ FROM GITHUB");
   // GitHub pas joint du tout (#1818) : l'échec le porte jusqu'à ce qui le dessine.
-  const horsLigne = lectureDuTableau({ ...non, horsLigne: true }, "brigade", 3, ["facts"]);
-  assert.deepEqual(horsLigne, { projet: "brigade", demande: 3, a: LU_PAR_L_APP.toISOString(), erreur: non.raison, atteinte: true, cas: null, duTableau: true, horsLigne: true });
-
-  const publie = await lu(corps);
-  const { faits: _faits, ...davant } = publie;
-  const ancien = lectureDuTableau(davant, "brigade", 1, ["facts"]);
-  assert.match("erreur" in ancien ? ancien.erreur : "", /^The rail is not on the Kitchen board of acme\/brigade \(issue 7\): the box that serves it publishes a board from before the rail was on it — update brigade on the box\.$/);
-  const resserre = lectureDuTableau({ ...davant, resserre: ["faits.livres.relecture", "faits.attend.livraison", "faits.corrections.diff", "faits", "lignesDuRail"] }, "brigade", 1, ["facts"]);
-  assert.match("erreur" in resserre ? resserre.erreur : "", /the board was too long for GitHub, and the box had to leave the rail out of it/);
+  const injoint: LectureDuTableauDuDepot = { ...non, raison: "GitHub could not be reached to read the rail of acme/brigade: getaddrinfo ENOTFOUND api.github.com.", horsLigne: true };
+  assert.deepEqual(lectureDuTableau(injoint, "brigade", 3, ["facts"]), { projet: "brigade", demande: 3, a: LU_PAR_L_APP.toISOString(), erreur: injoint.raison, atteinte: true, cas: null, duTableau: true, horsLigne: true });
 });
 
-test("les lectures du tableau : une seule à la fois par projet, reprise tant qu'elle est fraîche ; « read again » la refait ; la dernière réussie est gardée", async (t) => {
-  const { corps } = projetPublie(t);
+test("les lectures du rail : une seule à la fois par projet, reprise tant qu'elle est fraîche ; « read again » la refait ; la dernière réussie est gardée", async () => {
   let instant = 0;
   let appels = 0;
   const tableaux = tenirLecturesDuTableau<typeof PROJET>({
     lire: () => {
       appels += 1;
-      return lireLeTableauDuDepot({ depot: DEPOT, appeler: githubDuTableau(appels === 3 ? { status: 503, data: { message: "Unavailable" } } : corps).appeler, maintenant: () => LU_PAR_L_APP });
+      const appeler: AppelGitHub = appels === 3 ? async () => ({ status: 503, data: { message: "Unavailable" } }) : github();
+      return lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date(LU_PAR_L_APP.getTime() + appels) });
     },
     fraicheurMs: 15_000,
     maintenant: () => instant,
@@ -297,23 +296,25 @@ test("les lectures du tableau : une seule à la fois par projet, reprise tant qu
   instant = 15_000;
   await tableaux.lire(PROJET);
   assert.equal(appels, 2);
-  assert.equal(tableaux.dernier("brigade")?.numero, 7);
+  const deuxieme = new Date(LU_PAR_L_APP.getTime() + 2).toISOString();
+  assert.equal(tableaux.dernier("brigade")?.luLe, deuxieme);
   // Relue tout de suite, sans attendre : GitHub refuse — la dernière réussie reste celle que visent les gestes.
   tableaux.oublier();
   const ratee = await tableaux.lire(PROJET);
   assert.equal(appels, 3);
   assert.equal(ratee.lu, false);
-  assert.equal(tableaux.dernier("brigade")?.numero, 7);
+  assert.equal(tableaux.dernier("brigade")?.luLe, deuxieme);
+  assert.equal(tableaux.dernier(undefined), undefined);
 });
 
-test("la veille du tableau ne lit que les projets dont la vue lit le rail, puis se tait quand on la ferme", async () => {
+test("la veille du rail ne lit que les projets dont la vue lit le rail, puis se tait quand on la ferme", async () => {
   const lus: string[] = [];
   const recues: LectureDuRail[] = [];
   const { promise: lue, resolve } = Promise.withResolvers<void>();
   const veille = ouvrirVeilleDuTableau<{ nom: string; ici: boolean }>({
     lire: async (projet) => {
       lus.push(projet.nom);
-      return { lu: false, depot: projet.nom, luLe: LU_PAR_L_APP.toISOString(), raison: "no board." };
+      return { lu: false, depot: projet.nom, luLe: LU_PAR_L_APP.toISOString(), raison: "no rail." };
     },
     intervalleMs: 3_600_000,
     lisible: ({ ici }) => ici,
@@ -329,7 +330,8 @@ test("la veille du tableau ne lit que les projets dont la vue lit le rail, puis 
   assert.deepEqual(recues.map(({ projet, demande }) => [projet, demande]), [["brigade", 4]]);
 });
 
-// Le graphe des imports d'un module, de proche en proche, en chemins relatifs à la racine du dépôt — types compris.
+// Le graphe des imports d'un module qui restent à l'exécution — ceux de types seuls sont effacés —, de proche en
+// proche, en chemins relatifs à la racine du dépôt.
 const RACINE = resolve(import.meta.dirname, "..", "..", "..");
 function graphe(entree: string): string[] {
   const vus = new Set<string>();
@@ -338,7 +340,7 @@ function graphe(entree: string): string[] {
     const fichier = pile.pop() as string;
     if (vus.has(fichier)) continue;
     vus.add(fichier);
-    for (const [, specificateur = ""] of readFileSync(fichier, "utf8").matchAll(/\b(?:import|export)\b[^"'`;]*?\bfrom\s*"([^"]+)"/g)) {
+    for (const [, specificateur = ""] of readFileSync(fichier, "utf8").matchAll(/^\s*(?:import|export)(?!\s+type\b)\b[^"'`;]*?\bfrom\s*"([^"]+)"/gm)) {
       if (specificateur.startsWith(".")) pile.push(resolve(dirname(fichier), specificateur));
       else vus.add(specificateur);
     }
@@ -346,22 +348,22 @@ function graphe(entree: string): string[] {
   return [...vus].map((chemin) => (chemin.startsWith(RACINE) ? relative(RACINE, chemin).split("\\").join("/") : chemin)).sort();
 }
 
-test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisent le tableau", () => {
-  // La couche de données du rail et ses gestes n'importent rien qui lance un processus.
-  for (const module of ["app/src/tableau/rail.ts", "app/src/tableau-gestes/rail.ts"]) {
+test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisent GitHub", () => {
+  // La couche de données du rail, sa lecture et ses gestes n'importent rien qui lance un processus.
+  for (const module of ["app/src/tableau/rail.ts", "app/src/tableau/lecture.ts", "app/src/tableau/todo-github.ts", "app/src/gestes-github.ts"]) {
     const importes = graphe(module);
     assert.ok(!importes.includes("node:child_process"), `${module} : ${importes.join(", ")}`);
     assert.ok(!importes.some((chemin) => /app\/src\/(box|terminaux|pty)\.ts$/.test(chemin)), `${module} : ${importes.join(", ")}`);
   }
-  // Dans le process principal, les quatre veilles qui dessinent le rail — `status`, les faits, le manager, l'amont —
-  // sont celles du tableau : aucune ne lance de processus.
+  // Dans le process principal, les trois veilles qui dessinent le rail — `status`, les faits, l'amont — sont celles de
+  // GitHub : aucune ne lance de processus.
   const main = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
-  for (const veille of ["veille", "veilleDesFaits", "veilleDuManager", "veilleDeLAmont"]) {
+  for (const veille of ["veille", "veilleDesFaits", "veilleDeLAmont"]) {
     const declaration = new RegExp(`^const ${veille} = (\\w+)\\(\\{([\\s\\S]*?)^\\}\\);`, "m").exec(main);
     assert.equal(declaration?.[1], "ouvrirVeilleDuTableau", veille);
   }
-  // Les gestes du rail que le tableau porte — merger, retirer, répondre à une carte — partent sur le tableau.
-  assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?gesteDeFicheAuTableau\(tableaux\.dernier/);
-  assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?reponseDeCarteAuTableau\(tableaux\.dernier[\s\S]*?\}\);/);
-  assert.doesNotMatch(/ipcMain\.handle\("repondreCarte"[\s\S]*?\n\}\);/.exec(main)?.[0] ?? "", /passage/);
+  // Les gestes du rail qui ont un fait sur GitHub visent la dernière lecture réussie ; seule la carte du chef lue de GitHub
+  // se répond, sur son issue (#2434) — toute autre carte ne part pas.
+  assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?retirerLeLabel\(tableaux\.dernier/);
+  assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?if \(chef === undefined\) return \{ refus: SANS_FAIT\.carte[\s\S]*?repondreSurGithub\(/);
 });

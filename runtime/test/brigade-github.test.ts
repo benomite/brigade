@@ -1,6 +1,5 @@
-// Un projet servi sur l'état GitHub seul (`brigade-github.ts`, #2060) : deux
-// stations égales sur un faux GitHub, l'interrupteur par projet, et ce que le
-// chemin d'avant garde quand il est éteint.
+// Un projet servi sur l'état GitHub seul (`brigade-github.ts`, #2060), le seul
+// chemin depuis #2061 : deux stations égales sur un faux GitHub.
 //
 // L'état des tickets, la relecture et le merge sont les vrais modules de
 // l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
@@ -10,13 +9,12 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";
 import { CONTEXTE_DES_GATES, GATES_PERIMEES_MS, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
-import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
 import { jusqua } from "./outils.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
@@ -312,9 +310,8 @@ const verdictDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?
 
 // Un projet ouvert sur le chemin GitHub seul, arrêté en fin de test.
 function ouvrir(t: TestContext, station: StationGitHub) {
-  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("l'ancien chemin ne doit pas s'ouvrir"), station: () => station, intervalleMs: 5, avertir: () => {} });
-  assert.equal(ouvert.chemin, "github");
-  if (ouvert.chemin !== "github") throw new Error("inaccessible");
+  const ouvert = brancherBrigadeGithub({ station: () => station, intervalleMs: 5, avertir: () => {} });
+  assert.equal(ouvert.refus, undefined);
   t.after(() => ouvert.arreter());
   return ouvert;
 }
@@ -1110,8 +1107,8 @@ test("the loop: with a first-turn delay, the first turn waits for it, then the i
     calme: async () => {},
     relu: async () => {},
   };
-  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("old path"), station: () => station, intervalleMs: 120_000, premierTourMs: 40_000, avertir: () => {} });
-  t.after(() => (ouvert.chemin === "github" ? ouvert.arreter() : undefined));
+  const ouvert = brancherBrigadeGithub({ station: () => station, intervalleMs: 120_000, premierTourMs: 40_000, avertir: () => {} });
+  t.after(() => ouvert.arreter());
   const fini = async () => {
     for (let i = 0; i < 10; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
   };
@@ -1143,8 +1140,8 @@ test("the loop: a press brings the next turn within 30 s, a delivery's at once, 
     calme: async () => {},
     relu: async () => {},
   };
-  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("old path"), station: () => station, intervalleMs: 120_000, avertir: () => {} });
-  t.after(() => (ouvert.chemin === "github" ? ouvert.arreter() : undefined));
+  const ouvert = brancherBrigadeGithub({ station: () => station, intervalleMs: 120_000, avertir: () => {} });
+  t.after(() => ouvert.arreter());
   const fini = async () => {
     for (let i = 0; i < 10; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
   };
@@ -1287,52 +1284,33 @@ test("merges resume once main is green again, and the repair itself is merged on
   assert.equal(faux.creations.length, 1);
 });
 
-test("switch off: the old path opens as is, and the GitHub-only station is never built", () => {
-  for (const reglages of [null, {}, { githubOnlyState: false }]) {
-    const ancien = { stations: ["box"], decisions: "les décisions" };
-    const ouvert = brancherBrigadeGithub({ reglages, ancien: () => ancien, station: () => assert.fail("rien du chemin GitHub seul ne se construit"), avertir: () => assert.fail("rien à dire") });
-    assert.deepEqual(ouvert, { chemin: "ancien", ancien });
-    // Le même objet, pas une copie : l'ancien chemin reçoit ce qu'il recevait.
-    assert.equal(ouvert.chemin === "ancien" && ouvert.ancien, ancien);
-  }
-});
-
-test("switch on, but this runtime cannot serve it: it says why, and the old path opens", () => {
+test("a runtime that cannot serve the project says why, and cooks nothing for it", async () => {
   const dits: string[] = [];
-  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => "ancien", station: () => ({ refus: "no claim module" }), avertir: (texte) => dits.push(texte) });
-  assert.deepEqual(ouvert, { chemin: "ancien", ancien: "ancien" });
-  assert.match(dits.join("\n"), /GitHub-only state is on .* no claim module; the old path is kept/);
+  const decisions: unknown[] = [];
+  const ouvert = brancherBrigadeGithub({ station: () => ({ refus: "no station on this machine" }), avertir: (texte) => dits.push(texte), noter: (decision) => decisions.push(decision) });
+  assert.equal(ouvert.refus, "no station on this machine");
+  assert.deepEqual(ouvert.enCuisine(), []);
+  await ouvert.arreter();
+  assert.deepEqual(decisions, [{ etat: "refused", reason: "no station on this machine" }]);
+  assert.match(dits.join("\n"), /cannot serve the project on GitHub-only state — no station on this machine; it cooks nothing for it/);
 });
 
-test("switch on: a ticket goes from fire to merged with no call to the relay, the mailbox or the log", async (t) => {
+test("a ticket goes from fire to merged, and the module imports neither the relay, nor the mailbox, nor the log", async (t) => {
   const faux = new FauxGitHub();
   faux.feu(1);
-  // L'ancien chemin, tel que la station l'ouvre : le relais de prise, la boîte
-  // aux lettres du Kitchen board et le journal.
-  const appels = { relais: 0, boite: 0, journal: 0 };
-  const ouvert = brancherBrigadeGithub({
-    reglages: { githubOnlyState: true },
-    ancien: () => {
-      appels.relais += 1;
-      appels.boite += 1;
-      appels.journal += 1;
-    },
-    station: () => faux.station("A"),
-    intervalleMs: 5,
-    avertir: () => {},
-  });
-  t.after(() => ouvert.chemin === "github" && ouvert.arreter());
+  const ouvert = ouvrir(t, faux.station("A"));
   await jusqua(() => faux.mergee(1) !== undefined);
-  assert.deepEqual(appels, { relais: 0, boite: 0, journal: 0 });
+  assert.deepEqual(ouvert.enCuisine(), []);
 
-  // Et le module n'en importe aucun.
   const source = readFileSync(join(import.meta.dirname, "../src/brigade-github.ts"), "utf8");
   const imports = [...source.matchAll(/^import .* from "([^"]+)";$/gm)].map(([, module]) => module ?? "");
   assert.ok(imports.includes("./github-etat/etats.ts") && imports.includes("./github-etat/fusion.ts"));
   assert.deepEqual(
-    imports.filter((module) => /relais|tirer-par-github|tableau|distantes|journal|porte-journal|base\.ts|rail\.ts|alimenter/.test(module)),
+    imports.filter((module) => /relais|tirer-par-github|tableau|distantes|journal|porte-journal|base\.ts|rail\.ts|alimenter|reglages/.test(module)),
     [],
   );
+  // Ni interrupteur, ni ancien chemin.
+  assert.doesNotMatch(source, /githubOnlyState|surGitHubSeul|ancien:/);
 });
 
 // Le client GitHub du runtime, réduit à ce que la station GitHub seul appelle.
@@ -1643,11 +1621,6 @@ test("a cook that resumes a branch and moves its head delivers as before (#2372)
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
 });
 
-test("without the claim module of #2056, the station of this runtime refuses to run, and says why", () => {
-  const refus = stationDuDepot({ prise: null } as unknown as Parameters<typeof stationDuDepot>[0]);
-  assert.deepEqual(refus, { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" });
-});
-
 for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
   test(`the station declared \`${nom}\` runs on GitHub only: it takes the ticket, signs its verdict and merges, under its name as declared`, async (t) => {
     const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
@@ -1699,22 +1672,6 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
     assert.equal(faux.mergee(12)?.mergeePar, nom);
   });
 }
-
-test("the switch is on for brigade, in its project settings file, and off for a project whose file does not set it", () => {
-  const texte = readFileSync(join(import.meta.dirname, "../../.claude/brigade/projet.json"), "utf8");
-  const brigade = reglagesDuTexte(texte);
-  assert.equal(surGitHubSeul(brigade), true);
-  // Le fichier de brigade est tel que l'écriture le rendrait.
-  assert.equal(texteDuFichier(brigade), texte);
-
-  assert.equal(surGitHubSeul(reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main" }))), false);
-  assert.equal(surGitHubSeul(null), false);
-  assert.equal(surGitHubSeul(reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: false }))), false);
-  assert.throws(
-    () => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: "yes" })),
-    (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.cle === "githubOnlyState",
-  );
-});
 
 test("a station never claims a ticket that needs a capability it lacks, and claims it once it has every one (#2187)", async () => {
   const faux = new FauxGitHub();

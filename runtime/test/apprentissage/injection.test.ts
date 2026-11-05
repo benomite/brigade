@@ -1,16 +1,14 @@
 // Les leçons qu'un cook reçoit à son lancement : les provisoires de son projet,
-// jamais d'un autre, les plus récentes d'abord, au plus le plafond du projet —
-// et son lancement, au journal, dit lesquelles (`apprentissage/injection.ts`).
+// jamais d'un autre, les plus récentes d'abord, au plus le plafond du projet
+// (`apprentissage/injection.ts`), et le bloc que sa consigne en porte.
 import assert from "node:assert/strict";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test } from "node:test";
 import { blocDesLecons, LECONS_INJECTEES_PAR_DEFAUT, leconsAInjecter, lirePlafondDesLecons, VARIABLE_LECONS_INJECTEES } from "../../src/apprentissage/injection.ts";
 import { writeCarnet } from "../../src/carnet/carnet.ts";
 import { consigne, consigneDeSuite } from "../../src/claude.ts";
 import { ouvrirJournal, type Journal } from "../../src/journal.ts";
-import { consigneDeRenvoi, consigneDeReprise } from "../../src/pass.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
-import { cuisine, issue } from "../aides/cuisine.ts";
-import { BASE, DEPOT, jusqua, repertoireTemporaire } from "../outils.ts";
+import { repertoireTemporaire } from "../outils.ts";
 
 // La rétro du ticket `ticket` de `projet`, servi, laisse une leçon par texte.
 function retro(journal: Journal, projet: string, ticket: number, ...textes: string[]) {
@@ -21,8 +19,6 @@ function retro(journal: Journal, projet: string, ticket: number, ...textes: stri
 function garnir(journal: Journal, projet: string, combien: number) {
   for (let n = 1; n <= combien; n++) retro(journal, projet, n, `Leçon ${n} de ${projet}.`);
 }
-
-const prompt = (args: string[]) => args[args.indexOf("-p") + 1] ?? "";
 
 describe("les leçons qu'un cook reçoit", () => {
   test("les plus récentes du projet d'abord, au plus le plafond : vingt par défaut sur vingt-cinq, puis autant que le réglage", (t) => {
@@ -83,8 +79,6 @@ describe("les leçons qu'un cook reçoit", () => {
     const consignes = [
       (l?: typeof lecons) => consigne({ ...mission, lecons: l }),
       (l?: typeof lecons) => consigneDeSuite({ ...mission, branche: "cook/7", lecons: l }),
-      (l?: typeof lecons) => consigneDeRenvoi({ ...mission, branche: "cook/7", n: 1, findings: ["f"], lecons: l }),
-      (l?: typeof lecons) => consigneDeReprise({ base: "v2", branche: "cook/7", worktree: "/w", n: 1, findings: ["f"], lecons: l }),
     ];
     for (const ecrire of consignes) {
       const texte = ecrire(lecons);
@@ -94,55 +88,5 @@ describe("les leçons qu'un cook reçoit", () => {
       assert.doesNotMatch(ecrire(), /leçons provisoires/);
     }
     assert.deepEqual(blocDesLecons([]), []);
-  });
-});
-
-describe("le cook lancé sur un ticket", () => {
-  test("reçoit les leçons de son projet — celle d'un ticket précédent comprise —, jamais celles d'un autre, et son lancement dit lesquelles", async (t) => {
-    const { journal, setup, cooks, dernier } = cuisine(t, { setup: "attend", issues: [issue(17)] });
-    retro(journal, "brigade", 12, "Les gates jouent les tests du runtime : les lancer avant de commiter.");
-    retro(journal, "autre", 3, "Une leçon d'un autre projet.");
-    retro(journal, "brigade", 15, "Un test attend un fait, jamais une durée.");
-    setup.liberer();
-    await jusqua(() => cooks().length === 1);
-
-    const texte = prompt(cooks()[0]?.args ?? []);
-    assert.ok(texte.includes("- L2 : Un test attend un fait, jamais une durée.\n- L1 : Les gates jouent les tests du runtime : les lancer avant de commiter."));
-    assert.doesNotMatch(texte, /autre projet/);
-    assert.deepEqual(dernier("cook.launched", 17)?.lessons, ["L2", "L1"]);
-  });
-
-  // Vingt-cinq leçons au projet, et le plafond `reglage` (absent : le défaut).
-  async function lanceAvec(t: TestContext, reglage: number | undefined) {
-    const { journal, setup, cooks, dernier } = cuisine(t, { setup: "attend", issues: [issue(17)], ...(reglage === undefined ? {} : { leconsInjectees: reglage }) });
-    garnir(journal, "brigade", 25);
-    setup.liberer();
-    await jusqua(() => cooks().length === 1);
-    return { recues: dernier("cook.launched", 17)?.lessons, texte: prompt(cooks()[0]?.args ?? []) };
-  }
-
-  test("avec vingt-cinq leçons, il reçoit les vingt plus récentes", async (t) => {
-    const { recues, texte } = await lanceAvec(t, undefined);
-
-    assert.deepEqual(recues, Array.from({ length: 20 }, (_, i) => `L${25 - i}`));
-    assert.equal(texte.match(/^- L\d+ : Leçon \d+ de brigade\.$/gm)?.length, 20);
-    assert.ok(texte.includes("- L25 : Leçon 25 de brigade.\n- L24 : Leçon 24 de brigade."));
-    assert.equal(texte.includes("- L5 :"), false);
-  });
-
-  test("le réglage du projet change le compte qu'il reçoit", async (t) => {
-    const { recues, texte } = await lanceAvec(t, 4);
-
-    assert.deepEqual(recues, ["L25", "L24", "L23", "L22"]);
-    assert.equal(texte.match(/^- L\d+ : Leçon \d+ de brigade\.$/gm)?.length, 4);
-  });
-
-  test("sans leçon, il part comme avant, et son lancement dit qu'il n'en a reçu aucune", async (t) => {
-    const { cooks, dernier } = cuisine(t, { issues: [issue(17)] });
-    await jusqua(() => cooks().length === 1);
-
-    assert.deepEqual(dernier("cook.launched", 17)?.lessons, []);
-    const texte = prompt(cooks()[0]?.args ?? []);
-    assert.equal(texte, consigne({ ticket: 17, titre: issue(17).title, depot: DEPOT, base: BASE }));
   });
 });

@@ -4,7 +4,7 @@
 turn), `cli.ts` (the command that reads and writes the list). Wired in `station/main.ts`.
 
 A computer's station (the chef's MacBook, say) used to ask for work through a GitHub claim
-relayed to the project's log by another station (`tirer-par-github/`). On the GitHub-only state
+relayed to the project's log by another station (a relay deleted by #2061). On the GitHub-only state
 no log reads that claim any more, so it cooked nothing. Now it serves the projects of its own list
 the way the box serves its own: for each one it clones the project into its own places and runs
 the box's GitHub-only turn (`brigade-github.ts`, `stationDuDepot`) under its own name — it takes,

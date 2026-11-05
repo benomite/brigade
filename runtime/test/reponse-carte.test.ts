@@ -12,8 +12,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
-import { ouvrirRail } from "../src/rail.ts";
-import { REMONTE } from "../src/reaction.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { repondreALaCarte, REPONSE_DU_CHEF } from "../src/reponse-carte.ts";
 import { RETENUE } from "../src/requalifier.ts";
 import { fauxGitHub, issue, montre } from "./aides/cuisine.ts";
@@ -22,6 +21,8 @@ import { aArreter, appeler, DEPOT, fauxGh, repertoireTemporaire } from "./outils
 const PROJET = "brigade";
 const STATION = "box/claude";
 const BRANCHE = "cook/30-x";
+// Le motif du 86 que l'ancienne réaction au manager posait, tel que les journaux d'avant le portent.
+const REMONTE = "manager:escalated";
 const CARTE: Proposition = {
   type: "product",
   resume: "The ticket adds an export. Its format decides what the user downloads.",

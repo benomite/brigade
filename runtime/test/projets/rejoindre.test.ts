@@ -54,8 +54,6 @@ function leMac(t: TestContext, lire: () => LectureDesAppairees | Promise<Lecture
   // enregistrement, où l'app écrit sa sélection : ici, le même gist.
   const source = options.appairee === false ? { source: async () => ({ gist: GIST_MAC, lus: { ...gist }, fichier: FICHIER_PROJETS, brut: gist[FICHIER_PROJETS]!, demande: lireDemande(gist[FICHIER_PROJETS]!) }) } : {};
   const lignes: string[] = [];
-  // Ce que la station passe à la boucle qui cuit pour les cuisines rejointes (`tirer-par-github/cuisiner.ts`).
-  const tenues: Array<{ rejointes: string[]; gist: string }> = [];
   let relectures = 0;
   const projets = tenirProjetsDeLApp({
     racine,
@@ -70,7 +68,6 @@ function leMac(t: TestContext, lire: () => LectureDesAppairees | Promise<Lecture
     lireLesAppairees: async () => lire(),
     cadenceDesAppareesMs: 0,
     plateforme: "darwin",
-    surLesRejointes: (rejointes, gist) => void tenues.push({ rejointes: rejointes.map(({ depot, principale, cooks }) => `${depot} ${principale} ${cooks}`), gist }),
     ...source,
   });
   aArreter(t, () => projets.arreter());
@@ -84,7 +81,7 @@ function leMac(t: TestContext, lire: () => LectureDesAppairees | Promise<Lecture
     assert.equal(existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "", "", "aucune ligne");
     assert.equal(relectures, 0, "la configuration n'est pas réécrite");
   };
-  return { racine, gh, gist, projets, suivi, lignes, tenues, aucuneCuisine };
+  return { racine, gh, gist, projets, suivi, lignes, aucuneCuisine };
 }
 
 test("ajouté à brigade, que la box sert déjà : le Mac en rejoint la cuisine — aucun journal, aucun calibrage, aucun clone, aucune ligne, rien sur GitHub —, et le publie pour la box", async (t) => {
@@ -112,7 +109,6 @@ test("ajouté à brigade, que la box sert déjà : le Mac en rejoint la cuisine 
   assert.deepEqual(rejointesLues(mac.gist[FICHIER_REJOINTES]), [{ nom: "brigade", depot: "benomite/brigade", principale: "parade-box", cooks: 2, fournit: ["code", "raisonnement", "macos"] }]);
   assert.ok(mac.lignes.some((ligne) => ligne.startsWith("brigade : station — brigade est déjà servi par parade-box : elle en rejoint la cuisine comme une station de plus")));
   // Et elle y cuit : la cuisine rejointe est passée à sa boucle de réclamation, avec son gist d'appairage.
-  assert.deepEqual(mac.tenues.at(-1), { rejointes: ["benomite/brigade parade-box 2"], gist: GIST_MAC });
 
   // Relu : toujours rien d'ouvert, rien de réécrit.
   const avant = { ...mac.gist };
@@ -139,7 +135,6 @@ test("la box qui sert brigade ne se lit pas en ligne : l'ajout est refusé en un
   assert.doesNotMatch(phrase.slice(0, -1), /\. [A-Z]/);
   // Rien n'est publié comme rejoint, et rien n'y cuit.
   assert.deepEqual(rejointesLues(mac.gist[FICHIER_REJOINTES]), []);
-  assert.deepEqual(mac.tenues.at(-1), { rejointes: [], gist: GIST_MAC });
 });
 
 test("GitHub ne dit pas quelles stations servent quoi : l'ajout est refusé en une phrase, rien n'est créé, et il réessaie à la lecture suivante", async (t) => {
@@ -188,7 +183,6 @@ test("ajouté depuis la page du projet (« + station »), le Mac a le même effe
   assert.deepEqual(mac.gh.appels(), [], "aucun appel à GitHub par le gh du Mac");
   assert.deepEqual(mac.suivi().map(({ etat, cuitSur, rejoindre }) => ({ etat, cuitSur, rejoindre })), [{ etat: "secondaire", cuitSur: "parade-box", rejoindre: { issue: "rejointe", principale: "parade-box" } }]);
   assert.deepEqual(rejointesLues(mac.gist[FICHIER_REJOINTES]), [{ nom: "brigade", depot: "benomite/brigade", principale: "parade-box", cooks: 2, fournit: ["code", "raisonnement", "navigateur-headless", "macos"] }]);
-  assert.deepEqual(mac.tenues.at(-1), { rejointes: ["benomite/brigade parade-box 2"], gist: GIST_MAC });
 });
 
 test("ajouté depuis la page du projet alors qu'aucune station ne le sert encore : le Mac n'en ouvre aucune cuisine, il attend sa principale — et la rejoint quand elle le sert", async (t) => {
@@ -206,7 +200,6 @@ test("ajouté depuis la page du projet alors qu'aucune station ne le sert encore
   await mac.projets.relire();
   mac.aucuneCuisine();
   assert.deepEqual(mac.suivi()[0]?.rejoindre, { issue: "rejointe", principale: "parade-box" });
-  assert.deepEqual(mac.tenues.at(-1), { rejointes: ["benomite/brigade parade-box 2"], gist: GIST_MAC });
 });
 
 test("l'issue d'un ajout : seule, rejointe, ou refusée en une phrase — l'ordinateur lui-même, un téléphone, un autre dépôt ne comptent pas", () => {

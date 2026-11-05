@@ -41,7 +41,7 @@ export const RATES = "failed because of it:";
 export const OUI = "yes, open it as a PR";
 export const NON = "no";
 export const PRIX_DU_OUI = "a PR carrying exactly this diff goes through the pass like a delivery — gates, the reviewer's reading, CI — on your quota";
-export const ENVOI = { yes: "posting your “yes” on the Kitchen board…", no: "posting your “no” on the Kitchen board…" };
+export const ENVOI = { yes: "posting your “yes”…", no: "posting your “no”…" };
 export const COUTE = "this proposal cost";
 
 // L'étape qui suit la réponse du process principal.

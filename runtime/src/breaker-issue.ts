@@ -22,10 +22,11 @@
 // partageraient garde une issue par cuisine.
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
-import { COMPTE_DE_LA_MACHINE, appelerGitHub, etiquetteDe, limiteDuProcess, type ReponseHttp } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, etiquetteDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type ReponseHttp } from "./limite-github.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
 import type { CauseReveil, Runtime } from "./runtime.ts";
-import { lancerGhApi, type OptionsClient } from "./tableau/publication/client.ts";
+import { decouper } from "./github.ts";
+import { execFile } from "./sans-invite.ts";
 
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
 
@@ -193,9 +194,52 @@ export function brancherIssueDuDisjoncteur<R extends Runtime>(runtime: R, option
 
 type IssueBrute = { number?: unknown; body?: unknown; pull_request?: unknown };
 
-// Le client réel, par `gh api`, comme celui du tableau
-// (`tableau/publication/client.ts`) : chaque appel prend le sien au compteur
-// du quota réel, sous l'usage de la cuisine.
+export type OptionsClient = {
+  // `<owner>/<repo>`
+  depot: string;
+  // Le binaire `gh`. Surchargé par les tests, jamais sur la box.
+  bin?: string;
+  delaiMs?: number;
+  // Le jeton du rôle qui agit, demandé à chaque appel ; absent, `gh` s'authentifie seul.
+  jeton?: () => Promise<string>;
+  // Le compte dont ce client dépense le quota : par défaut, celui de la machine.
+  compte?: string;
+  // Le projet à qui l'on compte ses appels (`status`) ; à défaut, son dépôt.
+  projet?: string;
+  limite?: Limite;
+  maintenant?: () => number;
+};
+
+// Lance `gh api -i` sur `args` (déjà masqués), une fois l'appel pris au
+// compteur : rend la réponse HTTP, quel que soit son statut. Ses en-têtes sont
+// notés au compteur, un 304 lui rend l'appel, un refus pour limite le suspend.
+// `entree` part sur l'entrée de `gh` (`--input -`), masquée.
+export const lancerGhApi = (
+  args: string[],
+  entree: unknown,
+  { bin, delaiMs, env, limite, compte, appel, maintenant }: { bin: string; delaiMs?: number; env?: NodeJS.ProcessEnv; limite: Limite; compte: string; appel: number; maintenant?: () => number },
+): Promise<ReponseHttp> =>
+  new Promise((resoudre, rejeter) => {
+    const enfant = execFile(
+      bin,
+      ["api", "-i", ...(entree === undefined ? [] : ["--input", "-"]), ...args],
+      { maxBuffer: 16 * 1024 * 1024, timeout: delaiMs ?? 30_000, env },
+      (erreur, stdout, stderr) => {
+        const reponse = decouper(stdout);
+        if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
+        if (reponse?.statut === 304) limite.rendre(appel);
+        if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant }).then(rejeter, rejeter);
+        else if (reponse) resoudre(reponse);
+        else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
+      },
+    );
+    // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
+    enfant.stdin?.on("error", () => {});
+    enfant.stdin?.end(entree === undefined ? "" : masquerIdentifiants(JSON.stringify(entree)).texte);
+  });
+
+// Le client réel, par `gh api` : chaque appel prend le sien au compteur du
+// quota réel, sous l'usage de la cuisine.
 export function clientGitHubDuDisjoncteur(options: OptionsClient): ClientDuDisjoncteur {
   const { depot } = options;
   const bin = options.bin ?? "gh";

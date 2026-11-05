@@ -136,8 +136,6 @@ async function uneHeure(t: TestContext, faux: FauxGitHub, avertis: string[] = []
   const tourFini = () => new Promise<void>((resoudre) => (fini = resoudre));
   let attendu = tourFini();
   const ouvert = brancherBrigadeGithub({
-    reglages: { githubOnlyState: true },
-    ancien: () => assert.fail("the old path is not opened"),
     station: () => ({
       ...box,
       tour: async () => {
@@ -155,8 +153,7 @@ async function uneHeure(t: TestContext, faux: FauxGitHub, avertis: string[] = []
     // Ce qu'il dit à l'ouverture.
     avertir: () => {},
   });
-  assert.equal(ouvert.chemin, "github");
-  if (ouvert.chemin !== "github") throw new Error("the GitHub-only path is not opened");
+  assert.equal(ouvert.refus, undefined);
   t.after(() => ouvert.arreter());
   // Le tour se termine, puis le suivant se programme : on attend l'un, puis
   // que l'autre soit posé, avant d'avancer l'horloge.

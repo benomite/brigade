@@ -1,15 +1,13 @@
 // La cuisine d'un projet, station par station (#1185) : ce que `facts` dit de chaque station (#1183) devient sa
 // ligne de l'onglet Cooks — son mot, ce qu'il veut dire, ses cooks, le geste de son bouton — et la ligne d'alerte de
-// l'onglet Rail ; le bouton poste `/brigade station stop|start <station>` sur le tableau de la cuisine du projet, que sa
-// box ou ce Mac joue (#1845).
+// l'onglet Rail. Le bouton ne part plus de l'app (#2061) : aucune box ne lit plus de tableau de la cuisine.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../runtime/src/etat.ts";
 import { PASS_A_L_OUVRAGE as PASS_DU_RUNTIME } from "../../runtime/src/activites.ts";
-import { ABSENTE, cuireSurLaStation, cuissonDe, PASS_A_L_OUVRAGE } from "../src/cuisson.ts";
+import { ABSENTE, cuissonDe, PASS_A_L_OUVRAGE } from "../src/cuisson.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
 import type { StationDesFaits } from "../src/ordinaires.ts";
-import type { DecisionDuChef, EtatDuGeste } from "../src/tableau-gestes/gestes.ts";
 
 const LU = "2026-10-20T10:04:11.000Z";
 type DuRuntime = FaitsDuRuntime["stations"][number];
@@ -158,60 +156,10 @@ describe("la ligne d'alerte de l'onglet Rail", () => {
   });
 });
 
-describe("le bouton d'une station poste `/brigade station stop|start <station>` sur le tableau", () => {
+describe("les stations lues d'un projet", () => {
   const STATIONS = [station("box/claude"), station("mac/claude", { distante: true })];
-  const COMMENTAIRE = { id: 7001, url: "https://github.com/chef/parade/issues/9#issuecomment-7001" };
-  const postees: DecisionDuChef[] = [];
-  // Le tableau, doublé : la décision postée est notée, et la box y répond comme `reponse` le dit.
-  const auTableau = (etat: "taken" | "refused" | "pending" | "failed", reponse = "") => async (decision: DecisionDuChef): Promise<EtatDuGeste> => {
-    postees.push(decision);
-    if (etat === "failed") return { etat, raison: "The gesture could not be posted on the Kitchen board of chef/parade: HTTP 502 Bad Gateway." };
-    if (etat === "pending") return { etat, commentaire: COMMENTAIRE };
-    return { etat, commentaire: COMMENTAIRE, reponse, lu: { commentaire: COMMENTAIRE.id, url: COMMENTAIRE.url, le: LU, geste: "station", ticket: null, etat: etat === "taken" ? "pris" : "refuse", traiteLe: LU, reponse } };
-  };
 
-  test("arrêter une station : le geste part sur le tableau, et la ligne dit ce que la box a fait, sa réponse au survol", async () => {
-    postees.length = 0;
-    const rendu = await cuireSurLaStation("parade", STATIONS, "mac/claude", "stop", auTableau("taken", `**Done** — [station stop mac/claude](${COMMENTAIRE.url}): mac/claude: stopped — it takes no more tickets of this project, its 1 running cook finishes — cost: none: only the log is written`));
-    assert.deepEqual(postees, [{ geste: "station", action: "stop", station: "mac/claude" }]);
-    assert.ok("fait" in rendu);
-    assert.equal(rendu.fait, "mac/claude stops cooking parade: it takes no more tickets, its running cooks finish");
-    assert.equal(rendu.detail, `mac/claude: stopped — it takes no more tickets of this project, its 1 running cook finishes\n${COMMENTAIRE.url}`);
-  });
-
-  test("relancer une station : le même geste, `start`", async () => {
-    postees.length = 0;
-    const rendu = await cuireSurLaStation("parade", STATIONS, "box/claude", "start", auTableau("taken", "**Done** — [station start box/claude](…): box/claude: cooking — cost: none: only the log is written"));
-    assert.deepEqual(postees, [{ geste: "station", action: "start", station: "box/claude" }]);
-    assert.ok("fait" in rendu);
-    assert.equal(rendu.fait, "box/claude cooks parade again: it takes its tickets at the runtime's next read");
-  });
-
-  test("la box refuse : la ligne le dit, sans code ni commande, et ce qu'elle a répondu est au survol", async () => {
-    const rendu = await cuireSurLaStation("parade", STATIONS, "mac/claude", "stop", auTableau("refused", "**Not done** — [station stop mac/claude](…): unknown station"));
-    assert.ok("refus" in rendu);
-    assert.equal(rendu.refus, "mac/claude did not stop: the box did not take it — nothing was changed");
-    assert.match(rendu.detail ?? "", /^unknown station\n/);
-  });
-
-  test("la box n'a pas encore lu le geste : il est posté, la ligne le dit ; GitHub qui refuse : rien n'est parti", async () => {
-    const posee = await cuireSurLaStation("parade", STATIONS, "mac/claude", "stop", auTableau("pending"));
-    assert.deepEqual(posee, { fait: "posted on the Kitchen board: mac/claude stops cooking parade at the box's next tick", detail: COMMENTAIRE.url });
-    const refusee = await cuireSurLaStation("parade", STATIONS, "mac/claude", "stop", auTableau("failed"));
-    assert.deepEqual(refusee, { refus: "nothing was sent: the gesture could not be posted on the Kitchen board of chef/parade: HTTP 502 Bad Gateway" });
-  });
-
-  test("rien ne part pour un geste ou une station que l'app ne connaît pas, ni avant que les stations soient lues", async () => {
-    postees.length = 0;
-    const jamais = auTableau("taken");
-    assert.deepEqual(await cuireSurLaStation("parade", STATIONS, "mac/claude", "restart", jamais), { refus: "nothing was sent: “restart” is neither start nor stop" });
-    assert.deepEqual(await cuireSurLaStation("parade", STATIONS, "autre/claude", "stop", jamais), { refus: "nothing was sent: “autre/claude” is not one of parade's stations" });
-    assert.deepEqual(await cuireSurLaStation("parade", [station("box/claude; rm -rf /")], "box/claude; rm -rf /", "stop", jamais), { refus: "nothing was sent: “box/claude; rm -rf /” is not one of parade's stations" });
-    assert.deepEqual(await cuireSurLaStation("parade", undefined, "mac/claude", "stop", jamais), { refus: "nothing was sent: parade's stations are not read yet" });
-    assert.deepEqual(postees, []);
-  });
-
-  test("les stations que le bouton connaît sont celles des derniers `facts` du projet", () => {
+  test("les stations que l'app connaît sont celles des derniers `facts` du projet", () => {
     const { tenus } = lues(STATIONS);
     assert.deepEqual(tenus.stations("parade")?.map(({ station: nom }) => nom), ["box/claude", "mac/claude"]);
   });

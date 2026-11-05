@@ -3,7 +3,7 @@
 // box (faits.ts, profil.ts). Une proposition, une carte, au-dessus des colonnes du rail — aucune sans
 // proposition. Elle dit ce qu'on attend du chef en tête, le nom du profil et son domaine, les chiffres
 // qui le justifient, chaque ticket du domaine qui s'ouvre d'un clic, ce que le profil contiendrait —
-// skills, périmètre, carnet — ; « yes » poste l'acceptation sur le tableau de la cuisine, « no » le refus, et
+// skills, périmètre, carnet — ; « yes » poste l'acceptation, « no » le refus, et
 // la carte le dit jusqu'à la lecture qui ne la porte plus.
 // Le module de la carte est aussi lu seul, sur un faux document (vue/profil/carte.js).
 import assert from "node:assert/strict";
@@ -20,7 +20,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { carteDeProfil } from "../../src/profil.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { POSTE } from "../../src/tableau-gestes/rail.ts";
+import { SANS_FAIT } from "../../src/gestes-github.ts";
 import { ENVOI, REPOS } from "../../src/vue/correction/carte.js";
 import { ATTENDU, CARNET_VIDE, EFFET_DU_NON, EFFET_DU_OUI, NON, OUI, poserProfil, POURQUOI_SANS_SKILLS, SANS_SKILLS } from "../../src/vue/profil/carte.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
@@ -57,6 +57,8 @@ const carte = (vue: Jouee): Faux => cartes(vue)[0] ?? assert.fail("pas de carte 
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 const parClasse = (ou: Faux, balise: string, classe: string): Faux[] => ou.dessous(balise).filter((pose) => pose.className === classe);
 const { profils: _, ...SANS } = FAITS;
+// Ce qu'une réponse postée dit : la vue le pose tel quel, d'où qu'il vienne.
+const POSTE = "posted — the station reads it at its next tick";
 const COMMENTAIRE = "https://github.com/acme/parade/issues/1#issuecomment-5013";
 
 describe("la carte d'un profil proposé, dans la file du projet", () => {
@@ -173,7 +175,7 @@ describe("la carte d'un profil proposé, dans la file du projet", () => {
     [OUI, "yes"],
     [NON, "no"],
   ] as const) {
-    test(`« ${libelle} » poste ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition sur le tableau ; postée, la carte le dit, ses réponses inactives, \`facts\` est relu, et elle part avec la lecture qui ne la porte plus`, async () => {
+    test(`« ${libelle} » poste ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition ; postée, la carte le dit, ses réponses inactives, \`facts\` est relu, et elle part avec la lecture qui ne la porte plus`, async () => {
       const vue = await ouvrir({ trancherLeProfil: (_projet, _proposition, voulue) => ({ postee: voulue, dit: POSTE, detail: COMMENTAIRE }) });
       recevoir(vue);
       const relectures = vue.appels.filter(({ geste }) => geste === "relireBox").length;
@@ -211,6 +213,18 @@ describe("la carte d'un profil proposé, dans la file du projet", () => {
     await repos();
     assert.equal(cartes(vue).length, 1);
     assert.equal(parClasse(carte(vue), "p", "postee").length, 1);
+  });
+
+  test("ce que le process principal rend aujourd'hui (#2061) : rien n'est posté, la carte reste et la ligne dit pourquoi, sans survol vide", async () => {
+    const vue = await ouvrir({ trancherLeProfil: () => ({ refus: SANS_FAIT.proposition, detail: "" }) });
+    recevoir(vue);
+    bouton(carte(vue), OUI).click();
+    await repos();
+    assert.equal(cartes(vue).length, 1);
+    const dite = carte(vue).dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("le refus n'est pas dit");
+    assert.equal(dite.children[0]?.textContent, SANS_FAIT.proposition);
+    assert.deepEqual(dite.dessous("button"), []);
+    assert.ok(!bouton(carte(vue), OUI).disabled && !bouton(carte(vue), NON).disabled);
   });
 
   test("rien n'est posté — GitHub refuse le commentaire : la carte reste, ses deux réponses aussi, et une ligne le dit, le détail au survol", async () => {

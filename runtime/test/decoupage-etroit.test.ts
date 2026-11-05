@@ -1,14 +1,11 @@
 // Un découpage aux zones larges, ou qui lie par `attend` des tickets aux zones
-// disjointes, est refusé et refait une fois (#1800) ; et deux tickets aux zones
-// disjointes cuisent en même temps, deux qui se recouvrent l'un après l'autre.
+// disjointes, est refusé et refait une fois (#1800).
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { ouvrirDecoupage, type Atelier, type Reponse } from "../src/decoupage.ts";
 import { defautsDeDecoupage, lireDecoupage, type Decoupe } from "../src/decouper.ts";
 import type { TicketPrevu } from "../src/events/manager.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { ouvrirRail } from "../src/rail.ts";
-import { BAIL_MS } from "./aides/cuisine.ts";
 import { aArreter, repertoireTemporaire } from "./outils.ts";
 
 const prevu = (zone: string[], waitsFor: number[] = []): TicketPrevu => ({ title: "t", context: "", criteria: ["c"], waitsFor, zone, model: "sonnet", effort: "low", calibration: "x" });
@@ -90,26 +87,4 @@ test("un bon découpage n'est demandé qu'une fois ; un second mauvais est reten
   assert.equal(tetu.consignes.length, 2);
   assert.equal(tetu.avertis.length, 1);
   assert.ok(tetu.journal.tout().some((e) => e.type === "manager.split"));
-});
-
-
-test("deux tickets aux zones disjointes partent ensemble, deux qui se recouvrent l'un après l'autre", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t));
-  aArreter(t, () => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: BAIL_MS, maintenant: () => new Date("2026-10-30T10:00:00.000Z") });
-  const poser = (ticket: number, zone: string[]) =>
-    journal.ajouter({
-      project: "brigade",
-      ticket,
-      author: "github",
-      type: "ticket.arrived",
-      payload: { title: `T${ticket}`, priority: null, createdAt: `2026-10-01T00:00:0${ticket % 10}Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card: { waitsFor: [], zone, problems: [] } },
-    });
-  poser(1, ["runtime/src/a.ts"]);
-  poser(2, ["docs/a.md"]);
-  poser(3, ["runtime/src/a.ts", "runtime/src/b.ts"]);
-  poser(4, ["app/src/x.ts"]);
-  const pris = [rail.prendre("box/claude")?.ticket, rail.prendre("box/claude")?.ticket, rail.prendre("box/claude")?.ticket, rail.prendre("box/claude")?.ticket];
-  // 1, 2 et 4 cuisent ensemble ; 3 recouvre 1 : il attend.
-  assert.deepEqual(pris, [1, 2, 4, undefined]);
 });

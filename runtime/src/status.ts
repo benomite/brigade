@@ -24,7 +24,6 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { tailleNotee } from "./tableau/rendu/taille.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -131,13 +130,11 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     }
     throw erreur;
   }
-  // GitHub seul, le journal ne voit plus de merge : la dérive est celle que relève la passe du closer (#2361).
+  // Le journal ne voit plus de merge : la dérive est celle que relève la passe du closer (#2361), quand la station GitHub seul tourne.
   const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
   const derive = githubSeul?.etat === "accepted" ? lireDeriveGithub(env.BRIGADE_STATE_DIR) : null;
   if (derive !== null) etat = { ...etat, derive: derive.franchis };
-  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), false, ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
-  const taille = tailleNotee(env.BRIGADE_STATION_DIR, etat.projet);
-  if (taille !== null) lignes.push(`board       ${taille}`);
+  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
   if (budget !== null) lignes.push(...direLeBudget(budget).map((texte, i) => `${(i === 0 ? "gh budget" : "").padEnd(11)}${texte}`));

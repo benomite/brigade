@@ -18,11 +18,10 @@
 // appels à GitHub restent les siens.
 //
 // Le renvoyer en cuisine (« c'est arrivé », un ticket de WAITING ou revenu de
-// WAITING) n'est pas une commande de la box : sur l'ordinateur, il part sur le
-// tableau de la cuisine (`/brigade arrived #<ticket>`). Le téléphone joue
-// l'action même que la box joue pour ce geste du tableau (attente.ts,
-// `renvoyerEnCuisine`), dans ce process, sur le journal du projet : elle
-// n'écrit que lui, sans attendre personne.
+// WAITING) n'est pas une commande de la box : sur l'ordinateur, l'app retire le
+// label `waiting` de l'issue. Le téléphone joue `renvoyerEnCuisine`
+// (attente.ts), dans ce process, sur le journal du projet : elle n'écrit que
+// lui, sans attendre personne.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PRIX_DE_L_ARRIVEE, renvoyerEnCuisine } from "../attente.ts";

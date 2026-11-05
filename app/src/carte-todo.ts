@@ -5,12 +5,12 @@
 // telle quelle : la question, un bouton par choix, un champ pour répondre en texte libre, et les
 // captures quand il y en a — une carte sans écran n'a pas de zone de captures.
 //
-// Un clic sur un choix, ou le texte envoyé, est la réponse du chef : elle est lue ici (`reponseLue`) avant de partir
-// sur le tableau de la cuisine (tableau-gestes/rail.ts). La vue nomme le ticket, la question qu'elle montre, et le rang
-// du choix ou le texte.
+// Un clic sur un choix, ou le texte envoyé, est la réponse du chef : elle est lue ici (`reponseLue`). Aucune box ne lit
+// plus de tableau de la cuisine (#2061) : seule la carte du chef lue de GitHub (#2434, `carteDuChefDeTodo`) se répond, sur
+// son issue, par le `gh` du chef (tableau-gestes/reponse-github.ts). La vue nomme le ticket, la question qu'elle montre, et
+// le rang du choix ou le texte.
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
-import type { EnvoiDeCarte } from "./tableau/envois.ts";
 import { formeDuChef, SORTE_SANS_MARQUE, type CarteDuChef } from "./tableau/todo-github.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
@@ -21,15 +21,14 @@ import { formeDuChef, SORTE_SANS_MARQUE, type CarteDuChef } from "./tableau/todo
 export type ChoixLu = { texte: string; suite: string };
 export type CarteLue = { type: string; resume?: string; question: string | null; choix: ChoixLu[]; captures: CapturesLues | null };
 
-// La dernière réponse du chef à la carte, telle que le tableau de la cuisine la montre (tableau/envois.ts, #1841) : son
-// commentaire, la réponse dite en mots — le texte du choix, ou ce que le chef a écrit —, son heure, et ce que la box en a
-// fait : `attente` tant qu'elle n'a rien dit, `joue`, ou `refuse` et sa raison ; `dit`, la ligne qu'elle a répondue.
+// La dernière réponse du chef à la carte, que la vue sait montrer (vue/carte-todo.js, #1841) : son commentaire, la
+// réponse dite en mots, son heure, et ce que la box en a fait. Aucune lecture ne la porte plus : le tableau de la cuisine
+// qui la donnait n'est plus écrit (#2061).
 export type EnvoiVu = { commentaire: number; reponse: string; le: string } & ({ etat: "attente" } | { etat: "joue"; dit: string } | { etat: "refuse"; dit: string; raison: string });
 
 // La carte telle que la vue la pose : sa sorte, ce qui se passe, sa question — nulle sur une carte à un
 // seul geste —, ses choix — chacun avec son prix, qui passe au survol —, le prix d'une réponse en texte
-// libre, ses captures, absentes sans écran, et la dernière réponse que le tableau montre — absente quand il
-// n'en montre pas, ou que ses commentaires ne sont pas lus.
+// libre, ses captures, absentes sans écran.
 export type ChoixDeCarte = { texte: string; prix: string };
 // `contexte` : ce que le commentaire d'une carte du chef lue de GitHub dit après sa question (#2434) — absent ailleurs.
 export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu };
@@ -40,8 +39,8 @@ export type CarteDeTodo = { sorte: string; resume?: string; question: string | n
 export type Reponse = { question: string | null } & ({ choix: number } | { texte: string });
 // Ce qu'il en est advenu : la réponse est écrite — `dit`, ce que la box en dit —, ou rien ne l'est, et
 // pourquoi, en une ligne, ce que la box a rendu au survol.
-// `commentaire` : celui que la réponse a posté sur le tableau de la cuisine — la carte attend la cuisine jusqu'à ce que le
-// tableau dise ce qu'il en est de lui, ou d'une réponse plus récente.
+// `commentaire` : celui que la réponse a posté — la carte attend la cuisine jusqu'à ce qu'une lecture dise ce qu'il en
+// est de lui, ou d'une réponse plus récente.
 export type Rendu = { repondue: true; dit: string; commentaire?: number } | { refus: string; detail: string };
 
 // Ce que chaque suite coûte, d'après le runtime (runtime/src/reponse-carte.ts).
@@ -124,8 +123,8 @@ export function carteLue(brute: unknown): CarteLue | undefined {
 export const reponseDite = (choix: readonly { texte: string }[], reponse: { choix: number } | { texte: string }): string =>
   "choix" in reponse ? (choix[reponse.choix - 1]?.texte ?? `choice ${reponse.choix}`) : reponse.texte;
 
-// Ce que la carte du rail pose — et, quand le tableau en montre une, la dernière réponse du chef et ce qu'il en est.
-export function carteDeTodo({ type, resume, question, choix, captures }: CarteLue, envoi?: EnvoiDeCarte): CarteDeTodo {
+// Ce que la carte du rail pose.
+export function carteDeTodo({ type, resume, question, choix, captures }: CarteLue): CarteDeTodo {
   return {
     sorte: type,
     ...(resume === undefined ? {} : { resume }),
@@ -133,15 +132,7 @@ export function carteDeTodo({ type, resume, question, choix, captures }: CarteLu
     choix: choix.map(({ texte, suite }) => ({ texte, prix: PRIX_DE_SUITE[suite] ?? PRIX_DU_TEXTE })),
     prixDuTexte: PRIX_DU_TEXTE,
     ...(captures === null ? {} : { captures: capturesDeCarte(captures) }),
-    ...(envoi === undefined ? {} : { envoi: envoiVu(choix, envoi) }),
   };
-}
-
-function envoiVu(choix: readonly ChoixLu[], envoi: EnvoiDeCarte): EnvoiVu {
-  const vu = { commentaire: envoi.commentaire, reponse: reponseDite(choix, envoi), le: envoi.le };
-  if (envoi.etat === "attente") return { ...vu, etat: "attente" };
-  if (envoi.etat === "joue") return { ...vu, etat: "joue", dit: envoi.dit };
-  return { ...vu, etat: "refuse", dit: envoi.dit, raison: envoi.raison };
 }
 
 export const INCONNUE = "nothing was sent: this card is not in the latest facts read — it was answered elsewhere, or it left TODO";
@@ -150,7 +141,7 @@ export const VIDE = "nothing was sent: your answer is empty — write something 
 
 // La réponse du chef à la carte de TODO de `ticket`, lue de ce que la vue envoie : le rang d'un choix, ou son texte —
 // ou pourquoi rien ne part. `connue` : la carte que les derniers faits lus portent pour ce ticket — sans elle, ou sur une
-// autre question, rien ne part. Le contrôle de la réponse écrite sur le tableau de la cuisine (tableau-gestes/rail.ts).
+// autre question, rien ne part.
 export function reponseLue(connue: CarteLue | undefined, ticket: unknown, brute: unknown): { ticket: number; choix: number } | { ticket: number; texte: string } | { refus: string; detail: string } {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1 || connue === undefined) return { refus: INCONNUE, detail: "" };
   const reponse = objet(brute);

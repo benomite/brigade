@@ -1,7 +1,7 @@
 // « It is a human's job » (#1958) : un ticket en WAITING faute de capacité quitte le rail et entre dans TODO comme
 // une tâche — pour le chef, ou pour qui il nomme —, avec le titre, le contexte et les critères d'acceptation de sa
-// carte, et la capacité qu'aucune station ne fournit. Il ne revient pas en WAITING. Bâti d'un vrai journal, d'un
-// vrai rail et du GitHub de test de la cuisine.
+// carte, et la capacité qu'aucune station ne fournit. Il ne revient pas en WAITING. Bâti d'un vrai journal, du
+// rail tel que les journaux d'avant le portent et du GitHub de test de la cuisine.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { cartesEnTodo } from "../../src/carte-todo.ts";
@@ -11,9 +11,8 @@ import { HORS_CUISINE } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { principal as montrerRail } from "../../src/montrer-rail.ts";
 import { ticketDuRail } from "../../src/projections/rail.ts";
-import { ouvrirRail } from "../../src/rail.ts";
+import { ouvrirRail } from "../aides/rail-du-journal.ts";
 import { repondreALaCarte } from "../../src/reponse-carte.ts";
-import { ouvrirSansCapacite } from "../../src/sans-capacite.ts";
 import { assigneeLu, confierAUnHumain, lireLaCarte } from "../../src/sortie-attente-capacite/sortie.ts";
 import { fauxGitHub, issue, montre } from "../aides/cuisine.ts";
 import { aArreter, appeler, repertoireTemporaire } from "../outils.ts";
@@ -104,29 +103,6 @@ describe("« It is a human's job » : le ticket quitte le rail pour TODO", () =>
     // L'issue le dit, en une fois.
     assert.deepEqual(c.gh.commentaires.map(([ticket]) => ticket), [22]);
     assert.match(c.gh.commentaires[0]?.[1] ?? "", /^\*\*Human's job — no station provides `chrome-connecté`: this ticket left the rail, for the chef\.\*\*/);
-  });
-
-  test("le manager ne sort pas de TODO la tâche d'un ticket confié à un humain, même s'il avait dit la capacité sur l'issue", async (t) => {
-    const c = atelier(t);
-    await c.confier(22);
-
-    const sansCapacite = ouvrirSansCapacite({
-      journal: c.journal,
-      projet: PROJET,
-      rail: c.rail,
-      github: c.gh.github,
-      noter: () => null,
-      redecouper: async () => null,
-      peutJuger: () => false,
-      arrete: () => false,
-      eteint: () => false,
-      avertir: (message) => assert.fail(message),
-      signature: () => "",
-    });
-    await sansCapacite.traiter();
-
-    assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket }) => ticket), [22]);
-    assert.equal(c.journal.duTicket(22).some((e) => e.type === "todo.left"), false);
   });
 
   test("la tâche peut revenir à quelqu'un d'autre : le même geste la nomme, la carte reste dans TODO, et le ticket ne revient pas sur le rail", async (t) => {

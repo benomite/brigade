@@ -52,7 +52,7 @@ if (args[0] === "repo" && args[1] === "clone") {
   // Les issues du dépôt : aucune à lister ; une créée est notée dans
   // `$FAUX_GISTS/issues`, une ligne JSON chacune avec son dépôt, et reçoit le
   // numéro suivant. Ses champs arrivent par `-f`, ou en JSON sur l'entrée
-  // (`--input -`), comme le tableau de la cuisine les envoie.
+  // (`--input -`).
   const champs = args.flatMap((arg, rang) => (args[rang - 1] === "-f" ? [arg] : []));
   const champ = (nom: string) => champs.flatMap((brut) => (brut.startsWith(`${nom}=`) ? [brut.slice(nom.length + 1)] : []));
   const repondre = (statut: number, corps: unknown) => process.stdout.write(`HTTP/2.0 ${statut}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(corps)}\n`);

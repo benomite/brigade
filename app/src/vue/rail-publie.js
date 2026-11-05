@@ -1,6 +1,6 @@
 // @ts-check
 // Pourquoi le rail d'un projet qu'aucune station connue ne sert ici ne se dessine pas encore (ticket 1435, épique 1427 ;
-// ticket 2076). Le rail d'un projet est un seul : celui de son tableau de cuisine sur GitHub, TODO en tête (vue.js,
+// ticket 2076). Le rail d'un projet est un seul : celui que ses issues, labels et PR disent sur GitHub (ticket 2061), TODO en tête (vue.js,
 // `poserRail`), lu quelle que soit la station qui le sert. Tant qu'il ne l'est pas, le rail que sa station publie (ticket
 // 1432) dit pourquoi, sans colonnes à lui : toujours une phrase en tête. Une connexion à GitHub qui manque est un bouton,
 // le geste que le runtime nomme ; une lecture qui échoue dit sa raison en une phrase, son détail au survol, et le bouton
@@ -34,7 +34,7 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
 export const LECTURE_PUBLIEE = "Reading the rail…";
 // Le rail publié se lit, son tableau pas encore : sa première lecture est en route.
 /** @param {string} projet */
-export const TABLEAU_EN_LECTURE = (projet) => `Reading the Kitchen board of ${projet}…`;
+export const TABLEAU_EN_LECTURE = (projet) => `Reading ${projet} on GitHub…`;
 // Le rail publié se lit, son tableau non : la raison du tableau, telle que sa lecture l'a dite.
 /** @param {string} raison */
 export const TABLEAU_NON_LU = (raison) => `The rail is not drawn: ${raison}`;

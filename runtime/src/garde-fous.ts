@@ -12,7 +12,6 @@ import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
-import { superviserADistance, type Mesure } from "./superviseur-distant.ts";
 
 export { lireReglages, type Reglages } from "./plafonds.ts";
 
@@ -71,19 +70,6 @@ export type CookLance = {
   fin: Promise<FinDeCook>;
 };
 
-// Le cook d'une station distante : il ne tourne pas ici, et rien ne peut lui
-// être signalé. Le reste est celui d'un cook de la box — son lancement, ses
-// plafonds, son relevé au tick, le « stop » du chef, sa fin au journal.
-export type DemandeDistante = Pick<DemandeCook, "run" | "contexte" | "juger"> & { ticket: number };
-
-export type CookDistant = Omit<CookLance, "pid"> & {
-  // Ce que la station rapporte de ce que son cook a consommé : au-delà d'un
-  // plafond, il est arrêté ici, et elle l'apprend.
-  mesurer(mesure: Mesure): void;
-  // Le cook a fini chez elle : la fin se juge et s'écrit comme une autre.
-  rendre(code: number | null): void;
-};
-
 // `deploy` : n'est plus levé — une mise en service ne retient aucun cook ; le
 // motif reste pour que les journaux d'avant se lisent.
 export type RefusDeLancer = "breaker" | "stopped" | "deploy";
@@ -106,9 +92,6 @@ export type GardeFous = {
   // Lance un cook sous surveillance. Lève `LancementRefuse`, sans rien lancer
   // ni rien écrire, si le disjoncteur est ouvert, ou si le chef a dit « stop ».
   lancer(demande: DemandeCook): CookLance;
-  // Note le lancement du cook d'une station distante, sous les mêmes refus et
-  // les mêmes plafonds, sans rien lancer ici.
-  lancerDistant(demande: DemandeDistante): CookDistant;
   // Le verdict de la pass sur la livraison d'une relance du manager. Rouge,
   // c'est un échec d'affilée de plus, qui ouvre le disjoncteur au seuil.
   jugerRelance(ticket: number, run: string, verdict: "green" | "red"): void;
@@ -259,9 +242,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     }
   });
 
-  // Le lancement gardé, quel que soit l'endroit où le cook tourne : `surveiller`
-  // rend ce qui le surveille — un sous-processus ici, ou ce qu'une station
-  // distante en rapporte. Tout ce qui s'écrit et se compte passe par ici.
+  // Le lancement gardé : `surveiller` rend ce qui surveille le cook. Tout ce
+  // qui s'écrit et se compte passe par ici.
   const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "plafonds" | "juger">, surveiller: (run: string, plafonds: Plafonds, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
     if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
     const run = demande.run ?? nomDeRun(demande.ticket);
@@ -389,10 +371,6 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       // repris s'arrête comme s'il avait été là.
       if (etatDesGardeFous(base).stoppedAt !== null) cook.arreter();
       return { run, pid: cook.pid, arreter: cook.arreter, fin };
-    },
-    lancerDistant(demande) {
-      const { run, cook, fin } = partir(demande, (_nom, plafonds, surArret) => superviserADistance({ plafonds, surArret }));
-      return { run, arreter: cook?.arreter ?? (() => {}), mesurer: (mesure) => cook?.mesurer(mesure), rendre: (code) => cook?.rendre(code), fin };
     },
     jugerRelance(ticket, run, verdict) {
       base.transaction(() => {

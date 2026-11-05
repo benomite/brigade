@@ -1,4 +1,4 @@
-// La réponse du chef à une carte du chef lue de GitHub, pour un projet GitHub seul (#2434) : un clic sur un choix, ou son
+// La réponse du chef à une carte du chef lue de GitHub (#2434) : un clic sur un choix, ou son
 // texte, joué par l'app elle-même sur GitHub, avec le jeton du `gh` de ce poste — celui du chef. Ni box, ni tableau de la
 // cuisine, ni station : GitHub est le seul état.
 //
@@ -21,7 +21,7 @@ import type { AppelGitHub, ReponseGitHub } from "../tableau/client.ts";
 import { HORS_CUISINE } from "../tableau/mise-de-cote-github.ts";
 import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
-import { refusDe } from "./github.ts";
+import { refusDe } from "../tableau/client.ts";
 
 // Le client : les lectures par le `GET` du tableau (client.ts), les écritures avec le même jeton — celui des labels de
 // priorité (priorite.ts, `clientDeLaPriorite`).

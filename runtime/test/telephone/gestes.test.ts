@@ -130,9 +130,9 @@ for (const { gesture, args, ticket, fait } of [
   });
 }
 
-// Le renvoi en cuisine n'est pas une commande de la box : l'ordinateur le poste sur le tableau de la cuisine
-// (`/brigade arrived #16`), et la box joue `renvoyerEnCuisine` — l'action que le téléphone joue ici.
-test("« back-to-kitchen » du téléphone change la station comme `/brigade arrived` posté sur le tableau de la cuisine : même journal, sans GitHub", async (t) => {
+// Le renvoi en cuisine n'est pas une commande de la box : le téléphone joue `renvoyerEnCuisine` sur le journal du
+// projet — le même effet que l'action jouée directement.
+test("« back-to-kitchen » du téléphone renvoie en cuisine sur le journal du projet, sans GitHub", async (t) => {
   const telephone = await station(t);
   const tableau = await station(t);
 

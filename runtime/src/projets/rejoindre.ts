@@ -1,8 +1,7 @@
 // Ajouter un ordinateur à un projet qu'une autre station sert déjà (#1789,
 // épique #1785) : il rejoint la cuisine qui tourne, il n'en ouvre pas une
 // seconde. Deux cuisines d'un même dépôt ne partagent aucun verrou : elles
-// prendraient le même ticket, ouvriraient deux PR et répondraient deux fois au
-// Kitchen board.
+// prendraient le même ticket et ouvriraient deux PR.
 //
 // Avant de rien préparer d'un projet que l'app lui demande — qu'elle l'y dise
 // principale (une case cochée sur la page de la station) ou non (« + station »

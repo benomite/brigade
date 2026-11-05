@@ -75,6 +75,9 @@ export type Review = { outcome: "green" | "red" | "skipped"; run: string | null;
 // juges, ou à ce que le projet déclare au runtime pour s'ouvrir (son réseau,
 // ses secrets). `merge-refused` : GitHub a refusé le merge — lever ce qu'il
 // dit, puis merger à la main. `cause` précise sans rien changer au geste.
+// Les renvois au cook que la pass de l'ancien chemin faisait avant de passer
+// la main au manager : ce que son historique compte (`montrer-pass.ts`).
+export const RENVOIS_MAX = 2;
 export const SANS_GRANT = "no-grant";
 export const A_RELIRE = "review-required";
 export const MERGE_REFUSE = "merge-refused";

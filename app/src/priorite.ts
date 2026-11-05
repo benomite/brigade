@@ -1,15 +1,14 @@
 // Changer la priorité d'un ticket du rail, depuis sa fiche (#1739) : la priorité est le label `prio:<n>` de son issue,
 // et l'app le remplace elle-même sur GitHub — l'ancien retiré, le nouveau posé —, par l'API REST et le jeton du `gh` de
-// ce poste. Ni box, ni second, ni tableau de la cuisine : il suffit que l'app soit connectée à GitHub.
+// ce poste. Ni box, ni second : il suffit que l'app soit connectée à GitHub.
 //
-// La box le lit à son sondage suivant et range le ticket ; d'ici là, le tableau qu'elle publie montre encore l'ancienne
-// priorité — et, box injoignable, il la montre tant qu'elle l'est. Le rail montre donc celle que l'app vient d'écrire
-// (`tenirPrioritesEcrites`), tant que le tableau montre celle d'avant ; dès qu'il en montre une autre, c'est lui qui
-// dit vrai. Un échec de GitHub ne change rien au rail : la fiche le dit, en une ligne, son détail au survol.
+// La station le lit à son tour suivant et range le ticket ; d'ici là, la dernière lecture du rail (tableau/lecture.ts)
+// montre encore l'ancienne priorité. Le rail montre donc celle que l'app vient d'écrire (`tenirPrioritesEcrites`), tant
+// que la lecture montre celle d'avant ; dès qu'elle en montre une autre, c'est elle qui dit vrai. Un échec de GitHub ne
+// change rien au rail : la fiche le dit, en une ligne, son détail au survol.
 //
 // Ce module compose les demandes ; ce qui les porte est donné par la plateforme — le `fetch` du desktop (`envoyerParFetch`).
-import { clientGitHub, corpsLu, DELAI_MS, type AppelGitHub, type ReponseGitHub } from "./tableau/client.ts";
-import { refusDe } from "./tableau-gestes/github.ts";
+import { clientGitHub, corpsLu, DELAI_MS, refusDe, type AppelGitHub, type ReponseGitHub } from "./tableau/client.ts";
 
 // Les priorités qu'un ticket peut prendre : 1 est servi d'abord ; `none` retire son label, il passe après les autres.
 export const PRIORITES: readonly string[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"];
@@ -23,7 +22,7 @@ export type MethodeDEcriture = "POST" | "DELETE" | "PUT" | "PATCH";
 export type EnvoiGitHub = (methode: MethodeDEcriture, adresse: string, entetes: Record<string, string>, corps?: unknown) => Promise<ReponseGitHub>;
 export type ClientDeLaPriorite = { lire: AppelGitHub; ecrire: (methode: MethodeDEcriture, chemin: string, corps?: unknown) => Promise<ReponseGitHub> };
 
-// Le client : la lecture de l'issue par le `GET` du tableau (client.ts), l'écriture de ses labels avec le même jeton.
+// Le client : la lecture de l'issue par le `GET` du rail (client.ts), l'écriture de ses labels avec le même jeton.
 export function clientDeLaPriorite({ jeton, appeler, envoyer }: { jeton: () => Promise<string | null>; appeler: AppelGitHub; envoyer: EnvoiGitHub }): ClientDeLaPriorite {
   return {
     lire: appeler,
@@ -108,7 +107,7 @@ export function envoyerParFetch(options: { fetch?: typeof fetch; delaiMs?: numbe
 }
 
 // Les priorités que l'app a écrites, par projet et ticket, avec celle que l'issue portait avant : ce que le rail montre
-// tant que le tableau de la cuisine ne l'a pas lue (faits.ts, `rail`). Ce module ne lance rien : il retient.
+// tant que la lecture du rail ne la montre pas (faits.ts, `rail`). Ce module ne lance rien : il retient.
 export type PrioriteMontree = (ticket: number, lue: number | null | undefined) => number | null | undefined;
 export function tenirPrioritesEcrites() {
   const tenues = new Map<string, Map<number, { niveau: number | null; avant: number | null }>>();
@@ -120,8 +119,8 @@ export function tenirPrioritesEcrites() {
       if (niveau === avant) siennes.delete(ticket);
       else siennes.set(ticket, { niveau, avant });
     },
-    // Ce que le rail d'un projet montre d'un ticket, d'après ce que le tableau en dit (`lue` ; absente, il ne le dit
-    // pas) : la priorité écrite, tant que le tableau montre celle d'avant — rien sinon, et elle est oubliée dès qu'il
+    // Ce que le rail d'un projet montre d'un ticket, d'après ce que sa lecture en dit (`lue` ; absente, elle ne le dit
+    // pas) : la priorité écrite, tant que la lecture montre celle d'avant — rien sinon, et elle est oubliée dès qu'elle
     // en montre une autre.
     de(projet: string): PrioriteMontree {
       return (ticket, lue) => {

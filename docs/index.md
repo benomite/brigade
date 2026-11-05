@@ -42,8 +42,6 @@ contribute and the release notes — go back to the [repository root](../README.
 - [The pass](runtime/pass.md) — how a delivery is judged, by whom, and what happens after.
 - [The station](runtime/station.md) — where the cooks run, and how a ticket becomes a card.
 - [The guardrails](runtime/garde-fous.md) — the caps, and how to stop and resume the kitchen.
-- [The Kitchen board](tableau-gestes.md) — the gestures the chef can make from a comment on the
-  project's pinned board, without a direct link to the box.
 
 ## Look after the running kitchen
 

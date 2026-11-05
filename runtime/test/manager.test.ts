@@ -1,20 +1,24 @@
-// Le manager branché sur un runtime complet : il qualifie les issues ouvertes,
-// pose `fire` et le calibrage ou dit pourquoi non — et n'appelle le faux
-// `claude` que pour juger.
+// Le manager branché sur un runtime : il qualifie les issues ouvertes, pose
+// `fire` et le calibrage ou dit pourquoi non — et n'appelle le faux `claude`
+// que pour juger. Le ticket lancé se cuisine ensuite sur GitHub, ailleurs.
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Evenement, Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { empreinte, MARQUEUR_MANAGER } from "../src/juger.ts";
 import { configManager, MANAGER } from "../src/manager.ts";
 import { attentesDuChef } from "../src/attend.ts";
+import { FICHIER_DU_JETON } from "../src/jeton-claude.ts";
 import { issueDuManager } from "../src/projections/manager.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { etatStation } from "../src/projections/stations.ts";
+import { etatStation, stationsAnnoncees } from "../src/projections/stations.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
+import type { StationDeclaree } from "../src/stations-declarees.ts";
 import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
-import { jusqua } from "./outils.ts";
+import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Une cuisine dont le manager est allumé, sauf mention contraire.
 function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
@@ -40,6 +44,12 @@ function rendre(repertoire: string, ticket: number) {
   journal.fermer();
 }
 
+// Les stations que le projet a annoncées au journal : celles dont le manager
+// dit le quota épuisé ou la connexion perdue.
+function annoncer(c: ReturnType<typeof brigade>, stations: Array<Pick<StationDeclaree, "nom" | "fournit" | "cooks">> = [{ nom: STATION, fournit: ["code"], cooks: 1 }]) {
+  for (const { nom, fournit, cooks } of stations) c.journal.ajouter({ project: "brigade", ticket: null, author: `station:${nom}`, type: "station.announced", payload: { station: nom, engine: "claude", provides: [...fournit], maxCooks: cooks } });
+}
+
 const charge = (evenement: Evenement | undefined) => evenement?.payload as Record<string, unknown> | undefined;
 
 describe("le manager", { concurrency: 8 }, () => {
@@ -53,11 +63,11 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(issueDuManager(journal.base, 30), null);
   });
 
-  test("allumé, une issue posée sans aucun label est jugée, lancée et calibrée, puis cuisinée", async (t) => {
-    const { gh, labels, jugements, etat, faits } = brigade(t, { issues: [issue(30, [])] });
+  test("allumé, une issue posée sans aucun label est jugée, lancée et calibrée", async (t) => {
+    const { gh, labels, jugements, faits } = brigade(t, { issues: [issue(30, [])] });
     gh.decrire(30, { body: "Le rail perd un ticket quand le bail tombe." });
 
-    await jusqua(() => etat(30) === "pass");
+    await jusqua(() => faits(30).length === 3);
 
     assert.deepEqual(labels(30), ["fire", "model:haiku", "effort:low"]);
     assert.deepEqual(gh.labellisations, [[30, ["fire", "model:haiku", "effort:low"]]]);
@@ -113,19 +123,21 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("avec un jeton à son emplacement, un jugement le reçoit dans CLAUDE_CODE_OAUTH_TOKEN", async (t) => {
-    const { jugements } = brigade(t, { jeton: "sk-ant-oat01-jeton-de-la-machine", issues: [issue(30, [])] });
+    // Le fichier du jeton vit hors de l'état, comme sur la box.
+    const fichier = join(repertoireTemporaire(t), "jeton-claude");
+    writeFileSync(fichier, "sk-ant-oat01-jeton-de-la-machine\n", { mode: 0o600 });
+    const { jugements } = brigade(t, { env: { [FICHIER_DU_JETON]: fichier }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 
     assert.equal(jugements()[0]?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
   });
 
   test("une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, sans rien poser", async (t) => {
-    const { gh, labels, dits, faits, etat } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
+    const { gh, labels, dits, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 1);
 
     assert.deepEqual(labels(30), []);
     assert.deepEqual(gh.labellisations, []);
-    assert.equal(etat(30), undefined);
     const [dit = ""] = dits(30);
     assert.match(dit, /pas un ticket exécutable : un ticket incomplet/);
     assert.match(dit, /Rien ne dit comment vérifier que c'est fait\./);
@@ -260,9 +272,9 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef pose `fire` sans calibrer : le manager juge, et ne pose que le calibrage", async (t) => {
-    const { gh, etat } = brigade(t, { issues: [issue(30, ["fire"])] });
+    const { gh, labels } = brigade(t, { issues: [issue(30, ["fire"])] });
 
-    await jusqua(() => etat(30) === "pass");
+    await jusqua(() => labels(30).includes("effort:low"));
 
     assert.deepEqual(gh.labellisations, [[30, ["model:haiku", "effort:low"]]]);
   });
@@ -277,7 +289,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef retire le `fire` du manager : il n'est pas reposé, même si l'issue change", async (t) => {
-    const { gh, labels, jugements, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, labels, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     gh.poser(issue(30, ["model:haiku", "effort:low"], { title: "Le ticket, réécrit", updatedAt: "2026-10-08T11:00:00Z" }));
@@ -291,7 +303,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("l'écart `chef-changed` est dit une fois sur l'issue, avec ce qui a été retiré et la commande qui la rend", async (t) => {
-    const { gh, labels, dits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, labels, dits, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     gh.poser(issue(30, ["model:haiku", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -307,7 +319,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois", async (t) => {
-    const { gh, journal, repertoire, labels, jugements, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, journal, repertoire, labels, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
     gh.poser(issue(30, ["model:haiku", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusqua(() => faits(30).filter((e) => e.type === "manager.commented").length === 2);
@@ -333,7 +345,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef relance lui-même l'issue écartée, un label à la fois : l'écart n'est pas redit", async (t) => {
-    const { gh, labels, dits, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, labels, dits, faits, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
     gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusqua(() => dits(30).length === 2);
@@ -347,7 +359,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("l'écart nomme ce qui manque à l'issue, pas ce que le manager a posé un jour : un calibrage que le chef a remplacé n'est pas dit retiré", async (t) => {
-    const { gh, labels, dits } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, labels, dits } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     // `model:haiku` remplacé par `model:opus` — permis —, puis `fire` retiré.
@@ -375,7 +387,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("rendue pendant qu'un tour, qui l'a déjà dépassée, attend GitHub : la remise n'est pas perdue, elle est au tour suivant", async (t) => {
-    const { gh, journal, repertoire, labels, faits, laisserTourner } = brigade(t, { scenario: "muet", eteint: true, issues: [issue(30, []), issue(31, [])] });
+    const { gh, journal, repertoire, labels, faits, laisserTourner } = brigade(t, { eteint: true, issues: [issue(30, []), issue(31, [])] });
     // #31 est déjà refusée dans cet état : chaque tour relit ses commentaires, et ne la rejuge pas.
     journal.ajouter({ project: "brigade", ticket: 31, author: "manager", type: "manager.judged", payload: { run: "juge-31-a", fingerprint: empreinte({ ...issue(31, []), body: "" }, []), verdict: "refused", kind: "incomplete", reason: "Aucun critère.", missing: null, model: null, effort: null, calibration: null } });
     journal.ajouter({ project: "brigade", ticket: 31, author: "manager", type: "manager.commented", payload: {} });
@@ -407,7 +419,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("rendue puis relancée et calibrée par le chef avant que le manager y revienne : il n'y retire rien et ne la rejuge pas", async (t) => {
-    const { gh, repertoire, labels, jugements, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, repertoire, labels, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
     gh.poser(issue(30, ["model:haiku", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
@@ -426,7 +438,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("à la remise, un label de calibrage que le chef a posé lui-même n'est pas retiré", async (t) => {
-    const { gh, repertoire, labels, faits } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, repertoire, labels, faits } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
     gh.poser(issue(30, ["model:opus", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
@@ -439,7 +451,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed`", async (t) => {
-    const { gh, labels, jugements, faits: tous, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
+    const { gh, labels, jugements, faits: tous, laisserTourner } = brigade(t, { issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
     // La relecture de l'issue retenue (`manager.requalified`) n'est pas une décision d'écart.
     const faits = (numero: number) => tous(numero).filter((e) => e.type !== "manager.requalified");
     await jusqua(() => labels(30).includes("fire") && faits(31).length === 1);
@@ -461,7 +473,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef corrige un calibrage posé par le manager : rien n'est réécrit", async (t) => {
-    const { gh, labels, jugements, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, labels, jugements, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     gh.poser(issue(30, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -513,7 +525,9 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("un jugement qui bute sur le quota retient la station, et repart quand le quota revient", async (t) => {
-    const { journal, heure, jugements, labels, faits, laisserTourner } = brigade(t, { manager: { suite: ["quota"] }, issues: [issue(30, [])] });
+    const c = brigade(t, { manager: { suite: ["quota"] }, issues: [issue(30, [])] });
+    const { journal, heure, jugements, labels, faits, laisserTourner } = c;
+    annoncer(c);
     await jusqua(() => etatStation(journal.base, STATION)?.quotaUntil != null);
     await laisserTourner();
 
@@ -527,8 +541,9 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("un jugement qui bute sur le quota le dit de toutes les stations du projet : le compte est le même", async (t) => {
-    const stations = lireStations({ BRIGADE_STATIONS: "box/claude:1:code,box/playwright:2:navigateur-headless" });
-    const { journal, jugements, laisserTourner } = brigade(t, { stations, manager: { suite: ["quota"] }, issues: [issue(30, [])] });
+    const c = brigade(t, { manager: { suite: ["quota"] }, issues: [issue(30, [])] });
+    const { journal, jugements, laisserTourner } = c;
+    annoncer(c, lireStations({ BRIGADE_STATIONS: "box/claude:1:code,box/playwright:2:navigateur-headless" }));
     await jusqua(() => etatStation(journal.base, "box/playwright")?.quotaUntil != null);
     await laisserTourner();
 
@@ -536,16 +551,18 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(journal.tout().flatMap((e) => (e.type === "station.86" ? [[e.author, e.payload.station]] : [])), [["manager", "box/claude"], ["manager", "box/playwright"]]);
   });
 
-  test("sans station, le manager juge quand même : seuls les cooks ne partent pas", async (t) => {
-    const { journal, jugements, labels } = brigade(t, { stations: [], issues: [issue(30, [])] });
+  test("sans station annoncée, le manager juge quand même", async (t) => {
+    const { journal, jugements, labels } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     assert.equal(jugements().length, 1);
-    assert.equal(journal.tout().some((e) => e.type === "ticket.taken"), false);
+    assert.deepEqual(stationsAnnoncees(journal.base), []);
   });
 
   test("un jugement qui révèle une connexion Max expirée retient la station, sans rien décider", async (t) => {
-    const { journal, faits, jugements, laisserTourner } = brigade(t, { manager: { jugement: "non-connecte" }, issues: [issue(30, [])] });
+    const c = brigade(t, { manager: { jugement: "non-connecte" }, issues: [issue(30, [])] });
+    const { journal, faits, jugements, laisserTourner } = c;
+    annoncer(c);
     await jusqua(() => etatStation(journal.base, STATION)?.disconnectedAt != null);
     await laisserTourner();
 
@@ -554,7 +571,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("une décision prise se pose sans rejuger quand GitHub a refusé les labels la première fois", async (t) => {
-    const { gh, labels, jugements, faits, dits, avertissements } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { gh, labels, jugements, faits, dits, avertissements } = brigade(t, { issues: [issue(30, [])] });
     gh.pannes.label = true;
     await jusqua(() => avertissements.some((message) => /labels non posés/.test(message)));
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged"]);
@@ -580,7 +597,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef lance et calibre l'issue pendant son jugement : le manager n'ajoute aucun label", async (t) => {
-    const { gh, jugements, labels, faits } = brigade(t, { scenario: "muet", manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    const { gh, jugements, labels, faits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 
     gh.poser(issue(30, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -704,9 +721,10 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118)", async (t) => {
     const c = brigade(t, { eteint: true, issues: [issue(31, ["model:opus", "effort:high"])] });
-    // Calibré par le chef, lancé, puis abandonné par la cuisine : le sondage, qui n'y voit plus `fire`, le sort du rail.
+    // Calibré par le chef, lancé, puis abandonné par la cuisine : le sondage, qui n'y voit plus `fire`, l'a sorti du rail.
     c.journal.ajouter({ project: "brigade", ticket: 31, author: "github", type: "ticket.arrived", payload: { title: "Ticket 31", priority: 1, createdAt: "2026-10-01T00:00:31Z", url: "https://exemple.test/31", card: null } });
     c.journal.ajouter({ project: "brigade", ticket: 31, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });
+    c.journal.ajouter({ project: "brigade", ticket: 31, author: "github", type: "ticket.left", payload: { reason: "unfired" } });
     const enTodo = () => attentesDuChef(c.journal.base, lireRail(c.journal.base)).some((attente) => attente.ticket === 31 && attente.quoi === "abandon");
     await jusqua(enTodo);
 
@@ -722,9 +740,10 @@ describe("le manager", { concurrency: 8 }, () => {
   test("le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118)", async (t) => {
     const { gh, journal, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => faits(30).length === 2);
-    // La cuisine l'avait pris, puis abandonné : le sondage, qui n'y voit pas `fire`, le sort du rail.
+    // La cuisine l'avait pris, puis abandonné : le sondage, qui n'y voyait pas `fire`, l'a sorti du rail.
     journal.ajouter({ project: "brigade", ticket: 30, author: "github", type: "ticket.arrived", payload: { title: "Ticket 30", priority: 1, createdAt: "2026-10-01T00:00:30Z", url: "https://exemple.test/30", card: null } });
     journal.ajouter({ project: "brigade", ticket: 30, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });
+    journal.ajouter({ project: "brigade", ticket: 30, author: "github", type: "ticket.left", payload: { reason: "unfired" } });
     const enTodo = () => attentesDuChef(journal.base, lireRail(journal.base)).some((attente) => attente.ticket === 30 && attente.quoi === "abandon");
     await jusqua(enTodo);
 
@@ -749,7 +768,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("éteint en cours de route, le manager ne juge plus ce qui arrive", async (t) => {
-    const { repertoire, gh, jugements, labels } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    const { repertoire, gh, jugements, labels } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));
 
     chef(repertoire, "manager.disabled");

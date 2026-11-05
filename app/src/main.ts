@@ -3,7 +3,6 @@
 import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { setTimeout as attendre } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
@@ -13,19 +12,16 @@ import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
-import { reglerLePlafond } from "./plafond.ts";
 import { cibleDeLaStation, DELAI_S, etatDuCode, revoquerUnTelephone, telephonesAppaires, tirerUnCode } from "./telephones-de-station.ts";
 import { pourLaBarre } from "./barre.ts";
 import { ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
-import { reponseLue } from "./carte-todo.ts";
 import { situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, noteDeLaQuestion } from "./discussion.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
-import { cuireSurLaStation } from "./cuisson.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
 import { confierAUnHumain } from "./vue/attente-capacite/geste.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
@@ -36,18 +32,14 @@ import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
-import { clientGitHub, parFetch } from "./tableau/client.ts";
+import { clientGitHub, parFetch, posterParFetch } from "./tableau/client.ts";
 import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import type { MemoireDesLectures } from "./tableau/rail-github.ts";
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
-import { avecLeRailGithub } from "./vue/rail/github.ts";
-import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
-import { lectureDuTableau, ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
-import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, jouerAuTableau, reponseALaFile, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
-import type { DecisionDuChef } from "./tableau-gestes/gestes.ts";
-import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.ts";
+import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
+import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
@@ -63,7 +55,7 @@ import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mis
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
-import { COMMANDE as COMMANDE_MANAGER, voir as voirManager } from "./manager.ts";
+import { voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandesDe, CUISINE, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
@@ -207,7 +199,7 @@ const terminaux = ouvrirTerminaux({
   planDuSecond: (dossier, args) => planifier?.(dossier, args) ?? { state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: dossier, env: {} }, missing: [], tools: [] },
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
   node: emplacements.node,
-  // La file que le second lit à son ouverture vient du tableau de la cuisine, par le `gh` du poste (second/file.ts).
+  // La file que le second lit à son ouverture vient de GitHub, par le `gh` du poste (second/file.ts).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
@@ -218,23 +210,19 @@ const terminaux = ouvrirTerminaux({
   surEtat: (terminal) => dire("etat", terminal),
 });
 
-// La vue du rail d'un projet — ses colonnes, ses cartes, sa file TODO, l'état de sa cuisine, sa bande — se lit du
-// tableau de la cuisine que sa box publie sur GitHub (#1694, tableau/rail.ts), avec le jeton du `gh` de ce poste : ni
-// tailnet, ni box jointe. Les veilles du rail, des faits, du manager et de l'amont lisent toutes ce même
-// tableau, une lecture à la fois par projet, reprise par chacune tant qu'elle a moins de quinze secondes. Le dépôt d'un
-// projet est son `depot`, ou celui de l'`origin` de son dossier. Le tableau est sur GitHub : il se lit pour tout projet,
-// quelle que soit la station qui le sert — que l'app la connaisse ou non (#2076). Le rail d'un projet servi ailleurs est
-// la même vue, TODO et ses gestes compris ; un projet que rien ne sert dit pourquoi son tableau ne se lit pas.
+// La vue du rail d'un projet — ses colonnes, ses cartes, sa file TODO, l'état de sa cuisine, sa bande — se lit des
+// issues, des labels et des PR de son dépôt sur GitHub (#1694, #2061, tableau/lecture.ts), avec le jeton du `gh` de ce
+// poste : ni tailnet, ni box jointe, ni tableau de la cuisine — aucun runtime n'en écrit plus. Les veilles du rail, des
+// faits et de l'amont lisent toutes cette même lecture, une à la fois par projet, reprise par chacune tant qu'elle a
+// moins de quinze secondes. Le dépôt d'un projet est son `depot`, ou celui de l'`origin` de son dossier. GitHub se lit
+// pour tout projet, quelle que soit la station qui le sert — que l'app la connaisse ou non (#2076) ; un projet qui ne
+// se lit pas dit pourquoi.
 const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: parFetch() });
 const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
-// Une carte de TODO à laquelle le chef a répondu se lit, avec lui, des commentaires du tableau (tableau/envois.ts, #1841) :
-// envoyée et en attente de la cuisine, jouée ou refusée — redémarrée, l'app relit les mêmes, et la carte le dit encore.
-// L'état de chaque ticket du rail est celui que GitHub en dit — ses labels, sa PR, la base (tableau/rail-github.ts, #2059) :
-// relu à chaque lecture du tableau (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
-// conditionnelles dont un 304 ne coûte rien. Un projet sur GitHub seul (`githubOnlyState`, #2220) : son rail et ses cooks
-// sont lus de GitHub — ses issues, leurs labels, leurs commentaires de prise et ses PR (vue/rail/github.ts) —, pas du
-// rail figé que le tableau garde de l'ancien chemin.
-const interrupteursDuRail = new Map<string, boolean>();
+// Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
+// tient (vue/rail/github.ts) —, TODO — les issues au label `chef-todo` (tableau/todo-github.ts) — et ce qui est avant le
+// rail : relus à chaque lecture (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
+// conditionnelles dont un 304 ne coûte rien.
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
 // Ses stations, sur l'onglet Cooks, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
@@ -247,16 +235,14 @@ const signesDeVie = tenirLesSignesDeVie({
   },
 });
 const lireLeTableau = async (projet: Projet) => {
-  const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
-  if (!lu.lu) return lu;
-  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail, () => signesDeVie.signes());
-  return relu.lu ? avecLesEnvois(await avecLeTodoGithub(relu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : relu;
+  const depot = await depotDuProjet(projet);
+  const lu = await lireLeTableauDuDepot({ depot, appeler: appelerGitHub, memoire: memoireDuRail(depot), signes: () => signesDeVie.signes() });
+  return lu.lu ? avecLeTodoGithub(lu, appelerGitHub, memoireDuRail(depot)) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
-// les trente secondes, sur le tableau de la cuisine. Ce qui attend le chef en est mis à
-// part ici, avant la vue.
+// les trente secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
 // Les veilles des onglets (Cooks, Settings) et les gestes qui partent sur la box se partagent le
 // passage de chaque projet : à eux tous, un projet ne lance qu'une commande à la fois.
 const passage = new Map<string, Promise<unknown>>();
@@ -305,8 +291,8 @@ const veilleDOnglet = ouvrirVeille({
 // Les questions du manager que le chef a répondues (repondues.ts) : leur carte quitte TODO pour
 // WAITING sans attendre le manager.
 const repondues = tenirRepondues();
-// Les priorités que le chef vient de changer depuis une fiche (priorite.ts) : le rail les montre tant que le tableau
-// de la cuisine montre encore les anciennes.
+// Les priorités que le chef vient de changer depuis une fiche (priorite.ts) : le rail les montre tant que la dernière
+// lecture montre encore les anciennes.
 const prioritesEcrites = tenirPrioritesEcrites();
 const faits = tenirFaits(
   (projet) => repondues.de(projet),
@@ -369,8 +355,8 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   intervalleMs: 30_000,
   surLecture: (lecture) => {
     direLesFaits(faits.recevoir(lecture));
-    // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) — lu avec GitHub seul, sans joindre la box :
-    // à la place de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activite-du-cook.js).
+    // Ce que GitHub dit de chaque cook du projet (#1846) — sa station, depuis sa prise, sa PR —, sans joindre la box : à
+    // la place de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activite-du-cook.js).
     const tableau = tableaux.dernier(lecture.projet);
     if (!("erreur" in lecture) && tableau !== undefined) dire("activites", activitesPubliees(lecture.projet, tableau));
     direLaBande(bandes.faits(lecture));
@@ -381,24 +367,9 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   },
 });
 
-// L'état du manager n'est pas dit par la file (#438) : l'app le lit elle-même, pour chaque projet
-// et quel que soit l'écran, au même rythme que `faits` — la ligne de l'interrupteur du projet, que
-// le manager suit et que le tableau porte (tableau/rail.ts). Une lecture qui échoue donne
-// « non vérifié » avec son motif, jamais « sain ».
-const veilleDuManager = ouvrirVeilleDuTableau({
-  lire: tableaux.lire,
-  intervalleMs: 30_000,
-  surLecture: (lecture) => {
-    direLaBande(bandes.manager(lecture));
-    // Ce qui est en amont du rail dit aussi si le manager le lit : sa phrase suit son état.
-    const amont = amonts.manager(lecture);
-    if (amont !== undefined) dire("amont", amont);
-  },
-});
-
-// Ce qui est avant le rail (amont.ts, #1836) : lu sur le tableau de la cuisine pour le projet affiché seulement — sa
-// barre se pose à côté de son rail, et déplie la colonne Backlog. Un tableau qui ne le publie pas encore : la vue n'en
-// dit rien (#1770), jamais « rien avant le rail », et aucune box n'est jointe pour lui.
+// Ce qui est avant le rail (amont.ts, #1836) : lu sur GitHub pour le projet affiché seulement — sa barre se pose à côté
+// de son rail, et déplie la colonne Backlog. Des issues qui ne se lisent pas : la vue n'en dit rien (#1770), jamais
+// « rien avant le rail », et aucune box n'est jointe pour lui.
 const amonts = tenirAmont();
 const veilleDeLAmont = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
@@ -849,14 +820,13 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
 // dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
 // Un geste de la fiche que la vue ne joue pas elle-même. Changer la priorité remplace le label `prio:`
-// de l'issue sur GitHub (priorite.ts, #1739), par le jeton du `gh` de ce poste — ni box, ni tableau :
-// fait, le rail montre aussitôt la nouvelle priorité, jusqu'à ce que le tableau la montre. Merger la
-// livraison, retirer le ticket du rail et renvoyer en cuisine un ticket revenu de WAITING s'écrivent
-// sur le tableau de la cuisine du projet (#1694, #1740, tableau-gestes/rail.ts), en commentaire, par le
-// même jeton — ni second : la box les joue à son tick suivant, et le rail, relu du tableau, le
-// montre. Les autres — que la grammaire du tableau ne connaît pas — sont une action de box, qui part
-// dans le second comme un geste du socle. La vue
-// nomme le geste, le ticket et la valeur ; ce qui part se compose ici, jamais dans la vue.
+// de l'issue sur GitHub (priorite.ts, #1739), par le jeton du `gh` de ce poste — ni box : fait, le rail
+// montre aussitôt la nouvelle priorité, jusqu'à ce que sa lecture la montre. Retirer le ticket du rail et
+// renvoyer en cuisine un ticket revenu de WAITING retirent de son issue `fire` ou `waiting`, par le même
+// jeton (gestes-github.ts, #2061) ; le rail, relu de GitHub, le montre. Merger la livraison se fait sur sa
+// PR, sur GitHub : rien ne part de l'app. Les autres sont une action de box, qui part dans le second
+// comme un geste du socle. La vue nomme le geste, le ticket et la valeur ; ce qui part se compose ici,
+// jamais dans la vue.
 ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
@@ -868,10 +838,11 @@ ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unkn
     redessinerRail(vise.nom);
     return { fait: rendu.fait, detail: rendu.detail };
   }
-  const auTableau = await gesteDeFicheAuTableau(tableaux.dernier(vise.nom), id, ticket, clientDesGestes);
-  if ("horsDuTableau" in auTableau) return jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
-  if ("fait" in auTableau) tableaux.oublier();
-  return auTableau;
+  if (id === "merger") return { refus: SANS_FAIT.merger, detail: "" };
+  if (!surGithub(id)) return jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
+  const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
+  if ("fait" in rendu) tableaux.oublier();
+  return rendu;
 });
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
@@ -912,19 +883,9 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
 // L'issue d'un ticket et sa discussion, sur la fiche de toute carte : lues de GitHub par le `gh` du poste
 // (fiche-github.ts), le markdown rendu. Les adresses qu'elle montre sont gardées ici : un clic de la vue n'ouvre
 // que l'une d'elles, jamais une adresse qu'elle aurait composée.
-// Le commentaire du chef part par `/brigade comment #<ticket> <texte>` sur le tableau de la cuisine, au clic : la vue
-// nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
+// Le commentaire du chef part sur l'issue du ticket, au clic, par le jeton du `gh` de ce poste (gestes-github.ts) : la
+// vue nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
 const liensLus = new Map<string, readonly string[]>();
-// Les gestes qui partaient sur la box (#1845) — le commentaire, le plafond, la cuisine d'une station — sont postés
-// sur le dernier tableau lu du projet par l'accès GitHub de ce poste, comme ceux du rail, et suivis jusqu'à ce que la
-// box y ait répondu : elle lit le tableau à chaque tick, une fois la minute. Deux minutes et
-// demie au plus, une relecture toutes les cinq secondes ; joué ou refusé, le tableau est relu de GitHub au prochain coup.
-const ATTENTE_DE_LA_BOX = { essais: 30, dormir: () => attendre(5_000) };
-const auTableau = (nom: string) => async (decision: DecisionDuChef) => {
-  const etat = await jouerAuTableau(tableaux.dernier(nom), decision, clientDesGestes, ATTENTE_DE_LA_BOX);
-  if (etat.etat === "taken" || etat.etat === "refused") tableaux.oublier();
-  return etat;
-};
 ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
@@ -934,7 +895,8 @@ ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
 });
 ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(auTableau(vise.nom), vise, ticket, texte);
+  if (vise === undefined) return { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` };
+  return commenter(async (numero, commentaire) => commenterLIssue(await depotDuProjet(vise), numero, commentaire, clientDesLabels), vise, ticket, texte);
 });
 // « ask the second », au clic : `/brigade:ask <ticket> ` est écrit dans le second du projet, sans Entrée — le chef tape
 // sa question à la suite (discussion.ts). Rien ne part sur le tableau ni sur la box, quelle que soit la station du
@@ -1017,13 +979,12 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unkn
 // Un geste de WAITING, sur une carte du rail : sa commande part dans le second du projet, comme un
 // geste du socle. La vue nomme le geste et le ticket, et donne ce que le chef a rempli ; ce qui
 // part se décide dans attente.ts. « It arrived, back to the kitchen » n'a pas de commande : il
-// s'écrit sur le tableau de la cuisine du projet (#1740, tableau-gestes/rail.ts), comme le geste
-// `cuisine` de la fiche — posté, la carte le dit, et la box le joue à son tick suivant.
+// retire `waiting` de l'issue (gestes-github.ts), comme le geste `cuisine` de la fiche.
 ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   if (id !== "attente-arrivee") return ecrireAttente(terminaux, id, vise, ticket, saisie, new Date(), cuisines.cuisineDe(vise));
-  const rendu = await arriveeDeCarte(tableaux.dernier(vise.nom), ticket, clientDesGestes);
+  const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), "cuisine", ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
@@ -1228,8 +1189,8 @@ ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
   );
 });
 // Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
-// l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui du tableau de la cuisine, lu
-// pour tout projet. Tant que ce tableau ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
+// l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui que l'app lit sur GitHub, pour
+// tout projet. Tant qu'il ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
 // station du compte qui serve le projet, ou la page qui lève l'échec, ouverte depuis l'écran.
 ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> => {
   const vise = declare(nom);
@@ -1239,40 +1200,22 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
   if (lu.state === "unavailable") return retenirLaPage(lu);
   return lu;
 });
-const clientDesGestes = clientDesGestesGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
-// Les labels `prio:` d'une issue, lus et changés depuis une fiche (priorite.ts), avec le même jeton.
+// Les labels d'une issue, lus et changés depuis une fiche (priorite.ts, gestes-github.ts), et le commentaire du chef,
+// avec le jeton du `gh` de ce poste.
 const clientDesLabels = clientDeLaPriorite({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), appeler: appelerGitHub, envoyer: envoyerParFetch() });
-// Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
-// 0 ou `auto` —, le geste `/brigade cooks <valeur>` part sur le tableau de chaque projet dont le `status` lu
-// nomme cette station (plafond.ts). Réglé, ce tableau est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.
-// Depuis la ligne de station d'un projet (ticket 1292), `projet` borne le réglage au tableau de ce projet.
-ipcMain.handle("reglerLePlafond", async (_, station: unknown, valeur: unknown, projet?: unknown) => {
-  const cibles = typeof station === "string" ? accueil.projetsDe(station).filter((nom) => (projet === undefined || nom === projet) && connu(nom) !== undefined) : [];
-  const rendu = await reglerLePlafond(cibles, valeur, (nom, decision) => auTableau(nom)(decision));
-  if ("fait" in rendu) {
-    for (const nom of cibles) {
-      const vise = connu(nom);
-      if (vise !== undefined) direLAccueil(accueil.status(mettreAPart(lectureDuTableau(await tableaux.lire(vise), vise.nom, 0, ["status"]))));
-    }
-  }
-  return rendu;
-});
+// Le plafond de cooks d'une station, réglé depuis sa page, et le bouton qui arrête ou relance une station sur l'onglet
+// Cooks (#1185) : ils partaient sur le tableau de la cuisine, que plus aucun runtime ne lit (#2061). Une station prend
+// autant de tickets qu'elle déclare de places : rien ne part, et la phrase dit où le faire (gestes-github.ts).
+ipcMain.handle("reglerLePlafond", () => ({ refus: SANS_FAIT.plafond }));
+ipcMain.handle("cuireSurLaStation", () => ({ refus: SANS_FAIT.cuisson }));
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
-// Le bouton d'une station sur l'onglet Cooks (#1185) : `/brigade station stop|start <station>` part sur le tableau de la
-// cuisine du projet, que sa box ou cet ordinateur joue à son tick (#1845). La station doit être l'une de celles que ses
-// derniers `facts` donnent (cuisson.ts). La vue relit le tableau quand il est fait : la ligne dit son état neuf.
 // Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
 const lancerSurLaCuisine = (lu: Lu, commande: string) => {
   const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ delaiMs: 30_000 }, lu, commande));
   passage.set(lu.nom, rendu);
   return rendu;
 };
-ipcMain.handle("cuireSurLaStation", (_, nom: unknown, station: unknown, geste: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return parti(nom);
-  return cuireSurLaStation(vise.nom, faits.stations(vise.nom), station, geste, auTableau(vise.nom));
-});
 // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
 // ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.
 // « It's a human's job » et « reassign » (#1958) : `rail human`, là où la cuisine du projet tourne (vue/attente-capacite/).
@@ -1405,48 +1348,21 @@ ipcMain.handle("reprendreLeDisjoncteur", async (_, nom: unknown) => {
   if (vise === undefined) return undefined;
   return reprendreLeDisjoncteur(await depotDuProjet(vise), clientDuDisjoncteur);
 });
-// Le « yes » ou le « no » du chef sur une correction proposée (correction.ts), pour une proposition que la
-// dernière lecture du tableau de la cuisine du projet porte : écrit sur ce tableau (#1741,
-// tableau-gestes/rail.ts), en commentaire `correction`, par le jeton du `gh` de ce poste — sans box
-// jointe. La box le tranche à son tick suivant ; le tableau relu le montre : tranchée, la proposition n'y
-// est plus.
-ipcMain.handle("corriger", async (_, nom: unknown, proposition: unknown, reponse: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return undefined;
-  const rendu = await reponseALaFile(tableaux.dernier(vise.nom), "correction", proposition, reponse, clientDesGestes);
-  if ("postee" in rendu) tableaux.oublier();
-  return rendu;
-});
-// La réponse du chef à une carte de TODO (carte-todo.ts) : un choix, d'un clic, ou son texte, pour la carte
-// que ses derniers faits lus portent — écrite sur le tableau de la cuisine du projet (#1694,
-// tableau-gestes/rail.ts), en commentaire `choose` ou `answer`, par le jeton du `gh` de ce poste : ni
-// box jointe. La box la joue à son tick suivant — `rail choose` ou `rail answer` l'écrit sur
-// l'issue, sort la carte de TODO et fait avancer le ticket.
-// Sur un projet GitHub seul, la carte du chef lue de GitHub (#2434) : la réponse est postée sur son issue et son geste joué
-// par l'app même, par le même jeton (tableau-gestes/reponse-github.ts) — ni tableau, ni box.
+// Le « yes » ou le « no » du chef sur une correction ou un profil proposés (correction.ts, profil.ts) : ils partaient sur le
+// tableau de la cuisine, que plus aucun runtime ne lit (#2061). Aucune lecture de GitHub ne porte plus de proposition :
+// rien ne part, et la phrase dit pourquoi.
+ipcMain.handle("corriger", () => ({ refus: SANS_FAIT.proposition, detail: "" }));
+ipcMain.handle("trancherLeProfil", () => ({ refus: SANS_FAIT.proposition, detail: "" }));
+// La réponse du chef à une carte de TODO (carte-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
+// sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (tableau-gestes/reponse-github.ts) —, ni
+// tableau, ni box. Toute autre carte ne se répond plus de l'app (#2061) : rien ne part, et la phrase dit pourquoi.
 ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const chef = faits.chef(vise.nom, ticket);
-  if (chef !== undefined) {
-    const rendu = await repondreSurGithub({ depot: await depotDuProjet(vise), ticket, chef, reponse, client: clientDesLabels });
-    if ("repondue" in rendu) tableaux.oublier();
-    return rendu;
-  }
-  const lue = reponseLue(faits.carte(vise.nom, ticket), ticket, reponse);
-  if ("refus" in lue) return lue;
-  const rendu = await reponseDeCarteAuTableau(tableaux.dernier(vise.nom), lue, clientDesGestes);
+  if (chef === undefined) return { refus: SANS_FAIT.carte, detail: "" };
+  const rendu = await repondreSurGithub({ depot: await depotDuProjet(vise), ticket, chef, reponse, client: clientDesLabels });
   if ("repondue" in rendu) tableaux.oublier();
-  return rendu;
-});
-// Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin : écrit sur
-// le tableau de la cuisine du projet, en commentaire `profile`, pour une proposition que sa dernière lecture
-// porte — sans box jointe.
-ipcMain.handle("trancherLeProfil", async (_, nom: unknown, proposition: unknown, reponse: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return undefined;
-  const rendu = await reponseALaFile(tableaux.dernier(vise.nom), "profile", proposition, reponse, clientDesGestes);
-  if ("postee" in rendu) tableaux.oublier();
   return rendu;
 });
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :
@@ -1493,7 +1409,6 @@ ipcMain.on("faits", (_, demande: number) => {
   // Chaque projet qui se lit — sur sa box ou ici — a sa bande dès maintenant : rien n'y est encore vérifié.
   for (const bande of bandes.ouvrir(projets().filter(lisible).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
-  veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
   controlerTout();
 });
 // « réessayer maintenant » (#728) : le tableau est relu tout de suite, sur GitHub — pas la lecture
@@ -1501,7 +1416,6 @@ ipcMain.on("faits", (_, demande: number) => {
 ipcMain.on("relireBox", (_, demande: number) => {
   tableaux.oublier();
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
-  veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
 });
 // Les tickets `fire` d'un projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que la box ne
 // disant plus rien, le rail sait encore. Jamais par la box — c'est justement elle qui ne répond pas.
@@ -1534,9 +1448,9 @@ ipcMain.handle("ouvrirPr", (_, nom: unknown, ticket: unknown) => {
   );
 });
 // La PR du cook d'un ticket s'ouvre depuis sa fiche (#1846) : la vue nomme le projet et le ticket, l'adresse est celle
-// que la dernière lecture de son tableau publie pour son cook. Rend si elle a été ouverte.
+// que la dernière lecture de GitHub donne pour son cook. Rend si elle a été ouverte.
 ipcMain.handle("ouvrirPrDuCook", (_, nom: unknown, ticket: unknown) => {
-  const adresse = tableaux.dernier(nom)?.activites?.find((activite) => activite.ticket === ticket)?.pr?.url;
+  const adresse = tableaux.dernier(nom)?.activites.find((activite) => activite.ticket === ticket)?.pr?.url;
   return adresse === undefined || URL.parse(adresse)?.protocol !== "https:"
     ? false
     : shell.openExternal(adresse).then(
@@ -1567,7 +1481,6 @@ app.on("will-quit", () => {
   veille.fermer();
   veilleDOnglet.fermer();
   veilleDesFaits.fermer();
-  veilleDuManager.fermer();
   veilleDeLAmont.fermer();
   retards.fermer();
   miseAJour.fermer();

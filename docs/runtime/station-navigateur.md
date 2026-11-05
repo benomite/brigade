@@ -6,8 +6,8 @@ and a page on the box's loopback is reachable only through `ssh`. Nothing replac
 - **A cook's worktree is tidied away as soon as its end is told.** `station` and `status` have no
   `servers`, `to launch` or `service` section, and the runtime ignores `.claude/brigade/service`. Old
   `service.*` events stay in the log, unread.
-- **What a cook is doing, and its PR**, are published in the Kitchen board's `activites`
-  ([`tableau-de-cuisine.md`](tableau-de-cuisine.md)).
+- **What a cook is doing, and its PR**, are read on GitHub: the ticket's `taken` or `in-pass` label, its
+  claim comment and its PR ([`github-seul.md`](github-seul.md)).
 - **The screen** is looked at in the before and after captures the cook delivers in its branch and the
   pass links (`captures.ts`); the built app is tried once the PR is merged.
 - **The verdict is said on the ticket's issue.**

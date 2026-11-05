@@ -9,8 +9,7 @@ import { posixOnly } from "./support/plateforme.ts";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
-import { issue, cuisine } from "./aides/cuisine.ts";
-import { depotGit, ENV_ENFANT, FAUX_BWRAP, git, horloge, jusqua, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
+import { depotGit, ENV_ENFANT, FAUX_BWRAP, git, horloge, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
 
 // Une machine d'essai : l'état et le clone d'un projet sous une racine que la
 // cloison masque, et le compte du service à côté.
@@ -398,21 +397,6 @@ describe("la cloison", { concurrency: 8 }, () => {
     const [recu = []] = lancementsDuFauxBwrap(temoin);
     assert.ok(paires(recu, "--bind").includes(`${worktree} → ${worktree}`));
     assert.equal(recu[recu.indexOf("--") + 3], "bash");
-  });
-
-  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", { skip: posixOnly("runs a kitchen under the fake bwrap and counts the setups, gates, cook and reviewer it wrapped, by command name and writable worktree bind; on Windows the binds it notes are backslash paths, so the search for `/worktrees/` finds no writable launch") }, async (t) => {
-    const { cloisonnes, lancements, relectures, repertoire } = cuisine(t, { cloison: true, setup: "exporte", pass: true, issues: [issue(15)] });
-    await jusqua(() => relectures().length === 1);
-
-    // Ni le cook ni le reviewer ne savent qu'ils sont cloisonnés : même commande, mêmes arguments.
-    assert.equal(lancements()[0]?.args[0], "-p");
-    const commandes = cloisonnes().map((recu) => ({ commande: recu[recu.indexOf("--") + 3]?.split("/").at(-1), ecrit: paires(recu, "--bind").some((paire) => paire.includes("/worktrees/") && paire.split(" → ")[0] === paire.split(" → ")[1]) }));
-    const combien = (commande: string, ecrit: boolean) => commandes.filter((lance) => lance.commande === commande && lance.ecrit === ecrit).length;
-    // Le setup du cook, puis celui des gates et les gates : trois scripts, tous en écriture.
-    assert.equal(combien("bash", true), 3);
-    assert.equal(combien("faux-claude.sh", true), 1);
-    assert.equal(combien("faux-claude.sh", false), 1);
-    for (const recu of cloisonnes()) assert.ok(recu.includes(repertoire) && recu[recu.indexOf(repertoire) - 1] === "--tmpfs");
   });
 
   test("l'état de la cloison entre au journal quand il change, et pas à chaque démarrage", (t) => {

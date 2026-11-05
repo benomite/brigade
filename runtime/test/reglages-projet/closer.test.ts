@@ -14,7 +14,6 @@ import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
 import type { LectureDeFermeture } from "../../src/fermeture-lecture/lecture.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { principal as station } from "../../src/montrer-station.ts";
-import { appliquerLeChangement, changementsDits } from "../../src/reglages-projet/proposer.ts";
 import { lireLeDepot } from "../../src/reglages-projet/en-vigueur.ts";
 import { ecrireReglagesProjet, FICHIER, ReglageRefuse, reglagesDuTexte, texteDuFichier, validerReglagesProjet, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
@@ -86,14 +85,6 @@ test("an unknown or invalid setting of the closer is refused, and named, as for 
   assert.deepEqual(refus({ integrationBranch: "v2", closer: { apiToken: "x" } }).motif, "secret");
 });
 
-test("a proposed change sets or withdraws the closer's settings one by one, and keeps the others", () => {
-  const apres = validerReglagesProjet(appliquerLeChangement(AVEC_CLOSER, { closer: { maxTokens: 100_000, cooksBelow: null } }));
-  assert.deepEqual(apres, { integrationBranch: "v2", closer: { calibration: { model: "sonnet", effort: "medium" }, maxTokens: 100_000, maxRemovedLines: 200 } });
-  assert.deepEqual(changementsDits(AVEC_CLOSER, apres), ["closer's `cooksBelow`: 2 → none", "closer's `maxTokens`: 300000 → 100000"]);
-  // Un autre réglage proposé ne touche pas au closer.
-  assert.deepEqual(validerReglagesProjet(appliquerLeChangement(AVEC_CLOSER, { calibrationCeiling: { model: "opus", effort: "high" } })).closer, AVEC_CLOSER.closer);
-});
-
 test("two stations serving the project apply the closer's settings of projet.json at their next fetch, with no restart and no box command, over what each box held", (t) => {
   const projet = projetSurGit(t, { reglages: { integrationBranch: "v2" } });
   const autreClone = join(repertoireTemporaire(t), "clone");
@@ -151,7 +142,7 @@ test("two stations serving the project apply the closer's settings of projet.jso
 test("`closing --json` and `station` say where each of the closer's values comes from: the repository, the box, or the default", async (t) => {
   const projet = projetSurGit(t, { reglages: { integrationBranch: "v2", closer: { calibration: { model: "sonnet", effort: "medium" }, maxTokens: 300_000 } } });
   const { repertoire, journal } = journalDeStation(t, { BRIGADE_CLOSING_MODEL: "opus", BRIGADE_CLOSING_EFFORT: "high", BRIGADE_CLOSING_MAX_TOKENS: "900000", BRIGADE_CLOSING_MAX_REMOVED_LINES: "50" });
-  // Le runtime note ce qu'il applique, comme `closing/run.ts` le fait.
+  // Ce que le runtime appliquait, tel que la passe le notait au journal : `closing --json` le relit.
   const decisions = suivreDecisions(journal.base, {}, () => {}, lireLeDepot({ BRIGADE_REPO_DIR: projet.clone, BRIGADE_BASE_BRANCH: "v2" }).suivis);
   journal.ajouter({ project: "espace", ticket: null, author: "closer", type: "closing.configured", payload: decisions.fermeture() });
   const env = { ...ENV_GIT, BRIGADE_STATE_DIR: repertoire, BRIGADE_REPO_DIR: projet.clone, BRIGADE_BASE_BRANCH: "v2" };

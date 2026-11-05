@@ -118,7 +118,7 @@ export function ouvrirTerminaux(options: {
   souvenirs?: Souvenirs;
   // Le `node` qui joue le crochet de la file du second (second/file.ts). Sans lui, le second n'a pas ce crochet.
   node?: string;
-  // Le `gh` par lequel ce crochet lit la file sur le tableau de la cuisine — jamais posé hors des essais.
+  // Le `gh` par lequel ce crochet lit la file sur GitHub — jamais posé hors des essais.
   gh?: string;
   // Le compte de ce poste, pour le bandeau d'un shell. Par défaut : celui de la session ouverte.
   compte?(cible: Cible): string;
