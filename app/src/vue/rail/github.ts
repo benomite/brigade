@@ -174,7 +174,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
   const compteurs = objet(avant.compteurs) ?? {};
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
   const { cuisineOisive: _oisive, agents: _agents, ...gardes } = avant;
-  // Dans TODO, seul ce qui demande quelque chose au chef (#2422) : une PR à merger à la main, une question de produit. Le reste
+  // Dans TODO, seul ce qui demande quelque chose au chef (ticket 2422) : une PR à merger à la main, une question de produit. Le reste
   // de ce qui est mis de côté — renvois épuisés, cooks sans livraison — reste sur le rail, dans sa colonne, avec sa ligne.
   const misDeCote = ranges.flatMap(({ ticket, titre, url, miseDeCote }) =>
     miseDeCote === undefined || !miseDeCote.auChef
