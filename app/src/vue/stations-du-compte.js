@@ -88,6 +88,21 @@ export const ET_ENCORE = (combien) => `${combien} more — keep typing`;
 export const TROUVES_AU_PLUS = 8;
 export const ENVOI = "saving…";
 export const EN_SON_ABSENCE = "it is offline: it serves these projects once it is back";
+// Une station que la limite de GitHub retient (ticket 2443) : elle est là, ses appels attendent la fin de la limite — son
+// signe de vie ne bouge plus d'ici là. Ni « online », ni « offline » : elle garde ses projets. L'heure est celle du chef.
+/** @param {string} jusqua */
+export const RETENUE = (jusqua) => {
+  const d = new Date(jusqua);
+  return `held by GitHub's limit until ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+export const EN_SA_RETENUE = "GitHub's limit holds its calls: it reads these choices once the limit lifts, and keeps serving its projects";
+
+// L'état d'une station du compte, en mots : retenue par la limite de GitHub, en ligne, ou hors ligne.
+/** @param {Pick<StationEnregistree, "available" | "heldUntil">} station */
+export const etatDit = (station) => (station.heldUntil ? RETENUE(station.heldUntil) : station.available ? EN_LIGNE : HORS_LIGNE);
+// Le ton de sa pastille : vert en ligne, jaune retenue, gris hors ligne.
+/** @param {Pick<StationEnregistree, "available" | "heldUntil">} station */
+export const tonDe = (station) => (station.heldUntil ? "jaune" : station.available ? "vert" : "gris");
 // Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, runtime/src/projets/rejoindre.ts),
 // sous sa case : elle cuit dans la cuisine qui tourne, ou elle refuse — sa phrase dessous, en entier. Tant qu'elle ne l'a pas
 // lu, la case dit qu'elle va répondre.
@@ -270,13 +285,13 @@ function cree(doc, balise, texte) {
 }
 
 // Le ton et sa forme, comme partout dans la vue (vue.js, `pastille`) : un disque plein, un anneau creux.
-/** @param {Fabrique} doc @param {boolean} disponible */
-function pastilleDe(doc, disponible) {
+/** @param {Fabrique} doc @param {StationEnregistree} station */
+function pastilleDe(doc, station) {
   const pose = cree(doc, "span");
   pose.className = "pastille";
-  pose.dataset.ton = disponible ? "vert" : "gris";
-  pose.dataset.forme = disponible ? "disque" : "anneau";
-  pose.title = disponible ? EN_LIGNE : HORS_LIGNE;
+  pose.dataset.ton = tonDe(station);
+  pose.dataset.forme = station.available ? "disque" : "anneau";
+  pose.title = etatDit(station);
   return pose;
 }
 
@@ -293,7 +308,7 @@ export const detailsDe = (station) => [plateformeDite(station.platform), station
 // détails sont au survol ; ses cases à cocher sont sur sa page.
 /** @param {Fabrique} doc @param {StationEnregistree} station @param {GestesDuCompte} geste */
 function ligneDe(doc, station, geste) {
-  const dit = `${station.available ? EN_LIGNE : HORS_LIGNE} · ${sertDit(station.selection)}`;
+  const dit = `${etatDit(station)} · ${sertDit(station.selection)}`;
   const ligne = cree(doc, "button");
   ligne.type = "button";
   ligne.className = "ligne";
@@ -305,7 +320,7 @@ function ligneDe(doc, station, geste) {
   const suite = cree(doc, "span", "›");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
-  ligne.append(pastilleDe(doc, station.available), nom, cree(doc, "span", dit), suite);
+  ligne.append(pastilleDe(doc, station), nom, cree(doc, "span", dit), suite);
   ligne.addEventListener("click", () => geste.ouvrirLaStation(station.id));
   return ligne;
 }
@@ -319,8 +334,8 @@ export function projetsDe(doc, station, etat, geste) {
   choix.className = "projets-de-la-station";
   choix.ariaLabel = `${PROJETS}: ${station.name}`;
   choix.append(cree(doc, "legend", PROJETS));
-  if (!station.available) {
-    const absente = cree(doc, "p", EN_SON_ABSENCE);
+  if (station.heldUntil || !station.available) {
+    const absente = cree(doc, "p", station.heldUntil ? EN_SA_RETENUE : EN_SON_ABSENCE);
     absente.className = "note";
     choix.append(absente);
   }

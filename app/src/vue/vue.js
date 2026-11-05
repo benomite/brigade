@@ -124,7 +124,7 @@ import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
-import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, EN_LIGNE, HORS_LIGNE, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, uneLigneParMachine } from "./stations-du-compte.js";
+import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
@@ -5997,10 +5997,10 @@ function poserPageDeStation() {
     // Une machine seulement enregistrée sous le compte du chef : ni pannes, ni plafond, ni retrait — que son état et ses projets.
     const titre = bloc("h2", enregistree.name);
     titre.className = "mono";
-    const phrase = enregistree.available ? EN_LIGNE : HORS_LIGNE;
-    const etatDit = bloc("span", phrase);
-    etatDit.className = "phrase";
-    enTeteDeStation.replaceChildren(titre, pastille(phrase, enregistree.available ? "vert" : "gris"), etatDit, survol(document, detailsDe(enregistree)));
+    const phrase = etatDit(enregistree);
+    const phraseDite = bloc("span", phrase);
+    phraseDite.className = "phrase";
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, tonDe(enregistree)), phraseDite, survol(document, detailsDe(enregistree)));
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
     versionDeStation.replaceChildren();

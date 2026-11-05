@@ -124,7 +124,11 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   projects (#2436): `brigade : GitHub limit reached — no call leaves the station before HH:MM` when it
   starts, `brigade : GitHub calls resumed` when the next call leaves; the manager, the GitHub-only turn
   and the stale-branch cleanup say nothing of it. The resumption is automatic. During the wait the
-  station does not write its state on GitHub, and the app says it offline after 2 × `cadenceMs` + 30 s.
+  station does not write its state on GitHub — except once, as the pause starts (#2443): its
+  registration (`runtime/src/enregistrement-station/`) is written outside the pause with `heldBy`
+  (the limit, since, until), so the app shows it `held by GitHub's limit until HH:MM`, never offline,
+  and keeps its projects attached to it; listeners hear the pause through `surLaPauseDeGitHub`. The
+  presence gist (`appairage/`) still goes quiet, and the app says it offline after 2 × `cadenceMs` + 30 s.
 - **No burst at start (#2436).** The station opens its projects together, but their first GitHub-only
   turns are spaced `ECART_DES_PROJETS_MS` (20 s) apart (`runtime/src/station/station.ts`). The stale
   `cook/<n>-github` branches are cleaned a few at a time: each pass reads the issues of at most
@@ -142,6 +146,18 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   the time is the earliest the next write can go), the app's project view shows the same line, and the
   station's service log says it once when the hold starts (`brigade : écritures GitHub retenues par le
   budget — …`) and once when the last waiting write goes (`brigade : écritures GitHub reprises …`).
+- **Requests are paced too, in points per minute (#2443).** GitHub's secondary limit also caps an
+  account's REST points per minute (900: a read costs 1, a write 5), and a 304 counts there even though
+  it costs nothing on the hourly quota. The box paced only writes and concurrency, so the four projects'
+  GitHub-only turns, the pass and the closing passes firing together — after a pause above all —
+  passed 900 points within a minute while the hourly quota showed nothing unusual (1,936 of 5,000 at
+  14:31 on 2026-11-05): that is what set the secondary limit off several times a day. Every kitchen
+  request now goes through the same counter's budget of `POINTS_PAR_MINUTE` (450) in any sliding
+  minute, per account and for all the station's projects (`POINTS_PAR_LECTURE` 1, `POINTS_PAR_ECRITURE`
+  5, kept in the counter's `points` table, which a 304 does not leave). The other half is the chef's:
+  his Mac's app and his gestures, which are never paced and take nothing from the budget. A request over
+  budget waits in the queue (`AppelEspace`), and every later request of its account, reads included,
+  stays behind it; the log says it once (`brigade : appels GitHub espacés par le débit — …`).
 - **One queue, four in flight (#2195).** All the station's projects share, in its process, one queue of
   kitchen calls in arrival order: at most `REQUETES_EN_VOL` (4) GitHub requests are in flight at once, and
   a freed place goes to the first arrival that can take it. A write the pace holds never lets a later

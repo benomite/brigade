@@ -15,7 +15,8 @@ export const PAS_DES_SIGNES_MS = 120_000;
 // Ce qu'une lecture des stations du compte dit de leurs signes de vie.
 export function signesDe(lu: StationsDuCompte): SignesDeVie {
   if (lu.state !== "listed") return { illisible: lu.reason };
-  return { lus: lu.stations.map(({ name, lastSeen, stoppedAt, refreshMs, selection }) => ({ name, lastSeen, stoppedAt, refreshMs, selection })) };
+  // La limite de GitHub qui la retient (#2443) : elle reste la station de ses projets.
+  return { lus: lu.stations.map(({ name, lastSeen, stoppedAt, refreshMs, selection, heldBy }) => ({ name, lastSeen, stoppedAt, refreshMs, selection, ...(heldBy ? { heldBy } : {}) })) };
 }
 
 export function tenirLesSignesDeVie(options: { lire: () => Promise<StationsDuCompte>; maintenant?: () => number; pasMs?: number }) {

@@ -19,14 +19,16 @@
 //     signe de vie depuis deux rafraîchissements manqués.
 // `atteinte` dit, à part, si son signe de vie est frais : une station qui tient
 // un ticket et s'est tue cuit encore pour GitHub — le bail le lui reprendra —,
-// et l'écran le dit. Null : aucun signe de vie ne se lit pour elle.
+// et l'écran le dit. Null : aucun signe de vie ne se lit pour elle. Une station
+// que la limite de GitHub retient (`retenue`, #2443) est atteinte : son signe
+// de vie ne bouge plus jusqu'à la fin de la limite, mais elle sert ses projets.
 //
 // Le nom d'une station est celui de ses prises : `<machine>/claude`, la
 // machine tirée du nom qu'elle publie, comme le projet la déclare
 // (`projets/preparer.ts`, `machineDe`, que ce module redit sans l'importer :
 // preparer.ts tire avec lui le journal, que l'app ne charge pas — un test les
 // compare).
-import { disponible } from "../enregistrement-station/contrat.ts";
+import { disponible, retenueJusqua, type RetenueParGitHub } from "../enregistrement-station/contrat.ts";
 
 // Le moteur des stations qu'un poste lance (`une-station.ts`).
 const MOTEUR = "claude";
@@ -36,7 +38,7 @@ export type PriseDuRail = { ticket: number; titre: string; station: string; le: 
 
 // Ce que l'enregistrement d'une station dit d'elle (`StationEnregistree` de
 // `enregistrement-station/stations-du-compte.ts`, en partie).
-export type SigneDeVie = { name: string; lastSeen: string; stoppedAt: string | null; refreshMs: number; selection: readonly string[] | null };
+export type SigneDeVie = { name: string; lastSeen: string; stoppedAt: string | null; refreshMs: number; selection: readonly string[] | null; heldBy?: RetenueParGitHub | null };
 
 export type EtatSurGithub = "cooking" | "idle" | "silent";
 
@@ -51,6 +53,8 @@ export type StationSurGithub = {
   cooks: { ticket: number; titre: string }[];
   // Son dernier signe de vie sur GitHub — nul sans enregistrement lu.
   signeDeVie: string | null;
+  // Jusqu'à quand (ISO) la limite de GitHub la retient ; absent hors limite.
+  retenue?: string;
 };
 
 // Le nom de machine d'une station, tel que `projets/preparer.ts` le tire.
@@ -82,6 +86,7 @@ export function stationsSurGithub(options: { depot: string; prises: readonly Pri
     const cooks = (tenues.get(station) ?? []).map(({ ticket, titre }) => ({ ticket, titre }));
     const atteinte = signe === undefined ? null : disponible(signe, maintenant);
     const etat: EtatSurGithub = cooks.length > 0 ? "cooking" : atteinte === true ? "idle" : "silent";
-    return { station, nom: signe?.name ?? null, etat, atteinte, cooks, signeDeVie: signe?.lastSeen ?? null };
+    const retenue = signe === undefined ? null : retenueJusqua(signe, maintenant);
+    return { station, nom: signe?.name ?? null, etat, atteinte, cooks, signeDeVie: signe?.lastSeen ?? null, ...(retenue === null ? {} : { retenue }) };
   });
 }

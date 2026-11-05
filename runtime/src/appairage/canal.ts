@@ -12,8 +12,9 @@ export type Canal = {
   // Un gist secret neuf : rend son identifiant.
   creer(description: string, fichiers: Fichiers): Promise<string>;
   // Réécrit ces fichiers du gist, sans toucher aux autres. `absent` : le gist
-  // n'existe plus — le chef l'a supprimé.
-  ecrire(id: string, fichiers: Fichiers): Promise<"ecrit" | "absent">;
+  // n'existe plus — le chef l'a supprimé. `horsPause` : l'écriture part même
+  // pendant la pause de la box, comme un geste — celle qui dit la pause (#2443).
+  ecrire(id: string, fichiers: Fichiers, options?: { horsPause?: boolean }): Promise<"ecrit" | "absent">;
   // Les fichiers du gist, ou null s'il n'existe plus.
   lire(id: string): Promise<Fichiers | null>;
 };
@@ -36,10 +37,10 @@ const lus = new Map<string, { etag: string; corps: string }>();
 export function canalGitHub(options: OptionsCanal): Canal {
   const env = { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
   // Le corps de la réponse, ou `inchange` si GitHub a répondu 304.
-  const appeler = async (args: string[], entree?: unknown): Promise<{ corps: string; etag: string | null } | "inchange"> => {
+  const appeler = async (args: string[], entree?: unknown, horsPause = false): Promise<{ corps: string; etag: string | null } | "inchange"> => {
     // Un appel que le quota réel retient ne part pas.
     const limite = options.limite ?? limiteDuProcess();
-    return appelerGitHub(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist", ecriture: estUneEcriture(args) }, gh: options.gh, env: async () => env, maintenant: options.maintenant }, (appel) =>
+    return appelerGitHub(limite, { ...(horsPause ? { usage: "geste" as const } : {}), etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist", ecriture: estUneEcriture(args) }, gh: options.gh, env: async () => env, maintenant: options.maintenant }, (appel) =>
       new Promise<{ corps: string; etag: string | null } | "inchange">((resoudre, rejeter) => {
         const enfant = execFile(
           options.gh,
@@ -69,8 +70,8 @@ export function canalGitHub(options: OptionsCanal): Canal {
       }),
     );
   };
-  const corpsDe = async (args: string[], entree?: unknown): Promise<string> => {
-    const lu = await appeler(args, entree);
+  const corpsDe = async (args: string[], entree?: unknown, horsPause = false): Promise<string> => {
+    const lu = await appeler(args, entree, horsPause);
     if (lu === "inchange") throw new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : HTTP 304 sans condition`);
     return lu.corps;
   };
@@ -82,9 +83,9 @@ export function canalGitHub(options: OptionsCanal): Canal {
       if (typeof rendu.id !== "string" || rendu.id === "") throw new Error("gh api /gists : la création n'a pas rendu d'identifiant");
       return rendu.id;
     },
-    async ecrire(id, fichiers) {
+    async ecrire(id, fichiers, { horsPause = false } = {}) {
       try {
-        await corpsDe(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: contenus(fichiers) });
+        await corpsDe(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: contenus(fichiers) }, horsPause);
         return "ecrit";
       } catch (erreur) {
         if (erreur instanceof Absent) return "absent";

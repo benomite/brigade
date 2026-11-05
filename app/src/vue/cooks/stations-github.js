@@ -8,6 +8,7 @@
 // relancer une station est un geste de l'ancien chemin, que la boucle de GitHub seul ne lit pas : aucun bouton.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 import { cartesDeCooks, lignesDeCooks, TITRE } from "../stations-de-cuisson.js";
+import { RETENUE } from "../stations-du-compte.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../cuisson.ts").LigneDeStation} Ligne */
@@ -21,6 +22,7 @@ export const ATTEINTE = {
 };
 export const ATTEINTE_INCONNUE = "no sign of life of this station is read on GitHub: the app knows it only by the tickets it holds";
 export const PAS_ATTEINTE = "open Brigade on that computer: its station signs on GitHub again within two minutes";
+export const RETENUE_SURVOL = "GitHub's limit holds its calls: it keeps its tickets and its projects, and signs again once the limit lifts";
 // Son dernier signe de vie, comme la liste des stations du compte le dit (stations-du-compte.js).
 /** @param {string} instant */
 export const SIGNE_DE_VIE = (instant) => `last sign of life ${instant.slice(0, 16).replace("T", " ")} UTC`;
@@ -35,10 +37,12 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-// Si elle est atteinte : son signe de vie frais, ou non ; aucun lu, rien ne le dit.
+// Si elle est atteinte : son signe de vie frais, ou non ; aucun lu, rien ne le dit. Retenue par la limite de GitHub
+// (ticket 2443), elle est atteinte et le dit : son signe de vie attend la fin de la limite.
 /** @param {Ligne} ligne @returns {{ mot: string, ton: string, survol: string }} */
-function atteinteDe({ presente, vueLe }) {
+function atteinteDe({ presente, vueLe, retenue }) {
   const quand = vueLe === null || vueLe === undefined ? "" : SIGNE_DE_VIE(vueLe);
+  if (retenue !== undefined) return { mot: RETENUE(retenue), ton: "jaune", survol: [quand, RETENUE_SURVOL].filter((ligne) => ligne !== "").join("\n") };
   if (presente === true) return { mot: ATTEINTE.oui, ton: "vert", survol: quand };
   if (presente === false) return { mot: ATTEINTE.non, ton: "gris", survol: [quand, PAS_ATTEINTE].filter((ligne) => ligne !== "").join("\n") };
   return { mot: ATTEINTE.inconnue, ton: "gris", survol: ATTEINTE_INCONNUE };

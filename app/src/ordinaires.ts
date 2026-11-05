@@ -28,6 +28,8 @@ export type StationDesFaits = {
   fournit?: string[];
   presente?: boolean;
   vueLe?: string | null;
+  // Sur GitHub seul : jusqu'à quand (ISO) la limite de GitHub la retient (#2443) — absent hors limite.
+  retenue?: string;
 };
 
 // Ce poste en tête de phrase : « This Mac », « This PC ».

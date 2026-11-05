@@ -66,6 +66,10 @@ what the other wrote.
 - `lastSeen`: the instant of its last write, which is its sign of life.
 - `refreshMs`: the period between two writes, `120000` (2 min).
 - `stoppedAt`: the instant of its clean stop, or `null` while it runs.
+- `heldBy` (#2443): present only while GitHub's limit holds the station's calls — `{ "limit":
+  "secondary-writes", "since": "…", "until": "…" }`, `limit` being one of `github-limite.ts`'s kinds.
+  The station writes it once, outside its pause, as the pause starts; its next write, after `until`,
+  drops it.
 
 The account is not written in the file. It is the gist's owner (`owner.login` in GitHub's answer).
 
@@ -77,6 +81,10 @@ The account is not written in the file. It is the gist's owner (`owner.login` in
 - **Every `refreshMs` (2 min)**, it rewrites the file with a new `lastSeen` and `stoppedAt: null`.
   That is 30 gist writes an hour, which go through the station's GitHub call counter
   (`limite-github.ts`) like every gist call.
+- **When GitHub's limit stops its calls** (`limite-github.ts`, `constaterLimite`), it writes at once,
+  outside the box's pause (as a gesture would), its registration with `heldBy`, then writes nothing
+  until `until`. Without it, its `lastSeen` froze, and the app said it offline, with every project
+  without a station, for the whole window (2026-11-05, 14:06–14:37).
 - **A failed write** is retried every minute (`NOUVEL_ESSAI_MS`). The service log says the failure
   once, and says once when GitHub answers again. This covers the install flow: the installer starts
   the station *before* the GitHub sign-in, so the first writes fail with no account. The station
@@ -94,7 +102,15 @@ The account is not written in the file. It is the gist's owner (`owner.login` in
 The reader judges, at the instant it reads (`disponible` in `contrat.ts`):
 
 > **available** ⇔ `stoppedAt` is null or older than `lastSeen`, **and**
-> `now − lastSeen ≤ 2 × refreshMs + 30 s`
+> `now − lastSeen ≤ 2 × refreshMs + 30 s` **or** it is held (below)
+
+> **held** (`retenueJusqua`) ⇔ `heldBy` is present, `stoppedAt` is null or older than `lastSeen`, and
+> `now − heldBy.until ≤ 2 × refreshMs + 30 s`
+
+A held station is available: its calls wait for the end of GitHub's limit, it keeps its projects. The
+reader gives `heldUntil` (`heldBy.until`) and `heldBy` with it, absent otherwise; the app says `held by
+GitHub's limit until HH:MM` in place of `online`. A limit that ended without a word from the station
+since leaves it offline once that grace is spent.
 
 - **A clean stop** (SIGTERM or SIGINT, the signals the station handles; `systemctl stop` and launchd send SIGTERM) writes
   `stoppedAt` at once. The station is **unavailable at the app's next read**.
@@ -114,7 +130,8 @@ stations are listed, 1 otherwise. The reader lists `/gists` page by page and kee
 file content. The answer is one of three states, never an empty list without a reason:
 
 - `listed`: `stations`, sorted by name, each with `id` (the gist), `name`, `platform`, `machine`,
-  `version`, `account` (the gist's owner, or null), `available`, `registeredAt`, `lastSeen`,
+  `version`, `account` (the gist's owner, or null), `available`, `heldUntil` and `heldBy` (only while
+  held), `registeredAt`, `lastSeen`,
   `stoppedAt`, `refreshMs` and `selection` (the selected repositories, or `null` before the app
   writes any). `unreadable` lists the registrations the reader cannot read, with the reason. With no
   station, `reason` says why, in one sentence.

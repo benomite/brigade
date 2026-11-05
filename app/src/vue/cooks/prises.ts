@@ -55,7 +55,7 @@ export function tenantDeLIssue(commentaires: readonly Brut[], evenements: readon
 // frais, absent quand aucun ne se lit pour elle ; `vueLe`, ce dernier signe de vie. Ce que GitHub ne dit pas d'elle —
 // son plafond, son bac à sable, ses tickets ordinaires — reste nul.
 export function stationsDeGithub(cooks: readonly (Cook & { le: string })[], signes: readonly SigneDeVie[] | null, depot: string, maintenant: number): StationDesFaits[] {
-  return stationsSurGithub({ depot, prises: cooks, signes, maintenant }).map(({ station, etat, atteinte, cooks: siens, signeDeVie }) => ({
+  return stationsSurGithub({ depot, prises: cooks, signes, maintenant }).map(({ station, etat, atteinte, cooks: siens, signeDeVie, retenue }) => ({
     station,
     distante: false,
     plafond: null,
@@ -65,6 +65,7 @@ export function stationsDeGithub(cooks: readonly (Cook & { le: string })[], sign
     cuisson: etat,
     cooks: siens.map(({ ticket, titre }) => ({ ticket, titre, station })),
     ...(atteinte === null ? {} : { presente: atteinte }),
+    ...(retenue === undefined ? {} : { retenue }),
     vueLe: signeDeVie,
   }));
 }

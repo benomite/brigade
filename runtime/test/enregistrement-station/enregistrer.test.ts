@@ -8,23 +8,27 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
-import { disponible, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, indisponibleApres, NOUVEL_ESSAI_MS, plateformeDe, RAFRAICHI_MS, selectionLue, type Enregistrement } from "../../src/enregistrement-station/contrat.ts";
+import { disponible, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, indisponibleApres, NOUVEL_ESSAI_MS, plateformeDe, RAFRAICHI_MS, retenueJusqua, selectionLue, type Enregistrement } from "../../src/enregistrement-station/contrat.ts";
 import { FICHIER_LOCAL, tenirEnregistrement } from "../../src/enregistrement-station/enregistrer.ts";
-import { LimiteGitHubAtteinte } from "../../src/limite-github.ts";
+import { stationDuGist } from "../../src/enregistrement-station/stations-du-compte.ts";
+import { stationsSurGithub } from "../../src/stations-github/stations.ts";
+import { LimiteGitHubAtteinte, type PauseDeGitHub } from "../../src/limite-github.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const DEPART = Date.parse("2026-10-26T09:00:00Z");
 
-// Les gists du compte, en mémoire. `panne` : ce que chaque appel lève, tant qu'elle est posée.
+// Les gists du compte, en mémoire. `panne` : ce que chaque appel lève, tant qu'elle est posée —
+// sauf une écriture hors de la pause, quand `pauseDeLaBox` dit que la panne est la pause de la box.
 function fauxGists() {
   const gists = new Map<string, { description: string; fichiers: Fichiers }>();
   let rang = 0;
-  const etat = { panne: null as Error | null, appels: 0 };
-  const tomber = () => {
+  const etat = { panne: null as Error | null, appels: 0, pauseDeLaBox: false, horsPause: 0 };
+  const tomber = (horsPause = false) => {
     etat.appels += 1;
-    if (etat.panne !== null) throw etat.panne;
+    if (horsPause) etat.horsPause += 1;
+    if (etat.panne !== null && !(horsPause && etat.pauseDeLaBox)) throw etat.panne;
   };
   const canal: Canal = {
     async creer(description, fichiers) {
@@ -33,8 +37,8 @@ function fauxGists() {
       gists.set(id, { description, fichiers: { ...fichiers } });
       return id;
     },
-    async ecrire(id, fichiers) {
-      tomber();
+    async ecrire(id, fichiers, options) {
+      tomber(options?.horsPause === true);
       const gist = gists.get(id);
       if (gist === undefined) return "absent";
       Object.assign(gist.fichiers, fichiers);
@@ -51,8 +55,8 @@ function fauxGists() {
 }
 
 // Une horloge simulée : les minuteurs ne battent que quand le test avance le temps.
-function fausseHorloge() {
-  let instant = DEPART;
+function fausseHorloge(depart = DEPART) {
+  let instant = depart;
   const minuteurs: { le: number; tache: () => void; annule: boolean }[] = [];
   const apres = (tache: () => void, ms: number) => {
     const minuteur = { le: instant + ms, tache, annule: false };
@@ -79,7 +83,7 @@ function fausseHorloge() {
   return { apres, avancer, armes, maintenant: () => instant };
 }
 
-function unEnregistrement(t: TestContext, options: { racine?: string; github?: ReturnType<typeof fauxGists>; horloge?: ReturnType<typeof fausseHorloge>; version?: string } = {}) {
+function unEnregistrement(t: TestContext, options: { racine?: string; github?: ReturnType<typeof fauxGists>; horloge?: ReturnType<typeof fausseHorloge>; version?: string; pauses?: (ecouteur: (pause: PauseDeGitHub) => void) => () => void } = {}) {
   const racine = options.racine ?? repertoireTemporaire(t);
   const github = options.github ?? fauxGists();
   const horloge = options.horloge ?? fausseHorloge();
@@ -92,6 +96,7 @@ function unEnregistrement(t: TestContext, options: { racine?: string; github?: R
     dire: (ligne) => lignes.push(ligne),
     apres: horloge.apres,
     maintenant: horloge.maintenant,
+    ...(options.pauses === undefined ? {} : { pauses: options.pauses }),
   });
   aArreter(t, () => tenue.arreter());
   return { racine, github, horloge, lignes, tenue };
@@ -282,6 +287,85 @@ test("GitHub a atteint sa limite : elle n'appelle plus avant la fin de la fenêt
   await horloge.avancer(1);
   assert.ok(tenue.gist());
   assert.equal(lignes[0], "brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls");
+});
+
+// La fenêtre du 5 novembre (#2443), rejouée : parade-box écrit son signe de vie à
+// 14:04:25, GitHub la limite à 14:06 jusqu'à 14:37, et le chef lui rechoisit ses
+// projets à 14:23. Avant, son signe de vie figé la disait tue dès 14:09, et
+// chacun de ses projets sans station.
+test("a GitHub limit window replayed: the registration says the limit as the calls stop, and the app's reading keeps the station and its projects, held until 14:37, never offline", async (t) => {
+  const a = (hhmmss: string) => Date.parse(`2026-11-05T${hhmmss}Z`);
+  const github = fauxGists();
+  const horloge = fausseHorloge(a("14:04:25"));
+  const ecouteurs = new Set<(pause: PauseDeGitHub) => void>();
+  const pauses = (ecouteur: (pause: PauseDeGitHub) => void) => {
+    ecouteurs.add(ecouteur);
+    return () => void ecouteurs.delete(ecouteur);
+  };
+  const { tenue } = unEnregistrement(t, { github, horloge, pauses });
+  await horloge.avancer(0);
+  const gist = tenue.gist() as string;
+  const depots = ["benomite/brigade", "benomite/parade", "benomite/site", "benomite/notes"];
+  const lecture = (instant: number) => {
+    const station = stationDuGist(gist, github.gists.get(gist)?.fichiers ?? {}, "benomite", instant);
+    assert.ok(!("illisible" in station));
+    return station;
+  };
+  const sesProjets = (instant: number) => {
+    const station = lecture(instant);
+    return depots.map((depot) => stationsSurGithub({ depot, prises: [], signes: [station], maintenant: instant }));
+  };
+
+  // 14:06 : GitHub refuse, la box pose sa pause jusqu'à 14:37 — plus aucun appel de la cuisine ne part.
+  await horloge.avancer(a("14:06:00") - horloge.maintenant());
+  github.etat.panne = new LimiteGitHubAtteinte(a("14:37:00"), a("14:37:00") - a("14:06:00"));
+  github.etat.pauseDeLaBox = true;
+  const refus = { statut: 403, entetes: new Map([["retry-after", "1860"]]), corps: JSON.stringify({ message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again." }) };
+  for (const ecouteur of ecouteurs) ecouteur({ depuis: a("14:06:00"), jusqua: a("14:37:00"), reponse: refus });
+  await horloge.avancer(0);
+  assert.equal(github.etat.horsPause, 1, "one write, outside the box's pause, says the limit");
+  assert.deepEqual(github.enregistrement(gist).heldBy, { limit: "secondary-concurrency", since: "2026-11-05T14:06:00.000Z", until: "2026-11-05T14:37:00.000Z" });
+  assert.equal(github.enregistrement(gist).lastSeen, "2026-11-05T14:06:00.000Z");
+
+  // 14:23 : le chef rechoisit ses projets ; la station, retenue, ne le lit qu'à la fin de la limite.
+  github.gists.get(gist)!.fichiers[FICHIER_SELECTION] = JSON.stringify({ brigade: "station-selection", format: 1, repositories: depots, updatedAt: iso(a("14:23:00")) });
+  const appelsPendant = github.etat.appels;
+  for (const instant of [a("14:11:00"), a("14:23:00"), a("14:36:59")]) {
+    await horloge.avancer(instant - horloge.maintenant());
+    const station = lecture(instant);
+    assert.equal(station.available, true, `${iso(instant)}: not offline`);
+    assert.equal(station.heldUntil, "2026-11-05T14:37:00.000Z", `${iso(instant)}: held until 14:37`);
+    assert.deepEqual(station.selection, depots);
+    for (const [rang, stations] of sesProjets(instant).entries()) {
+      assert.deepEqual(stations.map(({ station: nom, etat, atteinte, retenue }) => ({ nom, etat, atteinte, retenue })), [{ nom: "box/claude", etat: "idle", atteinte: true, retenue: "2026-11-05T14:37:00.000Z" }], `${depots[rang]} keeps its station at ${iso(instant)}`);
+    }
+    // Sans ce que l'enregistrement dit de la limite, la même lecture la disait tue.
+    assert.equal(disponible({ ...github.enregistrement(gist), heldBy: null }, instant), false);
+  }
+  assert.equal(github.etat.appels, appelsPendant, "no call during the window");
+
+  // 14:37 : la limite levée, la station réécrit son signe de vie, et la limite n'y est plus.
+  github.etat.panne = null;
+  github.etat.pauseDeLaBox = false;
+  await horloge.avancer(a("14:37:00") - horloge.maintenant());
+  assert.equal(github.enregistrement(gist).lastSeen, "2026-11-05T14:37:00.000Z");
+  assert.equal(github.enregistrement(gist).heldBy, undefined);
+  assert.deepEqual([lecture(a("14:37:30")).available, lecture(a("14:37:30")).heldUntil], [true, undefined]);
+});
+
+test("a station whose limit ended without a word from it since is offline once its freshness is spent", () => {
+  const fin = Date.parse("2026-11-05T14:37:00Z");
+  const tenue: Enregistrement = { brigade: "station-registration", format: 1, name: "box", platform: "linux", machine: "", version: "1", registeredAt: iso(fin - 3_600_000), lastSeen: iso(fin - 31 * 60_000), refreshMs: RAFRAICHI_MS, stoppedAt: null, heldBy: { limit: "secondary-writes", since: iso(fin - 31 * 60_000), until: iso(fin) } };
+  assert.deepEqual(enregistrementLu(JSON.stringify(tenue)), tenue);
+  assert.equal(retenueJusqua(tenue, fin + indisponibleApres(RAFRAICHI_MS)), iso(fin));
+  assert.equal(disponible(tenue, fin + indisponibleApres(RAFRAICHI_MS)), true);
+  assert.equal(retenueJusqua(tenue, fin + indisponibleApres(RAFRAICHI_MS) + 1), null);
+  assert.equal(disponible(tenue, fin + indisponibleApres(RAFRAICHI_MS) + 1), false);
+  // Arrêtée proprement pendant la limite : elle n'est plus retenue, elle est arrêtée.
+  assert.equal(disponible({ ...tenue, stoppedAt: tenue.lastSeen }, fin), false);
+  assert.equal(retenueJusqua({ ...tenue, stoppedAt: tenue.lastSeen }, fin), null);
+  // Une limite illisible ne se lit pas.
+  assert.equal("heldBy" in (enregistrementLu(JSON.stringify({ ...tenue, heldBy: { limit: "x", since: "hier", until: iso(fin) } })) as Enregistrement), false);
 });
 
 test("arrêtée avant d'avoir jamais été enregistrée, elle n'a rien à écrire", async (t) => {

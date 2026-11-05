@@ -122,7 +122,50 @@ export class EcritureEspacee extends Error {
   }
 }
 
+// Le débit des requêtes de la cuisine, par compte et pour tous les projets de
+// la station ensemble (#2443). GitHub plafonne, en limite secondaire, les
+// points d'un compte par minute — 900 pour l'API REST, une lecture en coûtant
+// 1 et une écriture 5 —, que la réponse soit un 304 ou non : un 304 ne coûte
+// rien au quota horaire, pas à cette limite. La file ne tenait que quatre
+// requêtes en vol : au rythme où `gh` répond, les tours des projets, la pass
+// et la fermeture partis ensemble — après une pause surtout — passaient ces 900
+// points en moins d'une minute, sans que le quota horaire (où les 304 ne
+// comptent pas) n'en dise rien. La cuisine en prend la moitié ; l'autre reste
+// au Mac du chef et à ses gestes, qui ne sont jamais espacés.
+export const POINTS_PAR_MINUTE = 450;
+export const POINTS_PAR_LECTURE = 1;
+export const POINTS_PAR_ECRITURE = 5;
+
+// Un appel de la cuisine que le débit retient : il ne part pas, et peut
+// repartir à `jusqua`. Comme l'écriture espacée, il attend son tour dans la
+// file ; mais il retient tous les appels de son compte arrivés après lui, les
+// lectures aussi.
+export class AppelEspace extends EcritureEspacee {
+  // Les points du compte sur la minute écoulée.
+  readonly points: number;
+  constructor(jusqua: number, dansMs: number, points: number) {
+    super(jusqua, dansMs);
+    this.message = `appels GitHub espacés : ${POINTS_PAR_MINUTE} points par minute au plus (une lecture ${POINTS_PAR_LECTURE}, une écriture ${POINTS_PAR_ECRITURE}) — le suivant part dans ${Math.ceil(dansMs / 1000)} s`;
+    this.name = "AppelEspace";
+    this.points = points;
+  }
+}
+
 type Lire = <T>(sql: string, ...params: Array<string | number>) => T[];
+
+// L'instant où un appel de `cout` points du compte peut partir : quand assez
+// de points de la minute en sont sortis — null s'il part tout de suite.
+function prochainAppel(lire: Lire, compte: string, instant: number, cout: number): { jusqua: number; points: number } | null {
+  const lus = lire<{ instant: number; points: number }>("SELECT instant, points FROM points WHERE compte = ? AND instant > ? ORDER BY instant ASC", compte, instant - MINUTE_MS);
+  const points = lus.reduce((somme, lu) => somme + lu.points, 0);
+  if (points + cout <= POINTS_PAR_MINUTE) return null;
+  let restants = points;
+  for (const lu of lus) {
+    restants -= lu.points;
+    if (restants + cout <= POINTS_PAR_MINUTE) return { jusqua: lu.instant + MINUTE_MS, points };
+  }
+  return { jusqua: instant + MINUTE_MS, points };
+}
 
 // L'instant où la prochaine écriture du compte peut partir : la sortie de la
 // fenêtre de la plus ancienne des écritures, pour la fenêtre pleine — null si
@@ -238,6 +281,8 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   base.script(
     "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
+  // Les points de la cuisine sur la minute (#2443) : à part des appels, qu'un 304 quitte.
+  base.script("CREATE TABLE IF NOT EXISTS points (instant INTEGER NOT NULL, compte TEXT NOT NULL, points INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS points_par_compte ON points (compte, instant);");
 
   // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
@@ -257,10 +302,12 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { appel: number; alerte: AlerteDeBudget | null } => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { debit: number; points: number } | { appel: number; alerte: AlerteDeBudget | null } => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
+        base.executer("DELETE FROM points WHERE instant <= ?", instant - MINUTE_MS);
+        const cout = etiquette?.ecriture === true ? POINTS_PAR_ECRITURE : POINTS_PAR_LECTURE;
         if (usage === "cuisine") {
           // La limite de GitHub atteinte : rien ne part, et rien n'est compté.
           const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
@@ -274,6 +321,10 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
             const espacer = prochaineEcriture((sql, ...params) => base.lire(sql, ...params), compte, instant);
             if (espacer !== null) return { espacer, ecrites: base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ?", compte, instant - FENETRE_MS)[0]?.n ?? 0 };
           }
+          // Le débit du compte, lectures et écritures ensemble (#2443).
+          const debit = prochainAppel((sql, ...params) => base.lire(sql, ...params), compte, instant, cout);
+          if (debit !== null) return { debit: debit.jusqua, points: debit.points };
+          base.executer("INSERT INTO points (instant, compte, points) VALUES (?, ?, ?)", instant, compte, cout);
         }
         const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
         const lecture = etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other");
@@ -299,6 +350,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         return refus.appel;
       }
       if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()), refus.ecrites);
+      if ("debit" in refus) throw new AppelEspace(refus.debit, Math.max(0, refus.debit - maintenant()), refus.points);
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
@@ -606,10 +658,12 @@ function fileDe(limite: Limite): File {
   const pomper = () => {
     // Les comptes dont une écriture attend le rythme : les suivantes restent derrière elle.
     const retenus = new Map<string, EcritureEspacee>();
+    // Les comptes dont un appel attend le débit : tous les suivants restent derrière lui (#2443).
+    const tenus = new Map<string, AppelEspace>();
     let prochain: { jusqua: number; par: EnAttente } | null = null;
     for (const entree of [...attente]) {
       if (enVol >= REQUETES_EN_VOL) break;
-      const devant = entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined;
+      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined);
       if (devant !== undefined) {
         retenir(entree, devant);
         continue;
@@ -619,6 +673,7 @@ function fileDe(limite: Limite): File {
         appel = limite.prendre(entree.usage, entree.compte, entree.etiquette);
       } catch (erreur) {
         if (erreur instanceof EcritureEspacee) {
+          if (erreur instanceof AppelEspace) tenus.set(entree.compte, erreur);
           retenus.set(entree.compte, erreur);
           retenir(entree, erreur);
           if (prochain === null || erreur.jusqua < prochain.jusqua) prochain = { jusqua: erreur.jusqua, par: entree };
@@ -713,7 +768,12 @@ export function journaliserLaRetenue(dire: (ligne: string) => void): void {
 
 function commencerLaRetenue(erreur: EcritureEspacee): void {
   enAttente += 1;
-  if (enAttente === 1) direLaRetenueDansLeJournal?.(`brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`);
+  if (enAttente !== 1) return;
+  direLaRetenueDansLeJournal?.(
+    erreur instanceof AppelEspace
+      ? `brigade : appels GitHub espacés par le débit — ${erreur.points} points sur ${POINTS_PAR_MINUTE} sur la minute écoulée, le suivant à ${heure(erreur.jusqua)}`
+      : `brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`,
+  );
 }
 
 function finirLaRetenue(): void {
@@ -772,6 +832,18 @@ export function journaliserLaPause(dire: (ligne: string) => void): void {
   direLaPauseDansLeJournal = dire;
 }
 
+// Une pause de GitHub qui commence : jusqu'à quand, depuis quand (en
+// millisecondes), et la réponse qui l'a dite.
+export type PauseDeGitHub = { depuis: number; jusqua: number; reponse: ReponseHttp };
+const ecouteursDeLaPause = new Set<(pause: PauseDeGitHub) => void>();
+
+// Qui veut savoir qu'une pause commence — l'enregistrement de la station, qui le
+// dit à l'app avant que ses appels ne s'arrêtent (#2443). Rend de quoi se retirer.
+export function surLaPauseDeGitHub(ecouteur: (pause: PauseDeGitHub) => void): () => void {
+  ecouteursDeLaPause.add(ecouteur);
+  return () => void ecouteursDeLaPause.delete(ecouteur);
+}
+
 // Vrai pour le refus d'un appel que la pause de GitHub retient : la pause est
 // déjà au journal, l'appelant n'a rien à en redire. La retenue de la box
 // (`CuisineRalentie`) n'en est pas une.
@@ -807,6 +879,12 @@ export async function constaterLimite(limite: Limite, reponse: ReponseHttp, opti
   if (!enCours) {
     pauseDite = true;
     direLaPauseDansLeJournal?.(`brigade : GitHub limit reached — no call leaves the station before ${heure(jusqua)}`);
+    // Ce qui l'écoute ne retient jamais le refus.
+    for (const ecouteur of ecouteursDeLaPause) {
+      try {
+        ecouteur({ depuis: instant, jusqua, reponse });
+      } catch {}
+    }
   }
   return new LimiteGitHubAtteinte(jusqua, Math.max(0, jusqua - instant));
 }

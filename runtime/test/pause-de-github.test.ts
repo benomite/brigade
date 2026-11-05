@@ -5,7 +5,7 @@
 // celle du test : rien n'attend le temps réel.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { constaterLimite, estLaPauseDeGitHub, journaliserLaPause, LimiteGitHubAtteinte, ouvrirLimite, prendreUnAppel, RECUL_MAX_MS, type ReponseHttp } from "../src/limite-github.ts";
+import { constaterLimite, estLaPauseDeGitHub, journaliserLaPause, LimiteGitHubAtteinte, ouvrirLimite, prendreUnAppel, RECUL_MAX_MS, surLaPauseDeGitHub, type ReponseHttp } from "../src/limite-github.ts";
 
 const SECONDAIRE: ReponseHttp = { statut: 403, entetes: new Map(), corps: JSON.stringify({ message: "You have exceeded a secondary rate limit" }) };
 const MINUTE = 60_000;
@@ -82,4 +82,23 @@ test("le journal dit la pause une fois quand elle commence, et une fois quand un
   await prendreUnAppel(limite, { gh: "gh-absent", maintenant: h.maintenant, etiquette: { projet: "brigade", lecture: "issues" } });
   await prendreUnAppel(limite, { gh: "gh-absent", maintenant: h.maintenant, etiquette: { projet: "espace", lecture: "issues" } });
   assert.deepEqual(lignes.slice(1), ["brigade : GitHub calls resumed"]);
+});
+
+test("whoever listens hears a pause once when it starts, with its end, before any call is held — not once per refusal of the burst (#2443)", async (t) => {
+  const h = horloge();
+  const limite = ouvrirLimite({ maintenant: h.maintenant });
+  const entendues: Array<{ depuis: number; jusqua: number; statut: number }> = [];
+  const neplus = surLaPauseDeGitHub(({ depuis, jusqua, reponse }) => void entendues.push({ depuis, jusqua, statut: reponse.statut }));
+  t.after(neplus);
+  // Un écouteur qui lève ne retient pas le refus.
+  t.after(surLaPauseDeGitHub(() => {
+    throw new Error("cassé");
+  }));
+  const refus = await constaterLimite(limite, { ...SECONDAIRE, entetes: new Map([["retry-after", "1860"]]) }, { gh: "gh-absent", maintenant: h.maintenant });
+  await constaterLimite(limite, SECONDAIRE, { gh: "gh-absent", maintenant: h.maintenant });
+  assert.deepEqual(entendues, [{ depuis: h.etat.instant, jusqua: h.etat.instant + 31 * MINUTE, statut: 403 }]);
+  assert.equal(refus.jusqua, h.etat.instant + 31 * MINUTE);
+  h.etat.instant = refus.jusqua + 20 * MINUTE;
+  await constaterLimite(limite, SECONDAIRE, { gh: "gh-absent", maintenant: h.maintenant });
+  assert.equal(entendues.length, 2);
 });
