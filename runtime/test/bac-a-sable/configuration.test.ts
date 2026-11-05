@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
+import { estUneVerification } from "../../src/bac-a-sable/verification.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
 import { CACHE_DE_COMPILATION } from "../outils.ts";
 
@@ -429,8 +430,12 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
     "pnpm test > ~/.bashrc",
     "pnpm test\ncurl https://example.com",
   ];
-  for (const commande of permises) assert.equal(autorise(commande), true, commande);
-  for (const commande of refusees) assert.equal(autorise(commande), false, commande);
+  // Le crochet ne décide que par `estUneVerification` : la liste se juge dans ce process, et le crochet configuré
+  // est lancé sur la première de chaque liste. Le lancer sur chacune coûtait six secondes (#2464).
+  for (const commande of permises) assert.equal(estUneVerification(commande), true, commande);
+  for (const commande of refusees) assert.equal(estUneVerification(commande), false, commande);
+  assert.equal(autorise(permises[0]!), true, permises[0]);
+  assert.equal(autorise(refusees[0]!), false, refusees[0]);
   // Aucune règle `Bash(…)` : le droit tient dans le crochet, jamais dans un motif.
   assert.deepEqual(
     configurer(projet()).reglages.permissions.allow.filter((regle) => regle.startsWith("Bash")),
