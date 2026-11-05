@@ -495,7 +495,7 @@ test("un clone en échec se dit en clair : la cause, le compte GitHub de la stat
   assert.equal(station.onboarding()?.widgets?.etapes.find(({ etape }) => etape === "depot")?.etat, "faite");
 });
 
-test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une ligne écrite à la main garde la main", async (t) => {
+test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une ligne écrite à la main garde la main, et sert le projet", async (t) => {
   const station = uneStation(t);
   writeFileSync(join(station.racine, "projets"), "espace acme/espace main\n");
   station.demander({ ...SHOP, principale: false }, { ...SHOP, nom: "espace", depot: "acme/espace" });
@@ -505,7 +505,7 @@ test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une l
     station.suivi()?.map(({ nom, etat }) => [nom, etat]),
     [
       ["shop", "secondaire"],
-      ["espace", "refuse"],
+      ["espace", "servi"],
     ],
   );
   assert.deepEqual(station.clones, []);
@@ -537,12 +537,43 @@ test("un projet refusé porte un refus structuré — statut, code, phrase, acti
   assert.equal("refus" in (JSON.parse(JSON.stringify(servi)) as object), false);
 });
 
-test("un projet écrit à la main dans la configuration : son refus dit pourquoi", async (t) => {
+test("un projet écrit à la main dans la configuration, que la station ne sert pas ou pour un autre dépôt : son refus dit pourquoi", async (t) => {
   const station = uneStation(t);
   writeFileSync(join(station.racine, "projets"), "shop acme/shop main\n");
+  station.refuses.set("shop", "le clone du projet n'existe pas");
   station.demander(SHOP);
   await station.projets.relire();
   assert.deepEqual(station.suivi()?.[0]?.refus, refus("hand-written-line"));
+  // Servi, mais pour un autre dépôt sous le même nom.
+  station.refuses.delete("shop");
+  writeFileSync(join(station.racine, "projets"), "shop autre/shop main\n");
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.[0]?.refus, refus("hand-written-line"));
+});
+
+test("#2444 : un projet que la station sert déjà par une ligne de sa configuration est servi, jamais refusé — une seule cuisine", async (t) => {
+  const station = uneStation(t);
+  writeFileSync(join(station.racine, "projets"), "brigade benomite/brigade main\ncalculus-workspace BOBL-tech/calculus-workspace main\nespace BOBL-tech/espace main\nmirrorlab BOBL-tech/mirrorlab main\n");
+  const choisis = [
+    { ...SHOP, nom: "brigade", depot: "benomite/brigade" },
+    { ...SHOP, nom: "mirrorlab", depot: "BOBL-tech/mirrorlab" },
+    { ...SHOP, nom: "espace", depot: "BOBL-tech/espace" },
+    { ...SHOP, nom: "mirrorscreen", depot: "BOBL-tech/mirrorscreen" },
+  ];
+  station.demander(...choisis);
+  await station.projets.relire();
+  const suivi = station.suivi() ?? [];
+  for (const nom of ["brigade", "mirrorlab", "espace"]) {
+    const un = suivi.find((dit) => dit.nom === nom);
+    assert.equal(un?.etat, "servi", nom);
+    assert.equal(un?.cuitSur, "box", nom);
+    assert.equal("refus" in (un ?? {}), false, nom);
+  }
+  assert.notEqual(suivi.find((dit) => dit.nom === "mirrorscreen")?.etat, "refuse");
+  // La ligne écrite à la main reste seule : le bloc de l'app ne la double pas.
+  const configuration = readFileSync(join(station.racine, "projets"), "utf8");
+  assert.equal(configuration.split("\n").filter((ligne) => ligne.startsWith("brigade ")).length, 1);
+  assert.match(configuration, /^mirrorscreen /m);
 });
 
 // L'accès au dépôt, vérifié sur le remote du clone avant que rien ne soit
