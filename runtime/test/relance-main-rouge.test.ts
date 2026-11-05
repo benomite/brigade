@@ -113,3 +113,15 @@ test("a red check with no Actions job stays red, and GitHub limiting its calls s
   );
   await assert.rejects(limite([{ name: "tests", outcome: "red", url: job(9) }]), LimiteGitHubAtteinte);
 });
+
+test("a red informational Windows check on main (#2087) is never re-run, while a red `tests` check still is once (#2323)", async () => {
+  const { relances, lectures, relancer } = faux();
+  const lus = await relancer([
+    { name: "windows tests (3/8)", outcome: "red", url: job(10, 1) },
+    { name: "windows app tests", outcome: "red", url: job(11, 1) },
+    { name: "tests", outcome: "red", url: job(12, 1) },
+  ]);
+  assert.deepEqual(lus.map((c) => c.outcome), ["red", "red", "pending"]);
+  assert.deepEqual(relances, [12]);
+  assert.deepEqual(lectures, [12]);
+});
