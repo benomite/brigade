@@ -579,7 +579,8 @@ The question is the comment's first written line; each line `- [<gesture>] <labe
 gesture among `resume`, `merge`, `drop`, `close` (a GitHub check box `- [ ]` or `- [x]`, or another word, is not a choice);
 the rest is drawn under the question. A comment without choices reads as before, and keeps the free-text field. The question
 is said once: the card's line says what its kind asks (`A product question waits for your answer.`), the card asks the
-question, and the sheet says it under `what it asks you` (never `what blocks it: not communicated`).
+question, and the sheet says it under `what it asks you`, its head saying what the kind asks (never `what blocks it: not
+communicated`).
 
 A click on a choice, or a typed answer, posts a comment on the issue from the chef's `gh` — `<!-- brigade:reponse
 gesture=<g> -->`, then the chosen label, or the text — then plays the gesture on GitHub (a typed answer plays `resume`):

@@ -1195,7 +1195,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: {
         ...entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }), ...(ecrite === undefined ? {} : { prio: ecrite }) }),
-        ...(dit === undefined ? {} : { attendu: duChef?.question ?? pourquoi ?? attenduDe(donne?.decision).phrase }),
+        // La carte du chef : la tête dit ce que sa sorte attend, la question est dite dessous (histoire.ts, `situation`).
+        ...(dit === undefined ? {} : { attendu: duChef !== undefined && donne?.chef !== undefined ? phraseDuChef(donne.chef.sorte) : (pourquoi ?? attenduDe(donne?.decision).phrase) }),
         ...(dit === undefined ? {} : tete(teteDe(donne?.decision, donne?.livraison))),
       },
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.

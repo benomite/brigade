@@ -192,7 +192,8 @@ describe("les cartes de #2061 et #1554 : un bouton par choix et un champ, la que
   test("la fiche dit la question, plutôt que « what blocks it: not communicated »", async () => {
     const carte = carteDe(await todo(monde().client), 1554);
     assert.deepEqual(situation({ etat: carte.etat as string, attend: carte.attend, dit: carte.dit, question: carte.todo?.question ?? "" }), { libelle: "question", lignes: ["Does the export keep the old column order?"] });
-    assert.equal(carte.fiche.attendu, "Does the export keep the old column order?");
+    // Une seule fois sur la fiche aussi : sa tête dit ce que la sorte attend.
+    assert.equal(carte.fiche.attendu, "A product question waits for your answer.");
   });
 });
 
