@@ -117,9 +117,9 @@ describe("la passe de fermeture, en cuisine", () => {
     cuisine.closer.gestes(RETIRER_M1);
     const seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: 1, growthPercent: null };
     journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.configured", payload: { limits: seuils } });
-    // Le runtime a laissé passer dix ticks, sans merge ni seuil franchi.
+    // Le runtime a laissé passer trois ticks, chacun relisant le déclencheur, sans merge ni seuil franchi.
     const vus = types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
+    await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 3);
 
     rienNEstParti(cuisine);
     // Le seul fait de la fermeture au journal : ses réglages.
@@ -143,9 +143,9 @@ describe("la passe de fermeture, en cuisine", () => {
     );
     assert.match(demandee.sortie, /the runtime starts it on its own, once, as soon as nothing holds it back — nothing to watch, nothing to restart/);
     assert.match(demandee.sortie, /to withdraw it before it leaves: `brigade <projet> closing cancel`/);
-    // Le runtime l'a relue à dix ticks : elle attend, rien n'est refusé, rien n'est parti.
+    // Le runtime l'a relue à trois ticks, un par réveil : elle attend, rien n'est refusé, rien n'est parti.
     const vus = types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
+    await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 3);
     assert.equal(dernier("closing.refused"), undefined);
     rienNEstParti(cuisine);
 
@@ -175,7 +175,7 @@ describe("la passe de fermeture, en cuisine", () => {
     assert.equal(code, 0, sortie);
     assert.match(sortie, /it waits: start condition not met: the cook in flight on #9 declares no zone/);
     const vus = cuisine.types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
+    await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 3);
     rienNEstParti(cuisine);
 
     cuisine.runtime.rail.rendre(9, "essai", STATION);
@@ -400,7 +400,7 @@ describe("la passe de fermeture, en cuisine", () => {
       ],
     );
     const vus = seconde.types().filter((type) => type === "runtime.ticked").length;
-    await jusqua(() => seconde.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
+    await jusqua(() => seconde.types().filter((type) => type === "runtime.ticked").length >= vus + 3);
     assert.equal(seconde.closer.lancements().length, 1);
     rienNEstLivre(seconde);
 
