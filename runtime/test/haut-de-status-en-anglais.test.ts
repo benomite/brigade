@@ -78,6 +78,7 @@ test("l'état d'exemple fait paraître chaque ligne du haut de `status`, et aucu
 test("l'état d'exemple, la cuisine arrêtée par le chef, sans station, le grant éteint seul, la sauvegarde trop vieille : les mêmes lignes, en anglais", (t) => {
   const { journal, noter } = etatDAvant(t);
   noter("10:00", { type: "kitchen.stopped", payload: {} }, null, "chef");
+  noter("10:00", { type: "decision.withdrawn", payload: { name: "BRIGADE_STATIONS", previous: "box/claude:2:code+raisonnement" } }, null, "chef");
   noter("10:00", { type: "stations.undeclared", payload: {} });
   noter("10:00", { type: "grant.activated", payload: { action: "merge", until: "2026-10-12T10:01:00.000Z" } }, null, "chef");
   noter("10:02", { type: "grant.expired", payload: { action: "merge", cause: "until", since: "2026-10-12T10:01:00.000Z" } }, null, "pass");
