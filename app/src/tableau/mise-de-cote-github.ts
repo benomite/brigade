@@ -9,14 +9,25 @@
 // manager (`<!-- brigade:manager -->`), qui nomment les labels sans en être la raison. Aucun : la carte le dit (faits.ts,
 // `SANS_RAISON`), et reste dans TODO.
 //
+// Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `blocked-on-human` — la livraison touche à ce
+// qui la juge : la merger à la main — est une question à lui, avec son geste (« Merge PR #N by hand? »). `hors-cuisine`
+// n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217, todo-github.ts) en pose
+// une ; pour une cause technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de
+// mise de côté, avec sa ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
+//
 // Les commentaires de la station (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts) se disent en
 // une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
 // GitHub mène de l'une à l'autre.
+
+import { carteDuCommentaire, type CarteDuChef } from "./todo-github.ts";
 
 export const HORS_CUISINE = "hors-cuisine";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
 // Dans l'ordre où la carte les nomme quand l'issue porte les deux.
 export const LABELS_DE_MISE_DE_COTE = [HORS_CUISINE, BLOCKED_ON_HUMAN] as const;
+// L'issue du tableau de la cuisine : jamais une carte, ni sur le rail ni dans TODO.
+export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
+const PRODUCT_QUESTION = "product-question";
 const DE_CONFIANCE = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const MARQUE_DU_MANAGER = "<!-- brigade:manager";
 // Au-delà, la ligne s'arrête au mot, d'un « … » : le reste est sur l'issue.
@@ -25,8 +36,9 @@ const LONGUEUR_MAX = 160;
 // Un `#N` de la ligne, et l'adresse qu'il ouvre.
 export type LienDeLigne = { numero: number; url: string };
 // Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
-// commentaire ne la porte —, et les `#N` qu'elle nomme.
-export type MiseDeCote = { label: string; raison: string | null; liens: LienDeLigne[] };
+// commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
+// `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `hors-cuisine`.
+export type MiseDeCote = { label: string; raison: string | null; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
 
 type Brut = Record<string, unknown>;
 
@@ -78,7 +90,7 @@ export function ligneDuCommentaire(corps: string): string | null {
   if (echec !== null && cooks !== null) return couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`);
   // Une livraison qui touche à ce qui la juge (brigade-github.ts) : la merger à la main.
   const juges = JUGES.exec(texte);
-  if (juges !== null) return `changes what judges it: merge PR #${juges[1]} by hand`;
+  if (juges !== null) return `Merge PR #${juges[1]} by hand? It changes what judges it.`;
   const premiere = texte
     .split("\n")
     .map((ligne) => ligne.replace(/^\s*(?:#+|>|[-*])\s*/, "").trim())
@@ -86,15 +98,29 @@ export function ligneDuCommentaire(corps: string): string | null {
   return premiere === undefined ? null : couper(premiere);
 }
 
+// La question que le dernier commentaire marqué d'un auteur du dépôt pose au chef — rien si ce n'est pas une
+// `product-question`.
+function questionDuChef(commentaires: readonly Brut[]): CarteDuChef | null {
+  const dernier = [...commentaires]
+    .reverse()
+    .map(({ body, author_association: association }) => (typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) ? carteDuCommentaire(body) : null))
+    .find((carte) => carte !== null);
+  return dernier?.sorte === PRODUCT_QUESTION ? dernier : null;
+}
+
 // Ce que la carte dit d'un ticket mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au plus
 // récent, tels que l'API de GitHub les rend.
 export function miseDeCoteDe(depot: string, label: string, commentaires: readonly Brut[]): MiseDeCote {
-  const raison =
+  const dit =
     [...commentaires]
       .reverse()
       .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && ditLaMiseDeCote(body, label))
-      .map(({ body }) => ligneDuCommentaire(body as string))
-      .find((ligne) => ligne !== null) ?? null;
+      .find(({ body }) => ligneDuCommentaire(body as string) !== null);
+  const question = label === HORS_CUISINE ? questionDuChef(commentaires) : null;
+  const raison = question !== null ? couper(question.texte.split("\n")[0] ?? "") || null : dit === undefined ? null : ligneDuCommentaire(dit.body as string);
   const numeros = [...new Set([...(raison ?? "").matchAll(/#(\d+)\b/g)].map((trouve) => Number(trouve[1])))];
-  return { label, raison, liens: numeros.map((numero) => ({ numero, url: `https://github.com/${depot}/issues/${numero}` })) };
+  const juges = label === BLOCKED_ON_HUMAN && dit !== undefined ? JUGES.exec((dit.body as string).replace(/`/g, "")) : null;
+  const pr = juges === null ? null : { numero: Number(juges[1]), url: `https://github.com/${depot}/pull/${juges[1]}` };
+  const liens = numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` }));
+  return { label, raison, liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(question === null ? {} : { chef: question }) };
 }
