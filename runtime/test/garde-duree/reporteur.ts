@@ -1,6 +1,7 @@
 // Le reporter qui juge la durée de chaque test (#2129) : il tourne dans le process du lanceur, voit passer tous
 // les fichiers, et met le code de sortie à 1 avec la liste des tests de plus de 2 s qu'aucune exception n'excuse.
 // Branché par le script `test` de package.json, à côté du reporter `spec` qui garde la sortie habituelle.
+import { dureeSansCharge, Observateur } from "../../test-hang-guard/charge.ts";
 import { EXCEPTIONS } from "./exceptions.ts";
 import { execFileSync } from "node:child_process";
 import { chemin, fichiersDuTitre, lignesChangees, LIMITE_MS, racineDuRuntime, sourcesDesTests, testTouche, verdict, type Mesure, type Mode } from "./regle.ts";
@@ -23,8 +24,12 @@ function modeDemande(sources: Map<string, string>): Mode {
 export default async function* reporteur(source: AsyncIterable<{ type: string; data: any }>): AsyncGenerator<string> {
   const mesures: { test: string; ms: number }[] = [];
   const fichiersJoues = new Set<string>();
+  // Un test lent parce que la machine est saturée n'est pas lent (#2463) : la durée est jugée moins ce que la charge a pris.
+  const charge = new Observateur();
+  charge.echantillonne();
   for await (const { type, data } of source) {
     if (type !== "test:pass" && type !== "test:fail") continue;
+    charge.echantillonne();
     const { file, name, details, nesting } = data;
     if (typeof name !== "string" || typeof details?.duration_ms !== "number" || details.type === "suite") continue;
     // Le test de tête de chaque fichier porte son chemin pour nom : il dit quels fichiers ont tourné.
@@ -35,6 +40,7 @@ export default async function* reporteur(source: AsyncIterable<{ type: string; d
   const sources = sourcesDesTests();
   const listes = new Set(EXCEPTIONS.flatMap((e) => ("test" in e ? [e.test] : [])));
   const pertinentes: Mesure[] = mesures
+    .map((m) => ({ ...m, ms: dureeSansCharge(m.ms, charge.facteur) }))
     .filter((m) => m.ms > LIMITE_MS || listes.has(m.test))
     .map((m) => ({ ...m, fichiers: fichiersDuTitre(m.test, sources) }));
   const mode = modeDemande(sources);
