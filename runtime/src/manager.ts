@@ -40,6 +40,7 @@ import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirRequalification } from "./requalifier.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
+import { estLaPauseDeGitHub } from "./limite-github.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -692,7 +693,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         } while (aRefaire && !arrete);
       } catch (erreur) {
         // `gh` en panne : rien n'est décidé, le réveil suivant réessaie.
-        if (!arrete) avertir(`brigade : le manager a buté — ${message(erreur)}`);
+        if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : le manager a buté — ${message(erreur)}`);
       } finally {
         enCours = false;
       }
