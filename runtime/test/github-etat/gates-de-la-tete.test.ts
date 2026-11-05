@@ -77,7 +77,7 @@ test("une autre station les joue : on attend son verdict, sans rien poser ni pr�
   const { fait, preparer } = lieu();
   const options = { github: commit.github, station: "box/claude", preparer, maintenant: () => commit.horloge.maintenant };
   commit.horloge.maintenant = DEBUT + GATES_PERIMEES_MS - 1;
-  assert.deepEqual(await jouerLesGatesDeLaTete(SHA, options), { issue: "tenues", par: "mac/claude" });
+  assert.deepEqual(await jouerLesGatesDeLaTete(SHA, options), { issue: "tenues", par: "mac/claude", jusqua: DEBUT + GATES_PERIMEES_MS });
   assert.equal(fait.prepare, 0);
   assert.equal(commit.statuts.length, 1);
   // La station qui les jouait est tombée pendant : la prise périme, une autre reprend.
@@ -98,7 +98,7 @@ test("deux stations prennent la tête au même instant : le plus ancien pending 
       return commit.github.poserStatut(sha, statut);
     },
   };
-  assert.deepEqual(await jouerLesGatesDeLaTete(SHA, { github, station: "box/claude", preparer: box.preparer, maintenant: () => commit.horloge.maintenant }), { issue: "tenues", par: "mac/claude" });
+  assert.deepEqual(await jouerLesGatesDeLaTete(SHA, { github, station: "box/claude", preparer: box.preparer, maintenant: () => commit.horloge.maintenant }), { issue: "tenues", par: "mac/claude", jusqua: DEBUT + GATES_PERIMEES_MS });
   assert.deepEqual(box.fait, { prepare: 1, joue: 0, libere: 1 });
   assert.equal(mac.fait.prepare, 0);
 });
@@ -112,4 +112,20 @@ test("des gates qui ne peuvent pas se jouer ici ne prennent pas la tête ; coup�
   assert.equal((await jouerLesGatesDeLaTete(SHA, { ...options, preparer: coupees.preparer })).issue, "non-jouees");
   assert.deepEqual(commit.statuts.map(({ state }) => state), ["pending"]);
   assert.equal(coupees.fait.libere, 1);
+});
+
+test("un pending frais sous le nom de la station même est celui d'un runtime d'avant, arrêté pendant : elle reprend sans attendre qu'il périme", async () => {
+  const commit = commitSurGitHub();
+  // Le runtime d'avant de box/claude a pris la tête, puis s'est arrêté pendant les gates.
+  await commit.github.poserStatut(SHA, { state: "pending", context: CONTEXTE_DES_GATES, description: "Gates running on station box/claude" });
+  commit.horloge.maintenant = DEBUT + 60_000;
+  const { fait, preparer } = lieu();
+  const issue = await jouerLesGatesDeLaTete(SHA, { github: commit.github, station: "box/claude", preparer, maintenant: () => commit.horloge.maintenant });
+  assert.equal(issue.issue, "jouees");
+  assert.equal(fait.joue, 1);
+  assert.deepEqual(commit.statuts.map(({ state }) => state), ["pending", "pending", "success"]);
+  // Pour une autre station, cette même prise tenait : elle attendait.
+  const autre = commitSurGitHub();
+  await autre.github.poserStatut(SHA, { state: "pending", context: CONTEXTE_DES_GATES, description: "Gates running on station box/claude" });
+  assert.equal((await jouerLesGatesDeLaTete(SHA, { github: autre.github, station: "mac/claude", preparer: lieu().preparer, maintenant: () => autre.horloge.maintenant })).issue, "tenues");
 });

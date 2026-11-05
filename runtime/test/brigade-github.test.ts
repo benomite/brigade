@@ -15,7 +15,7 @@ import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";
-import { CONTEXTE_DES_GATES, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
+import { CONTEXTE_DES_GATES, GATES_PERIMEES_MS, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
 import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
 import { jusqua } from "./outils.ts";
 
@@ -707,6 +707,45 @@ test("gates that cannot run on a head — GitHub refusing the status, a clone be
   }
   assert.equal(preparations, 2);
   assert.equal(faux.mergee(762)?.number, pr.number);
+});
+
+test("with no CI on its PRs, a gates claim left by a station that died during them is taken over once stale, and a live one is read again only then (#2456)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(749);
+  let instant = Date.parse("2026-11-05T15:00:00Z");
+  const gates = gatesDites({ vert: true, resume: "", detail: "" });
+  const box = faux.station("box/claude", { ciDesPR: () => false, gates: gates.pour("box/claude"), maintenant: () => new Date(instant) });
+  await box.tour();
+  await box.calme();
+  const pr = faux.prs.find((p) => p.issue === 749);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  // À jour sur sa base : sa tête ne bougera plus.
+  pr.enRetard = false;
+  // mac/claude a pris la tête, puis est tombée pendant ses gates : son pending reste.
+  faux.statutsDeCommit.set(pr.sha, [{ id: 0, state: "pending", context: CONTEXTE_DES_GATES, description: "Gates running on station mac/claude", createdAt: new Date(instant).toISOString() }]);
+  const lectures = () => faux.appels.filter((appel) => appel.station === "box/claude" && appel.quoi === "statuts").length;
+  for (let i = 0; i < 4; i += 1) {
+    await box.tour();
+    await box.calme();
+  }
+  // Fraîche, la prise tient : box attend, et ne relit les statuts qu'une fois.
+  assert.equal(faux.mergee(749), undefined);
+  assert.deepEqual(gates.jouees, []);
+  assert.equal(lectures(), 1);
+  // Périmée, box la reprend, joue les gates sur la tête et merge.
+  instant += GATES_PERIMEES_MS;
+  for (let i = 0; i < 4 && faux.mergee(749) === undefined; i += 1) {
+    await box.tour();
+    await box.calme();
+  }
+  assert.equal(faux.mergee(749)?.number, pr.number);
+  assert.deepEqual(gates.jouees, [{ station: "box/claude", sha: pr.sha }]);
+  assert.deepEqual((faux.statutsDeCommit.get(pr.sha) ?? []).map(({ state, description }) => [state, description]), [
+    ["pending", "Gates running on station mac/claude"],
+    ["pending", "Gates running on station box/claude"],
+    ["success", "Gates green on station box/claude"],
+  ]);
 });
 
 test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then off the kitchen after 2 sends back (#2209)", async () => {

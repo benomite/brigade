@@ -112,17 +112,19 @@ export async function relire(pr: PRAFusionner, { github, station, juger }: Conte
 }
 
 // Ce que la CI de la tête dit, pour le merge. `gates-a-jouer` : le projet ne
-// lance aucune CI sur cette PR, et aucune station n'a encore posé le statut de
-// ses gates. Avec une CI sur ses PR (`ciDesPR`), seule elle compte : ni le
-// statut des gates ne la remplace, ni rien ne la remplace tant qu'elle n'a pas
-// démarré.
+// lance aucune CI sur cette PR, et ses gates n'y ont pas encore de verdict —
+// aucun statut, ou un `pending` : frais, une station les joue et les autres
+// l'attendent ; laissé par une station tombée pendant, il se reprend. C'est
+// `jouerLesGatesDeLaTete`, qui lit l'âge des statuts, qui tranche. Avec une CI
+// sur ses PR (`ciDesPR`), seule elle compte : ni le statut des gates ne la
+// remplace, ni rien ne la remplace tant qu'elle n'a pas démarré.
 export type CIDeLaTete = "green" | "red" | "pending" | "gates-a-jouer";
 
 export function ciDeLaTete(checks: Pick<Check, "outcome" | "name">[], ciDesPR: boolean): CIDeLaTete {
   if (ciDesPR) return etatDeLaBase(checks.filter((check) => check.name !== CONTEXTE_DES_GATES)) ?? "pending";
   const ci = etatDeLaBase(checks);
   if (ci === "red") return "red";
-  if (!checks.some((check) => check.name === CONTEXTE_DES_GATES)) return "gates-a-jouer";
+  if (checks.find((check) => check.name === CONTEXTE_DES_GATES)?.outcome !== "green") return "gates-a-jouer";
   return ci ?? "pending";
 }
 
@@ -130,7 +132,7 @@ export function ciDeLaTete(checks: Pick<Check, "outcome" | "name">[], ciDesPR: b
 // mise à jour est demandée, rien n'est mergé. `non-approuvee` : rien n'est
 // écrit. `ci-attendue` : la CI de sa tête n'a pas fini, ou rien n'y tourne
 // encore. `gates-a-jouer` : le projet ne lance aucune CI sur ses PR, et les
-// gates de sa tête sont à jouer par une station. `ci-rouge` : un check de sa
+// gates de sa tête n'ont pas de verdict : une station les jouera, ou les joue. `ci-rouge` : un check de sa
 // tête est rouge. `close` : la PR n'est plus ouverte. `refusee` : GitHub a
 // refusé le merge, et dit pourquoi.
 export type Fusion = { issue: "mergee" | "mise-a-jour" | "non-approuvee" | "ci-attendue" | "gates-a-jouer" | "ci-rouge" | "close" } | { issue: "refusee"; motif: string };

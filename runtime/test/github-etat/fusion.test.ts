@@ -253,8 +253,10 @@ test("un projet sans CI sur ses PR : la PR approuvée sans aucun check attend se
   let checks: Array<{ name: string; outcome: "green" | "red" | "pending" }> = [];
   const github: GitHubDeLaFusion = { ...pr.github, ci: async () => checks };
   assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "gates-a-jouer" });
+  // Un `pending` des gates n'est pas un verdict : la station lit son âge, et
+  // attend la station qui les joue ou reprend la prise d'une station tombée.
   checks = [{ name: CONTEXTE_DES_GATES, outcome: "pending" }];
-  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "ci-attendue" });
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "gates-a-jouer" });
   checks = [{ name: CONTEXTE_DES_GATES, outcome: "red" }];
   assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "ci-rouge" });
   // Un autre check rouge sur la tête la renvoie aussi, sans attendre les gates.
@@ -286,6 +288,8 @@ test("ciDeLaTete : la CI de la tête pour le merge, avec ou sans CI sur les PR d
   assert.equal(ciDeLaTete([], true), "pending");
   assert.equal(ciDeLaTete([], false), "gates-a-jouer");
   assert.equal(ciDeLaTete([{ name: "pages", outcome: "green" }], false), "gates-a-jouer");
+  assert.equal(ciDeLaTete([{ name: "pages", outcome: "pending" }, { name: CONTEXTE_DES_GATES, outcome: "pending" }], false), "gates-a-jouer");
+  assert.equal(ciDeLaTete([{ name: "pages", outcome: "red" }, { name: CONTEXTE_DES_GATES, outcome: "pending" }], false), "red");
   assert.equal(ciDeLaTete([{ name: "pages", outcome: "pending" }, { name: CONTEXTE_DES_GATES, outcome: "green" }], false), "pending");
   assert.equal(ciDeLaTete([{ name: "pages", outcome: "green" }, { name: CONTEXTE_DES_GATES, outcome: "green" }], false), "green");
   assert.equal(ciDeLaTete([{ name: "tests", outcome: "green" }], true), "green");

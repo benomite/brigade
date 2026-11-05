@@ -392,10 +392,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les gates d'une tête, une à la fois sur la station : elles prennent la
   // machine comme un cook.
   let serieDesGates: Promise<unknown> = Promise.resolve();
-  // Les têtes dont les gates ne se jouent pas ici, et depuis quand : elles se
+  // Les têtes dont les gates ne se jouent pas ici, et jusqu'à quand : elles se
   // retentent sur une tête neuve, ou `RELANCE_DES_GATES_MS` passé — un clone
-  // en retard, GitHub qui refuse le statut ne tiennent pas pour toujours.
-  const sansGates = new Map<number, { sha: string; depuis: number }>();
+  // en retard, GitHub qui refuse le statut ne tiennent pas pour toujours. Une
+  // tête dont une autre station joue les gates n'est relue qu'une fois sa
+  // prise périmée : son verdict, lui, se lit dans la CI de la tête.
+  const sansGates = new Map<number, { sha: string; jusqua: number }>();
   const instant = () => (options.maintenant?.() ?? new Date()).getTime();
   // Joue les gates de la tête de la PR, si personne ne l'a jugée ni ne les
   // joue ; rouges, ce qui a échoué s'écrit sur l'issue, que le cook lit. Rend
@@ -407,16 +409,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (preparer === undefined || statuts === undefined || poserStatut === undefined) {
       // Dit une fois par tête.
       if (ecartee?.sha !== pr.sha) avertir(`brigade : PR #${pr.number} (#${ticket.number}) has no CI and waits for the project's gates, which station ${nom} does not run`);
-      sansGates.set(pr.number, { sha: pr.sha, depuis: instant() });
+      sansGates.set(pr.number, { sha: pr.sha, jusqua: instant() + RELANCE_DES_GATES_MS });
       return false;
     }
-    if (ecartee?.sha === pr.sha && instant() - ecartee.depuis < RELANCE_DES_GATES_MS) return false;
+    if (ecartee?.sha === pr.sha && instant() < ecartee.jusqua) return false;
     const ecarter = (motif: string) => {
-      sansGates.set(pr.number, { sha: pr.sha, depuis: instant() });
+      sansGates.set(pr.number, { sha: pr.sha, jusqua: instant() + RELANCE_DES_GATES_MS });
       avertir(`brigade : the gates of PR #${pr.number} (#${ticket.number}) are not run on ${nom} — ${motif}; retried in ${RELANCE_DES_GATES_MS / 60_000} min, or on a new head`);
       return false;
     };
-    const suite = serieDesGates.then(() => jouerLesGatesDeLaTete(pr.sha, { github: { statuts: statuts.bind(github), poserStatut: poserStatut.bind(github) }, station: nom, preparer: () => preparer(ticket, pr) }));
+    const suite = serieDesGates.then(() => jouerLesGatesDeLaTete(pr.sha, { github: { statuts: statuts.bind(github), poserStatut: poserStatut.bind(github) }, station: nom, preparer: () => preparer(ticket, pr), maintenant: instant }));
     serieDesGates = suite.catch(() => undefined);
     let fait: Awaited<typeof suite>;
     try {
@@ -425,6 +427,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return ecarter(message(erreur));
     }
     if (fait.issue === "non-jouees") return ecarter(fait.motif);
+    if (fait.issue === "tenues") sansGates.set(pr.number, { sha: pr.sha, jusqua: fait.jusqua });
     if (fait.issue !== "jouees") return false;
     if (!fait.verdict.vert) {
       await github.commenter(ticket.number, `Station \`${nom}\` ran the project's gates on \`${pr.sha.slice(0, 7)}\` (PR #${pr.number}) — no CI runs on this project's PRs — and they are red.${fait.verdict.detail === "" ? "" : `\n\n${fait.verdict.detail}`}`);
