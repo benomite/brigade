@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
+import { poserDecision } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { prisPar } from "../src/projections/rail.ts";
 import { etatStation, plafondDeCooks, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
@@ -179,6 +180,17 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     );
     // Et sur la ligne du ticket qui attend.
     assert.match(lignes.find((ligne) => ligne.startsWith("  #15")) ?? "", /queued .*no station declared/);
+  });
+
+  test("un projet dont le chef a décidé les stations n'est pas dit sans station, même si son vieux journal porte `stations.undeclared`", async (t) => {
+    const { journal, etat } = cuisine(t, { stations: [], issues: [issue(15)] });
+    await jusqua(() => etat(15) === "waiting");
+    assert.notEqual(sansStationDepuis(journal.base), null);
+
+    poserDecision(journal, { projet: "test", nom: "BRIGADE_STATIONS", valeur: "box/claude:30:code+raisonnement,macbook/claude:1:code", auteur: "chef" });
+
+    const lignes = decrireEtat(lireEtat(journal), new Date());
+    assert.equal(lignes.some((ligne) => ligne.includes("NONE DECLARED")), false);
   });
 
   test("sans station, le chef peut toujours arrêter et reprendre la cuisine : rien ne plante, rien ne part", async (t) => {
