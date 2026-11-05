@@ -22,7 +22,7 @@ stay **per cook**.
 
 ### On the GitHub-only path
 
-A project on the GitHub-only state (`githubOnlyState`, [`../reglages.md`](../reglages.md)) keeps the
+Every project is on the GitHub-only state (#2061, [`../reglages.md`](../reglages.md)), which keeps the
 same guardrails (#2213, `runtime/src/github-seul/garde-fous/`). Before each claim, its station reads,
 in this order:
 

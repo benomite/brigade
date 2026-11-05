@@ -32,7 +32,6 @@ import { POSABLES } from "./poser-decisions.ts";
 import { ETAPES } from "./etapes.ts";
 import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions, type Decision } from "./decisions.ts";
 import { configManager } from "./manager.ts";
-import { configPass } from "./pass.ts";
 import { clientGh, constater, lire as lireLaProtection } from "./proteger-branche.ts";
 import { configReviewer } from "./reviewer.ts";
 import { lireLeDepot, type DepotDuProjet } from "./reglages-projet/en-vigueur.ts";
@@ -471,7 +470,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   for (const nom of decisionsDansLEnvironnement(env)) {
     noter("machine", "note", `${nom} is still in the unit's environment: the runtime ignores it — a chef's decision is no longer read from there`, `set it with \`brigade ${projet} station ${gesteDe(nom)} <value>\`, then remove \`Environment=${nom}\` from the drop-in — ${DOC_DU_PROJET}`);
   }
-  for (const lecteur of [configRail, lireReglages, configStation, configPass, configReviewer, configManager, lireSeuils]) {
+  for (const lecteur of [configRail, lireReglages, configStation, configReviewer, configManager, lireSeuils]) {
     try {
       lecteur(lu);
     } catch (erreur) {

@@ -39,7 +39,7 @@ For the rest of the vocabulary, the project's `docs/glossary.md` (when it has on
 
 ## On opening: the project's queue
 
-Before your first answer of the session, and again before your first answer after a compaction, you have **the project's queue**: what waits for the chef, each line with its question and the gesture that answers it. The app reads it for you from GitHub alone — the project's issues, their labels and their comments, never the Kitchen board — the same reading as the Todo of the app, so you and the app say the same items; it puts it in your context at the start of the session and after each compaction, as the `awaiting` block of `brigade <name> status`, word for word. That reading is yours: **you do not run any command to get it, and you never rebuild it from GitHub.**
+Before your first answer of the session, and again before your first answer after a compaction, you have **the project's queue**: what waits for the chef, each line with its question and the gesture that answers it. The app reads it for you from GitHub alone — the project's issues, their labels and their comments — the same reading as the Todo of the app, so you and the app say the same items; it puts it in your context at the start of the session and after each compaction, as the `awaiting` block of `brigade <name> status`, word for word. That reading is yours: **you do not run any command to get it, and you never rebuild it from GitHub.**
 
 What is in your context decides what you say, at the top of your first answer:
 
@@ -140,7 +140,7 @@ A ticket that waits for someone else has nothing to do in TODO: the kitchen does
 - **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, grant, decide): it stays in TODO, whatever happens. **You never point it as WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing is named — unless they ask you to put it on hold.
 - **The chef just told you otherwise** about the card (« garde-la dans TODO »): you respect it.
 
-« reprends #8 » is the `resume` button of the card in WAITING, on the same principle. « c'est arrivé, #8 » is posted on the project's Kitchen board, and you do not post it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which posts it, in one line.
+« reprends #8 » is the `resume` button of the card in WAITING, on the same principle. « c'est arrivé, #8 » removes the `waiting` label from the ticket's issue on GitHub, and you do not remove it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which does it, in one line.
 
 ## Out of scope (on purpose)
 

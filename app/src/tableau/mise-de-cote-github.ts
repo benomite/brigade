@@ -6,8 +6,8 @@
 // Le commentaire lu est le dernier qui nomme le label que l'issue porte — ou, pour `blocked-on-human`, celui que la station
 // écrit en le posant, qui ne le nomme pas (« this delivery changes what judges it ») —, d'un auteur du dépôt
 // (`author_association` OWNER, MEMBER ou COLLABORATOR : tout le monde peut commenter une issue publique), hors ceux du
-// manager (`<!-- brigade:manager -->`), qui nomment les labels sans en être la raison. Aucun : la carte le dit (faits.ts,
-// `SANS_RAISON`), et reste dans TODO.
+// manager (`<!-- brigade:manager -->`), qui nomment les labels sans en être la raison. Aucun : la carte le dit
+// (`SANS_RAISON`), et reste dans TODO.
 //
 // Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `blocked-on-human` — la livraison touche à ce
 // qui la juge : la merger à la main — est une question à lui, avec son geste (« Merge PR #N by hand? »). `hors-cuisine`
@@ -27,6 +27,9 @@ export const BLOCKED_ON_HUMAN = "blocked-on-human";
 export const LABELS_DE_MISE_DE_COTE = [HORS_CUISINE, BLOCKED_ON_HUMAN] as const;
 // L'issue du tableau de la cuisine : jamais une carte, ni sur le rail ni dans TODO.
 export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
+// La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi : un label posé à la main. Ici, et non dans faits.ts,
+// pour que la lecture du rail (vue/rail/github.ts) n'en charge rien d'autre que GitHub.
+export const SANS_RAISON = "set aside by hand — no reason on the issue";
 const PRODUCT_QUESTION = "product-question";
 const DE_CONFIANCE = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const MARQUE_DU_MANAGER = "<!-- brigade:manager";

@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
+import { poserDecision } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1877, depuis1971, depuis2037, ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./aides/haut-de-status.ts";
@@ -99,6 +100,16 @@ test("l'état d'exemple, la cuisine arrêtée par le chef, sans station, le gran
   const vieille = teteDe(decrireEtat(lireEtat(journal, plusTard), plusTard));
   assert.ok(vieille.includes("backup     TOO OLD: 2 d ago (2026-10-09T10-00-00Z, up to event 7) — more than 2 d: `systemctl status brigade-sauvegarde@brigade`"), vieille.join("\n"));
   sansMotFrancais(vieille);
+});
+
+test("un projet dont le chef a décidé les stations n'est pas dit sans station, même si son vieux journal porte `stations.undeclared`", (t) => {
+  const { journal, noter } = etatDAvant(t);
+  noter("10:00", { type: "decision.withdrawn", payload: { name: "BRIGADE_STATIONS", previous: "box/claude:2:code+raisonnement" } }, null, "chef");
+  noter("10:00", { type: "stations.undeclared", payload: {} });
+  assert.ok(lireTete(journal).some((ligne) => ligne.includes("NONE DECLARED")));
+
+  poserDecision(journal, { projet: "brigade", nom: "BRIGADE_STATIONS", valeur: "box/claude:30:code+raisonnement,macbook/claude:1:code", auteur: "chef" });
+  assert.equal(lireTete(journal).some((ligne) => ligne.includes("NONE DECLARED")), false);
 });
 
 test("un grant sans échéance, un runtime jamais démarré : `ACTIVE, no deadline`, `never started`", (t) => {

@@ -14,7 +14,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
 import { principal as facts } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { ouvrirRail } from "../../src/rail.ts";
+import { ouvrirRail } from "../aides/rail-du-journal.ts";
 import { CONFIGURATION, environnementDeLaCommande, ETATS, lireFichierDeConfiguration } from "../../src/station/configuration.ts";
 import { principal as status } from "../../src/status.ts";
 import { ouvrirTelephones } from "../../src/telephone/appairage.ts";

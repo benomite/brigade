@@ -4,7 +4,7 @@
 // `lieuxDuProjet`), puis fait tourner le tour GitHub seul de la box
 // (`brigade-github.ts`, `stationDuDepot`) — prendre, cuisiner, relire, merger —
 // sous son propre nom. Ni relais de prise par une autre station, ni journal du
-// projet, ni Kitchen board : rien ici n'importe `tirer-par-github/`.
+// projet, ni Kitchen board : le relais de prise n'existe plus (#2061).
 //
 // À chaque tour, elle relit la liste : un dépôt ajouté est cloné et servi à ce
 // tour, un dépôt retiré ne prend plus de ticket dès ce tour — les cooks qu'il a

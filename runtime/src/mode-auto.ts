@@ -57,9 +57,9 @@ export const RACINE_DE_BRIGADE = "/opt/brigade";
 // La doc du runtime est découpée en pages sous `docs/runtime/` : l'index d'abord,
 // puis chaque page.
 export const PAGES_DU_RUNTIME = [
-  "README.md", "autonomie.md", "journal-et-rail.md", "garde-fous.md", "station.md", "station-machine.md", "station-cook.md", "station-distante.md", "station-navigateur.md",
+  "README.md", "autonomie.md", "github-seul.md", "journal-et-rail.md", "garde-fous.md", "station.md", "station-machine.md", "station-cook.md", "station-distante.md", "station-navigateur.md",
   "manager.md", "pass.md", "pass-merge.md", "etat-et-mesures.md", "fermeture.md", "carnet-lecons.md", "identites-et-secrets.md", "cloison-et-arbitre.md", "exploitation.md", "passage-v2-main.md",
-  "settings-ownership.md", "tableau-de-cuisine.md", "role-produit.md", "windows-ci-runner-failure.md", "github-rate-limit-2026-11-03.md",
+  "settings-ownership.md", "role-produit.md", "windows-ci-runner-failure.md", "github-rate-limit-2026-11-03.md",
 ].map((page) => `runtime/${page}`);
 export const DOCS_DE_LA_BOX = ["installer.md", ...PAGES_DU_RUNTIME, "app.md", "glossary.md"] as const;
 

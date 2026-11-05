@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_STATION } from "../../../src/brigade-github.ts";
+import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_PASS } from "../../../src/events/pass.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_WAITING } from "../../../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../../../src/github-etat/fusion.ts";
 import { HORS_CUISINE } from "../../../src/github.ts";
-import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_PASS } from "../../../src/pass.ts";
 import {
   calibrageAuDessus,
   marqueDeFix,
@@ -76,7 +76,8 @@ const ciRouge = (n: number): Refus => ({ genre: "ci-rouge", pr: PR, sha: sha(n) 
 const refusee = (n: number): Refus => ({ genre: "relecture", pr: PR, sha: sha(n) });
 const CALIBRE = ["fire", LABEL_IN_PASS, "model:sonnet", "effort:medium"];
 
-test("N vaut sur le chemin GitHub seul ce qu'il vaut sur l'ancien", () => {
+// Les renvois que la CLI `pass` compte (`montrer-pass.ts`) sont ceux de la station.
+test("N vaut sur le chemin GitHub seul ce que la CLI `pass` en compte", () => {
   assert.equal(RENVOIS_MAX, RENVOIS_MAX_DE_LA_PASS);
   assert.equal(RENVOIS_MAX, RENVOIS_MAX_DE_LA_STATION);
 });

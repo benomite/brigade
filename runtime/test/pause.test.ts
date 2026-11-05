@@ -1,7 +1,6 @@
 // La pause du renommage du code : la carte qui demande le « oui » du chef, et
 // ce que ce « oui » arrête — tout autre merge, tout cook neuf — jusqu'à la fin
-// de la pause. Les premiers tests lisent un journal que le test écrit ; les
-// suivants font tourner une cuisine sous grant, avec sa pass et sa station.
+// de la pause. Les tests lisent un journal que le test écrit.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
@@ -9,12 +8,12 @@ import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { mergerLaLivraison } from "../src/geste-ticket.ts";
-import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { demanderPause, leverPause, mergeRetenu, pauseAccordee, pauseEnCours, repondre } from "../src/pause/pause.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { chef, cuisine, issue } from "./aides/cuisine.ts";
-import { appeler, JOUR_HORLOGE, jourDecale, jusqua, repertoireTemporaire } from "./outils.ts";
+import { fauxGitHub } from "./aides/cuisine.ts";
+import { appeler, JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -147,6 +146,18 @@ describe("la carte de la pause", () => {
     );
   });
 
+  test("après le « oui », le merge à la main de la file est refusé, et GitHub n'en reçoit aucun", async (t) => {
+    const { journal, demander } = journalEcrit(t);
+    demander();
+    repondre(journal, "brigade", "yes");
+    const gh = fauxGitHub();
+
+    const aLaMain = await mergerLaLivraison(journal, gh.github, 14);
+    assert.equal(aLaMain.done, false);
+    assert.match(aLaMain.done ? "" : aLaMain.reason, /^paused for the code rename since .*: no other merge until it ends/);
+    assert.deepEqual(gh.merges, []);
+  });
+
   test("le chef répond par `guardrails pause yes` ou `pause no`, en anglais ; sans pause demandée, rien n'est écrit", async (t) => {
     const { repertoire, journal, demander } = journalEcrit(t);
     const commande = async (...args: string[]) => {
@@ -172,93 +183,5 @@ describe("la carte de la pause", () => {
     assert.match(non.sortie, /“no”: the pause for the code rename is over — the kitchen goes on by itself/);
     assert.equal(pauseEnCours(journal.base), null);
     for (const sortie of [sansDemande.sortie, vue.sortie, oui.sortie, non.sortie]) sansMotFrancais(sortie.split("\n"));
-  });
-});
-
-// Une cuisine sous grant : #17 est pris, son cook attend qu'on le laisse
-// conclure. `ecrire` : une connexion à part, comme celle d'une commande.
-async function enCuisine(t: TestContext, issues = [issue(17)]) {
-  const lieu = cuisine(t, { pass: true, scenario: "commite-puis-attend", cooks: 2, issues });
-  chef(lieu.repertoire, "grant.activated");
-  const ecrire = <T>(faire: (journal: Journal) => T): T => {
-    const journal = ouvrirJournal(lieu.repertoire);
-    try {
-      return faire(journal);
-    } finally {
-      journal.fermer();
-    }
-  };
-  const demander = (ticket: number | null = null) => ecrire((journal) => demanderPause(journal, "brigade", { ticket, minutes: 45, rail: lireRail(journal.base), auteur: "runtime" }));
-  const repondreOui = () => ecrire((journal) => repondre(journal, "brigade", "yes"));
-  const lever = () => ecrire((journal) => leverPause(journal, "brigade", "the rename is merged", "runtime"));
-  const compter = (type: string, ticket?: number) => (ticket === undefined ? lieu.journal.tout() : lieu.journal.duTicket(ticket)).filter((e) => e.type === type).length;
-  const statut = () => decrireEtat(lireEtat(lieu.journal), new Date());
-  const commentaires = (ticket: number) => lieu.gh.commentaires.filter(([numero]) => numero === ticket).map(([, corps]) => corps).join("\n---\n");
-  return { ...lieu, demander, repondreOui, lever, compter, statut, commentaires, ecrire };
-}
-
-describe("le merge et la prise pendant la pause", { concurrency: 4 }, () => {
-  test("une carte qui attend son « oui » ne change rien : la livraison verte est mergée sous grant, comme sans elle", async (t) => {
-    const { etat, demander, conclure, compter, gh, journal } = await enCuisine(t);
-    await jusqua(() => etat(17) === "taken" && compter("cook.launched", 17) === 1);
-
-    demander();
-    conclure();
-
-    await jusqua(() => compter("merge.done", 17) === 1);
-    assert.equal(gh.merges.length, 1);
-    assert.equal(compter("pass.waiting", 17), 0);
-    // La carte attend encore le chef.
-    assert.equal(pauseEnCours(journal.base)?.agreedAt, null);
-  });
-
-  test("après le « oui », le cook en vol finit son travail, puis sa livraison verte attend au lieu d'être mergée ; aucun ticket neuf n'est pris ; à la fin de la pause, elle est mergée et la prise reprend", async (t) => {
-    const lieu = await enCuisine(t);
-    const { etat, demander, repondreOui, lever, conclure, compter, gh, statut, commentaires, journal, ecrire } = lieu;
-    await jusqua(() => etat(17) === "taken" && compter("cook.launched", 17) === 1);
-
-    demander();
-    repondreOui();
-    await jusqua(() => statut().some((ligne) => ligne.startsWith("  paused for the code rename") && ligne.includes("finishing their work: #17 · held: none")));
-    // Un ticket arrivé pendant la pause n'est pas pris.
-    gh.poser(issue(18));
-    await jusqua(() => journal.tout().some((e) => e.type === "station.held" && e.payload.reason === "paused"));
-
-    conclure();
-    await jusqua(() => compter("pass.waiting", 17) === 1);
-    assert.equal(journal.duTicket(17).findLast((e) => e.type === "pass.waiting")?.payload.reason, "paused");
-    assert.deepEqual(gh.merges, []);
-    assert.equal(compter("grant.used", 17), 0);
-    assert.match(commentaires(17), /\*\*Pass — en attente \(`paused`\)\.\*\*[\s\S]*pause pour le renommage du code/);
-    await jusqua(() => statut().some((ligne) => ligne.startsWith("  paused for the code rename") && ligne.includes("finishing their work: none · held: #17")));
-    assert.equal(etat(18), "waiting");
-    assert.equal(compter("cook.launched", 18), 0);
-    // Le merge à la main de la file est refusé, lui aussi.
-    const aLaMain = await ecrire((j) => mergerLaLivraison(j, gh.github, 17));
-    assert.equal(aLaMain.done, false);
-    assert.match(aLaMain.done ? "" : aLaMain.reason, /^paused for the code rename since .*: no other merge until it ends/);
-    assert.deepEqual(gh.merges, []);
-
-    lever();
-    await jusqua(() => compter("merge.done", 17) === 1);
-    await jusqua(() => compter("cook.launched", 18) === 1);
-    assert.equal(gh.merges.length, 1);
-    assert.doesNotMatch(statut().join("\n"), /paused for the code rename/);
-  });
-
-  test("pendant la pause, seul le ticket du renommage part en cuisine et se merge", async (t) => {
-    const { etat, demander, repondreOui, compter, gh, conclure, journal } = await enCuisine(t, []);
-    demander(18);
-    repondreOui();
-
-    gh.poser(issue(17));
-    gh.poser(issue(18));
-    await jusqua(() => compter("cook.launched", 18) === 1);
-    conclure();
-    await jusqua(() => compter("merge.done", 18) === 1);
-    assert.equal(gh.merges.length, 1);
-    assert.equal(etat(17), "waiting");
-    assert.equal(compter("cook.launched", 17), 0);
-    assert.notEqual(pauseAccordee(journal.base), null);
   });
 });

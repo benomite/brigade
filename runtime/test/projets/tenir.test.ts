@@ -22,7 +22,6 @@ import { refus } from "../../src/projets/refus.ts";
 import type { LectureDesAppairees } from "../../src/projets/secondaires.ts";
 import { documentDesRejointes, FICHIER_REJOINTES } from "../../src/projets/rejoindre.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
-import { poserLaDemande } from "../../src/tirer-par-github/demande.ts";
 import { lectureDesAppairees } from "../aides/appairees.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
@@ -215,36 +214,7 @@ test("une station que l'app appaire au projet sans en faire la principale : la p
   assert.equal(station.suivi()?.[0]?.secondaires?.[0]?.atteinte, true);
 });
 
-test("ce qu'une station secondaire demande par GitHub, posé dans son gist, la principale le relaie au journal du projet à chaque lecture — une fois", async (t) => {
-  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
-  const SECONDAIRE = { ...SHOP, principale: false, cooks: 1, manager: null, reviewer: null };
-  const gistmac: Fichiers = {};
-  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", projets: [SHOP] }, { id: "gistmac", nom: "mac", projets: [SECONDAIRE] }), gists: { gistmac } });
-  station.demander(SHOP);
-  await station.projets.relire();
-  // Le runtime du projet tourne : il y a quelqu'un pour répondre.
-  const ecrire = ouvrirJournal(join(station.racine, "etat/shop"));
-  try {
-    ecrire.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  } finally {
-    ecrire.fermer();
-  }
-  Object.assign(gistmac, poserLaDemande({ id: "0f8fad5b-d9cb-469f-a165-70867728950e", depot: "acme/shop", le: new Date(MAINTENANT).toISOString(), demande: { verb: "claim" } }));
-  await station.projets.relire();
-  await station.projets.relire();
-  const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
-  try {
-    assert.deepEqual(
-      journal.tout().filter((e) => e.type === "remote.asked").map((e) => [e.author, e.payload]),
-      [["station:mac/claude", { id: "0f8fad5b-d9cb-469f-a165-70867728950e", station: "mac/claude", via: "github", verb: "claim" }]],
-    );
-  } finally {
-    journal.fermer();
-  }
-  assert.equal(station.lignes.filter((ligne) => ligne === "brigade : station — shop : mac/claude demande par GitHub (claim), relayé au journal du projet").length, 1);
-});
-
-test("un ordinateur ajouté au projet alors qu'elle le servait, qui en a rejoint la cuisine (#1789) : la principale le déclare au journal comme une station de plus, relaie ce qu'il réclame, et garde son manager et sa pass", async (t) => {
+test("un ordinateur ajouté au projet alors qu'elle le servait, qui en a rejoint la cuisine (#1789) : la principale le déclare au journal comme une station de plus, et garde son manager et sa pass", async (t) => {
   const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
   // Ce que le Mac publie dans son gist d'appairage (`rejoindre.ts`) : l'app ne
   // l'y dit pas secondaire — sa demande n'est pas dans ce gist.
@@ -267,25 +237,6 @@ test("un ordinateur ajouté au projet alors qu'elle le servait, qui en a rejoint
   assert.equal(station.suivi()?.[0]?.etat, "servi");
   assert.equal(station.suivi()?.[0]?.rejoindre, undefined);
   assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ nom: "mac", station: "mac/claude", gist: "gistmac", cooks: 2, fournit: ["code", "raisonnement", "macos"], atteinte: true, dit: "reached: it is online on GitHub" }]);
-
-  // Il cuit : ce qu'il réclame par son gist arrive au journal du projet.
-  const ecrire = ouvrirJournal(join(station.racine, "etat/shop"));
-  try {
-    ecrire.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  } finally {
-    ecrire.fermer();
-  }
-  Object.assign(gistmac, poserLaDemande({ id: "6fa459ea-ee8a-3ca4-894e-db77e160355e", depot: "acme/shop", le: new Date(MAINTENANT).toISOString(), demande: { verb: "claim" } }));
-  await station.projets.relire();
-  const relu = journal();
-  try {
-    assert.deepEqual(
-      relu.tout().filter((e) => e.type === "remote.asked").map((e) => [e.author, e.payload]),
-      [["station:mac/claude", { id: "6fa459ea-ee8a-3ca4-894e-db77e160355e", station: "mac/claude", via: "github", verb: "claim" }]],
-    );
-  } finally {
-    relu.fermer();
-  }
 });
 
 test("la même jonction pour tous les projets qu'elle sert : un projet de sa configuration, écrit à la main et que l'app ne lui demande pas, voit la station rejointe comme celui que l'app lui demande (#1923)", async (t) => {

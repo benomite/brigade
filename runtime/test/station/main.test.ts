@@ -3,19 +3,15 @@
 // des signaux.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
-import { REPERTOIRE_DES_TAILLES } from "../../src/tableau/rendu/taille.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
-import { principal as status } from "../../src/status.ts";
-import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { relecteur } from "../aides/opt-B-journal.ts";
-import { aArreter, appeler, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
+import { aArreter, BASE, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, vivant } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -162,7 +158,6 @@ describe("la station, son process", { concurrency: 8 }, () => {
     await jusqua(() => brigade.appels().length > 0 && espace.appels().length > 0);
     assert.ok(brigade.appels().every((appel) => !appel.join(" ").includes("acme/espace")));
     assert.ok(espace.appels().every((appel) => !appel.join(" ").includes("acme/brigade")));
-    await station.attendre("brigade [espace] : sondage GitHub en échec");
     assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
 
     station.process.kill("SIGTERM");
@@ -193,9 +188,8 @@ describe("la station, son process", { concurrency: 8 }, () => {
     // Tout ce que la machine porte, sauf l'état des projets, la configuration
     // elle-même, ce que la station dit de ce qu'elle sert (`en-service`, que
     // sa mise à jour attend) et le compteur de ses appels à GitHub, que chaque
-    // sondage écrit, et la taille du board de chaque projet, que chaque
-    // rafraîchissement écrit.
-    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR), join(racine, REPERTOIRE_DES_TAILLES)];
+    // sondage écrit.
+    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR)];
     const avant = photographier(machine, sauf);
 
     // Ajouter : une ligne de plus, rien d'autre.
@@ -282,69 +276,6 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await portes.fin, 0);
   });
 
-  test("chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662)", { skip: posixOnly("two kitchens create and pin their Kitchen board through the fake gh and a gesture under brigade's board is played by its kitchen alone, then the station is stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
-    const { racine, env, etat, preparer, configurer, faits } = uneStation(t);
-    const projets = [
-      { nom: "brigade", depot: "acme/brigade", tableau: 90, gestes: ["/brigade stop"] },
-      { nom: "espace", depot: "acme/espace", tableau: 7, gestes: [] },
-    ].map((projet) => {
-      const gh = fauxGh(t);
-      const { depot, tableau } = projet;
-      issuesDe(gh, depot, []);
-      // Aucun tableau dans le dépôt : la cuisine le crée, puis l'épingle.
-      gh.repondre(`repos/${depot}/issues?labels=kitchen-board&state=all&per_page=100`, { corps: [] });
-      gh.repondre(`repos/${depot}/issues`, { statut: 201, corps: { number: tableau } });
-      gh.repondre(`repos/${depot}/issues/${tableau}`, { corps: { number: tableau, title: "Kitchen board", body: "", state: "open", labels: [{ name: "kitchen-board" }, { name: "hors-cuisine" }], repository_url: `https://api.github.com/repos/${depot}` } });
-      gh.repondre("graphql", { corps: { data: { repository: { issue: { id: `I_${tableau}`, isPinned: false } }, pinIssue: { issue: { isPinned: true } } } } });
-      // Les gestes du chef sous le tableau, et ce que la box y répond.
-      gh.repondre(`repos/${depot}/issues/${tableau}/comments?per_page=100`, {
-        corps: projet.gestes.map((body, rang) => ({ id: 500 + rang, body, user: { login: "chef" }, created_at: "2026-10-26T08:00:00Z", html_url: `https://github.com/${depot}/issues/${tableau}#issuecomment-${500 + rang}` })),
-      });
-      gh.repondre(`repos/${depot}/issues/${tableau}/comments?per_page=100&since=*`, { corps: [] });
-      gh.repondre(`repos/${depot}/issues/${tableau}/comments`, { statut: 201, corps: { id: 1 } });
-      gh.repondre("user", { corps: { login: "chef" } });
-      preparer(projet.nom);
-      return { ...projet, gh };
-    });
-    // Une issue de brigade que le manager a écartée : elle attend le chef.
-    const journal = ouvrirJournal(etat("brigade"));
-    journal.ajouter({ project: "brigade", ticket: 21, author: "manager", type: "manager.set-aside", payload: { reason: "question", fired: true } });
-    journal.fermer();
-    configurer(projets.map((p) => `${p.nom} ${p.depot} ${BASE} BRIGADE_GH_BIN=${p.gh.bin}\n`).join(""));
-    const station = lancer(t, STATION, [], env);
-
-    // Chaque cuisine crée le sien, dans son dépôt, par son `gh` — jamais dans celui d'un autre.
-    for (const p of projets) {
-      await jusqua(() => p.gh.appels().some((appel) => appel.includes("POST") && appel.at(-1) === `repos/${p.depot}/issues`));
-      await station.attendre(`brigade [${p.nom}] : Kitchen board créé dans ${p.depot} — #${p.tableau}`);
-      const autre = projets.find((q) => q !== p)?.depot ?? "";
-      assert.ok(p.gh.appels().every((appel) => !appel.join(" ").includes(autre)), p.nom);
-    }
-    // Le geste posté sous le tableau de brigade est joué par la cuisine de brigade, et elle seule.
-    await jusqua(() => faits("brigade", "board.replied").length === 1);
-    assert.deepEqual(
-      faits("brigade", "board.gesture").map(({ payload }) => [payload.board, payload.gesture, payload.done]),
-      [[90, "stop", true]],
-    );
-    assert.equal(faits("brigade", "kitchen.stopped").length, 1);
-    assert.deepEqual([faits("espace", "board.gesture"), faits("espace", "kitchen.stopped")], [[], []]);
-    // Le chef est mentionné sous le tableau de brigade pour la décision qui l'y attend — et sous aucun autre.
-    await jusqua(() => faits("brigade", "board.mention").length === 1);
-    assert.deepEqual(faits("brigade", "board.mention").map(({ payload }) => [payload.board, payload.decision]), [[90, "#21"]]);
-    assert.deepEqual(faits("espace", "board.mention"), []);
-    const commentes = (p: (typeof projets)[number]) => p.gh.appels().filter((appel) => appel.includes("POST") && appel.at(-1)?.endsWith("/comments"));
-    assert.deepEqual(projets.map((p) => commentes(p).map((appel) => appel.at(-1))), [["repos/acme/brigade/issues/90/comments", "repos/acme/brigade/issues/90/comments"], []]);
-
-    // Les appels des tableaux, comptés au compteur de la station : `status` les dit.
-    const commande = appeler(status, [], { BRIGADE_STATE_DIR: etat("brigade"), BRIGADE_STATION_DIR: racine });
-    assert.equal(await commande.fin, 0, commande.sortie());
-    const cout = /board cost\s+(\d+) calls? per hour, all projects/.exec(commande.sortie());
-    assert.ok(cout !== null && Number(cout[1]) > 0, commande.sortie());
-
-    station.process.kill("SIGTERM");
-    assert.equal(await station.fin, 0);
-  });
-
   test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
     const { racine, env } = uneStation(t);
     const refusee = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: join(racine, "portes.json"), BRIGADE_PROXY_PORT: "3128" });
@@ -375,140 +306,6 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await vide.fin, 0);
   });
 
-  // Deux cuisines complètes : elles se jouent de front.
-  describe("de bout en bout", { concurrency: 2 }, () => {
-    test("deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire", { skip: posixOnly("has one station process cook an issue in each of two projects, through the fake claude (Git Bash), to a pushed branch, a PR and a comment, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, and the comments did not even come within the test's one-minute wait") }, async (t) => {
-      const { env, preparer, configurer, faits } = uneStation(t);
-      const projets = [
-        { nom: "brigade", depot: "acme/brigade", numero: 15 },
-        { nom: "espace", depot: "acme/espace", numero: 7 },
-      ].map((projet) => {
-        const { origine, clone } = depotGit(t);
-        const gh = fauxGh(t);
-        issuesDe(gh, projet.depot, [{ ...issueGitHub(projet.numero, { labels: ["fire", "model:sonnet", "effort:low"] }), html_url: `https://github.com/${projet.depot}/issues/${projet.numero}` }]);
-        gh.repondre(`repos/${projet.depot}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${projet.depot}/pull/40` } });
-        gh.repondre(`repos/${projet.depot}/issues/${projet.numero}/comments`, { statut: 201, corps: { id: 1 } });
-        preparer(projet.nom, { clone: false });
-        return { ...projet, origine, clone, gh };
-      });
-      configurer(projets.map((p) => `${p.nom} ${p.depot} ${BASE} BRIGADE_GH_BIN=${p.gh.bin} BRIGADE_REPO_DIR=${p.clone}\n`).join(""));
-      const station = lancer(t, STATION, [], { ...env, FAUX_CLAUDE: "livre" });
-
-      for (const p of projets) await jusqua(() => p.gh.appels().some((appel) => appel.at(-1) === `repos/${p.depot}/issues/${p.numero}/comments`));
-
-      for (const p of projets) {
-        assert.equal(faits(p.nom, "runtime.started")[0]?.payload.pid, station.process.pid);
-        const [lancement] = faits(p.nom, "cook.launched");
-        assert.deepEqual([lancement?.ticket, lancement?.payload.model, lancement?.payload.effort], [p.numero, "sonnet", "low"]);
-        assert.equal(git(p.origine, "show", `cook/${String(lancement?.payload.run)}:travail.txt`), "le travail du cook");
-        const pr = p.gh.appels().find((appel) => appel.at(-1) === `repos/${p.depot}/pulls`) ?? [];
-        assert.equal(pr.includes(`head=cook/${String(lancement?.payload.run)}`) && pr.includes(`base=${BASE}`), true);
-      }
-      station.process.kill("SIGTERM");
-      assert.equal(await station.fin, 0);
-    });
-
-    test("une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station", { skip: posixOnly("one identity per role under the station: the PR opened as cook, no token reaching the cook or the reviewer, then a SIGTERM stop expecting exit 0; on Windows SIGTERM kills the station before its handler runs, and the issue comment did not even come within the test's one-minute wait") }, async (t) => {
-      const { env, etat, preparer, configurer, faits } = uneStation(t);
-      const { origine, clone } = depotGit(t);
-      const gh = fauxGh(t);
-      gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-      gh.repondre("repos/acme/brigade/pulls", { statut: 201, corps: { html_url: "https://github.com/acme/brigade/pull/40" } });
-      gh.repondre("repos/acme/brigade/issues/15/comments", { statut: 201, corps: { id: 1 } });
-      const apps = await fauxGitHubApps(t);
-      preparer("brigade", { clone: false });
-      const temoin = join(repertoireTemporaire(t), "temoin");
-      mkdirSync(temoin);
-      configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone} BRIGADE_GITHUB_APPS_DIR=${apps.repertoire} BRIGADE_GITHUB_API_URL=${apps.url}\n`);
-      const station = lancer(t, STATION, [], { ...env, GH_TOKEN: "ghp_du_compte", FAUX_CLAUDE: "livre", FAUX_CLAUDE_TEMOIN: temoin });
-
-      await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/acme/brigade/issues/15/comments"));
-      assert.match(station.sortie(), /brigade \[brigade\] : GitHub — une identité par rôle \(cook, pass, manager\)/);
-      const sous = (chemin: string) => [...new Set(gh.appels().flatMap((appel, i) => (appel.at(-1) === chemin ? [/^ghs_([a-z]+)_/.exec(gh.jetons()[i] ?? "")?.[1] ?? gh.jetons()[i]] : [])))];
-      assert.deepEqual(sous("repos/acme/brigade/pulls"), ["cook"]);
-      assert.deepEqual(sous("repos/acme/brigade/issues?labels=fire&state=open&per_page=100"), ["manager"]);
-      assert.ok(!gh.jetons().includes(null) && !gh.jetons().includes("ghp_du_compte"));
-      const [lancement] = faits("brigade", "cook.launched");
-      assert.equal(git(origine, "show", `cook/${String(lancement?.payload.run)}:travail.txt`), "le travail du cook");
-
-      const lances = lancementsDuFauxClaude(temoin);
-      assert.ok(lances.length >= 1);
-      for (const lance of lances) {
-        assert.deepEqual(Object.keys(lance.env).filter((nom) => /TOKEN|BRIGADE_|GIT_CONFIG_(COUNT|KEY|VALUE)/.test(nom)), []);
-        assert.equal(lance.env.GH_CONFIG_DIR, join(etat("brigade"), "gh-sans-compte"));
-        assert.ok(!JSON.stringify(lance).includes("ghs_"));
-      }
-      station.process.kill("SIGTERM");
-      assert.equal(await station.fin, 0);
-      // `status` dit le mode, et les appels comptés à chaque App (#2316).
-      const commande = appeler(status, [], { BRIGADE_STATE_DIR: etat("brigade"), BRIGADE_STATION_DIR: env.BRIGADE_STATION_DIR });
-      assert.equal(await commande.fin, 0, commande.sortie());
-      assert.match(commande.sortie(), /^identity {3}GitHub — one identity per role$/m);
-      assert.match(commande.sortie(), /calls by identity: cook [1-9]\d*, pass \d+, manager [1-9]\d*, chef's account \d+$/m);
-      const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
-      const ecrits = [JSON.stringify(faits("brigade", "cook.launched")), JSON.stringify(faits("brigade", "cook.exited")), station.sortie(), commande.sortie()];
-      for (const ecrit of ecrits) for (const secret of secrets) assert.ok(!ecrit.includes(secret), `un jeton s'est écrit : ${ecrit.slice(0, 200)}`);
-    });
-  });
-
-  test("la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie", { skip: posixOnly("replaces the station by SIGTERM while a cook runs and expects the cook to survive, be resumed by the next station, judged, merged under grant and served; on Windows SIGTERM kills the station before its handler runs, and the first cook was not even launched within the test's one-minute wait") }, async (t) => {
-    const { env, etat, preparer, configurer, faits } = uneStation(t);
-    aArreter(t, () => tuerLesRelais(etat("brigade")));
-    const { origine, clone } = depotGit(t);
-    mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-    writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
-    chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
-    git(clone, "add", ".");
-    git(clone, "commit", "-q", "-m", "les gates du projet");
-    git(clone, "push", "-q", "origin", BASE);
-    const depot = "acme/brigade";
-    const pr = { number: 40, html_url: `https://github.com/${depot}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
-    const gh = fauxGh(t);
-    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-    gh.repondre(`repos/${depot}/pulls`, { statut: 201, corps: pr });
-    gh.repondre(`repos/${depot}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${depot}/pulls?head=acme:cook/*`, { corps: [pr] });
-    gh.repondre(`repos/${depot}/pulls/40`, { corps: pr });
-    gh.repondre(`repos/${depot}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
-    gh.repondre(`repos/${depot}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
-    gh.repondre(`repos/${depot}/pulls/40/merge`, { corps: { merged: true } });
-    preparer("brigade", { clone: false, grant: true });
-    // Le cook commite, puis attend qu'on le laisse conclure ; le reviewer relit vert.
-    const essais = repertoireTemporaire(t);
-    const suite = join(essais, "suite.txt");
-    ecrireSuite(suite, ["commite-puis-attend"]);
-    const feu = join(essais, "feu");
-    configurer(`brigade ${depot} ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
-    const envDeStation = { ...env, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite, FAUX_CLAUDE_FEU: feu };
-
-    const premiere = lancer(t, STATION, [], envDeStation);
-    await jusqua(() => faits("brigade", "cook.launched").length === 1);
-    const run = String(faits("brigade", "cook.launched")[0]?.payload.run);
-    const fichierDuPid = join(etat("brigade"), "runs", `${run}.cook.pid`);
-    await jusqua(() => existsSync(fichierDuPid));
-    const pid = Number(readFileSync(fichierDuPid, "utf8"));
-    await jusqua(() => existsSync(join(etat("brigade"), "worktrees", run, "travail.txt")));
-
-    premiere.process.kill("SIGTERM");
-    assert.equal(await premiere.fin, 0);
-    assert.equal(vivant(pid), true);
-
-    const seconde = lancer(t, STATION, [], envDeStation);
-    await jusqua(() => faits("brigade", "cook.resumed").length === 1);
-    assert.equal(vivant(pid), true);
-    assert.deepEqual(faits("brigade", "cook.interrupted"), []);
-
-    writeFileSync(feu, "");
-    await jusqua(() => faits("brigade", "ticket.served").length === 1);
-    await mort(pid);
-    const juge = git(origine, "rev-parse", `cook/${run}`);
-    assert.deepEqual(faits("brigade", "cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
-    assert.deepEqual([faits("brigade", "pass.judged")[0]?.payload.verdict, faits("brigade", "pass.judged")[0]?.payload.sha], ["green", juge]);
-    assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${depot}/pulls/40/merge`]);
-    assert.deepEqual(faits("brigade", "grant.used").length, 1);
-    seconde.process.kill("SIGTERM");
-    assert.equal(await seconde.fin, 0);
-  });
 });
 
 test("main.test.ts de la station ne laisse rien dans le répertoire temporaire", rienNeReste);

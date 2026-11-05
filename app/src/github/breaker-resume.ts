@@ -3,10 +3,9 @@
 // `/resume` sur l'issue ouverte du dépôt qui porte le label `brigade:breaker-open` : la station la publie quand le
 // disjoncteur s'ouvre (#2138), et sa veille lit le commentaire et referme le disjoncteur (#2139).
 // Ce module compose les demandes, avec les mêmes en-têtes et le même jeton que les autres appels de l'app à GitHub
-// (tableau/client.ts, tableau-gestes/github.ts) ; ce qui les porte est donné par la plateforme. Il ne parle qu'à GitHub :
+// (tableau/client.ts) ; ce qui les porte est donné par la plateforme. Il ne parle qu'à GitHub :
 // aucune box, aucune station n'est jointe.
-import { clientGitHub, type AppelGitHub } from "../tableau/client.ts";
-import { refusDe, type Poste } from "../tableau-gestes/github.ts";
+import { clientGitHub, refusDe, type AppelGitHub, type Poste } from "../tableau/client.ts";
 
 // Le label de l'issue que la station ouvre avec le disjoncteur, et le corps exact que sa veille attend.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";

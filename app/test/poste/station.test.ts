@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
 import { accepterSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
-import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
+import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { roleDe } from "../../src/poste/role.ts";
 import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationLocale } from "../../src/poste/station.ts";
 import { FICHIER_STATION } from "../../src/stations/document.ts";
@@ -131,15 +131,17 @@ test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrêt
   assert.notEqual(github.etat(gist ?? "").arreteeLe, null);
 });
 
-test("ajouter un projet dont cette station est la principale : un ticket du projet y cuit, jusqu'à sa PR et son commentaire", { skip: SANS_POSIX }, async (t) => {
+test("ajouter un projet à cette station : elle le sert sur GitHub seul, et prend un ticket du projet à son nom", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
   const { racine, env } = unOrdinateur(t, github);
-  // Le projet, tel que l'ajout le pose sur la station : ses décisions au journal, sa ligne.
-  const { origine, clone } = depotGit(t);
+  // Le projet, tel que l'ajout le pose sur la station : ses décisions au journal, sa ligne. Sur GitHub, un ticket
+  // calibré que personne ne tient, sur une base verte.
+  const { clone } = depotGit(t);
   const gh = fauxGh(t);
   gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-  gh.repondre("repos/acme/brigade/pulls", { statut: 201, corps: { html_url: "https://github.com/acme/brigade/pull/40" } });
-  gh.repondre("repos/acme/brigade/issues/15/comments", { statut: 201, corps: { id: 1 } });
+  gh.repondre("repos/acme/brigade/issues/15/events?per_page=100", { corps: [] });
+  gh.repondre(`repos/acme/brigade/commits/${BASE}/check-runs?per_page=100`, { corps: { check_runs: [] } });
+  gh.repondre(`repos/acme/brigade/commits/${BASE}/status?per_page=100`, { corps: { statuses: [] } });
   const etat = join(racine, "etat", "brigade");
   mkdirSync(etat, { recursive: true });
   const journal = ouvrirJournal(etat);
@@ -152,14 +154,16 @@ test("ajouter un projet dont cette station est la principale : un ticket du proj
   writeFileSync(join(racine, "projets"), `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
 
   const { dit } = tenir(t, { node: process.execPath, principal: PRINCIPAL, racine, env: { ...env, FAUX_CLAUDE: "livre" }, appairer: async (): Promise<Appairage> => ({ refus: "pas de home dans ce test" }), reessaiMs: 3_600_000 });
-  await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/acme/brigade/issues/15/comments"));
+  // La prise de la station, postée sur l'issue du ticket : le premier geste du chemin GitHub seul.
+  const prises = () =>
+    gh
+      .appels()
+      .filter((args) => args.includes("POST") && args.at(-1) === "repos/acme/brigade/issues/15/comments")
+      .map((args) => args.find((arg) => arg.startsWith("body="))?.slice("body=".length));
+  await jusqua(() => prises().length > 0);
 
   assert.match(dit(), /brigade \[brigade\] : servi par la station — acme\/brigade, branche v2/);
-  const lu = ouvrirJournal(etat, { lectureSeule: true });
-  const lancement = lu.tout().find((e) => e.type === "cook.launched");
-  lu.fermer();
-  assert.equal(lancement?.ticket, 15);
-  assert.equal(git(origine, "show", `cook/${String((lancement?.payload as { run: string }).run)}:travail.txt`), "le travail du cook");
+  assert.deepEqual(prises(), ["<!-- brigade:prise station=ordi/claude -->\nTaken by station `ordi/claude`."]);
 });
 
 // Une station d'essai, plus simple que la vraie : ce qu'elle fait à chaque lancement est écrit

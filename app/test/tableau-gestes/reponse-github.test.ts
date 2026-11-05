@@ -1,4 +1,4 @@
-// La réponse du chef à une carte du chef lue de GitHub, sur un projet GitHub seul (#2434) : le commentaire marqué porte ses
+// La réponse du chef à une carte du chef lue de GitHub (#2434) : le commentaire marqué porte ses
 // choix (`- [<geste>] <libellé>`), la carte de Todo les montre en boutons avec un champ libre, et un clic poste la réponse
 // sur l'issue puis joue son geste sur GitHub — `resume`, `merge`, `drop`, `close`. Joué sur un faux GitHub qui tient ses
 // issues, leurs labels, leurs commentaires et ses PR : la carte lue, posée par la vue, cliquée, et l'issue relue après.
@@ -7,12 +7,12 @@ import { describe, test } from "node:test";
 import { carteDuChefDeTodo, type CarteDeTodo, type Reponse } from "../../src/carte-todo.ts";
 import { comprendre, tableau as tableauDe, type Carte, type Faits } from "../../src/faits.ts";
 import { situation } from "../../src/histoire.ts";
+import { avecCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
 import type { ReponseGitHub } from "../../src/tableau/client.ts";
-import type { LectureDuTableauDuDepot, TableauLu } from "../../src/tableau/lecture.ts";
+import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { formeDuChef } from "../../src/tableau/todo-github.ts";
 import { commentaireDeReponse, repondreSurGithub, type ClientDeLaReponse } from "../../src/tableau-gestes/reponse-github.ts";
-import { avecLeRailGithub } from "../../src/vue/rail/github.ts";
 import { CHAMP, ENVOYER, poserCarteDeTodo, REPOS } from "../../src/vue/carte-todo.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
@@ -53,7 +53,6 @@ function monde() {
   const issueJson = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${DEPOT}/issues/${numero}`, created_at: "2026-11-01T00:00:00Z", labels: [...issue.labels].map((name) => ({ name })) });
   const prJson = (numero: number, pr: PR) => ({ number: numero, state: pr.state, merged: pr.merged, html_url: `https://github.com/${DEPOT}/pull/${numero}`, created_at: "2026-11-04T00:00:00Z", head: { ref: pr.ref }, body: pr.body });
   const lire = async (chemin: string): Promise<ReponseGitHub> => {
-    if (chemin.endsWith("/contents/.claude/brigade/projet.json")) return ok({ content: Buffer.from(JSON.stringify({ version: 1, githubOnlyState: true })).toString("base64") });
     // Les issues ouvertes au label demandé : le rail (`fire`) comme ce qui attend le chef (attente-du-chef.ts).
     const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
     if (chemin.includes("/issues?") && label !== undefined) return ok([...issues].filter(([, issue]) => issue.state === "open" && issue.labels.has(label)).map(([numero, issue]) => issueJson(numero, issue)));
@@ -93,29 +92,9 @@ function monde() {
   return { issues, prs, ecrits, client: { lire, ecrire } satisfies ClientDeLaReponse };
 }
 
-const tableauFige = (): TableauLu =>
-  ({
-    lu: true,
-    depot: DEPOT,
-    numero: 99,
-    adresse: null,
-    genereLe: LU,
-    luLe: LU,
-    age: 0,
-    projet: "brigade",
-    file: [],
-    pages: [],
-    bilans: [],
-    cuisine: { rubriques: [{ titre: "rail", lignes: ["0 on the rail"] }] },
-    gestes: [],
-    faits: { etat: "ouverte", lu: LU, dernierTick: LU, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], stations: [] },
-    lignesDuRail: [],
-    etatLuLe: LU,
-  }) as unknown as TableauLu;
-
 // Le Todo que la vue dessine de la lecture de ce monde.
 async function todo(client: ClientDeLaReponse): Promise<Carte[]> {
-  const lu: LectureDuTableauDuDepot = await avecLeRailGithub(tableauFige(), client.lire);
+  const lu: LectureDuTableauDuDepot = await avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler: client.lire, maintenant: () => new Date(LU) }), client.lire);
   assert.ok(lu.lu, "the board is read");
   const faits = comprendre(JSON.stringify(lu.faits));
   assert.ok(!("informe" in faits), `facts are in shape: ${"informe" in faits ? faits.informe : ""}`);

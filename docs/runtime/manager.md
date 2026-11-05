@@ -35,8 +35,7 @@ them (`docs/app.md`, "The Manager tab"). GitHub not reached, it exits with `1`.
 
 **An empty rail does not mean a finished project.** `manager -- upstream` lists, for a program, the
 issues not read yet, epics not split, set aside, awaiting your answer, or left the rail (the app does
-not run it: the Kitchen board publishes the same issues, [`tableau-de-cuisine.md`](tableau-de-cuisine.md),
-`avantLeRail`).
+not run it: it reads the open issues on GitHub itself, `docs/app.md`).
 
 One JSON object on one line (`lu`, `depot`, `issues`). `lu`: read time, by the box's clock. `issues`:
 **every open issue the rail does not carry**, PRs left out, `prio:1` first, none last, oldest first at
@@ -319,8 +318,6 @@ its PR merged by hand (`merge.done`). The manager does not judge such an issue a
 it in your place, whoever calibrated it. Taking a ticket off the rail yourself (`rail drop`, a card's
 `drop`, a human's job) opens no card: the decision is yours.
 
-On the Kitchen board, its line carries the card's numbered choices, and the mention gives
-`/brigade choose #N <n>` and `/brigade answer #N <answer>`.
 
 ### What it leaves on the issue
 

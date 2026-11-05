@@ -6,7 +6,7 @@ import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { aArreter, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LU_LE = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);

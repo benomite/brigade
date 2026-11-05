@@ -7,11 +7,10 @@ import { describe, test } from "node:test";
 import { mettreAPart } from "../../src/attend.ts";
 import { comprendre, tableau as tableauDe, type Faits } from "../../src/faits.ts";
 import { contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
-import { blocDuChef, ECARTS, lireCeQuiAttendLeChef, type AttenteLue } from "../../src/tableau/attente-du-chef.ts";
+import { avecCeQuiAttendLeChef, blocDuChef, ECARTS, lireCeQuiAttendLeChef, type AttenteLue } from "../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
-import type { TableauLu } from "../../src/tableau/lecture.ts";
+import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
-import { avecLeRailGithub } from "../../src/vue/rail/github.ts";
 
 const DEPOT = "acme/kitchen";
 const LU = "2026-11-05T12:00:00.000Z";
@@ -39,13 +38,12 @@ const MONDE: Record<number, Issue> = {
 };
 
 // Un faux GitHub : les issues ouvertes au label demandé, leurs commentaires, leurs événements — et, pour le rail de l'app,
-// `projet.json` (GitHub seul) et ses PR. `appels` : chaque chemin demandé.
+// ses PR. `appels` : chaque chemin demandé.
 function github(monde: Record<number, Issue> = MONDE, appels: string[] = []): AppelGitHub {
   const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
   const issueJson = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${DEPOT}/issues/${numero}`, created_at: issue.created_at ?? "2026-11-01T00:00:00Z", labels: issue.labels.map((name) => ({ name })) });
   return async (chemin) => {
     appels.push(chemin);
-    if (chemin.endsWith("/contents/.claude/brigade/projet.json")) return ok({ content: Buffer.from(JSON.stringify({ version: 1, githubOnlyState: true })).toString("base64") });
     const label = /\/issues\?.*\blabels=([^&]+)/.exec(chemin)?.[1];
     if (label !== undefined) return ok(Object.entries(monde).filter(([, issue]) => issue.labels.includes(label)).map(([numero, issue]) => issueJson(Number(numero), issue)));
     if (chemin.includes("/pulls?")) return ok([]);
@@ -135,33 +133,12 @@ describe("ce qui attend le chef, lu de GitHub", () => {
   });
 });
 
-// Le tableau que la box publie encore, figé : sa file dit d'autres choses — une connexion, un ticket — que GitHub ne porte pas.
-const tableauFige = (): TableauLu =>
-  ({
-    lu: true,
-    depot: DEPOT,
-    numero: 1683,
-    adresse: null,
-    genereLe: LU,
-    luLe: LU,
-    age: 0,
-    projet: "kitchen",
-    file: [
-      { nom: "box/claude", ticket: null, titre: null, quoi: "connexion", depuis: "2026-11-04T00:00:00Z", ligne: "Max connection missing", decision: null, carte: null },
-      { nom: "#99", ticket: 99, titre: "Old", quoi: "merge", depuis: "2026-11-04T00:00:00Z", ligne: "green delivery awaiting merge", decision: null, carte: null },
-    ],
-    pages: [],
-    bilans: ["without a grant, 1 green delivery stopped: 0 merged by hand"],
-    cuisine: { rubriques: [{ titre: "rail", lignes: ["0 on the rail"] }] },
-    gestes: [],
-    faits: { etat: "ouverte", lu: LU, dernierTick: LU, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 2, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], stations: [], attend: [{ ticket: 99, titre: "Old", url: null }] },
-    lignesDuRail: [],
-    etatLuLe: LU,
-  }) as unknown as TableauLu;
+// La lecture de l'app (main.ts, `lireLeTableau`) : le rail, puis ce qui attend le chef.
+const lueParLApp = async (appeler: AppelGitHub) => avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant }), appeler);
 
 describe("l'app et le second ne se contredisent pas : la même lecture, les mêmes entrées", () => {
   test("le Todo de l'app, son bloc `awaiting` et la file du second disent les mêmes entrées, dans le même ordre, mot pour mot", async () => {
-    const lu = await avecLeRailGithub(tableauFige(), github());
+    const lu = await lueParLApp(github());
     assert.ok(lu.lu, !lu.lu ? lu.raison : "");
     // L'app : le bloc de son `status`, et les cartes de Todo qu'elle en dessine.
     const status = statusDuTableau(lu);
@@ -178,14 +155,12 @@ describe("l'app et le second ne se contredisent pas : la même lecture, les mêm
     const contexte = contexteDeLaFile({ nom: "kitchen", depot: DEPOT }, file);
     assert.ok(contexte.includes(montree.attend.trimEnd()), contexte);
     assert.match(contexte, /from GitHub only .* not the Kitchen board/);
-    // Rien de la file que le tableau figé publiait : ni la connexion, ni #99, ni le bilan des grants.
-    assert.doesNotMatch(status, /Max connection missing|#99|without a grant/);
     assert.equal(faits.compteurs.attend, 4);
   });
 
   test("un Todo vide : l'app et le second disent tous deux « nothing awaits the chef »", async () => {
     const monde = { 1: { labels: ["fire"] } };
-    const lu = await avecLeRailGithub(tableauFige(), github(monde));
+    const lu = await lueParLApp(github(monde));
     assert.ok(lu.lu);
     assert.match(statusDuTableau(lu), /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
     const file = await lireLaFile(github(monde), DEPOT, maintenant);
@@ -193,9 +168,9 @@ describe("l'app et le second ne se contredisent pas : la même lecture, les mêm
     assert.equal(file.texte, "awaiting   nothing awaits the chef\nend awaiting\n");
   });
 
-  test("GitHub qui ne rend pas ce qui attend le chef : une lecture ratée pour l'app — jamais le Todo du tableau —, dite au second", async () => {
+  test("GitHub qui ne rend pas ce qui attend le chef : une lecture ratée pour l'app — jamais un Todo vide —, dite au second", async () => {
     const refuse: AppelGitHub = async (chemin, entetes) => (chemin.includes("labels=chef-todo") ? { status: 502, data: {} } : github()(chemin, entetes));
-    const lu = await avecLeRailGithub(tableauFige(), refuse);
+    const lu = await lueParLApp(refuse);
     assert.equal(lu.lu, false);
     assert.match(!lu.lu ? lu.raison : "", /^What awaits the chef in acme\/kitchen was not read from GitHub: GitHub answered HTTP 502/);
     const file = await lireLaFile(refuse, DEPOT, maintenant);

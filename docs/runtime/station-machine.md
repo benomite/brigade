@@ -129,7 +129,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   turns are spaced `ECART_DES_PROJETS_MS` (20 s) apart (`runtime/src/station/station.ts`). The stale
   `cook/<n>-github` branches are cleaned a few at a time: each pass reads the issues of at most
   `BRANCHES_PAR_TOUR` (3) branches, and the next pass goes on from there
-  (`runtime/src/github-seul/boucles-perimees/boucles-perimees.ts`) — before, every tick read the issue of
+  (`runtime/src/github-seul/elagage/elagage.ts`) — before, every tick read the issue of
   every branch, for every project.
 - **Writes are paced (#2145).** GitHub's secondary limits cap writes (about 80 a minute and 500 an
   hour per account). Every kitchen write (`gh api` with a method other than GET, or with fields) goes
@@ -151,7 +151,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   station (a command) keeps its own queue, under the same shared counter.
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
   (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind (`issue-comments`,
-  `pull-requests`, `issues`, `gist`, `gesture`, `board` for the Kitchen board's refresh, `other`) over the
+  `pull-requests`, `issues`, `gist`, `gesture`, `board` — the Kitchen board's refresh, which no runtime does since #2061 —, `other`) over the
   sliding hour. `status` prints, read-only (absent without a counter), `gh calls   N calls in the last
   hour`, `most calls: project <p> (n), kind <k> (m)` and `board cost   N calls per hour, all projects`.
   `faits` carries `appelsGithub`: `total`, `topProject`, `topKind` (`{name, calls}` or null),

@@ -13,10 +13,12 @@
 //
 // Pur : rien n'est lu ni écrit ici.
 import { posix } from "node:path";
-import type { BacASableDeLaStation } from "../events/remote.ts";
 import type { Regle } from "../reseau.ts";
 import { argumentsDuBacASable, BacASableInvalide, configurer, type ConfigDeBacASable } from "./configuration.ts";
 import type { Detection } from "./detection.ts";
+
+// Ce qu'une station distante disait de son bac à sable.
+type BacASableDeLaStation = { available: true; version: string; home: string; worktrees: string; caches: string[] } | { available: false; reason: string };
 
 // Ce que la box retient d'un poste dont le bac à sable est là : de quoi
 // configurer celui de chacun de ses cooks.

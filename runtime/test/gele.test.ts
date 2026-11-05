@@ -1,13 +1,14 @@
 // Un ticket que la pass n'a pas pu juger (86 sans heure de retour) gèle ce qui
 // l'attend par `attend` : l'état le dit « bloqué par », en nommant le ticket
-// gelé. La décision d'ordonnancement, elle, ne change pas. Sa zone, il ne la
-// tient pas : 86, il ne retient personne par elle (#1368).
+// gelé. Sa zone, il ne la tient pas : 86, il ne retient personne par elle
+// (#1368).
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
-import { etatLu, ouvrirRail, type Rail } from "../src/rail.ts";
+import { etatLu } from "../src/rail.ts";
+import { ouvrirRail, type Rail } from "./aides/rail-du-journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const MAINTENANT = "2026-10-12T12:00:00.000Z";
@@ -60,11 +61,9 @@ test("un ticket qui attend un ticket gelé se lit bloqué par lui, dans l'état"
   assert.match(ligne(journal, 11), /BLOCKED.*blocked by #10 \(set aside \(86\) by the pass, not judged\)/);
   assert.doesNotMatch(ligne(journal, 11), /awaiting #10/);
   assert.deepEqual(ticketDuRail(journal.base, 11)?.frozenBy, [10]);
-  // La décision d'ordonnancement est la même : il ne part pas.
-  assert.equal(rail.prendre("box/claude"), null);
 });
 
-test("un ticket qui ne partageait que la zone d'un ticket gelé n'est pas bloqué par lui : il part", (t) => {
+test("un ticket qui ne partageait que la zone d'un ticket gelé n'est pas bloqué par lui, ni retenu par sa zone", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 10, [], ["runtime/src"]);
   poser(journal, 12, [], ["runtime/src/rail.ts"]);
@@ -73,7 +72,6 @@ test("un ticket qui ne partageait que la zone d'un ticket gelé n'est pas bloqu�
   assert.equal(lu(journal, 12), "en attente");
   assert.deepEqual(ticketDuRail(journal.base, 12)?.frozenBy, []);
   assert.doesNotMatch(ligne(journal, 12), /blocked by|zone held/);
-  assert.equal(rail.prendre("box/claude")?.ticket, 12);
 });
 
 test("un ticket qui attend un ticket en cours, ou gelé avec une heure de retour, garde la lecture « en attente »", (t) => {
@@ -123,7 +121,7 @@ test("le ticket gelé tranché, ceux qui l'attendaient reviennent à la lecture 
   }
 });
 
-test("le cas de l'épique : un ticket gelé, trois tickets qui l'attendent, un qui partage sa zone — les trois se lisent bloqués par lui, le quatrième part", (t) => {
+test("le cas de l'épique : un ticket gelé, trois tickets qui l'attendent, un qui partage sa zone — les trois se lisent bloqués par lui, le quatrième ne l'est pas", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 405, [], ["runtime/src", "runtime/test"]);
   poser(journal, 406, [405], ["docs"]);
@@ -139,7 +137,6 @@ test("le cas de l'épique : un ticket gelé, trois tickets qui l'attendent, un q
     [[405], [405], [405], []],
   );
   assert.doesNotMatch(ligne(journal, 400), /blocked by|zone held/);
-  assert.equal(rail.prendre("box/claude")?.ticket, 400);
   // Le ticket gelé lui-même est 86, sans heure de retour, dans l'état.
   assert.match(ligne(journal, 405), /86/);
 });

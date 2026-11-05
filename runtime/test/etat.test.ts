@@ -4,7 +4,7 @@ import { test, type TestContext } from "node:test";
 import { decrireEtat, duree, faits, lireEtat, suivre } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { faitInconnu, horloge, jourDecale, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

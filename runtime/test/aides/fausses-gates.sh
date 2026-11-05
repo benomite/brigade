@@ -17,10 +17,8 @@ echo "${CLE_API-}" >> "$FAUSSES_GATES.secrets"
 # Et pour le jeton de la connexion Max, qui ne leur parvient jamais.
 echo "${CLAUDE_CODE_OAUTH_TOKEN-}" >> "$FAUSSES_GATES.claude"
 # Lu sans lancer de process : la suite joue ces gates des centaines de fois.
-# `origine` garde le fichier d'où vient le scénario.
 lire() {
   [ -f "$1" ] || return 1
-  origine="$1"
   IFS= read -r -d '' scenario <"$1" || true
   scenario="${scenario%$'\n'}"
 }
@@ -34,16 +32,6 @@ case "$scenario" in
     echo "gates : VERT"
     ;;
   rouge)
-    echo "ok    JSON valide"
-    echo "FAIL  tests du projet en échec" >&2
-    echo "gates : ROUGE" >&2
-    exit 1
-    ;;
-  # Rouges à leur premier jeu, vertes ensuite : le scénario passe au vert de
-  # lui-même, sans qu'un test ait à le changer avant que le renvoi ne livre —
-  # dans le fichier d'où il vient, celui du worktree ou celui du test.
-  rouge-une-fois)
-    printf vert >"$origine"
     echo "ok    JSON valide"
     echo "FAIL  tests du projet en échec" >&2
     echo "gates : ROUGE" >&2

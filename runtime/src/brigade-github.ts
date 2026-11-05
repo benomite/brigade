@@ -5,19 +5,15 @@
 // arbitre. Aucune station n'y est principale : chacune prend, chacune relit,
 // chacune merge, et l'arrêt de l'une n'arrête pas les autres.
 //
-// Un interrupteur par projet le choisit : `githubOnlyState` dans les réglages
-// de son dépôt (`.claude/brigade/projet.json`), lu à l'ouverture de la cuisine
-// — celle d'un runtime par projet (`main.ts`) comme celle de chaque projet
-// d'une station (`station/cuisine.ts`), qui est ce que la box fait tourner.
-// Absent ou éteint, la cuisine ouvre l'ancien chemin, tel quel.
-// Allumé, ses stations ne lancent plus aucun cook de l'ancien chemin, et c'est
-// le tour d'ici qui prend, cuisine et merge.
+// C'est le seul chemin (#2061) : la cuisine d'un runtime par projet (`main.ts`)
+// comme celle de chaque projet d'une station (`station/cuisine.ts`), qui est ce
+// que la box fait tourner, l'ouvrent à l'ouverture. Une station qui ne peut pas
+// le servir le dit, et ne cuisine rien pour le projet.
 //
 // Ce module enchaîne les contrats de l'épique, il ne les refait pas : l'état
-// d'un ticket et de la base (`github-etat/etats.ts`, #2057), la relecture et
-// le merge (`github-etat/fusion.ts`, #2058). La prise (`prendre`, `lacher`,
-// #2056) est reçue : tant que son module n'est pas dans ce runtime, la
-// cuisine le dit et garde l'ancien chemin. Le cook et la relecture sont ceux
+// d'un ticket et de la base (`github-etat/etats.ts`, #2057), la prise
+// (`github-etat/prise.ts`, #2056), la relecture et le merge
+// (`github-etat/fusion.ts`, #2058). Le cook et la relecture sont ceux
 // d'aujourd'hui — worktree du dépôt de la station, cloison, consignes du cook
 // et du reviewer —, lancés ici sans journal.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -34,6 +30,7 @@ import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-re
 import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
+import { ConfigInvalide } from "./runtime.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -46,10 +43,8 @@ import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
-import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
-import { lireLesRecus } from "./gates-du-cook.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
@@ -126,7 +121,8 @@ export const secoupent = (a: string, b: string): boolean => {
 
 // Le cook d'un ticket pris : la branche qu'il a poussée, ou pourquoi il n'a
 // rien livré — et ce que ses tests et ses gates ont pris, en millisecondes,
-// quand il l'a dit (`gates-du-cook.ts`).
+// quand un cuisinier sait le dire (`temps-ticket/`) : celui de la station ne
+// le sait pas, aucun lanceur ne mesure les gates de ses cooks.
 // `reste` : le cook n'a rien ajouté, mais la PR qu'il aurait livrée est en
 // conflit ou rouge (#2454) : ce n'est pas un échec, il reste du travail.
 export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string }) & { testsMs?: number }>;
@@ -152,8 +148,8 @@ export type OptionsDeStation = {
   // Ce que la station fournit (#2187) : un ticket qui demande une capacité
   // qu'elle n'a pas, par un label `needs:<capacité>`, n'est jamais pris ici.
   capacites?: readonly string[];
-  // Les garde-fous de l'ancien chemin (#2213) : le « stop », le disjoncteur,
-  // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
+  // Les garde-fous (#2213) : le « stop », le disjoncteur, le quota et
+  // l'arbitre, lus avant chaque prise. Absents, rien ne retient.
   gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
@@ -470,7 +466,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (etat === "pass" && pr !== null) {
         // Une livraison qui touche à ce qui la juge (gates, CI, réglages) ne se
         // merge pas sur le seul verdict du reviewer : un cook pourrait s'y rendre
-        // vert seul. Comme sur l'ancien chemin, elle attend le chef (#2209).
+        // vert seul. Elle attend le chef (#2209).
         ouvertes ??= await github.prsOuvertes();
         const sienne = ouvertes.find((ouverte) => ouverte.branche === brancheDuTicket(ticket.number));
         const juges = sienne?.fichiers.filter((fichier) => JUGES.some((juge) => fichier.startsWith(juge))) ?? [];
@@ -628,7 +624,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return ouvertes.some((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
     };
     // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
-    // dernier), puis les plus anciens : l'ordre de l'ancien rail (#2209).
+    // dernier), puis les plus anciens (#2209).
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     for (const ticket of libres) {
       if (enVol.size + aRendre.size >= places) break;
@@ -637,7 +633,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (enVol.has(ticket.number)) continue;
       // Une capacité qui manque à la station : le ticket attend celle qui l'a.
       if (besoinsDuTicket(ticket.labels).some((besoin) => !capacites.has(besoin))) continue;
-      // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
+      // Un ticket sans calibrage complet ne part pas.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
       // Une dépendance ouverte retient le ticket ; sans lecture de GitHub, il attend aussi.
@@ -682,15 +678,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   return station;
 }
 
-// L'interrupteur, tel que les réglages du dépôt le portent.
-export const surGitHubSeul = (reglages: Pick<ReglagesProjet, "githubOnlyState"> | null): boolean => reglages?.githubOnlyState === true;
-
-export type OptionsDuProjet<A> = {
-  // Les réglages que la branche d'intégration porte, lus à l'ouverture.
-  reglages: Pick<ReglagesProjet, "githubOnlyState"> | null;
-  // L'ancien chemin, ouvert tel quel quand l'interrupteur est éteint — ou que
-  // la station GitHub seul ne peut pas tourner.
-  ancien: () => A;
+export type OptionsDuProjet = {
   // La station GitHub seul, ou pourquoi elle ne peut pas tourner ici.
   station: () => StationGitHub | { refus: string };
   // Entre deux tours. Par défaut, deux minutes.
@@ -699,26 +687,23 @@ export type OptionsDuProjet<A> = {
   // tous les lire à son démarrage. Par défaut, aucun délai.
   premierTourMs?: number;
   avertir?: (message: string) => void;
-  // Ce que le runtime a décidé de l'interrupteur, pour qu'il se lise ailleurs que dans son log (`github-seul-etat.ts`) : null, éteint.
-  noter?: (decision: { etat: "accepted" } | { etat: "refused"; reason: string } | null) => void;
+  // Ce que le runtime a décidé, pour qu'il se lise ailleurs que dans son log (`github-seul-etat.ts`).
+  noter?: (decision: { etat: "accepted" } | { etat: "refused"; reason: string }) => void;
 };
 
-export type ProjetOuvert<A> = { chemin: "ancien"; ancien: A } | { chemin: "github"; arreter(): Promise<void>; enCuisine(): number[] };
+// Un projet ouvert : ses cooks, et son arrêt. `refus` : la station ne peut pas
+// le servir, et ne cuisine rien pour lui.
+export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; refus?: string };
 
-// Ouvre le projet sur le chemin que dit son interrupteur. Allumé, un tour de
-// la station, puis un autre l'intervalle passé, jusqu'à l'arrêt ; l'ancien
-// chemin n'est pas ouvert.
-export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuvert<A> {
+// Ouvre le projet : un tour de la station, puis un autre l'intervalle passé,
+// jusqu'à l'arrêt.
+export function brancherBrigadeGithub(options: OptionsDuProjet): ProjetOuvert {
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
-  if (!surGitHubSeul(options.reglages)) {
-    options.noter?.(null);
-    return { chemin: "ancien", ancien: options.ancien() };
-  }
   const station = options.station();
   if ("refus" in station) {
     options.noter?.({ etat: "refused", reason: station.refus });
-    avertir(`brigade : GitHub-only state is on in the project settings, but this runtime cannot serve it — ${station.refus}; the old path is kept`);
-    return { chemin: "ancien", ancien: options.ancien() };
+    avertir(`brigade : this runtime cannot serve the project on GitHub-only state — ${station.refus}; it cooks nothing for it`);
+    return { refus: station.refus, arreter: async () => {}, enCuisine: () => [] };
   }
   options.noter?.({ etat: "accepted" });
   avertir("brigade : GitHub-only state — this station takes, cooks, reviews and merges the project's tickets from GitHub only");
@@ -772,7 +757,6 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
   if ((options.premierTourMs ?? 0) > 0) programmer(options.premierTourMs as number);
   else tourner();
   return {
-    chemin: "github",
     // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
     enCuisine: () => station.enCuisine(),
     arreter: async () => {
@@ -889,9 +873,8 @@ export type OptionsDuDepot = {
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
   depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "vue" | "fichiers" | "lire">>;
-  // La prise de #2056, liée à la station ; null tant que son module n'est pas
-  // dans ce runtime.
-  prise: ((github: GitHubDuTour, station: string) => Prise) | null;
+  // La prise de #2056, liée à la station.
+  prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
   env: NodeJS.ProcessEnv;
   cloison: Cloison | null;
@@ -905,8 +888,8 @@ export type OptionsDuDepot = {
   // Ce que la station fournit, tel que le projet le déclare.
   capacites?: readonly string[];
   lancer?: Lancer;
-  // Les garde-fous de l'ancien chemin (#2213), dont le lancement gardé des
-  // cooks et des relectures.
+  // Les garde-fous (#2213), dont le lancement gardé des cooks et des
+  // relectures.
   gardes?: GardesDuTour;
   avertir?: (message: string) => void;
   // Ce qui regarde le tour par son client GitHub, sans rien y changer : la
@@ -920,6 +903,15 @@ export type OptionsDuDepot = {
   // alors aucun jeton GitHub. Absentes, la station ne les joue pas.
   gates?: { delaiMs: number; secrets?: string | null; sansIdentite?: boolean };
 };
+
+// Le plafond de durée des gates d'une tête, en millisecondes (#2456) : 30 min
+// sans `BRIGADE_GATES_TIMEOUT_SECONDS`, que les réglages du dépôt peuvent
+// poser (`variablesDesGatesDuDepot`). Mal écrit, il refuse le démarrage.
+export function delaiDesGatesMs(env: Record<string, string | undefined>): number {
+  const valeur = env.BRIGADE_GATES_TIMEOUT_SECONDS || "1800";
+  if (!/^[1-9][0-9]*$/.test(valeur)) throw new ConfigInvalide(`BRIGADE_GATES_TIMEOUT_SECONDS invalide : « ${valeur} » — attendu un nombre entier de secondes`);
+  return Number(valeur) * 1000;
+}
 
 // Les workflows d'un dépôt, d'où se lit la CI de ses PR.
 const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
@@ -958,7 +950,6 @@ const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileS
 
 // La station GitHub seul de ce runtime, ou pourquoi elle ne peut pas tourner.
 export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus: string } {
-  if (options.prise === null) return { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" };
   if (!/^[A-Za-z0-9._/-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
   if (options.github.retraitsDeLabels === undefined) return { refus: "the GitHub client cannot read the label removals of an issue" };
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
@@ -1068,22 +1059,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
     const fin = await lance.fin;
-    // Les gates que le cook a jouées par le lanceur, s'il en a laissé les reçus : la part de sa cuisson qu'elles ont prise.
-    const testsMs = lireLesRecus(worktree).reduce((somme, passage) => somme + passage.durationMs, 0);
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
       depot.retirer(worktree, reprise ? undefined : branche);
-      return { echec: fin.erreur ?? conclusion, testsMs };
+      return { echec: fin.erreur ?? conclusion };
     }
     await depot.ranger(worktree, branche);
-    if (depot.commits(branche) === 0) return { echec: "the cook committed nothing", testsMs };
-    if (avant !== null && depot.tete?.(branche) === avant) return resteAFaire !== null ? { reste: resteAFaire, testsMs } : { echec: "the cook added nothing since its last delivery", testsMs };
+    if (depot.commits(branche) === 0) return { echec: "the cook committed nothing" };
+    if (avant !== null && depot.tete?.(branche) === avant) return resteAFaire !== null ? { reste: resteAFaire } : { echec: "the cook added nothing since its last delivery" };
     try {
       depot.pousser(branche);
     } catch (erreur) {
-      return { echec: `its branch could not be pushed: ${message(erreur)}`, testsMs };
+      return { echec: `its branch could not be pushed: ${message(erreur)}` };
     }
-    return { branche, testsMs };
+    return { branche };
   };
 
   const juger: Juger = async (ticket, pr) => {

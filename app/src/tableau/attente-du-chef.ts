@@ -17,9 +17,8 @@
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`, `decision`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
 // quand il n'y en a aucune. Une lecture qui échoue n'est jamais « rien n'attend » : elle dit pourquoi.
-import type { LigneDeLaFile } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import type { AppelGitHub } from "./client.ts";
-import type { TableauLu } from "./lecture.ts";
+import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lecture.ts";
 import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
@@ -187,16 +186,15 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
 
 // Les entrées comme lignes de la file, dans la forme que le bloc `awaiting` écrit (rail.ts, `blocAwaiting`).
 export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] =>
-  attentes.map(({ ticket, titre, depuis, quoi, ligne }) => ({ nom: `#${ticket}`, ticket, titre: titre === "" ? null : titre, quoi, depuis, ligne, decision: null, carte: null }));
+  attentes.map(({ ticket, titre, depuis, quoi, ligne }) => ({ nom: `#${ticket}`, ticket, titre: titre === "" ? null : titre, quoi, depuis, ligne }));
 
 // Le bloc `awaiting` de ce qui attend le chef, de sa tête à `end awaiting` : ce que le second relaie, et ce que le TODO
 // de l'app lit.
 export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
   blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
 
-// Le tableau lu, dont ce qui attend le chef est cette lecture, et rien d'autre : la file du bloc `awaiting` de `status` et
-// `faits.attend`, que TODO dessine, dans le même ordre. Ce que la box publiait d'autre dans sa file — ce qui n'est pas un
-// fait de GitHub — n'y est plus.
+// La lecture du rail, dont ce qui attend le chef est cette lecture, et rien d'autre : la file du bloc `awaiting` de
+// `status` et `faits.attend`, que TODO dessine, dans le même ordre.
 export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): TableauLu {
   const attend = attentes.map(({ ticket, titre, url, chef, miseDeCote, decision }) => ({
     ticket,
@@ -206,6 +204,14 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles }: { at
     ...(decision === undefined ? {} : { decision }),
     ...(chef === undefined ? {} : { chef }),
   }));
-  const faits = lu.faits === undefined ? {} : { faits: { ...lu.faits, attend, compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } } };
-  return { ...lu, file: fileDuChef(attentes), pages: attentes.map(({ url, decision }) => decision?.pr ?? url), bilans: [...illisibles], ...faits };
+  return { ...lu, file: fileDuChef(attentes), bilans: [...illisibles], faits: { ...lu.faits, attend, compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } } };
+}
+
+// La lecture du rail, avec ce qui attend le chef lu de GitHub comme le second le lit (main.ts) : l'app ne dit jamais autre
+// chose que lui. Pas lu : une lecture ratée, jamais un TODO vide.
+export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub): Promise<LectureDuTableauDuDepot> {
+  if (!lu.lu) return lu;
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe) });
+  if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
+  return avecLAttenteDuChef(lu, attente);
 }

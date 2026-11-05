@@ -20,7 +20,7 @@ const faits = (rail: Faits["rail"], attend: Faits["attend"] = []): Faits => ({
   attend,
 });
 const lu = (de: Faits, minute: number): Dessinable => ({ ...tenirFaits().recevoir({ projet: PARADE, demande: 0, a: a(minute), sorties: [{ commande: "facts", texte: JSON.stringify(de) }] }), publieLe: a(minute - 1) });
-const ratee = (minute: number): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a: a(minute), erreur: "GitHub refused to list the issues of chef/parade (HTTP 403): API rate limit exceeded.", atteinte: true, cas: null, duTableau: true });
+const ratee = (minute: number): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a: a(minute), erreur: "GitHub refused to read the rail of chef/parade (HTTP 403): API rate limit exceeded.", atteinte: true, cas: null, duTableau: true });
 
 const ATTEND = [{ ticket: 21, titre: "Ticket 21", url: "https://github.com/chef/parade/issues/21" }];
 

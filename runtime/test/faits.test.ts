@@ -9,7 +9,7 @@ import { principal as commande } from "../src/faits.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { appeler, jourDecale, JOUR_HORLOGE, horloge, photographier, repertoireTemporaire } from "./outils.ts";
 import { projetSurGit } from "./aides/projet-sur-git.ts";
 

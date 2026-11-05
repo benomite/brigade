@@ -1,9 +1,10 @@
 // Un ticket `blocked-on-human` qui ne dit pas la décision qu'il attend est
-// requalifié par le manager : en carte typée, ou repris par la cuisine. Celui
-// qui la dit reste retenu comme avant. Sur une cuisine complète.
+// requalifié par le manager : en carte proposée au chef, ou repris par la
+// cuisine. Celui qui la dit reste retenu comme avant. Sur une cuisine dont le
+// manager est allumé.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import { cartesEnTodo } from "../src/carte-todo.ts";
+import { cartesEnTodo, cartesRetenues } from "../src/carte-todo.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
@@ -21,14 +22,14 @@ function brigade(t: TestContext, jugement: string | string[], options: Options =
 }
 
 describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
-  test("sans décision écrite, une vraie question est dérivée : carte typée dans TODO, le journal le dit, le label reste", async (t) => {
+  test("sans décision écrite, une vraie question est dérivée : la carte est proposée, le journal le dit, le label reste", async (t) => {
     const c = brigade(t, "requalifie-carte");
-    await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
+    await jusqua(() => cartesRetenues(c.journal.base).length === 1);
 
-    const [carte] = cartesEnTodo(c.journal.base);
-    // Proposée par la requalification, écrite en question par le triage.
+    // Proposée par la requalification, sans question ni choix : la porte de
+    // TODO la retient (`todo.held`).
     assert.equal(c.journal.duTicket(40).find((e) => e.type === "todo.held")?.payload.statement, "Choisir entre l'export CSV et l'export JSON.");
-    assert.deepEqual([carte?.ticket, carte?.type, carte?.question], [40, "product", "Export CSV ou export JSON ?"]);
+    assert.deepEqual(cartesRetenues(c.journal.base).map((carte) => [carte.ticket, carte.type, carte.auteur]), [[40, "product", "manager"]]);
     const [fait] = c.requalifie();
     assert.equal((fait?.payload as { outcome: string }).outcome, "card");
     assert.deepEqual(c.gh.lire(40)?.labels, ["blocked-on-human"]);
@@ -37,11 +38,15 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     // Une fois lue, la même issue ne se relit pas, et la carte ne se repose pas.
     await c.laisserTourner();
     assert.equal(c.requalifie().length, 1);
-    assert.equal(c.journal.tout().filter((e) => e.type === "todo.entered").length, 1);
+    assert.equal(c.journal.tout().filter((e) => e.type === "todo.held").length, 1);
   });
 
   test("la carte sort de TODO quand le chef retire le label", async (t) => {
     const c = brigade(t, "requalifie-carte");
+    await jusqua(() => c.requalifie().length === 1);
+    // La carte, réécrite en question, est entrée dans TODO — ce que le triage
+    // des journaux d'avant écrivait.
+    c.journal.ajouter({ project: "brigade", ticket: 40, author: "manager", type: "todo.entered", payload: { kind: "product", summary: "Deux voies s'opposent.", statement: "Export CSV ou export JSON ?", choices: [{ text: "CSV", then: "resume" }], captures: null } });
     await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
     await c.gh.github.delabelliser(40, "blocked-on-human");
     await jusqua(() => cartesEnTodo(c.journal.base).length === 0);

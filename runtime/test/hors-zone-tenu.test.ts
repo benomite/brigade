@@ -1,14 +1,15 @@
 // Un ticket dont la livraison écrit hors de sa zone peut heurter, sans bruit,
 // un ticket qui possède ce qu'il a écrit (#1367). La file le montre, chemins
 // en cause, et ce qu'il a écrit dehors, il le tient comme sa zone : le ticket
-// qui attend dessus ne part pas avant que l'écart soit réglé — la fiche
+// qui attend dessus est retenu tant que l'écart n'est pas réglé — la fiche
 // élargie, une livraison qui ne l'écrit plus, ou la livraison sur la base.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
-import { direRetenueEn, ouvrirRail, type Rail } from "../src/rail.ts";
+import { direRetenueEn } from "../src/rail.ts";
+import { ouvrirRail, type Rail } from "./aides/rail-du-journal.ts";
 import { principal as lancerRail } from "../src/montrer-rail.ts";
 import { BAIL_MS } from "./aides/cuisine.ts";
 import { aArreter, repertoireTemporaire } from "./outils.ts";
@@ -97,7 +98,7 @@ test("au-delà de cinq chemins, la file dit combien il en reste", (t) => {
   assert.match(ligne(journal, 1401), /OUT OF ZONE: wrote docs\/a\.md, docs\/b\.md, docs\/c\.md, docs\/d\.md, docs\/e\.md and 2 more {2}Ticket 1401$/);
 });
 
-test("le ticket en attente sur ce qu'un autre a écrit hors de sa zone ne part pas ; la fiche élargie, l'écart est réglé et sa zone le retient pour de bon", (t) => {
+test("le ticket en attente sur ce qu'un autre a écrit hors de sa zone est retenu ; la fiche élargie, l'écart est réglé et sa zone le retient pour de bon", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 1401, ["runtime/src/rail/"]);
   livrer(journal, rail, 1401, ["runtime/src/rail/"], ["runtime/src/gates/x.ts"]);
@@ -105,8 +106,6 @@ test("le ticket en attente sur ce qu'un autre a écrit hors de sa zone ne part p
 
   assert.deepEqual(ticket(journal, 1402)?.held, [{ ticket: 1401, path: "runtime/src/gates/x.ts", outside: true }]);
   assert.equal(direRetenueEn(ticket(journal, 1402)!), "zone held by #1401 (runtime/src/gates/x.ts, written outside its zone)");
-  assert.equal(rail.prendre(STATION), null);
-  assert.equal(rail.servables(), 0);
 
   // Le chef règle l'écart : la fiche de #1401 nomme ce qu'il a écrit. Les deux
   // zones se recouvrent alors pour de bon, et #1402 attend désormais sa zone.
@@ -114,15 +113,13 @@ test("le ticket en attente sur ce qu'un autre a écrit hors de sa zone ne part p
   assert.deepEqual(ticket(journal, 1401)?.outOfZone, []);
   assert.deepEqual(ticket(journal, 1402)?.held, [{ ticket: 1401, path: "runtime/src/gates/x.ts" }]);
   assert.doesNotMatch(ligne(journal, 1401), /OUT OF ZONE/);
-  assert.equal(rail.prendre(STATION), null);
 });
 
-test("une nouvelle livraison qui n'écrit plus hors de la zone règle l'écart : le ticket qui attendait part", (t) => {
+test("une nouvelle livraison qui n'écrit plus hors de la zone règle l'écart : le ticket qui attendait n'est plus retenu", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 1401, ["runtime/src/rail/"]);
   livrer(journal, rail, 1401, ["runtime/src/rail/"], ["runtime/src/gates/x.ts"]);
   poser(journal, 1402, ["runtime/src/gates/"]);
-  assert.equal(rail.prendre(STATION), null);
 
   // La pass le rend, livraison ouverte ; il est repris et corrigé : il tient encore l'écart.
   rail.rendre(1401, "pass:red");
@@ -132,7 +129,7 @@ test("une nouvelle livraison qui n'écrit plus hors de la zone règle l'écart :
 
   assert.deepEqual(ticket(journal, 1401)?.outOfZone, []);
   assert.doesNotMatch(ligne(journal, 1401), /OUT OF ZONE/);
-  assert.equal(rail.prendre(STATION)?.ticket, 1402);
+  assert.deepEqual(ticket(journal, 1402)?.held, []);
 });
 
 test("une livraison mergée règle l'écart : ce qu'elle a écrit est sur la base", (t) => {
@@ -140,12 +137,12 @@ test("une livraison mergée règle l'écart : ce qu'elle a écrit est sur la bas
   poser(journal, 1401, ["runtime/src/rail/"]);
   livrer(journal, rail, 1401, ["runtime/src/rail/"], ["runtime/src/gates/x.ts"]);
   poser(journal, 1402, ["runtime/src/gates/x.ts"]);
-  assert.equal(rail.prendre(STATION), null);
+  assert.equal(ticket(journal, 1402)?.held.length, 1);
 
   journal.ajouter({ project: "brigade", ticket: 1401, author: "pass", type: "merge.done", payload: { pr: "https://github.com/acme/brigade/pull/9", sha: "abc", by: "pass", reconciled: false } });
 
   assert.deepEqual(ticket(journal, 1401)?.outOfZone, []);
-  assert.equal(rail.prendre(STATION)?.ticket, 1402);
+  assert.deepEqual(ticket(journal, 1402)?.held, []);
 });
 
 test("un ticket dont la livraison tient dans sa zone n'est jamais marqué, et ne retient que sa zone", (t) => {
@@ -157,7 +154,7 @@ test("un ticket dont la livraison tient dans sa zone n'est jamais marqué, et ne
   assert.deepEqual(ticket(journal, 1401)?.outOfZone, []);
   assert.doesNotMatch(ligne(journal, 1401), /OUT OF ZONE/);
   assert.equal(lireRail(journal.base).some((autre) => autre.outOfZone.length > 0), false);
-  assert.equal(rail.prendre(STATION)?.ticket, 1402);
+  assert.deepEqual(ticket(journal, 1402)?.held, []);
 });
 
 test("un chemin devenu commun après la livraison n'est plus un écart", (t) => {

@@ -1,8 +1,8 @@
-// La cuisine d'un projet de la station ouvre le chemin que dit l'interrupteur
-// de son dépôt (`githubOnlyState`, #2060) : la box fait tourner la station
-// multi-projets, pas `main.ts` (#2176). Allumé, c'est la station GitHub seul
-// qui prend les tickets, au nom de la station déclarée ; éteint, l'ancien
-// chemin, tel quel.
+// La cuisine d'un projet de la station ouvre le chemin GitHub seul, le seul
+// (#2060, #2061) : la box fait tourner la station multi-projets, pas `main.ts`
+// (#2176). C'est la station GitHub seul qui prend les tickets, au nom de la
+// station déclarée — que le `projet.json` du dépôt porte encore
+// `githubOnlyState` ou non.
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -19,7 +19,7 @@ const OUVERTURE = "GitHub-only state — this station takes, cooks, reviews and 
 const PRISE = "<!-- brigade:prise station=box/claude -->\nTaken by station `box/claude`.";
 
 // Une station neuve qui sert `brigade` sur la box, son dépôt sur la branche
-// `v2` ; `githubOnlyState` est ce que porte son `projet.json`.
+// `v2` ; `githubOnlyState` est ce que porte son `projet.json`, sans effet.
 function ouvrir(t: TestContext, githubOnlyState: boolean | undefined) {
   const racine = repertoireTemporaire(t);
   projetSurGit(t, { reglages: { integrationBranch: "v2", ...(githubOnlyState === undefined ? {} : { githubOnlyState }) }, clone: join(racine, CLONES, "brigade") });
@@ -48,24 +48,18 @@ function ouvrir(t: TestContext, githubOnlyState: boolean | undefined) {
   return { cuisine, dits, prises };
 }
 
-test("switch on: the station's kitchen opens the GitHub-only path and claims a ticket as the station declared on the box", async (t) => {
-  const { cuisine, dits, prises } = ouvrir(t, true);
-  try {
-    assert.ok(dits.includes(`brigade : ${OUVERTURE}`), dits.join("\n"));
-    await jusqua(() => prises().length > 0);
-    assert.deepEqual(prises(), [PRISE]);
-  } finally {
-    cuisine.arreter("fin du test");
-    await cuisine.arretee?.();
-  }
-});
-
-test("switch off: the station's kitchen keeps the old path, and claims nothing on GitHub", async (t) => {
-  const { cuisine, dits, prises } = ouvrir(t, undefined);
-  cuisine.arreter("fin du test");
-  await cuisine.arretee?.();
-  assert.ok(!dits.some((dit) => dit.includes("GitHub-only")), dits.join("\n"));
-  assert.deepEqual(prises(), []);
-});
+for (const githubOnlyState of [true, undefined]) {
+  test(`the station's kitchen opens the GitHub-only path and claims a ticket as the station declared on the box (githubOnlyState: ${githubOnlyState})`, async (t) => {
+    const { cuisine, dits, prises } = ouvrir(t, githubOnlyState);
+    try {
+      assert.ok(dits.includes(`brigade : ${OUVERTURE}`), dits.join("\n"));
+      await jusqua(() => prises().length > 0);
+      assert.deepEqual(prises(), [PRISE]);
+    } finally {
+      cuisine.arreter("fin du test");
+      await cuisine.arretee?.();
+    }
+  });
+}
 
 test("cuisine-github-seul.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

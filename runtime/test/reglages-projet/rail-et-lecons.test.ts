@@ -8,7 +8,6 @@ import { configRail } from "../../src/alimenter.ts";
 import { lirePlafondDesLecons } from "../../src/apprentissage/injection.ts";
 import { environnementDecide } from "../../src/decisions.ts";
 import { configManager } from "../../src/manager.ts";
-import { appliquerLeChangement, changementsDits } from "../../src/reglages-projet/proposer.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier, validerReglagesProjet, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { lireSeuils } from "../../src/seuils/seuils.ts";
 
@@ -64,15 +63,6 @@ test("an unknown or invalid rail or lessons setting is refused, and named", () =
 test("the common paths are paths of the repository, without a comma", () => {
   assert.equal(refus({ integrationBranch: "v2", commonPaths: "docs" }).cle, "commonPaths");
   for (const chemin of ["/etc", "../x", "docs/*.md", "a,b", "", 3]) assert.equal(refus({ integrationBranch: "v2", commonPaths: [chemin] }).cle, "commonPaths.0");
-});
-
-test("a proposed change sets, replaces or withdraws them", () => {
-  const change = appliquerLeChangement(COMPLET, { rail: { leaseSeconds: 600, roadmapIssue: null }, commonPaths: ["docs"], lessons: { injected: null } });
-  const apres = validerReglagesProjet(change);
-  assert.deepEqual(apres.rail, { leaseSeconds: 600 });
-  assert.equal(apres.lessons?.injected, undefined);
-  assert.equal(apres.lessons?.promotionRetros, 4);
-  assert.deepEqual(changementsDits(COMPLET, apres), ["common paths: docs, CHANGELOG.md → docs", "rail threshold `leaseSeconds`: 900 → 600", "rail threshold `roadmapIssue`: 42 → none", "lessons threshold `injected`: 0 → none"]);
 });
 
 test("what the repository sets wins over the box, setting by setting; without it the box stands, and without both the default", () => {

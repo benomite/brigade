@@ -88,15 +88,11 @@ export function direAttenteDUneStationEn(manque: Manque, depuis: string): string
 // rail, sans personne — la ligne du ticket dans `status` le dit tel quel ;
 // `heure` : la mise de côté porte une heure de retour, que le rail tient
 // (`relever`). Les motifs qu'un préfixe ouvre (`no-station: …`,
-// `station-absent: …`) y sont par leur préfixe. Un test confronte cette liste
-// aux motifs que le runtime écrit.
+// `station-absent: …`) y sont par leur préfixe.
 //
-// Ce qui le remet, raison par raison : la station relit à chaque service le
-// calibrage, la fiche et ce que les stations fournissent (station.ts) ; une
-// station distante qui se manifeste rend ses tickets ; le rail rend à son
-// heure ce qui en porte une ; la cuisine reprend ce que la pass ou le manager
-// remonte (remontee-a-la-cuisine.ts) — sauf, faute de secrets que seul le chef
-// pose sur la machine, la remontée que `CAUSES_DU_CHEF` lui garde (#1826).
+// Plus rien n'écrit ces motifs depuis #2061 : la station du journal qui les
+// posait n'est plus, et la station GitHub seul ne tient pas son rail au
+// journal. Les journaux d'avant les portent, et `status` les lit encore.
 export type MiseDeCote = { par: string; retour: string; heure?: true };
 export const MISES_DE_COTE: Readonly<Record<string, MiseDeCote>> = {
   "no-calibration": { par: "the station, when the issue carries no `model:` and `effort:`", retour: "once the issue carries `model:` and `effort:`" },

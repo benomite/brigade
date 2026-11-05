@@ -15,7 +15,6 @@ import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
 import { configManager } from "../src/manager.ts";
-import { configPass } from "../src/pass.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configStation } from "../src/station.ts";
@@ -26,10 +25,9 @@ import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
+import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
-const MAIN = join(import.meta.dirname, "../src/main.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
@@ -219,7 +217,7 @@ const sans = (env: Record<string, string>, ...variables: string[]) => Object.fro
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("les variables obligatoires", { concurrency: 8 }, () => {
-  const lecteurs = [configRail, lireReglages, configStation, configPass, configReviewer, configManager, lireSeuils];
+  const lecteurs = [configRail, lireReglages, configStation, configReviewer, configManager, lireSeuils];
   const complet = Object.fromEntries(VARIABLES.map((variable) => [variable, { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_BASE_BRANCH: BASE }[variable as string] ?? "sonnet"]));
   // Ce que le runtime lit, une fois les décisions du journal versées à son
   // environnement : le calibrage n'est plus une variable obligatoire.
@@ -904,39 +902,6 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     }
   });
 
-  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", { skip: posixOnly("marks the installation done, starts the real runtime, waits for its first cook and stops it by SIGTERM expecting exit 0: on Windows SIGTERM ends the runtime before its handler runs") }, async (t) => {
-    const { env, etat, gh } = projet(t);
-    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-    // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
-    // charge le processeur bien au-delà du seuil par défaut.
-    const service = { ...env, BRIGADE_MAX_LOAD_PER_CORE: "1000000", BRIGADE_MIN_FREE_MEMORY_MB: "0", BRIGADE_MIN_FREE_DISK_MB: "0" };
-
-    // Rien n'a été noté : la vérification verte atteste chaque étape.
-    const fin = appeler(etapes, ["demarrage", "faite"], service);
-    assert.equal(await fin.fin, 0, fin.sortie());
-
-    const lue = appeler(etapes, ["--json"], service);
-    assert.equal(await lue.fin, 0);
-    const installation = JSON.parse(lue.sortie()) as { courante: string | null; etapes: Array<{ id: string; etat: string }> };
-    assert.equal(installation.courante, null);
-    assert.deepEqual(installation.etapes.filter((etape) => etape.etat !== "faite"), []);
-    assert.deepEqual(manques(await verifier(service)), []);
-
-    // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
-    const runtime = lancer(t, MAIN, [], service);
-    const lancements = () => {
-      const journal = ouvrirJournal(etat, { lectureSeule: true });
-      try {
-        return journal.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket);
-      } finally {
-        journal.fermer();
-      }
-    };
-    await jusqua(() => lancements().length > 0);
-    assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0, runtime.sortie());
-  });
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.

@@ -49,7 +49,7 @@ function ouvrir(t: TestContext, sondes: Sondes) {
         BRIGADE_STATE_DIR: etat,
         BRIGADE_PROJECT: "brigade",
         BRIGADE_GITHUB_REPO: "acme/brigade",
-        // Aucun test ne joint GitHub : ce `gh` n'existe pas, le tableau de la cuisine ne se publie nulle part.
+        // Aucun test ne joint GitHub : ce `gh` n'existe pas.
         BRIGADE_GH_BIN: join(racine, "gh-absent"),
         BRIGADE_REPO_DIR: clone,
         BRIGADE_BASE_BRANCH: "v2",

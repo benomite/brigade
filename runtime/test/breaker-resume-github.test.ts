@@ -4,15 +4,14 @@
 // sondage suivant — comme `guardrails resume`. Tout autre commentaire est ignoré.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { avecRail } from "../src/alimenter.ts";
-import { LABEL_DU_DISJONCTEUR, reprendreParGitHub } from "../src/breaker-resume-github.ts";
+import { brancherRepriseParGitHub, LABEL_DU_DISJONCTEUR, reprendreParGitHub } from "../src/breaker-resume-github.ts";
 import { brancherGardeFous } from "../src/garde-fous.ts";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { demarrer } from "../src/runtime.ts";
 import { fauxGitHub, issue } from "./aides/cuisine.ts";
-import { aArreter, DEPOT, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const OUVERT_LE = `${JOUR_HORLOGE}T10:00:00.000Z`;
 const APRES = `${JOUR_HORLOGE}T10:05:00Z`;
@@ -141,14 +140,13 @@ test("le disjoncteur fermé, rien n'est lu sur GitHub", async (t) => {
 test("dans le runtime, le sondage qui suit le `/resume` du chef referme le disjoncteur, et un cook peut repartir", async (t) => {
   const gh = github();
   gh.ouvrir(ISSUE, { updatedAt: `${JOUR_HORLOGE}T09:00:00Z` });
-  const runtime = brancherGardeFous(
-    { plafonds: { durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 }, seuilDisjoncteur: 1, graceMs: 2000 },
-    avecRail(demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 2, maintenant: horloge() }), {
-      depot: DEPOT,
-      dureeBailMs: 600_000,
-      gh: "gh",
-      github: gh.github,
-    }),
+  // Branché comme main.ts le branche : sur le runtime des garde-fous.
+  const runtime = brancherRepriseParGitHub(
+    brancherGardeFous(
+      { plafonds: { durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 }, seuilDisjoncteur: 1, graceMs: 2000 },
+      demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 2, maintenant: horloge() }),
+    ),
+    { github: gh.github },
   );
   t.after(() => runtime.arreter("test"));
   const cook = (ticket: number, scenario: string) => runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });

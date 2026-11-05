@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { LECONS_INJECTEES_PAR_DEFAUT } from "../../../src/apprentissage/injection.ts";
-import { environnementCook } from "../../../src/claude.ts";
+import { consigne, environnementCook } from "../../../src/claude.ts";
 import { contexteDuCook, pourGitHub, type SourcesDuContexte } from "../../../src/github-seul/contexte-cook/contexte-cook.ts";
 import type { DefinitionDeProfil } from "../../../src/profils/definition.ts";
-import { MARQUEUR } from "../../../src/fiche.ts";
-import { ouvrirJournal, type Journal } from "../../../src/journal.ts";
-import { cuisine, issue } from "../../aides/cuisine.ts";
-import { BASE, DEPOT, jusqua, repertoireTemporaire } from "../../outils.ts";
+import { ouvrirJournal } from "../../../src/journal.ts";
+import { BASE, DEPOT, repertoireTemporaire } from "../../outils.ts";
 
 const CLE = "sk_test_4eC39HqLyjWDarjtT1";
 const BASE_DE_DEV = "postgres://dev:mot-de-passe@localhost:5432";
@@ -27,58 +25,59 @@ const VUE: DefinitionDeProfil = {
   notebook: { lessons: [{ id: "L-1", text: "Capturer l'écran avant et après.", state: "promoted", entered: "2026-10-01", retros: ["#3"], origin: { kind: "retro" } }] },
 };
 
-const prompt = (args: string[]) => args[args.indexOf("-p") + 1] ?? "";
+// Le journal du projet.
+function unJournal(t: TestContext) {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  t.after(() => journal.fermer());
+  return journal;
+}
 
-test("un cook GitHub-seul reçoit les mêmes leçons, profil et secrets que celui de l'ancien chemin, sur le même projet", async (t) => {
-  const lieu = cuisine(t, { scenario: "muet", secrets: { declares: DECLARES, valeurs: VALEURS }, profils: () => [VUE], issues: [] });
-  const { journal, gh, cooks, lancements, secrets } = lieu;
-  const retro = (j: Journal) => j.ajouter({ project: "brigade", ticket: 9, author: "pass", type: "retro.recorded", payload: { run: null, text: null, kept: [{ kind: "propose", text: LECON }], dropped: [] } });
-  retro(journal);
-  gh.ficher(14, "2026-10-08T09:00:00Z", [MARQUEUR, "- zone : app/src/vue/rail.ts"].join("\n"));
-  gh.poser(issue(14));
-  await jusqua(() => cooks().length === 1);
-  const ancien = lancements()[0]!;
+// Le fichier de secrets de la machine : il vit hors de l'état, comme sur la box.
+function secretsDeLaMachine(t: TestContext, valeurs: string): string {
+  const fichier = join(repertoireTemporaire(t), "secrets.env");
+  writeFileSync(fichier, valeurs, { mode: 0o600 });
+  return fichier;
+}
 
-  // Le journal du cook GitHub-seul : la même rétro, mais le cook du profil de l'ancien chemin n'y tourne pas.
-  const sien = ouvrirJournal(repertoireTemporaire(t));
-  t.after(() => sien.fermer());
-  retro(sien);
-
-  // Le worktree du cook GitHub-seul : le dépôt y déclare les mêmes secrets.
+// Le worktree du cook : le dépôt y déclare ses secrets.
+function unWorktree(t: TestContext): string {
   const worktree = repertoireTemporaire(t);
   mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
   writeFileSync(join(worktree, ".claude/brigade/secrets"), DECLARES);
+  return worktree;
+}
+
+test("un cook GitHub-seul reçoit les leçons du projet, le carnet du profil de sa zone et les secrets que le dépôt déclare", async (t) => {
+  const journal = unJournal(t);
+  journal.ajouter({ project: "brigade", ticket: 9, author: "pass", type: "retro.recorded", payload: { run: null, text: null, kept: [{ kind: "propose", text: LECON }], dropped: [] } });
   const sources: SourcesDuContexte = {
-    base: sien.base,
+    base: journal.base,
     projet: "brigade",
     plafondDesLecons: LECONS_INJECTEES_PAR_DEFAUT,
     carnetALaBase: () => null,
     profils: () => [VUE],
-    fichierDeSecrets: secrets.fichier,
+    fichierDeSecrets: secretsDeLaMachine(t, VALEURS),
     envDuCook: environnementCook({}),
     station: "box/claude",
   };
-  const contexte = await contexteDuCook(sources, { ticket: 14, titre: issue(14).title, depot: DEPOT, base: BASE, zone: ["app/src/vue/rail.ts"], worktree, delaiSetupMs: 1000 });
+  const contexte = await contexteDuCook(sources, { ticket: 14, titre: "Ticket 14", depot: DEPOT, base: BASE, zone: ["app/src/vue/rail.ts"], worktree: unWorktree(t), delaiSetupMs: 1000 });
   assert.ok(contexte.pret);
 
-  // Mêmes leçons, même profil : la consigne est celle que l'ancien chemin a donnée.
-  assert.ok(contexte.lecons.some((l) => l.texte === LECON));
+  // La leçon du projet et le carnet du profil, dans la consigne du cook.
+  assert.deepEqual(contexte.lecons, [{ id: "L1", texte: LECON }]);
   assert.equal(contexte.carnet?.nom, "app-src-vue");
-  assert.equal(contexte.consigne, prompt(ancien.args));
-  // Mêmes secrets, et seulement ceux que le dépôt déclare.
-  for (const nom of ["CLE_API", "DATABASE_URL", "AUTRE_PROJET"]) assert.equal(contexte.env[nom], ancien.env[nom], nom);
+  assert.equal(contexte.consigne, consigne({ ticket: 14, titre: "Ticket 14", depot: DEPOT, base: BASE, lecons: contexte.lecons, carnet: contexte.carnet }));
+  // Les secrets déclarés, et seulement eux.
   assert.equal(contexte.env.CLE_API, CLE);
+  assert.equal(contexte.env.DATABASE_URL, BASE_DE_DEV);
   assert.equal(contexte.env.AUTRE_PROJET, undefined);
 });
 
 test("les secrets ne vont que dans l'environnement du cook : ni la consigne, ni le texte posé sur l'issue, un commentaire ou la PR ne les portent", async (t) => {
-  const { journal, secrets } = cuisine(t, { scenario: "muet", secrets: { declares: DECLARES, valeurs: VALEURS }, issues: [] });
-  const worktree = repertoireTemporaire(t);
-  mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(worktree, ".claude/brigade/secrets"), DECLARES);
+  const journal = unJournal(t);
   const contexte = await contexteDuCook(
-    { base: journal.base, projet: "brigade", plafondDesLecons: 20, carnetALaBase: () => null, fichierDeSecrets: secrets.fichier, envDuCook: {}, station: "box/claude" },
-    { ticket: 14, titre: "t", depot: DEPOT, base: BASE, zone: [], worktree, delaiSetupMs: 1000 },
+    { base: journal.base, projet: "brigade", plafondDesLecons: 20, carnetALaBase: () => null, fichierDeSecrets: secretsDeLaMachine(t, VALEURS), envDuCook: {}, station: "box/claude" },
+    { ticket: 14, titre: "t", depot: DEPOT, base: BASE, zone: [], worktree: unWorktree(t), delaiSetupMs: 1000 },
   );
   assert.ok(contexte.pret);
   assert.equal(contexte.env.CLE_API, CLE);
@@ -92,13 +91,10 @@ test("les secrets ne vont que dans l'environnement du cook : ni la consigne, ni 
 });
 
 test("un secret déclaré qui manque : rien ne part, et le problème nomme la variable sans en dire de valeur", async (t) => {
-  const { journal, secrets } = cuisine(t, { scenario: "muet", secrets: { declares: DECLARES, valeurs: `CLE_API=${CLE}\n` }, issues: [] });
-  const worktree = repertoireTemporaire(t);
-  mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(worktree, ".claude/brigade/secrets"), DECLARES);
+  const journal = unJournal(t);
   const contexte = await contexteDuCook(
-    { base: journal.base, projet: "brigade", plafondDesLecons: 20, carnetALaBase: () => null, fichierDeSecrets: secrets.fichier, envDuCook: {}, station: "box/claude" },
-    { ticket: 14, titre: "t", depot: DEPOT, base: BASE, zone: [], worktree, delaiSetupMs: 1000 },
+    { base: journal.base, projet: "brigade", plafondDesLecons: 20, carnetALaBase: () => null, fichierDeSecrets: secretsDeLaMachine(t, `CLE_API=${CLE}\n`), envDuCook: {}, station: "box/claude" },
+    { ticket: 14, titre: "t", depot: DEPOT, base: BASE, zone: [], worktree: unWorktree(t), delaiSetupMs: 1000 },
   );
   assert.ok(!contexte.pret && contexte.raison === "secrets");
   assert.match(contexte.problemes.join("\n"), /DATABASE_URL/);
@@ -106,7 +102,7 @@ test("un secret déclaré qui manque : rien ne part, et le problème nomme la va
 });
 
 test("le setup du worktree est joué avec les secrets ; en échec il arrête le cook, sauf pour le ticket de préparation qui le lit dans sa consigne", async (t) => {
-  const { journal } = cuisine(t, { scenario: "muet", issues: [] });
+  const journal = unJournal(t);
   const worktree = repertoireTemporaire(t);
   const sources: SourcesDuContexte = { base: journal.base, projet: "brigade", plafondDesLecons: 20, carnetALaBase: () => null, fichierDeSecrets: null, envDuCook: {}, station: "box/claude" };
   const demande = { ticket: 14, titre: "t", depot: DEPOT, base: BASE, zone: [], worktree, delaiSetupMs: 1000 };

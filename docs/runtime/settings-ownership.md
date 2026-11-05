@@ -171,8 +171,7 @@ All station: the log and the disk are the machine's.
 
 | Command | What it writes | Belongs to |
 |---|---|---|
-| `setting ceiling \| manager \| reviewer \| branch` | Proposes `projet.json` as a pull request | project (already in the project's repository) |
-| `/brigade profile yes \| no <proposal>`, on the Kitchen board | Writes a cook profile definition in the project's repository | project (same) |
+| `setting ceiling \| manager \| reviewer \| branch` | Nothing since #2061: it refuses, and names `projet.json` to change by a pull request on GitHub | project (already in the project's repository) |
 | `installation stations …`, `installation decisions …` | The same stations and decisions as §1, at installation time | follows §1 |
 | `arbiter weight \| remove` | A project's weight on the machine | station: shares one machine between projects |
 | `guardrails stop \| resume \| pause`, `switch on \| off` | The live state of the kitchen (written to the log) | station: an operation, not a setting |

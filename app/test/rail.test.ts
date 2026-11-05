@@ -351,8 +351,8 @@ describe("hors ligne (#1818)", () => {
 
   test("une vraie panne, en ligne, se dit comme avant", async () => {
     const vue = await ouvrir();
-    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM THE KITCHEN BOARD", erreur: "The Kitchen board of benomite/parade (issue 7) cannot be read: no machine block.", atteinte: true, cas: null, duTableau: true });
-    assert.match(vue.element("rail").textContent, /^the rail is not drawn: NOT READ FROM THE KITCHEN BOARD — tried at /);
+    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM GITHUB", erreur: "The Kitchen board of benomite/parade (issue 7) cannot be read: no machine block.", atteinte: true, cas: null, duTableau: true });
+    assert.match(vue.element("rail").textContent, /^the rail is not drawn: NOT READ FROM GITHUB — tried at /);
     assert.deepEqual(signes(vue), []);
   });
 });
@@ -451,7 +451,7 @@ describe("le haut du rail est allégé (#623)", () => {
     const recue = dessinable();
     recevoir(vue, { ...recue, a: "2026-11-02T08:25:00.000Z", publieLe: "2026-11-02T07:35:00.000Z" });
     const age = vue.element("rail").dessous("p").find(({ className }) => className === "age-du-rail");
-    assert.match(age?.textContent ?? "", /^rail as the box read it 50 min ago, at /);
+    assert.match(age?.textContent ?? "", /^rail as GitHub said it 50 min ago, at /);
     // Une lecture qui ne vient pas du tableau ne porte pas d'âge : rien n'est inventé.
     recevoir(vue, recue);
     assert.equal(vue.element("rail").dessous("p").some(({ className }) => className === "age-du-rail"), false);

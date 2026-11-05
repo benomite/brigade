@@ -6,7 +6,7 @@ import { agentsEnCours, JUGE, NETTOIE } from "../src/agents-en-cours.ts";
 import { faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
