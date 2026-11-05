@@ -3,9 +3,12 @@
 // d'un check se lisent par l'API de GitHub (`gh api repos/<dépôt>/check-runs/<job>/annotations`). Un
 // échec y est dit avec son erreur et ce que le test a dit de lui (`t.diagnostic`, même s'il l'a dit
 // après son échec) ; les tests sautés, chacun avec sa raison, et les comptes de la part y sont aussi.
+// Un fichier dont le process meurt avant de rien rapporter, `node --test` le dit « test failed », sans
+// plus : sa raison n'est que sur son stderr. Son annotation porte le code de sortie et la fin de ce
+// stderr — neuf fichiers de la part 7/8 de ff0b79c sont morts ainsi sans rien en dire (#2482).
 //
 // Reporter de `node --test` : il écrit tout à la fin, en commandes de workflow, là où on le lui dit.
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 // Ce que le reporter retient des événements de `node --test`.
 export type Evenement = {
@@ -17,7 +20,7 @@ export type Evenement = {
     line?: number;
     message?: string;
     skip?: string | boolean;
-    details?: { type?: string; error?: { message?: string; cause?: unknown } };
+    details?: { type?: string; error?: { message?: string; cause?: unknown; exitCode?: number | null; signal?: string | null } };
   };
 };
 
@@ -26,10 +29,23 @@ const ERREURS = 9;
 const LONGUEUR = 4000;
 // Une annotation garde 64 Ko : la liste des sauts s'arrête avant.
 const LISTE = 60_000;
+// D'un fichier mort, la fin de son stderr : là où un process qui meurt dit pourquoi.
+const STDERR = 3_000;
 
 const donnee = (texte: string) => texte.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 const propriete = (texte: string) => donnee(texte).replaceAll(":", "%3A").replaceAll(",", "%2C");
 const couper = (texte: string, longueur: number) => (texte.length <= longueur ? texte : `${texte.slice(0, longueur)}…`);
+
+// Le process d'un fichier sorti en échec : son code de sortie, ou le signal qui l'a tué, et la fin de son
+// stderr. Rien pour un test qui échoue dans un process qui, lui, a rapporté.
+function sortieDuFichier(data: Evenement["data"], stderr: string[] | undefined): string | null {
+  const erreur = data.details?.error;
+  if (typeof erreur?.exitCode !== "number" && typeof erreur?.signal !== "string") return null;
+  const sortie = typeof erreur.signal === "string" ? `killed by ${erreur.signal}` : `exited with code ${erreur.exitCode}`;
+  const dit = (stderr ?? []).join("").trimEnd();
+  if (dit === "") return `the file's process ${sortie}, and wrote nothing on stderr`;
+  return `the file's process ${sortie}; the end of its stderr:\n${dit.length <= STDERR ? dit : `…${dit.slice(dit.length - STDERR)}`}`;
+}
 
 function erreurDe(data: Evenement["data"]): string {
   const erreur = data.details?.error;
@@ -50,6 +66,13 @@ export function annoter(evenements: Evenement[], racine: string): string {
     const cle = `${data.file}:${data.line}`;
     dits.set(cle, [...(dits.get(cle) ?? []), data.message]);
   }
+  // Le stderr de chaque fichier : `node --test` le nomme par le chemin qu'il a reçu, l'échec par son chemin entier.
+  const stderrs = new Map<string, string[]>();
+  for (const { type, data } of evenements) {
+    if (type !== "test:stderr" || data.file === undefined || data.message === undefined) continue;
+    const fichier = resolve(data.file);
+    stderrs.set(fichier, [...(stderrs.get(fichier) ?? []), data.message]);
+  }
   const echecs = evenements.filter(({ type, data }) => type === "test:fail" && data.details?.type !== "suite" && data.skip === undefined);
   const sautes = evenements.filter(({ type, data }) => (type === "test:pass" || type === "test:fail") && data.skip !== undefined && data.skip !== false);
   const comptes = evenements.flatMap(({ type, data }) => (type === "test:diagnostic" && data.file === undefined && /^(tests|pass|fail|cancelled|skipped) \d+$/.test(data.message ?? "") ? [data.message as string] : []));
@@ -57,7 +80,8 @@ export function annoter(evenements: Evenement[], racine: string): string {
   const lignes: string[] = [];
   for (const { data } of echecs.slice(0, ERREURS)) {
     const dit = dits.get(`${data.file}:${data.line}`) ?? [];
-    const message = [erreurDe(data), ...dit.map((ligne) => `ℹ ${ligne}`)].join("\n");
+    const sortie = data.file === undefined ? null : sortieDuFichier(data, stderrs.get(resolve(data.file)));
+    const message = [erreurDe(data), ...(sortie === null ? [] : [sortie]), ...dit.map((ligne) => `ℹ ${ligne}`)].join("\n");
     lignes.push(`::error file=${propriete(lieu(data.file))},line=${data.line ?? 1},title=${propriete(couper(data.name ?? "", 200))}::${donnee(couper(message, LONGUEUR))}`);
   }
   const deTrop = echecs.slice(ERREURS);

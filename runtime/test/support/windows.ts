@@ -5,7 +5,7 @@
 //
 // Usage : node test/support/windows.ts [--part <i>/<n>]   (depuis runtime/)
 import { spawn, spawnSync } from "node:child_process";
-import { globSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { globSync, mkdtempSync, readFileSync, rmSync, statfsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -58,7 +58,42 @@ export function enPlus(avant: Map<string, number>, apres: Map<string, number>): 
     .map(([image, n]) => `${image} ×${n}`);
 }
 
-const images = () => compterLesImages(process.platform === "win32" ? (spawnSync("tasklist", ["/FO", "CSV", "/NH"], { encoding: "utf8", timeout: 60_000 }).stdout ?? "") : "");
+// Ce qui vit en plus, dit au journal : `tasklist` qui ne répond pas ne veut pas dire « rien ». Un runner
+// qui ne lance plus de process (#2482 : les neuf derniers fichiers de la part 7/8 de ff0b79c morts sans
+// rapport, puis le git de fin du checkout) n'a pas de tasklist non plus, et « none » le cachait.
+export type Images = Map<string, number> | { illisible: string };
+export function laissesEntre(avant: Images, apres: Images): string {
+  if (!(avant instanceof Map)) return `unknown: tasklist failed at the start of the part (${avant.illisible})`;
+  if (!(apres instanceof Map)) return `unknown: tasklist failed (${apres.illisible})`;
+  return enPlus(avant, apres).join(", ") || "none";
+}
+
+// Le disque et le répertoire temporaire, dits à la fin de la part et au garde : un runner qui perd l'un ou
+// l'autre fait mourir chaque fichier qui suit, sans qu'aucun test en dise rien (docs/runtime/windows-ci-runner-failure.md).
+export function etatDuPoste(disques: Record<string, string>, temporaire = tmpdir()): string {
+  const espaces = Object.entries(disques).map(([nom, chemin]) => {
+    try {
+      const { bavail, bsize } = statfsSync(chemin);
+      return `${nom} ${((bavail * bsize) / 1e9).toFixed(1)} GB free`;
+    } catch (erreur) {
+      return `${nom} unreadable (${(erreur as Error).message})`;
+    }
+  });
+  try {
+    rmSync(mkdtempSync(join(temporaire, "brigade-essai-")), { recursive: true, force: true });
+    return [...espaces, "temp dir writable"].join(", ");
+  } catch (erreur) {
+    return [...espaces, `temp dir not writable (${(erreur as Error).message})`].join(", ");
+  }
+}
+
+function images(): Images {
+  if (process.platform !== "win32") return new Map();
+  const lu = spawnSync("tasklist", ["/FO", "CSV", "/NH"], { encoding: "utf8", timeout: 60_000 });
+  if (lu.error !== undefined) return { illisible: lu.error.message };
+  if (lu.status !== 0) return { illisible: `${lu.signal === null ? `exit code ${lu.status}` : `killed by ${lu.signal}`}${lu.stderr?.trim() ? `: ${lu.stderr.trim()}` : ""}` };
+  return compterLesImages(lu.stdout ?? "");
+}
 
 if (import.meta.main) {
   const tous = fichiersDeTest();
@@ -92,7 +127,8 @@ if (import.meta.main) {
   // survit à son test charge le runner jusqu'à la fin de la part. Comptés contre l'état de départ, à la
   // fin de la part comme au garde.
   const auDepart = images();
-  const laisses = () => enPlus(auDepart, images()).join(", ") || "none";
+  const laisses = () => laissesEntre(auDepart, images());
+  const poste = () => etatDuPoste({ workspace: RACINE_TESTS, temp: tmpdir() });
   const suivi = join(rapport, "en-cours.txt");
   const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? GARDE_MS);
   const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
@@ -107,13 +143,14 @@ if (import.meta.main) {
     try {
       coinces = readFileSync(suivi, "utf8") || coinces;
     } catch {}
-    console.log(`::error title=${"part stalled".replaceAll(" ", "%20")}::${`the part ran over ${garde / 60_000} min; tests running now:\n${coinces}\nprocesses left: ${laisses()}`.replaceAll("%", "%25").replaceAll("\n", "%0A")}`);
+    console.log(`::error title=${"part stalled".replaceAll(" ", "%20")}::${`the part ran over ${garde / 60_000} min; tests running now:\n${coinces}\nprocesses left: ${laisses()}\nrunner: ${poste()}`.replaceAll("%", "%25").replaceAll("\n", "%0A")}`);
     if (process.platform === "win32" && enfant.pid !== undefined) spawnSync("taskkill", ["/pid", String(enfant.pid), "/T", "/F"]);
     else enfant.kill("SIGKILL");
   }, garde);
   const statut = await new Promise<number | null>((fini) => enfant.on("exit", (code) => fini(code)));
   clearTimeout(minuteur);
   if (process.platform === "win32" && !cale) console.log(`::notice title=${"processes left".replaceAll(" ", "%20")}::${laisses()}`);
+  if (!cale) console.log(`::notice title=runner::${poste().replaceAll("%", "%25")}`);
   const r = { status: cale ? 1 : statut };
   try {
     process.stdout.write(readFileSync(annotations, "utf8"));
