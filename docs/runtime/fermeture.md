@@ -340,6 +340,12 @@ at its entry (#2218): it reads the log, which is then stale. The closer runs on 
   crossed to `<state>/derive-github.json`; while the switch is accepted, `status` takes its `drift` line
   from that file, not from the log, and a threshold newly crossed is said once. The gates' measures
   (tests, repo, context, gates duration) and the cooks of another station are not read there.
+- **The times of the tickets** (#2364): each time it opens a closing issue, the pass reads the times the station
+  recorded at each merge (`.claude/brigade/temps-tickets.json`, `lesTempsDesTickets`) and hands those merged since
+  the previous closing issue's date to `readDrift` (`closer-github-durees`). A finding goes to `writeCorrection`
+  (`closer-github-correction`), which opens the project's correction ticket or completes the open one, never a
+  second. The issue's `## Times` section says the finding's sentence and numbers and the correction ticket's number
+  with whether it was opened or completed, or `Times stable`. A reading that fails is said there and stops nothing.
 - **What it does not carry**: nothing here launches `claude` nor reads or writes the log, so neither the
   memory of what a pass left (a candidate left may be proposed again), nor the start condition on the
   cooks in flight, nor the `closing.*` facts, nor the summary.

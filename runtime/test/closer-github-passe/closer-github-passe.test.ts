@@ -12,6 +12,7 @@ import { noterGitHubSeul } from "../../src/github-seul-etat.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { SANS_SEUIL } from "../../src/mesures.ts";
 import type { CookMesure } from "../../src/projections/measures.ts";
+import type { TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
 import { photoDuProjet } from "../../src/status.ts";
 import { MERGES_PER_PASS, ONE_PASS_A_DAY_MS } from "../../src/closing/trigger.ts";
 import { elagageDuClone, elaguerBranchesPerimees } from "../../src/github-seul/boucles-perimees/boucles-perimees.ts";
@@ -32,6 +33,10 @@ type IssueDuFaux = { number: number; title: string; body: string; labels: string
 
 // A GitHub of the test: its issues, those the pass opened and closed.
 function fauxGitHub(...issues: IssueDuFaux[]) {
+  return fauxGitHubALHeure(() => MAINTENANT, ...issues);
+}
+
+function fauxGitHubALHeure(horloge: () => Date, ...issues: IssueDuFaux[]) {
   const etat = [...issues];
   const creees: IssueDuFaux[] = [];
   const fermees: number[] = [];
@@ -43,10 +48,14 @@ function fauxGitHub(...issues: IssueDuFaux[]) {
       return etat.filter(({ createdAt }) => createdAt >= instant);
     },
     creerIssue: async ({ titre, corps, labels }) => {
-      const issue: IssueDuFaux = { number: ++suivant, title: titre, body: corps, labels, association: "MEMBER", state: "open", createdAt: MAINTENANT.toISOString() };
+      const issue: IssueDuFaux = { number: ++suivant, title: titre, body: corps, labels, association: "MEMBER", state: "open", createdAt: horloge().toISOString() };
       etat.push(issue);
       creees.push(issue);
       return issue.number;
+    },
+    ecrireCorps: async (numero, corps) => {
+      const issue = etat.find(({ number }) => number === numero);
+      if (issue) issue.body = corps;
     },
     fermerIssue: async (numero) => {
       fermees.push(numero);
@@ -125,6 +134,95 @@ describe("the closer's trigger, on what GitHub and the clone say", () => {
     assert.equal(aOuvrir({ number: 1, createdAt: ilYaDeuxJours, state: "open" }, merges(MERGES_PER_PASS), MAINTENANT), null);
     const ceMatin = new Date(MAINTENANT.getTime() - ONE_PASS_A_DAY_MS + HEURE_MS).toISOString();
     assert.equal(aOuvrir({ number: 1, createdAt: ceMatin, state: "closed" }, merges(MERGES_PER_PASS * 2), MAINTENANT), null);
+  });
+});
+
+// A merged ticket's record: the cook's work (`tests` of it the tests), then the CI, merged at `mergedAt`.
+const enregistrement = (ticket: number, mergedAt: Date, cuisson: number, tests: number, ci: number): TempsTicket => ({ ticket, mergedAt: mergedAt.toISOString(), claimedAt: mergedAt.toISOString(), cuisson, cuissonTests: tests, attentePasse: 0, revue: 0, ci, merge: 0 });
+
+// Six tickets ending at `fin`, an hour apart: the first three with quick tests, the last three with slow ones.
+const tempsQuiDerivent = (fin: Date, premier = 200): TempsTicket[] =>
+  Array.from({ length: 6 }, (_, i) => enregistrement(premier + i, new Date(fin.getTime() - (6 - i) * HEURE_MS), i < 3 ? 400 : 1000, i < 3 ? 100 : 700, 60));
+const tempsStables = (fin: Date): TempsTicket[] => Array.from({ length: 6 }, (_, i) => enregistrement(200 + i, new Date(fin.getTime() - (6 - i) * HEURE_MS), 400, 100, 60));
+
+const fermetures = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ body }) => estUneFermeture(body));
+const corrections = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ labels }) => labels.includes("correction"));
+
+describe("the times of the tickets, at the pass", () => {
+  test("drifting times: the closing issue names the cause and its numbers, and one correction ticket is opened", async (t) => {
+    const gh = fauxGitHub();
+    const { clone } = fauxClone();
+    const k = brancher(t, { github: gh.github, clone, temps: () => tempsQuiDerivent(MAINTENANT) });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    const [fermeture] = fermetures(gh);
+    const [correction] = corrections(gh);
+    assert.ok(fermeture && correction && corrections(gh).length === 1);
+    assert.match(fermeture.body, /## Times\n\nThe tests got slow: a ticket's tests went from 1 min 40 s to 11 min 40 s/);
+    assert.match(fermeture.body, new RegExp(`Correction ticket #${correction.number} opened\\.`));
+    assert.match(correction.body, /The tests got slow/);
+    assert.equal(correction.state, "open");
+    // The candidates, the removal cap and the drift line are where they were.
+    assert.match(fermeture.body, /- M1 — export `inutile`/);
+    assert.match(fermeture.body, /No more than 20 lines removed/);
+    assert.match(fermeture.body, /## Drift\n\n.*\n\n- last 20 merges/);
+  });
+
+  test("stable times: the body says so, and no correction ticket is opened or changed", async (t) => {
+    const ouverte: IssueDuFaux = { number: 77, title: "Correct the time drift of brigade: slow-tests", body: "<!-- brigade:correction project=brigade -->\nold", labels: ["correction"], association: "MEMBER", state: "open", createdAt: "2026-10-01T00:00:00.000Z" };
+    const gh = fauxGitHub(ouverte);
+    const { clone } = fauxClone();
+    const k = brancher(t, { github: gh.github, clone, temps: () => tempsStables(MAINTENANT) });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    assert.match(fermetures(gh)[0]!.body, /## Times\n\nTimes stable: 6 tickets measured since the last pass/);
+    assert.equal(corrections(gh).length, 1);
+    assert.equal(ouverte.body, "<!-- brigade:correction project=brigade -->\nold");
+  });
+
+  test("only the times since the previous pass are read", async (t) => {
+    const precedente = new Date(MAINTENANT.getTime() - 2 * ONE_PASS_A_DAY_MS);
+    const gh = fauxGitHub(passee(40, precedente.toISOString()));
+    const { clone } = fauxClone();
+    // The drift is all before the previous pass; since it, the times are stable.
+    const k = brancher(t, { github: gh.github, clone, temps: () => [...tempsQuiDerivent(precedente, 100), ...tempsStables(MAINTENANT)] });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 2);
+    assert.match(fermetures(gh)[1]!.body, /Times stable: 6 tickets measured since the last pass/);
+    assert.equal(corrections(gh).length, 0);
+  });
+
+  test("two passes in a row with the same drift leave exactly one open correction ticket", async (t) => {
+    let maintenant = MAINTENANT;
+    const gh = fauxGitHubALHeure(() => maintenant);
+    const { clone } = fauxClone();
+    const le = new Date(MAINTENANT.getTime() + 2 * ONE_PASS_A_DAY_MS);
+    const k = brancher(t, { github: gh.github, clone, maintenant: () => maintenant, temps: () => [...tempsQuiDerivent(MAINTENANT), ...tempsQuiDerivent(le, 300)].filter(({ mergedAt }) => Date.parse(mergedAt ?? "") <= maintenant.getTime()) });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    // The first pass is served, two days go by.
+    fermetures(gh)[0]!.state = "closed";
+    maintenant = le;
+    // The merges since the first pass, for the second.
+    const suivantes = merges(MERGES_PER_PASS, le);
+    (clone as { merges: () => Promise<MergeDuClone[]> }).merges = async () => suivantes;
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 2);
+    const [premiere] = corrections(gh);
+    assert.equal(corrections(gh).length, 1);
+    assert.equal(premiere!.state, "open");
+    assert.match(premiere!.body, /closer finding/i);
+    assert.equal(premiere!.body.match(/brigade:closer-finding/g)?.length, 2);
+    assert.match(fermetures(gh)[1]!.body, new RegExp(`Correction ticket #${premiere!.number} completed with this finding\\.`));
+  });
+
+  test("a project whose times are not given reads none: no section", async (t) => {
+    const gh = fauxGitHub();
+    const { clone } = fauxClone();
+    const k = brancher(t, { github: gh.github, clone });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    assert.doesNotMatch(fermetures(gh)[0]!.body, /## Times/);
   });
 });
 
