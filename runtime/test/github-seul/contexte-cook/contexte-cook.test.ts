@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { LECONS_INJECTEES_PAR_DEFAUT } from "../../../src/apprentissage/injection.ts";
 import { consigne, environnementCook } from "../../../src/claude.ts";
+import { ecrireSecret } from "../../../src/droits.ts";
 import { contexteDuCook, pourGitHub, type SourcesDuContexte } from "../../../src/github-seul/contexte-cook/contexte-cook.ts";
 import type { DefinitionDeProfil } from "../../../src/profils/definition.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
@@ -32,10 +33,12 @@ function unJournal(t: TestContext) {
   return journal;
 }
 
-// Le fichier de secrets de la machine : il vit hors de l'état, comme sur la box.
+// Le fichier de secrets de la machine : il vit hors de l'état, comme sur la box,
+// fermé aux autres comptes. Sous Windows, le mode 0o600 garde l'ACL héritée du
+// répertoire temporaire, que le runtime refuse : `ecrireSecret` la ferme.
 function secretsDeLaMachine(t: TestContext, valeurs: string): string {
   const fichier = join(repertoireTemporaire(t), "secrets.env");
-  writeFileSync(fichier, valeurs, { mode: 0o600 });
+  ecrireSecret(fichier, valeurs);
   return fichier;
 }
 
