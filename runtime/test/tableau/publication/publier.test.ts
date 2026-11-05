@@ -13,7 +13,7 @@ import { lireLeTableau, type Tableau } from "../../../src/tableau/rendu/bloc.ts"
 import { tableauDeLaCuisine, type FaitsDuTableau } from "../../../src/tableau/rendu/donnees.ts";
 import { rendreLeTableau, TITRE_DU_TABLEAU } from "../../../src/tableau/rendu/rendre.ts";
 import type { ClientDuTableau, IssueDuTableau } from "../../../src/tableau/publication/client.ts";
-import type { Issue, Sondage } from "../../../src/github.ts";
+import type { Commentaire, Issue, Sondage } from "../../../src/github.ts";
 import { brancherLeTableau, contenuDuCorps, LABEL_DU_TABLEAU, ouvertesDuDepot, publierLeTableau, VERIFIER_L_EPINGLE_MS } from "../../../src/tableau/publication/publier.ts";
 import { LU_LE } from "../../aides/haut-de-status.ts";
 import { copieDeLExempleDuBas } from "../../aides/opt-A-etat.ts";
@@ -429,7 +429,9 @@ test("branché au runtime : le tableau porte ce qui est avant le rail ; une rele
   assert.equal(relu.tableau.avantLeRail?.lu, "2026-10-08T10:02:00.000Z");
 });
 
-test("branché au runtime : une réparation de base rouge qui cuit se dit au tableau ; échouée, elle entre dans la file avec sa raison (#2341)", async (t) => {
+// Une réparation échouée n'entre dans la file qu'avec une question pour le chef ; sans question, elle
+// est au second, et le bloc le dit sans rien demander au chef (#2455).
+async function tableauDeLaReparation(t: TestContext, commentaires: Commentaire[]) {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const maintenant = () => new Date("2026-10-08T10:00:00.000Z");
   const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant });
@@ -437,13 +439,26 @@ test("branché au runtime : une réparation de base rouge qui cuit se dit au tab
   const { client, issues, ecritures } = fauxClient();
   const reparation = { ...ouverte(50, ["prio:0", "hors-cuisine"]), body: "Fix.\n\n<!-- brigade:base-rouge sha=abcdef0123456789 -->", association: "OWNER" };
   const ouvertes = async () => [reparation];
-  const commentaires = async () => [{ body: "<!-- brigade:echec n=2 -->\ngates stay red", author: "bot", association: "OWNER", createdAt: "2026-10-08T09:00:00Z" }];
-  brancherLeTableau(runtime, { client, depot: DEPOT, maintenant, dire: () => {}, avertir: () => {}, ouvertes, commentaires });
+  brancherLeTableau(runtime, { client, depot: DEPOT, maintenant, dire: () => {}, avertir: () => {}, ouvertes, commentaires: async () => commentaires });
   await jusqua(() => ecritures.length === 2);
   const publie = lireLeTableau(issues.get(1)?.corps ?? "");
   assert.ok(publie.lu);
-  assert.deepEqual(publie.tableau.file.map(({ nom, quoi }) => [nom, quoi]), [["#50", "base-rouge"]]);
-  assert.match(publie.tableau.file[0]!.ligne, /gates stay red/);
+  return publie.tableau;
+}
+
+const echecDeLaReparation: Commentaire = { body: "<!-- brigade:echec n=2 -->\ngates stay red", author: "bot", association: "OWNER", createdAt: "2026-10-08T09:00:00Z" };
+
+test("branché au runtime : une réparation de base rouge qui cuit se dit au tableau ; échouée avec une question, elle entre dans la file avec la question (#2341, #2455)", async (t) => {
+  const question: Commentaire = { body: "<!-- brigade:todo kind=product-question -->\nKeep the legacy export?", author: "bot", association: "OWNER", createdAt: "2026-10-08T09:30:00Z" };
+  const tableau = await tableauDeLaReparation(t, [echecDeLaReparation, question]);
+  assert.deepEqual(tableau.file.map(({ nom, quoi }) => [nom, quoi]), [["#50", "base-rouge"]]);
+  assert.match(tableau.file[0]!.ligne, /Keep the legacy export\?/);
+});
+
+test("branché au runtime : une réparation de base rouge échouée sans question n'entre pas dans la file, le bloc dit qu'elle est au second (#2455)", async (t) => {
+  const tableau = await tableauDeLaReparation(t, [echecDeLaReparation]);
+  assert.deepEqual(tableau.file, []);
+  assert.ok(tableau.bilans.some((bilan) => /repair #50 failed and is the second's to handle/.test(bilan)));
 });
 
 test("branché au runtime : des issues ouvertes jamais lues, le bloc n'en dit rien ; une relecture ratée se dit une fois et garde la dernière lue", async (t) => {
