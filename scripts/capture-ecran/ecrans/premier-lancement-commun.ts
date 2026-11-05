@@ -41,6 +41,15 @@ export const ACCES_REFUSE = {
   ...lireLEchec("benomite/parade", "ERROR: Permission to benomite/parade.git denied to chef-pc.\nfatal: unable to access 'https://github.com/benomite/parade.git/': The requested URL returned error: 403", { compte: "chef-pc", jeton: null, proprietaire: true }),
 };
 export const CONNEXION = connexionGitHub("gh");
+// Le compte GitHub de ce PC, tel que l'étape du compte du parcours d'ajout le reçoit (#2475, `compteGitHub`) : celui
+// des stations listées, aucun quand `gh` n'en a pas, illisible sans `gh`.
+export const COMPTE = { login: "benomite" };
+const compteDe = (stations: StationsDuChef) =>
+  stations.state === "listed"
+    ? COMPTE
+    : stations.state === "sign-in-required"
+      ? { nonConnecte: true }
+      : { refus: "The GitHub CLI (`gh`) is not installed on this computer, and brigade reads your GitHub account through it.", ...(stations.link === undefined ? {} : { lien: stations.link }), ...(stations.detail === undefined ? {} : { detail: stations.detail }) };
 
 // Le premier écran, ce que le runtime dit des stations, et les clics qui suivent.
 export function premierLancement(dit: string, stations: StationsDuChef, etapes: Etape[] = [], reponses: Record<string, unknown> = {}): Ecran {
@@ -51,7 +60,7 @@ export function premierLancement(dit: string, stations: StationsDuChef, etapes: 
     etapes,
     donnees: () => ({
       maintenant: MAINTENANT,
-      reponses: { demarrage: { ...demarrage(configuration([])), poste: { nom: "this PC", mac: false } }, stationsDuChef: stations, ...reponses },
+      reponses: { demarrage: { ...demarrage(configuration([])), poste: { nom: "this PC", mac: false } }, stationsDuChef: stations, compteGitHub: compteDe(stations), ...reponses },
       envois: {},
     }),
   };

@@ -8,7 +8,7 @@
 //
 // Un seul login à la fois : un second clic, pendant que le premier attend le chef, rend le même
 // code sans rien lancer de plus. Au-delà de la garde, le login est arrêté, et un clic le relance.
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 
 // Ce que la vue montre une fois le login parti : le code à taper, et la page où le taper.
 // `connecte` : `gh` a fini sans code à taper — il l'était déjà. `compte` : le compte GitHub connecté, quand on le
@@ -107,4 +107,36 @@ export function tenirConnexionGitHub(options: OptionsConnexion): () => Promise<D
     enCours = lance;
     return lance;
   };
+}
+
+// Le compte GitHub que ce `gh` tient (#2475, épique #2473) : l'étape du compte du parcours d'ajout le dit, « Connected to
+// GitHub as … », sans que le chef ait rien à taper. La question est celle que le runtime pose déjà au `gh` d'une station
+// (`gh api user --jq .login`, runtime/src/projets/echec-du-clone.ts) ; son échec se lit par le runtime (`echecDeGh`,
+// runtime/src/appairage/stations-du-chef.ts) — un `gh` sans compte n'est pas une panne, c'est l'étape à faire.
+export type CompteGitHub = { login: string } | { nonConnecte: true } | { refus: string; detail?: string; lien?: string };
+
+type EchecDeGh = typeof import("../../runtime/src/appairage/stations-du-chef.ts").echecDeGh;
+export type OptionsDuCompte = { gh: string; env: Record<string, string | undefined>; echecDeGh: EchecDeGh; delaiMs?: number };
+
+const DELAI_DU_COMPTE_MS = 30_000;
+// Ce qui retient la lecture, en une phrase : le détail — ce que `gh` a écrit — reste au survol.
+const RAISONS: Record<string, (gh: string, delaiMs: number) => string> = {
+  "gh-missing": (gh) => `The GitHub CLI (\`${gh}\`) is not installed on this computer, and brigade reads your GitHub account through it.`,
+  timeout: (_, delaiMs) => `GitHub gave no answer within ${Math.round(delaiMs / 1000)} s, so your GitHub account could not be read.`,
+  "rate-limit": () => "GitHub is limiting this account's calls for now, so your GitHub account could not be read.",
+  network: () => "GitHub cannot be reached from this computer, so your GitHub account could not be read: check its network connection.",
+};
+
+export function lireLeCompteGitHub(options: OptionsDuCompte): Promise<CompteGitHub> {
+  const delaiMs = options.delaiMs ?? DELAI_DU_COMPTE_MS;
+  return new Promise((rendre) => {
+    execFile(options.gh, ["api", "user", "--jq", ".login"], { timeout: delaiMs, windowsHide: true, env: { ...options.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+      const login = String(sortie).trim();
+      if (erreur === null && login !== "") return rendre({ login });
+      const lu = options.echecDeGh(options.gh, delaiMs, erreur ?? { message: "gh gave no login" }, String(erreurs));
+      if (lu.state === "sign-in-required") return rendre({ nonConnecte: true });
+      const raison = RAISONS[lu.cause]?.(options.gh, delaiMs) ?? "GitHub did not say which account this computer is connected to.";
+      rendre({ refus: raison, ...(lu.detail === undefined ? {} : { detail: lu.detail }), ...(lu.link === undefined ? {} : { lien: lu.link }) });
+    });
+  });
 }

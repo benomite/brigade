@@ -63,19 +63,22 @@ with your `gh` and your `claude`.
 
 ### 1. Open the app: the first-run screen
 
-With no project yet, the app opens on a first-run screen with two fields, **Your GitHub account**
-(`your-github-login`) and **The project to work on** (`owner/repo, or the path of a folder on this
-computer`), and a button **open this project**. Nothing is prefilled.
+With no project yet, the app opens on a first-run screen: `Welcome to brigade.`, then **Add a project**
+and its first step, **Your GitHub account**. You never type your GitHub login: the app reads the
+account this computer's `gh` is connected to and says `Connected to GitHub as <login>.` Below it, one
+field, **The project to work on** (`owner/repo, or the path of a folder on this computer`), and a
+button **open this project**. Nothing is prefilled.
 
-**Connect GitHub, if the top sentence asks.** If you see `This computer is not signed in to GitHub…`,
-click the button under it. The app runs `gh auth login --web` and shows `Type the code ABCD-1234 on
+**Connect GitHub, if the account step asks.** With no account connected, the step shows one button,
+**connect to GitHub**. The app runs `gh auth login --web` and shows `Type the code ABCD-1234 on
 the GitHub page that opened in your browser.` (`open the GitHub page again` reopens it). Type the
-code, authorize, and the app carries on.
+code, authorize, and the step says which account is connected. **switch GitHub account** does the
+same with another account, and the step reads the account again afterwards.
 
 ### 2. Connect your project
 
-Type your GitHub login and your repository as `owner/repo` (a bare name is completed with your
-login; a `https://github.com/…` address works too), then click **open this project**.
+Type your repository as `owner/repo` (a bare name is completed with the connected account; a
+`https://github.com/…` address works too), then click **open this project**.
 
 **You see**: `Cloning owner/repo into <folder> — 40%.` Then the project appears in the icon bar and
 its **space** opens, with the tabs **Rail** and **Cooks**.

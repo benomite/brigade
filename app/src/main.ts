@@ -51,7 +51,7 @@ import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
-import { tenirConnexionGitHub } from "./connexion-github.ts";
+import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
@@ -1174,6 +1174,14 @@ const connexionGitHub = tenirConnexionGitHub({
   env: process.env,
   ouvrir: (adresse) => shell.openExternal(adresse),
   apres: (fin) => dire("connexionGitHub", fin),
+});
+// Le compte GitHub que le `gh` de cet ordinateur tient, pour l'étape du compte du parcours d'ajout (#2475,
+// connexion-github.ts) — relu par la vue au bout d'une connexion, et donc d'un changement de compte.
+ipcMain.handle("compteGitHub", async () => {
+  const { echecDeGh } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
+  const lu = await lireLeCompteGitHub({ gh: ghIci, env: process.env, echecDeGh });
+  if ("lien" in lu && lu.lien !== undefined) pagesDuPremier.add(lu.lien);
+  return lu;
 });
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {

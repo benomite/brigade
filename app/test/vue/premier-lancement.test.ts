@@ -21,8 +21,6 @@ import type { Ouverture } from "../../src/premier-lancement.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import {
   boutonDeLaPage,
-  COMPTE,
-  COMPTE_EXEMPLE,
   COMPTE_MANQUE,
   lireLeProjet,
   OUVRIR_CE_PROJET,
@@ -45,6 +43,8 @@ import {
   type EtatDuPremier,
   type GestesDuPremier,
 } from "../../src/vue/premier-lancement.js";
+import { connecteEnTantQue, SE_CONNECTER } from "../../src/vue/parcours-projet/compte.js";
+import { BIENVENUE, TITRE } from "../../src/vue/parcours-projet/parcours.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -87,11 +87,16 @@ const echecDuClone = (erreurs: string, action = false): Extract<Ouverture, { sta
   return { state: "failed", project: "parade", repository: "benomite/parade", ...echec, ...(action ? { action: connexionGitHub("gh") } : {}) };
 };
 
+// Les cartes des stations — le parcours d'ajout, en tête, en est une autre.
+const cartes = (ecran: Faux) => ecran.dessous("section").filter((carte) => carte.className.split(" ").includes("station-du-chef"));
+
 function unEcran(etat: Partial<EtatDuPremier> = {}) {
   const faits: string[] = [];
   const gestes: GestesDuPremier = {
     ouvrir: (station, projet, depot) => void faits.push(`ouvrir ${station} ${projet} ${depot}`),
     seConnecter: () => void faits.push("se connecter"),
+    changerDeCompte: () => void faits.push("changer de compte"),
+    relireLeCompte: () => void faits.push("relire le compte"),
     relire: () => void faits.push("relire"),
     ouvrirLaPage: (url) => void faits.push(`page ${url}`),
     ajouterUnDossier: () => void faits.push("ajout"),
@@ -99,8 +104,9 @@ function unEcran(etat: Partial<EtatDuPremier> = {}) {
   };
   const ecran = poserPremierLancement(doc, { poste: "this PC", ...etat }, gestes) as Faux;
   const bouton = (texte: string) => ecran.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${ecran.dessous("button").map((b) => b.textContent).join(", ")}`);
-  const tete = () => ecran.dessous("h2")[0] ?? assert.fail("pas de phrase en tête");
-  const station = (nom: string) => ecran.dessous("section").find((carte) => carte.ariaLabel === nom) ?? assert.fail(`pas de station « ${nom} »`);
+  // La phrase des stations, sous le parcours d'ajout.
+  const tete = () => ecran.dessous("h3")[0] ?? assert.fail("pas de phrase des stations");
+  const station = (nom: string) => cartes(ecran).find((carte) => carte.ariaLabel === nom) ?? assert.fail(`pas de station « ${nom} »`);
   return { ecran, faits, bouton, tete, station };
 }
 
@@ -110,7 +116,7 @@ describe("les stations listées : chacune avec ses projets, un projet s'ouvre d'
     assert.equal(tete().textContent, OUVRIR_UN_PROJET("this PC"));
     assert.equal(OUVRIR_UN_PROJET("this PC"), "Open one of your projects on this PC: one click, no folder to choose.");
     assert.deepEqual(
-      ecran.dessous("section").map((carte) => ({ nom: carte.dessous("strong")[0]?.textContent, etat: carte.dessous("p")[0]?.dessous("span").at(-1)?.textContent, projets: carte.dessous("button").map((bouton) => bouton.textContent) })),
+      cartes(ecran).map((carte) => ({ nom: carte.dessous("strong")[0]?.textContent, etat: carte.dessous("p")[0]?.dessous("span").at(-1)?.textContent, projets: carte.dessous("button").map((bouton) => bouton.textContent) })),
       [
         { nom: "Mac", etat: "online", projets: ["brigade"] },
         { nom: "parade-box", etat: "offline", projets: ["brigade", "parade", "cantine"] },
@@ -125,7 +131,7 @@ describe("les stations listées : chacune avec ses projets, un projet s'ouvre d'
         ["gris", "anneau"],
       ],
     );
-    assert.ok(ecran.dessous("section").every((carte) => carte.className.split(" ").includes("carte")));
+    assert.ok(cartes(ecran).every((carte) => carte.className.split(" ").includes("carte")));
   });
 
   test("un clic sur un projet l'ouvre : sa station, son nom et son dépôt — aucun dossier n'est demandé", () => {
@@ -180,32 +186,33 @@ describe("les stations listées : chacune avec ses projets, un projet s'ouvre d'
     assert.equal(station("Mac").dessous("button")[0]?.disabled, false);
   });
 
-  test("un clone retenu faute de compte GitHub : le bouton de connexion du runtime, recommandé", () => {
+  test("un clone retenu faute de compte GitHub : le bouton de connexion, aux mots de l'étape du compte, recommandé", () => {
     const echec = echecDuClone("remote: Invalid username or password.\nfatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true);
     assert.equal(echec.cause, "sign-in-required");
-    const { faits, bouton } = unEcran({ stations: LISTEES, ouverture: { station: "gbox", projet: "parade", depot: "benomite/parade", echec } });
-    const connexion = bouton("Sign in to GitHub");
+    const { faits, bouton } = unEcran({ stations: LISTEES, compte: { login: "chef" }, ouverture: { station: "gbox", projet: "parade", depot: "benomite/parade", echec } });
+    const connexion = bouton(SE_CONNECTER);
     assert.equal(connexion.className, "recommande");
     connexion.click();
     assert.deepEqual(faits, ["se connecter"]);
   });
 });
 
-describe("une connexion à GitHub requise : une phrase et un bouton", () => {
-  test("la phrase du runtime en tête, et le bouton qui lance son geste", () => {
+describe("une connexion à GitHub requise : l'étape du compte la fait d'un bouton", () => {
+  test("le bouton de l'étape du compte lance la connexion ; la phrase des stations dit pourquoi elles attendent, sans second bouton", () => {
     assert.equal(SANS_COMPTE.state, "sign-in-required");
-    const { tete, bouton, faits, ecran } = unEcran({ stations: SANS_COMPTE });
+    const { tete, bouton, faits, ecran } = unEcran({ stations: SANS_COMPTE, compte: { nonConnecte: true } });
     assert.equal(tete().textContent, "This computer is not signed in to GitHub, so brigade cannot read the stations you have paired.");
-    const connexion = bouton("Sign in to GitHub");
+    const connexion = bouton(SE_CONNECTER);
     assert.equal(connexion.className, "recommande");
     connexion.click();
     assert.deepEqual(faits, ["se connecter"]);
-    assert.equal(ecran.dessous("section").length, 0);
+    assert.equal(cartes(ecran).length, 0);
+    assert.equal(ecran.dessous("button").filter((candidat) => /sign in|connect/i.test(candidat.textContent)).length, 1);
   });
 
   test("lancée, le bouton attend ; le code à taper se lit, en monospace, et la page se rouvre d'un bouton", () => {
-    assert.equal(unEcran({ stations: SANS_COMPTE, connexion: { enRoute: true } }).bouton(CONNEXION_EN_ROUTE).disabled, true);
-    const { ecran, bouton, faits } = unEcran({ stations: SANS_COMPTE, connexion: { code: "A1B2-C3D4", page: "https://github.com/login/device" } });
+    assert.equal(unEcran({ stations: SANS_COMPTE, compte: { nonConnecte: true }, connexion: { enRoute: true } }).bouton(CONNEXION_EN_ROUTE).disabled, true);
+    const { ecran, bouton, faits } = unEcran({ stations: SANS_COMPTE, compte: { nonConnecte: true }, connexion: { code: "A1B2-C3D4", page: "https://github.com/login/device" } });
     const dit = ecran.dessous("p").find((pose) => pose.className === "code-de-connexion") ?? assert.fail("pas de code");
     assert.equal(dit.textContent, tapeLeCode("A1B2-C3D4"));
     assert.equal(dit.dessous("strong")[0]?.className, "mono");
@@ -215,11 +222,11 @@ describe("une connexion à GitHub requise : une phrase et un bouton", () => {
   });
 
   test("ratée, la connexion dit pourquoi en une phrase, son détail au survol, et le bouton la relance", () => {
-    const { ecran, bouton, faits } = unEcran({ stations: SANS_COMPTE, connexion: { refus: "GitHub sign-in did not finish (code 1): authentication timed out.", detail: "! First copy your one-time code: A1B2-C3D4\nerror: authentication timed out" } });
+    const { ecran, bouton, faits } = unEcran({ stations: SANS_COMPTE, compte: { nonConnecte: true }, connexion: { refus: "GitHub sign-in did not finish (code 1): authentication timed out.", detail: "! First copy your one-time code: A1B2-C3D4\nerror: authentication timed out" } });
     const refus = ecran.dessous("p").find((pose) => pose.className === "refus") ?? assert.fail();
     assert.equal(refus.dessous("span")[0]?.textContent, "GitHub sign-in did not finish (code 1): authentication timed out.");
     assert.match(refus.dessous("button")[0]?.ariaLabel ?? "", /one-time code/);
-    bouton("Sign in to GitHub").click();
+    bouton(SE_CONNECTER).click();
     assert.deepEqual(faits, ["se connecter"]);
   });
 });
@@ -239,9 +246,15 @@ describe("les stations ne se lisent pas : la raison en une phrase, jamais un éc
   });
 
   test("sans réseau : la phrase, et « read again », recommandé faute de page", () => {
-    const { tete, bouton } = unEcran({ stations: SANS_RESEAU });
+    const { tete, bouton } = unEcran({ stations: SANS_RESEAU, compte: { login: "chef" } });
     assert.equal(tete().dessous("span")[0]?.textContent, "GitHub cannot be reached from this computer, so your stations could not be read: check its network connection.");
     assert.equal(bouton(RELIRE).className, "recommande");
+  });
+
+  test("la page qui lève la panne n'est offerte qu'une fois : l'étape du compte, qui bute sur la même, l'offre déjà", () => {
+    const { ecran } = unEcran({ stations: SANS_GH, compte: { refus: "The GitHub CLI (`gh`) is not installed on this computer, and brigade reads your GitHub account through it.", lien: "https://cli.github.com" } });
+    assert.equal(ecran.dessous("button").filter((bouton) => bouton.textContent === "get the GitHub CLI").length, 1);
+    assert.equal(ecran.dessous("button").filter((bouton) => bouton.className === "recommande").length, 1);
   });
 
   test("aucune station appairée : la phrase du runtime ; la lecture en route : la phrase qui le dit", () => {
@@ -261,47 +274,59 @@ describe("les stations ne se lisent pas : la raison en une phrase, jamais un éc
   });
 });
 
-describe("le premier lancement demande le compte et le projet de qui l'ouvre, sans rien de présupposé", () => {
+describe("le premier lancement : le parcours d'ajout en tête, avec sa phrase d'accueil — le compte n'est jamais tapé", () => {
+  test("le parcours d'ajout ouvre l'écran, sa phrase d'accueil d'abord ; le compte connecté se dit dans son étape", () => {
+    const { ecran } = unEcran({ stations: LISTEES, compte: { login: "chef" } });
+    const parcours = ecran.children[0] ?? assert.fail();
+    assert.equal(parcours.ariaLabel, TITRE);
+    assert.equal(parcours.dessous("p")[0]?.textContent, BIENVENUE);
+    assert.equal(parcours.dessous("h2")[0]?.textContent, TITRE);
+    assert.ok(parcours.dessous("p").some((pose) => pose.textContent === connecteEnTantQue("chef")));
+  });
+});
+
+describe("le premier lancement demande le projet de qui l'ouvre, sans rien de présupposé", () => {
   const champs = (ecran: Faux) => ecran.dessous("input");
   const taper = (champ: Faux | undefined, valeur: string) => {
     if (champ === undefined) assert.fail("pas de champ");
     champ.value = valeur;
     champ.declencher("input");
   };
-  test("deux champs vides aux exemples neutres, dans chaque état de la lecture des stations", () => {
+  test("un seul champ, vide, à l'exemple neutre, dans chaque état de la lecture des stations : aucun ne demande le compte", () => {
     for (const stations of [undefined, LISTEES, SANS_COMPTE, SANS_GH, SANS_RESEAU]) {
-      const { ecran } = unEcran(stations === undefined ? {} : { stations });
-      assert.deepEqual(champs(ecran).map((champ) => [champ.value, champ.placeholder]), [["", COMPTE_EXEMPLE], ["", PROJET_EXEMPLE]]);
-      assert.deepEqual(ecran.dessous("label").map((nom) => nom.textContent), [COMPTE, PROJET]);
+      for (const compte of [undefined, { login: "chef" }, { nonConnecte: true as const }]) {
+        const { ecran } = unEcran({ ...(stations === undefined ? {} : { stations }), ...(compte === undefined ? {} : { compte }) });
+        assert.deepEqual(champs(ecran).map((champ) => [champ.value, champ.placeholder]), [["", PROJET_EXEMPLE]]);
+        assert.deepEqual(ecran.dessous("label").map((nom) => nom.textContent), [PROJET]);
+      }
     }
-    assert.equal(COMPTE_EXEMPLE, "your-github-login");
     assert.match(PROJET_EXEMPLE, /^owner\/repo/);
   });
 
   test("un dépôt tapé s'ouvre par la copie du runtime, sous un nom tiré du dépôt, sans station", () => {
     const { ecran, bouton, faits } = unEcran();
-    const [, projet] = champs(ecran);
+    const [projet] = champs(ecran);
     taper(projet, "Some-Owner/My_Repo");
     bouton(OUVRIR_CE_PROJET).click();
     assert.deepEqual(faits, ["ouvrir  my-repo Some-Owner/My_Repo"]);
   });
 
-  test("un nom seul est complété par le compte tapé ; sans compte, la phrase le dit et rien ne part", () => {
-    const { ecran, bouton, faits } = unEcran();
-    const [compte, projet] = champs(ecran);
-    taper(projet, "parade");
-    bouton(OUVRIR_CE_PROJET).click();
-    assert.deepEqual(faits, []);
-    assert.match(ecran.dessous("p").find((p) => p.className === "refus-champ")?.textContent ?? "", /Type your GitHub account too/);
-    taper(compte, "someone");
-    bouton(OUVRIR_CE_PROJET).click();
-    assert.deepEqual(faits, ["ouvrir  parade someone/parade"]);
+  test("un nom seul est complété par le compte connecté ; sans compte, la phrase le dit et rien ne part", () => {
+    const sans = unEcran({ compte: { nonConnecte: true } });
+    taper(champs(sans.ecran)[0], "parade");
+    sans.bouton(OUVRIR_CE_PROJET).click();
+    assert.deepEqual(sans.faits, []);
+    assert.match(sans.ecran.dessous("p").find((p) => p.className === "refus-champ")?.textContent ?? "", /Connect to GitHub above/);
+    const connecte = unEcran({ compte: { login: "someone" } });
+    taper(champs(connecte.ecran)[0], "parade");
+    connecte.bouton(OUVRIR_CE_PROJET).click();
+    assert.deepEqual(connecte.faits, ["ouvrir  parade someone/parade"]);
   });
 
   test("un chemin de dossier part à l'écran d'ajout, tel quel", () => {
     for (const chemin of ["/work/thing", "~/code/thing", "./thing", "C:\\code\\thing"]) {
       const { ecran, bouton, faits } = unEcran();
-      const projet = champs(ecran)[1];
+      const projet = champs(ecran)[0];
       taper(projet, chemin);
       bouton(OUVRIR_CE_PROJET).click();
       assert.deepEqual(faits, [`dossier ${chemin}`]);
@@ -316,9 +341,9 @@ describe("le premier lancement demande le compte et le projet de qui l'ouvre, sa
   });
 
   test("ce qui est tapé reste d'un affichage à l'autre, et l'ouverture lancée d'ici se dit sous le formulaire", () => {
-    const saisie = { compte: "someone", projet: "someone/parade" };
+    const saisie = { projet: "someone/parade" };
     const { ecran, bouton } = unEcran({ saisie, ouverture: { station: "", projet: "parade", depot: "someone/parade" } });
-    assert.deepEqual(champs(ecran).map((champ) => champ.value), ["someone", "someone/parade"]);
+    assert.deepEqual(champs(ecran).map((champ) => champ.value), ["someone/parade"]);
     assert.ok(ecran.dessous("p").some((p) => p.textContent === ouvertureDe("parade")));
     assert.equal(bouton(OUVRIR_CE_PROJET).disabled, true);
   });
@@ -353,7 +378,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     const tous = vue.element("tous");
     assert.equal(tous.hidden, false);
     assert.equal(vue.element("ajout").hidden, true);
-    assert.equal(tous.dessous("h2")[0]?.textContent, OUVRIR_UN_PROJET("this PC"));
+    assert.equal(tous.dessous("h3")[0]?.textContent, OUVRIR_UN_PROJET("this PC"));
     assert.equal(vue.appels.filter(({ geste }) => geste === "stationsDuChef").length, 1);
     const parade = tous.dessous("button").find((bouton) => bouton.textContent === "parade") ?? assert.fail();
     parade.click();
@@ -392,7 +417,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
   test("le clone qui échoue : la raison reste à l'écran, sous sa station", async () => {
     const echec = echecDuClone("fatal: unable to access 'https://github.com/benomite/parade.git/': Could not resolve host: github.com");
     assert.equal(echec.cause, "network");
-    const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => LISTEES, ouvrirDUneStation: () => echec, espace: () => [] });
+    const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => LISTEES, compteGitHub: () => ({ login: "chef" }), ouvrirDUneStation: () => echec, espace: () => [] });
     (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === "parade") ?? assert.fail()).click();
     await repos();
     const refus = vue.element("tous").dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("pas de raison");
@@ -400,24 +425,28 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     assert.equal(vue.element("tous").hidden, false);
   });
 
-  test("connexion requise : le bouton lance le geste du runtime, le code se lit ; connecté, les stations sont relues", async () => {
+  test("connexion requise : le bouton de l'étape du compte lance le geste du runtime, le code se lit ; connecté, le compte et les stations sont relus", async () => {
     let lues = 0;
+    let comptes = 0;
     const vue = await jouerLaVue({
       demarrage: () => demarrage([]),
       stationsDuChef: () => (++lues === 1 ? SANS_COMPTE : LISTEES),
+      compteGitHub: () => (++comptes === 1 ? { nonConnecte: true } : { login: "chef" }),
       seConnecterAGitHub: () => ({ code: "A1B2-C3D4", page: "https://github.com/login/device" }),
       espace: () => [],
     });
     const tous = vue.element("tous");
-    assert.equal(tous.dessous("h2")[0]?.textContent, SANS_COMPTE.state === "sign-in-required" ? SANS_COMPTE.reason : "");
-    (tous.dessous("button").find((bouton) => bouton.textContent === "Sign in to GitHub") ?? assert.fail()).click();
+    assert.equal(tous.dessous("h3")[0]?.textContent, SANS_COMPTE.state === "sign-in-required" ? SANS_COMPTE.reason : "");
+    (tous.dessous("button").find((bouton) => bouton.textContent === SE_CONNECTER) ?? assert.fail()).click();
     await repos();
     assert.equal(vue.appels.filter(({ geste }) => geste === "seConnecterAGitHub").length, 1);
     assert.equal(vue.element("tous").dessous("p").find((pose) => pose.className === "code-de-connexion")?.textContent, tapeLeCode("A1B2-C3D4"));
     vue.dire("surConnexionGitHub", { connecte: true });
     await repos();
     assert.equal(lues, 2);
-    assert.equal(vue.element("tous").dessous("h2")[0]?.textContent, OUVRIR_UN_PROJET("this PC"));
+    assert.equal(comptes, 2);
+    assert.equal(vue.element("tous").dessous("h3")[0]?.textContent, OUVRIR_UN_PROJET("this PC"));
+    assert.ok(vue.element("tous").dessous("p").some((pose) => pose.textContent === connecteEnTantQue("chef")));
   });
 
   test("connecté pour un clone retenu faute de compte : l'ouverture repart d'elle-même", async () => {
@@ -431,7 +460,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     });
     (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === "parade") ?? assert.fail()).click();
     await repos();
-    (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === "Sign in to GitHub") ?? assert.fail()).click();
+    (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === SE_CONNECTER) ?? assert.fail()).click();
     await repos();
     vue.dire("surConnexionGitHub", { connecte: true });
     await repos();

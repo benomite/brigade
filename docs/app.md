@@ -361,9 +361,9 @@ Open one of your projects on this PC: one click, no folder to choose.
   benomite/parade, so it cannot be cloned: …` —, under its station; what `gh` and `git` wrote is in
   the `?` hover. A button opens the page that lifts it when the runtime names one (`get Git`,
   `open the page on GitHub`), and `try again` replays it.
-- **When this computer is not signed in to GitHub**, the head of the screen says so in one sentence,
-  with `Sign in to GitHub`: the button runs the runtime's sign-in action (`gh auth login --web`),
-  without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
+- **When this computer is not signed in to GitHub**, the account step of the add-a-project path (below)
+  shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the runtime's
+  sign-in action (`gh auth login --web`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
   GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
   the stations are read again; a clone that was held for want of an account starts again by itself.
   The same button appears under a clone refused for that reason.
@@ -371,17 +371,53 @@ Open one of your projects on this PC: one click, no folder to choose.
   head says why in the runtime's sentence, its detail in the hover, with the button of the page that
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
   what to do. The screen is never blank.
-- **The screen asks for your own account and project** (#1540): under the head sentence, two empty fields,
-  `Your GitHub account` (`your-github-login`) and `The project to work on` (`owner/repo, or the path of a
-  folder on this computer`), and `open this project`. An `owner/repo` (or a `github.com` address) is cloned by
-  the runtime; a bare name is completed with the account typed, and with no account a sentence says so and
-  nothing starts; a folder path opens **Add a project**, already filled. What was typed is kept between
-  two renderings. No default names the chef's account, machines or projects.
+- **The screen asks for your project, never for your account** (#1540, #2475): under the stations' sentence,
+  one empty field, `The project to work on` (`owner/repo, or the path of a folder on this computer`), and
+  `open this project`. An `owner/repo` (or a `github.com` address) is cloned by the runtime; a bare name is
+  completed with the account the path says connected, and with none a sentence says so and nothing starts; a
+  folder path opens **Add a project**, already filled. What was typed is kept between two renderings. No
+  default names the chef's machines or projects.
 - **A folder you already have** is still one click away: `add a project from a folder instead`,
   or the **+** at the foot of the bar, open **Add a project**. **T** opens All projects.
 
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
+
+### One add-a-project path, on first launch and on Add a project (#2475, epic #2473)
+
+The first-launch screen and **Add a project** (the **+** at the foot of the bar) mount **the same path**:
+the same card, the same steps, the same words. First launch only adds its welcome sentence,
+`Welcome to brigade. Add the first project its kitchen will cook.`, above it.
+
+```
+Add a project
+1  Your GitHub account   done
+   Connected to GitHub as benomite.
+   [switch GitHub account]
+```
+
+- **The account step** says the account this computer's `gh` is connected to, `Connected to GitHub as
+  <login>.`, read by the main process (`gh api user --jq .login`, the question the runtime already asks a
+  station's `gh`; a failure is read by the runtime's `echecDeGh`). **No field asks for a GitHub login**,
+  anywhere in the path.
+- **With no account connected**, the step shows one button, `connect to GitHub`, and nothing else to fill
+  in. Clicked, it runs the same sign-in as everywhere (`gh auth login --web`): the code to type, `open the
+  GitHub page again`. Signed in, the account is read again and the step says it.
+- **`switch GitHub account`**, under a connected account, signs in with another account the same way (its
+  hover says so); at the end — signed in, or not — the step reads the account again.
+- **When the account cannot be read** — no `gh`, no network —, the step says why in one sentence, the detail
+  in the hover, with the page that lifts it (`get the GitHub CLI`) and `read again`. On first launch the
+  stations' gestures then do not offer the same page a second time.
+- **The steps** are numbered, each with its state — `done`, `now` (under the accent line), `to come` — like
+  the commissioning path of a new project. One file per step, under `app/src/vue/parcours-projet/`; the next
+  steps (the project to pick, the station that cooks it, the recap) are registered in `ETAPES`
+  (`parcours.js`), after the account. For now the path ends after the account step: under it, first launch
+  keeps its stations and its project field, and **Add a project** keeps its folder form, `Add a project from
+  a folder`.
+
+*Code: `app/src/vue/parcours-projet/` (the path, its steps, the sign-in brick shared with the published rail
+and the account's stations), `app/src/connexion-github.ts` (`lireLeCompteGitHub`). Captures:
+`docs/captures/2475/`.*
 
 ### The age of the rail is always on screen (#2054)
 
