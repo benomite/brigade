@@ -20,6 +20,8 @@ const LU: TableauLu = {
   luLe: "2026-11-05T10:00:00.000Z",
   cuisine: { rubriques: [] },
   faits: { rail: [{ ticket: 22, etat: "pris" }], attend: [{ ticket: 31 }] },
+  file: [],
+  bilans: [],
   lignesDuRail: [],
   activites: [],
 };

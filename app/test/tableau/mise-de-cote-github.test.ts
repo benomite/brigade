@@ -78,3 +78,13 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
     assert.equal(miseDeCoteDe(DEPOT, "hors-cuisine", [question, commentaire("<!-- brigade:reponse gesture=close -->\nNo", "NONE")]).auChef, true);
   });
 });
+
+describe("#2061, 2026-11-05 : mis de côté par la station, sans question pour le chef (#2455)", () => {
+  test("trois marqueurs `echec`, `hors-cuisine`, aucune question de produit : pas de carte dans TODO", () => {
+    const echec = (n: number) => commentaire(`<!-- brigade:echec n=${n} -->\nStation \`box/claude\`: the cook stopped without a delivery — a stale conflicting branch${n === 3 ? "\n\nTaken off the kitchen (`hors-cuisine`) after 3 cooks without a delivery: a human decides." : ""}`);
+    const lue = miseDeCoteDe(DEPOT, "hors-cuisine", [echec(1), echec(2), echec(3)]);
+    assert.equal(lue.auChef, false);
+    assert.equal(lue.chef, undefined);
+    assert.equal(lue.raison, "off the kitchen after 3 cooks without a delivery — a stale conflicting branch");
+  });
+});

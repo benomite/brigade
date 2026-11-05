@@ -1473,7 +1473,7 @@ test("the station of this runtime, on espace: reading its dispatch-only CI, it r
     reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
-    gates: { delaiMs: 60_000 },
+    gates: { delaiMs: 2_000 },
     avertir: (texte) => assert.fail(texte),
   });
   assert.ok(!("refus" in station));

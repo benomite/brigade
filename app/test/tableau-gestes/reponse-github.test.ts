@@ -7,6 +7,7 @@ import { describe, test } from "node:test";
 import { carteDuChefDeTodo, type CarteDeTodo, type Reponse } from "../../src/carte-todo.ts";
 import { comprendre, tableau as tableauDe, type Carte, type Faits } from "../../src/faits.ts";
 import { situation } from "../../src/histoire.ts";
+import { avecCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
 import type { ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
@@ -52,7 +53,9 @@ function monde() {
   const issueJson = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${DEPOT}/issues/${numero}`, created_at: "2026-11-01T00:00:00Z", labels: [...issue.labels].map((name) => ({ name })) });
   const prJson = (numero: number, pr: PR) => ({ number: numero, state: pr.state, merged: pr.merged, html_url: `https://github.com/${DEPOT}/pull/${numero}`, created_at: "2026-11-04T00:00:00Z", head: { ref: pr.ref }, body: pr.body });
   const lire = async (chemin: string): Promise<ReponseGitHub> => {
-    if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok([...issues].filter(([, issue]) => issue.state === "open" && issue.labels.has("fire")).map(([numero, issue]) => issueJson(numero, issue)));
+    // Les issues ouvertes au label demandé : le rail (`fire`) comme ce qui attend le chef (attente-du-chef.ts).
+    const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
+    if (chemin.includes("/issues?") && label !== undefined) return ok([...issues].filter(([, issue]) => issue.state === "open" && issue.labels.has(label)).map(([numero, issue]) => issueJson(numero, issue)));
     if (chemin.includes("/pulls?")) return ok([...prs].filter(([, pr]) => pr.state === "open").map(([numero, pr]) => prJson(numero, pr)));
     const pr = /\/pulls\/(\d+)$/.exec(chemin)?.[1];
     if (pr !== undefined) return prs.has(Number(pr)) ? ok(prJson(Number(pr), prs.get(Number(pr)) as PR)) : ok({ message: "Not Found" }, 404);
@@ -91,7 +94,7 @@ function monde() {
 
 // Le Todo que la vue dessine de la lecture de ce monde.
 async function todo(client: ClientDeLaReponse): Promise<Carte[]> {
-  const lu: LectureDuTableauDuDepot = await lireLeTableauDuDepot({ depot: DEPOT, appeler: client.lire, maintenant: () => new Date(LU) });
+  const lu: LectureDuTableauDuDepot = await avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler: client.lire, maintenant: () => new Date(LU) }), client.lire);
   assert.ok(lu.lu, "the board is read");
   const faits = comprendre(JSON.stringify(lu.faits));
   assert.ok(!("informe" in faits), `facts are in shape: ${"informe" in faits ? faits.informe : ""}`);
@@ -137,8 +140,8 @@ describe("le commentaire marqué porte ses choix", () => {
     const carte = carteDuChefDeTodo({ sorte: "product-question", texte: "Which plan?" });
     assert.deepEqual(carte?.choix, []);
     assert.match(carte?.prixDuTexte ?? "", /removes `hors-cuisine` and `chef-todo`/);
-    // Une issue sans commentaire marqué n'a rien à quoi répondre.
-    assert.equal(carteDuChefDeTodo({ sorte: "todo", texte: "No readable card on this issue: its marked comment is missing. Open the issue." }), undefined);
+    // Un commentaire marqué sans texte n'a rien à quoi répondre.
+    assert.equal(carteDuChefDeTodo({ sorte: "blocked", texte: "  " }), undefined);
   });
 });
 

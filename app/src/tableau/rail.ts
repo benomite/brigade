@@ -6,7 +6,7 @@
 // (box.ts, `Lecture`) dont chaque sortie est celle de la commande qu'elle remplace — pour que ce qui la reçoit (faits.ts,
 // attend.ts, bon.ts, alertes.ts, accueil.ts, amont.ts) dessine le même rail sans rien changer :
 //   - `facts`   l'objet `faits` de la lecture ;
-//   - `status`  ses rubriques, le bloc `awaiting` refait des cartes du chef, et la ligne `rail` suivie de la ligne de
+//   - `status`  ses rubriques, le bloc `awaiting` de ce qui attend le chef, et la ligne `rail` suivie de la ligne de
 //               chaque ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box ;
 //   - `manager upstream` ce qui est avant le rail (`avantLeRail`, #1836), dans la forme de la sortie de la commande —
 //               chaque issue dans l'un des cinq états, son adresse déduite du dépôt.
@@ -18,7 +18,7 @@
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as attendre } from "node:timers/promises";
-import type { LectureDuTableauDuDepot, RubriqueDuTableau, TableauLu } from "./lecture.ts";
+import type { LectureDuTableauDuDepot, LigneDeLaFile, RubriqueDuTableau, TableauLu } from "./lecture.ts";
 
 // Les commandes que la lecture remplace, comme la veille des box les nomme (faits.ts, `COMMANDE` ; amont.ts) : la vue
 // du rail les demande, la lecture en rend la sortie.
@@ -60,28 +60,32 @@ export function dureeEn(ms: number): string {
 const lignesDeRubrique = ({ titre, lignes }: RubriqueDuTableau): string[] =>
   lignes.map((texte, rang) => (rang === 0 ? (titre === "" ? texte : ligne(titre, texte)) : `${" ".repeat(TITRE)}${texte}`));
 
-// Les cartes du chef que la lecture porte (`faits.attend`, todo-github.ts) : leur numéro et leur titre.
-function cartesDuChef(faits: TableauLu["faits"]): { ticket: number; titre: string }[] {
-  const attend: unknown = faits.attend;
-  return Array.isArray(attend)
-    ? attend.flatMap((carte: unknown) => {
-        const { ticket, titre } = (typeof carte === "object" && carte !== null ? carte : {}) as { ticket?: unknown; titre?: unknown };
-        return typeof ticket === "number" ? [{ ticket, titre: typeof titre === "string" ? titre : "" }] : [];
-      })
-    : [];
-}
-
-// Le bloc `awaiting` de `status`, refait des cartes du chef (runtime/src/attend.ts, `decrireAttentes`) : sa tête seule —
-// chaque carte porte ce qu'elle attend (vue.js, `poserLaCarteDuChef`), et GitHub ne date pas son attente.
-function blocAwaiting(cartes: readonly unknown[]): string[] {
-  const tete = cartes.length === 0 ? "nothing awaits the chef" : cartes.length === 1 ? "1 decision awaits the chef" : `${cartes.length} decisions await the chef`;
-  return [ligne(TETE_AWAITING, tete), FIN_AWAITING, ""];
+// Le bloc `awaiting` de `status` (runtime/src/attend.ts, `decrireAttentes`) : sa tête, une ligne par attente — son nom,
+// depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas une décision. Les durées se
+// comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (attente-du-chef.ts, #2460) passe par lui :
+// l'app et le second en lisent le même bloc.
+export function blocAwaiting({ file, bilans, lu }: { file: readonly LigneDeLaFile[]; bilans: readonly string[]; lu: string }): string[] {
+  const depuis = (instant: string) => dureeEn(Date.parse(lu) - Date.parse(instant));
+  const [premiere] = file;
+  const tete =
+    premiere === undefined
+      ? "nothing awaits the chef"
+      : file.length === 1
+        ? `1 decision awaits the chef — for ${depuis(premiere.depuis)}`
+        : `${file.length} decisions await the chef — the oldest for ${depuis(premiere.depuis)}`;
+  return [
+    ligne(TETE_AWAITING, tete),
+    ...file.map(({ nom, depuis: instant, ligne: dit, titre }) => `  ${nom}  for ${depuis(instant)}  ${dit}${titre === null ? "" : `  ${titre}`}`),
+    ...bilans.map((bilan) => `  ${bilan}`),
+    FIN_AWAITING,
+    "",
+  ];
 }
 
 // La sortie de `status` que la lecture porte : ses rubriques dans l'ordre de `status`, le bloc `awaiting` juste avant la
 // ligne `rail`, et sous elle la ligne de chaque ticket. Sans ce que la box seule lit (les serveurs, les worktrees, les
 // transcripts, les derniers événements) : GitHub ne le porte pas.
-export function statusDuTableau(lu: Pick<TableauLu, "faits" | "cuisine" | "lignesDuRail">): string {
+export function statusDuTableau(lu: Pick<TableauLu, "file" | "bilans" | "cuisine" | "lignesDuRail" | "luLe">): string {
   const { rubriques } = lu.cuisine;
   const rangDuRail = rubriques.findIndex(({ titre }) => titre === "rail");
   const avant = rangDuRail === -1 ? rubriques : rubriques.slice(0, rangDuRail);
@@ -90,22 +94,13 @@ export function statusDuTableau(lu: Pick<TableauLu, "faits" | "cuisine" | "ligne
   return [
     ...avant.flatMap(lignesDeRubrique),
     "",
-    ...blocAwaiting(cartesDuChef(lu.faits)),
+    ...blocAwaiting({ file: lu.file, bilans: lu.bilans, lu: lu.luLe }),
     ligne("rail", rail.lignes[0] ?? ""),
     ...lu.lignesDuRail.map(({ ligne: sienne }) => sienne),
     "",
     ...apres.flatMap(lignesDeRubrique),
     "",
   ].join("\n");
-}
-
-// La file du chef en texte, pour le second (second/file.ts) : le bloc `awaiting` de `status`, une ligne par carte — son
-// numéro et son titre —, puis la ligne `rail` et celle de chaque ticket.
-export function fileDuSecond(lu: Pick<TableauLu, "faits" | "cuisine" | "lignesDuRail">): string {
-  const cartes = cartesDuChef(lu.faits);
-  const [tete, fin] = blocAwaiting(cartes);
-  const rail = lu.cuisine.rubriques.find(({ titre }) => titre === "rail")?.lignes[0] ?? `${lu.lignesDuRail.length} on the rail`;
-  return [tete, ...cartes.map(({ ticket, titre }) => `  #${ticket}  ${titre}`), fin, "", ligne("rail", rail), ...lu.lignesDuRail.map(({ ligne: sienne }) => sienne), ""].join("\n");
 }
 
 // La sortie de `manager upstream` que la lecture porte (amont.ts, `comprendre`) : l'heure où les issues ouvertes ont été

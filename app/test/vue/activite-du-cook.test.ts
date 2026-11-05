@@ -74,7 +74,7 @@ const EN_COURS_14: ActiviteDuCook = {
 // Ce que la vue reçoit d'une lecture du rail de parade, faite à `A`, qui porte ces activités : rangée comme main.ts la
 // range.
 const lu = (activites: ActiviteDuCook[]): ActivitesPubliees =>
-  activitesPubliees(PARADE, { lu: true, depot: "chef/parade", luLe: A, cuisine: { rubriques: [] }, faits: {}, lignesDuRail: [], activites });
+  activitesPubliees(PARADE, { lu: true, depot: "chef/parade", luLe: A, cuisine: { rubriques: [] }, faits: {}, file: [], bilans: [], lignesDuRail: [], activites });
 
 async function ouvrir(): Promise<Jouee> {
   const vue = await jouerLaVue({ demarrage, espace: () => [], ouvrirPrDuCook: () => true });

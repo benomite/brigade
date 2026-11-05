@@ -1,7 +1,8 @@
 // Le rail et les cooks d'un projet, lus de GitHub seul (#2220 ; seul chemin depuis #2061) : la vue du rail range ses
 // issues `fire` d'après leurs labels et leurs PR — en attente, prises, en pass, en WAITING, mises de côté (#2075) —, et
 // l'onglet Cooks montre les stations d'après leurs commentaires de prise et leurs signes de vie (#2358). Joué sur un faux
-// GitHub, puis rendu par le rail de l'app.
+// GitHub, puis rendu par le rail de l'app. Son TODO est ce qui attend le chef lu de GitHub, la lecture même que le
+// second relaie (#2460).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { porter } from "../../../src/bon.ts";
@@ -9,6 +10,7 @@ import { gestesDeCarte } from "../../../src/gestes-fiche.ts";
 import { comprendre, SANS_RAISON, tableau as tableauDe, tenirFaits, type Faits, type Tableau } from "../../../src/faits.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot, type TableauLu } from "../../../src/tableau/lecture.ts";
+import { avecCeQuiAttendLeChef, blocDuChef, lireCeQuiAttendLeChef } from "../../../src/tableau/attente-du-chef.ts";
 import type { MemoireDesLectures } from "../../../src/tableau/rail-github.ts";
 import { statusDuTableau } from "../../../src/tableau/rail.ts";
 import { avecLeRail, lireLeRailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
@@ -49,8 +51,9 @@ function github({ base = "success", issues, commentaires = {}, appels = [] }: Mo
 }
 
 const LU = new Date("2026-11-04T03:02:03.076Z");
-const lire = (appeler: AppelGitHub, memoire?: MemoireDesLectures, signes?: () => Promise<SignesDeVie>) =>
-  lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => LU, ...(memoire === undefined ? {} : { memoire }), ...(signes === undefined ? {} : { signes }) });
+// La lecture de l'app (main.ts, `lireLeTableau`) : le rail, puis ce qui attend le chef.
+const lire = async (appeler: AppelGitHub, memoire?: MemoireDesLectures, signes?: () => Promise<SignesDeVie>) =>
+  avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => LU, ...(memoire === undefined ? {} : { memoire }), ...(signes === undefined ? {} : { signes }) }), appeler);
 
 // Ce que la vue dessine de la lecture : le tableau de `facts`, avec la ligne de chaque ticket que `status` écrit.
 function dessine(lu: LectureDuTableauDuDepot): Tableau {
@@ -91,6 +94,8 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
       luLe: "2026-11-04T01:00:00.000Z",
       cuisine: { rubriques: [{ titre: "kitchen", lignes: ["open"] }, { titre: "rail", lignes: ["9 queued"] }, { titre: "cooks", lignes: ["9 running"] }] },
       faits: { etat: "ouverte", compteurs: { rail: 9, auTravail: 9, aLaPass: 9, attend: 2, livres24h: 4 }, rail: [] },
+      file: [],
+      bilans: [],
       lignesDuRail: [],
       activites: [],
     };
@@ -308,5 +313,28 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     assert.deepEqual(todo.map(({ ticket, ligne, chef, todo: carte }) => ({ ticket, ligne, chef, question: carte?.question })), [
       { ticket: 2312, ligne: "A product question waits for your answer.", chef: { sorte: "product-question", texte: "Should the export keep the old column order?\n\nBoth are defensible." }, question: "Should the export keep the old column order?" },
     ]);
+  });
+});
+
+describe("ce qui attend le chef : la lecture du second", () => {
+  test("la même entrée dans TODO que dans le bloc qu'il relaie, et rien d'autre", async () => {
+    const question = { id: 40, body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old column order?", author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" };
+    const monde = () => github({ issues: () => [issue(2312, ["fire", "hors-cuisine"])], commentaires: { 2312: [question] } });
+    const lu = await lire(monde());
+    assert.ok(lu.lu);
+    const attente = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: monde(), maintenant: () => LU });
+    assert.ok(attente.lue);
+    assert.deepEqual(lu.file.map(({ ticket }) => ticket), [2312]);
+    assert.deepEqual(statusDuTableau(lu).split("\n").filter((ligne) => ligne.includes("#2312")), blocDuChef(attente).filter((ligne) => ligne.includes("#2312")));
+    const todo = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    assert.deepEqual(todo.map(({ ticket }) => ticket), [2312]);
+  });
+
+  test("ce qui attend le chef qui ne se lit pas : une lecture ratée, jamais un TODO vide", async () => {
+    const rail = github();
+    const refuse: AppelGitHub = async (chemin) => (chemin.includes("labels=chef-todo") ? { status: 403, data: { message: "API rate limit exceeded" } } : rail(chemin));
+    const lu = await lire(refuse);
+    assert.ok(!lu.lu);
+    assert.match(lu.raison, /^What awaits the chef in acme\/kitchen was not read from GitHub: GitHub answered HTTP 403/);
   });
 });

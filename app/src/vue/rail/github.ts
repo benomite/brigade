@@ -163,27 +163,13 @@ function cookDe(ticket: TicketSurGithub): ActiviteDuCook[] {
 // La lecture, dont le rail et les cooks sont ceux de GitHub : ses tickets dans l'ordre du service — la priorité, puis
 // le plus ancien —, les lignes de leurs bons, ses compteurs, ce que fait leur cook, et ses stations d'après leurs prises
 // et leurs signes de vie (ticket 2358) : `stationsSurGithub` dit à l'onglet Cooks quand ces signes ne se lisent pas. Un
-// ticket mis de côté attend le chef : il entre dans `attend`, avec ce qui le met de côté (ticket 2075).
+// ticket mis de côté qui ne demande rien au chef reste sur le rail, dans sa colonne, avec sa ligne (ticket 2422) ; celui
+// qui lui demande quelque chose est dans TODO, que `avecLAttenteDuChef` pose (tableau/attente-du-chef.ts, ticket 2460).
 export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {
   const ranges = [...tickets].sort((a, b) => (a.priorite ?? Number.POSITIVE_INFINITY) - (b.priorite ?? Number.POSITIVE_INFINITY) || a.ticket - b.ticket);
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
   const compteurs = objet(lu.faits.compteurs) ?? {};
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
-  // Dans TODO, seul ce qui demande quelque chose au chef (ticket 2422) : une PR à merger à la main, une question de produit. Le reste
-  // de ce qui est mis de côté — renvois épuisés, cooks sans livraison — reste sur le rail, dans sa colonne, avec sa ligne.
-  const misDeCote = ranges.flatMap(({ ticket, titre, url, miseDeCote }) =>
-    miseDeCote === undefined || !miseDeCote.auChef
-      ? []
-      : [{
-          ticket,
-          titre,
-          url,
-          miseDeCote,
-          ...(miseDeCote.pr == null ? {} : { decision: { quoi: "merge", motif: "review-required", cause: null, pr: miseDeCote.pr.url } }),
-          ...(miseDeCote.chef === undefined ? {} : { chef: miseDeCote.chef }),
-        }],
-  );
-  const attend = ranges.some(({ miseDeCote }) => miseDeCote !== undefined) ? { attend: misDeCote } : {};
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
   return {
     ...lu,
@@ -212,7 +198,6 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
         ...activiteDe(ticket),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
-      ...attend,
       stations: stationsDeGithub(cooks, "lus" in signes ? signes.lus : null, lu.depot, Date.parse(luLe)),
       stationsSurGithub: { illisible: "illisible" in signes ? signes.illisible : null },
       agents: [],

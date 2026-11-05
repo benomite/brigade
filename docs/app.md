@@ -518,6 +518,11 @@ the project's repository alone — nothing comes from a box —, every 30 second
     issue"). Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
     (the convention of #2217) enters Todo, and its card is that question, answered on the card (#2434, in the section
     "The chef's TODO read from GitHub" below).
+  - **A `chef-todo` card whose question cannot be read** (no marked comment, or a marked comment with no text) is not shown
+    in Todo (#2455): the second is told why in one line of the `awaiting` block of `status` (and of the second's queue), and the chef sees the
+    card only once a readable question is written. The same holds for a repair of a red base that failed: it enters Todo
+    only with a question for the chef; set aside with no question (`hors-cuisine` after cooks without a delivery or sends
+    back), it is the second's, and Todo says so in one line that asks nothing.
   - **An issue labelled `kitchen-board`** (the Kitchen board itself) is never a card, on the rail or in Todo.
 
   The reason line is taken from the latest comment of a repository author (`OWNER`, `MEMBER`, `COLLABORATOR`) that names the
@@ -537,14 +542,36 @@ one idle, one silent).*
 
 ### The chef's TODO, read from GitHub (#2221, epic #2209)
 
-Todo lists one card per open issue carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the token
-of this computer's `gh`, conditional reads). The card takes its kind and its text from the issue's latest comment that
-starts with `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217,
-read as is): one line that says what the kind asks of the chef, then the comment's text. The issue number on the card
-opens the issue on GitHub. An issue with the label and no marked comment still gets a card, which says its comment is
-missing, and has nothing to answer: the chef lifts the label on GitHub, and the card leaves Todo at the next reading
-(thirty seconds, or after a gesture). When those issues cannot be read, Todo says it is not read, never that it is
-empty. No Kitchen board feeds Todo any more (#2061): every card is a fact on GitHub.
+Todo is what awaits the chef, read from GitHub alone (#2460): no Kitchen board feeds it any more (#2061), every item is a
+fact on GitHub. The second reads the same thing at its opening (below, "The queue is read for the second"): one reader,
+`lireCeQuiAttendLeChef` in `app/src/tableau/attente-du-chef.ts`, so the app and the second never contradict each other. The
+chef's rule (#2455): an item of Todo is a fact on GitHub — a label, a PR awaiting the chef — and always asks the chef a
+question. On the repository's open issues, read with the token of this computer's `gh`, conditional reads:
+
+| GitHub fact | its line: the question, then the gesture |
+|---|---|
+| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — merge PR #N with merge the PR on its Todo card, or on GitHub` |
+| `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
+| `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
+| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the box's words: `set aside by the manager, it carries question — to decide: answer it then remove the label, the manager judges it; or close the issue` |
+
+A `fire` + `blocked-on-human` ticket without a PR reads like the manager's `blocked-on-human`, its reason first. An issue
+carrying `waiting` waits for a third party, not the chef; an issue carrying `kitchen-board` (left from the old path) is
+never an item; a technical `hors-cuisine` stays on the rail (#2422). Items go oldest first: since the comment that says
+them, or since their label was put. They are written as the `awaiting` block of `status` (the line of each ticket, then
+its title), which Todo, the home page and the second all read; when there is none, the block says `nothing awaits the
+chef`. A GitHub reading that fails is a failed reading of the project (the rail keeps its last columns and says it is
+stale), never an empty Todo.
+
+A `chef-todo` card takes its kind and its text from the issue's latest comment that starts with `<!-- brigade:todo
+kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, in `app/src/tableau/todo-github.ts`,
+read as is): one line that says what the kind asks of the chef, then the comment's text. The issue number on the card opens
+the issue on GitHub. An issue with the label whose question cannot be read — no marked comment, or one without text — is
+not in Todo (#2455): the second is told, in the `awaiting` block, which issue it is and why, so the question gets written on
+the ticket, or the label taken off if it is technical. The chef lifts the label on GitHub, and the card leaves Todo at the
+next reading (thirty seconds, or after a gesture).
+*Code: `app/src/tableau/attente-du-chef.ts`, used by `lireLeTableau` (`app/src/main.ts`, `avecCeQuiAttendLeChef`) and
+`app/src/second/file.ts`. Tests: `app/test/tableau/attente-du-chef.test.ts`, `app/test/second/file.test.ts`.*
 
 **Answering a card on the card (#2434).** A card of the chef read from GitHub — a `chef-todo` issue, or a `hors-cuisine`
 `product-question` (below) — has the shape of every Todo card (#1281, `runtime/src/carte-todo/forme.ts`): its
@@ -2010,15 +2037,16 @@ writes nothing into the project's `.claude/`, nor into any file another session 
 start yourself in the same folder is a plain Claude Code session, not a second.
 
 **The queue is read for the second, at each start.** The launch settings carry a `SessionStart` hook
-(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads the project's issues on GitHub
-fresh, with this computer's `gh` (`gh api`), as the rail view reads them (#2061), and returns to Claude Code as
-additional context the project's queue in the form of `status`: the `awaiting` block, one line per `chef-todo` card
-(its number and its title), then the `rail` line and the line of each `fire` ticket (`fileDuSecond` in
-`app/src/tableau/rail.ts`). So the second sees the queue after a start, a resume or a compaction without thinking of
-it. The repository is the project's `depot`, or the GitHub `origin` of the session's folder. A queue that cannot be
-read (no repository known, GitHub not reached or refusing, the `chef-todo` cards not read) is said in that context, in one line
-starting `file non lue :`, and the hook still exits 0: it never blocks the session. By hand, in the project's
-folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
+(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads what awaits the chef on GitHub fresh,
+with this computer's `gh` (`gh api`, #1845), and returns it to Claude Code as additional context: the `awaiting` block of
+`status`, word for word, each line a ticket with its question and its gesture, or `nothing awaits the chef`. It is the same
+reading as the app's Todo (#2460, "The chef's TODO, read from GitHub" above): the second and the app list the same items,
+in the same order, in the same words. No box, no station: it works on every project the app knows a repository for. So the
+second sees the queue after a start, a resume or a compaction without thinking of it. The repository is the project's
+`depot`, or the GitHub `origin` of the session's folder. A queue that cannot be read (no repository known, GitHub not
+reached or refusing, or the whole reading — lists, then comments, then label events — not done within 30 s, under the
+hook's 45 s, so that `claude` never kills it silent) is said in that context, in one line starting `file non lue :`, and
+the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
 **The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
 `PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refus.ts`. It denies any

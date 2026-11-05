@@ -11,7 +11,7 @@
 // le rang du choix ou le texte.
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
-import { formeDuChef, SORTE_SANS_MARQUE, type CarteDuChef } from "./tableau/todo-github.ts";
+import { formeDuChef, type CarteDuChef } from "./tableau/todo-github.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
 // au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
@@ -68,7 +68,7 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
 // commentaire vide : il n'y a rien à quoi répondre.
 export function carteDuChefDeTodo({ sorte, texte }: CarteDuChef): CarteDeTodo | undefined {
   const { question, choix, contexte } = formeDuChef(texte);
-  if (sorte === SORTE_SANS_MARQUE || question === null) return undefined;
+  if (question === null) return undefined;
   return {
     sorte,
     question,
@@ -81,7 +81,7 @@ export function carteDuChefDeTodo({ sorte, texte }: CarteDuChef): CarteDeTodo | 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.
 export function carteLueDuChef({ sorte, texte }: CarteDuChef): CarteLue | undefined {
   const { question, choix } = formeDuChef(texte);
-  return sorte === SORTE_SANS_MARQUE || question === null ? undefined : { type: sorte, question, choix, captures: null };
+  return question === null ? undefined : { type: sorte, question, choix, captures: null };
 }
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";

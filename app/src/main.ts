@@ -33,8 +33,8 @@ import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch, posterParFetch } from "./tableau/client.ts";
-import { avecLeTodoGithub } from "./tableau/todo-github.ts";
-import type { MemoireDesLectures } from "./tableau/rail-github.ts";
+import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
+import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
@@ -199,7 +199,7 @@ const terminaux = ouvrirTerminaux({
   planDuSecond: (dossier, args) => planifier?.(dossier, args) ?? { state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: dossier, env: {} }, missing: [], tools: [] },
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
   node: emplacements.node,
-  // La file que le second lit à son ouverture vient de GitHub, par le `gh` du poste (second/file.ts).
+  // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
@@ -220,9 +220,9 @@ const terminaux = ouvrirTerminaux({
 const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: parFetch() });
 const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
 // Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
-// tient (vue/rail/github.ts) —, TODO — les issues au label `chef-todo` (tableau/todo-github.ts) — et ce qui est avant le
-// rail : relus à chaque lecture (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
-// conditionnelles dont un 304 ne coûte rien.
+// tient (vue/rail/github.ts) —, TODO — ce qui attend le chef, la lecture même que le second relaie à son ouverture
+// (tableau/attente-du-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (trente secondes, ou
+// aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
 // Ses stations, sur l'onglet Cooks, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
@@ -237,7 +237,7 @@ const signesDeVie = tenirLesSignesDeVie({
 const lireLeTableau = async (projet: Projet) => {
   const depot = await depotDuProjet(projet);
   const lu = await lireLeTableauDuDepot({ depot, appeler: appelerGitHub, memoire: memoireDuRail(depot), signes: () => signesDeVie.signes() });
-  return lu.lu ? avecLeTodoGithub(lu, appelerGitHub, memoireDuRail(depot)) : lu;
+  return avecCeQuiAttendLeChef(lu, lectureConditionnelle(appelerGitHub, memoireDuRail(depot)));
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 

@@ -13,11 +13,11 @@ import { mettreAPart, ticketsDe } from "../../src/attend.ts";
 import { GESTE, lancerLa } from "../../src/box.ts";
 import { voir as voirAmont } from "../../src/amont.ts";
 import { tenirFaits, titreDEchec, type Dessinable } from "../../src/faits.ts";
+import { avecCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
-import { lireLeTableauDuDepot, type LectureDuTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
+import { lireLeTableauDuDepot, type LectureDuTableauDuDepot, type LigneDeLaFile, type TableauLu } from "../../src/tableau/lecture.ts";
 import {
   amontDuTableau,
-  fileDuSecond,
   lectureDuTableau,
   ouvrirVeilleDuTableau,
   sortieDuTableau,
@@ -25,7 +25,6 @@ import {
   tenirLecturesDuTableau,
   type LectureDuRail,
 } from "../../src/tableau/rail.ts";
-import { avecLeTodoGithub } from "../../src/tableau/todo-github.ts";
 
 const DEPOT = "acme/brigade";
 const LU_PAR_L_APP = new Date("2026-10-12T10:05:00.000Z");
@@ -79,10 +78,9 @@ function github(chemins: string[] = []): AppelGitHub {
   };
 }
 
-// La lecture d'un projet, comme le process principal la fait (main.ts) : le rail, puis TODO.
+// La lecture d'un projet, comme le process principal la fait (main.ts) : le rail, puis ce qui attend le chef.
 async function lireLeProjet(appeler: AppelGitHub): Promise<LectureDuTableauDuDepot> {
-  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => LU_PAR_L_APP });
-  return lu.lu ? avecLeTodoGithub(lu, appeler) : lu;
+  return avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => LU_PAR_L_APP }), appeler);
 }
 async function lu(appeler: AppelGitHub = github()): Promise<TableauLu> {
   const lecture = await lireLeProjet(appeler);
@@ -90,9 +88,11 @@ async function lu(appeler: AppelGitHub = github()): Promise<TableauLu> {
   return lecture;
 }
 
-// Une lecture faite à la main : ce que `status` et la file du second en tirent seulement.
-const ecrite = (cartes: { ticket: number; titre: string }[]): Pick<TableauLu, "faits" | "cuisine" | "lignesDuRail"> => ({
-  faits: { attend: cartes },
+// Une lecture faite à la main : ce que `status` en tire seulement. `file` : ce qui attend le chef (attente-du-chef.ts).
+const ecrite = (file: LigneDeLaFile[], bilans: string[] = []): Pick<TableauLu, "file" | "bilans" | "luLe" | "cuisine" | "lignesDuRail"> => ({
+  file,
+  bilans,
+  luLe: LU_PAR_L_APP.toISOString(),
   cuisine: { rubriques: [{ titre: "kitchen", lignes: ["open"] }, { titre: "rail", lignes: ["1 queued"] }, { titre: "cooks", lignes: ["none running"] }] },
   lignesDuRail: [{ ticket: 30, priorite: 0, ligne: "  #30  queued  prio:0  since 2026-10-12 08:00 UTC  Ticket 30" }],
 });
@@ -128,8 +128,10 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   const lances = sansProcessus(t);
   const chemins: string[] = [];
   const { status, facts } = await lireParLesVeilles(github(chemins));
-  // Les deux veilles ont lu le même rail : une seule lecture de GitHub.
-  assert.equal(chemins.filter((chemin) => chemin.includes("labels=fire")).length, 1);
+  // Les deux veilles ont lu le même rail : une seule lecture de GitHub — le rail, puis ce qui attend le chef, qui relit
+  // les tickets `fire` mis de côté (attente-du-chef.ts).
+  assert.equal(chemins.filter((chemin) => chemin.includes("labels=fire")).length, 2);
+  assert.equal(chemins.filter((chemin) => chemin.includes("labels=chef-todo")).length, 1);
   assert.deepEqual([status.projet, status.demande, facts.projet, facts.demande], ["brigade", 1, "brigade", 2]);
   // L'âge du rail : l'heure de sa lecture sur GitHub.
   assert.ok(!("erreur" in facts));
@@ -187,33 +189,20 @@ test("la sortie de `status` refaite de la lecture : ses rubriques, le bloc `awai
   assert.deepEqual(main, ["kitchen    open", "", "awaiting   nothing awaits the chef", "end awaiting", "", "rail       1 queued", "  #30  queued  prio:0  since 2026-10-12 08:00 UTC  Ticket 30", "", "cooks      none running", ""]);
 });
 
-test("le bloc `awaiting` de `status` : sa tête compte les cartes du chef, sans ligne de ticket — rien n'y est daté", () => {
-  const bloc = (cartes: { ticket: number; titre: string }[]) => mettreAPart({ projet: "brigade", demande: 1, a: LU_PAR_L_APP.toISOString(), sorties: [{ commande: "status", texte: statusDuTableau(ecrite(cartes)) }] });
+test("le bloc `awaiting` de `status` : ce qui attend le chef, une ligne par entrée, datée jusqu'à la lecture, puis ce qui n'en est pas une", async () => {
+  const entree = (ticket: number, depuis: string): LigneDeLaFile => ({ nom: `#${ticket}`, ticket, titre: `Ticket ${ticket}`, quoi: "carte", depuis, ligne: "Which plan? — answer on its Todo card, in your own words" });
+  const bloc = (file: LigneDeLaFile[], bilans: string[] = []) => mettreAPart({ projet: "brigade", demande: 1, a: LU_PAR_L_APP.toISOString(), sorties: [{ commande: "status", texte: statusDuTableau(ecrite(file, bilans)) }] });
   const aucune = bloc([]);
-  const une = bloc([{ ticket: 24, titre: "Ticket 24" }]);
-  const deux = bloc([{ ticket: 24, titre: "Ticket 24" }, { ticket: 25, titre: "Ticket 25" }]);
-  assert.ok(!("erreur" in aucune) && !("erreur" in une) && !("erreur" in deux));
+  const deux = bloc([entree(24, "2026-10-12T09:05:00.000Z"), entree(25, "2026-10-12T10:00:00.000Z")], ["#26 carries `chef-todo` but is not shown in Todo"]);
+  assert.ok(!("erreur" in aucune) && !("erreur" in deux));
   assert.match(aucune.attend ?? "", /^awaiting {3}nothing awaits the chef\nend awaiting/);
-  assert.match(une.attend ?? "", /^awaiting {3}1 decision awaits the chef\nend awaiting/);
-  assert.match(deux.attend ?? "", /^awaiting {3}2 decisions await the chef\nend awaiting/);
-  assert.deepEqual(ticketsDe(deux.attend ?? ""), []);
-  // Ce qui n'est pas une carte n'est pas compté.
-  assert.match(statusDuTableau({ ...ecrite([]), faits: { attend: [{ titre: "sans numéro" }, null] } }), /^awaiting {3}nothing awaits the chef$/m);
-  assert.match(statusDuTableau({ ...ecrite([]), faits: {} }), /^awaiting {3}nothing awaits the chef$/m);
-});
-
-test("la file du second : le bloc `awaiting`, une ligne par carte du chef, puis la ligne `rail` et celle de chaque ticket", async () => {
   assert.equal(
-    fileDuSecond(ecrite([{ ticket: 24, titre: "One list?" }, { ticket: 25, titre: "Merge by hand" }])),
-    ["awaiting   2 decisions await the chef", "  #24  One list?", "  #25  Merge by hand", "end awaiting", "", "rail       1 queued", "  #30  queued  prio:0  since 2026-10-12 08:00 UTC  Ticket 30", ""].join("\n"),
+    deux.attend,
+    ["awaiting   2 decisions await the chef — the oldest for 1 h 00", "  #24  for 1 h 00  Which plan? — answer on its Todo card, in your own words  Ticket 24", "  #25  for 5 min  Which plan? — answer on its Todo card, in your own words  Ticket 25", "  #26 carries `chef-todo` but is not shown in Todo", "end awaiting", ""].join("\n"),
   );
-  assert.equal(fileDuSecond(ecrite([])).split("\n").slice(0, 2).join("\n"), "awaiting   nothing awaits the chef\nend awaiting");
-  // Les lignes de la file sont celles que le second relaie : les tickets du bloc se relisent.
-  assert.deepEqual(ticketsDe(fileDuSecond(ecrite([{ ticket: 24, titre: "One list?" }])).split("\nend awaiting")[0] ?? "").map(({ ticket }) => ticket), [24]);
-  // Sans rubrique `rail` : le nombre de ses lignes.
-  assert.match(fileDuSecond({ ...ecrite([]), cuisine: { rubriques: [] } }), /^rail {7}1 on the rail$/m);
-  // Lue de GitHub, avec TODO.
-  assert.match(fileDuSecond(await lu()), /^awaiting {3}1 decision awaits the chef\n {2}#24 {2}Ticket 24\nend awaiting\n\nrail {7}1 taken · 1 in pass · 1 WAITING · 1 queued\n/);
+  assert.deepEqual(ticketsDe(deux.attend ?? "").map(({ ticket }) => ticket), [24, 25]);
+  // Lue de GitHub : la carte du chef #24, sa question et son geste.
+  assert.match(statusDuTableau(await lu()), /^awaiting {3}1 decision awaits the chef — for .*\n {2}#24 {2}for .* {2}One list per project, or one for all\? — answer on its Todo card, in your own words {2}Ticket 24\nend awaiting$/m);
 });
 
 test("ce qui est avant le rail : la sortie de `manager upstream`, chaque issue avec l'adresse de son issue", async () => {

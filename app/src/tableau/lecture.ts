@@ -4,7 +4,8 @@
 //   - le rail : les issues ouvertes au label `fire`, chacune dans l'état que ses labels, sa PR et la base disent, avec
 //     la station qui la tient (vue/rail/github.ts) ;
 //   - ce qui est avant le rail : les autres issues ouvertes, rangées d'après leurs labels seuls (`avantLeRailDe`) ;
-//   - TODO : les issues au label `chef-todo` (todo-github.ts), ajoutées par l'appelant (main.ts).
+//   - TODO : ce qui attend le chef (attente-du-chef.ts, #2460), ajouté par l'appelant (main.ts) — la lecture même que le
+//     second relaie à son ouverture.
 // Ce qui en sort a la forme que la vue du rail lit (tableau/rail.ts) : l'objet de `facts`, les rubriques et les lignes de
 // `status`, l'activité des cooks.
 //
@@ -19,6 +20,10 @@ import { lectureConditionnelle, type MemoireDesLectures } from "./rail-github.ts
 export type RubriqueDuTableau = { titre: string; lignes: string[] };
 // La ligne `status` d'un ticket du rail, et sa priorité (`prio:<n>`, nulle sans).
 export type LigneDuRail = { ticket: number; priorite: number | null; ligne: string };
+// Une ligne de la file du chef, comme le bloc `awaiting` de `status` l'écrit (rail.ts, `blocAwaiting`) : ce qui la nomme
+// en tête de sa ligne (`#18`), son ticket, son titre, d'où elle vient (attente-du-chef.ts), l'instant où elle a commencé
+// d'attendre, et ce qui attend puis le geste du chef.
+export type LigneDeLaFile = { nom: string; ticket: number | null; titre: string | null; quoi: string; depuis: string; ligne: string };
 // L'objet de `facts`, tel que la vue du rail le lit (faits.ts, `comprendre`).
 export type FaitsPublies = { [champ: string]: unknown };
 // Ce que fait le cook d'un ticket (vue/activite-du-cook.js) : ce que GitHub en dit — la station qui le tient, depuis sa
@@ -52,6 +57,10 @@ export type TableauLu = {
   // Les rubriques de `status` que GitHub dit : le rail et les cooks.
   cuisine: { rubriques: RubriqueDuTableau[] };
   faits: FaitsPublies;
+  // Ce qui attend le chef, lu de GitHub (attente-du-chef.ts, `avecLAttenteDuChef`) : la file du bloc `awaiting`, et ce qui
+  // n'en est pas une entrée mais que le second doit savoir (`bilans`). Vides tant que cette lecture n'est pas posée.
+  file: LigneDeLaFile[];
+  bilans: string[];
   lignesDuRail: LigneDuRail[];
   activites: ActiviteDuCook[];
   // Absent quand les issues avant le rail n'ont pas été lues.
@@ -144,6 +153,8 @@ const vide = (depot: string, luLe: string): TableauLu => ({
   luLe,
   cuisine: { rubriques: [] },
   faits: { etat: "ouverte", lu: luLe, dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] },
+  file: [],
+  bilans: [],
   lignesDuRail: [],
   activites: [],
 });
