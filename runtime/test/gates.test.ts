@@ -10,7 +10,7 @@ import type { Cloison } from "../src/cloison.ts";
 import { aDesGates, jouerGates, jouerGatesMesurees, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
-import { ENV_ENFANT, mort, PID_DU_FOND, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, jusqua, mort, PID_DU_FOND, repertoireTemporaire } from "./outils.ts";
 
 // Les scripts d'essai lancent un `sleep 30` : s'il tenait ce qu'on attend, rien
 // ne reviendrait avant trente secondes. La borne dit « bien avant », pas « vite » :
@@ -309,12 +309,15 @@ describe("les gates", { concurrency: 8 }, () => {
     await mort(pid);
   });
 
-  test("le runtime qui s'arrête abandonne les gates en cours", { skip: posixOnly("plays gates that sleep 30 s and aborts them through the runtime's stop signal after 50 ms, expecting red; on Windows the abort's kill of their process group (a negative pid) fails silently, so the gates finish their sleep and come back green") }, async (t) => {
-    const racine = worktree(t, { gates: "sleep 30" });
+  test("le runtime qui s'arrête abandonne les gates en cours", { skip: posixOnly("plays gates that sleep 30 s and aborts them through the runtime's stop signal once they have started, expecting red; on Windows the abort's kill of their process group (a negative pid) fails silently, so the gates finish their sleep and come back green") }, async (t) => {
+    // Les gates disent qu'elles sont parties : l'arrêt tombe sur elles en cours, pas sur un lancement (#2464).
+    const parties = join(repertoireTemporaire(t), "parties");
+    const racine = worktree(t, { gates: `touch '${parties}'; sleep 30` });
     const abandon = new AbortController();
 
     const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 60_000, signal: abandon.signal });
-    setTimeout(() => abandon.abort(), 50);
+    await jusqua(() => existsSync(parties));
+    abandon.abort();
 
     assert.equal((await enCours).outcome, "red");
   });
