@@ -30,6 +30,7 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
@@ -69,7 +70,8 @@ export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise =
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
   Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> &
-  GitHubDeLaReparation & {
+  GitHubDeLaReparation &
+  GitHubDeLaFermeture & {
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
@@ -210,6 +212,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   const ouvrirLaReparation = ouvreReparation({ github, base });
+  const fermerLaReparation = fermeReparation({ github, base });
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
   // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
@@ -305,7 +308,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Rouge après sa relance, la base a son ticket de réparation : un seul par commit (#2339).
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
-    const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
+    const lus = await github.fires();
+    // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
+    await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
+    const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
     let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
