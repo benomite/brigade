@@ -25,7 +25,7 @@ import { stationsDesPrises, tenantDeLIssue, type Prise } from "../cooks/prises.t
 export const FICHIER_DU_PROJET = ".claude/brigade/projet.json";
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
-// Le mot d'un ticket mis de côté (faits.ts, `TONS_DE_TICKET`) : sa carte est dans TODO (#2075).
+// Le mot d'un ticket mis de côté (faits.ts, `TONS_DE_TICKET`) : sa carte est dans TODO (ticket 2075).
 const MOT_MIS_DE_COTE = "86";
 // Les mots dont un ticket a une station qui le tient.
 const TENUS = new Set(["pris", "en pass", "base rouge"]);
@@ -38,7 +38,7 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // La PR qui livre un ticket, telle que la carte la dit.
 export type PrDuTicket = { numero: number; url: string; le: string };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
-// l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (#2075) — nulles sans elles.
+// l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote };
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[] };
 
@@ -80,7 +80,7 @@ export async function interrupteurDuDepot(depot: string, appeler: AppelGitHub): 
 
 // Le rail d'un projet sur GitHub seul : ses tickets au label `fire`, chacun dans son état, avec sa PR et sa station. Un
 // ticket qui porte `hors-cuisine` ou `blocked-on-human` — sans `waiting` — est mis de côté, quoi que ses autres labels
-// disent : ses commentaires, toutes pages, disent pourquoi (tableau/mise-de-cote-github.ts, #2075). Une lecture qui
+// disent : ses commentaires, toutes pages, disent pourquoi (tableau/mise-de-cote-github.ts, ticket 2075). Une lecture qui
 // échoue lève : la lecture du tableau en dit la raison.
 export async function lireLeRailSurGithub(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date }): Promise<RailSurGithub> {
   const { depot, appeler } = options;
@@ -154,7 +154,7 @@ const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en
 
 // Le tableau lu, dont le rail et les cooks sont ceux de GitHub : ses tickets dans l'ordre du service — la priorité, puis
 // le plus ancien —, les lignes de leurs bons, ses compteurs, et ses stations d'après les prises. Un ticket mis de côté
-// attend le chef : il entre dans `attend` avec ce qui le met de côté, à la place de ce que le tableau figé en disait (#2075).
+// attend le chef : il entre dans `attend` avec ce qui le met de côté, à la place de ce que le tableau figé en disait (ticket 2075).
 export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub): TableauLu {
   const ranges = [...tickets].sort((a, b) => (a.priorite ?? Number.POSITIVE_INFINITY) - (b.priorite ?? Number.POSITIVE_INFINITY) || a.ticket - b.ticket);
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
