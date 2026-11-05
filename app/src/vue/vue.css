@@ -8322,23 +8322,21 @@ button.recommande {
 }
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
    ses quatre réglages, la même ligne que Settings : le nom et son niveau, la valeur en vigueur, le contrôle. « Save »
-   vient sous le plafond et les capacités, qu'il enregistre ; les deux cases s'écrivent seules. */
+   vient sous le plafond et les capacités, qu'il enregistre ; les deux cases s'écrivent seules. Les cartes s'alignent sur
+   la liste des stations, au-dessus (ticket 2487). */
 .reglages-station h3 {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 .reglages-station > .vide {
-  margin: 6px 0 0;
+  margin: 6px 16px 0;
   font-style: italic;
   color: var(--discret);
 }
-#rail .station-reglee {
-  margin: 10px 0 0;
-  padding: 8px 16px 10px;
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
+/* La carte a l'allure du panneau « edit » de Cooks (plus haut) ; ici, sa marge l'aligne sur la liste. */
+#rail .reglages-station > .station-reglee {
+  margin: 10px 16px 0;
 }
 #rail .station-reglee h4 {
   display: flex;
