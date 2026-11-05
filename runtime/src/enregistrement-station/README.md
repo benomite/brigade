@@ -83,7 +83,9 @@ The account is not written in the file. It is the gist's owner (`owner.login` in
   (`limite-github.ts`) like every gist call.
 - **When GitHub's limit stops its calls** (`limite-github.ts`, `constaterLimite`), it writes at once,
   outside the box's pause (as a gesture would), its registration with `heldBy`, then writes nothing
-  until `until`. Without it, its `lastSeen` froze, and the app said it offline, with every project
+  until `until`. GitHub, which has just limited it, may refuse that write too: it is tried again every
+  minute, outside the pause, `ESSAIS_DE_LA_RETENUE` (3) times at most — all before the reader's
+  freshness rule would say the station offline. Without it, its `lastSeen` froze, and the app said it offline, with every project
   without a station, for the whole window (2026-11-05, 14:06–14:37).
 - **A failed write** is retried every minute (`NOUVEL_ESSAI_MS`). The service log says the failure
   once, and says once when GitHub answers again. This covers the install flow: the installer starts

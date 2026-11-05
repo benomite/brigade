@@ -353,6 +353,48 @@ test("a GitHub limit window replayed: the registration says the limit as the cal
   assert.deepEqual([lecture(a("14:37:30")).available, lecture(a("14:37:30")).heldUntil], [true, undefined]);
 });
 
+// GitHub, qui vient de limiter la station, peut refuser aussi l'écriture qui le
+// dit : elle se retente chaque minute, hors de la pause, trois fois au plus —
+// toutes avant que la règle de fraîcheur ne la dise tue.
+test("the write that says the limit, refused by GitHub too, is tried again each minute outside the pause, three times at most, before the app would say the station offline", async (t) => {
+  const a = (hhmmss: string) => Date.parse(`2026-11-05T${hhmmss}Z`);
+  const refus = { statut: 403, entetes: new Map<string, string>(), corps: JSON.stringify({ message: "You have exceeded a secondary rate limit." }) };
+  for (const troisiemePasse of [true, false]) {
+    const github = fauxGists();
+    const horloge = fausseHorloge(a("14:04:25"));
+    const ecouteurs = new Set<(pause: PauseDeGitHub) => void>();
+    const { tenue } = unEnregistrement(t, { github, horloge, pauses: (ecouteur) => (ecouteurs.add(ecouteur), () => void ecouteurs.delete(ecouteur)) });
+    await horloge.avancer(a("14:06:00") - horloge.maintenant());
+    const gist = tenue.gist() as string;
+    // GitHub refuse tout, même ce qui part hors de la pause de la box.
+    github.etat.panne = new LimiteGitHubAtteinte(a("14:37:00"), a("14:37:00") - a("14:06:00"));
+    for (const ecouteur of ecouteurs) ecouteur({ depuis: a("14:06:00"), jusqua: a("14:37:00"), reponse: refus });
+    await horloge.avancer(0);
+    assert.equal(github.etat.horsPause, 1);
+    await horloge.avancer(60_000);
+    assert.equal(github.etat.horsPause, 2, "a minute later, a second try");
+    // Le troisième essai passe — ou est refusé lui aussi.
+    if (troisiemePasse) github.etat.pauseDeLaBox = true;
+    await horloge.avancer(60_000);
+    assert.equal(github.etat.horsPause, 3, "a third try, at 14:08");
+    const lu = stationDuGist(gist, github.gists.get(gist)?.fichiers ?? {}, "benomite", a("14:23:00"));
+    assert.ok(!("illisible" in lu));
+    if (troisiemePasse) {
+      assert.deepEqual([lu.available, lu.heldUntil, lu.lastSeen], [true, "2026-11-05T14:37:00.000Z", "2026-11-05T14:08:00.000Z"]);
+    } else {
+      assert.deepEqual([lu.available, lu.heldUntil], [false, undefined], "three refusals: the registration could not say it");
+    }
+    // Plus rien ne part pendant la fenêtre.
+    const appels = github.etat.appels;
+    await horloge.avancer(a("14:36:59") - horloge.maintenant());
+    assert.equal(github.etat.appels, appels, "no call until the window ends");
+    github.etat.panne = null;
+    await horloge.avancer(a("14:37:00") - horloge.maintenant());
+    assert.equal(github.enregistrement(gist).heldBy, undefined);
+    assert.equal(github.enregistrement(gist).lastSeen, "2026-11-05T14:37:00.000Z");
+  }
+});
+
 test("a station whose limit ended without a word from it since is offline once its freshness is spent", () => {
   const fin = Date.parse("2026-11-05T14:37:00Z");
   const tenue: Enregistrement = { brigade: "station-registration", format: 1, name: "box", platform: "linux", machine: "", version: "1", registeredAt: iso(fin - 3_600_000), lastSeen: iso(fin - 31 * 60_000), refreshMs: RAFRAICHI_MS, stoppedAt: null, heldBy: { limit: "secondary-writes", since: iso(fin - 31 * 60_000), until: iso(fin) } };

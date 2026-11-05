@@ -27,6 +27,12 @@ import { description, FICHIER_ENREGISTREMENT, FORMAT, NOUVEL_ESSAI_MS, plateform
 
 export const FICHIER_LOCAL = "enregistrement.json";
 
+// Les essais de l'écriture qui dit la limite : GitHub, qui vient de la dire,
+// peut la refuser elle aussi. Elle se retente chaque minute (`NOUVEL_ESSAI_MS`),
+// hors de la pause, trois fois au plus — toutes avant que l'app ne dise la
+// station tue (2 × `RAFRAICHI_MS` + 30 s après son dernier signe de vie).
+export const ESSAIS_DE_LA_RETENUE = 3;
+
 export type OptionsEnregistrement = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`).
   racine: string;
@@ -88,6 +94,8 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
   let prochain: (() => void) | null = null;
   // La limite qui la retient, tant que son enregistrement doit la dire.
   let retenue: RetenueParGitHub | null = null;
+  // Les essais qui restent à l'écriture qui la dit.
+  let essaisDeLaRetenue = 0;
 
   const sauver = () => writeFileSync(fichier, `${JSON.stringify(etat, null, 2)}\n`);
 
@@ -122,7 +130,7 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
   const ecrire = async (arret: boolean, horsPause: boolean): Promise<number> => {
     const instant = maintenant();
     // La limite levée, l'écriture qui part le dit en n'en disant plus rien.
-    if (!horsPause && retenue !== null && instant >= Date.parse(retenue.until)) retenue = null;
+    if (retenue !== null && instant >= Date.parse(retenue.until)) retenue = null;
     if (etat.gist === null) {
       // Arrêtée avant d'avoir jamais été enregistrée : rien à dire.
       if (arret) return RAFRAICHI_MS;
@@ -136,6 +144,7 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
     }
     if (panne !== null) dire("brigade : station — GitHub répond de nouveau : son enregistrement y est à jour");
     panne = null;
+    if (horsPause) essaisDeLaRetenue = 0;
     // La limite dite, rien ne s'écrit plus avant sa fin.
     return horsPause && retenue !== null ? Math.max(RAFRAICHI_MS, Date.parse(retenue.until) - instant) : RAFRAICHI_MS;
   };
@@ -155,6 +164,7 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
         );
       }
       panne = dit;
+      if (horsPause) essaisDeLaRetenue -= 1;
       return erreur instanceof LimiteGitHubAtteinte ? Math.max(NOUVEL_ESSAI_MS, erreur.jusqua - maintenant()) : NOUVEL_ESSAI_MS;
     }
   };
@@ -163,9 +173,11 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
   const enchainer = (arret: boolean, horsPause = false) => {
     fil = fil.then(async () => {
       const delai = await essayer(arret, horsPause);
+      // Refusée, celle qui dit la limite se retente, hors de la pause, tant qu'il lui reste un essai.
+      const redire = horsPause && retenue !== null && essaisDeLaRetenue > 0;
       // Une seule écriture à venir, même quand celle de la pause a croisé une écriture en vol.
       prochain?.();
-      prochain = arretee ? null : apres(() => void enchainer(false), delai);
+      prochain = arretee ? null : redire ? apres(() => void enchainer(false, true), NOUVEL_ESSAI_MS) : apres(() => void enchainer(false), delai);
     });
     return fil;
   };
@@ -177,6 +189,7 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
     if (arretee) return;
     retenue = { limit: sorteDeLaLimite(reponse), since: new Date(depuis).toISOString(), until: new Date(jusqua).toISOString() };
     if (etat.gist === null) return;
+    essaisDeLaRetenue = ESSAIS_DE_LA_RETENUE;
     prochain?.();
     prochain = null;
     void enchainer(false, true);
