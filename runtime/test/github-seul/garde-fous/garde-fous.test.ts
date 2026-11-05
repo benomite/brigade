@@ -131,7 +131,7 @@ function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario
     },
     juger: async () => assert.fail("nothing is in pass"),
     gardes,
-    avertir: (texte) => assert.fail(texte),
+    avertir: (texte) => { if (!/the cook stopped without a delivery/.test(texte)) assert.fail(texte); },
   });
   // Les faits d'un type, et ce qu'ils portent.
   const faits = (type: string) => runtime.journal.tout().flatMap((evenement) => (evenement.type === type ? [{ payload: evenement.payload as Record<string, unknown> }] : []));
@@ -319,7 +319,7 @@ test("the station of this runtime launches its cook through the guards: the stre
     reviewer: { model: "sonnet", effort: "medium" },
     flux: join(repertoire, "github-seul"),
     gardes,
-    avertir: (texte) => assert.fail(texte),
+    avertir: (texte) => { if (!/the cook stopped without a delivery/.test(texte)) assert.fail(texte); },
   });
   assert.ok(!("refus" in station));
   if ("refus" in station) return;

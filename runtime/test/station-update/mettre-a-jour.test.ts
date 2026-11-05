@@ -122,6 +122,7 @@ test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend
     labelliser: async (numero: number, labels: string[]) => void ecrits.push(`+${labels.join(",")} #${numero}`),
     delabelliser: async (numero: number, label: string) => void ecrits.push(`-${label} #${numero}`),
     commenter: async (numero: number) => void ecrits.push(`comment #${numero}`),
+    commentaires: async () => [],
   } as unknown as GitHubDuTour;
   const prises: number[] = [];
   const prise: Prise = { prendre: async (issue) => (prises.push(issue.number), { prise: true }), lacher: async () => true };
