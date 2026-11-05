@@ -32,6 +32,12 @@ node scripts/app-release/paquets.ts renommer --version 1.0.3 --dossier <dir>    
 
 The notes are a table: package, platform, what it is, and the steps to open it when unsigned (Gatekeeper on Mac, SmartScreen on Windows, the executable bit on Linux, unknown apps on Android). `publier-app` and `publier-station` run it and hand the output to `gh release create --notes-file`.
 
+## Publishing — `publier.sh`
+
+`publier-app` hands the renamed files to `publier.sh <app-v…> <notes.md> <file>...`, run in their folder with `GH_TOKEN`, `GH_REPO` and `GITHUB_SHA`. With no release for the tag, `gh release create` makes it on `GITHUB_SHA`, as latest. A release already there is completed and published, whether it is published (a re-run: its files and notes are replaced) or a draft (an earlier attempt whose draft `gh` could not delete). A refused attempt is tried again, 4 times with a pause of 30 s doubled each time (`BRIGADE_PUBLIER_ESSAIS`, `BRIGADE_PUBLIER_PAUSE`). The last failure writes `gh`'s own error as an `::error::` annotation: the run page shows annotations without signing in, while a job's log needs admin rights on the repository (#2521).
+
+**Tests.** `npm --prefix scripts/app-release test` plays it against a fake `gh`.
+
 ## Retention
 
 The releases page keeps the 5 latest app releases and the 5 latest station releases, tags included. `garder-les-dernieres.sh <app-v|station-> <n> [--simuler]` deletes the older ones (`gh release delete --cleanup-tag`); `publier-app` and `publier-station` run it after each publication, and the `retention-releases` workflow (run by hand) purges the backlog. A box more than 5 versions behind cannot reach the next one: it must be reinstalled from the page.

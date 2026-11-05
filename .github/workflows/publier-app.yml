@@ -491,6 +491,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # Le journal d'un job ne se lit qu'avec les droits d'admin du dépôt ; une annotation se lit
+          # sur la page du run : la commande qui arrête l'étape y est nommée (#2521).
+          trap 'code=$?; echo "::error::Publishing $TAG stopped at: $BASH_COMMAND (exit $code)"' ERR
           version="${TAG#app-v}"
           cd "$RUNNER_TEMP/release"
           for construit in "Brigade-$version-arm64.dmg" "Brigade-$version-x64-setup.exe"; do
@@ -516,19 +519,11 @@ jobs:
             test -f "$fichier" || { echo "::error::$fichier was not built — nothing is published"; ls -la; exit 1; }
           done
           cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            # Un run rejoué : la release existe, ses fichiers et ses notes sont remplacés.
-            gh release upload "$TAG" "${fichiers[@]}" --clobber
-            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --latest
-          else
-            # `--latest` : `releases/latest` (le lien du README et du site) mène à l'app ; les
-            # releases de la station ne le prennent jamais (publier-station.yml).
-            gh release create "$TAG" "${fichiers[@]}" \
-              --target "$GITHUB_SHA" \
-              --title "Brigade $version" \
-              --notes-file "$RUNNER_TEMP/notes.md" \
-              --latest
-          fi
+          # Crée la release, ou complète celle qu'un run rejoué ou un essai d'avant a laissée (brouillon
+          # compris), la publie en « latest » — les releases de la station ne le prennent jamais
+          # (publier-station.yml) —, rejoue un essai refusé, et dit l'erreur de `gh` en annotation
+          # (scripts/app-release/publier.sh, #2521).
+          "$GITHUB_WORKSPACE/scripts/app-release/publier.sh" "$TAG" "$RUNNER_TEMP/notes.md" "${fichiers[@]}"
           echo "$resume" >> "$GITHUB_STEP_SUMMARY"
           # Seules les 5 dernières releases de l'app restent, tags compris : le dernier tag `app-v*`,
           # base du merge suivant, est toujours gardé.
