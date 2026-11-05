@@ -8216,7 +8216,14 @@ button.recommande {
 }
 /* La liste des stations, dans l'onglet Stations (ticket 2487) : celle de Cooks, telle quelle, sous le titre ; dessous,
    « Add a station », et l'étape qu'il ouvre sur place — ce qu'on attend du chef en tête, cet ordinateur d'abord. Alignés
-   sur la liste. */
+   sur la liste. Les titres des blocs de l'onglet gardent le retrait des titres du rail, que Health retire aux siens
+   (ticket 2490) : ils restent alignés sur la liste, et celui de la liste reste celui de Cooks. */
+#rail[data-onglet="stations"] > .bloc-du-projet > h3 {
+  padding: 12px 16px 0;
+}
+#rail[data-onglet="stations"] .bloc-du-projet .stations-de-cuisson h3 {
+  padding: 0 0 4px;
+}
 #rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) {
   margin: 12px 16px 0;
 }
