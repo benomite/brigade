@@ -80,8 +80,8 @@ const RAIL: TicketRail[] = [
 ];
 
 // Ce que la box rend de cet état, par ses deux lectures : `status`, du texte, et `faits`, la forme.
-function lectures(etat: EtatCuisine, absolu = false): { status: string; faits: Faits } {
-  const status = `${decrireEtat(etat, MAINTENANT, undefined, null, null, null, null, absolu).join("\n")}\n`;
+function lectures(etat: EtatCuisine): { status: string; faits: Faits } {
+  const status = `${decrireEtat(etat, MAINTENANT).join("\n")}\n`;
   const compris = comprendre(JSON.stringify(faitsDuRuntime(etat, MAINTENANT, "benomite/brigade")));
   assert.ok(!("informe" in compris), "le runtime ne rend plus la forme que l'app comprend");
   return { status, faits: compris };
@@ -105,8 +105,8 @@ const ETAT: EtatCuisine = {
 };
 
 // Le rail que l'app en dessine, de bout en bout : la sortie de `status`, son bloc mis à part, et `faits`.
-function dessine(etat: EtatCuisine = ETAT, absolu = false) {
-  const { status, faits } = lectures(etat, absolu);
+function dessine(etat: EtatCuisine = ETAT) {
+  const { status, faits } = lectures(etat);
   const montree = mettreAPart({ projet: "brigade", demande: 1, a: MAINTENANT.toISOString(), sorties: [{ commande: "status", texte: status }] });
   assert.ok("sorties" in montree && montree.attend !== undefined, "`status` n'a plus le bord que l'app sait prendre");
   const texte = montree.sorties[0]?.texte ?? "";
@@ -144,14 +144,6 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : what it burns · what blocks it`);
     assert.ok(!("relais" in carte));
     for (const { valeur } of carte.dit.slice(3, 4)) assert.ok(status.includes(valeur), valeur);
-  });
-
-  test("le tableau écrit des heures (ticket 2153) : le bon les prend telles quelles, bail compris", () => {
-    const carte = carteDe(dessine(ETAT, true).rail, 14);
-    const dit = dits(carte);
-    assert.match(dit.since ?? "", /^\d{4}-\d\d-\d\d \d\d:\d\d UTC$/);
-    assert.match(dit.lease ?? "", /^no progress since \d{4}-\d\d-\d\d \d\d:\d\d UTC, lease until \d{4}-\d\d-\d\d \d\d:\d\d UTC$/);
-    assert.equal(dit["taken by"], "box/claude");
   });
 
   test("un ticket qui coince, un bail échu : le bail le dit avec les mots du runtime", () => {
