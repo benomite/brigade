@@ -318,8 +318,9 @@ try {
     githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
   });
   // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
-  const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
-  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }), ouvertes });
+  const githubDuTableau = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) });
+  const ouvertes = ouvertesDuDepot(githubDuTableau);
+  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }), ouvertes, commentaires: (numero) => githubDuTableau.commentaires(numero) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

@@ -19,7 +19,8 @@
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
-import { HORS_CUISINE } from "../github.ts";
+import { HORS_CUISINE, type Commentaire, type Issue } from "../github.ts";
+import type { LigneDeLaFile, Tableau } from "../tableau/rendu/bloc.ts";
 import { shaDeBaseRouge } from "./ouvre-reparation.ts";
 
 export type CommentaireDeReparation = { body: string; association: string };
@@ -30,13 +31,14 @@ export type IssueDeReparation = {
   labels: string[];
   body: string;
   association: string;
+  createdAt: string;
   commentaires: CommentaireDeReparation[];
 };
 
 // Une base rouge dont la réparation cuit : ce que TODO dit, sans rien demander.
 export type ReparationEnCours = { ticket: number; sha: string; ligne: string };
 // Une réparation échouée : une entrée pour le chef, avec pourquoi.
-export type ReparationEchouee = { ticket: number; titre: string; sha: string; sorte: "base-rouge"; texte: string };
+export type ReparationEchouee = { ticket: number; titre: string; sha: string; sorte: "base-rouge"; texte: string; depuis: string };
 export type BaseRougeDuTodo = { enCours: ReparationEnCours[]; pourLeChef: ReparationEchouee[] };
 
 const MARQUE_DE_CARTE = /^\s*<!--\s*brigade:todo\s+kind=[A-Za-z0-9_-]+\s*-->\s*([\s\S]*)$/;
@@ -72,6 +74,7 @@ export function baseRougeDuTodo(issues: readonly IssueDeReparation[]): BaseRouge
         titre: issue.title,
         sha,
         sorte: "base-rouge",
+        depuis: issue.createdAt,
         texte: `The base is red at ${court(sha)} and its repair #${issue.number} failed — it needs you. Why: ${raisonDeLEchec(issue)}`,
       });
     } else {
@@ -92,4 +95,50 @@ export async function lireLaBaseRouge(github: GitHubDuTodoBaseRouge): Promise<Ba
   const marquees = (await github.issuesOuvertes()).filter(({ body }) => shaDeBaseRouge(body) !== null);
   const issues = await Promise.all(marquees.map(async (issue) => ({ ...issue, commentaires: echouee(issue.labels) ? await github.commentaires(issue.number) : [] })));
   return baseRougeDuTodo(issues);
+}
+
+// Les issues ouvertes que le tableau a déjà lues (`ouvertesDuDepot`, une par
+// tick et par projet) : le corps et l'auteur y sont, les commentaires se lisent
+// pour les seules réparations échouées, et une fois par état de l'issue
+// (`cache`, clé : son numéro et son `updatedAt`). Aucune seconde lecture des
+// issues ouvertes.
+export type CacheDesCommentaires = Map<string, CommentaireDeReparation[]>;
+
+export async function baseRougeDesOuvertes(
+  ouvertes: readonly Issue[],
+  commentaires: (numero: number) => Promise<Commentaire[]>,
+  cache: CacheDesCommentaires = new Map(),
+): Promise<BaseRougeDuTodo> {
+  const lues = ouvertes.filter((issue) => !issue.pr).map((issue) => {
+    const { body = "", association = "NONE" } = issue as Issue & { body?: string; association?: string };
+    return { number: issue.number, title: issue.title, state: issue.state, labels: issue.labels, body, association, createdAt: issue.createdAt, updatedAt: issue.updatedAt };
+  });
+  const github: GitHubDuTodoBaseRouge = {
+    issuesOuvertes: async () => lues,
+    commentaires: async (numero) => {
+      const cle = `${numero}@${lues.find(({ number }) => number === numero)?.updatedAt}`;
+      const connus = cache.get(cle);
+      if (connus !== undefined) return connus;
+      const lus = (await commentaires(numero)).map(({ body, association }) => ({ body, association }));
+      cache.set(cle, lus);
+      return lus;
+    },
+  };
+  return lireLaBaseRouge(github);
+}
+
+// TODO du tableau avec la base rouge : la ligne « une réparation cuit » va
+// avec les bilans, que le chef lit sans rien avoir à faire ; la réparation
+// échouée entre dans sa file, avec la raison — sauf si sa carte y est déjà.
+// Sans ticket marqué, le tableau rendu est le même objet.
+export function avecLaBaseRouge(tableau: Tableau, base: BaseRougeDuTodo): Tableau {
+  const dejaLa = new Set(tableau.file.flatMap(({ ticket }) => (ticket === null ? [] : [ticket])));
+  const echouees = base.pourLeChef.filter(({ ticket }) => !dejaLa.has(ticket));
+  if (base.enCours.length === 0 && echouees.length === 0) return tableau;
+  const lignes: LigneDeLaFile[] = echouees.map(({ ticket, titre, texte, depuis }) => ({ nom: `#${ticket}`, ticket, titre, quoi: "base-rouge", depuis, ligne: texte, decision: null, carte: null }));
+  return {
+    ...tableau,
+    file: [...tableau.file, ...lignes].sort((a, b) => a.depuis.localeCompare(b.depuis)),
+    bilans: [...tableau.bilans, ...base.enCours.map(({ ligne }) => ligne)],
+  };
 }
