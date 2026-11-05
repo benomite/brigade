@@ -78,7 +78,7 @@ export const ecran: Ecran = {
   dit: "L'onglet Cost de « parade » : les tokens lancés sur 5 h, 24 h et 7 j, tous projets confondus, et la part de chacun",
   largeur: 1440,
   hauteur: 900,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

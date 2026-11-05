@@ -923,7 +923,7 @@ earlier "ready"** until it has answered.
 
 ### Removing a project from the app
 
-The `in your app` line of Settings' `you` group has its value `in the bar` and its one control `Remove from the
+The `Remove this project from the app's sidebar` line of Settings has its one control `Remove from the
 app…`, which asks for a `yes, remove "<name>" from the app` before anything happens: a project is not removed by a
 stray click. It takes the project off the bar and out of the projects file, and uninstalls the app's plugin from
 its folder's local Claude Code settings (see "`/brigade:dev` and `/brigade:ask` in every project the app opens"),
@@ -2331,15 +2331,13 @@ which each read brings up to date (`app/src/reglages-perso/`, on the module of #
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
 of all projects lives at the app level (see "The cost of all projects"), each project's share named there.
 
-**Settings holds only what you can set, grouped by level** (#1700, epic #1698). It is one page, with no sub-page and no
-navigation of its own, in three groups, each a card titled by the word of its level (`app/src/vue/niveaux.js`), where
-it is kept on hover:
+**Settings holds only the project's settings** (#1700, #2494). It is one page, with no sub-page and no navigation of its
+own, in one card titled `project`. The `this machine` block is gone from it — its lines (ordinary tickets, the station's
+GitHub Apps, the projects it serves, the app's code) are not shown in Settings; they move to Stations.
 
-| Group | Its settings |
-|---|---|
-| **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
-| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the projects this computer's station serves, one checkbox per project (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
-| **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
+| Settings |
+|---|
+| the project's settings in its repository (below), stored in `.claude/brigade/projet.json`; one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it; its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette; and `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first |
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
 field and `propose`, a switch, a checkbox, a number, a palette, a button. What the control opened or returned — a

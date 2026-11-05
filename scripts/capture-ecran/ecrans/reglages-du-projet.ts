@@ -25,7 +25,7 @@ export const LUS = {
   ),
 };
 
-export const OUVRIR: Etape[] = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }];
+export const OUVRIR: Etape[] = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }];
 export const PLAFOND = '#reglages-du-projet .reglage[data-cle="plafond"]';
 
 export const ecran: Ecran = {

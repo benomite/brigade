@@ -9,6 +9,6 @@ export const ecran: Ecran = {
   dit: "Les réglages de « mirrorlab », son sigle écrit par le chef (#1983) : sa case écrit LAB, et sa ligne le dit « yours », avec « back to its name »",
   largeur: 1440,
   hauteur: 1040,
-  etapes: [{ cliquer: '#projets > button[title^="mirrorlab — "]' }, { cliquer: "#onglets > button:first-child" }],
+  etapes: [{ cliquer: '#projets > button[title^="mirrorlab — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }],
   donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(AVEC_LAB)), espace: [] }, envois: cuisine(RENDUS_DU_CHEF) }),
 };
