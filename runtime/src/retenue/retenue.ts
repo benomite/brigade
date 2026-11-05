@@ -66,6 +66,11 @@ export type Signaux = {
   explications?: string[];
 };
 
+// Les deux phrases par lesquelles un ticket qui n'avance pas le dit, communes à
+// l'ancien chemin (le rail) et au tour GitHub seul (la porte de prise) (#2429).
+export const direAttenteSurMisDeCote = (ticket: number, attendu: number, raison: string): string => `#${ticket} waits on #${attendu}, set aside: ${raison}`;
+export const direSaut = (ticket: number, pourquoi: string): string => `#${ticket} is claimable but not claimed, the claim gate skipped it: ${pourquoi}`;
+
 export const SANS_SIGNAL: Signaux = { disjoncteur: null, limiteGitHub: null, ecritures: null, baseRouge: null };
 
 // Le diagnostic : la cause, et le geste qui la lève — nul quand elle se lève

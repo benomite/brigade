@@ -15,7 +15,12 @@ import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";
 import { CONTEXTE_DES_GATES, GATES_PERIMEES_MS, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
-import { jusqua } from "./outils.ts";
+import { jusqua, repertoireTemporaire } from "./outils.ts";
+import { ouvrirJournal } from "../src/journal.ts";
+import { LimiteGitHubAtteinte, limiteDeLaStation } from "../src/limite-github.ts";
+import { lireLaCuisine } from "../src/retenue/brancher.ts";
+import { direCause, diagnostiquer } from "../src/retenue/retenue.ts";
+import { suivreLeTour } from "../src/retenue/tour.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
@@ -108,7 +113,7 @@ class FauxGitHub {
     return this.horloge.toString(16).padStart(40, "0");
   }
 
-  private poster(numero: number, station: string, body: string): void {
+  poster(numero: number, station: string, body: string): void {
     this.horloge += 1;
     const liste = this.commentaires.get(numero) ?? [];
     liste.push({ id: this.horloge, body, association: "OWNER", createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString(), station });
@@ -1978,4 +1983,57 @@ test("a taken label nobody holds — a release whose removal failed, left by ano
   await b.tour();
   assert.deepEqual(faux.pris(), [7, 8]);
   assert.equal(faux.prisesDe("B"), 1);
+});
+
+// #2429 : la nuit du 5 novembre 2026. La limite de GitHub dit une reprise que
+// les refus dépassent ; puis, le tour GitHub seul rendu à lui-même, #2187
+// attend #2186 mis de côté et #2383, prenable, n'est pas pris. Chaque ligne se
+// lit comme la retenue la lit, par `lireLaCuisine` sur le tour enveloppé.
+test("the held-kitchen line replays 2026-11-05: the limit past its announced end, a set-aside dependency, a claim-gate skip (#2429)", async (t) => {
+  const racine = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  t.after(() => journal.fermer());
+  const T = (hhmm: string) => Date.parse(`2026-11-05T${hhmm}:00.000Z`);
+  let instant = T("09:04");
+  const limite = limiteDeLaStation(racine, { maintenant: () => instant });
+  t.after(() => limite.fermer());
+  const faux = new FauxGitHub();
+  const suivi = suivreLeTour(() => new Date(instant));
+  const github = suivi.envelopper(faux.pour("A"));
+  const station = stationGitHub({ nom: "A", places: 1, base: "main", github, prise: faux.prise(github, "A"), cuisiner: async () => assert.fail("no cook"), juger: async () => assert.fail("no review"), avertir: (texte) => assert.fail(texte), sauter: suivi.sauter });
+  const ligne = () => direCause(diagnostiquer(lireLaCuisine(journal.base, new Date(instant), { station: racine, tour: suivi }).signaux()).cause);
+
+  // Rien n'est pris : #2186 est mis de côté, #2187 l'attend, #2383 est prenable mais sa zone est tenue.
+  faux.feu(2186, [...CALIBRE, "hors-cuisine"]);
+  faux.poster(2186, "A", "<!-- brigade:renvoi n=2 sha=abc -->\nStation `A`: still not mergeable after 2 sends back — conflicts with main\n\nTaken off the kitchen (`hors-cuisine`): a human decides.");
+  faux.feu(2187, CALIBRE);
+  faux.poster(2187, "A", "<!-- brigade:fiche -->\nattend : #2186\nzone : rien");
+  faux.feu(2383, CALIBRE, zoneDe("runtime/src/a.ts"));
+  faux.prOuverte(["runtime/src/a.ts"], "cook/2390-github");
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(faux.cuissons, []);
+
+  // 09:07 : la limite, reprise dite 09:19.
+  limite.suspendre(T("09:19"));
+  assert.throws(() => limite.prendre(), LimiteGitHubAtteinte);
+  instant = T("09:07");
+  assert.match(ligne(), /^cause: GitHub is rate-limiting calls \(limit reached\), back around /);
+  // 09:21 : la reprise dite est passée, GitHub refuse encore.
+  instant = T("09:20");
+  limite.suspendre(T("09:21"));
+  instant = T("09:22");
+  assert.match(ligne(), /^cause: GitHub is rate-limiting calls \(limit reached\), calls still refused at /);
+  // Les refus cessent : la limite ne tient plus, le tour GitHub seul dit ce qui retient.
+  instant = T("10:30");
+  await station.tour();
+  await station.calme();
+  assert.equal(ligne(), "cause: #2187 waits on #2186, set aside: Station `A`: still not mergeable after 2 sends back — conflicts with main; #2383 is claimable but not claimed, the claim gate skipped it: zone held by #2390");
+  // Sans ce que la porte a dit, la cause reste inconnue.
+  faux.prs.length = 0;
+  faux.tickets.delete(2187);
+  faux.ticket(2383).corps = "";
+  faux.ticket(2383).labels.add("taken");
+  await station.tour();
+  assert.match(ligne(), /^cause unknown/);
 });

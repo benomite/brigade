@@ -88,9 +88,11 @@ the HH:MM announced`, #2429), the red base with its failing checks named (`to li
 GitHub-only state the deliveries in pass whose PR head has no concluded CI (#2456: `cause: 2 deliveries in pass wait for
 a CI on their PR head (#757, #759), and no check has started there — to lift: check that the project's CI runs on its
 PRs…`, or `still running: brigade/gates — nothing to do`), the tickets' own reasons (#2429: `#2187 waits on #2186, set
-aside: <reason>` on the old path's rail; `#2383 is claimable but not claimed, the claim gate skipped it: zone held by
-#N` or `capability missing…`), or `cause unknown`, with no gesture — only when none of these applies. Later passes of
-the same hold write nothing; a new cause rewrites the entry, keeping
+aside: <reason>`, on the old path's rail and on the GitHub-only turn, where the claim gate reads the card's `attend` and
+the set-aside ticket's last station comment; `#2383 is claimable but not claimed, the claim gate skipped it: zone held by
+#N`, `capability missing…` or `its calibration (model, effort) is incomplete`; the gate does not claim a ticket that
+waits on a set-aside one, `hors-cuisine` or `blocked-on-human`), or `cause unknown`, with no gesture — only when none of
+these applies. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
 its start. When the kitchen serves again — or nothing waits any more, or you stop the kitchen —, `kitchen.hold-lifted`
 is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
 GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The

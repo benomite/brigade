@@ -38,9 +38,9 @@ export type SuiviDuTour = {
   envelopper(github: GitHubDuTour): GitHubDuTour;
   // Le client enveloppé, une fois le tour ouvert : null avant.
   client(): GitHubDuTour | null;
-  // La porte de prise a sauté ce ticket prenable, pour cette raison (#2429) :
-  // ce qu'elle a dit au dernier tour est ce que la retenue en lit.
-  sauter(ticket: number, pourquoi: string): void;
+  // La porte de prise n'a pas pris ce ticket prenable, et `ligne` dit pourquoi
+  // (#2429) : ce qu'elle a dit au dernier tour est ce que la retenue en lit.
+  sauter(ticket: number, ligne: string): void;
   vue(): VueDuTour;
 };
 
@@ -77,7 +77,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
 
   return {
     client: () => enveloppe,
-    sauter: (ticket, pourquoi) => void sauts.set(ticket, pourquoi),
+    sauter: (ticket, ligne) => void sauts.set(ticket, ligne),
     envelopper: (github) => (enveloppe = {
       ...github,
       fires: async () => {
@@ -126,7 +126,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         })
         .sort((a, b) => a - b);
       const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };
-      const explications = [...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([ticket, pourquoi]) => `#${ticket} is claimable but not claimed, the claim gate skipped it: ${pourquoi}`);
+      const explications = [...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne);
       return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications };
     },
   };

@@ -295,6 +295,9 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   const points = new Map<string, PointsDuCompte>();
   const pointsDe = (compte: string): PointsDuCompte => points.get(compte) ?? points.set(compte, { pris: [], total: 0 }).get(compte)!;
 
+  // Un refus par minute suffit : la retenue ne lit que le plus récent (#2429).
+  const noterLeRefus = (instant: number) => base.executer("INSERT INTO refus (instant) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM refus WHERE instant > ?)", instant, instant - 60_000);
+
   // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
   for (const colonne of ["projet", "lecture", "compte"]) if (!colonnes.includes(colonne)) base.script(`ALTER TABLE appels ADD COLUMN ${colonne} TEXT;`);
@@ -324,7 +327,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
           if (pause?.jusqua != null && pause.jusqua > instant) {
             // Le refus se garde : la retenue le lit quand la reprise dite est passée (#2429).
-            base.executer("INSERT INTO refus (instant) VALUES (?)", instant);
+            noterLeRefus(instant);
             return { jusqua: pause.jusqua };
           }
           const quota = quotaDe(compte, instant);
@@ -379,7 +382,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
       base.transaction(() => {
         const instant = maintenant();
         // Une pause plus longue déjà posée par un autre process reste.
-        base.executer("INSERT INTO refus (instant) VALUES (?)", instant);
+        noterLeRefus(instant);
         base.executer("DELETE FROM pause WHERE jusqua <= ? OR jusqua <= ?", instant, jusqua);
         base.executer("INSERT INTO pause (jusqua) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM pause)", jusqua);
       });

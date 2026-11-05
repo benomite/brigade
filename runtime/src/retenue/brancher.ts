@@ -32,7 +32,7 @@ import type { Runtime } from "../runtime.ts";
 import type { FaitRetenue } from "./evenements.ts";
 import { retenueEnCours } from "./lire.ts";
 import { relanceDeLaRetenue, type PorteDeLaRelance } from "./relance-base.ts";
-import { cleDeCause, detecterRetenue, diagnostiquer, direCause, SANS_SIGNAL, type Observation, type Retenue, type Signaux } from "./retenue.ts";
+import { cleDeCause, detecterRetenue, diagnostiquer, direAttenteSurMisDeCote, direCause, direSaut, SANS_SIGNAL, type Observation, type Retenue, type Signaux } from "./retenue.ts";
 import type { SuiviDuTour } from "./tour.ts";
 
 // Une transition de la retenue, telle qu'elle vient de s'écrire.
@@ -62,9 +62,9 @@ export function explicationsDuRail(rail: ReturnType<typeof lireRail>, attendentL
   for (const { ticket, state, awaits, held, waitingFor } of rail) {
     if (state !== "waiting" || attendentLeChef.has(ticket) || waitingFor !== null) continue;
     for (const { ticket: attendu, left } of awaits) {
-      if (left !== null) lignes.push(`#${ticket} waits on #${attendu}, set aside: ${left.reason}`);
+      if (left !== null) lignes.push(direAttenteSurMisDeCote(ticket, attendu, left.reason));
     }
-    if (awaits.length === 0 && held.length > 0) lignes.push(`#${ticket} is claimable but not claimed, the claim gate skipped it: zone held by ${[...new Set(held.map(({ ticket: tenant }) => `#${tenant}`))].join(", ")}`);
+    if (awaits.length === 0 && held.length > 0) lignes.push(direSaut(ticket, `zone held by ${[...new Set(held.map(({ ticket: tenant }) => `#${tenant}`))].join(", ")}`));
   }
   return lignes;
 }

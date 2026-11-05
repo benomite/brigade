@@ -5,11 +5,9 @@
 // dépendance et la porte de prise.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { GitHubDuTour, TicketLu } from "../../src/brigade-github.ts";
 import { LimiteGitHubAtteinte, limiteDeLaStation } from "../../src/limite-github.ts";
 import { explicationsDuRail, signauxDeLaStation } from "../../src/retenue/brancher.ts";
 import { direCause, diagnostiquer, SANS_SIGNAL } from "../../src/retenue/retenue.ts";
-import { suivreLeTour } from "../../src/retenue/tour.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 const T = (hhmm: string) => Date.parse(`2026-11-05T${hhmm}:00.000Z`);
@@ -57,18 +55,4 @@ test("un ticket qui en attend un mis de côté le dit, avec la ligne de raison",
   assert.deepEqual(lignes, ["#2187 waits on #2186, set aside: hors-cuisine: the chef set it aside"]);
   const { cause } = diagnostiquer({ ...SANS_SIGNAL, explications: lignes });
   assert.equal(direCause(cause), "cause: #2187 waits on #2186, set aside: hors-cuisine: the chef set it aside");
-});
-
-test("un ticket prenable que la porte de prise a sauté dit pourquoi", async () => {
-  const suivi = suivreLeTour(() => new Date(T("10:22")));
-  const tickets: TicketLu[] = [{ number: 2383, title: "t", labels: ["fire", "model:opus", "effort:high"], state: "open" }];
-  const github = suivi.envelopper({ fires: async () => tickets } as unknown as GitHubDuTour);
-  await github.fires();
-  suivi.sauter(2383, "zone held by #2390");
-  const { cause } = diagnostiquer({ ...SANS_SIGNAL, explications: suivi.vue().explications });
-  assert.equal(direCause(cause), "cause: #2383 is claimable but not claimed, the claim gate skipped it: zone held by #2390");
-  // Le tour suivant relit les tickets : ce que la porte n'a pas redit tombe.
-  await github.fires();
-  assert.deepEqual(suivi.vue().explications, []);
-  assert.match(direCause(diagnostiquer(SANS_SIGNAL).cause), /^cause unknown/);
 });
