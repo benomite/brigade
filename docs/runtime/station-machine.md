@@ -145,6 +145,15 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   hour`, `most calls: project <p> (n), kind <k> (m)` and `board cost   N calls per hour, all projects`.
   `faits` carries `appelsGithub`: `total`, `topProject`, `topKind` (`{name, calls}` or null),
   `byProject`, `byKind` (biggest first, ties by name).
+- **Calls by identity (#2316).** Every call that leaves is also counted under the identity whose token
+  its client carries: the `cook`, `pass` or `manager` App, or the chef's account (the machine's `gh`,
+  any call with no role token). The count is cumulative — neither the hour nor a read resets it — and
+  holds only numbers and role names, never a token, key or login (`runtime/src/appels-par-identite.ts`,
+  `<BRIGADE_STATION_DIR>/appels-github/identites.db`; outside a station
+  `<BRIGADE_STATE_DIR>/appels-par-identite.db`). The kitchen notes its mode where it says it at start
+  (`station/cuisine.ts`, `main.ts`), and `status` prints it: `identity   GitHub — one identity per role`
+  when the three Apps are active, else ``GitHub — single identity, the machine's `gh`: …``, then
+  `calls by identity: cook N, pass N, manager N, chef's account N` (zeros without a counter).
 - **Repeated reads cost nothing while nothing changes (#1419).** Every read the kitchen repeats (an
   issue, its comments, its events, a PR list and detail, its CI, a diff, the station's gist) is asked
   again with the ETag of its last answer (`If-None-Match`). While nothing changed GitHub answers 304,

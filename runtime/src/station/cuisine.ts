@@ -38,6 +38,7 @@ import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
+import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherCadence } from "../produit/cadence/brancher.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
@@ -328,6 +329,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     throw erreur;
   }
 
+  // Le mode se retient aussi pour `status`, qui le dit avec les appels de chaque identité (#2316).
+  noterLeModeDesIdentites(envProjet, projet, identites !== null);
   dire(
     identites
       ? `GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`
