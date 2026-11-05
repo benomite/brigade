@@ -530,7 +530,7 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
     (the convention of #2217) enters Todo, and its card is that question, answered on the card (#2434, in the section
     "The chef's TODO read from GitHub" below).
   - **A `chef-todo` card whose question cannot be read** (no marked comment, or a marked comment with no text) is not shown
-    in Todo (#2455): the second is told why in one line of the `awaiting` block of `status` (and in `faits.cartesIllisibles`: ticket, issue link, reason), and the chef sees the
+    in Todo (#2455): the second is told why in one line of the `awaiting` block of `status` (and of the second's queue), and the chef sees the
     card only once a readable question is written. The same holds for a repair of a red base that failed: it enters Todo
     only with a question for the chef; set aside with no question (`hors-cuisine` after cooks without a delivery or sends
     back), it is the second's, and Todo says so in one line that asks nothing.

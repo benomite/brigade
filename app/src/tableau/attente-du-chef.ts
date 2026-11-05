@@ -8,6 +8,8 @@
 //     #2075, #2422), quand elle demande quelque chose au chef : la PR qui touche à ce qui la juge, à merger à la main ;
 //     la question de produit d'un `hors-cuisine`, tant qu'aucune réponse ne la suit ; un `blocked-on-human` sans PR, à lever ;
 //   - une issue au label `chef-todo` : la carte que son dernier commentaire marqué pose (tableau/todo-github.ts, #2217) ;
+//     une carte dont la question ne se lit pas (pas de commentaire marqué, ou sans texte) n'est pas une entrée : elle est
+//     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;
 //   - une issue que le manager a écartée et qui porte le label du chef — `question`, `decision`, `blocked-on-human` —, dans
 //     les mots du bloc `awaiting` de la box (runtime/src/attend.ts, `GESTES_D_ECART_EN`) : depuis la pose de son label.
 // Une issue au label `waiting` attend un tiers, pas le chef ; l'issue du tableau de la cuisine n'est jamais une entrée.
@@ -20,7 +22,7 @@ import type { AppelGitHub } from "./client.ts";
 import type { TableauLu } from "./lecture.ts";
 import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
-import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, SORTE_SANS_MARQUE, TEXTE_SANS_MARQUE, type CarteDuChef } from "./todo-github.ts";
+import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 
 const LABEL_FIRE = "fire";
 const LABEL_WAITING = "waiting";
@@ -51,7 +53,7 @@ export type AttenteDuChef = {
 };
 // Ce que la lecture rend : les entrées et l'heure de la lecture — ou pourquoi rien ne se lit. `horsLigne` : GitHub n'a
 // pas été joint du tout.
-export type AttenteLue = { lue: true; lu: string; attentes: AttenteDuChef[] } | { lue: false; raison: string; horsLigne?: true };
+export type AttenteLue = { lue: true; lu: string; attentes: AttenteDuChef[]; illisibles: string[] } | { lue: false; raison: string; horsLigne?: true };
 
 type Brut = Record<string, unknown>;
 const objet = (valeur: unknown): Brut | null => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Brut) : null);
@@ -65,7 +67,6 @@ class HorsLigne extends Error {}
 
 // La ligne d'une carte du chef : sa question, puis comment y répondre — un choix de la carte, ou ses propres mots.
 function ligneDeLaCarte({ sorte, texte: dit }: CarteDuChef): string {
-  if (sorte === SORTE_SANS_MARQUE) return `${TEXTE_SANS_MARQUE.replace(/ Open the issue\.$/, "")} What does it ask you? — open the issue, answer there, then remove \`${LABEL_DU_CHEF}\``;
   const { question, choix } = formeDuChef(dit);
   const repondre = choix.length === 0 ? "answer on its Todo card, in your own words" : `answer on its Todo card: ${choix.map(({ texte: libelle }) => `“${libelle}”`).join(" or ")} — or in your own words`;
   return `${question ?? `A ${sorte} card without its question: what does it ask you?`} — ${repondre}`;
@@ -114,6 +115,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     const lu = (options.maintenant ?? (() => new Date()))().toISOString();
     const attentes: AttenteDuChef[] = [];
     const dits = new Set<number>();
+    const illisibles: string[] = [];
     const poser = (attente: AttenteDuChef) => {
       if (dits.has(attente.ticket)) return;
       dits.add(attente.ticket);
@@ -152,8 +154,13 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
           return carte === null ? [] : [{ carte, le: date(commentaire.created_at) }];
         })
         .at(-1);
-      const chef = marque?.carte ?? { sorte: SORTE_SANS_MARQUE, texte: TEXTE_SANS_MARQUE };
-      poser({ ...entree(issue), depuis: marque?.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(chef), chef });
+      const { ticket } = entree(issue);
+      if (marque === undefined || formeDuChef(marque.carte.texte).question === null) {
+        const pourquoi = marque === undefined ? "no comment marked `<!-- brigade:todo kind=… -->` says what it asks" : "its marked card has no text: nothing is asked";
+        illisibles.push(`#${ticket} carries \`${LABEL_DU_CHEF}\` but is not shown in Todo: ${pourquoi} — write the question on the ticket (the chef sees it once it is written), or take the label off if it is technical`);
+        continue;
+      }
+      poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef: marque.carte });
     }
     // Les écarts du manager qui ne sont pas déjà dits : depuis la pose de leur label.
     const poses = await Promise.all(
@@ -170,7 +177,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     // La plus ancienne d'abord, comme le bloc de la box.
     const instant = (iso: string) => Date.parse(iso);
     attentes.sort((a, b) => instant(a.depuis) - instant(b.depuis) || a.ticket - b.ticket);
-    return { lue: true, lu, attentes };
+    return { lue: true, lu, attentes, illisibles };
   } catch (erreur) {
     const dit = (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
     const raison = `What awaits the chef in ${depot} was not read from GitHub: ${dit}.`;
@@ -184,12 +191,13 @@ export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] 
 
 // Le bloc `awaiting` de ce qui attend le chef, de sa tête à `end awaiting` : ce que le second relaie, et ce que le TODO
 // de l'app lit.
-export const blocDuChef = ({ lu, attentes }: { lu: string; attentes: readonly AttenteDuChef[] }): string[] => blocAwaiting({ file: fileDuChef(attentes), bilans: [], lu });
+export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
+  blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
 
 // Le tableau lu, dont ce qui attend le chef est cette lecture, et rien d'autre : la file du bloc `awaiting` de `status` et
 // `faits.attend`, que TODO dessine, dans le même ordre. Ce que la box publiait d'autre dans sa file — ce qui n'est pas un
 // fait de GitHub — n'y est plus.
-export function avecLAttenteDuChef(lu: TableauLu, { attentes }: { attentes: readonly AttenteDuChef[] }): TableauLu {
+export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): TableauLu {
   const attend = attentes.map(({ ticket, titre, url, chef, miseDeCote, decision }) => ({
     ticket,
     titre,
@@ -199,5 +207,5 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes }: { attentes: read
     ...(chef === undefined ? {} : { chef }),
   }));
   const faits = lu.faits === undefined ? {} : { faits: { ...lu.faits, attend, compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } } };
-  return { ...lu, file: fileDuChef(attentes), pages: attentes.map(({ url, decision }) => decision?.pr ?? url), bilans: [], ...faits };
+  return { ...lu, file: fileDuChef(attentes), pages: attentes.map(({ url, decision }) => decision?.pr ?? url), bilans: [...illisibles], ...faits };
 }
