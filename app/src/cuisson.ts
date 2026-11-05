@@ -36,7 +36,8 @@ export type AgentDeStation = { role: string; ticket: number | null; titre: strin
 // pas d'elle que vient l'arrêt, qu'elle refuse le projet, ou que son runtime ne dit pas son état. Et ce que la principale
 // sait d'elle, quand son runtime le dit : ce qu'elle fournit, si elle la voit, sa dernière demande. `agents` : ce
 // qu'elle fait tourner à côté de ses cooks (#1971) — vide quand rien ne tourne.
-export type LigneDeStation = { station: string; distante: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; geste: GesteDeCuisson | null; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string };
+// `ordinaires` : la station prend aussi les tickets ordinaires, comme `facts` le dit (l'onglet Stations le montre, #2488).
+export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; geste: GesteDeCuisson | null; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string };
 // `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
 // `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/cooks/stations-github.js, #2358) —
 // `illisible`, pourquoi leurs signes de vie ne se lisent pas.
@@ -55,6 +56,7 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
   const base = {
     station: station.station,
     distante: station.distante,
+    ...(typeof station.ordinaires === "boolean" ? { ordinaires: station.ordinaires } : {}),
     cooks: siens,
     agents: [...agents],
     ...(station.fournit === undefined ? {} : { fournit: station.fournit }),

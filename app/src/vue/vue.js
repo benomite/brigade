@@ -2401,6 +2401,97 @@ function retenirDeclarees(guide) {
 function reposerLesStations(projet) {
   if (stationsPosees) poserCuisson(projet);
   else poserDeclarees(projet);
+  reposerLesReglagesDesStations(projet);
+}
+
+// Les réglages de chaque station, sur l'onglet Stations (projet/stations/ReglagesStation.js, ticket 2488) : le bloc posé,
+// à reposer seul quand une lecture le change ; ce que le chef y saisit, par projet puis par station ; et l'option des
+// tickets ordinaires de ce poste, telle que sa dernière lecture l'a rendue (`poserOrdinaires`).
+/** @type {HTMLElement | undefined} */
+let reglagesDesStationsPoses;
+/** @type {Map<string, Map<string, import("./projet/stations/ReglagesStation.js").Saisie>>} */
+const saisiesDesStations = new Map();
+/** @type {Map<string, import("../ordinaires.ts").Bloc | undefined>} */
+const ordinairesVus = new Map();
+/** @param {Projet} projet */
+function reglagesDesStations(projet) {
+  const tenu = tenus.get(projet.nom);
+  const lignes = tenu !== undefined && "tableau" in tenu ? tenu.tableau.stations?.lignes : undefined;
+  const saisies = saisiesDesStations.get(projet.nom) ?? new Map();
+  saisiesDesStations.set(projet.nom, saisies);
+  const ordinaires = ordinairesVus.get(projet.nom);
+  const pose = poserBlocReglagesStation(document, {
+    stations: declarees.get(projet.nom),
+    projet: projet.nom,
+    ici: projet.ici === true,
+    ...(ordinaires === undefined ? {} : { ordinaires }),
+    ...(lignes === undefined ? {} : { lignes }),
+    saisies,
+    gestes: gestesDesReglages(projet),
+  });
+  reglagesDesStationsPoses = pose;
+  return pose;
+}
+// Le bloc se repose seul, à sa place, quand l'onglet Stations du projet est montré — le clavier rendu au champ tapé.
+/** @param {Projet} projet */
+function reposerLesReglagesDesStations(projet) {
+  const ancien = reglagesDesStationsPoses;
+  if (courant?.nom !== projet.nom || rail.dataset.onglet !== STATIONS || ancien === undefined) return;
+  const poses = [...rail.children];
+  if (!poses.includes(ancien)) return;
+  const reprise = repriseDuClavier();
+  const neuf = reglagesDesStations(projet);
+  rail.replaceChildren(...poses.map((pose) => (pose === ancien ? neuf : pose)));
+  rendreLeClavier(reprise);
+}
+// Les gestes du bloc : « Save » envoie le plafond et les capacités saisis, comme « edit » sur Cooks ; la case des tickets
+// ordinaires de ce poste s'écrit comme dans Settings ; « Stop serving » confirmé retire la station.
+/** @param {Projet} projet @returns {import("./projet/stations/ReglagesStation.js").Gestes} */
+function gestesDesReglages(projet) {
+  const saisie = (/** @type {string} */ nom) => saisiesDesStations.get(projet.nom)?.get(nom);
+  return {
+    sauver: (nom) => void changerLaStation(projet, nom, false),
+    ordinaires: (pris) => void reglerLesOrdinairesIci(projet, pris),
+    confirmer: (nom, oui) => {
+      const tenue = saisie(nom);
+      if (tenue === undefined || tenue.envoi) return;
+      tenue.confirmer = oui;
+      reposerLesReglagesDesStations(projet);
+    },
+    retirer: (nom) => void changerLaStation(projet, nom, true),
+  };
+}
+// Le geste part, puis la saisie dit ce qu'il a rendu ; la déclaration relue arrive par `surGuide`, et le bloc s'y repose.
+/** @param {Projet} projet @param {string} nom @param {boolean} retrait */
+async function changerLaStation(projet, nom, retrait) {
+  const saisie = saisiesDesStations.get(projet.nom)?.get(nom);
+  if (saisie === undefined || saisie.envoi) return;
+  saisie.envoi = true;
+  saisie.confirmer = false;
+  saisie.rendu = undefined;
+  reposerLesReglagesDesStations(projet);
+  /** @type {import("../service.ts").StationVoulue} */
+  const voulu = retrait ? { retiree: true } : { cooks: Number(saisie.cooks), fournit: saisie.fournit };
+  /** @type {import("../service.ts").StationChangee} */
+  let rendu;
+  try {
+    rendu = await brigade.changerUneStation(projet.nom, nom, voulu);
+  } catch (erreur) {
+    rendu = { refus: "Nothing was saved: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  saisie.envoi = false;
+  saisie.rendu = rendu;
+  if (courant?.nom === projet.nom) reposerLesReglagesDesStations(courant);
+}
+// La case des tickets ordinaires de ce poste : la même écriture que Settings, la limite de cooks gardée telle qu'elle est.
+/** @param {Projet} projet @param {boolean} pris */
+async function reglerLesOrdinairesIci(projet, pris) {
+  const lu = ordinairesVus.get(projet.nom);
+  if (lu === undefined || !lu.reglable) return;
+  const refus = await brigade.reglerOrdinaires(projet.nom, pris, lu.limite);
+  ordinairesRefuses = { projet: projet.nom, refus: refus ?? "" };
+  ordinairesPose = "";
+  if (courant?.nom === projet.nom) await poserOrdinaires(projet);
 }
 
 // Ce que chaque station déclarée du projet fournit, et où elle tourne (stations-declarees.js) — et, ouvert sous l'une,
@@ -2847,8 +2938,11 @@ let ordinairesPose = "";
 /** @param {Projet} projet */
 async function poserOrdinaires(projet) {
   const recu = await brigade.ordinaires(projet.nom);
+  // L'onglet Stations dit l'option sur la station de ce poste (ticket 2488).
+  ordinairesVus.set(projet.nom, recu);
   // Le chef a pu ouvrir un autre projet pendant la lecture.
   if (courant?.nom !== projet.nom) return;
+  reposerLesReglagesDesStations(projet);
   // Hors d'un Mac, ils ne se règlent pas : il n'y a rien à poser — le groupe dit qu'il n'a rien à régler.
   if (recu === undefined || recu.reglable === false) {
     ordinaires.hidden = true;
@@ -5005,11 +5099,13 @@ function poserLeRail(projet) {
   rail.dataset.onglet = onglet === STATIONS || onglet === SANTE || cuisine ? onglet : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : onglet === STATIONS ? "The stations" : onglet === SANTE ? "The kitchen's health" : "The rail";
   blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
-  // Stations : la liste de ses stations, celle que Cooks pose (ticket 2487), et « Add a station » ; Health : ses blocs
-  // (ticket 2490).
+  // Stations : la liste de ses stations, celle que Cooks pose (ticket 2487), et « Add a station » ; les réglages de
+  // chacune (ticket 2488) ; Health : ses blocs (ticket 2490).
   if (onglet === STATIONS) {
     poserCuisson(projet);
-    return rail.replaceChildren(poserBlocListeStations(document, { liste: cuissonDuProjet, ...ajoutDeStationDe(projet) }), poserBlocReglagesStation(document), poserBlocStationLocale(document));
+    const reprise = repriseDuClavier();
+    rail.replaceChildren(poserBlocListeStations(document, { liste: cuissonDuProjet, ...ajoutDeStationDe(projet) }), reglagesDesStations(projet), poserBlocStationLocale(document));
+    return rendreLeClavier(reprise);
   }
   if (onglet === SANTE) return poserLaSante(projet);
   const horsLigne = horsLignes.get(projet.nom);
