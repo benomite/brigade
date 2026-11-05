@@ -952,8 +952,8 @@ Kept in place, unchanged: these tests were over 2 s because `{ concurrency: 8 }`
 - `test/journal-pas-rejoue.test.ts` « montrer-station devant un journal sans projections dit de redémarrer le runtime, sans trace »
 - `test/journal-pas-rejoue.test.ts` « montrer-pass devant un journal sans projections dit de redémarrer le runtime, sans trace »
 - `test/journal.test.ts` « une lecture seule attend qu'un journal tenu un instant par un autre process se libère, au lieu d'échouer »
-- `test/lectures-sous-condition.test.ts` « avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget »
-- `test/lectures-sous-condition.test.ts` « une issue, une PR ou un commentaire qui change se lit au tick suivant, et seule sa lecture compte »
+- `test/lectures-sous-condition.test.ts` « avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget » — then rewritten in place, same title, after it took 2.0 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone): two ticks played instead of three, the second counting as much as the first (0.24 s alone)
+- `test/lectures-sous-condition.test.ts` « une issue, une PR ou un commentaire qui change se lit au tick suivant, et seule sa lecture compte » — then rewritten in place, same title, after it took 2.6 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone): the tick that only showed that nothing is counted, already shown by « une heure de ticks… », is no longer played (0.24 s alone)
 - `test/lectures-sous-condition.test.ts` « l'heure passée, les lectures du premier tick sortent du compte »
 - `test/lignes-masquees.test.ts` « borné, quel que soit le texte, le découpage et la borne : ce qui est écrit et compté est ce que le masquage du texte entier donne »
 - `test/limite-github.test.ts` « sans quota dit par GitHub, ou avec un quota large, aucun compte de la box ne retient la cuisine — même au-delà de 2 500 appels dans l'heure »
@@ -1481,7 +1481,7 @@ test/support/windows.ts, the runner of the suite under Windows, leaves the rule 
 
 lectures-sous-condition.test.ts: 10.3 s → 0.47 s, its 600 s timeout gone.
 
-- `test/lectures-sous-condition.test.ts` « une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus »
+- `test/lectures-sous-condition.test.ts` « une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus » — then rewritten in place, same title, after it took 2.4 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone): the first two ticks and the sixtieth played, no longer the third
 - `test/lectures-sous-condition.test.ts`: guard `timeout: 600_000`: brought to 2 s or less, or renamed where it was no wait
 
 ## `9a45d0e` — the add-a-project acceptance on a real station and its real cadence goes (2)
@@ -1510,7 +1510,7 @@ Rewritten in place.
 
 ## `5b6a99c` — the real station no longer waits three seconds for its door, nor serves a project added then withdrawn (2)
 
-- `test/station/main.test.ts` « sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre » — rewritten: the three-second wait for the door is proven in memory by station/portes.test.ts « la station attend sa porte avant de rien joindre… » (5 ms step, 20 ms patience); the real-process test is renamed « sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre » (1.1 s)
+- `test/station/main.test.ts` « sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre » — rewritten: the three-second wait for the door is proven in memory by station/portes.test.ts « la station attend sa porte avant de rien joindre… » (5 ms step, 20 ms patience); the real-process test is renamed « sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre » (1.1 s); that real-process test then deleted from main.test.ts, after it took 2.8 s on two cores under load (the CI red of `14e4f9b`): rewritten as station/cuisine-portes.test.ts « sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre », the real doors (`tenirPortes`), station (`ouvrirStation`) and kitchens in the test's process, each kitchen's `isolation.configured` naming its own door (0.5 s); the station's process behind its door, as its unit starts it, is held by paquet/paquet.test.ts
 - `test/station/main.test.ts` « un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela » — deleted (6 to 9 s); covered by station/station.test.ts « un projet ajouté s'ouvre, un projet retiré s'arrête, une ligne changée rouvre son projet… » and « un projet qu'un autre runtime tient encore est repris dès qu'il est libre… »
 
 ## `ba05f1e` — the chef's decisions during a cook: one from a process of its own, the rest in the test's process (1)
@@ -1613,10 +1613,10 @@ etapes.test.ts runs the test's own runtime twice (3.8 s → 0.07 s); closing/tri
 
 verrou-des-gates.test.ts 2.6 s → 1.04 s; garde-des-gates.test.ts's two tests take 1.5 s, the guard of gates.sh (whole seconds, 1 s at least) included; duree-des-gates.test.ts's two take 0.6 and 0.8 s.
 
-- `test/duree-des-gates.test.ts` « le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage »
+- `test/duree-des-gates.test.ts` « le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage » — then its suite is played by the npm double `test/aides/faux-npm`, and computes for 0.3 s instead of 0.5, after it took 2.15 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone) (0.46 s alone)
 - `test/duree-des-gates.test.ts` « les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond »
-- `test/garde-des-gates.test.ts` « un test en échec avant la coupure garde la ligne d'un rouge » — then its suite is played by the npm double `test/aides/faux-npm`, after « un test en échec avant la coupure » took 2.11 s under the gates at load 5, and its two test files run in one runner, one after the other (1.35 to 1.45 s alone, the 1 s guard included)
-- `test/garde-des-gates.test.ts` « une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué » — then its suite is played by the npm double `test/aides/faux-npm`, after « un test en échec avant la coupure » took 2.11 s under the gates at load 5 (1.35 to 1.45 s alone, the 1 s guard included)
+- `test/garde-des-gates.test.ts` « un test en échec avant la coupure garde la ligne d'un rouge » — then its suite is played by the npm double `test/aides/faux-npm`, after « un test en échec avant la coupure » took 2.11 s under the gates at load 5, and its two test files run in one runner, one after the other (1.35 to 1.45 s alone, the 1 s guard included); then rewritten in place, same title, after it took 2.6 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone): its failing file gives its verdict in its runner's process (`--test-isolation=none`), then the suite freezes in the shell, its witness written only once the verdict is out, and the clock guard is 0 s from that witness (0.26 s alone)
+- `test/garde-des-gates.test.ts` « une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué » — then its suite is played by the npm double `test/aides/faux-npm`, after « un test en échec avant la coupure » took 2.11 s under the gates at load 5 (1.35 to 1.45 s alone, the 1 s guard included); then rewritten in place, same title, after it took 3.3 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone): the clock guard is 0 s from the frozen file's witness — the fact waited for is the frozen file, which must still be found dead with the launcher (0.37 s alone)
 - `test/verrou-des-gates.test.ts` « le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu »
 
 ## `cf86dfc` — the idle cook speaks once launched, and its idle guard comes down from 1.5 s to 0.7 s (1)
@@ -1640,7 +1640,7 @@ Rewritten in place: 4.2 s → 0.19 s.
 
 Rewritten in place: 1.17 s → 0.77 s.
 
-- `test/paquet/paquet.test.ts` « le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non »
+- `test/paquet/paquet.test.ts` « le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non » — then split in two in this file, one real process each, after it took 2.7 s on two cores under load (the CI red of `14e4f9b`): « le runtime du paquet démarre les portes de la station telles que leur unité les lance — sans filtre : elles sortent, et écrivent le port de la station » and « le runtime du paquet démarre la station telle que son unité la lance — filtrée, derrière la porte qu'elle réclame », whose door is a listening port the test writes with `ecrirePortes`; the package tree is extracted once for both
 
 ## `9a42db9` — the Windows installer is played by one PowerShell per file (13)
 
@@ -1648,9 +1648,9 @@ Rewritten in place: one pwsh per file, the served releases built once, a launche
 
 - `test/deploy/installer-station-windows.test.ts` « la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions » — kept in place (rewritten as above), not played on the box
 - `test/deploy/installer-station-windows.test.ts` « ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main » — kept in place (rewritten as above), not played on the box
-- `test/deploy/installer-station-windows.test.ts` « rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui » — kept in place (rewritten as above), not played on the box; then rewritten in place, same title, after it took 3.5 s on two cores under load (the CI red of `14e4f9b`, its parts replayed on a clone) with pwsh 7.5: the prelude's `Start-Sleep` makes each second the script polls a 20 ms step (the count of steps to its guard unchanged), and the stopped launcher is no longer waited for a whole second (0.42 s alone, was 1.46 s)
 - `test/deploy/installer-station-windows.test.ts` « un node dont l'empreinte n'est pas celle publiée n'est pas posé, et rien n'est lancé ni écrit au registre » — kept in place (rewritten as above), not played on the box
-- `test/deploy/installer-station-windows.test.ts` « ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions » — kept in place (rewritten as above), not played on the box
+- `test/deploy/installer-station-windows.test.ts` « ce qui manque est posé : git et gh par winget, claude par son installeur officiel — puis les connexions » — kept in place (rewritten as above), not played on the box; then rewritten in place, same title, after it took 2.6 s on two cores under load with pwsh 7.5 (the CI red of `14e4f9b`): the `powershell.exe` double plays the claude installer the script downloaded (it only puts `claude` in place) instead of starting a second PowerShell for it (0.23 s alone, was 0.64 s)
 - `test/deploy/installer-station-windows.test.ts` « sans winget, un outil qui manque est nommé, avec où le prendre, et rien n'est installé » — kept in place (rewritten as above), not played on the box
 - `test/deploy/installer-station-windows.test.ts` « une connexion GitHub ratée est dite, et la connexion Claude n'est pas tentée » — kept in place (rewritten as above), not played on the box
 - `test/deploy/installer-station-windows.test.ts` « une connexion Claude ratée est dite, avec de quoi la reprendre : rejouer la même commande » — kept in place (rewritten as above), not played on the box

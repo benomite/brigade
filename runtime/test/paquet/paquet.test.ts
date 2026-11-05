@@ -7,9 +7,11 @@
 import assert from "node:assert/strict";
 import { execFile, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
+import { ecrirePortes, lirePortes } from "../../src/station/portes.ts";
 import { lancer, repertoireTemporaire } from "../outils.ts";
 
 const PAQUET = join(import.meta.dirname, "../../paquet");
@@ -126,50 +128,74 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.equal(droits("/usr/lib/brigade-station/runtime/src/station/main.ts"), "-rw-r--r--");
   });
 
-  test("le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non", async (t) => {
-    const arbre = repertoireTemporaire(t);
-    assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
-    const lireUnite = (nom: string) => {
-      const unite = readFileSync(join(arbre, "usr/lib/systemd/system", nom), "utf8");
-      return (cle: string) => [...unite.matchAll(new RegExp(`^${cle}=(.*)$`, "gm"))].map((m) => m[1] ?? "");
-    };
-    // L'environnement d'une unité, la machine remplacée par un répertoire d'essai.
+  // L'arbre du paquet, ouvert une fois pour les tests de ses unités, et ce que chaque unité lance : son ExecStart,
+  // depuis son WorkingDirectory, sous l'environnement qu'elle donne, la machine remplacée par un répertoire d'essai.
+  let arbre = "";
+  const ouvert = () => {
+    if (arbre === "") {
+      arbre = join(dossier, "arbre");
+      assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
+    }
+    return arbre;
+  };
+  const lireUnite = (nom: string) => {
+    const unite = readFileSync(join(ouvert(), "usr/lib/systemd/system", nom), "utf8");
+    return (cle: string) => [...unite.matchAll(new RegExp(`^${cle}=(.*)$`, "gm"))].map((m) => m[1] ?? "");
+  };
+  const uneMachine = (t: TestContext) => {
     const machine = repertoireTemporaire(t);
-    const HOME = join(machine, "home");
-    mkdirSync(HOME);
-    const lancerUnite = (nom: string) => {
-      const valeur = lireUnite(nom);
-      const [dossierDeTravail = ""] = valeur("WorkingDirectory");
-      const [binaire = "", script = ""] = (valeur("ExecStart")[0] ?? "").split(" ");
-      assert.equal(binaire, "/usr/lib/brigade-station/node/bin/node", nom);
-      assert.ok(existsSync(join(arbre, binaire)), `${nom} : ExecStart lance ${binaire}, absent du paquet`);
-      assert.ok(existsSync(join(arbre, dossierDeTravail, script)), `${nom} : ExecStart lance ${script} depuis ${dossierDeTravail}, absent du paquet`);
-      assert.deepEqual(valeur("User"), ["brigade"], nom);
-      const env: Record<string, string> = { HOME };
-      for (const affectation of valeur("Environment")) {
-        const [cle = "", ...reste] = affectation.split("=");
-        env[cle] = reste.join("=").replaceAll("/var/lib/brigade", join(machine, "var/lib/brigade"));
-      }
-      assert.equal(env.BRIGADE_STATION_DIR, join(machine, "var/lib/brigade"), nom);
-      assert.equal(env.BRIGADE_STATION_PORTES, join(machine, "var/lib/brigade/portes.json"), nom);
-      // Le node du test, faute du vrai dans le paquet : c'est le code livré qui est éprouvé.
-      return lancer(t, join(arbre, dossierDeTravail, script), [], env);
-    };
+    mkdirSync(join(machine, "home"));
+    return machine;
+  };
+  const lancerUnite = (t: TestContext, machine: string, nom: string) => {
+    const valeur = lireUnite(nom);
+    const [dossierDeTravail = ""] = valeur("WorkingDirectory");
+    const [binaire = "", script = ""] = (valeur("ExecStart")[0] ?? "").split(" ");
+    assert.equal(binaire, "/usr/lib/brigade-station/node/bin/node", nom);
+    assert.ok(existsSync(join(arbre, binaire)), `${nom} : ExecStart lance ${binaire}, absent du paquet`);
+    assert.ok(existsSync(join(arbre, dossierDeTravail, script)), `${nom} : ExecStart lance ${script} depuis ${dossierDeTravail}, absent du paquet`);
+    assert.deepEqual(valeur("User"), ["brigade"], nom);
+    const env: Record<string, string> = { HOME: join(machine, "home") };
+    for (const affectation of valeur("Environment")) {
+      const [cle = "", ...reste] = affectation.split("=");
+      env[cle] = reste.join("=").replaceAll("/var/lib/brigade", join(machine, "var/lib/brigade"));
+    }
+    assert.equal(env.BRIGADE_STATION_DIR, join(machine, "var/lib/brigade"), nom);
+    assert.equal(env.BRIGADE_STATION_PORTES, join(machine, "var/lib/brigade/portes.json"), nom);
+    // Le node du test, faute du vrai dans le paquet : c'est le code livré qui est éprouvé.
+    return lancer(t, join(arbre, dossierDeTravail, script), [], env);
+  };
 
+  // Chaque unité a son test, et son seul process : lancés ensemble, les deux runtimes se chargeaient l'un contre
+  // l'autre, plus de deux secondes sous charge. Ce que la station attend de ses portes — leur port, écrit dans le
+  // fichier que nomment les deux unités — relie les deux tests ; qu'elle attende sa porte avant de rien joindre se
+  // prouve sur `attendrePorteDeLaStation` (station/portes.test.ts).
+  test("le runtime du paquet démarre les portes de la station telles que leur unité les lance — sans filtre : elles sortent, et écrivent le port de la station", async (t) => {
+    const portes = lireUnite("brigade-station-porte.service");
+    assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
+    const machine = uneMachine(t);
+    const lancees = lancerUnite(t, machine, "brigade-station-porte.service");
+    await lancees.attendre("portes de la station ouvertes");
+    assert.notEqual(lirePortes(join(machine, "var/lib/brigade/portes.json")).station, null);
+  });
+
+  test("le runtime du paquet démarre la station telle que son unité la lance — filtrée, derrière la porte qu'elle réclame", async (t) => {
     const station = lireUnite("brigade-station.service");
     assert.deepEqual(station("KillMode"), ["process"]);
-    // La station ne joint que la boucle locale ; ses portes, qu'elle réclame, sortent.
+    // La station ne joint que la boucle locale ; ses portes, qu'elle réclame et attend, sortent.
     assert.deepEqual([station("IPAddressDeny"), station("IPAddressAllow")], [["any"], ["localhost"]]);
     assert.ok(station("Wants").includes("brigade-station-porte.service"), station("Wants").join(" "));
     assert.ok(station("After").includes("brigade-station-porte.service"), station("After").join(" "));
-    const portes = lireUnite("brigade-station-porte.service");
-    assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
-
-    // Lancées ensemble, comme systemd les lance quand la station les réclame (Wants=, After=).
-    const lanceesPortes = lancerUnite("brigade-station-porte.service");
-    const lancee = lancerUnite("brigade-station.service");
-    await Promise.all([lanceesPortes.attendre("portes de la station ouvertes"), lancee.attendre("station démarrée")]);
+    // Sa porte ouverte avant elle (After=) : une écoute, et son port là où l'unité des portes l'écrit.
+    const machine = uneMachine(t);
+    const porte = createServer();
+    await new Promise<void>((pret) => porte.listen(0, "127.0.0.1", pret));
+    t.after(() => new Promise<void>((ferme) => porte.close(() => ferme())));
+    ecrirePortes(join(machine, "var/lib/brigade/portes.json"), { station: (porte.address() as AddressInfo).port, projets: {} });
+    const lancee = lancerUnite(t, machine, "brigade-station.service");
+    await lancee.attendre("station démarrée");
     assert.match(lancee.sortie(), new RegExp(`station démarrée — pid ${lancee.process.pid}, configuration ${join(machine, "var/lib/brigade/projets")} ; aucun projet servi`));
+    assert.doesNotMatch(lancee.sortie(), /la station attend sa porte/);
   });
 
   test("ses scripts dpkg sont du sh valide", (t) => {

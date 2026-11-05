@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
@@ -25,11 +25,17 @@ function projet(t: TestContext, { binding, suite = "true" }: { binding?: string;
   return racine;
 }
 
+// La suite du manifest jouée par la doublure de `npm`, qui la lance sans démarrer Node : sous charge, le démarrage
+// de npm portait la suite qui calcule au-delà de 2 s. Les gates comptent le même processeur, celui de leurs enfants.
+const FAUX_NPM = join(import.meta.dirname, "aides/faux-npm");
+
 // Les deux canaux des gates sont lus par un seul tube : lus par deux, l'ordre de
 // leurs lignes ne serait tenu que canal par canal.
 function jouer(racine: string): Promise<{ lignes: string[]; sortie: string }> {
+  const suite = (JSON.parse(readFileSync(join(racine, "runtime/package.json"), "utf8")) as { scripts: { test: string } }).scripts.test;
+  const env = { ...ENV_ENFANT, PATH: `${FAUX_NPM}${delimiter}${ENV_ENFANT.PATH}`, FAUX_NPM_TEST: suite, BRIGADE_GATES_DELAI_TESTS: "2" };
   return new Promise((resoudre, rejeter) => {
-    const gates = spawn("bash", ["-c", 'exec bash "$0" "$1" 2>&1', GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_DELAI_TESTS: "2" }, stdio: ["ignore", "pipe", "ignore"] });
+    const gates = spawn("bash", ["-c", 'exec bash "$0" "$1" 2>&1', GATES, racine], { env, stdio: ["ignore", "pipe", "ignore"] });
     let sortie = "";
     gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
     gates.on("error", rejeter);
@@ -49,8 +55,8 @@ function releve(ligne: string): { processeur: number; utilisateur: number; syste
   return { processeur, utilisateur, systeme, horloge: Number(lu[7]) };
 }
 
-// Une suite qui calcule : une demi-seconde de processeur.
-const CALCULE = `node -e "while (process.cpuUsage().user < 5e5) for (let i = 0; i < 1e6; i++);"`;
+// Une suite qui calcule : trois dixièmes de seconde de processeur.
+const CALCULE = `node -e "while (process.cpuUsage().user < 3e5) for (let i = 0; i < 1e6; i++);"`;
 
 describe("la durée des gates", () => {
   test("les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond", async (t) => {
@@ -62,10 +68,10 @@ describe("la durée des gates", () => {
     }
   });
 
-  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns half a second of processor in node, and expects at least half a second of user time in its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async (t) => {
+  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns three tenths of a second of processor in node, and expects at least that much user time in its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async (t) => {
     const { processeur, utilisateur, systeme } = releve(deLaDuree((await jouer(projet(t, { suite: CALCULE }))).lignes)[0] ?? "");
 
-    assert.ok(utilisateur >= 0.5, `utilisateur : ${utilisateur}`);
+    assert.ok(utilisateur >= 0.3, `utilisateur : ${utilisateur}`);
     // Chaque nombre est arrondi au dixième pour son compte.
     assert.ok(Math.abs(processeur - (utilisateur + systeme)) < 0.15, `${processeur} ≠ ${utilisateur} + ${systeme}`);
   });

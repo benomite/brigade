@@ -7,7 +7,6 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
-import { lirePortes, tenirPortes } from "../../src/station/portes.ts";
 import { principal as status } from "../../src/status.ts";
 import { relecteur } from "../aides/opt-B-journal.ts";
 import { aArreter, appeler, BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -118,36 +117,9 @@ describe("la station, son process", () => {
     assert.equal(await station.fin, 0);
   });
 
-  // Qu'elle attende sa porte avant de rien joindre se prouve sur `attendrePorteDeLaStation` (portes.test.ts) : ici,
-  // les portes sont ouvertes avant elle, comme leur unité, que la sienne précède. Elles tiennent dans le process
-  // du test : leur process, tel que son unité le lance, a son test dans portes.test.ts.
-  test("sous les portes de la station : chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("starts the station under its doors, held in the test's process, and expects each project's proxy on a port of its own, then stops the station with SIGTERM expecting exit 0; on Windows SIGTERM kills it before its handler runs, and a project's isolation.configured fact did not even come within the test's one-minute wait") }, async (t) => {
-    const { racine, env, preparer, configurer, faits } = uneStation(t);
-    const brigade = fauxGh(t);
-    brigade.issues([]);
-    const espace = fauxGh(t);
-    issuesDe(espace, "acme/espace", []);
-    preparer("brigade");
-    preparer("espace");
-    configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
-    const fichier = join(racine, "portes.json");
-
-    const portes = await tenirPortes({ racine, fichier, dire: () => {} });
-    t.after(() => portes.arreter());
-    const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
-    await station.attendre("station démarrée");
-    assert.match(station.sortie(), /2 projets servis : brigade, espace/);
-    assert.doesNotMatch(station.sortie(), /la station attend sa porte/);
-    const ports = lirePortes(fichier);
-    assert.equal(new Set([ports.station, ports.projets.brigade, ports.projets.espace]).size, 3);
-    for (const projet of ["brigade", "espace"]) {
-      await jusqua(() => faits(projet, "isolation.configured").length > 0);
-      assert.equal((faits(projet, "isolation.configured")[0]?.payload.proxy as { port: number }).port, ports.projets[projet], projet);
-    }
-
-    station.process.kill("SIGTERM");
-    assert.equal(await station.fin, 0);
-  });
+  // Sous ses portes, chaque projet sort par la sienne : station/cuisine-portes.test.ts, les vraies portes, la vraie
+  // station et ses cuisines dans le process du test ; son process derrière sa porte, tel que son unité le lance :
+  // paquet/paquet.test.ts.
 
   test("chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662)", { skip: posixOnly("two kitchens create and pin their Kitchen board through the fake gh and a gesture under brigade's board is played by its kitchen alone, then the station is stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { racine, env, etat, preparer, configurer, faits } = uneStation(t);

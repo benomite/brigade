@@ -156,17 +156,22 @@ function unPC(t: TestContext, servi: string, { manquants = [] as string[], winge
   for (const [nom, script] of Object.entries(outils)) doublure(manquants.includes(nom) ? reserve : bin, nom, script);
   if (curl) doublure(bin, "curl.exe", `while [ $# -gt 0 ]; do case "$1" in -o) sortie="$2"; shift ;; http*) adresse="$1" ;; esac; shift; done; [ -f "${servi}/\${adresse##*/}" ] || exit 22; /bin/cp "${servi}/\${adresse##*/}" "$sortie"`);
   if (winget) doublure(bin, "winget", `case "$*" in *Git.Git*) /bin/cp "${reserve}/git" "${bin}/git" ;; *GitHub.cli*) /bin/cp "${reserve}/gh" "${bin}/gh" ;; esac`);
-  // Le PowerShell de Windows : celui de ces tests, sans ce qu'il ne fait que sous Windows.
-  doublure(bin, "powershell.exe", `for a do shift; if [ -n "$saute" ]; then saute=; continue; fi; case "$a" in -WindowStyle) saute=1; continue ;; esac; set -- "$@" "$a"; done\nexec "${PWSH}" "$@"`);
+  // Le PowerShell de Windows : celui de ces tests, sans ce qu'il ne fait que sous Windows. L'installeur officiel de
+  // `claude` qu'on lui donne, celui que le script a téléchargé, il le joue lui-même — il ne fait que poser `claude` :
+  // un second PowerShell démarré pour lui coûtait une demi-seconde, plus de deux secondes sous charge.
+  doublure(bin, "powershell.exe", `for a do shift; if [ -n "$saute" ]; then saute=; continue; fi; case "$a" in -WindowStyle) saute=1; continue ;; esac; set -- "$@" "$a"; done\ncase "$*" in *" -File "*install.ps1) for installeur do :; done; /usr/bin/cmp -s "$installeur" "${servi}/install.ps1" || exit 1; exec /bin/cp "${reserve}/claude" "${maison}/.local/bin/claude" ;; esac\nexec "${PWSH}" "$@"`);
   writeFileSync(join(servi, "install.ps1"), `Copy-Item -LiteralPath ${cite(join(reserve, "claude"))} -Destination ${cite(join(maison, ".local/bin/claude"))}\n`);
   mkdirSync(join(maison, ".local/bin"), { recursive: true });
   const base = join(local, "brigade-station");
   // Le registre et le lancement caché, propres à Windows : notés, et le lancement fait — pour de vrai si le test le
-  // demande (`lanceur`).
+  // demande (`lanceur`). Les attentes du script sondent à la seconde ce qui ne tarde pas — un process tué qui
+  // disparaît, un lanceur déjà en marche — : chacune de ses secondes y est un pas de 20 ms, ce que le script compte
+  // en pas (60 à sa garde) restant le même.
   const prelude = join(etat, "prelude.ps1");
   writeFileSync(
     prelude,
     [
+      "function Start-Sleep { param([int]$Seconds, [int]$Milliseconds) Microsoft.PowerShell.Utility\\Start-Sleep -Milliseconds $(if ($Seconds) { 20 * $Seconds } else { $Milliseconds }) }",
       "function Set-ItemProperty { [CmdletBinding()] param([string]$Path, [string]$Name, $Value) Add-Content -LiteralPath $env:BRIGADE_REGISTRE -Value \"$Path\\$Name=$Value\" }",
       "function Start-Process { param([string]$FilePath, [string]$ArgumentList, [string]$WindowStyle)",
       '  Add-Content -LiteralPath $env:BRIGADE_APPELS -Value "Start-Process $FilePath $ArgumentList -WindowStyle $WindowStyle"',
