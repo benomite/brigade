@@ -69,8 +69,9 @@ const lignesDeRubrique = ({ titre, lignes }: RubriqueDuTableau): string[] =>
 
 // Le bloc `awaiting` de `status`, refait de la file du tableau (runtime/src/attend.ts, `decrireAttentes`) : sa tête, une
 // ligne par attente — son nom, depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas
-// une décision. Les durées se comptent jusqu'à la lecture de l'état par la box (`lu`), comme les siennes.
-function blocAwaiting({ file, bilans, lu }: Pick<TableauLu, "file" | "bilans"> & { lu: string }): string[] {
+// une décision. Les durées se comptent jusqu'à la lecture de l'état par la box (`lu`), comme les siennes. Ce qui attend le chef
+// lu de GitHub (attente-du-chef.ts) passe par lui aussi : l'app et le second en lisent le même bloc.
+export function blocAwaiting({ file, bilans, lu }: Pick<TableauLu, "file" | "bilans"> & { lu: string }): string[] {
   const depuis = (instant: string) => dureeEn(Date.parse(lu) - Date.parse(instant));
   const [premiere] = file;
   const tete =

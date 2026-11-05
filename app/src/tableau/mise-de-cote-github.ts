@@ -102,25 +102,41 @@ export function ligneDuCommentaire(corps: string): string | null {
 // La question que le dernier commentaire marqué d'un auteur du dépôt pose au chef — rien si ce n'est pas une
 // `product-question`, ni si une réponse du chef la suit (`<!-- brigade:reponse`, #2434, tableau-gestes/reponse-github.ts) :
 // répondue, elle n'attend plus rien de lui, quel que soit le geste que la réponse a joué.
-function questionDuChef(commentaires: readonly Brut[]): CarteDuChef | null {
+function questionDuChef(commentaires: readonly Brut[]): { carte: CarteDuChef; commentaire: Brut } | null {
   const dits = [...commentaires].reverse().filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association));
-  for (const { body } of dits) {
-    if (MARQUE_DE_REPONSE.test(body as string)) return null;
-    const carte = carteDuCommentaire(body as string);
-    if (carte !== null) return carte.sorte === PRODUCT_QUESTION ? carte : null;
+  for (const commentaire of dits) {
+    if (MARQUE_DE_REPONSE.test(commentaire.body as string)) return null;
+    const carte = carteDuCommentaire(commentaire.body as string);
+    if (carte !== null) return carte.sorte === PRODUCT_QUESTION ? { carte, commentaire } : null;
   }
   return null;
 }
 
-// Ce que la carte dit d'un ticket mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au plus
-// récent, tels que l'API de GitHub les rend.
-export function miseDeCoteDe(depot: string, label: string, commentaires: readonly Brut[]): MiseDeCote {
+// Le commentaire qui dit la mise de côté — la question marquée d'un `hors-cuisine`, sinon le dernier qui la nomme —, et la
+// question, quand c'en est une.
+function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { dit: Brut | undefined; question: CarteDuChef | null } {
   const dit =
     [...commentaires]
       .reverse()
       .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && ditLaMiseDeCote(body, label))
       .find(({ body }) => ligneDuCommentaire(body as string) !== null);
   const question = label === HORS_CUISINE ? questionDuChef(commentaires) : null;
+  return { dit: question?.commentaire ?? dit, question: question?.carte ?? null };
+}
+
+// Depuis quand un ticket mis de côté par `label` l'est : l'heure du commentaire qui le dit (ce qui attend le chef,
+// attente-du-chef.ts) — nulle quand aucun ne le dit.
+export function miseDeCoteLe(label: string, commentaires: readonly Brut[]): string | null {
+  const le = sourceDeLaMiseDeCote(label, commentaires).dit?.created_at;
+  return typeof le === "string" && !Number.isNaN(Date.parse(le)) ? le : null;
+}
+
+// Ce que la carte dit d'un ticket mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au plus
+// récent, tels que l'API de GitHub les rend.
+export function miseDeCoteDe(depot: string, label: string, commentaires: readonly Brut[]): MiseDeCote {
+  const source = sourceDeLaMiseDeCote(label, commentaires);
+  const question = source.question;
+  const dit = question === null ? source.dit : undefined;
   const raison = question !== null ? couper(question.texte.split("\n")[0] ?? "") || null : dit === undefined ? null : ligneDuCommentaire(dit.body as string);
   const numeros = [...new Set([...(raison ?? "").matchAll(/#(\d+)\b/g)].map((trouve) => Number(trouve[1])))];
   const juges = label === BLOCKED_ON_HUMAN && dit !== undefined ? JUGES.exec((dit.body as string).replace(/`/g, "")) : null;

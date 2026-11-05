@@ -111,9 +111,10 @@ One entry per rail ticket, in the rail's order:
 | `priorite` | Its `prio:` label, `null` without one — `faits` does not carry it |
 | `ligne` | Its line under the `rail` line of `status`, word for word, indentation included: `  #<ticket>  <state>  <priority>  <detail>  <title>` |
 
-### `fileDeStatus` — the queue the second reads at opening
+### `fileDeStatus` — the queue the second read at opening
 
-The second reads the queue at the start of its session and after a compaction, from the board alone:
+The app's second no longer reads it (#2460): it reads what awaits the chef from GitHub alone, as the app's Todo does
+(`app/src/tableau/attente-du-chef.ts`, `docs/app.md`). The field and its reader stay for a box that still publishes them:
 `laFileDuSecond(body)` in `runtime/src/tableau/rendu/bloc.ts` gives `{ lue: true, lu, texte }`.
 `texte` is the `awaiting` block of `status` word for word, then a blank line, then the state of
 `cuisine.rubriques` in the form of `status`. An unreadable body gives `{ lue: false, raison }`, one

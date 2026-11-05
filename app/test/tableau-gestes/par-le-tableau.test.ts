@@ -1,6 +1,6 @@
 // Le critère du ticket 1845 : régler le plafond, arrêter et relancer une station, commenter depuis une carte aboutissent,
-// et l'app dit ce qu'il en est ; le second lit la file du projet à son ouverture. La demande au second ne passe plus par
-// le tableau (#2167) : discussion.test.ts. Chaque geste est joué par le module que le process principal appelle
+// et l'app dit ce qu'il en est. Le second ne lit plus sa file sur le tableau, mais sur GitHub seul (#2460) :
+// second/file.test.ts ; et la demande au second ne passe plus par lui (#2167) : discussion.test.ts. Chaque geste est joué par le module que le process principal appelle
 // pour lui (main.ts) ; il part sur le tableau de la cuisine, et c'est une vraie box qui le joue : le runtime, son tick
 // et ses gestes du tableau branchés comme runtime/src/main.ts les branche.
 // Entre les deux, GitHub est une doublure : les commentaires sous le tableau et son corps, que la box réécrit.
@@ -19,7 +19,6 @@ import { cuireSurLaStation } from "../../src/cuisson.ts";
 import { commenter } from "../../src/discussion.ts";
 import type { StationDesFaits } from "../../src/ordinaires.ts";
 import { reglerLePlafond } from "../../src/plafond.ts";
-import { contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { gestesDuCorps, type ClientDesGestes, type DecisionDuChef } from "../../src/tableau-gestes/gestes.ts";
@@ -152,14 +151,5 @@ describe("les gestes de la box partent par le tableau de la cuisine, et l'app di
     assert.deepEqual(c.gh.commentaires, []);
     const refuse = await commenter(c.auTableau, DECLARE, 99, "Hello");
     assert.deepEqual(refuse, { poste: false, refus: "nothing was posted: #99 has no GitHub issue: it does not exist, or is gone" });
-  });
-
-  test("à son ouverture, le second lit la file du projet sur le tableau : le bloc `awaiting` que la box publie, mot pour mot", async (t) => {
-    const c = await cuisine(t);
-    const lue = await lireLaFile(c.appeler, DEPOT);
-    assert.ok(lue.lue, JSON.stringify(lue));
-    const contexte = contexteDeLaFile({ nom: PROJET, depot: DEPOT }, lue);
-    assert.match(contexte, /\n\nawaiting {3}nothing awaits the chef\nend awaiting\n\nproject {4}brigade\n/);
-    assert.doesNotMatch(contexte, /file non lue/);
   });
 });

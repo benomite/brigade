@@ -37,7 +37,6 @@ import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
-import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import type { MemoireDesLectures } from "./tableau/rail-github.ts";
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { avecLeRailGithub } from "./vue/rail/github.ts";
@@ -207,7 +206,7 @@ const terminaux = ouvrirTerminaux({
   planDuSecond: (dossier, args) => planifier?.(dossier, args) ?? { state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: dossier, env: {} }, missing: [], tools: [] },
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
   node: emplacements.node,
-  // La file que le second lit à son ouverture vient du tableau de la cuisine, par le `gh` du poste (second/file.ts).
+  // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
@@ -233,7 +232,8 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 // relu à chaque lecture du tableau (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
 // conditionnelles dont un 304 ne coûte rien. Un projet sur GitHub seul (`githubOnlyState`, #2220) : son rail et ses cooks
 // sont lus de GitHub — ses issues, leurs labels, leurs commentaires de prise et ses PR (vue/rail/github.ts) —, pas du
-// rail figé que le tableau garde de l'ancien chemin.
+// rail figé que le tableau garde de l'ancien chemin ; et son TODO est ce qui attend le chef lu de GitHub, la lecture même
+// que le second relaie à son ouverture (tableau/attente-du-chef.ts, #2460).
 const interrupteursDuRail = new Map<string, boolean>();
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
@@ -250,7 +250,7 @@ const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
   if (!lu.lu) return lu;
   const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail, () => signesDeVie.signes());
-  return relu.lu ? avecLesEnvois(await avecLeTodoGithub(relu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : relu;
+  return relu.lu ? avecLesEnvois(relu, appelerGitHub) : relu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 
