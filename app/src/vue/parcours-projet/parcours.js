@@ -72,7 +72,7 @@ export function poserParcoursProjet(doc, etat, geste, { bienvenue = false, etape
   etapes.forEach((etape, rang) => {
     const ou = courante === -1 || rang < courante ? "faite" : rang === courante ? "courante" : "a-venir";
     const ligne = cree(doc, "li");
-    ligne.className = "etape-du-parcours";
+    ligne.className = ou === "courante" ? "etape-du-parcours courante" : "etape-du-parcours";
     ligne.dataset.etape = etape.id;
     ligne.dataset.etat = ou;
     const tete = cree(doc, "p");

@@ -1701,7 +1701,7 @@ main > header,
   padding-left: 8px;
   border-left: 4px solid transparent;
 }
-.parcours-projet .etape-du-parcours[data-etat="courante"] {
+.parcours-projet .etape-du-parcours.courante {
   border-left-color: var(--accent);
 }
 .parcours-projet .titre-d-etape {
