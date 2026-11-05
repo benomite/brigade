@@ -310,23 +310,7 @@ export const dureeEn = (ms: number): string => duree(ms).replace(/ j$/, " d");
 // tourner (#928), puis le bas, de `project` à `latest events` (#940) — leurs libellés
 // (docs/glossary.md, §4), leurs états, leurs phrases. `facts` garde ses mots. `depuisEn` :
 // la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-// Sur le tableau (tableau/rendu/), aucune durée écoulée : un texte qui dit « 7 min ago » change à chaque minute
-// et réécrit le corps sur GitHub sans que rien n'ait bougé. `depuisAbsolu` rend l'instant entre `⟦ ⟧`, et
-// `enAbsolu` écrit chaque phrase avec une heure : « started at … », « for … » devient « since … ».
-type Depuis = ((instant: string) => string) & { absolu?: boolean };
-const OUVRE = "⟦";
-const FERME = "⟧";
-export const heureEn = (instant: string) => `${new Date(instant).toISOString().slice(0, 16).replace("T", " ")} UTC`;
-const depuisAbsolu: Depuis = Object.assign((instant: string) => `${OUVRE}${heureEn(instant)}${FERME}`, { absolu: true });
-const MARQUEE = `${OUVRE}([^${FERME}]*)${FERME}`;
-const enAbsolu = (texte: string): string =>
-  texte
-    .replace(new RegExp(`at the cleanup ${MARQUEE} ago`, "g"), "at the cleanup of $1")
-    .replace(new RegExp(`since ${MARQUEE} ago`, "g"), "since $1")
-    .replace(new RegExp(`${MARQUEE} ago`, "g"), "at $1")
-    .replace(new RegExp(`\\b(?:for|since) ${MARQUEE}`, "g"), "since $1")
-    .replace(/\u0001 left \(until ([^)]*)\)/g, "until $1")
-    .replace(new RegExp(MARQUEE, "g"), "$1");
+type Depuis = (instant: string) => string;
 const nombreEn = (valeur: number) => valeur.toLocaleString("en-US");
 const compteEn = (combien: number, mot: string) => `${combien.toLocaleString("en-US")} ${mot}${combien === 1 ? "" : "s"}`;
 
@@ -473,7 +457,7 @@ function decrirePanne({ oisive, rail }: EtatCuisine, depuis: Depuis): string[] {
 function decrireGrants({ grants }: EtatCuisine, maintenant: Date, depuis: Depuis): string[] {
   return grants.flatMap((grant) => {
     if (grant.active) {
-      const reste = direResteEn(grant, maintenant, depuis.absolu ? () => "\u0001" : dureeEn);
+      const reste = direResteEn(grant, maintenant, dureeEn);
       const dit = bientotEteint(grant, maintenant) ? `, EXPIRING SOON: ${reste}` : grant.until === null && grant.usesLeft === null ? `, ${reste}, since ${depuis(grant.since)} ago` : ` ${reste}`;
       return [ligne("grant", `${grant.action} ACTIVE${dit} — a green pass is merged without you`)];
     }
@@ -541,7 +525,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       ].join(" — ");
     case "taken": {
       const bail = ticket.leaseUntil === null ? 0 : reste(ticket.leaseUntil);
-      const dureeDuBail = depuis.absolu && ticket.leaseUntil !== null ? (bail >= 0 ? `lease until ${depuis(ticket.leaseUntil)}` : `lease expired since ${depuis(ticket.leaseUntil)}`) : bail >= 0 ? `lease ${dureeEn(bail)} left` : `lease expired since ${dureeEn(-bail)}`;
+      const dureeDuBail = bail >= 0 ? `lease ${dureeEn(bail)} left` : `lease expired since ${dureeEn(-bail)}`;
       // Des deux durées d'un ticket pris, seule la seconde révèle un blocage.
       // Elle se lit dans le rail : personne ne regarde un worktree pour l'avoir.
       const progres = ticket.progressedAt === null ? [] : [`no progress since ${depuis(ticket.progressedAt)}`];
@@ -553,7 +537,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       return `since ${depuis(ticket.since)}, cooked by ${ticket.station}`;
     case "86": {
       if (ticket.waitingFor !== null) return direAttenteDeTiersEn(ticket.waitingFor, depuis);
-      const retour = ticket.until === null ? "" : `, ${reste(ticket.until) >= 0 ? (depuis.absolu ? `back at ${depuis(ticket.until)}` : `back in ${dureeEn(reste(ticket.until))}`) : "back at the next tick"}`;
+      const retour = ticket.until === null ? "" : `, ${reste(ticket.until) >= 0 ? `back in ${dureeEn(reste(ticket.until))}` : "back at the next tick"}`;
       // Une remontée technique : la carte dit ce que la cuisine en fait.
       if (reprise !== undefined) return `since ${depuis(ticket.since)} (${ticket.reason}) — ${direRepriseEn(reprise)}`;
       // Faute de station, il est en WAITING : ce qu'il attend, et ce qui l'en
@@ -589,7 +573,7 @@ function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | un
     ? `${compteEn(mesure.turns, "turn")} · ${compteEn(mesure.tokens, "token")} of ${nombreEn(limits.tokens)} (reading ${depuis(mesure.at)} ago)`
     : "turns and tokens: no reading yet";
   const budget = [
-    depuis.absolu ? `launched ${depuis(cook.launchedAt)}, limit ${dureeEn(limits.durationMs)}` : `${depuis(cook.launchedAt)} of ${dureeEn(limits.durationMs)}`,
+    `${depuis(cook.launchedAt)} of ${dureeEn(limits.durationMs)}`,
     consomme,
     ...(ticket?.progressedAt ? [`no progress since ${depuis(ticket.progressedAt)}`] : []),
     // Ce qu'il fait : là où il en est, et là où il s'est arrêté s'il ne progresse plus.
@@ -745,17 +729,11 @@ export function faitsDesAppels(r: Repartition): AppelsGithub {
 const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
 const lusEn = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLuEn(ticket) === nom).length;
 
-// L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant` ; `absolu` (le tableau) écrit à la place
-// l'heure de chaque instant, de sorte que deux lectures d'une cuisine qui n'a pas bougé donnent les mêmes lignes.
+// L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
 type EcrituresRetenues = { ecrites: number; reprise: number };
 
-export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null, retenue: number | null = null, limiteDuCompte: LimiteDuCompte | null = null, absolu = false, ecritures: EcrituresRetenues | null = null): string[] {
-  const lignes = decrireEtatEn(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels, retenue, limiteDuCompte, absolu, ecritures);
-  return absolu ? lignes.map(enAbsolu) : lignes;
-}
-
-function decrireEtatEn(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs: number, limiteGithub: number | null, appels: Repartition | null, retenue: number | null, limiteDuCompte: LimiteDuCompte | null, absolu: boolean, ecritures: EcrituresRetenues | null): string[] {
-  const depuisEn: Depuis = absolu ? depuisAbsolu : (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
+export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null, retenue: number | null = null, limiteDuCompte: LimiteDuCompte | null = null, ecritures: EcrituresRetenues | null = null): string[] {
+  const depuisEn: Depuis = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, lusEn(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);

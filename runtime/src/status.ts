@@ -133,7 +133,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
   const derive = githubSeul?.etat === "accepted" ? lireDeriveGithub(env.BRIGADE_STATE_DIR) : null;
   if (derive !== null) etat = { ...etat, derive: derive.franchis };
-  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), false, ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
+  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
   if (budget !== null) lignes.push(...direLeBudget(budget).map((texte, i) => `${(i === 0 ? "gh budget" : "").padEnd(11)}${texte}`));
