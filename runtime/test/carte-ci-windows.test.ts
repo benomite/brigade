@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { brancherLeTriage, cartesEnTodo, cartesRetenues } from "../src/carte-todo.ts";
 import { suivreLesChecksWindows, ticketDuCheck, type CheckVu } from "../src/carte-ci-windows.ts";
+import { repondreALaCarte } from "../src/reponse-carte.ts";
+import type { GitHub } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -56,3 +58,20 @@ test("une carte que le triage retient n'est pas reproposée à chaque run rouge"
   assert.equal(cartesRetenues(journal.base).length, 1);
   assert.equal(journal.base.lire("SELECT 1 FROM events WHERE type = 'todo.held'").length, 1);
 });
+
+for (const choix of [1, 2]) {
+  test(`répondre à la carte (choix ${choix}) la sort sans GitHub, et elle ne revient pas tant que le check est rouge`, async (t) => {
+    const { journal, suivre, cartes } = cuisine(t);
+    suivre(rouge("runtime-windows"));
+    const ticket = ticketDuCheck("runtime-windows", "main");
+    const sansGitHub = new Proxy({}, { get: () => () => assert.fail("GitHub touché") }) as unknown as GitHub;
+    const resultat = await repondreALaCarte(journal, sansGitHub, "brigade", ticket, { choix });
+    assert.equal(resultat.done, true);
+    assert.equal(cartes().length, 0);
+    assert.deepEqual(suivre(rouge("runtime-windows")).entrees, []);
+    assert.equal(cartes().length, 0);
+    suivre(vert("runtime-windows"));
+    assert.deepEqual(suivre(rouge("runtime-windows")).entrees, ["runtime-windows"]);
+    assert.equal(cartes().length, 1);
+  });
+}

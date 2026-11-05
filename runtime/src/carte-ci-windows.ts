@@ -23,6 +23,13 @@ export function ticketDuCheck(nom: string, branche: string): number {
   return -1 - (hache % 0x3fffffff);
 }
 
+// Le chef a répondu à la carte alors que le check reste rouge : la carte est
+// sortie de TODO, et ne revient pas avant que le check ait repassé au vert.
+function accuseeTantQueRouge(journal: Journal, ticket: number): boolean {
+  const marques = journal.duTicket(ticket).filter((e) => e.type === "todo.entered" || e.type === "todo.answered" || (e.type === "todo.left" && !e.payload.why.startsWith("answered by the chef")));
+  return marques.at(-1)?.type === "todo.answered";
+}
+
 export type CheckVu = { name?: string; outcome: "green" | "red" | "pending" };
 
 // Pose ou retire la carte de chaque check Windows lu sur la base. Rouge : la
@@ -38,21 +45,24 @@ export function suivreLesChecksWindows(journal: Journal, projet: string, branche
     const enTodo = cartesEnTodo(journal.base).some((carte) => carte.ticket === ticket);
     if (lus.some((check) => check.outcome === "red")) {
       // Dans TODO, ou retenue par le triage : rien n'est reproposé à chaque tour.
-      if (enTodo || cartesRetenues(journal.base).some((carte) => carte.ticket === ticket)) continue;
+      if (enTodo || accuseeTantQueRouge(journal, ticket) || cartesRetenues(journal.base).some((carte) => carte.ticket === ticket)) continue;
       const entree = entrerDansTodo(journal, projet, ticket, {
         type: "product",
         resume: `The Windows check ${nom} is red on ${branche}. It does not block merges.`,
         enonce: `Will you leave ${nom} alone until it turns green on ${branche}?`,
-        // La porte veut deux gestes à une question. Aucun ne répare : la carte
-        // se résout seule au vert, et « Close » la rend sans attendre.
+        // La porte veut deux gestes à une question. Aucun ne répare, et la carte
+        // n'a pas d'issue : reponse-carte.ts ne fait qu'enregistrer la réponse
+        // (ticket négatif), et la carte ne revient pas avant le vert.
         choix: [
-          { texte: "Yes, leave it, the card clears when the check turns green", suite: "drop" },
-          { texte: "No need to wait, close this card now", suite: "close" },
+          { texte: "Yes, leave it, the card clears when the check turns green", suite: "resume" },
+          { texte: "Dismiss this card now, it comes back only if the check turns red again", suite: "drop" },
         ],
       }, AUTEUR);
       if (entree.porte === "todo") entrees.push(nom);
-    } else if (lus.every((check) => check.outcome === "green") && enTodo && sortirDeTodo(journal, projet, ticket, `${nom} is green on ${branche}`, AUTEUR)) {
-      sorties.push(nom);
+    } else if (lus.every((check) => check.outcome === "green")) {
+      const pourquoi = `${nom} is green on ${branche}`;
+      if (enTodo && sortirDeTodo(journal, projet, ticket, pourquoi, AUTEUR)) sorties.push(nom);
+      else if (!enTodo && accuseeTantQueRouge(journal, ticket)) journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "todo.left", payload: { why: pourquoi } });
     }
   }
   return { entrees, sorties };
