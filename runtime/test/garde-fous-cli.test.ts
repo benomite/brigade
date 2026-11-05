@@ -177,13 +177,18 @@ test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêt�
 
 test("un arrêt pour inactivité se lit avec sa durée", async (t) => {
   const { cook, commande } = cuisine(t, { plafonds: { ...REGLAGES.plafonds, idleMs: 100 } });
-  await cook(7, "muet").fin;
+  // Le silence se compte à l'horloge du test (#2464) ; la commande, elle, tourne sur la vraie.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const fin = cook(7, "muet").fin;
+  t.mock.timers.tick(100);
+  await fin;
+  t.mock.timers.reset();
 
   const { sortie } = await commande();
 
   assert.match(sortie, /caps per ticket.*idle 0\.1 s/);
-  // La durée relevée est celle d'un vrai minuteur : sur une machine chargée, il sonne en retard.
-  assert.match(sortie, /#7\s+\S+\s+idle: nothing produced for \d+\.\d s \(threshold 0\.1 s\)/);
+  // La durée relevée est celle de `performance.now()`, que l'horloge du test n'avance pas : à peine plus que rien.
+  assert.match(sortie, /#7\s+\S+\s+idle: nothing produced for \d+(?:\.\d)? s \(threshold 0\.1 s\)/);
 });
 
 test("« stop » sans runtime qui tourne tient quand même, et le dit", async (t) => {

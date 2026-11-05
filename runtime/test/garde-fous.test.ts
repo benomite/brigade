@@ -197,8 +197,12 @@ test("un cook qui dépasse son plafond est arrêté, et le motif est au journal 
 
 test("un cook muet est arrêté pour inactivité, et le journal le dit", async (t) => {
   const { runtime, cook } = cuisine(t, { plafonds: { ...PLAFONDS, idleMs: 100 } });
+  // Le silence se compte à l'horloge du test (#2464).
+  t.mock.timers.enable({ apis: ["setTimeout"] });
 
-  await cook(7, "muet").fin;
+  const fin = cook(7, "muet").fin;
+  t.mock.timers.tick(100);
+  await fin;
 
   const motif = runtime.journal.duTicket(7).find((e) => e.type === "guard.tripped");
   assert.equal(motif?.payload.reason, "idle");

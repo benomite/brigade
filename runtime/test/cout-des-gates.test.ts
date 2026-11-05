@@ -1,7 +1,7 @@
 // Ce que coûtent les gates d'un projet : chaque passage écrit au journal, relu
 // par `facts` — le dernier, face au budget du projet, et le dernier jour.
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT, coutDuProjet, lireBudget, noterCoutDesGates } from "../src/cout-des-gates.ts";
@@ -67,17 +67,6 @@ describe("le coût des gates", { concurrency: 8 }, () => {
       { project: PROJET, ticket: 17, runner: "pass", outcome: "green", durationSeconds: Math.round(cout.durationMs / 100) / 10, cpuSeconds: Math.round(cout.cpuMs / 100) / 10, at: undefined },
     );
     assert.ok(!Number.isNaN(Date.parse(latest.at)));
-  });
-
-  test("des gates coupées à leur plafond ont une durée, et pas de processeur : il est mort avec elles", { skip: posixOnly("plays gates that sleep 30 s under a 200 ms cap and expects a timeout with a duration but no processor time; on Windows the cap's kill of their process group (a negative pid) fails silently, so the gates sleep to their end, come back green, and their processor time is read") }, async (t) => {
-    const racine = worktree(t, "sleep 30");
-
-    const { gates, cout } = await jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 200 });
-
-    assert.equal(gates.outcome, "timeout");
-    // Le plafond court depuis le début du setup, l'horloge des gates depuis leur lancement.
-    assert.ok(cout !== null && cout.durationMs > 0 && cout.durationMs < 20_000, `horloge : ${cout?.durationMs}`);
-    assert.equal(cout.cpuMs, null);
   });
 
   test("un setup en échec ne lance pas les gates : rien n'est écrit", async (t) => {
@@ -215,5 +204,28 @@ describe("le coût des gates", { concurrency: 8 }, () => {
     passage(2, { runner: "pass", outcome: "green", durationMs: 120_000, cpuMs: 380_000 });
     // Heure 120 s face à un jour de 110 s, 380 s face à 390 s : moins de 10 % d'écart.
     assert.deepEqual(coutDuProjet(journal.base, PROJET, lireBudget({}), maintenant()).trend, { durationSeconds: "steady", cpuSeconds: "steady" });
+  });
+});
+
+// Le vrai minuteur, pour attendre de vraies gates pendant que l'horloge du plafond est tenue par le test.
+const vraiMinuteur = setTimeout;
+const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
+
+// Le plafond tombe à l'horloge du test (#2464). Un seul test à la fois — l'horloge tenue est celle de tout le process.
+describe("le coût des gates, à l'horloge du test", () => {
+  test("des gates coupées à leur plafond ont une durée, et pas de processeur : il est mort avec elles", { skip: posixOnly("plays gates that sleep 30 s until the test moves its clock past their 200 ms cap, and expects a timeout with a duration but no processor time; on Windows the cap's kill of their process group (a negative pid) fails silently, so the gates sleep to their end, come back green, and their processor time is read") }, async (t) => {
+    const parties = join(repertoireTemporaire(t), "parties");
+    const racine = worktree(t, `touch '${parties}'; sleep 30`);
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const enCours = jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 200 });
+    while (!existsSync(parties)) await souffler();
+    t.mock.timers.tick(200);
+    const { gates, cout } = await enCours;
+
+    assert.equal(gates.outcome, "timeout");
+    // Le plafond court depuis le début du setup, l'horloge des gates depuis leur lancement.
+    assert.ok(cout !== null && cout.durationMs > 0 && cout.durationMs < 20_000, `horloge : ${cout?.durationMs}`);
+    assert.equal(cout.cpuMs, null);
   });
 });
