@@ -236,7 +236,7 @@ const contenu = element("contenu");
 const centre = element("centre");
 const rail = element("rail");
 // La bande de Rail (ticket 2485) : son bloc se monte ici, au-dessus du rail, sans en être un enfant.
-const bandeDuRail = element("bande-du-rail");
+const blocDuRail = element("bloc-du-rail");
 const fiche = element("fiche");
 const grants = element("grants");
 const luOnglet = element("lu-onglet");
@@ -4988,7 +4988,7 @@ function poserLeRail(projet) {
   const onglet = ongletDe(projet);
   rail.dataset.onglet = onglet === STATIONS || onglet === SANTE || cuisine ? onglet : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : onglet === STATIONS ? "The stations" : onglet === SANTE ? "The kitchen's health" : "The rail";
-  bandeDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
+  blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
   // Stations et Health : leurs blocs, montés ici, un ticket chacun les remplira (ticket 2485).
   if (onglet === STATIONS) return rail.replaceChildren(poserBlocListeStations(document), poserBlocReglagesStation(document), poserBlocStationLocale(document));
   if (onglet === SANTE) return rail.replaceChildren(poserBlocTempsTickets(document), poserBlocPlafondsDuree(document), poserBlocCloser(document));
