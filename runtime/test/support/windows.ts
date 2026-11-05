@@ -80,16 +80,17 @@ if (import.meta.main) {
   const reporters = ["--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${pathToFileURL(join(import.meta.dirname, "annotations.ts")).href}`, `--test-reporter-destination=${annotations}`];
   // Le garde : une part dure d'ordinaire 6 à 12 minutes. Si un runner cale (un test qui bloque la boucle
   // ou gonfle sans fin), le job meurt vers 45 min sans journal ni annotation (« lost communication »,
-  // #2080) : le runner ne répond déjà plus une dizaine de minutes avant. À 25 min, le garde nomme les
+  // #2080) : le runner ne répond déjà plus une dizaine de minutes avant. À 13 min, le garde nomme les
   // tests en cours et les process laissés, tue l'arbre des process et sort en échec : le check dit alors
-  // où ça cale.
+  // où ça cale. Il part avant le plafond du job (`timeout-minutes: 15`, #2087) : à 25 min, il ne partait
+  // jamais, et une part trop longue était coupée par GitHub sans annotation ni nom de test (#2382).
   // Les process laissés : sous Windows, tuer un process ne tue pas ses enfants, et une doublure qui
   // survit à son test charge le runner jusqu'à la fin de la part. Comptés contre l'état de départ, à la
   // fin de la part comme au garde.
   const auDepart = images();
   const laisses = () => enPlus(auDepart, images()).join(", ") || "none";
   const suivi = join(rapport, "en-cours.txt");
-  const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? 25 * 60_000);
+  const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? 13 * 60_000);
   const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",

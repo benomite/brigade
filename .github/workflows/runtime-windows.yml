@@ -28,6 +28,8 @@ jobs:
     # l'état de la base (#2087 : informatifs, jamais bloquants).
     name: windows tests (${{ matrix.part }}/4)
     runs-on: windows-latest
+    # Le garde de la part (test/support/windows.ts) part à 13 min, avant ce plafond : une part trop
+    # longue finit en nommant ses tests en cours, pas coupée sans annotation (#2382).
     timeout-minutes: 15
     strategy:
       # Une part rouge n'arrête pas les autres : le job dit tout ce qui casse sous Windows, en un run.
