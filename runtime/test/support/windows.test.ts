@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { fichiersDeTest, GARDE_MS, part } from "./windows.ts";
+import { compterLesImages, etatDuPoste, fichiersDeTest, GARDE_MS, laissesEntre, part } from "./windows.ts";
 
 // Le workflow qui joue les parts sous Windows, tel que le dépôt le porte.
 const WORKFLOW = readFileSync(join(import.meta.dirname, "../../../.github/workflows/runtime-windows.yml"), "utf8");
@@ -44,4 +45,25 @@ test("every test file that opens a journal closes it, or Windows cannot remove i
     return ouvre.test(source) && !source.includes(".fermer()");
   });
   assert.deepEqual(ouverts, []);
+});
+
+// Un runner qui ne lance plus de process n'a pas de tasklist non plus : « none » cachait qu'on n'avait pas
+// pu compter (#2482).
+test("the processes left say unknown when tasklist could not run, not none", () => {
+  const calme = compterLesImages('"System","4","Services","0","24 K"\r\n"node.exe","10","Console","1","40 000 K"\r\n');
+  const charge = compterLesImages('"System","4","Services","0","24 K"\r\n"node.exe","10","Console","1","40 000 K"\r\n"bash.exe","12","Console","1","4 000 K"\r\n');
+  assert.equal(laissesEntre(calme, calme), "none");
+  assert.equal(laissesEntre(calme, charge), "bash.exe ×1");
+  assert.equal(laissesEntre(calme, { illisible: "spawnSync tasklist EPERM" }), "unknown: tasklist failed (spawnSync tasklist EPERM)");
+  assert.equal(laissesEntre({ illisible: "exit code 1" }, charge), "unknown: tasklist failed at the start of the part (exit code 1)");
+});
+
+// Ce que la part dit du poste à sa fin : de quoi lire, sans le journal du job, un runner qui a perdu son
+// disque ou son répertoire temporaire (#2482).
+test("the part says the free space of its disks and whether the temp dir is still writable", (t) => {
+  const temporaire = mkdtempSync(join(tmpdir(), "brigade-poste-"));
+  t.after(() => rmSync(temporaire, { recursive: true, force: true }));
+  assert.match(etatDuPoste({ workspace: import.meta.dirname }, temporaire), /^workspace \d+\.\d GB free, temp dir writable$/);
+  const absent = join(temporaire, "absent");
+  assert.match(etatDuPoste({ workspace: absent }, absent), /^workspace unreadable \(.*ENOENT.*\), temp dir not writable \(.*ENOENT.*\)$/);
 });

@@ -51,7 +51,7 @@ Evidence:
 2. **The same files passed on the neighbouring commits.** A later push on `main` (run 41488383977, 48033e3) is green, and the part 4 of 41484649479 and 41488425275 played these very files (`tests 1038`, `tests 1057`) with a single, different, unrelated failure each. Nothing in `f852b0e` (a merge of #2100, the pass replaying a red CI) touches any file of the part.
 3. **Failure is a step cliff, not a test pattern.** 21 files green, then 71 of 71 red, in alphabetical order, with no green file in between. A defect in the repository would depend on the file; a runner that loses its disk, its temp directory or its process table fails from a moment on, whatever the file.
 4. **The cleanup step failed too.** `Post Run actions/checkout@v4` failed in 0 s, in a job whose checkout had succeeded 80 s before, and `Post Run actions/setup-node@v4` was skipped. The post step of `checkout` removes its git configuration and credentials; failing there means the runner's workspace or its git was no longer usable at the end of the job. A test cannot normally cause that on its own, and it is the same moment as the file failures.
-5. **No process left behind recorded.** The `processes left` notice of the failed job reads `none`: the part did not leak a stuck double that could have starved the machine (that notice is the one that exposed `vssvc.exe ×1` in the neighbouring runs). A leak from the repository's tests is the other candidate for "everything fails after a point", and it is not there.
+5. **No process left behind recorded.** The `processes left` notice of the failed job reads `none`: the part did not leak a stuck double that could have starved the machine (that notice is the one that exposed `vssvc.exe ×1` in the neighbouring runs). A leak from the repository's tests is the other candidate for "everything fails after a point", and it is not there. *(Weaker than it reads, #2482: until then, a `tasklist` that could not run counted as an empty process list, so `none` was also what a runner that no longer starts processes wrote.)*
 
 What the evidence does not tell: *which* resource went away (disk space, the `TEMP` directory, a handle or process limit, a runner service restart). The text that would say it is in the unreadable job log. The verdict as "runner environment" is the best-supported reading of the records above, not a proven root cause.
 
@@ -68,4 +68,19 @@ How to recognise it, from the check alone and without the log (`gh api repos/<re
 
 When all four hold, re-run the failed job (`gh run rerun 41487915090 --failed`, or the same for the run in question) instead of reading it test by test. A red that shows an assertion, a test title or a real line number is a different case and is judged as before (see the pass guidance on `runtime-windows`).
 
-Follow-up worth a separate ticket, if the signature comes back: the part runner (`runtime/test/support/windows.ts`) writes, at the end of a part, the processes left but nothing about the disk or the temp directory. Adding, in the final report of a part, the free space of the system drive and a line saying whether `os.tmpdir()` is still writable would turn the next occurrence into a diagnosis by annotation. This changes the workflow tooling, not any test, and is not done here.
+Follow-up, done in #2482 when the signature came back: the part runner (`runtime/test/support/windows.ts`) writes, at the end of a part, the processes left but nothing about the disk or the temp directory. Adding, in the final report of a part, the free space of the system drive and a line saying whether `os.tmpdir()` is still writable would turn the next occurrence into a diagnosis by annotation. This changes the workflow tooling, not any test.
+
+## Second occurrence: part 7/8 of `ff0b79c` (run 42104964299, #2482)
+
+On 2026-11-05, the push of `ff0b79c` on `main` (merge of #2480) showed the same signature on `windows tests (7/8)`, the seven other parts green:
+
+- `tests 520, pass 458, fail 9, cancelled 0, skipped 53` where the same 54 files counted `tests 582` on the parent commit;
+- the nine failures are the **last nine files** of the part, in alphabetical order (`station/cuisine-reglages-du-depot.test.ts` to `verrou-des-gates.test.ts`), each at line 1 with its own title and `test failed`; the 72 tests of these nine files (counted on Linux) are exactly the 62 missing plus the nine file failures: not one of their tests started;
+- the step lasted 2 min 10 s (2 min 24 s to 4 min 09 s on the neighbouring runs), `Post Run actions/checkout@v4` is red, and `processes left` reads `none`;
+- part 7/8 played green on Linux, the 583 tests in 65 s; the job log was not readable (the station got no log, the public page asks for a sign-in).
+
+The verdict stays the one above, and its limit too: what went away is still unknown. Three changes make the next occurrence readable from the annotations alone:
+
+- **The error of a dead file.** `node --test` reports a file whose process exits non-zero as `test failed` and nothing else; the reason is only on the file's stderr. `annotations.ts` now adds to that annotation the exit code (or the signal) and the end of the file's stderr (`test:stderr` events), e.g. `Error [ERR_MODULE_NOT_FOUND]: …`, or `wrote nothing on stderr`.
+- **`processes left` no longer says `none` when it could not count.** When `tasklist` fails, at the start of the part or at its end, the notice says `unknown: tasklist failed (…)`.
+- **The state of the runner.** Each part ends with a `runner` notice — the free space of the workspace's disk and of the temp directory's, and whether the temp directory is still writable —, and the guard's `part stalled` annotation carries the same line.
