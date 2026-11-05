@@ -3,7 +3,8 @@
 // deux réponses inactives, et une ligne le dit dessous, le commentaire posté au survol, comme pour une
 // correction (`correction-oui`).
 import { OUI } from "../../../app/src/correction.ts";
-import { POSTE } from "../../../app/src/tableau-gestes/rail.ts";
+// Le geste posté sur le Kitchen board, tel que le disait `tableau-gestes/rail.ts` (retiré par #2061).
+const POSTE = "posted on the Kitchen board — the box plays it at its next tick and answers under it";
 import { ecran as profil } from "./profil.ts";
 import type { Ecran } from "./commun.ts";
 

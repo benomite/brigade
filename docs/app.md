@@ -371,12 +371,40 @@ Open one of your projects on this PC: one click, no folder to choose.
 
 ### The age of the rail is always on screen (#2054)
 
-The Rail tab reads the project's GitHub repository every 30 seconds, with no gesture. Above the columns, one quiet
-line says how old the rail shown is — `rail as GitHub said it less than a minute ago, at 7:35 AM`. Since #2061 the
+The Rail tab reads the project's GitHub repository every 30 seconds, with no gesture. At the end of the band at the top
+of the tab (#2486, below), quietly, it says how old the rail shown is — `rail as GitHub said it less than a minute ago,
+at 7:35 AM`. Since #2061 the
 rail is read from GitHub itself, so that age is counted from the app's own reading. When GitHub cannot be read again,
 the old columns are kept (#2151, below); offline, the last rail stays dimmed, marked `offline since` (#1818).
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
+
+### Ticket time, cooks running and backlog: one thin band at the top of the Rail tab (#2486, epic #2484)
+
+The Rail tab opens on **one thin band**, a single line, then the columns, which take the whole height left under it —
+each column runs down to the bottom of the tab, and no block above them pushes them into an inner scroll. The band
+says, from left to right, each part split from the next by a faint rule:
+
+- **Ticket time** — the median of the last 10 measured tickets and the project's max: `Ticket time 11 min median · max
+  15 min`. Over the max, the value turns red and says it in words: `over the max of 15 min`. On hover (or on the
+  keyboard), the rest of the Ticket times card (#2346, below): the slowest ticket and the median of each of the five
+  phases. A station that does not publish its times says `not available yet`; a project with no measured ticket, `no
+  ticket measured yet` — never a blank or a zero.
+- **Cooks** — how many are running: `Cooks 2 running`, their tickets and stations on hover; `none running` when none
+  is. When the reading does not name them (the rail read from GitHub alone), the count is that of Taken — one cook per
+  ticket —, and the hover says so.
+- **Backlog** — the stacked bar of what is before the rail (#1836, below) and its total, `12 issues`, each count in
+  words on hover; a click unfolds the Backlog column. The 24-hour histogram (#1811) follows it.
+- **The age of the rail** (#2054), at the end of the line.
+
+The signs that something is wrong — the alert line, a stale or offline reading, the idle-kitchen fault, the project
+turned off — stay above the band. Before the rail is drawn, the band does not show: the tab says why, as before. The
+Ticket times card, the separate backlog line and the empty-rail sentence above the columns are gone from the Rail tab:
+the card stays whole on **Cooks**, and an empty rail is said by its **On the rail** column. A band narrower than its
+parts wraps a whole part to the next line; nothing is cut. Captures: `docs/captures/2486/`.
+
+*Code: `app/src/vue/projet/rail/bande-rail.js` (the band), `bandeDuRail` in `app/src/vue/vue.js`. Test:
+`app/test/vue/projet/rail/bande-rail.test.ts`.*
 
 ### Cards never vanish while GitHub holds them (#2151)
 
@@ -1832,7 +1860,8 @@ view reads it from `lenteur` of the project's view; **the field is not yet carri
 (`app/src/projets/projets.ts`) — until the station publishes it and the app relays it, no line shows. No sentence, no
 line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
 
-**Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project: the median total of the last 10
+**Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project, on the **Cooks** tab — on Rail,
+the band at the top says the median and the max, the rest on hover (#2486): the median total of the last 10
 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
 waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
 `data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
@@ -3038,7 +3067,7 @@ section. With the section laid, `right now` is not repeated under it.
   without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
   does not answer shows none: its last reading is no longer new.
 - **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/avant-le-rail.js`, #1836). An empty rail does
-  not mean a finished project. At the head of the rail, next to the 24-hour histogram, a **small stacked bar** shows
+  not mean a finished project. In the band at the top of the Rail tab (#2486), next to the 24-hour histogram, a **small stacked bar** shows
   the open issues of the repository that are not on the rail yet. It is read from GitHub with the rest of the rail
   view (`avantLeRail` in `app/src/tableau/lecture.ts`, #2061): every open issue without `fire`, filed from its labels
   alone. The bar has five states, drawn in this order, one part each, its length in proportion to its count:
@@ -3049,14 +3078,15 @@ section. With the section laid, `right now` is not repeated under it.
   - **ready, not fired** (green): it carries both a `model:` and an `effort:` label, without `fire`;
   - **set aside** (hatched): it carries `hors-cuisine` or `blocked-on-human`.
 
-  An issue that carries `fire` is not counted: it is on the rail. **The bar has no text**: on hover, on the keyboard or on a tap, it
-  says its counts — `7 issues before the rail — 2 not read yet · 1 refused as incomplete · …`. **A click unfolds the
+  An issue that carries `fire` is not counted: it is on the rail. Beside the bar, its title and its total (`Backlog`,
+  `7 issues`, #2367, #2486); on hover, on the keyboard or on a tap, it says its counts — `7 issues before the rail — 2
+  not read yet · 1 refused as incomplete · …`. **A click unfolds the
   Backlog column**, to the left of "On the rail", and the row scrolls back to show it; a second click on the bar, or
   `fold` in the column's title, folds it again — a new reading does not fold it. The column holds **the rail's
   cards**, grouped by state in the bar's order, each group sorted by `prio:` (none last, the oldest first): the
   number opens the issue on GitHub, the card says in one line what holds it, and a click opens its sheet over the
-  rail — its title, its priority, the link to the issue. **Nothing on the rail** — no card outside Served —, the rail
-  says so in plain words: `nothing on the rail, nothing before it` when there is nothing before it either; otherwise
+  rail — its title, its priority, the link to the issue. **Nothing on the rail** — no card outside Served —, the On the
+  rail column says so in plain words (#2486): `nothing on the rail, nothing before it` when there is nothing before it either; otherwise
   how many issues, state by state, and what the manager does with them, according to its state read (`manager`): on,
   it reads them at every wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of
   guessing — and the manager's state is not read from GitHub (only the station's log has it). **The view deduces

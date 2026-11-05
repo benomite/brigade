@@ -64,7 +64,9 @@ function recevoir(vue: Jouee, faits: unknown = FAITS) {
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
-const amont = (vue: Jouee) => vue.element("rail").children.find((pose) => pose.className === "amont");
+// L'histogramme est dans la part du backlog de la bande du haut du rail (#2486).
+const bande = (vue: Jouee) => vue.element("rail").children.find((pose) => pose.className === "bande-rail");
+const amont = (vue: Jouee) => bande(vue)?.children.find((pose) => pose.className === "amont");
 const graphe = (vue: Jouee) => amont(vue)?.dessous("div").find((pose) => pose.className === "cadence");
 const bon = (vue: Jouee, ticket: number) => vue.element("rail").dessous("li").find((pose) => pose.className === "bon" && pose.textContent.includes(`#${ticket}`));
 const age = (pose: Faux | undefined) => pose?.dessous("span").find((posee) => posee.className === "age");
@@ -111,7 +113,7 @@ describe("l'histogramme, en tête du rail", () => {
     const { cadence: _, ...sans } = FAITS;
     recevoir(vue, sans);
     await ouvrirOnglet(vue, "Rail");
-    assert.notEqual(amont(vue), undefined);
+    assert.notEqual(bande(vue), undefined);
     assert.equal(graphe(vue), undefined);
   });
 });

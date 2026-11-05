@@ -3,7 +3,8 @@
 // deux réponses inactives, et une ligne le dit dessous, le commentaire posté au survol. La box la tranche
 // à son tick suivant ; la carte quitte la file à la lecture du tableau qui ne la porte plus.
 import { OUI } from "../../../app/src/correction.ts";
-import { POSTE } from "../../../app/src/tableau-gestes/rail.ts";
+// Le geste posté sur le Kitchen board, tel que le disait `tableau-gestes/rail.ts` (retiré par #2061).
+const POSTE = "posted on the Kitchen board — the box plays it at its next tick and answers under it";
 import { ecran as correction } from "./correction.ts";
 import type { Ecran } from "./commun.ts";
 

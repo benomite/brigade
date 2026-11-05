@@ -2812,19 +2812,72 @@ main > header,
   font-size: 11px;
   color: var(--discret);
 }
-/* En tête du rail, ce qui est avant lui (#1836) : une petite barre empilée, qui déplie la colonne Backlog ; et, quand
-   aucun ticket n'est sur le rail, ce qui est avant lui, dit en clair — un rail vide n'est pas un projet fini. */
-#rail .amont {
+/* La bande du haut de l'onglet Rail (#2486) : une seule ligne mince — le temps d'un ticket, les cooks en cours, le
+   backlog —, chaque part séparée de la suivante d'un trait, l'âge du rail au bout, à voix basse. Chaque part dit son
+   chiffre ; son détail est au survol. Sur une fenêtre trop étroite pour elle, une part passe à la ligne entière, jamais
+   coupée. Rien ne la rogne : les bulles de ses survols descendent sur le rail. */
+#rail .bande-rail {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  padding: 8px 16px 0;
+  align-items: center;
+  row-gap: 4px;
+  min-height: 36px;
+  padding: 4px 16px;
   font-size: 12px;
   color: var(--discret);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--trait-doux);
 }
+#rail .bande-rail > * {
+  flex: none;
+}
+/* Un trait après chaque part, sauf la dernière et celle que suit l'âge : passée à la ligne, une part commence au bord. */
+#rail .bande-rail > :not(:last-child, :has(+ .age-du-rail)) {
+  margin-right: 14px;
+  padding-right: 14px;
+  border-right: 1px solid var(--trait-doux);
+}
+#rail .bande-rail .bande-part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+/* Une part qui a un détail le dit au survol : le pointeur le signale. */
+#rail .bande-rail .survol > .bande-part {
+  cursor: help;
+}
+#rail .bande-rail .bande-valeur {
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail .bande-rail .bande-doux {
+  color: var(--texte-doux);
+}
+/* Passé le plafond, le temps d'un ticket vire au rouge et le dit en toutes lettres — pas seulement par la couleur. */
+#rail .bande-rail .bande-temps[data-temps="depasse"] .bande-valeur,
+#rail .bande-rail .bande-depasse {
+  color: var(--rouge-clair);
+}
+#rail .bande-rail .bande-depasse {
+  padding: 0 6px;
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+}
+/* L'âge du rail, au bout de la bande. */
+#rail .bande-rail .age-du-rail {
+  margin-left: auto;
+  padding: 0 0 0 14px;
+}
+/* Dans la bande, ce qui est avant le rail (#1836) : une petite barre empilée, qui déplie la colonne Backlog, son total, et
+   l'histogramme des 24 heures. */
+#rail .amont {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 /* La barre : de largeur fixe, haute de quelques pixels, une part par état — sa longueur, la part de son compte dans le
-   total (avant-le-rail.js). Le titre et les comptes en mots sont à côté ; le rouge est réservé à ce qui est cassé : la refusée incomplète attend le second, elle est jaune. Chaque état a sa couleur, lisible sur le sombre ;
+   total (avant-le-rail.js). Le titre et le total sont à côté, les comptes en mots au survol ; le rouge est réservé à ce qui est cassé : la refusée incomplète attend le second, elle est jaune. Chaque état a sa couleur, lisible sur le sombre ;
    la mise de côté est hachurée, à part des quatre autres. Une lecture ratée la laisse vide, en pointillé. */
 #rail .amont > .survol {
   align-self: center;
@@ -2883,12 +2936,6 @@ main > header,
 #rail .backlog .groupe[data-etat="mise-de-cote"] h5 span:first-child::before {
   background: var(--case);
   background-image: repeating-linear-gradient(135deg, var(--discret) 0 2px, transparent 2px 4px);
-}
-#rail .amont .vide {
-  flex-basis: 100%;
-  font-size: 13px;
-  color: var(--texte);
-  overflow-wrap: anywhere;
 }
 /* À côté, à quelle allure la cuisine sert (#1811) : vingt-quatre barres fines, une par heure, l'heure en cours à
    droite, hautes d'une ligne. Chaque heure a sa case, à peine marquée, sur un trait de base : vide, elle se voit
@@ -3287,7 +3334,8 @@ main > header,
   /* Autant de pistes que de colonnes, quel qu'en soit le nombre (six sur Rail, cinq publiées) : jamais de deuxième ligne. */
   grid-auto-flow: column;
   grid-auto-columns: minmax(250px, 1fr);
-  align-items: start;
+  /* Chaque colonne descend jusqu'en bas du rail, sous la bande (#2486) : aucun vide sous une colonne courte. */
+  align-items: stretch;
   gap: 8px;
   padding: 8px 16px 16px;
   /* Une seule rangée, jamais empilée : trop étroite, la rangée défile de côté — aucune colonne ne passe dessous, aucune n'est
