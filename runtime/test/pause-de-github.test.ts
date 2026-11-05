@@ -51,6 +51,20 @@ test("sans attente dite, la pause dure une minute, puis double à chaque limite 
   assert.equal(refus.jusqua - h.etat.instant, MINUTE);
 });
 
+test("une limite secondaire dont la réponse porte le reset horaire du quota primaire pause une minute, pas jusqu'à ce reset (#2449)", async () => {
+  const h = horloge();
+  const limite = ouvrirLimite({ maintenant: h.maintenant });
+  // Le refus du 2026-11-05 : quota primaire loin d'être épuisé, reset dans 21 minutes.
+  const entetes = new Map([["x-ratelimit-limit", "5000"], ["x-ratelimit-remaining", "3601"], ["x-ratelimit-reset", String((h.etat.instant + 21 * MINUTE) / 1000)]]);
+  const refus = await constaterLimite(limite, { ...SECONDAIRE, entetes }, { gh: "gh-absent", maintenant: h.maintenant });
+  assert.equal(refus.jusqua - h.etat.instant, MINUTE);
+  // Quota primaire épuisé : la pause va bien jusqu'au reset.
+  h.etat.instant += 20 * MINUTE;
+  const epuise = new Map([["x-ratelimit-remaining", "0"], ["x-ratelimit-reset", String((h.etat.instant + 21 * MINUTE) / 1000)]]);
+  const primaire = await constaterLimite(ouvrirLimite({ maintenant: h.maintenant }), { statut: 403, entetes: epuise, corps: JSON.stringify({ message: "API rate limit exceeded" }) }, { gh: "gh-absent", maintenant: h.maintenant });
+  assert.equal(primaire.jusqua - h.etat.instant, 21 * MINUTE);
+});
+
 test("le journal dit la pause une fois quand elle commence, et une fois quand un appel repart — pas une ligne par projet et par refus", async (t) => {
   const h = horloge();
   const limite = ouvrirLimite({ maintenant: h.maintenant });
