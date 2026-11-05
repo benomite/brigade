@@ -21,8 +21,8 @@ function projet(t: TestContext, suite: string): string {
 
 type Passage = { process: ChildProcess; sortie: () => string; fin: Promise<number | null> };
 
-function jouer(t: TestContext, racine: string, verrou: string): Passage {
-  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou }, stdio: ["ignore", "pipe", "pipe"] });
+function jouer(t: TestContext, racine: string, verrou: string, env: Record<string, string> = {}): Passage {
+  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   let sortie = "";
   gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
@@ -33,6 +33,15 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
 
 // Une suite qui signale son départ, puis attend qu'on la libère — et dit
 // qu'elle l'a vu (`<libere>.vu`) avant de finir.
+// Une horloge injectée dans les gates par `BASH_ENV`, que bash lit avant le script : le `sleep 0.5` de
+// l'attente du tour note qu'il attend dans `vu`, avance `SECONDS` — dont les gates tirent l'attente qu'elles
+// disent — d'une seconde, et ne dort que 20 ms. Tout autre `sleep` reste le vrai (#2464).
+function horlogeDuTour(t: TestContext, vu: string): Record<string, string> {
+  const fichier = join(repertoireTemporaire(t), "horloge.sh");
+  writeFileSync(fichier, `sleep() { if [ "$*" = 0.5 ]; then touch '${vu}'; SECONDS=$((SECONDS + 1)); command sleep 0.02; else command sleep "$@"; fi; }\n`);
+  return { BASH_ENV: fichier };
+}
+
 const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done; touch ${libere}.vu`;
 
 describe("le tour des gates sur une box", () => {
@@ -46,10 +55,10 @@ describe("le tour des gates sur une box", () => {
 
     const premier = jouer(t, a, verrou);
     await jusqua(() => existsSync(signalA));
-    const second = jouer(t, b, verrou);
-    // Le second a eu tout le temps de partir : son verrou est tenu par le premier.
-    await jusqua(() => existsSync(join(verrou, "pid")));
-    await new Promise((r) => setTimeout(r, 1500));
+    const attend = join(repertoireTemporaire(t), "attend");
+    const second = jouer(t, b, verrou, horlogeDuTour(t, attend));
+    // Le second attend son tour, que le premier tient.
+    await jusqua(() => existsSync(attend));
     assert.equal(existsSync(signalB), false, "les tests du second tournent pendant ceux du premier");
 
     writeFileSync(libere, "");
