@@ -103,6 +103,7 @@ import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, RE
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
+import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
@@ -626,6 +627,7 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que sa principale le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+const tempsTicketDuProjet = element("temps-ticket-du-projet");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
 const blocagesDeplies = new Map();
@@ -6711,6 +6713,7 @@ function poserStationsDuProjet() {
     poserLesChoix(undefined);
     poserLesBlocages(undefined);
     poserLeDelai(undefined);
+    poserLesTempsDesTickets(undefined);
     return;
   }
   if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
@@ -6755,6 +6758,7 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
+  poserLesTempsDesTickets(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
@@ -6802,6 +6806,13 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+// Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide ; la station qui n'en publie pas le dit.
+/** @param {Projet | undefined} projet */
+function poserLesTempsDesTickets(projet) {
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  tempsTicketDuProjet.hidden = projet === undefined;
+  tempsTicketDuProjet.replaceChildren(...(projet === undefined ? [] : [poserTempsTicket(document, vu?.temps)]));
 }
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
