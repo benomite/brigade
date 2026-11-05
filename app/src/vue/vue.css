@@ -2824,26 +2824,38 @@ main > header,
   color: var(--discret);
 }
 /* La barre : de largeur fixe, haute de quelques pixels, une part par état — sa longueur, la part de son compte dans le
-   total (avant-le-rail.js). Sans un mot : les comptes sont au survol. Chaque état a sa couleur, lisible sur le sombre ;
+   total (avant-le-rail.js). Le titre et les comptes en mots sont à côté ; le rouge est réservé à ce qui est cassé : la refusée incomplète attend le second, elle est jaune. Chaque état a sa couleur, lisible sur le sombre ;
    la mise de côté est hachurée, à part des quatre autres. Une lecture ratée la laisse vide, en pointillé. */
 #rail .amont > .survol {
   align-self: center;
 }
 #rail .amont .avant-le-rail {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  font: inherit;
+  color: var(--texte);
+  background: none;
+  border: 0;
+}
+#rail .amont .avant-le-rail .titre {
+  color: var(--discret);
+}
+#rail .amont .avant-le-rail .piste {
+  display: flex;
   gap: 1px;
   width: 120px;
   height: 12px;
-  padding: 0;
   background: var(--case);
   border: 1px solid var(--trait-fort);
   border-radius: 3px;
 }
-#rail .amont .avant-le-rail:hover,
-#rail .amont .avant-le-rail[aria-expanded="true"] {
+#rail .amont .avant-le-rail:hover .piste,
+#rail .amont .avant-le-rail[aria-expanded="true"] .piste {
   border-color: var(--discret);
 }
-#rail .amont .avant-le-rail[data-sans] {
+#rail .amont .avant-le-rail[data-sans] .piste {
   border-style: dashed;
 }
 #rail .amont .avant-le-rail .part {
@@ -2857,7 +2869,7 @@ main > header,
 }
 #rail .avant-le-rail .part[data-etat="incomplete"],
 #rail .backlog .groupe[data-etat="incomplete"] h5 span:first-child::before {
-  background: var(--rouge);
+  background: var(--jaune);
 }
 #rail .avant-le-rail .part[data-etat="epique"],
 #rail .backlog .groupe[data-etat="epique"] h5 span:first-child::before {

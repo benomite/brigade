@@ -75,6 +75,8 @@ export async function lesCartesDuChef(options: { depot: string; appeler: AppelGi
     const cartes: CarteDuChefLue[] = [];
     for (const issue of liste(issues.data)) {
       if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
+      // L'issue du tableau de la cuisine n'est jamais une carte (#2422).
+      if (liste(issue.labels).some(({ name }) => name === "kitchen-board")) continue;
       const commentaires = await commentairesDe(depot, issue.number, appeler);
       if (commentaires === null) return null;
       const carte = commentaires.map(carteDuCommentaire).reverse().find((lue) => lue !== null) ?? { sorte: SORTE_SANS_MARQUE, texte: TEXTE_SANS_MARQUE };

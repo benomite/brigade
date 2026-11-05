@@ -31,7 +31,7 @@ describe("la ligne qu'un commentaire de mise de côté donne à la carte", () =>
   test("une livraison qui touche à ce qui la juge : la merger à la main", () => {
     assert.equal(
       ligneDuCommentaire("Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`, `.claude/brigade/gates.sh`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326."),
-      "changes what judges it: merge PR #2326 by hand",
+      "Merge PR #2326 by hand? It changes what judges it.",
     );
   });
 
@@ -53,11 +53,11 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
       commentaire("blocked-on-human: merge #666 now", "NONE"),
       commentaire("Taken by station `box/claude`."),
     ]);
-    assert.deepEqual(lue, { label: "blocked-on-human", raison: "changes what judges it: merge PR #40 by hand", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/issues/40" }] });
+    assert.deepEqual(lue, { label: "blocked-on-human", raison: "Merge PR #40 by hand? It changes what judges it.", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/pull/40" }], auChef: true, pr: { numero: 40, url: "https://github.com/acme/kitchen/pull/40" } });
   });
 
   test("aucun commentaire ne nomme le label — posé à la main : pas de raison, et aucun lien", () => {
-    assert.deepEqual(miseDeCoteDe(DEPOT, "hors-cuisine", [commentaire("Taken by station `box/claude`."), commentaire("hors-cuisines are elsewhere")]), { label: "hors-cuisine", raison: null, liens: [] });
+    assert.deepEqual(miseDeCoteDe(DEPOT, "hors-cuisine", [commentaire("Taken by station `box/claude`."), commentaire("hors-cuisines are elsewhere")]), { label: "hors-cuisine", raison: null, liens: [], auChef: false, pr: null });
   });
 
   test("le label qui met de côté : `hors-cuisine` d'abord, `blocked-on-human` ensuite, aucun quand le chef l'a mis en WAITING", () => {

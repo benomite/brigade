@@ -107,6 +107,9 @@ const ouverte = (surcharge: Partial<IssueOuverte> = {}): IssueOuverte => ({
 
 async function todoRendu(t: TestContext, ouvertes: Issue[], commentaires: Record<number, { body: string; association: string }[]> = {}) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
+  // Fermé avant que son répertoire s'efface : sous Windows, une base ouverte ne s'efface pas, et
+  // l'effacement se reprend deux minutes avant d'échouer (#2421).
+  t.after(() => journal.fermer());
   const instant = new Date("2026-11-05T10:00:00.000Z");
   const lire = async (avec: Issue[]) => baseRougeDesOuvertes(avec, async (n) => (commentaires[n] ?? []).map((c) => ({ ...c, author: "bot", createdAt: "2026-11-02T00:00:00Z" })));
   const sans = tableauDuJournal(journal, "acme", instant, { depot: "acme/brigade" });
