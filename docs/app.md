@@ -527,7 +527,8 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
     (**On the rail**, `86`), with its reason line as before ("off the kitchen after 2 sends back — the CI is red on
     7579211", "… after 3 cooks without a delivery — the cook committed nothing", "set aside by hand — no reason on the
     issue"). Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
-    (the convention of #2217) enters Todo, and its card is that question.
+    (the convention of #2217) enters Todo, and its card is that question, answered on the card (#2434, in the section
+    "The chef's TODO read from GitHub" below).
   - **An issue labelled `kitchen-board`** (the Kitchen board itself) is never a card, on the rail or in Todo.
 
   The reason line is taken from the latest comment of a repository author (`OWNER`, `MEMBER`, `COLLABORATOR`) that names the
@@ -557,9 +558,49 @@ carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the 
 reads). The card takes its kind and its text from the issue's latest comment that starts with
 `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read as is): one line
 that says what the kind asks of the chef, then the comment's text. The issue number on the card opens the issue on GitHub. An
-issue with the label and no marked comment still gets a card, which says its comment is missing. A card has nothing to
-answer in the app: the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after
-a gesture). A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
+issue with the label and no marked comment still gets a card, which says its comment is missing, and has nothing to answer:
+the chef lifts the label on GitHub, and the card leaves Todo at the next reading (thirty seconds, or after a gesture).
+
+**Answering a card on the card (#2434).** A card of the chef read from GitHub — a `chef-todo` issue, or a `hors-cuisine`
+`product-question` (below) — has the shape of every Todo card of the old path (#1281, `runtime/src/carte-todo/forme.ts`): its
+question, one button per choice, a free-text field with `send`, and `ask the second`. GitHub is the only state, and the app
+plays the gesture itself. The convention of the marked comment is extended, not changed:
+
+```
+<!-- brigade:todo kind=product-question -->
+Is every project on GitHub-only now, so the old path can go?
+- [resume] Yes, every project is on GitHub-only: remove the old path
+- [drop] No, keep it waiting
+
+The old path still runs the Kitchen board of two projects.
+```
+
+The question is the comment's first written line; each line `- [<gesture>] <label>` after it is a choice, in order, the
+gesture among `resume`, `merge`, `drop`, `close` (a GitHub check box `- [ ]` or `- [x]`, or another word, is not a choice);
+the rest is drawn under the question. A comment without choices reads as before, and keeps the free-text field. The question
+is said once: the card's line says what its kind asks (`A product question waits for your answer.`), the card asks the
+question, and the sheet says it under `what it asks you`, its head saying what the kind asks (never `what blocks it: not
+communicated`).
+
+A click on a choice, or a typed answer, posts a comment on the issue from the chef's `gh` — `<!-- brigade:reponse
+gesture=<g> -->`, then the chosen label, or the text — then plays the gesture on GitHub (a typed answer plays `resume`):
+
+| gesture | what the app does on GitHub, after the comment |
+|---|---|
+| `resume` | removes `hors-cuisine` and `chef-todo`: the ticket is back on the rail, and its cook reads the answer in the issue |
+| `merge` | merges the PR the card names — the `#N` of the choice's label, else the ticket's open PR (`cook/<n>-…` branch or `Closes #n`); with none, nothing is sent |
+| `drop` | removes `fire`: the ticket leaves the rail, its issue stays open |
+| `close` | closes the issue (`not planned`): the ticket is not cooked |
+
+Every gesture also removes `chef-todo`, and a `product-question` followed by a `brigade:reponse` comment no longer asks
+anything: the card leaves Todo at the next reading, read again right after the answer. Nothing is sent for a card that changed
+since it was read, an empty answer, or a merge with no open PR; a gesture GitHub refuses after the comment is posted is said on
+the card (`your answer is posted on #N, but its gesture (…) was not played — play it on GitHub`), the reason on hover.
+*Code: `formeDuChef` in `app/src/tableau/todo-github.ts`, `carteDuChefDeTodo` in `app/src/carte-todo.ts`,
+`app/src/tableau-gestes/reponse-github.ts`. Test: `app/test/tableau-gestes/reponse-github.test.ts` (#2061 and #1554 rewritten
+with choices, a click on each gesture against a fake GitHub).*
+
+A ticket the board already makes wait keeps its own card; when GitHub cannot be read, the board's Todo is shown
 as it is, never an empty one. A project of the old path (`githubOnlyState` off or absent) shows the Todo it always had.
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
 is the question "Merge PR #N by hand? It changes what judges it." with the PR link and `merge the PR`; a technical

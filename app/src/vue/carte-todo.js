@@ -144,6 +144,12 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     posee.className = "question-carte";
     tete.push(posee);
   }
+  // Ce qu'une carte du chef lue de GitHub dit après sa question (ticket 2434), sous elle.
+  if (carte.contexte !== undefined) {
+    const precise = cree(doc, "p", carte.contexte);
+    precise.className = "resume-carte";
+    tete.push(precise);
+  }
 
   const choix = cree(doc, "div");
   choix.className = "choix-carte";
