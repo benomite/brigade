@@ -1,6 +1,6 @@
 // gates: base
 // Ne tourne que sur la base, où les gates jouent tout (#1004), et pour un
-// changement qui le modifie : une vraie station, et ses écritures réelles du gist, une seconde au moins entre deux.
+// changement qui le modifie : une vraie station, et ses écritures réelles du gist.
 // La recette de l'ajout d'un projet depuis l'app, sur une installation de
 // test : une vraie station — un seul process, `station/main.ts` —, appairée,
 // dont GitHub est une doublure de `gh` (les gists du compte, et le dépôt à
@@ -18,7 +18,9 @@
 // minutes (#1658) — une minute chacune en service :
 //   - l'écart minimal entre deux écritures de son gist (`BRIGADE_STATION_ECART_S`,
 //     `ECART_MINIMAL_MS` d'appairage/presence.ts) : la recette lit trois de ces
-//     écritures — la liste vide, le projet ajouté, le projet retiré ;
+//     écritures — la liste vide, le projet ajouté, le projet retiré. Réglé à zéro,
+//     chacune part dès qu'elle est due : une seconde entre deux, c'était deux
+//     secondes réelles d'attente pour le test (#2464) ;
 //   - le tick du runtime du projet (`BRIGADE_STATION_TICK_S`), auquel sa
 //     cuisine relit la décision du chef de cuire sans bac à sable.
 // Ni l'un ni l'autre n'est une échéance : l'écart est un plancher entre deux
@@ -51,7 +53,7 @@ const DIX_MINUTES = 10 * 60_000;
 // Le chef met ce temps à remplir le parcours : il compte dans la mesure.
 const PARCOURS_MS = 60_000;
 // L'écart minimal entre deux écritures du gist de la station, et son tick, en secondes.
-const ECART_S = 1;
+const ECART_S = 0;
 const TICK_S = 1;
 
 test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { skip: posixOnly("plays the app's add-a-project journey against a real station process and measures the time until the project is listed, then withdraws it by SIGHUP and stops the station by SIGTERM expecting exit 0; Windows has no SIGHUP to send, SIGTERM kills the station there before its handler runs, and the journey up to the served project does not fit the five-minute test timeout there") }, async (t) => {
@@ -146,7 +148,7 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
 
   await jusqua(tenue(() => projetsPublies()?.includes("shop") === true), DIX_MINUTES);
   const mesure = Date.now() - ouvert;
-  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours, l'écart entre deux écritures du gist réglé à ${ECART_S} s, sans la cadence de ${CADENCE_MS / 1000} s`);
+  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours, sans écart entre deux écritures du gist, sans la cadence de ${CADENCE_MS / 1000} s`);
   // La cadence que le signal a sautée, et l'écart de service, une minute au lieu de ECART_S, n'en retiendraient au plus que leur somme.
   assert.ok(mesure + CADENCE_MS + ECART_MINIMAL_MS - ECART_S * 1000 < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
 
