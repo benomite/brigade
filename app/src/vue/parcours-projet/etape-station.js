@@ -9,6 +9,8 @@
 //     sur sa page, ticket 1780 — stations-du-compte.js).
 // Confié, le parcours passe à la suite. Refusé, une ligne le dit, son détail au survol, et rien ne bouge. Sans station
 // appairée, seul cet ordinateur est proposé.
+// Le parcours l'inscrit à la suite de l'étape du projet par `etapeDeLaStation`, à la forme de ses autres étapes
+// (parcours.js, ticket 2475) : faite quand une machine a reçu le projet.
 // Tout est écrit par le process principal : ce module reçoit `servirIci` et `choisir`, ne touche pas `document` — il
 // reçoit de quoi créer un élément (briques.js) — et rend des éléments.
 
@@ -21,6 +23,7 @@ import { selectionApres, uneLigneParMachine } from "../stations-du-compte.js";
 /** @typedef {import("../../stations-du-compte.ts").Choix} Choix */
 /** Une station appairée, telle que la lecture du compte la rend. @typedef {import("../../stations-du-compte.ts").StationEnregistree} Station */
 
+export const TITRE = "The station that cooks it";
 export const ATTENDU = "Who cooks this project?";
 export const AUTRES = "or one of your stations:";
 export const ICI_DIT = "stops when you close the app on this computer";
@@ -29,6 +32,7 @@ export const HORS_LIGNE = "offline";
 export const HORS_LIGNE_DIT = "It cooks the project once it is back online.";
 export const EN_COURS = "saving…";
 export const ILLISIBLES = "your stations could not be read";
+export const LECTURE = "Reading your stations…";
 export const INJOIGNABLE = (/** @type {string} */ nom) => `${nom} could not be given the project.`;
 
 // La sélection d'une station une fois le dépôt confié : la sienne, le dépôt ajouté à la fin — s'il n'y est pas déjà, sans
@@ -57,19 +61,20 @@ function cree(doc, balise, texte) {
 
 // L'étape. `depot` : le dépôt que l'étape d'avant vient d'ajouter. `ici` : le nom que l'app donne à cet ordinateur
 // (« this Mac », « this PC ») ; `nomIci`, celui de sa station, qui ne se propose pas deux fois. `stations` : celles du
-// compte, ou `{ refus }` — la lecture a échoué, cet ordinateur reste proposé. `servirIci(depot)` : la station de cet
+// compte, ou `{ refus }` — la lecture a échoué, cet ordinateur reste proposé —, ou rien : la lecture est en route, cet
+// ordinateur est déjà proposé. `servirIci(depot)` : la station de cet
 // ordinateur le sert ; absent, cet appareil n'a pas de station (un téléphone). `choisir(id, depots)` écrit la sélection
-// d'une station. `suivante()` : le parcours passe à l'étape d'après.
+// d'une station. `suivante(nom)` : la machine `nom` a reçu le projet, le parcours passe à l'étape d'après.
 /**
  * @param {Fabrique} doc
  * @param {{
  *   depot: string,
  *   ici: string,
  *   nomIci?: string,
- *   stations: readonly Station[] | { refus: string },
+ *   stations?: readonly Station[] | { refus: string },
  *   servirIci?: (depot: string) => Promise<LectureDesProjetsServis>,
  *   choisir: (id: string, depots: string[]) => Promise<Choix>,
- *   suivante: () => void,
+ *   suivante: (nom: string) => void,
  * }} donnees
  */
 export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci, choisir, suivante }) {
@@ -99,7 +104,7 @@ export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci
     try {
       const refus = await geste();
       if (refus !== undefined) dire(refus.ligne, refus.detail);
-      else suivante();
+      else suivante(nom);
     } catch {
       dire(INJOIGNABLE(nom));
     } finally {
@@ -122,7 +127,12 @@ export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci
     racine.append(premier);
   }
 
-  if (!Array.isArray(stations)) racine.append(lectureIndisponible(doc, ILLISIBLES, /** @type {{ refus: string }} */ (stations).refus));
+  if (stations === undefined) {
+    const lecture = cree(doc, "p", LECTURE);
+    lecture.className = "lecture";
+    racine.append(lecture);
+  }
+  else if (!Array.isArray(stations)) racine.append(lectureIndisponible(doc, ILLISIBLES, /** @type {{ refus: string }} */ (stations).refus));
   else {
     const proposees = stationsProposees(/** @type {readonly Station[]} */ (stations), nomIci);
     if (proposees.length > 0) {
@@ -154,3 +164,36 @@ export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci
   racine.append(etat, erreur);
   return racine;
 }
+
+// L'étape telle que le parcours l'inscrit, après celle du projet. Elle lit dans l'état du parcours le dépôt ajouté
+// (`depot` — absent, l'étape d'avant n'est pas faite, rien ne se pose), cet ordinateur (`ici`, `nomIci`), les stations
+// du compte (`stations`) et la machine qui a reçu le projet (`station`) ; ses gestes : `servirIci`, `choisir`, et
+// `stationChoisie(nom)`, qui tient `station` et passe à la suite.
+/**
+ * @typedef {{ depot?: string, ici?: string, nomIci?: string, stations?: readonly Station[] | { refus: string }, station?: string }} EtatPourLaStation
+ * @typedef {{
+ *   servirIci?: (depot: string) => Promise<LectureDesProjetsServis>,
+ *   choisir: (id: string, depots: string[]) => Promise<Choix>,
+ *   stationChoisie: (nom: string) => void,
+ * }} GestesPourLaStation
+ */
+export const etapeDeLaStation = {
+  id: "station",
+  titre: TITRE,
+  faite: (/** @type {EtatPourLaStation} */ etat) => etat.station !== undefined,
+  /** @param {Fabrique} doc @param {EtatPourLaStation} etat @param {GestesPourLaStation} geste */
+  poser: (doc, etat, geste) => {
+    if (etat.depot === undefined) return [];
+    return [
+      poserEtapeStation(doc, {
+        depot: etat.depot,
+        ici: etat.ici ?? "this computer",
+        ...(etat.nomIci === undefined ? {} : { nomIci: etat.nomIci }),
+        ...(etat.stations === undefined ? {} : { stations: etat.stations }),
+        ...(geste.servirIci === undefined ? {} : { servirIci: geste.servirIci }),
+        choisir: geste.choisir,
+        suivante: geste.stationChoisie,
+      }),
+    ];
+  },
+};

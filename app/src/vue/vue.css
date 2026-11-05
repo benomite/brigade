@@ -5747,6 +5747,7 @@ button.recommande {
 }
 .etape-station .aide,
 .etape-station .autres,
+.etape-station .lecture,
 .etape-station .etat {
   color: var(--discret);
 }

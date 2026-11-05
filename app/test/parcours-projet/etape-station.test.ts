@@ -4,7 +4,7 @@
 // un refus se dit en une ligne, et rien ne bouge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ATTENDU, HORS_LIGNE, ILLISIBLES, poserEtapeStation, selectionAvec, stationsProposees } from "../../src/vue/parcours-projet/etape-station.js";
+import { ATTENDU, etapeDeLaStation, HORS_LIGNE, ILLISIBLES, LECTURE, poserEtapeStation, selectionAvec, stationsProposees, TITRE } from "../../src/vue/parcours-projet/etape-station.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -27,7 +27,7 @@ const station = (name: string, autres: Partial<{ id: string; available: boolean;
 const STATIONS = [station("parade-box", { selection: ["chef/brigade"] }), station("nas", { available: false }), station("macbook")];
 
 type Options = {
-  stations?: ReturnType<typeof station>[] | { refus: string };
+  stations?: ReturnType<typeof station>[] | { refus: string } | null;
   servirIci?: ((depot: string) => Promise<{ depots: string[] } | { refus: string }>) | null;
   choisir?: (id: string, depots: string[]) => Promise<{ selection: string[] } | { refus: string; detail?: string }>;
 };
@@ -35,16 +35,16 @@ type Options = {
 function monter(options: Options = {}) {
   const servis: string[] = [];
   const choisis: Array<{ id: string; depots: string[] }> = [];
-  let suites = 0;
+  const suites: string[] = [];
   const servirIci = options.servirIci === null ? undefined : (options.servirIci ?? (async (depot: string) => (servis.push(depot), { depots: [depot] })));
   const racine = poserEtapeStation(doc, {
     depot: DEPOT,
     ici: "this Mac",
     nomIci: "macbook",
-    stations: options.stations ?? STATIONS,
+    ...(options.stations === null ? {} : { stations: options.stations ?? STATIONS }),
     ...(servirIci === undefined ? {} : { servirIci }),
     choisir: options.choisir ?? (async (id, depots) => (choisis.push({ id, depots }), { selection: depots })),
-    suivante: () => void suites++,
+    suivante: (nom) => void suites.push(nom),
   }) as Faux;
   const tous = () => [...racine.descendants()];
   const un = (classe: string) => tous().find((element) => element.className.split(" ").includes(classe));
@@ -55,7 +55,7 @@ function monter(options: Options = {}) {
     ligne.dessous("button")[0]!.click();
     await new Promise((resoudre) => setImmediate(resoudre));
   };
-  return { racine, un, machines, cliquer, servis, choisis, suites: () => suites };
+  return { racine, un, machines, cliquer, servis, choisis, suites: () => suites.length, choisies: suites };
 }
 
 describe("la question, et cet ordinateur d'abord", () => {
@@ -76,7 +76,7 @@ describe("la question, et cet ordinateur d'abord", () => {
     await etape.cliquer("ici");
     assert.deepEqual(etape.servis, [DEPOT]);
     assert.deepEqual(etape.choisis, []);
-    assert.equal(etape.suites(), 1);
+    assert.deepEqual(etape.choisies, ["this Mac"]);
   });
   test("cet ordinateur refuse : une ligne, son détail au survol, et le parcours ne suit pas", async () => {
     const etape = monter({ servirIci: async () => ({ refus: "brigade: chef/parade cannot be cloned — the repository is archived" }) });
@@ -119,6 +119,13 @@ describe("sans aucune station appairée", () => {
     await etape.cliquer("ici");
     assert.equal(etape.suites(), 1);
   });
+  test("les stations en cours de lecture : cet ordinateur est déjà proposé, la lecture se dit", async () => {
+    const etape = monter({ stations: null });
+    assert.deepEqual(etape.machines(), ["ici"]);
+    assert.equal(etape.un("lecture")?.textContent, LECTURE);
+    await etape.cliquer("ici");
+    assert.equal(etape.suites(), 1);
+  });
 });
 
 describe("avec plusieurs stations appairées", () => {
@@ -134,7 +141,7 @@ describe("avec plusieurs stations appairées", () => {
     await etape.cliquer("parade-box");
     assert.deepEqual(etape.choisis, [{ id: "gistparadebox", depots: ["chef/brigade", DEPOT] }]);
     assert.deepEqual(etape.servis, []);
-    assert.equal(etape.suites(), 1);
+    assert.deepEqual(etape.choisies, ["parade-box"]);
   });
   test("une station sans sélection encore reçoit le dépôt seul", async () => {
     const etape = monter();
@@ -164,5 +171,32 @@ describe("la logique de station reprise", () => {
     const vieille = station("nas", { id: "vieux", available: false, lastSeen: "2026-10-01T00:00:00Z" });
     const vive = station("NAS", { id: "vif" });
     assert.deepEqual(stationsProposees([vieille, vive], "macbook").map(({ id }) => id), ["vif"]);
+  });
+});
+
+describe("l'étape inscrite au parcours, après celle du projet", () => {
+  const gestes = (tenues: string[]) => ({
+    servirIci: async (depot: string) => ({ depots: [depot] }),
+    choisir: async (_id: string, depots: string[]) => ({ selection: depots }),
+    stationChoisie: (nom: string) => void tenues.push(nom),
+  });
+  test("elle a son nom, son titre, et n'est faite que quand une machine a reçu le projet", () => {
+    assert.equal(etapeDeLaStation.id, "station");
+    assert.equal(etapeDeLaStation.titre, TITRE);
+    assert.equal(etapeDeLaStation.faite({ depot: DEPOT }), false);
+    assert.equal(etapeDeLaStation.faite({ depot: DEPOT, station: "this Mac" }), true);
+  });
+  test("sans dépôt ajouté, elle ne pose rien", () => {
+    assert.deepEqual(etapeDeLaStation.poser(doc, {}, gestes([])), []);
+  });
+  test("le dépôt ajouté, elle pose la question ; un clic tient la machine choisie", async () => {
+    const tenues: string[] = [];
+    const [racine] = etapeDeLaStation.poser(doc, { depot: DEPOT, ici: "this Mac", nomIci: "macbook", stations: STATIONS }, gestes(tenues)) as Faux[];
+    assert.equal(racine!.children[0]?.textContent, ATTENDU);
+    const lignes = [...racine!.descendants()].filter((element) => element.dataset.station !== undefined);
+    assert.deepEqual(lignes.map((element) => element.dataset.station), ["ici", "nas", "parade-box"]);
+    lignes[2]!.dessous("button")[0]!.click();
+    await new Promise((resoudre) => setImmediate(resoudre));
+    assert.deepEqual(tenues, ["parade-box"]);
   });
 });
