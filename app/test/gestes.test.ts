@@ -341,7 +341,7 @@ describe("vérifier l'installation n'est plus dans l'app (#1700)", () => {
     const vue = await ouvrir(() => SECOND, { verifier: () => undefined });
     assert.throws(() => vue.element("gestes-projet"));
     await ouvrirLecture(vue, "Settings");
-    for (const ou of ["etat", "onglets", "interrupteur-projet"]) assert.deepEqual(vue.element(ou).dessous("button").map(({ textContent }) => textContent).filter((texte) => /installation/.test(texte)), [], ou);
+    for (const ou of ["etat", "onglets-du-projet", "interrupteur-projet"]) assert.deepEqual(vue.element(ou).dessous("button").map(({ textContent }) => textContent).filter((texte) => /installation/.test(texte)), [], ou);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "verifier"), []);
   });
 });

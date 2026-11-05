@@ -20,7 +20,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { RIEN_NE_TOURNE, BOUTONS as BOUTONS_DE_CUISSON } from "../src/vue/stations-de-cuisson.js";
-import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
 const PARADE = "parade";
@@ -108,10 +108,14 @@ async function ouvrir({ etroit = true, stockage, sansStations = false }: { etroi
 
 const onglets = (vue: Jouee) => vue.element("onglets-du-projet").children;
 const titres = (vue: Jouee) => onglets(vue).map((onglet) => onglet.textContent);
-const montre = (vue: Jouee) => onglets(vue).filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
+// L'onglet montré : le sous-onglet de Kitchen quand Kitchen l'est (Health ou Cooks), sinon l'entrée du menu marquée.
+const montre = (vue: Jouee) => (vue.element("onglets-cuisine").hidden ? onglets(vue) : vue.element("onglets-cuisine").children).filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
 async function taper(vue: Jouee, titre: string): Promise<void> {
-  (onglets(vue).find((onglet) => onglet.textContent === titre) ?? assert.fail(`pas d'onglet « ${titre} »`)).click();
-  await repos();
+  if (titre === "Cooks") await ouvrirOnglet(vue, "Cooks");
+  else {
+    (onglets(vue).find((onglet) => onglet.textContent === titre) ?? assert.fail(`pas d'onglet « ${titre} »`)).click();
+    await repos();
+  }
 }
 // Ce qui est à l'écran du projet : le centre, ou le second — jamais les deux sur un écran étroit.
 const vu = (vue: Jouee) => ({ centre: !vue.element("centre").hidden, second: !vue.element("second").hidden });
@@ -131,7 +135,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail, Cooks et Second, et chacun se montre d'un tap : le second à la place du centre, jamais à côté", async () => {
     const { vue, ecran } = await ouvrir();
     assert.ok(ecran.requetes.length > 0, "la vue demande la largeur de l'écran");
-    assert.deepEqual(titres(vue), ["Rail", "Cooks", "Second"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings", "Second"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
 
@@ -183,9 +187,9 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("une page ouverte par-dessus — Settings — couvre la conversation comme elle couvre Rail, et la referme rend la conversation", async () => {
     const { vue } = await ouvrir();
     await taper(vue, "Second");
-    (vue.element("onglets").children.find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas de Settings")).click();
+    (vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas de Settings")).click();
     await repos();
-    assert.deepEqual(montre(vue), []);
+    assert.deepEqual(montre(vue), ["Settings"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
     assert.equal(vue.element("contenu").hidden, false);
     await taper(vue, "Second");
@@ -201,7 +205,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
     assert.deepEqual(vu(rouverte), { centre: false, second: true });
     // Sur un écran large, la conversation n'est pas un onglet : le même projet s'y rouvre sur Rail, le second à droite.
     const { vue: large } = await ouvrir({ stockage, etroit: false });
-    assert.deepEqual(titres(large), ["Rail", "Cooks"]);
+    assert.deepEqual(titres(large), ["Rail", "Stations", "Kitchen", "Settings"]);
     assert.deepEqual(montre(large), ["Rail"]);
     assert.deepEqual(vu(large), { centre: true, second: true });
   });
@@ -268,7 +272,7 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
 describe("sur un écran large, rien ne change", () => {
   test("deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte ses stations et la lecture de `station`", async () => {
     const { vue } = await ouvrir({ etroit: false });
-    assert.deepEqual(titres(vue), ["Rail", "Cooks"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
     await taper(vue, "Cooks");
     assert.deepEqual(vu(vue), { centre: true, second: true });
@@ -286,12 +290,12 @@ describe("sur un écran large, rien ne change", () => {
     const { vue, ecran } = await ouvrir({ etroit: false });
     ecran.changer(true);
     await repos();
-    assert.deepEqual(titres(vue), ["Rail", "Cooks", "Second"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings", "Second"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
     await taper(vue, "Second");
     ecran.changer(false);
     await repos();
-    assert.deepEqual(titres(vue), ["Rail", "Cooks"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
   });

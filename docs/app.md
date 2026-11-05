@@ -3,7 +3,11 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
+**The project's menu is four entries, Rail · Stations · Kitchen · Settings** (#2485), next to the project name; **Rail is the
+tab opened by default**. Kitchen has two sub-tabs, **Health** and **Cooks**, shown under it, each one click away. Settings opens over
+the middle as before, with its content unchanged. Stations and Health are placeholders for now: each block is mounted in
+its own file under `app/src/vue/projet/` (`stations/`, `cuisine/sante/`, `cuisine/cuisiniers/`, `rail/BandeRail.js`) and a later
+ticket fills it. What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
@@ -160,7 +164,7 @@ project says `no action yet`. The roles, their line and the sentence are read in
 docs/runtime/etat-et-mesures.md): the app composes none, and nothing there is command output. A runtime that does not give
 them shows nothing there, nor a box that does not answer; on a narrow screen, they sit under the stations' lines. The
 module is `app/src/vue/roles-cuisine.js`.
-**On a narrow screen — the phone (#1151), or a window under 720 px —, three tabs** (#1186): Rail, Cooks and
+**On a narrow screen — the phone (#1151), or a window under 720 px —, the menu gains a fifth entry** (#1186): after Settings,
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
 moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks — one line each, not

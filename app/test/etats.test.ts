@@ -158,7 +158,7 @@ describe("la cuisine, le grant : une pastille à forme, et son libellé", () => 
   test("grant actif ; grant éteint : deux formes, deux libellés", async () => {
     const vue = await ouvrir();
     // Settings ouvert lit l'onglet des grants (#1700) : une ligne de réglage par grant.
-    (vue.element("onglets").children.find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    (vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
     await repos();
     const numero = vue.dernier("onglet")[2] as number;
     const vide = { lignes: [], illisibles: [] };

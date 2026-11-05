@@ -24,7 +24,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { ReponseGitHub } from "../src/tableau/client.ts";
 import { DEMANDEE, EN_ROUTE, REPRENDRE } from "../src/vue/todo-breaker-line.js";
-import { type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
 const PARADE = "parade";
@@ -282,8 +282,7 @@ describe("la ligne du disjoncteur, en tête de TODO", () => {
 
   test("sur Cooks, sans colonne TODO : la bande porte la ligne, avec le même « Resume »", async () => {
     const vue = await ouvrir(async () => ({ demandee: { issue: 2150, url: null } }));
-    (vue.element("onglets-du-projet").children.find(({ textContent }) => textContent === "Cooks") ?? assert.fail("pas d'onglet Cooks")).click();
-    await repos();
+    await ouvrirOnglet(vue, "Cooks");
     const bande = vue.element("alertes").children.find((pose) => pose.textContent.includes("breaker open")) ?? assert.fail("la bande ne dit pas le disjoncteur");
     const bouton = reprendre(bande);
     bouton.click();

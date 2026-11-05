@@ -109,7 +109,11 @@ const recevoir = (vue: Jouee, recue: Dessinable = dessinable()) => vue.dire("sur
 const colonnes = (vue: Jouee) => vue.element("rail").dessous("section");
 const bons = (ou: Faux) => ou.dessous("li").filter((li) => li.className === "bon");
 // Les colonnes sont partagées entre les deux onglets du projet (#1184) : Taken et Pass sur Cooks, les autres sur Rail.
-const montrerOnglet = (vue: Jouee, titre: "Rail" | "Cooks") => (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
+const montrerOnglet = (vue: Jouee, titre: "Rail" | "Cooks") => {
+  // Cooks est un sous-onglet de Kitchen (#2485).
+  if (titre === "Cooks") (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === "Kitchen") ?? assert.fail("pas d'onglet Kitchen")).click();
+  (vue.element(titre === "Cooks" ? "onglets-cuisine" : "onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
+};
 const bonDe = (vue: Jouee, numero: number): Faux => carteDuTicket(vue, numero) ?? assert.fail(`pas de bon #${numero}`);
 // Ce qu'un bon dit de la file : chaque fait, son libellé puis sa valeur.
 const portes = (bon: Faux) => bon.dessous("ul").flatMap((liste) => liste.children.map((fait) => fait.children.map((pose) => pose.textContent)));
@@ -144,13 +148,13 @@ const gesteDeLaFiche = (vue: Jouee, id: string): Faux =>
 // Les boutons de la fiche, moins les icônes de survol.
 const boutonsDeLaFiche = (vue: Jouee) => fiche(vue).dessous("button").filter((pose) => pose.className !== "aide");
 const fermer = (vue: Jouee) => (fiche(vue).dessous("button").find((pose) => pose.className === "fermer") ?? assert.fail("pas de bouton pour fermer la fiche")).click();
-const onglet = (vue: Jouee, titre: string): Faux => vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
+const onglet = (vue: Jouee, titre: string): Faux => vue.element("onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
 
 describe("le rail occupe le centre de l'écran principal", () => {
   test("dans la page, il est posé dans la zone centrale, sous le nom du projet et les onglets, en haut — plus dans un onglet", () => {
     const html = readFileSync(join(VUE, "index.html"), "utf8");
     const centre = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
-    const rangs = ["<header>", 'id="onglets"', "</header>", 'id="centre"', 'id="rail"', 'id="contenu"'].map((repere) => centre.indexOf(repere));
+    const rangs = ["<header>", 'id="onglets-du-projet"', "</header>", 'id="centre"', 'id="rail"', 'id="contenu"'].map((repere) => centre.indexOf(repere));
 
     assert.ok(rangs.every((rang) => rang !== -1), "la zone centrale ne porte plus le rail, les onglets ou ce qu'ils montrent");
     assert.deepEqual(rangs, rangs.toSorted((a, b) => a - b));

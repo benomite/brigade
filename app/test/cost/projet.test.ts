@@ -74,7 +74,7 @@ async function ouvrirCooks(): Promise<Jouee> {
 describe("le coût d'un projet n'est plus sur sa page (#1699)", () => {
   test("le projet n'a plus d'onglet Cost : son seul onglet est Settings", async () => {
     const vue = await ouvrirCooks();
-    assert.deepEqual(vue.element("onglets").children.map(({ textContent }) => textContent), ["Settings"]);
+    assert.deepEqual(vue.element("onglets-du-projet").children.map(({ textContent }) => textContent), ["Rail", "Stations", "Kitchen", "Settings"]);
   });
 
   test("Cooks, lu, ne pose ni ses tokens perdus de `station` ni ses tickets les plus chers ; Settings non plus", async () => {
@@ -86,7 +86,7 @@ describe("le coût d'un projet n'est plus sur sa page (#1699)", () => {
     assert.deepEqual(poses.filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
     assert.doesNotMatch(vue.element("rail").textContent, /cost of this project|most expensive|120,000/);
     // Settings — une seule page, sans sous-pages (#1700) — ne les pose pas non plus.
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    (vue.element("onglets-du-projet").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
     await repos();
     assert.deepEqual(vue.poses().filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
   });

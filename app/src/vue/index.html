@@ -63,11 +63,11 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
-        <!-- Les deux onglets du projet (ticket 1184) : Rail — ce qui t'attend, le rail et son ordre — et Cooks — ce qui
-             tourne. Un seul est montré au centre ; le second, à droite, ne change pas de l'un à l'autre. -->
-        <div id="onglets-du-projet" role="tablist" aria-label="Rail or cooks" hidden></div>
-        <!-- Les onglets de pages : en haut, à côté du nom du projet. Leur page s'ouvre par-dessus le rail. -->
-        <div id="onglets" role="tablist" aria-label="Pages"></div>
+        <!-- Le menu du projet (ticket 2485) : Rail · Stations · Kitchen · Settings. Un seul onglet est montré au centre ; le
+             second, à droite, ne change pas de l'un à l'autre. Settings s'ouvre par-dessus. -->
+        <div id="onglets-du-projet" role="tablist" aria-label="Project menu" hidden></div>
+        <!-- Les deux sous-onglets de Kitchen (ticket 2485) : Health et Cooks, montrés quand Kitchen l'est. -->
+        <div id="onglets-cuisine" role="tablist" aria-label="Kitchen" hidden></div>
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
@@ -93,6 +93,7 @@
            Cooks : l'état du projet et ses cooks, Taken et Pass, les pages servies, la lecture de `station`. Une page
            ouverte se pose par-dessus, sans le défaire : fermée, elle rend l'onglet tel qu'il était. -->
       <div id="centre">
+      <div id="bloc-du-rail"></div>
       <section id="rail" role="tabpanel" aria-label="The rail" hidden></section>
       <!-- La fiche d'un ticket : un clic sur sa carte l'ouvre par-dessus le rail, sans le défaire ; fermée — son
            bouton, ou Échap —, elle rend le rail tel qu'il était. Une page ouverte se pose par-dessus elle aussi. -->

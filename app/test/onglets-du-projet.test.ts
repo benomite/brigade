@@ -96,7 +96,12 @@ async function ouvrir(stockage?: FauxStockage): Promise<Jouee> {
 }
 
 const onglets = (vue: Jouee) => vue.element("onglets-du-projet").children;
-const montre = (vue: Jouee) => onglets(vue).filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
+const sousOnglets = (vue: Jouee) => vue.element("onglets-cuisine").children;
+// L'onglet montré : le sous-onglet de Kitchen quand Kitchen l'est (Health ou Cooks), sinon l'entrée du menu marquée.
+const montre = (vue: Jouee) => {
+  const choisis = (ou: Faux[]) => ou.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
+  return vue.element("onglets-cuisine").hidden ? choisis(onglets(vue)) : choisis(sousOnglets(vue));
+};
 const centre = (vue: Jouee) => vue.element("rail");
 const colonnes = (vue: Jouee) => centre(vue).dessous("section").filter((pose) => pose.className === "colonne").map((colonne) => colonne.children[0]?.children[0]?.textContent);
 // Les cartes des colonnes montrées, dans leur ordre.
@@ -119,7 +124,7 @@ describe("deux onglets, Rail et Cooks, à côté du nom du projet", () => {
     const vue = await ouvrir();
 
     assert.equal(vue.element("onglets-du-projet").hidden, false);
-    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Cooks", "tab"]]);
+    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Kitchen", "tab"], ["Settings", "tab"]]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.equal(centre(vue).dataset.onglet, "rail");
 
@@ -137,8 +142,8 @@ describe("deux onglets, Rail et Cooks, à côté du nom du projet", () => {
     const vue = await ouvrir();
     await ouvrirLecture(vue, "Grants");
     assert.equal(vue.element("contenu").hidden, false);
-    // Couvert par la page, aucun onglet n'est marqué montré.
-    assert.deepEqual(montre(vue), []);
+    // Couvert par la page, seul Settings est marqué montré.
+    assert.deepEqual(montre(vue), ["Settings"]);
 
     await ouvrirOnglet(vue, "Cooks");
     assert.equal(vue.element("contenu").hidden, true);

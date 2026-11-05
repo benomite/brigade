@@ -130,6 +130,16 @@ import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 import { AUCUNE_STATION, aucuneStationNeSert } from "./cooks/sans-station.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
+import { dansLaCuisine, entreeDe, MENU, ouvreAvec, SANTE, SOUS_ONGLETS_DE_LA_CUISINE, STATIONS } from "./projet/menu/menu.js";
+import { poserBlocBandeRail } from "./projet/rail/BandeRail.js";
+import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
+import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
+import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
+import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
+import { poserBlocPlafondsDuree } from "./projet/cuisine/sante/PlafondsDuree.js";
+import { poserBlocCloser } from "./projet/cuisine/sante/Closer.js";
+import { poserBlocSpecialisations } from "./projet/cuisine/cuisiniers/Specialisations.js";
+import { poserBlocCahier } from "./projet/cuisine/cuisiniers/Cahier.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
@@ -164,16 +174,14 @@ const REGLER_LE_CLOSER = "regler-closer";
 // nomme « cooks » — le plafond de cooks, la machine et sa saturation, le quota.
 const RAIL = "rail";
 const CUISINE = "cooks";
-const ONGLETS_DU_PROJET = [
-  { id: RAIL, titre: "Rail" },
-  { id: CUISINE, titre: "Cooks" },
-];
+// Le menu du projet (ticket 2485) : Rail · Stations · Kitchen · Settings (projet/menu/menu.js) ; Kitchen a deux
+// sous-onglets, Health et Cooks.
 // Sur un écran étroit — le téléphone (ticket 1186) —, trois colonnes ne tiennent pas : la conversation avec le second
 // est un troisième onglet, à la place du panneau de droite. Et Cooks y est en lecture seule : les lignes des
 // stations, leur état, leurs cooks, et le seul bouton qui lance ou arrête chacune — aucun réglage (stations, plafond,
 // bac à sable) : les cooks se règlent là où il y a un ordinateur. Sur un écran large, rien ne change.
 const CONVERSATION = "second";
-const ONGLETS_DU_PROJET_ETROIT = [...ONGLETS_DU_PROJET, { id: CONVERSATION, titre: "Second" }];
+const CONVERSATION_ONGLET = { id: CONVERSATION, titre: "Second" };
 const ECRAN_ETROIT = "(max-width: 720px)";
 const ecranEtroit = window.matchMedia?.(ECRAN_ETROIT);
 const etroit = () => ecranEtroit?.matches === true;
@@ -223,10 +231,12 @@ const bande = element("alertes");
 const arret = element("arret");
 const espace = element("espace");
 const ongletsDuProjet = element("onglets-du-projet");
-const onglets = element("onglets");
+const ongletsDeLaCuisine = element("onglets-cuisine");
 const contenu = element("contenu");
 const centre = element("centre");
 const rail = element("rail");
+// La bande de Rail (ticket 2485) : son bloc se monte ici, au-dessus du rail, sans en être un enfant.
+const blocDuRail = element("bloc-du-rail");
 const fiche = element("fiche");
 const grants = element("grants");
 const luOnglet = element("lu-onglet");
@@ -827,7 +837,7 @@ function retenus() {
   ongletsRetenus = new Map();
   try {
     const lus = JSON.parse(window.localStorage?.getItem(CLE_DES_ONGLETS) ?? "{}");
-    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === CUISINE || id === CONVERSATION) ongletsRetenus.set(nom, id);
+    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === STATIONS || id === SANTE || id === CUISINE || id === CONVERSATION) ongletsRetenus.set(nom, id);
   } catch {
     // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
   }
@@ -1432,22 +1442,42 @@ function montrer() {
   ongletsDuProjet.replaceChildren(
     ...(ouvert === undefined
       ? []
-      : (etroit() ? ONGLETS_DU_PROJET_ETROIT : ONGLETS_DU_PROJET).map(({ id, titre }) => {
+      : [
+          ...MENU.map(({ id, titre }) => {
+            const cree = bouton(titre, () => choisirOnglet(ouvreAvec(id, ongletDe(ouvert))));
+            cree.role = "tab";
+            cree.ariaSelected = String(visible === undefined && entreeDe(ongletDe(ouvert)) === id);
+            return cree;
+          }),
+          ...RUBRIQUES.map(({ titre, id }) => {
+            const cree = bouton(titre, () => activerRubrique(id));
+            cree.role = "tab";
+            cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
+            return cree;
+          }),
+          // Sur un écran étroit, la conversation avec le second est un cinquième onglet, après Settings.
+          ...(etroit()
+            ? [CONVERSATION_ONGLET].map(({ id, titre }) => {
+                const cree = bouton(titre, () => choisirOnglet(id));
+                cree.role = "tab";
+                cree.ariaSelected = String(visible === undefined && ongletDe(ouvert) === id);
+                return cree;
+              })
+            : []),
+        ]),
+  );
+  // Les deux sous-onglets de Kitchen, sous son entrée : montrés tant que Kitchen l'est.
+  const kitchenMontree = ouvert !== undefined && visible === undefined && dansLaCuisine(ongletDe(ouvert));
+  ongletsDeLaCuisine.hidden = !kitchenMontree;
+  ongletsDeLaCuisine.replaceChildren(
+    ...(kitchenMontree && ouvert !== undefined
+      ? SOUS_ONGLETS_DE_LA_CUISINE.map(({ id, titre }) => {
           const cree = bouton(titre, () => choisirOnglet(id));
           cree.role = "tab";
-          cree.ariaSelected = String(visible === undefined && ongletDe(ouvert) === id);
+          cree.ariaSelected = String(ongletDe(ouvert) === id);
           return cree;
-        })),
-  );
-  onglets.replaceChildren(
-    ...(courant === undefined
-      ? []
-      : RUBRIQUES.map(({ titre, id }) => {
-          const cree = bouton(titre, () => activerRubrique(id));
-          cree.role = "tab";
-          cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
-          return cree;
-        })),
+        })
+      : []),
   );
   // À droite, au même niveau : le second, ses shells, et de quoi en ouvrir un. Le second a toujours son onglet.
   const second = secondDuCourant()?.terminal;
@@ -4955,8 +4985,13 @@ function poserLeRail(projet) {
   const tenu = tenus.get(projet.nom);
   rail.hidden = false;
   const cuisine = ongletDe(projet) === CUISINE;
-  rail.dataset.onglet = cuisine ? CUISINE : RAIL;
-  rail.ariaLabel = cuisine ? "The cooks" : "The rail";
+  const onglet = ongletDe(projet);
+  rail.dataset.onglet = onglet === STATIONS || onglet === SANTE || cuisine ? onglet : RAIL;
+  rail.ariaLabel = cuisine ? "The cooks" : onglet === STATIONS ? "The stations" : onglet === SANTE ? "The kitchen's health" : "The rail";
+  blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
+  // Stations et Health : leurs blocs, montés ici, un ticket chacun les remplira (ticket 2485).
+  if (onglet === STATIONS) return rail.replaceChildren(poserBlocListeStations(document), poserBlocReglagesStation(document), poserBlocStationLocale(document));
+  if (onglet === SANTE) return rail.replaceChildren(poserBlocTempsTickets(document), poserBlocPlafondsDuree(document), poserBlocCloser(document));
   const horsLigne = horsLignes.get(projet.nom);
   const perime = perimes.get(projet.nom);
   delete rail.dataset.horsLigne;
@@ -4996,7 +5031,7 @@ function poserLeRail(projet) {
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
   // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, poserBlocSpecialisations(document), poserBlocCahier(document), lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et

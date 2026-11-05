@@ -418,7 +418,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     const lien = alerte?.dessous("button").find((bouton) => bouton.textContent === OUVRIR_COOKS) ?? assert.fail("pas de lien vers Cooks");
     lien.click();
     await repos();
-    assert.deepEqual(vue.element("onglets-du-projet").children.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent), ["Cooks"]);
+    assert.deepEqual(vue.element("onglets-du-projet").children.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent), ["Kitchen"]);
     assert.deepEqual(alertes(vue), []);
     assert.equal(etatDe(ligne(vue, "box/claude")), "saturated");
   });
