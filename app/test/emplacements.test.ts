@@ -20,7 +20,7 @@ const ELECTRON_DU_DEPOT = join(APP, "node_modules", "electron", "dist", "Electro
 
 test("depuis le dépôt : le runtime à côté de l'app dans son clone, le `node` de `npm start`, et le clone de l'app", () => {
   const emplacements = emplacementsDe({ ressources: ELECTRON_DU_DEPOT, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node" } });
-  assert.deepEqual(emplacements, { facon: "depot", runtime: RUNTIME, node: "/usr/local/bin/node", clone: APP });
+  assert.deepEqual(emplacements, { facon: "depot", runtime: RUNTIME, node: "/usr/local/bin/node", clone: APP, commandes: join(APP, "..", "commands") });
   // La station s'y trouve, et c'est celle du dépôt.
   assert.deepEqual(roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {} }), { role: "station", principal: join(RUNTIME, PRINCIPAL) });
   // Lancée autrement que par npm, le `node` du PATH ; BRIGADE_NODE_BIN passe devant tout.
@@ -31,7 +31,7 @@ test("depuis le dépôt : le runtime à côté de l'app dans son clone, le `node
 test("installée : le runtime et le `node` de son paquet, jamais ceux de la machine — et pas de clone", () => {
   // Un `npm` qui l'aurait lancée n'y change rien : le `node` de la machine n'est pas celui du paquet.
   const emplacements = emplacementsDe({ ressources: RESSOURCES, src: join(RESSOURCES, "app", "src"), env: { npm_node_execpath: "/usr/local/bin/node", PATH: "/usr/bin:/bin" } });
-  assert.deepEqual(emplacements, { facon: "installee", runtime: join(RESSOURCES, "runtime"), node: join(RESSOURCES, "node", "bin", "node"), clone: undefined });
+  assert.deepEqual(emplacements, { facon: "installee", runtime: join(RESSOURCES, "runtime"), node: join(RESSOURCES, "node", "bin", "node"), clone: undefined, commandes: join(RESSOURCES, "plugin", "commands") });
   assert.deepEqual(roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {}, existe: (chemin) => chemin === join(RESSOURCES, "runtime", PRINCIPAL) }), { role: "station", principal: join(RESSOURCES, "runtime", PRINCIPAL) });
   assert.equal(emplacementsDe({ ressources: RESSOURCES, src: join(RESSOURCES, "app", "src"), env: { BRIGADE_NODE_BIN: "/essai/node" } }).node, "/essai/node");
 });

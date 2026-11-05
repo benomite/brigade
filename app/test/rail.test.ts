@@ -547,6 +547,26 @@ describe("le clic d'une carte de T'attend (#452)", () => {
 
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
   });
+
+  test("un ticket mis de côté (#2075) : dans TODO, sa ligne dit pourquoi, et le `#N` qu'elle nomme ouvre son issue d'un clic", async () => {
+    const vue = await ouvrir({ ouvrirIssue: () => true });
+    const raison = "changes what judges it: merge PR #2326 by hand";
+    const misDeCote: Faits = {
+      ...FAITS,
+      rail: [...FAITS.rail, { ticket: 40, etat: "86", titre: "Un ticket retenu", url: "https://github.com/benomite/parade/issues/40", activite: null }],
+      attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "Un ticket retenu", url: "https://github.com/benomite/parade/issues/40", miseDeCote: { label: "blocked-on-human", raison, liens: [{ numero: 2326, url: "https://github.com/benomite/parade/issues/2326" }] } }],
+    };
+    recevoir(vue, dessinable(misDeCote, PAS_LU));
+    const todo = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Todo") ?? assert.fail("pas de colonne Todo");
+    const bon = bons(todo).find((pose) => pose.children[0]?.children[0]?.textContent === "#40") ?? assert.fail("#40 n'est pas dans Todo");
+    assert.equal(ligneDe(bon), raison);
+    const lien = bon.dessous("button").find((pose) => pose.className === "lien-de-ligne mono") ?? assert.fail("pas de lien sur la ligne");
+    assert.equal(lien.textContent, "#2326");
+    lien.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 2326]);
+    assert.equal(vue.element("fiche").hidden, true);
+  });
 });
 
 // La question qu'une carte de T'attend pose, telle que son issue l'écrit (#681) : sur sa fiche, lue

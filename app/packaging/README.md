@@ -121,6 +121,7 @@ Le `.dmg` porte `Brigade.app` et un lien vers Applications, où la glisser.
 | `Resources/app/` | `src/`, le `package.json` de l'app (sans scripts ni dépendances de dev) et ses dépendances de production ; node-pty n'y garde que ce qui est compilé pour darwin-arm64 |
 | `Resources/runtime/` | `src/` et `package.json` du runtime, à la version construite — celle que la station dit d'elle |
 | `Resources/node/bin/node` | le `node` qui joue la station |
+| `Resources/plugin/commands/` | `dev.md` et `ask.md` de `commands/` : ce que l'app installe dans les projets qu'elle ouvre (`app/src/plugin-app.ts`) |
 
 Construite sans identité, l'app est **signée ad hoc** (`codesign --sign -`), pas par un développeur identifié : Apple
 Silicon ne lance aucun binaire sans signature, et celle d'Electron ne tient plus une fois l'app

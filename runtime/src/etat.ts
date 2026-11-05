@@ -1058,6 +1058,7 @@ export const CAUSES_D_URGENCE = {
   pause: "pause du renommage",
   renommage: "renommage échoué",
   abandon: "sorti du rail",
+  retenue: "cuisine retenue",
 } as const satisfies Record<Attente["quoi"], string>;
 export type CauseDUrgence = (typeof CAUSES_D_URGENCE)[keyof typeof CAUSES_D_URGENCE];
 

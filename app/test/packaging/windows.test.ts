@@ -196,6 +196,9 @@ test("assembler : Electron renommé, l'app, ses dépendances de production, le r
   assert.equal(existsSync(join(pty, "lib", "index.js")), true);
 
   assert.equal(readFileSync(join(ressources, "runtime", "src", "station", "main.ts"), "utf8"), "// la station");
+  // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
+  assert.deepEqual(readdirSync(join(ressources, "plugin", "commands")).sort(), ["ask.md", "dev.md"]);
+  assert.equal(readFileSync(join(ressources, "plugin", "commands", "ask.md"), "utf8"), readFileSync(join(APP, "..", "commands", "ask.md"), "utf8"));
   assert.equal(JSON.parse(readFileSync(join(ressources, "runtime", "package.json"), "utf8")).version, "1.2.3+gabc");
   assert.deepEqual(readFileSync(join(ressources, NODE_EXE)), readFileSync(node));
 });

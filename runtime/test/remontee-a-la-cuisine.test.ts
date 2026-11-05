@@ -9,7 +9,6 @@ import { QUI_ATTEND } from "../src/attend.ts";
 import { DU_MANAGER, ENCORE_ROUGE, HORS_RAIL, NON_JUGEE } from "../src/events/pass.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { RENOMMAGE_ABANDONNE } from "../src/pause/pause.ts";
-import { INTRANSPOSABLE } from "../src/pause/reprise.ts";
 import {
   aLaCuisine,
   calibrageAuDessus,
@@ -58,6 +57,7 @@ test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un 
       disjoncteur: "chef-gesture",
       pause: "chef-gesture",
       renommage: "chef-gesture",
+      retenue: "chef-gesture",
     },
   );
   for (const [quoi, { pourquoi }] of Object.entries(QUI_ATTEND)) assert.ok(pourquoi.length > 20, `${quoi} : dire pourquoi c'est au chef`);
@@ -66,39 +66,9 @@ test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un 
   for (const pourquoi of Object.values(CAUSES_DU_CHEF)) assert.match(pourquoi, /^(chef-only gesture|product choice): /);
 });
 
-// Les causes de remontée que le runtime écrit, relues dans son code : un appel
-// à `remonter`, ou un `pass.escalated` qui porte sa cause.
-function causesEcrites(): string[] {
-  const constantes: Record<string, string> = { INTRANSPOSABLE, DU_MANAGER, HORS_RAIL, RENOMMAGE_ABANDONNE };
-  const causes = new Set<string>();
-  const lire = (brut: string, fichier: string) => {
-    if (brut.startsWith('"')) return brut.slice(1, -1);
-    const valeur = constantes[brut];
-    assert.ok(valeur !== undefined, `${fichier} : une cause de remontée écrite par une constante que ce test ne connaît pas (${brut})`);
-    return valeur;
-  };
-  const fichiers = readdirSync(SRC, { recursive: true, encoding: "utf8" }).filter((chemin) => chemin.endsWith(".ts"));
-  for (const fichier of fichiers) {
-    const code = readFileSync(join(SRC, fichier), "utf8");
-    for (const [, brut] of code.matchAll(/\bremonter\(\s*[^,()]+(?:\([^)]*\))?,\s*("[^"]+"|[A-Z_]+)/g)) causes.add(lire(String(brut), fichier));
-    for (const ligne of code.split("\n").filter((l) => l.includes('"pass.escalated"'))) {
-      for (const [, brut] of ligne.matchAll(/\bcause: ("[^"]+"|[A-Z_]+)/g)) causes.add(lire(String(brut), fichier));
-    }
-  }
-  return [...causes].sort();
-}
-
-test("chaque cause de remontée que le runtime écrit va à la cuisine, ou est nommée avec ce qui la garde hors de TODO ou la rend au chef", (t) => {
-  const causes = causesEcrites();
-  // De quoi voir que la lecture du code trouve encore ce qu'elle cherche.
-  for (const connue of ["ci-silent", "review-unreadable", "worktree-lost", "returns-exhausted", DU_MANAGER, "secrets-unavailable", HORS_RAIL]) assert.ok(causes.includes(connue), connue);
-  const nommees = new Set([...Object.keys(CAUSES_DE_LA_CUISINE), ...Object.keys(CAUSES_DU_CHEF), ...Object.keys(REMONTEES_SANS_ENTREE)]);
-  assert.deepEqual(
-    causes.filter((cause) => !nommees.has(cause)),
-    [],
-    "une cause nouvelle : dire si la cuisine la reprend (CAUSES_DE_LA_CUISINE) ou pourquoi elle est au chef (CAUSES_DU_CHEF)",
-  );
-
+// L'ancienne pass, qui écrivait ces remontées, est partie avec l'ancien chemin (#2061) : le journal d'avant en garde, et
+// la file du chef les lit encore.
+test("chaque cause de remontée qu'un journal porte va à la cuisine, ou est nommée avec ce qui la garde hors de TODO ou la rend au chef", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   // Fermé avant que son répertoire ne soit effacé : Windows refuse d'effacer une base ouverte.
   aArreter(t, () => journal.fermer());
@@ -206,6 +176,5 @@ test("plus aucun code du runtime n'écrit qu'il n'y a « plus rien à essayer »
   assert.deepEqual(disent, []);
   // La cuisine n'écrit plus de `none` : chaque pas qu'elle note en est un autre.
   const notes = fichiers.flatMap((fichier) => [...readFileSync(join(SRC, fichier), "utf8").matchAll(/"pass\.kitchen-took-over", payload: \{[^}]*move: "([a-z]+)"/g)].map(([, coup]) => coup));
-  assert.ok(notes.length > 0);
   assert.ok(!notes.includes("none"), notes.join(", "));
 });

@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, sym
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
+import { ecrireSecret } from "../../src/droits.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
 import type { Check } from "../../src/events/pass.ts";
 import type { BacASableLocal } from "../../src/bac-a-sable/local.ts";

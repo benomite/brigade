@@ -270,3 +270,13 @@ test("le cook de préparation lancé sur un setup en échec reçoit ce qui a éc
   }
   for (const texte of [consigne(mission), consigneDeSuite({ ...mission, branche: "cook/20-abc" })]) assert.doesNotMatch(texte, /a échoué sur cette station/);
 });
+
+test("les consignes disent de ne jouer que les tests touchés en travaillant, et les gates une fois", () => {
+  const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
+  const suite = consigneDeSuite({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", branche: "cook/15-abc" });
+
+  for (const texte of [premiere, suite]) {
+    assert.match(texte, /ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière/);
+    assert.match(texte, /Les gates, joue-les une seule fois, quand tu es prêt à livrer/);
+  }
+});

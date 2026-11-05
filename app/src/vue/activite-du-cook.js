@@ -1,6 +1,6 @@
 // @ts-check
 // Ce que fait le cook d'un ticket, sur sa fiche (ticket 1846) : à la place de son terminal, que l'app ne suit pas, ce
-// que le process principal en lit sur GitHub (tableau/lecture.ts, #2061) — sa station, depuis sa prise, ce que la
+// que le process principal en lit sur GitHub (tableau/lecture.ts, ticket 2061) — sa station, depuis sa prise, ce que la
 // cuisine en fait, sa PR. Tant qu'il tourne : sa pilule `cooking`, sa station, depuis quand ; ce qu'il fait en ce
 // moment. Ses tours, ses tokens et ses gestes ne sont que dans le journal de sa station : la fiche les montre quand
 // ils sont donnés. La fiche se repose à chaque lecture du rail : ce qu'elle montre suit le cook, daté par cette lecture.

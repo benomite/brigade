@@ -16,6 +16,8 @@
 //                   dépendances de dev ; node-pty n'y garde que ce qui est compilé pour darwin-arm64
 //   runtime/        `src/` et package.json du runtime — il n'a pas d'autres dépendances
 //   node/bin/node   le `node` qui joue la station : celui de la machine n'y est pour rien
+//   plugin/commands/  `dev.md` et `ask.md` de `commands/`, ce que l'app installe dans les projets
+//                   qu'elle ouvre (src/plugin-app.ts)
 // Le reste est l'Electron officiel pour darwin-arm64, de la version que l'app déclare, renommé.
 //
 // Electron vient, sans `--electron`, du dépôt de ses versions sur GitHub, vérifié contre les
@@ -44,7 +46,8 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { APP_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
+import { APP_DU_PAQUET, COMMANDES_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
+import { COMMANDES } from "../src/plugin-app.ts";
 
 const REFUS = 2;
 const ECHEC = 1;
@@ -57,6 +60,15 @@ const ICI = import.meta.dirname;
 export const APP = resolve(ICI, "..");
 export const RACINE = resolve(APP, "..");
 export const RUNTIME = join(RACINE, "runtime");
+export const COMMANDES_DU_DEPOT = join(RACINE, "commands");
+
+// Les commandes du plugin de l'app (src/plugin-app.ts), et elles seules, copiées de `commandes`
+// sous les ressources du paquet : l'app installée les pose dans les projets qu'elle ouvre.
+export function porterLesCommandes(ressources: string, commandes = COMMANDES_DU_DEPOT): void {
+  const dans = join(ressources, COMMANDES_DU_PAQUET);
+  mkdirSync(dans, { recursive: true });
+  for (const nom of COMMANDES) cpSync(join(commandes, nom), join(dans, nom));
+}
 
 // Un refus ou un échec de la construction, avec le code qui le dit.
 export class Arret extends Error {
@@ -184,6 +196,8 @@ export type OptionsConstruction = {
   executer: Executer;
   app?: string;
   runtime?: string;
+  // Le dossier des commandes du plugin de l'app : `commands/` du dépôt.
+  commandes?: string;
   // Le nom d'un certificat « Developer ID Application » : l'app est alors signée par ce
   // développeur (runtime durci, horodatage) au lieu d'être signée ad hoc.
   identite?: string;
@@ -238,6 +252,8 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
   const dansRuntime = join(ressources, RUNTIME_DU_PAQUET);
   cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
   writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
+
+  porterLesCommandes(ressources, options.commandes);
 
   const node = join(ressources, NODE_DU_PAQUET);
   mkdirSync(join(node, ".."), { recursive: true });

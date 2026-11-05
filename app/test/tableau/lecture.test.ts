@@ -206,13 +206,16 @@ function graphe(entree: string): string[] {
   return [...vus].map((chemin) => (chemin.startsWith(RACINE) ? relative(RACINE, chemin).split("\\").join("/") : chemin)).sort();
 }
 
-test("la lecture du rail ne joint ni box ni station : ses modules ne chargent que les états de GitHub du runtime", () => {
+test("la lecture du rail ne joint ni box ni station : ses modules ne chargent que les états de GitHub du runtime, et la règle des stations vues de GitHub (#2358)", () => {
   assert.deepEqual(graphe("app/src/tableau/lecture.ts"), [
     "app/src/tableau/lecture.ts",
+    "app/src/tableau/mise-de-cote-github.ts",
     "app/src/tableau/rail-github.ts",
     "app/src/vue/cooks/prises.ts",
     "app/src/vue/rail/github.ts",
+    "runtime/src/enregistrement-station/contrat.ts",
     "runtime/src/github-etat/etats.ts",
+    "runtime/src/stations-github/stations.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.
   assert.deepEqual(graphe("app/src/tableau/jeton-gh.ts"), ["app/src/tableau/jeton-gh.ts", "node:child_process"]);

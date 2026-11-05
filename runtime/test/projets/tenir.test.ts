@@ -126,6 +126,8 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
 }
 
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
+// Les temps des tickets que la principale publie : aucun fichier dans le clone, aucun enregistrement et le plafond par défaut (#2346).
+const SANS_TEMPS = { enregistrements: [], tempsMaxTicketMin: 15 };
 const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -150,7 +152,7 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   } finally {
     journal.fermer();
   }
-  assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE }]);
+  assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE, temps: SANS_TEMPS }]);
   assert.ok(station.lignes.includes("brigade : station — shop ajouté depuis l'app : sa ligne est écrite dans la configuration"));
 
   // Relu sans changement : ni clone, ni ligne, ni suivi réécrit.
@@ -371,7 +373,7 @@ test("Apps non autorisées sur le dépôt : rien n'est cloné ni écrit, le suiv
   await station.projets.relire();
   assert.deepEqual(station.clones, []);
   assert.equal(station.configuration(), "");
-  assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "a-autoriser", dit: "authorize brigade on acme/shop, on GitHub: one click per page", autoriser: pages, serviLe: null, cuitSur: null, ici: false, bascule: null }]);
+  assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "a-autoriser", dit: "authorize brigade on acme/shop, on GitHub: one click per page", autoriser: pages, serviLe: null, cuitSur: null, ici: false, bascule: null, temps: SANS_TEMPS }]);
   await station.projets.relire();
   assert.equal(station.lignes.filter((ligne) => ligne.includes("attend que le chef autorise")).length, 1);
 
@@ -392,7 +394,7 @@ test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la 
   station.echouerLeClone(new Error("clone de acme/shop en échec — Repository not found"));
   await station.projets.relire();
   const { clone: muet, blocages, ...sansClone } = station.suivi()?.[0] ?? assert.fail("pas de suivi");
-  assert.deepEqual(sansClone, { nom: "shop", etat: "refuse", dit: `${muet?.raison} ${muet?.geste}`, autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("clone-failed") });
+  assert.deepEqual(sansClone, { nom: "shop", etat: "refuse", dit: `${muet?.raison} ${muet?.geste}`, autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, temps: SANS_TEMPS, refus: refus("clone-failed") });
   assert.equal(muet?.cause, "account-cannot-see");
   assert.deepEqual(blocages?.map(({ id, message }) => [id, message]), [["clone", muet?.raison]]);
   assert.equal(station.configuration(), "");
@@ -465,7 +467,7 @@ test("refusé par la station, le suivi dit pourquoi", async (t) => {
   station.refuses.set("shop", "le clone du projet n'existe pas");
   station.demander(SHOP);
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "shop", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, delai: AJOUTE, refus: refus("unexpected") });
+  assert.deepEqual(station.suivi()?.[0], { nom: "shop", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, delai: AJOUTE, temps: SANS_TEMPS, refus: refus("unexpected") });
 });
 
 test("un projet refusé porte un refus structuré — statut, code, phrase, action — que le projet servi ne porte plus", async (t) => {
@@ -570,7 +572,7 @@ test("un dépôt joignable, où la station peut pousser : servi comme avant, san
   station.demander(SUR_BASE);
   await station.projets.relire();
 
-  assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE }]);
+  assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE, temps: SANS_TEMPS }]);
   assert.equal(station.configuration(), `${DEBUT}\nshop acme/shop ${BASE}\n${FIN}\n`);
   assert.equal(station.preparations.length, 1);
 });
@@ -579,7 +581,7 @@ test("un worktree que la cuisine d'un projet servi n'a pas pu préparer : le sui
   const station = uneStation(t);
   station.demander(SHOP);
   await station.projets.relire();
-  const servi = { nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE };
+  const servi = { nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE, temps: SANS_TEMPS };
   assert.deepEqual(station.suivi(), [servi]);
   // Ce que la cuisine du projet écrit à son journal (`station.ts`).
   const noter = (fait: Fait) => {
@@ -615,7 +617,7 @@ test("les blocages d'un projet, posés à son journal, sont publiés dans son su
   const station = uneStation(t);
   station.demander(SHOP);
   await station.projets.relire();
-  const servi = { nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE };
+  const servi = { nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE, temps: SANS_TEMPS };
   assert.deepEqual(station.suivi(), [servi]);
 
   const etat = join(station.racine, "etat/shop");

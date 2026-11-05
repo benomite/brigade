@@ -69,12 +69,15 @@ export async function lesCartesDuChef(options: { depot: string; appeler: AppelGi
   }
 }
 
-// La lecture du rail, avec dans `faits.attend` les cartes du chef que GitHub porte. GitHub qui ne répond pas : la lecture
-// sans `attend` — TODO dit alors qu'il n'est pas lu, jamais qu'il est vide.
+// La lecture du rail, avec dans `faits.attend` les cartes du chef que GitHub porte, après les tickets mis de côté que le
+// rail y a déjà mis (vue/rail/github.ts, ticket 2075) : un ticket n'y a qu'une carte. GitHub qui ne répond pas : la
+// lecture telle quelle — sans `attend` si rien n'est mis de côté, et TODO dit alors qu'il n'est pas lu, jamais qu'il est vide.
 export async function avecLeTodoGithub(lu: TableauLu, appeler: AppelGitHub, memoire?: MemoireDesLectures): Promise<TableauLu> {
   const cartes = await lesCartesDuChef({ depot: lu.depot, appeler, ...(memoire === undefined ? {} : { memoire }) });
   if (cartes === null) return lu;
-  const attend = cartes.map(({ ticket, titre, url, sorte, texte }) => ({ ticket, titre, url, chef: { sorte, texte } }));
+  const deja = Array.isArray(lu.faits.attend) ? (lu.faits.attend as unknown[]) : [];
+  const tickets = new Set(deja.map((entree) => objet(entree)?.ticket));
+  const attend = [...deja, ...cartes.filter(({ ticket }) => !tickets.has(ticket)).map(({ ticket, titre, url, sorte, texte }) => ({ ticket, titre, url, chef: { sorte, texte } }))];
   const compteurs = objet(lu.faits.compteurs) ?? {};
   return { ...lu, faits: { ...lu.faits, attend, compteurs: { ...compteurs, attend: attend.length } } };
 }

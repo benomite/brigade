@@ -29,11 +29,16 @@ import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree,
 import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
 import { brancherDerive, lireSeuils } from "../derive.ts";
 import { brancherElagageGithub, elagageDuClone } from "../github-seul/elagage/elagage.ts";
+import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/closer-github-passe.ts";
+import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
+import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
+import { brancherRetenue } from "../retenue/brancher.ts";
+import { suivreLeTour } from "../retenue/tour.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
@@ -170,7 +175,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // qui prend, cuisine, relit et merge, sous l'identité de la pass et au nom
     // de la station déclarée sur cette machine.
     const ici = stations.find((declaree) => !declaree.distante);
-    projetGitHub = brancherBrigadeGithub({
+    // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
+    const suiviDuTour = suivreLeTour();
+    const ouvert = brancherBrigadeGithub({
       noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
       station: () =>
         ici === undefined
@@ -197,14 +204,26 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
               gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
               avertir: dire,
+              observer: suiviDuTour.envelopper,
+              // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+              clone: station.clone,
             }),
       avertir: dire,
     });
+    projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
     const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+    // La retenue de la cuisine : rien de servi depuis 30 min alors que des
+    // tickets attendent, sa cause et son geste entrent une fois dans la file
+    // du chef, et en sortent quand la cuisine sert de nouveau.
+    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, dire });
+    // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
+    // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
+    const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
+    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire })), session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     const roles = identites;
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
@@ -223,6 +242,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     throw erreur;
   }
 
+  // Le mode se retient aussi pour `status`, qui le dit avec les appels de chaque identité (#2316).
+  noterLeModeDesIdentites(envProjet, projet, identites !== null);
   dire(
     identites
       ? `GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`

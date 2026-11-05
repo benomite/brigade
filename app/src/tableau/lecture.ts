@@ -11,7 +11,7 @@
 // Ni la box ni une station ne sont jointes : rien d'autre que GitHub, par l'appel que la plateforme donne (client.ts).
 // Ce qui ne se lit pas le dit, jamais un rail vide : GitHub qui ne répond pas ou refuse — chaque fois un échec, et sa
 // raison en une phrase, que l'app montre telle quelle.
-import { avecLeRail, lireLeRailSurGithub } from "../vue/rail/github.ts";
+import { avecLeRail, lireLeRailSurGithub, SIGNES_PAS_LUS, type SignesDeVie } from "../vue/rail/github.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./rail-github.ts";
 
@@ -69,6 +69,8 @@ export type OptionsDeLecture = {
   maintenant?: () => Date;
   // Les réponses gardées avec leur ETag : une relecture que GitHub dit inchangée (304) ne coûte rien.
   memoire?: MemoireDesLectures;
+  // Les signes de vie des stations du compte, pour l'onglet Cooks (#2358, vue/cooks/signes-de-vie.ts).
+  signes?: () => Promise<SignesDeVie>;
 };
 
 const DEPOT = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
@@ -146,7 +148,7 @@ const vide = (depot: string, luLe: string): TableauLu => ({
   activites: [],
 });
 
-export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => new Date(), memoire }: OptionsDeLecture): Promise<LectureDuTableauDuDepot> {
+export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => new Date(), memoire, signes = async () => SIGNES_PAS_LUS }: OptionsDeLecture): Promise<LectureDuTableauDuDepot> {
   const echec = (raison: string, horsLigne?: true): TableauNonLu => ({ lu: false, depot, luLe: maintenant().toISOString(), raison, ...(horsLigne === undefined ? {} : { horsLigne }) });
   if (!DEPOT.test(depot)) return echec(`The project's repository "${depot}" is not an owner/name GitHub repository, so its rail cannot be read. Its folder has no GitHub \`origin\` remote to take it from: in ~/.config/brigade/app.json, give this project the field "depot" with its GitHub repository as value, for example "depot": "acme/kitchen".`);
   const lecteur = memoire === undefined ? appeler : lectureConditionnelle(appeler, memoire);
@@ -164,7 +166,7 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
   const luLe = maintenant();
   let lu: TableauLu;
   try {
-    lu = avecLeRail(vide(depot, luLe.toISOString()), await lireLeRailSurGithub({ depot, appeler: suivi, maintenant: () => luLe }));
+    lu = avecLeRail(vide(depot, luLe.toISOString()), await lireLeRailSurGithub({ depot, appeler: suivi, maintenant: () => luLe }), await signes());
   } catch (erreur) {
     const dit = (erreur instanceof Error ? erreur.message : String(erreur)).trim().split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
     if (injoint) return echec(`GitHub could not be reached to read the rail of ${depot}${dit === "" ? "" : `: ${dit}`}.`, true);

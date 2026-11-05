@@ -11,8 +11,11 @@ import { duree, type AgentLu, type Cook, type Faits } from "./faits.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 
 // Les mots de `cuisson`, et la couleur de chacun. Un mot inconnu se dit tel quel, sans couleur ni geste.
+// `idle` et `silent` : les mots d'une station sur GitHub seul qui ne tient aucun ticket, fraîche ou tue (#2358).
 const TONS = new Map([
   ["cooking", "vert"],
+  ["idle", "gris"],
+  ["silent", "gris"],
   ["stopped", "gris"],
   ["saturated", "jaune"],
   ["refused", "rouge"],
@@ -35,7 +38,9 @@ export type AgentDeStation = { role: string; ticket: number | null; titre: strin
 // qu'elle fait tourner à côté de ses cooks (#1971) — vide quand rien ne tourne.
 export type LigneDeStation = { station: string; distante: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; geste: GesteDeCuisson | null; fournit?: string[]; presente?: boolean; vueLe?: string | null };
 // `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
-export type CuissonDuProjet = { lignes: LigneDeStation[]; alerte: string | null };
+// `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/cooks/stations-github.js, #2358) —
+// `illisible`, pourquoi leurs signes de vie ne se lisent pas.
+export type CuissonDuProjet = { lignes: LigneDeStation[]; alerte: string | null; surGithub?: { illisible: string | null } };
 
 const PAS_DIT = "not given";
 const PAS_DIT_SURVOL = "this station's runtime does not say yet what it does with the project: update it to start and stop it from here";
@@ -62,6 +67,8 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
   const colore = ton === undefined ? {} : { ton };
   if (etat === "cooking" && station.distante && station.presente === false) return { ...base, ...ABSENTE, ton: "gris", dit: "", geste: "stop" };
   if (etat === "cooking") return { ...base, etat, ...colore, dit: "", survol: "it takes the project's tickets", geste: "stop" };
+  if (etat === "idle") return { ...base, etat, ...colore, dit: "", survol: "it holds no ticket of the project: it takes the next one it can cook", geste: null };
+  if (etat === "silent") return { ...base, etat, ...colore, dit: "", survol: "it has not signed on GitHub for a while: it takes no ticket until it is back", geste: null };
   if (etat === "saturated") return { ...base, etat, ...colore, dit: "its machine has no room", survol: "its machine has no room left: it takes no ticket until it has, its running cooks go on", geste: "stop" };
   if (etat === "refused") {
     const refus = station.refus ?? null;

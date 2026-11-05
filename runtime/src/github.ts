@@ -118,6 +118,9 @@ export type GitHub = {
   // Les checks des derniers commits de la branche d'intégration, mis bout à
   // bout : de quoi dire quel job y a déjà été vu vert.
   ciDeLaBase(branche: string): Promise<Check[]>;
+  // Le sha du dernier commit de la branche d'intégration. Facultatif : seul le
+  // client réel le porte (`brigade-github.ts`, le contrôle de la base).
+  teteDeLaBase?(branche: string): Promise<string>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
@@ -604,6 +607,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const chemin = `repos/${depot}/commits?sha=${encodeURIComponent(branche)}&per_page=${COMMITS_DE_LA_BASE}`;
       const commits = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<{ sha: string }>;
       return (await Promise.all(commits.map(({ sha }) => this.ci(sha)))).flat();
+    },
+    async teteDeLaBase(branche) {
+      const chemin = `repos/${depot}/commits/${encodeURIComponent(branche)}`;
+      const { sha } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { sha?: unknown };
+      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : commit sans sha`);
+      return sha;
     },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;

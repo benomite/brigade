@@ -426,6 +426,100 @@ main > header,
 #delai-du-projet .delai[data-delai="fige"] {
   color: var(--texte);
 }
+/* Le plus lent du projet (ticket 2351) : une ligne douce, comme le délai ci-dessus. */
+#lenteur-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#lenteur-du-projet .lenteur {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--texte-doux);
+}
+/* Les temps des derniers tickets (ticket 2346) : une carte ; la médiane en grand, le plus lent dessous, le partage en
+   cinq phases. Passé le plafond, la carte vire au rouge et le dit en toutes lettres — pas seulement par la couleur. */
+#temps-ticket-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#temps-ticket-du-projet .temps-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#temps-ticket-du-projet .temps-ticket[data-temps="depasse"] {
+  border-color: var(--rouge);
+}
+#temps-ticket-du-projet p,
+#temps-ticket-du-projet ul {
+  margin: 0;
+  padding: 0;
+}
+#temps-ticket-du-projet .temps-tete {
+  display: flex;
+  justify-content: space-between;
+  color: var(--discret);
+}
+#temps-ticket-du-projet .temps-mediane {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#temps-ticket-du-projet .temps-valeur {
+  font-size: 22px;
+  color: var(--texte);
+}
+#temps-ticket-du-projet [data-temps="depasse"] .temps-valeur {
+  color: var(--rouge-clair);
+}
+#temps-ticket-du-projet .temps-legende,
+#temps-ticket-du-projet .temps-lent,
+#temps-ticket-du-projet .temps-vide {
+  color: var(--texte-doux);
+}
+#temps-ticket-du-projet .temps-depasse {
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+  padding: 0 8px;
+}
+#temps-ticket-du-projet .temps-barre {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+#temps-ticket-du-projet .temps-part {
+  flex-basis: 0;
+  min-width: 2px;
+  border-radius: 4px;
+  background: var(--bleu);
+}
+#temps-ticket-du-projet .temps-part:nth-child(2) { background: var(--jaune); }
+#temps-ticket-du-projet .temps-part:nth-child(3) { background: var(--vert); }
+#temps-ticket-du-projet .temps-part:nth-child(4) { background: var(--orange); }
+#temps-ticket-du-projet .temps-part:nth-child(5) { background: var(--gris); }
+#temps-ticket-du-projet .temps-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  list-style: none;
+}
+#temps-ticket-du-projet .temps-phase {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--texte-doux);
+}
+#temps-ticket-du-projet .temps-duree {
+  color: var(--texte);
+}
 /* Ce qui bloque le projet (ticket 1399) : une carte, une ligne par blocage. Ce qui est bloqué en tête, en clair ;
    pourquoi dessous, en texte doux ; le bouton du geste, puis le lien qui nomme la page où le faire ; ce qu'une
    commande a dit, replié derrière « details », en second. */
@@ -2205,6 +2299,86 @@ main > header,
 }
 #etat .reglage input[type="number"] {
   width: 64px;
+}
+/* Les GitHub Apps de la station (ticket 2317, identites-github.js) : la même ligne que les autres réglages. Le
+   contrôle d'un rôle tient l'App ID, la clé — collée, ou son .pem choisi — et « save », l'un sous l'autre ; chaque
+   erreur se lit sous son champ. La ligne d'en-tête dit où restent les clés. */
+#etat .apps-github > .reglage {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#etat .apps-github > .reglage.tete > .valeur {
+  grid-column: 2 / -1;
+}
+#etat .apps-github .garde {
+  color: var(--texte-doux);
+}
+#etat .apps-github .configuree {
+  color: var(--vert);
+}
+#etat .apps-github .pas-configuree {
+  color: var(--discret);
+}
+#etat .apps-github .champ {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+#etat .apps-github :is(.champ-id, .champ-cle, .gestes-du-role) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+}
+#etat .apps-github :is(.app-id, .cle) {
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#etat .apps-github .app-id {
+  width: 160px;
+}
+#etat .apps-github .cle {
+  width: 100%;
+  max-width: 420px;
+  resize: vertical;
+}
+#etat .apps-github :is(.app-id, .cle)::placeholder {
+  color: var(--discret);
+  font-family: var(--police-interface);
+}
+#etat .apps-github .champ .action > button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#etat .apps-github .champ .action > button.recommande {
+  border-color: var(--accent);
+}
+#etat .apps-github .champ p.dit {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+}
+#etat .apps-github .champ p.dit.refus,
+#etat .apps-github .reglage > p.dit.refus {
+  color: var(--jaune);
+}
+#etat .apps-github .fichier {
+  font-size: 12px;
+  color: var(--discret);
 }
 /* Le champ du sigle : trois signes, en mono comme la case qui les écrit (la vue lui pose `mono`). */
 #sigle input {
@@ -4135,6 +4309,13 @@ main > header,
 }
 #rail .bon p.ligne-carte {
   color: var(--bon-encre);
+}
+/* Un `#N` de la ligne d'un ticket mis de côté (#2075) : un lien dans la phrase, comme le numéro de la carte. */
+#rail .bon p.ligne-carte button.lien-de-ligne {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
 }
 #rail .bon p.signal {
   font-weight: 600;
@@ -6423,11 +6604,13 @@ button.recommande {
     padding: 8px 12px 2px;
   }
   #etat .groupe > :is(div, section) > .reglage,
-  #etat .reglages-du-projet .reglage {
+  #etat .reglages-du-projet .reglage,
+  #etat .apps-github > .reglage {
     grid-template-columns: minmax(0, 1fr);
   }
   #etat .reglage > p.dit,
-  #etat .reglage > .confirmation {
+  #etat .reglage > .confirmation,
+  #etat .apps-github > .reglage.tete > .valeur {
     grid-column: 1;
   }
   #cadre {
@@ -7642,6 +7825,59 @@ button.recommande {
 #rail .panne-du-rail .signaler {
   margin-left: auto;
 }
+
+/* Le budget d'appels GitHub de chaque projet (ticket 2197), sous les gates : par projet, les lectures puis les écritures
+   utilisées face à leur budget de l'heure. Un projet au-delà prend le bord rouge, la marque « over budget » et les
+   catégories qui ont consommé les appels ; en deçà, rien ne se signale. */
+.budget-des-appels {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.budget-des-appels[data-hors-budget] {
+  border-color: var(--rouge);
+}
+.budget-des-appels h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.budget-des-appels .budget-du-projet {
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+.budget-des-appels .budget-du-projet[data-hors-budget] {
+  padding-left: 8px;
+  border-left: 3px solid var(--rouge);
+}
+.budget-des-appels .budget-du-projet strong {
+  color: var(--texte);
+}
+.budget-des-appels .budget-du-projet p {
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.budget-des-appels .budget-du-projet p[data-hors-budget] {
+  color: var(--rouge-clair);
+}
+.budget-des-appels .hors-budget {
+  padding: 1px 8px;
+  font-weight: 600;
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+}
+.budget-des-appels .categories-des-appels {
+  color: var(--discret);
+}
+
 /* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
    dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
 #accueil-stations .versions-des-stations {

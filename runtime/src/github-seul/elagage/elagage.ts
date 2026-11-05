@@ -1,5 +1,6 @@
 // The stale `cook/<n>-github` branches, cleaned from what GitHub says: a
 // branch whose issue is closed is deleted, locally and on the origin.
+import { promisify } from "node:util";
 import { execFile } from "../../sans-invite.ts";
 import type { GitHub } from "../../github.ts";
 import type { Runtime } from "../../runtime.ts";
@@ -69,7 +70,7 @@ export function brancherElagageGithub<R extends Runtime>(runtime: R, options: Op
 // issues' state read from GitHub.
 export function elagageDuClone(options: { clone: string; github: Pick<GitHub, "issue">; env?: NodeJS.ProcessEnv; avertir?: (message: string) => void }): OptionsElagage {
   const git = async (...args: string[]) => {
-    const { stdout } = await execFile("git", args, { cwd: options.clone, env: options.env ?? process.env, encoding: "utf8", timeout: 60_000 });
+    const { stdout } = await promisify(execFile)("git", args, { cwd: options.clone, env: options.env ?? process.env, encoding: "utf8", timeout: 60_000 });
     return String(stdout);
   };
   return {

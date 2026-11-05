@@ -311,6 +311,38 @@ the PR and how it was judged. The blocks:
 - **If the slope has not moved, it writes "the pass was of no use"**, on the 20-merge window figure;
   the same if it rises, and for a pass that removed or delivered nothing.
 
+### On GitHub, the only path (#2061)
+
+The writing pass above read the log; it went with the old path (#2061). The closer runs on GitHub
+(#2361, `runtime/src/closer-github-passe/`), in every project's kitchen of the station, as a ticket:
+
+- **When**: the same trigger, read from GitHub and the clone. At most every 10 minutes (`ECART_MS`), at
+  a tick, a project whose closer is set is checked: **20 merges** on the integration branch (its
+  first-parent commits, the origin fetched: a PR merged by squash or rebase counts too) since the last closing issue, **none within 24 hours**, and none still
+  open. No drift threshold triggers it there, and a project with no closer set gets no issue.
+- **What**: the observation on the base, as above, and **one closing issue** — `fire` and the closer's
+  calibration (`model:`, `effort:`), the drift of the latest merges (added:removed per window), the
+  candidates to prune (the duplicates and the dead code), their files as its `Zone`, and the removal cap
+  as an acceptance criterion. Its body opens with `<!-- brigade:fermeture sha=<base> -->`: that mark,
+  from an `OWNER`, `MEMBER` or `COLLABORATOR`, is how a restarted runtime or another station of the
+  project finds the last pass. Two stations that open one at once keep the oldest, and close the other.
+  With nothing to propose, no issue; it is said once per base.
+- **Who cooks it**: the GitHub-only stations, like any ticket: it has no `prio:` and comes after the
+  others; its zone keeps the other tickets off its files; the pass reviews and merges its PR.
+- **The drift**: the log no longer sees a merge, so the `drift` line of `status` would freeze. At the
+  same check, closer set or not, the pass reads the drift instead
+  (`derive-github.ts`): the merges since the last closing issue (the first-parent commits of the base, a
+  merge commit carrying its ticket by its `cook/<n>-` branch) and, for the last 10, what the GitHub-only cooks of the
+  station spent on each ticket — read from their streams (`<state>/github-seul/<n>-github.flux.jsonl`),
+  counted as the supervisor counts, a launch whose result is an error being lost. Against the chef's
+  thresholds, with the same gauges (`merges`, `tokens_ticket`, `tokens_perdus`), it writes what is
+  crossed to `<state>/derive-github.json`; while the GitHub-only station runs, `status` takes its `drift` line
+  from that file, not from the log, and a threshold newly crossed is said once. The gates' measures
+  (tests, repo, context, gates duration) and the cooks of another station are not read there.
+- **What it does not carry**: nothing here launches `claude` nor reads or writes the log, so neither the
+  memory of what a pass left (a candidate left may be proposed again), nor the start condition on the
+  cooks in flight, nor the `closing.*` facts, nor the summary.
+
 ### What this path does not do
 
 - **The summary holds nothing back**: a pass PR in which a guardrail gave way under green gates is

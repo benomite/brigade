@@ -60,16 +60,17 @@ describe("le TODO lu de GitHub", () => {
     assert.match(cartes?.[0]?.texte ?? "", /marked comment is missing/);
   });
 
-  test("les cartes sont tout `attend`, et son compte : ce que la lecture y portait est remplacé", async () => {
+  test("les cartes s'ajoutent aux tickets mis de côté que le rail a mis dans `attend` (#2075), une par ticket, et son compte les dit tous", async () => {
     const lu = tableau();
-    (lu.faits as Record<string, unknown>).attend = [{ ticket: 99, titre: "old" }];
+    (lu.faits as Record<string, unknown>).attend = [{ ticket: 7, titre: "set aside" }, { ticket: 9, titre: "set aside too" }];
     const avec = await avecLeTodoGithub(lu, github({ issues, commentaires }));
     assert.deepEqual(avec.faits.attend, [
+      { ticket: 7, titre: "set aside" },
+      { ticket: 9, titre: "set aside too" },
       { ticket: 5, titre: "Ticket 5", url: "https://github.com/acme/kitchen/issues/5", chef: { sorte: "blocked", texte: "Needs a token and a key." } },
-      { ticket: 9, titre: "Ticket 9", url: "https://github.com/acme/kitchen/issues/9", chef: { sorte: "product-question", texte: "Which plan?" } },
     ]);
-    assert.deepEqual(avec.faits.compteurs, { rail: 0, auTravail: 0, aLaPass: 0, attend: 2, livres24h: 0 });
-    const aucune = await avecLeTodoGithub(lu, github({ issues: [], commentaires }));
+    assert.deepEqual(avec.faits.compteurs, { rail: 0, auTravail: 0, aLaPass: 0, attend: 3, livres24h: 0 });
+    const aucune = await avecLeTodoGithub(tableau(), github({ issues: [], commentaires }));
     assert.deepEqual(aucune.faits.attend, []);
     assert.equal((aucune.faits.compteurs as { attend: number }).attend, 0);
   });
