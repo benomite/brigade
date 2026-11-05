@@ -579,6 +579,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/journal-pas-rejoue.test.ts", test: "montrer-station devant un journal sans projections dit de redémarrer le runtime, sans trace" },
   { file: "test/journal-pas-rejoue.test.ts", test: "montrer-pass devant un journal sans projections dit de redémarrer le runtime, sans trace" },
   { file: "test/lectures-sous-condition.test.ts", test: "avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget" },
+  { file: "test/lectures-sous-condition.test.ts", test: "une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus" },
   { file: "test/lectures-sous-condition.test.ts", test: "une issue, une PR ou un commentaire qui change se lit au tick suivant, et seule sa lecture compte" },
   { file: "test/lectures-sous-condition.test.ts", test: "l'heure passée, les lectures du premier tick sortent du compte" },
   { file: "test/lignes-masquees.test.ts", test: "borné, quel que soit le texte, le découpage et la borne : ce qui est écrit et compté est ce que le masquage du texte entier donne" },
