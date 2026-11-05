@@ -21,8 +21,9 @@ function modeDemande(sources: Map<string, string>): Mode {
   }
 }
 
-// `charge` donne le facteur de charge subi pendant les `ms` qui viennent de s'écouler ; sans lui, une sonde réelle tourne.
-export async function* juge(source: AsyncIterable<{ type: string; data: any }>, charge?: { facteurSur(ms: number): number }): AsyncGenerator<string> {
+// `charge.facteurSur` donne le facteur de charge subi pendant les `ms` qui viennent de s'écouler ; sans lui, une sonde
+// réelle tourne. `charge.mode` impose la façon de juger ; sans lui, elle vient de l'environnement (`modeDemande`).
+export async function* juge(source: AsyncIterable<{ type: string; data: any }>, charge?: { facteurSur(ms: number): number; mode?: Mode }): AsyncGenerator<string> {
   const mesures: { test: string; ms: number }[] = [];
   const fichiersJoues = new Set<string>();
   // Un test lent parce que la machine est saturée n'est pas lent (#2463) : la durée est jugée moins ce que la charge a pris.
@@ -44,7 +45,7 @@ export async function* juge(source: AsyncIterable<{ type: string; data: any }>, 
   const pertinentes: Mesure[] = mesures
     .filter((m) => m.ms > LIMITE_MS || listes.has(m.test))
     .map((m) => ({ ...m, fichiers: fichiersDuTitre(m.test, sources) }));
-  const mode = modeDemande(sources);
+  const mode = charge?.mode ?? modeDemande(sources);
   const { echecs, rapport } = verdict(pertinentes, EXCEPTIONS, fichiersJoues, (fichier, titre) => fichiersDuTitre(titre, sources).includes(fichier), mode);
   const sortie: string[] = [];
   if (rapport.length > 0) sortie.push("", `ℹ garde de durée (#2129), mode ${mode.genre} : tests de plus de 2 s, signalés sans faire échouer`, ...rapport.map((f) => `  - ${f}`));

@@ -6,13 +6,14 @@ import { LIMITE_MS } from "../test/garde-duree/regle.ts";
 import { juge } from "../test/garde-duree/reporteur.ts";
 import { dureeSansCharge, etirement, FACTEUR_MAX, PAS_MS, Releve } from "./charge.ts";
 
-// A reporter run over synthetic `test:pass` events; the exit code it sets is read then restored.
+// A reporter run over synthetic `test:pass` events; the exit code it sets is read then restored. It judges in strict
+// mode, as the gates do: the CI sets `BRIGADE_DUREE_MODE=main`, where nothing fails, and the verdict must not depend on it.
 async function joue(duree: number, facteurSur: (ms: number) => number): Promise<{ sortie: string; code: number | string | undefined }> {
   const avant = process.exitCode;
   const evenements = [{ type: "test:pass", data: { name: "un test synthétique", nesting: 1, details: { type: "test", duration_ms: duree } } }];
   const source = (async function* () { yield* evenements; })();
   let sortie = "";
-  for await (const morceau of juge(source, { facteurSur })) sortie += morceau;
+  for await (const morceau of juge(source, { facteurSur, mode: { genre: "strict" } })) sortie += morceau;
   const code = process.exitCode;
   process.exitCode = avant;
   return { sortie, code };
