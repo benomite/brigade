@@ -8214,3 +8214,76 @@ button.recommande {
 [data-bloc="plafonds-duree"] .replie > summary .resume {
   color: var(--texte-doux);
 }
+/* La liste des stations, dans l'onglet Stations (ticket 2487) : celle de Cooks, telle quelle, sous le titre ; dessous,
+   « Add a station », et l'étape qu'il ouvre sur place — ce qu'on attend du chef en tête, cet ordinateur d'abord. Alignés
+   sur la liste. Les titres des blocs de l'onglet gardent le retrait des titres du rail, que Health retire aux siens
+   (ticket 2490) : ils restent alignés sur la liste, et celui de la liste reste celui de Cooks. */
+#rail[data-onglet="stations"] > .bloc-du-projet > h3 {
+  padding: 12px 16px 0;
+}
+#rail[data-onglet="stations"] .bloc-du-projet .stations-de-cuisson h3 {
+  padding: 0 0 4px;
+}
+#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) {
+  margin: 12px 16px 0;
+}
+#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station .gestes) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) button:not(.aide) {
+  padding: 4px 12px;
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .bloc-du-projet .etape-station button.recommande {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--fond);
+}
+#rail .bloc-du-projet .etape-station button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#rail .bloc-du-projet .etape-station {
+  padding: 12px 16px;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .bloc-du-projet .etape-station .attendu {
+  margin: 0 0 10px;
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail .bloc-du-projet .etape-station .choix-de-station {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+#rail .bloc-du-projet .etape-station .choix-de-station li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) .dit,
+#rail .bloc-du-projet .etape-station .aucune {
+  color: var(--texte-doux);
+}
+#rail .bloc-du-projet .etape-station .aucune {
+  margin: 0 0 12px;
+}
+#rail .bloc-du-projet .etape-station .refus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  color: var(--rouge-clair);
+}

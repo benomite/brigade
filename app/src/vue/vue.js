@@ -133,6 +133,7 @@ import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { dansLaCuisine, entreeDe, MENU, ouvreAvec, SANTE, SOUS_ONGLETS_DE_LA_CUISINE, STATIONS } from "./projet/menu/menu.js";
 import { poserBlocBandeRail } from "./projet/rail/BandeRail.js";
 import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
+import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
 import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
@@ -295,6 +296,21 @@ function poserLesProjetsServisIci() {
   projetsServis.hidden = etat === undefined;
   projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom }, servis.gestes)]));
   poserLesGroupes();
+}
+// « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : cet ordinateur d'abord, par le
+// geste de la case de Settings — puis la liste qu'il sert se relit ; une station appairée, par celui de sa page sur
+// l'accueil. Le parcours change : l'onglet se repose, s'il est montré.
+const ajoutDeStation = tenirLAjoutDeStation({
+  servirIci: async (depot) => {
+    const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: "the app could not reach this computer's station" };
+    void servis.lire();
+    return rendu;
+  },
+  choisir: (id, depots) => choisirPourUneEnregistree(id, depots),
+  rendre: () => reposerLOngletStations(),
+});
+function reposerLOngletStations() {
+  if (courant !== undefined && ongletDe(courant) === STATIONS) poserRail(courant);
 }
 const reglagesDuProjet = element("reglages-du-projet");
 const avis = element("avis");
@@ -4989,8 +5005,12 @@ function poserLeRail(projet) {
   rail.dataset.onglet = onglet === STATIONS || onglet === SANTE || cuisine ? onglet : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : onglet === STATIONS ? "The stations" : onglet === SANTE ? "The kitchen's health" : "The rail";
   blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
-  // Stations et Health : leurs blocs, montés ici, un ticket chacun les remplira (ticket 2485).
-  if (onglet === STATIONS) return rail.replaceChildren(poserBlocListeStations(document), poserBlocReglagesStation(document), poserBlocStationLocale(document));
+  // Stations : la liste de ses stations, celle que Cooks pose (ticket 2487), et « Add a station » ; Health : ses blocs
+  // (ticket 2490).
+  if (onglet === STATIONS) {
+    poserCuisson(projet);
+    return rail.replaceChildren(poserBlocListeStations(document, { liste: cuissonDuProjet, ...ajoutDeStationDe(projet) }), poserBlocReglagesStation(document), poserBlocStationLocale(document));
+  }
   if (onglet === SANTE) return poserLaSante(projet);
   const horsLigne = horsLignes.get(projet.nom);
   const perime = perimes.get(projet.nom);
@@ -6486,6 +6506,39 @@ function cuisineDe(projet) {
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
 }
 
+// « Add a station » (ticket 2487) : offert sur un écran large — l'écran étroit ne règle rien —, pour un projet dont l'app
+// connaît le dépôt. Cet ordinateur est proposé si sa station ne sert pas déjà le dépôt ; puis les stations du compte à qui
+// il n'est pas choisi. Ouvrir relit l'une et l'autre lecture, et l'étape se repose avec elles.
+/** @param {Projet} projet */
+function ajoutDeStationDe(projet) {
+  const depot = projet.depot ?? projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.depot ?? "";
+  if (etroit() || depot === "") return {};
+  const lecture = servis.etat?.lecture;
+  const servisIci = lecture !== undefined && "depots" in lecture ? lecture.depots : undefined;
+  const lues = enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
+  return {
+    ajout: {
+      donnees: {
+        projet: projet.nom,
+        ici: POSTE.nom,
+        iciOffert: servisIci !== undefined && !servisIci.some((servi) => servi.toLowerCase() === depot.toLowerCase()),
+        stations: lues?.state === "listed" ? stationsAProposer(lues.stations, depot, projetsVus?.locale) : [],
+      },
+      etat: ajoutDeStation.etatDe(projet.nom),
+      gestes: {
+        ouvrir: () => {
+          ajoutDeStation.ouvrir(projet.nom);
+          void Promise.all([servis.lire(), lireLesEnregistrees()]).then(reposerLOngletStations);
+        },
+        annuler: () => ajoutDeStation.annuler(projet.nom),
+        servirIci: () => ajoutDeStation.servirIci(projet.nom, depot, POSTE.nom),
+        /** @param {import("../stations-du-compte.ts").StationEnregistree} station */
+        confier: (station) => ajoutDeStation.confier(projet.nom, depot, station),
+      },
+    },
+  };
+}
+
 // Ce que les stations du compte ont fait du dépôt du projet, choisi pour elles alors qu'une autre le servait déjà (ticket
 // 1790, stations-du-compte.js).
 /** @param {Projet} projet */
@@ -7857,7 +7910,7 @@ async function lireLesDepotsDesEnregistrees() {
 
 // Une case cochée ou décochée : la sélection entière de la station s'écrit dans son gist. Ses cases attendent la
 // réponse ; écrite, la ligne de la station dit ce qu'elle sert — sinon, pourquoi rien n'a changé.
-/** @param {string} id @param {string[]} depots */
+/** @param {string} id @param {string[]} depots @returns {Promise<import("../stations-du-compte.ts").Choix>} */
 async function choisirPourUneEnregistree(id, depots) {
   etatDesEnregistrees.envoi = id;
   delete etatDesEnregistrees.refus;
@@ -7885,6 +7938,7 @@ async function choisirPourUneEnregistree(id, depots) {
     }
   }
   poserStationsDeLAccueil();
+  return rendu;
 }
 
 // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.js) : tant que le fichier n'a aucun
