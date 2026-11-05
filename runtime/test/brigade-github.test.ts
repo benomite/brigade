@@ -644,6 +644,8 @@ test("a base still red after its re-run holds as before, and neither another sta
   await a.tour();
   await a.calme();
   assert.equal(faux.relanceEnCours, true);
+  // Tant que la relance tourne, aucun ticket de réparation (#2339).
+  assert.equal(faux.creations.length, 0);
   faux.finirLaRelance("red");
   faux.feu(41);
   // B, et A redémarrée, ne savent pas que A l'a relancée : GitHub le leur dit.
@@ -659,6 +661,11 @@ test("a base still red after its re-run holds as before, and neither another sta
   assert.equal(faux.tentatives.get(502), 2);
   assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
   assert.equal(avertis.filter((texte) => texte.includes("re-run")).length, 1);
+  // Rouge après sa relance : un seul ticket de réparation, quelle que soit la
+  // station, et c'est lui que la base rouge laisse merger (#2339).
+  assert.deepEqual(faux.creations, [900]);
+  assert.ok(faux.ticket(900).corps.includes(`brigade:base-rouge sha=${faux.teteDeLaBase}`));
+  assert.equal(faux.mergee(900)?.mergeePar, "A");
 });
 
 test("a review runs off the turn: while one delivery's review runs, the turn reviews and merges another one (#2329)", async () => {
@@ -808,7 +815,7 @@ test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base
   assert.equal(faux.mergee(10)?.mergeePar, "A");
 });
 
-const reparations = (faux: FauxGitHub) => [...faux.tickets.values()].filter((t) => t.state === "open" && t.corps.includes("brigade:reparation-base"));
+const reparations = (faux: FauxGitHub) => [...faux.tickets.values()].filter((t) => t.state === "open" && t.corps.includes("brigade:base-rouge"));
 
 test("a red main: no PR is merged, and the next turns merge nothing either (#2214)", async () => {
   const faux = new FauxGitHub();
@@ -832,7 +839,7 @@ test("a red commit gets exactly one repair issue, however many turns and station
   const [reparation, ...autres] = reparations(faux);
   assert.deepEqual(autres, []);
   assert.ok(faux.creations.length <= 2);
-  assert.ok(reparation?.corps.includes(`brigade:reparation-base ${faux.teteDeLaBase}`));
+  assert.ok(reparation?.corps.includes(`brigade:base-rouge sha=${faux.teteDeLaBase}`));
   assert.ok(reparation?.labels.has("prio:0") && reparation.labels.has("fire"));
   // Les deux stations ont créé la leur au même instant : la plus récente s'est fermée.
   assert.equal(reparation?.number, 900);
