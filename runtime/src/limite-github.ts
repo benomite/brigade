@@ -778,7 +778,8 @@ export function journaliserLaPause(dire: (ligne: string) => void): void {
 export const estLaPauseDeGitHub = (erreur: unknown): boolean => erreur instanceof LimiteGitHubAtteinte && !(erreur instanceof CuisineRalentie);
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
-// fin de la fenêtre — `retry-after`, sinon `x-ratelimit-reset`, sinon ce que
+// fin de la fenêtre — `retry-after`, sinon `x-ratelimit-reset` quand le quota
+// est à zéro, sinon ce que
 // dit `gh api rate_limit`, sinon 60 s, doublées à chaque limite qui revient —
 // et rend l'erreur à lever. Plusieurs refus d'une même rafale, arrivés pendant
 // la pause qu'ils ont posée, ne la doublent pas.
@@ -789,7 +790,10 @@ export async function constaterLimite(limite: Limite, reponse: ReponseHttp, opti
   const reset = Number(reponse.entetes.get("x-ratelimit-reset"));
   let jusqua: number | null = null;
   if (reponse.entetes.has("retry-after") && Number.isFinite(retry) && retry >= 0) jusqua = instant + retry * 1000;
-  else if (reponse.entetes.has("x-ratelimit-reset") && Number.isFinite(reset) && reset * 1000 > instant) jusqua = reset * 1000;
+  // `x-ratelimit-reset` est sur toute réponse : c'est le reset horaire du quota
+  // primaire. Il ne dit la fin de la fenêtre que si ce quota est épuisé — sur
+  // une limite secondaire, il gelait la station jusqu'à l'heure suivante (#2449).
+  else if (reponse.entetes.get("x-ratelimit-remaining") === "0" && Number.isFinite(reset) && reset * 1000 > instant) jusqua = reset * 1000;
   jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant });
   const precedente = reculs.get(limite) ?? { fin: Number.NEGATIVE_INFINITY, duree: 0 };
   const enCours = instant < precedente.fin;
