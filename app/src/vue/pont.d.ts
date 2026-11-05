@@ -332,6 +332,11 @@ export type Pont = {
   etatDuCodeDeTelephone?(id: string, code: string): Promise<import("../telephones-de-station.ts").RenduDeLEtat>;
   telephonesDeLaStation?(id: string): Promise<import("../telephones-de-station.ts").RenduDeLaListe>;
   revoquerUnTelephone?(id: string, nom: string): Promise<import("../telephones-de-station.ts").RenduDeLaRevocation>;
+  // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —
+  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une, la clé passée au runtime qui la range
+  // (runtime/src/identites-stations.ts). Absents, ou rien de rendu : cet appareil n'a pas de station.
+  appsDeLaStation?(): Promise<import("./identites-github.js").LectureDesApps | undefined>;
+  rangerUneApp?(role: import("./identites-github.js").Role, id: string, cle: string): Promise<import("./identites-github.js").RenduDuRangement>;
   // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.ts) : les stations que le chef a
   // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
   // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.

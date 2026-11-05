@@ -2097,7 +2097,7 @@ it is kept on hover:
 | Group | Its settings |
 |---|---|
 | **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
-| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
 | **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
@@ -2335,6 +2335,34 @@ running, or when an action is on its way; threshold not crossed (or not declared
 **Where it comes from.** The app runs `closing --json` (#988) and reads the object it returns on one line — nothing is
 recounted, nothing is launched: the command opens the log read-only. The view reads it itself in the
 Cooks tab's output (`app/src/vue/closer/section.js`); the raw object is not shown.
+### This station's GitHub Apps, in Settings (#2317, epic #2313)
+
+**Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on
+your GitHub account, then hand each station their IDs and private keys **through the app** — on the computer that runs
+the station. In Settings' **this machine** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
+station and are never sent to the repository** (what the Apps are for on hover). Then **one line per role**, `cook App`,
+`pass App`, `manager App`:
+
+- **its state**: `configured` (green) with its App ID (`App 1203456`), when the station has the App and its key;
+  `not configured` otherwise (`App 1203456 · no key stored` when only the ID is there). What the role's App does is on
+  hover. A station whose Apps cannot be read says `this station's Apps unavailable`, the reason on hover — never
+  `not configured`.
+- **its form**: an `App ID` field (prefilled with the stored ID, which is not secret), a key field — paste the key, or
+  `choose the .pem file`: the file's name is shown, never its content — and `save`, the recommended gesture while the
+  role is not configured.
+- **`save`** stores the App through the runtime (`runtime/src/identites-stations.ts`, `rangerApp`), in the station's Apps
+  directory, replacing the one before. Stored, the line says `configured` and `stored: its key is not shown again`, and
+  **the key field is empty**: the key leaves the screen, and nothing ever shows it again — the station only says whether
+  it has it. Projects the station opens from then on act under it.
+- **What does not store writes nothing**: an empty App ID (`nothing was written: enter the App's ID`), one that is not
+  an App ID, or a key that is not a PEM private key (`nothing was written: this is not a private key — …`) is said under
+  its field, and nothing leaves the screen. What the station refuses — one App for two roles, a key it cannot read, an
+  Apps directory open to others — is said in one line under the role, the rest of the runtime's sentence on hover.
+
+Only this computer's station is reached: a phone has no station, and the lines are not laid there. The modules are
+`app/src/vue/identites-github.js` and, in the main process, `appsDeLaStation` / `rangerUneApp` (`app/src/main.ts`).
+Captures: `docs/captures/2317/`.
+
 ### The grants, in Settings
 
 *Ticket: #1700.* **Is a grant active, and until when?** It is the heaviest authorization in the system — under a
