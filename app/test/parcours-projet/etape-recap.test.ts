@@ -48,7 +48,7 @@ describe("l'étape récap", () => {
 describe("le descripteur du registre", () => {
   test("il pose l'étape du dépôt retenu avec sa station, et ne la dit jamais faite", () => {
     const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade", station: "this Mac" }, { retour: () => {} }) as Faux[];
-    const texte = [...racine.descendants()].map((element) => element.textContent).join(" ");
+    const texte = [...racine!.descendants()].map((element) => element.textContent).join(" ");
     assert.match(texte, /chef\/parade/);
     assert.match(texte, /this Mac/);
     assert.equal(etapeDuRecap.faite(), false);
@@ -57,6 +57,6 @@ describe("le descripteur du registre", () => {
   test("sans dépôt retenu il ne pose rien, et sans station il pose le chemin de retour", () => {
     assert.deepEqual(etapeDuRecap.poser(doc, {}, { retour: () => {} }), []);
     const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade" }, { retour: () => {} }) as Faux[];
-    assert.equal([...racine.descendants()].some((element) => element.textContent === SANS_STATION), true);
+    assert.equal([...racine!.descendants()].some((element) => element.textContent === SANS_STATION), true);
   });
 });
