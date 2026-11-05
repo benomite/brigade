@@ -4,11 +4,12 @@
 // grant `merge`. Hors du rail : rouge, aucun cook ne la reprend, elle remonte
 // au chef ; et ni la passe ni la pass ne poussent rien sur la base.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { test } from "node:test";
 import { principal as montrerPass } from "../../src/montrer-pass.ts";
 import { chef } from "../aides/cuisine.ts";
-import { appeler, BASE, git, jusqua } from "../outils.ts";
+import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
 
 // Le numéro de la première PR du GitHub de test : c'est sous lui que la pass
@@ -173,25 +174,48 @@ test("un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : 
   assert.deepEqual(gh.merges, []);
 });
 
+// La PR qu'une passe a livrée — une branche qui retire M1, poussée sur l'origine, et sa PR ouverte —, remise
+// à la pass comme la fin de la passe la lui remet. Le closer qui la livre est joué par le premier test de ce
+// fichier : rejoué ici, il portait le test à 2 s sous la charge des gates.
+async function remettre({ clone, gh, runtime }: ReturnType<typeof cuisineFermee>) {
+  const run = "fermeture-0a1b2c3d";
+  const branche = `cook/${run}`;
+  const outils = "export function vivant() { return 1; }\n";
+  const flux = `commit refs/heads/${branche}\ncommitter closer <closer@brigade.test> 1760000000 +0000\ndata 22\nla passe de fermeture\nfrom refs/remotes/origin/${BASE}^0\nM 100644 inline src/libre/outils.ts\ndata ${outils.length}\n${outils}\n`;
+  execFileSync("git", ["fast-import", "--quiet"], { cwd: clone, env: ENV_GIT, input: flux, stdio: ["pipe", "ignore", "pipe"] });
+  git(clone, "push", "-q", "origin", `refs/heads/${branche}:refs/heads/${branche}`);
+  const pr = await gh.github.ouvrirPR({ branche, base: BASE, titre: `Fermeture — passe ${run}`, corps: "Retiré : M1." });
+  assert.equal(pr, URL);
+  runtime.prendreHorsRail({ run, branche, pr, numero: PR });
+}
+
 test("des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef", async (t) => {
   const cuisine = cuisineFermee(t);
-  const { repertoire, gh, types, gates, relectures } = cuisine;
+  const { repertoire, gh, journal, types, gates, relectures } = cuisine;
   chef(repertoire, "grant.activated");
   gates.regler("rouge");
 
-  const { histoire, dernier, commentaires } = await livrer(cuisine);
+  await remettre(cuisine);
   await jusqua(() => types(PR).includes("pass.escalated"));
 
   // Rouges une fois fusionnée : la base, rejouée seule, est verte — ce rouge
   // est celui de la passe.
-  assert.deepEqual(histoire(), ["pass.entered", "gates.ran", "pass.judged", "pass.escalated"]);
-  const jugement = dernier("pass.judged");
+  assert.deepEqual(
+    types(PR).filter((type) => type !== "pass.started"),
+    ["pass.entered", "gates.ran", "pass.judged", "pass.escalated"],
+  );
+  const jugement = journal.duTicket(PR).findLast((e) => e.type === "pass.judged")?.payload as Record<string, unknown> | undefined;
   assert.equal(jugement?.verdict, "red");
   assert.equal((jugement?.gates as { outcome: string }).outcome, "red");
   assert.equal((jugement?.review as { outcome: string }).outcome, "skipped");
   assert.deepEqual(gates.appels(), [join(repertoire, "worktrees", ".essais", `jugement-${PR}`), join(repertoire, "worktrees", ".essais", "base")]);
   assert.deepEqual(relectures(), []);
   assert.deepEqual(gh.merges, []);
+  const commentaires = () =>
+    gh.commentaires
+      .filter(([numero]) => numero === PR)
+      .map(([, corps]) => corps)
+      .join("\n\n");
   await jusqua(() => /remontée au chef/.test(commentaires()));
   assert.match(commentaires(), /Gates rouges sur la fusion de `[0-9a-f]{7}` avec `v2`/);
 });

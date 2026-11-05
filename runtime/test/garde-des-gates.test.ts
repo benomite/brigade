@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { aArreter, ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
@@ -33,13 +33,19 @@ function jouer(racine: string, env: Record<string, string>): Promise<{ code: num
   });
 }
 
+const FAUX_NPM = join(import.meta.dirname, "aides/faux-npm");
+// La suite jouée par la doublure de `npm`, qui la lance sans démarrer Node : sous la charge des gates, le
+// démarrage de npm portait ces tests au-delà de 2 s. La garde voit le même groupe de process.
+const sansNpm = (suite: string) => ({ PATH: `${FAUX_NPM}${delimiter}${ENV_ENFANT.PATH}`, FAUX_NPM_TEST: suite });
+
 const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {2})(tests du runtime|délai des tests)/.test(ligne));
 
 describe("la garde d'horloge des gates", () => {
   test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 1 s clock guard, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
     // Sur une machine chargée, la suite peut mettre plus que le délai à démarrer : le témoin
     // (`BRIGADE_GATES_GARDE_APRES`) ne fait courir la garde qu'une fois le fichier figé.
-    const racine = projet(t, `node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
+    const suite = `node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`;
+    const racine = projet(t, suite);
     const temoin = join(racine, "pid-du-fichier");
     // Si la garde manque son process, il ne doit pas survivre au test.
     aArreter(t, () => {
@@ -52,7 +58,7 @@ describe("la garde d'horloge des gates", () => {
 
     // Le délai ne court qu'une fois le fichier d'essai figé, témoin posé : c'est
     // lui qui doit être trouvé mort, aussi tard qu'il démarre.
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { ...sansNpm(suite), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     // Aucun test en échec avant la coupure : c'est la ligne que le runtime
     // reconnaît pour rejouer ces gates plus tard, sur une machine saturée.
@@ -65,12 +71,10 @@ describe("la garde d'horloge des gates", () => {
     assert.equal(readdirSync(join(racine, ".brigade-state/gates")).length, 1);
   });
 
-  test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays the real gates.sh on a suite that runs a failing test file then a frozen one, and expects the guard's cut line saying tests failed before the cut; on Windows npm runs that suite through cmd.exe, where `;` does not chain two commands, so the two files do not run one after the other") }, async (t) => {
-    // Le fichier en échec rend son verdict avant que l'autre ne se fige.
-    const racine = projet(
-      t,
-      `node --test --test-force-exit ${JSON.stringify(TEST_EN_ECHEC)}; node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`,
-    );
+  test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays the real gates.sh on a suite that runs a failing test file then a frozen one, and expects the guard's cut line saying tests failed before the cut; the suite runs through the shell double of npm, and Git Bash's kill of the suite's process group cannot reach the native Windows node.exe of the frozen file, which outlives the guard") }, async (t) => {
+    // Un seul lanceur, un fichier après l'autre : le fichier en échec rend son verdict avant que l'autre ne se fige.
+    const suite = `node --test --test-concurrency=1 --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_EN_ECHEC)} ${JSON.stringify(TEST_FIGE)}`;
+    const racine = projet(t, suite);
     const temoin = join(racine, "pid-du-fichier");
     aArreter(t, () => {
       try {
@@ -80,7 +84,7 @@ describe("la garde d'horloge des gates", () => {
       }
     });
 
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { ...sansNpm(suite), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     assert.deepEqual(
       desTests(lignes),

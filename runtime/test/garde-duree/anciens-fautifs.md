@@ -750,7 +750,7 @@ Kept in place, unchanged: these tests were over 2 s because `{ concurrency: 8 }`
 - `test/closing/observer.test.ts` « `run closing` joue l'observation dans son propre process »
 - `test/closing/pass.test.ts` « sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte, le dit sur la PR, et voit le merge que le chef fait à la main »
 - `test/closing/pass.test.ts` « un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : rien n'est mergé, aucun cook ni closer n'est renvoyé, elle remonte au chef »
-- `test/closing/pass.test.ts` « des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef »
+- `test/closing/pass.test.ts` « des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef » — then rewritten in place, same title, after it took 2.01 s under the gates at load 4: the closing pass's PR is pushed and handed to the pass as the pass's end hands it (`prendreHorsRail`), without replaying the closer that the file's first test plays (0.18 s alone, was 0.4 s)
 - `test/closing/report.test.ts` « un seul garde-fou qui cède suffit, une mesure qui monte ou ne bouge pas tient, et des gates rouges sont l'échec du produit »
 - `test/closing/report.test.ts` « un garde-fou que rien n'a mesuré n'est jamais dit tenu : le bilan dit ce qui manque — la PR pas encore jugée, des gates qui ne déclarent pas la mesure, une base que la pass n'a jamais jugée seule »
 - `test/closing/request.test.ts` « une demande qui attend se lit dans la file : depuis quand, et ce qui la retient — combien de cooks en vol, pour quel seuil ; elle en sort en partant »
@@ -1528,7 +1528,7 @@ Rewritten in place: 5.3 s → 0.34 s.
 Kept in place: measured at 0.9 s at most in the full suite on the box at load 5 to 8, or rewritten earlier in this branch (0.4 to 0.8 s alone).
 
 - `test/appairage/rail-du-projet.test.ts` « sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box »
-- `test/closing/report.test.ts` « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non » — kept (0.73 s in the full suite at load 6), then split in two in this file, one closing kitchen each, after it took 2.8 s under the gates at load 8: « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle a livré » and « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle n'a rien retiré »
+- `test/closing/report.test.ts` « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non » — kept (0.73 s in the full suite at load 6), then split in two in this file, one closing kitchen each, after it took 2.8 s under the gates at load 8: « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle a livré » and « une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle n'a rien retiré »; « … — elle a livré » then rewritten in place on the log alone (`direBilan`), after it took 2.01 s under the gates at load 4 — the slope read from a real history stays held by the file's first test (0.03 s alone, was 0.35 s)
 - `test/closing/run.test.ts` « un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part »
 - `test/commandes.test.ts` « taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé »
 - `test/commandes.test.ts` « un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris »
@@ -1615,8 +1615,8 @@ verrou-des-gates.test.ts 2.6 s → 1.04 s; garde-des-gates.test.ts's two tests t
 
 - `test/duree-des-gates.test.ts` « le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage »
 - `test/duree-des-gates.test.ts` « les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond »
-- `test/garde-des-gates.test.ts` « un test en échec avant la coupure garde la ligne d'un rouge »
-- `test/garde-des-gates.test.ts` « une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué »
+- `test/garde-des-gates.test.ts` « un test en échec avant la coupure garde la ligne d'un rouge » — then its suite is played by the npm double `test/aides/faux-npm`, after « un test en échec avant la coupure » took 2.11 s under the gates at load 5, and its two test files run in one runner, one after the other (1.35 to 1.45 s alone, the 1 s guard included)
+- `test/garde-des-gates.test.ts` « une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué » — then its suite is played by the npm double `test/aides/faux-npm`, after « un test en échec avant la coupure » took 2.11 s under the gates at load 5 (1.35 to 1.45 s alone, the 1 s guard included)
 - `test/verrou-des-gates.test.ts` « le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu »
 
 ## `cf86dfc` — the idle cook speaks once launched, and its idle guard comes down from 1.5 s to 0.7 s (1)

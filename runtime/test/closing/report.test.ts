@@ -214,20 +214,53 @@ describe("le bilan d'une passe de fermeture", () => {
     ]);
   });
 
-  // Chacune sur sa cuisine : jouées dans un seul test, les deux passes tenaient près de 3 s sous charge.
-  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle a livré", async (t) => {
+  // Sur le journal seul : la pente d'un vrai historique est lue par le premier test de ce fichier, et cette
+  // passe-ci, jouée sur sa cuisine, tenait 2 s sous la charge des gates.
+  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle a livré", (t) => {
+    const journal = ouvrirJournal(repertoireTemporaire(t));
+    t.after(() => journal.fermer());
     // Un merge de deux mille lignes ajoutées pour mille retirées : une ligne de
     // moins n'y change rien qui se lise.
-    const lourde = cuisineFermee(t, { histoire: [{ commit: { "stock.txt": lignes(1100) } }, { merge: { "plats/1.txt": lignes(2000), "stock.txt": lignes(100) } }] });
-    assert.equal((await livrer(lourde)).outcome, "delivered");
-    await jusqua(() => lourde.types(PR).includes("pass.held"));
-    const [, tete, pr, ...suite] = await lire(lourde);
+    const fin: Extract<FaitFermeture, { type: "closing.ended" }>["payload"] = {
+      run: "fermeture-0a1b2c3d",
+      outcome: "delivered",
+      branch: "cook/fermeture-0a1b2c3d",
+      pr: `https://github.com/acme/brigade/pull/${PR}`,
+      sha: "c0ffee1",
+      removedLines: 1,
+      addedLines: 0,
+      files: ["src/libre/outils.ts"],
+      removed: [{ id: "M1", what: "export `inutile` of `src/libre/outils.ts:2` — referenced nowhere" }],
+      kept: [],
+      slope: [20, 50, 100].map((window) => ({ window, merges: 1, added: 2000, removed: 1000 })),
+    };
+    const ecrire = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: PR, author: "pass", ...fait });
+    // Jugée verte par la pass, et tenue sans le grant `merge` : pas mergée.
+    ecrire({ type: "pass.entered", payload: { run: fin.run, branch: fin.branch ?? "", pr: fin.pr ?? "", number: PR } });
+    ecrire({
+      type: "pass.judged",
+      payload: {
+        run: "r",
+        pr: fin.pr ?? "",
+        number: PR,
+        sha: "c0ffee1",
+        base: "ba5e001",
+        merged: "arbre-de-la-fusion",
+        verdict: "green",
+        gates: gates("green"),
+        ci: { outcome: "none", checks: [] },
+        review: { outcome: "green", run: null, summary: null, findings: [] },
+        findings: [],
+        judgeModified: false,
+        noDiff: false,
+      },
+    });
+    const [tete, pr, ...suite] = direBilan(journal, fin, (commit) => `arbre-de-${commit}`);
     assert.match(tete ?? "", / · the slope did not move \(2:1 over 20 merges\): the pass was of no use$/);
     assert.equal(pr, "           PR #101 — judged green by the pass, not merged: the base's slope only moves at its merge");
     assert.ok(suite.includes("slope      added / removed over the same merges: before the pass → with what it removes, once its PR is merged"), suite.join("\n"));
     const fr = (valeur: number) => valeur.toLocaleString("en-US");
     assert.ok(suite.includes(`           20 merges   +${fr(2000)} / −${fr(1000)}  2:1  →  +${fr(2000)} / −${fr(1001)}  2:1  did not move — only 1 merge on the branch`), suite.join("\n"));
-
   });
 
   test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — elle n'a rien retiré", async (t) => {
