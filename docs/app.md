@@ -1739,6 +1739,12 @@ the final duration the station froze (« First ticket served 2 h 34 min after th
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
 Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
 
+**Slowest part** (#2351, epic #2337): one line under the first-ticket line, the sentence `nommerLePlusLent` returns
+for the project (« CI: 7 min median », « a cook spends 70 % of its time in tests »), with its figures on hover. The
+view reads it from `lenteur` of the project's view; **the field is not yet carried by `ProjetVu`**
+(`app/src/projets/projets.ts`) — until the station publishes it and the app relays it, no line shows. No sentence, no
+line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
+
 **Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project: the median total of the last 10
 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
 waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
