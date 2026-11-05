@@ -1630,7 +1630,10 @@ the list of stations** (#1778), read each time the home opens — **one row per 
 - **A machine that is only registered** has its row from its registration, in the order of the names: `online` or
   `offline` (the contract's freshness rule: a clean stop, or no sign of life for 4 min 30 s), then the projects it
   serves — `no project chosen yet`, `no project`, or the repositories themselves. Its platform, machine, version and
-  last sign of life are on hover. Dot green and full when online, grey ring when not.
+  last sign of life are on hover. Dot green and full when online, grey ring when not. **A station GitHub's limit
+  holds** (#2443; its registration says so, `heldBy`) reads `held by GitHub's limit until 14:37` (the chef's local
+  time) in place of `online`, a yellow full dot, never `offline`: it keeps its projects, here, on its page and on
+  each project's Cooks tab (`reached` gives way to the same words), while its sign of life waits for the limit to lift.
 - **Every row does the same thing: a click anywhere on it (or Enter on the focused row) opens the station's page**
   (#1779) — paired or only registered, online or not, with the same `›` arrow, hover and focus. No row expands a block
   in place. The page of a registered station carries "Projects it serves": **your projects only** (#1780), one
@@ -1656,7 +1659,8 @@ the list of stations** (#1778), read each time the home opens — **one row per 
   station — the station that serves it stays the main one, and nothing says the kitchen runs on this computer.
   Refused, the box says "refused" and the runtime's sentence is under the boxes, whole; the project's page keeps its
   stations, with "<station> was not added: <sentence>" under its first line.
-- **An offline station stays editable**: one line says it serves these projects once it is back.
+- **An offline station stays editable**: one line says it serves these projects once it is back. A held one too:
+  its line says it reads these choices once GitHub's limit lifts, and keeps serving its projects.
 - Under the list, with no heading, only what the reading of the account has to add. **No station at all**, neither
   paired nor registered: the sentence to install one on the machine that will cook, and the installation command of
   each system (`docs/installation-station.md`), each with "copy", and "read again". **This computer signed in to no

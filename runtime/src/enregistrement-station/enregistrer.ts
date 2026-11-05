@@ -13,13 +13,25 @@
 // Ce qu'elle garde d'une fois sur l'autre — son gist, l'heure de son premier
 // enregistrement — est dans `<BRIGADE_STATION_DIR>/enregistrement.json`. Un
 // gist supprimé sur GitHub, elle en crée un autre à l'écriture suivante.
+//
+// Quand la limite de GitHub arrête ses appels, son signe de vie se fige : l'app
+// la dirait tue, et ses projets sans station (#2443). Dès que la pause commence,
+// elle écrit donc une fois son enregistrement hors de la pause, avec la limite
+// et sa fin (`heldBy`) ; l'écriture suivante, la limite levée, l'efface.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Canal } from "../appairage/canal.ts";
-import { LimiteGitHubAtteinte } from "../limite-github.ts";
-import { description, FICHIER_ENREGISTREMENT, FORMAT, NOUVEL_ESSAI_MS, plateformeDe, RAFRAICHI_MS, type Enregistrement } from "./contrat.ts";
+import { sorteDeLaLimite } from "../github-limite.ts";
+import { LimiteGitHubAtteinte, surLaPauseDeGitHub, type PauseDeGitHub } from "../limite-github.ts";
+import { description, FICHIER_ENREGISTREMENT, FORMAT, NOUVEL_ESSAI_MS, plateformeDe, RAFRAICHI_MS, type Enregistrement, type RetenueParGitHub } from "./contrat.ts";
 
 export const FICHIER_LOCAL = "enregistrement.json";
+
+// Les essais de l'écriture qui dit la limite : GitHub, qui vient de la dire,
+// peut la refuser elle aussi. Elle se retente chaque minute (`NOUVEL_ESSAI_MS`),
+// hors de la pause, trois fois au plus — toutes avant que l'app ne dise la
+// station tue (2 × `RAFRAICHI_MS` + 30 s après son dernier signe de vie).
+export const ESSAIS_DE_LA_RETENUE = 3;
 
 export type OptionsEnregistrement = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`).
@@ -35,6 +47,9 @@ export type OptionsEnregistrement = {
   // y mettent une horloge simulée.
   apres?: (tache: () => void, ms: number) => () => void;
   maintenant?: () => number;
+  // Qui lui dit qu'une pause de GitHub commence ; par défaut, le compteur du
+  // process (`surLaPauseDeGitHub`). Rend de quoi ne plus l'écouter.
+  pauses?: (ecouteur: (pause: PauseDeGitHub) => void) => () => void;
 };
 
 export type TenueEnregistrement = {
@@ -77,6 +92,10 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
   let panne: string | null = null;
   let arretee = false;
   let prochain: (() => void) | null = null;
+  // La limite qui la retient, tant que son enregistrement doit la dire.
+  let retenue: RetenueParGitHub | null = null;
+  // Les essais qui restent à l'écriture qui la dit.
+  let essaisDeLaRetenue = 0;
 
   const sauver = () => writeFileSync(fichier, `${JSON.stringify(etat, null, 2)}\n`);
 
@@ -93,6 +112,7 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
       lastSeen: le,
       refreshMs: RAFRAICHI_MS,
       stoppedAt: arret ? le : null,
+      ...(arret || retenue === null ? {} : { heldBy: retenue }),
     };
   };
   const fichiers = (doc: Enregistrement) => ({ [FICHIER_ENREGISTREMENT]: `${JSON.stringify(doc, null, 2)}\n` });
@@ -105,14 +125,17 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
     dire(`brigade : station enregistrée sous le compte GitHub de sa machine — l'app connectée au même compte la voit (gist ${gist})`);
   };
 
-  // Rend le délai avant l'écriture suivante.
-  const ecrire = async (arret: boolean): Promise<number> => {
+  // Rend le délai avant l'écriture suivante. `horsPause` : celle qui dit la
+  // limite, que la pause de la box ne retient pas.
+  const ecrire = async (arret: boolean, horsPause: boolean): Promise<number> => {
     const instant = maintenant();
+    // La limite levée, l'écriture qui part le dit en n'en disant plus rien.
+    if (retenue !== null && instant >= Date.parse(retenue.until)) retenue = null;
     if (etat.gist === null) {
       // Arrêtée avant d'avoir jamais été enregistrée : rien à dire.
       if (arret) return RAFRAICHI_MS;
       await creer(instant);
-    } else if ((await canal.ecrire(etat.gist, fichiers(document(instant, arret)))) === "absent") {
+    } else if ((await canal.ecrire(etat.gist, fichiers(document(instant, arret)), horsPause ? { horsPause } : undefined)) === "absent") {
       etat = { ...VIERGE };
       sauver();
       dire("brigade : station — son enregistrement a disparu de GitHub : elle s'enregistre de nouveau");
@@ -121,12 +144,14 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
     }
     if (panne !== null) dire("brigade : station — GitHub répond de nouveau : son enregistrement y est à jour");
     panne = null;
-    return RAFRAICHI_MS;
+    if (horsPause) essaisDeLaRetenue = 0;
+    // La limite dite, rien ne s'écrit plus avant sa fin.
+    return horsPause && retenue !== null ? Math.max(RAFRAICHI_MS, Date.parse(retenue.until) - instant) : RAFRAICHI_MS;
   };
 
-  const essayer = async (arret: boolean): Promise<number> => {
+  const essayer = async (arret: boolean, horsPause = false): Promise<number> => {
     try {
-      return await ecrire(arret);
+      return await ecrire(arret, horsPause);
     } catch (erreur) {
       const dit = message(erreur);
       if (dit !== panne) {
@@ -139,25 +164,43 @@ export function tenirEnregistrement(options: OptionsEnregistrement): TenueEnregi
         );
       }
       panne = dit;
+      if (horsPause) essaisDeLaRetenue -= 1;
       return erreur instanceof LimiteGitHubAtteinte ? Math.max(NOUVEL_ESSAI_MS, erreur.jusqua - maintenant()) : NOUVEL_ESSAI_MS;
     }
   };
 
   let fil: Promise<void> = Promise.resolve();
-  const enchainer = (arret: boolean) => {
+  const enchainer = (arret: boolean, horsPause = false) => {
     fil = fil.then(async () => {
-      const delai = await essayer(arret);
-      if (!arretee) prochain = apres(() => void enchainer(false), delai);
+      const delai = await essayer(arret, horsPause);
+      // Refusée, celle qui dit la limite se retente, hors de la pause, tant qu'il lui reste un essai.
+      const redire = horsPause && retenue !== null && essaisDeLaRetenue > 0;
+      // Une seule écriture à venir, même quand celle de la pause a croisé une écriture en vol.
+      prochain?.();
+      prochain = arretee ? null : redire ? apres(() => void enchainer(false, true), NOUVEL_ESSAI_MS) : apres(() => void enchainer(false), delai);
     });
     return fil;
   };
   void enchainer(false);
+
+  // Une pause commence : la limite s'écrit tout de suite, hors de la pause, et
+  // l'écriture d'après attend sa fin. Pas encore de gist : rien à y dire.
+  const neplusEcouter = (options.pauses ?? surLaPauseDeGitHub)(({ depuis, jusqua, reponse }) => {
+    if (arretee) return;
+    retenue = { limit: sorteDeLaLimite(reponse), since: new Date(depuis).toISOString(), until: new Date(jusqua).toISOString() };
+    if (etat.gist === null) return;
+    essaisDeLaRetenue = ESSAIS_DE_LA_RETENUE;
+    prochain?.();
+    prochain = null;
+    void enchainer(false, true);
+  });
 
   return {
     gist: () => etat.gist,
     arreter() {
       if (arretee) return fil;
       arretee = true;
+      neplusEcouter();
       prochain?.();
       prochain = null;
       return enchainer(true);

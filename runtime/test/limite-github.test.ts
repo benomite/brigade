@@ -13,6 +13,7 @@ import { test, type TestContext } from "node:test";
 import { canalGitHub } from "../src/appairage/canal.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import {
+  AppelEspace,
   appelerGitHub,
   CuisineRalentie,
   ECRITURES_PAR_HEURE,
@@ -24,6 +25,9 @@ import {
   LimiteGitHubAtteinte,
   limiteDeLaStation,
   ouvrirLimite,
+  POINTS_PAR_ECRITURE,
+  POINTS_PAR_LECTURE,
+  POINTS_PAR_MINUTE,
   prendreUnAppel,
   quotaDesEntetes,
   RAFRAICHIR_MS,
@@ -51,7 +55,9 @@ function uneHorloge() {
 }
 
 // Tente un appel de la cuisine : vrai s'il est compté, faux si la box le retient.
-function tenter(limite: Limite): boolean {
+// `horloge` : avancée d'abord de 200 ms, sous le débit de la cuisine (#2443).
+function tenter(limite: Limite, horloge?: { avancer: (ms: number) => void }): boolean {
+  horloge?.avancer(200);
   try {
     limite.prendre();
     return true;
@@ -128,9 +134,9 @@ test("sans quota dit par GitHub, ou avec un quota large, aucun compte de la box 
     const horloge = uneHorloge();
     const limite = ouvrirLimite({ fichier, maintenant: horloge.maintenant });
     aArreter(t, () => limite.fermer());
-    for (let i = 0; i < 3000; i++) assert.equal(tenter(limite), true, `appel ${i + 1}, sans quota dit`);
+    for (let i = 0; i < 3000; i++) assert.equal(tenter(limite, horloge), true, `appel ${i + 1}, sans quota dit`);
     limite.noter("gh", { restant: 3600, plafond: 5000, reset: DEPART + 40 * MINUTE });
-    for (let i = 0; i < 500; i++) assert.equal(tenter(limite), true, `appel ${i + 1}, 3 600 restants sur 5 000`);
+    for (let i = 0; i < 500; i++) assert.equal(tenter(limite, horloge), true, `appel ${i + 1}, 3 600 restants sur 5 000`);
     assert.equal(limite.appels(), 3500);
   }
 });
@@ -146,7 +152,7 @@ test("au-dessus de la réserve des gestes rien ne retient la cuisine ; à la ré
     horloge.avancer(10 * MINUTE);
     limite.noter("gh", { restant, plafond: 5000, reset: horloge.maintenant() + 30 * MINUTE });
     let partis = 0;
-    while (partis < 1000 && tenter(limite)) partis++;
+    while (partis < 1000 && tenter(limite, horloge)) partis++;
     assert.equal(partis, 1000, `${restant} restants sur 5 000`);
   }
 
@@ -621,5 +627,59 @@ test("writes from three projects that saturate the pacer leave in strict arrival
     if (partie < 9) horloge += (reveils[0] as { ms: number }).ms;
   }
   await Promise.all(ecritures);
+  limite.fermer();
+});
+
+// Le débit de la cuisine (#2443) : GitHub plafonne aussi les points d'un compte
+// par minute — une lecture 1, une écriture 5, 304 compris. Quatre projets qui
+// tirent ensemble, comme au sortir d'une pause, restent dessous, et tous passent.
+test("the kitchen's requests are paced in points per minute account-wide: four projects bursting together after a window never pass POINTS_PAR_MINUTE in any sliding minute, reads and 304s included, and all get through", async () => {
+  let horloge = 7_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  const parties: Array<{ projet: string; instant: number; points: number }> = [];
+  const attendre = async (ms: number) => {
+    horloge += ms;
+  };
+  const tours = ["brigade", "parade", "site", "notes"].map(async (projet) => {
+    // Chaque tour : 150 lectures conditionnelles, que GitHub dit inchangées (304), et 10 écritures.
+    for (let i = 0; i < 160; i += 1) {
+      const ecriture = i % 16 === 15;
+      const appel = await prendreUnAppel(limite, { etiquette: { projet, lecture: "issues", ecriture }, gh: "gh", maintenant: () => horloge, attendre });
+      if (!ecriture) limite.rendre(appel);
+      parties.push({ projet, instant: horloge, points: ecriture ? POINTS_PAR_ECRITURE : POINTS_PAR_LECTURE });
+    }
+  });
+  await Promise.all(tours);
+  assert.equal(parties.length, 640);
+  for (const { instant: debut } of parties) {
+    const points = parties.filter(({ instant }) => instant >= debut && instant < debut + MINUTE).reduce((somme, { points: p }) => somme + p, 0);
+    assert.ok(points <= POINTS_PAR_MINUTE, `${points} points in the minute from ${debut}`);
+  }
+  assert.ok(horloge >= 7_000_000 + MINUTE, "the burst was spread over a minute at least");
+  // Les 304 sont sortis du compte du quota horaire : le débit, lui, les a comptés.
+  assert.equal(limite.appels(), 40);
+  limite.fermer();
+});
+
+test("a chef's gesture is never paced, and takes nothing from the kitchen's points; a read held by the pace keeps every later call of its account behind it", async () => {
+  let horloge = 8_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  for (let i = 0; i < POINTS_PAR_MINUTE; i += 1) limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues" });
+  assert.throws(() => limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues" }), (erreur: unknown) => erreur instanceof AppelEspace && erreur.jusqua === 8_000_000 + MINUTE && erreur.points === POINTS_PAR_MINUTE);
+  for (let i = 0; i < 100; i += 1) limite.prendre("geste", "gh", { projet: "a", lecture: "gesture", ecriture: true });
+  // Un autre compte a son propre débit.
+  limite.prendre("cuisine", "app-pass", { projet: "a", lecture: "issues" });
+  const reveils: Array<() => void> = [];
+  const attendre = (ms: number) => new Promise<void>((sonner) => reveils.push(() => ((horloge += ms), sonner())));
+  const parties: string[] = [];
+  const appels = ["lecture", "écriture", "lecture"].map((sorte, i) =>
+    prendreUnAppel(limite, { gh: "gh", etiquette: { projet: "b", lecture: "issues", ecriture: sorte === "écriture" }, maintenant: () => horloge, attendre }).then(() => parties.push(`${sorte}${i}`)),
+  );
+  await laisserPasser();
+  assert.deepEqual(parties, []);
+  assert.equal(reveils.length, 1, "a single wake-up, the pace's");
+  reveils.shift()?.();
+  await Promise.all(appels);
+  assert.deepEqual(parties, ["lecture0", "écriture1", "lecture2"]);
   limite.fermer();
 });

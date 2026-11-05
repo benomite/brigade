@@ -34,8 +34,20 @@ test("la catégorie et le ticket d'un appel se lisent dans son chemin", () => {
   });
 });
 
-const appeler = (limite: Limite, etiquette: Etiquette, n: number, usage: "cuisine" | "geste" = "cuisine") => {
-  for (let i = 0; i < n; i++) limite.prendre(usage, undefined, etiquette);
+const appeler = (limite: Limite, etiquette: Etiquette, n: number, usage: "cuisine" | "geste" = "cuisine", avancer = () => {}) => {
+  for (let i = 0; i < n; i++) {
+    avancer();
+    limite.prendre(usage, undefined, etiquette);
+  }
+};
+
+// Une horloge qui avance d'un pas avant chaque appel : la cuisine ne prend que
+// 450 points par minute (#2443), et un budget de 600 lectures à l'heure ne se
+// passe pas au même instant. 200 ms le pas, 300 lectures la minute.
+const PAS_MS = 200;
+const horloge = (depart: number) => {
+  const h = { instant: depart, maintenant: () => h.instant, avancer: () => void (h.instant += PAS_MS) };
+  return h;
 };
 
 test("des appels de deux projets dans plusieurs catégories : le registre donne les totaux exacts par projet, par type et par catégorie, dans la forme du contrat", () => {
@@ -83,22 +95,22 @@ test("des appels de deux projets dans plusieurs catégories : le registre donne 
 test("un projet qui passe son budget de lectures donne une seule alerte dans l'heure, qui le nomme et liste ses catégories de la plus utilisée à la moins utilisée ; un autre process ne la redit pas", (t) => {
   const station = repertoireTemporaire(t);
   const alertes: AlerteDeBudget[] = [];
-  const instant = HEURE + 10 * 60_000;
-  const limite = limiteDeLaStation(station, { maintenant: () => instant, alerter: (a) => alertes.push(a) });
-  const autre = limiteDeLaStation(station, { maintenant: () => instant, alerter: (a) => alertes.push(a) });
+  const { maintenant, avancer } = horloge(HEURE + 10 * 60_000);
+  const limite = limiteDeLaStation(station, { maintenant, alerter: (a) => alertes.push(a) });
+  const autre = limiteDeLaStation(station, { maintenant, alerter: (a) => alertes.push(a) });
   aArreter(t, () => {
     limite.fermer();
     autre.fermer();
   });
-  appeler(limite, etiquetteDe(["repos/o/beta/issues"], { projet: "beta" }), 10);
-  appeler(limite, etiquetteDe(["repos/o/alpha/commits/abc/check-runs"], { projet: "alpha" }), 100);
-  appeler(limite, etiquetteDe(["repos/o/alpha/issues?state=open"], { projet: "alpha" }), 300);
-  appeler(limite, { projet: "alpha", lecture: "board" }, 20);
-  appeler(limite, etiquetteDe(["repos/o/alpha/pulls/3"], { projet: "alpha" }), 180);
+  appeler(limite, etiquetteDe(["repos/o/beta/issues"], { projet: "beta" }), 10, "cuisine", avancer);
+  appeler(limite, etiquetteDe(["repos/o/alpha/commits/abc/check-runs"], { projet: "alpha" }), 100, "cuisine", avancer);
+  appeler(limite, etiquetteDe(["repos/o/alpha/issues?state=open"], { projet: "alpha" }), 300, "cuisine", avancer);
+  appeler(limite, { projet: "alpha", lecture: "board" }, 20, "cuisine", avancer);
+  appeler(limite, etiquetteDe(["repos/o/alpha/pulls/3"], { projet: "alpha" }), 180, "cuisine", avancer);
   assert.equal(limite.budget().projects.alpha?.reads.total, BUDGET_PAR_HEURE);
   assert.deepEqual(alertes, [], "à 600 lectures, le budget est tenu, pas passé");
 
-  appeler(limite, etiquetteDe(["repos/o/alpha/pulls/3"], { projet: "alpha" }), 1);
+  appeler(limite, etiquetteDe(["repos/o/alpha/pulls/3"], { projet: "alpha" }), 1, "cuisine", avancer);
   assert.deepEqual(alertes, [
     {
       projet: "alpha",
@@ -116,8 +128,8 @@ test("un projet qui passe son budget de lectures donne une seule alerte dans l'h
   assert.equal(limite.budget().projects.beta?.overBudget, false);
 
   // Un second dépassement dans la même heure, d'ici ou d'un autre process : rien de plus.
-  appeler(limite, etiquetteDe(["repos/o/alpha/issues"], { projet: "alpha" }), 5);
-  appeler(autre, etiquetteDe(["repos/o/alpha/issues"], { projet: "alpha" }), 5);
+  appeler(limite, etiquetteDe(["repos/o/alpha/issues"], { projet: "alpha" }), 5, "cuisine", avancer);
+  appeler(autre, etiquetteDe(["repos/o/alpha/issues"], { projet: "alpha" }), 5, "cuisine", avancer);
   appeler(autre, etiquetteDe(["-X", "PUT", "repos/o/alpha/pulls/3/merge"], { projet: "alpha", usage: "geste" }), BUDGET_PAR_HEURE + 1, "geste");
   assert.equal(alertes.length, 1);
 });
@@ -139,20 +151,21 @@ test("le budget des écritures se tient à part de celui des lectures : le passe
 });
 
 test("à l'heure pleine, les compteurs repartent de zéro, et un nouveau dépassement donne une nouvelle alerte", () => {
-  let instant = HEURE + 59 * 60_000;
+  const h = horloge(HEURE + 55 * 60_000);
   const alertes: AlerteDeBudget[] = [];
-  const limite = ouvrirLimite({ maintenant: () => instant, alerter: (a) => alertes.push(a) });
-  appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), BUDGET_PAR_HEURE + 1);
+  const limite = ouvrirLimite({ maintenant: h.maintenant, alerter: (a) => alertes.push(a) });
+  appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), BUDGET_PAR_HEURE + 1, "cuisine", h.avancer);
+  assert.ok(h.instant < HEURE + 60 * 60_000, "ses 601 lectures tiennent dans l'heure");
   assert.equal(alertes.length, 1);
   assert.equal(limite.budget().perTicket["9"], BUDGET_PAR_HEURE + 1);
 
-  instant = HEURE + 60 * 60_000;
+  h.instant = HEURE + 60 * 60_000;
   assert.deepEqual(limite.budget(), { windowStart: "2026-11-03T11:00:00.000Z", projects: {}, perTicket: {} });
-  appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), 2);
+  appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), 2, "cuisine", h.avancer);
   assert.equal(limite.budget().projects.alpha?.reads.total, 2);
   assert.equal(alertes.length, 1);
 
-  appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), BUDGET_PAR_HEURE);
+  appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), BUDGET_PAR_HEURE, "cuisine", h.avancer);
   assert.deepEqual(
     alertes.map((a) => a.windowStart),
     ["2026-11-03T10:00:00.000Z", "2026-11-03T11:00:00.000Z"],
@@ -164,12 +177,13 @@ test("`status` dit, pour chaque projet, ses lectures et ses écritures de l'heur
   const repertoire = repertoireTemporaire(t);
   const station = repertoireTemporaire(t);
   ouvrirJournal(repertoire).fermer();
-  const instant = HEURE + 20 * 60_000;
-  const limite = limiteDeLaStation(station, { maintenant: () => instant, alerter: () => {} });
+  const h = horloge(HEURE + 20 * 60_000);
+  const limite = limiteDeLaStation(station, { maintenant: h.maintenant, alerter: () => {} });
   aArreter(t, () => limite.fermer());
   appeler(limite, etiquetteDe(["repos/o/alpha/issues"], { projet: "alpha" }), 12);
   appeler(limite, etiquetteDe(["-X", "POST", "repos/o/alpha/issues/3/comments", "-f", "body=x"], { projet: "alpha" }), 3);
-  appeler(limite, etiquetteDe(["repos/o/beta/pulls/1"], { projet: "beta" }), BUDGET_PAR_HEURE + 1);
+  appeler(limite, etiquetteDe(["repos/o/beta/pulls/1"], { projet: "beta" }), BUDGET_PAR_HEURE + 1, "cuisine", h.avancer);
+  const instant = h.instant;
 
   const lignes = photoDuProjet({ BRIGADE_STATE_DIR: repertoire, BRIGADE_STATION_DIR: station }, { maintenant: new Date(instant) });
   const debut = lignes.findIndex((l) => l.startsWith("gh budget"));

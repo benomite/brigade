@@ -16,7 +16,7 @@
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { echecDeGh, type StationsDuChef } from "../appairage/stations-du-chef.ts";
 import { execFile } from "../sans-invite.ts";
-import { disponible, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, selectionLue, type Plateforme } from "./contrat.ts";
+import { disponible, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, retenueJusqua, selectionLue, type Plateforme, type RetenueParGitHub } from "./contrat.ts";
 
 export type StationEnregistree = {
   // Son gist : ce par quoi l'app la reconnaît, et lui écrit sa sélection.
@@ -28,6 +28,11 @@ export type StationEnregistree = {
   // Le compte sous lequel elle est enregistrée : le propriétaire du gist.
   account: string | null;
   available: boolean;
+  // Jusqu'à quand (ISO) la limite de GitHub la retient : elle est disponible,
+  // ses appels attendent (#2443). Absent hors limite, avec `heldBy`, la limite
+  // telle que son enregistrement la dit.
+  heldUntil?: string;
+  heldBy?: RetenueParGitHub;
   registeredAt: string;
   lastSeen: string;
   stoppedAt: string | null;
@@ -74,6 +79,7 @@ export function stationDuGist(id: string, fichiers: Record<string, string>, prop
   const lu = enregistrementLu(brut);
   if ("illisible" in lu) return lu;
   const selection = fichiers[FICHIER_SELECTION] === undefined ? null : selectionLue(fichiers[FICHIER_SELECTION]);
+  const retenue = retenueJusqua(lu, instant);
   return {
     id,
     name: lu.name,
@@ -82,6 +88,7 @@ export function stationDuGist(id: string, fichiers: Record<string, string>, prop
     version: lu.version,
     account: proprietaire,
     available: disponible(lu, instant),
+    ...(retenue === null || lu.heldBy == null ? {} : { heldUntil: retenue, heldBy: lu.heldBy }),
     registeredAt: lu.registeredAt,
     lastSeen: lu.lastSeen,
     stoppedAt: lu.stoppedAt,

@@ -129,7 +129,9 @@ test("a ticket served end to end, from taken to merged, costs at most 30 counted
 // fait tourner. Rend les appels comptés pendant l'heure, une fois le premier
 // tour fait — celui qui lit tout pour la première fois.
 async function uneHeure(t: TestContext, faux: FauxGitHub, avertis: string[] = []): Promise<{ comptes: Appel[]; tours: number; lus: number; tourSuivant(): Promise<void> }> {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+  // `Date` suit l'horloge : le débit de la cuisine (#2443) compte ses points
+  // par minute sur elle, et une heure de tours ne tient pas en une minute.
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
   const box = station(t, faux, undefined, avertis);
   let tours = 0;
   let fini = () => {};

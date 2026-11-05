@@ -44,7 +44,15 @@ export type Enregistrement = {
   refreshMs: number;
   // L'heure de son arrêt propre, null tant qu'elle tourne.
   stoppedAt: string | null;
+  // La limite de GitHub qui la retient, écrite quand ses appels s'arrêtent
+  // (#2443) : son signe de vie ne bouge plus jusqu'à `until`, et elle n'est pas
+  // tue pour autant. Absent hors limite.
+  heldBy?: RetenueParGitHub | null;
 };
+
+// La limite que GitHub a dite (`github-limite.ts`, `SORTES_DE_LIMITE`), depuis
+// quand, et jusqu'à quand aucun appel de la station ne part (ISO).
+export type RetenueParGitHub = { limit: string; since: string; until: string };
 
 export type Selection = { brigade: "station-selection"; format: number; repositories: string[]; updatedAt: string };
 
@@ -63,7 +71,7 @@ export function enregistrementLu(brut: string): Enregistrement | { illisible: st
     return { illisible: "its registration is not JSON" };
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "station-registration") return { illisible: "its registration is not a brigade station's" };
-  const { format, name, platform, machine, version, registeredAt, lastSeen, refreshMs, stoppedAt } = lu;
+  const { format, name, platform, machine, version, registeredAt, lastSeen, refreshMs, stoppedAt, heldBy } = lu;
   if (typeof format !== "number" || format > FORMAT) return { illisible: `its registration has a format this brigade does not read (${String(format)})` };
   if (!texte(name) || !texte(platform) || !texte(version) || !date(registeredAt) || !date(lastSeen)) return { illisible: "its registration lacks its name, platform, version or last sign of life" };
   if (typeof refreshMs !== "number" || !(refreshMs > 0)) return { illisible: "its registration lacks its refresh period" };
@@ -78,15 +86,36 @@ export function enregistrementLu(brut: string): Enregistrement | { illisible: st
     lastSeen,
     refreshMs,
     stoppedAt: date(stoppedAt) ? stoppedAt : null,
+    ...(retenueLue(heldBy) === null ? {} : { heldBy: retenueLue(heldBy) }),
   };
 }
 
+// La retenue telle que l'enregistrement la porte, ou null si elle ne se lit pas.
+function retenueLue(brut: unknown): RetenueParGitHub | null {
+  if (brut === null || typeof brut !== "object") return null;
+  const { limit, since, until } = brut as Record<string, unknown>;
+  return texte(limit) && date(since) && date(until) ? { limit, since, until } : null;
+}
+
+// Jusqu'à quand (ISO) la limite de GitHub retient la station, à cet instant, ou
+// null : elle ne s'est pas arrêtée depuis, et la fin de la limite n'est pas
+// passée de plus que ce que sa fraîcheur tolère — la limite levée, elle réécrit
+// son enregistrement à son premier appel.
+export function retenueJusqua(enregistrement: Pick<Enregistrement, "lastSeen" | "stoppedAt" | "refreshMs" | "heldBy">, instant: number): string | null {
+  const retenue = enregistrement.heldBy ?? null;
+  if (retenue === null) return null;
+  if (enregistrement.stoppedAt !== null && Date.parse(enregistrement.stoppedAt) >= Date.parse(enregistrement.lastSeen)) return null;
+  return instant - Date.parse(retenue.until) <= indisponibleApres(enregistrement.refreshMs) ? retenue.until : null;
+}
+
 // La règle de fraîcheur : disponible tant qu'elle ne s'est pas arrêtée depuis
-// son dernier signe de vie, et qu'elle n'en a pas manqué deux.
-export function disponible(enregistrement: Pick<Enregistrement, "lastSeen" | "stoppedAt" | "refreshMs">, instant: number): boolean {
+// son dernier signe de vie, et qu'elle n'en a pas manqué deux — ou que la
+// limite de GitHub la retient (`retenueJusqua`) : elle est là, ses appels
+// attendent la fin de la limite (#2443).
+export function disponible(enregistrement: Pick<Enregistrement, "lastSeen" | "stoppedAt" | "refreshMs" | "heldBy">, instant: number): boolean {
   const vue = Date.parse(enregistrement.lastSeen);
   if (enregistrement.stoppedAt !== null && Date.parse(enregistrement.stoppedAt) >= vue) return false;
-  return instant - vue <= indisponibleApres(enregistrement.refreshMs);
+  return instant - vue <= indisponibleApres(enregistrement.refreshMs) || retenueJusqua(enregistrement, instant) !== null;
 }
 
 // La sélection que l'app a écrite, ou null si elle ne se lit pas.
