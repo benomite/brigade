@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { approuvee, corpsDeVerdict, dernierVerdict, fusionnable, fusionner, relire, type CommentaireDeVerdict, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "../../src/github-etat/fusion.ts";
+import { approuvee, ciDeLaTete, corpsDeVerdict, dernierVerdict, fusionnable, fusionner, relire, type CommentaireDeVerdict, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "../../src/github-etat/fusion.ts";
 import type { Merge } from "../../src/github.ts";
+import { CONTEXTE_DES_GATES } from "../../src/github-etat/gates-de-la-tete.ts";
 
 const NUMERO = 77;
 
@@ -241,4 +242,51 @@ test("une PR approuvée ne se merge pas tant que la CI de sa tête n'est pas ver
   assert.equal(pr.appels.some((a) => a.startsWith("merge")), false);
   pr.ci.etat = "green";
   assert.deepEqual(await fusionner(pr.lue(), pr.github), { issue: "mergee" });
+});
+
+// espace, le 2026-11-05 (#2456) : ses PR ne portent plus aucune CI — ses tests
+// tournent sur la box. Ce sont les gates du projet, jouées par une station sur
+// la tête, qui en tiennent lieu ; un projet qui a une CI sur ses PR la garde.
+test("un projet sans CI sur ses PR : la PR approuvée sans aucun check attend ses gates, se merge sur leur statut vert, repart sur un rouge", async () => {
+  const pr = prSurGitHub();
+  await relire(pr.lue(), { github: pr.github, station: "box/claude", ...juge("approve") });
+  let checks: Array<{ name: string; outcome: "green" | "red" | "pending" }> = [];
+  const github: GitHubDeLaFusion = { ...pr.github, ci: async () => checks };
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "gates-a-jouer" });
+  checks = [{ name: CONTEXTE_DES_GATES, outcome: "pending" }];
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "ci-attendue" });
+  checks = [{ name: CONTEXTE_DES_GATES, outcome: "red" }];
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "ci-rouge" });
+  // Un autre check rouge sur la tête la renvoie aussi, sans attendre les gates.
+  checks = [{ name: "pages", outcome: "red" }];
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "ci-rouge" });
+  assert.equal(pr.appels.some((a) => a.startsWith("merge")), false);
+  checks = [{ name: CONTEXTE_DES_GATES, outcome: "green" }];
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: false }), { issue: "mergee" });
+});
+
+test("un projet avec une CI sur ses PR la garde : ni l'absence de check ni un statut vert des gates ne la remplacent", async () => {
+  const pr = prSurGitHub();
+  await relire(pr.lue(), { github: pr.github, station: "box/claude", ...juge("approve") });
+  let checks: Array<{ name: string; outcome: "green" | "red" | "pending" }> = [];
+  const github: GitHubDeLaFusion = { ...pr.github, ci: async () => checks };
+  // La CI n'a pas encore démarré : la PR attend, et aucune gate ne se joue.
+  assert.deepEqual(await fusionner(pr.lue(), github), { issue: "ci-attendue" });
+  assert.deepEqual(await fusionner(pr.lue(), github, { ciDesPR: true }), { issue: "ci-attendue" });
+  checks = [{ name: CONTEXTE_DES_GATES, outcome: "green" }];
+  assert.deepEqual(await fusionner(pr.lue(), github), { issue: "ci-attendue" });
+  checks = [{ name: CONTEXTE_DES_GATES, outcome: "green" }, { name: "tests", outcome: "pending" }];
+  assert.deepEqual(await fusionner(pr.lue(), github), { issue: "ci-attendue" });
+  assert.equal(pr.appels.some((a) => a.startsWith("merge")), false);
+  checks = [{ name: CONTEXTE_DES_GATES, outcome: "red" }, { name: "tests", outcome: "green" }];
+  assert.deepEqual(await fusionner(pr.lue(), github), { issue: "mergee" });
+});
+
+test("ciDeLaTete : la CI de la tête pour le merge, avec ou sans CI sur les PR du projet", () => {
+  assert.equal(ciDeLaTete([], true), "pending");
+  assert.equal(ciDeLaTete([], false), "gates-a-jouer");
+  assert.equal(ciDeLaTete([{ name: "pages", outcome: "green" }], false), "gates-a-jouer");
+  assert.equal(ciDeLaTete([{ name: "pages", outcome: "pending" }, { name: CONTEXTE_DES_GATES, outcome: "green" }], false), "pending");
+  assert.equal(ciDeLaTete([{ name: "pages", outcome: "green" }, { name: CONTEXTE_DES_GATES, outcome: "green" }], false), "green");
+  assert.equal(ciDeLaTete([{ name: "tests", outcome: "green" }], true), "green");
 });

@@ -35,7 +35,13 @@ import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaR
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
-import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
+import { ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
+import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
+import { declencheSurPr } from "./declencheurs.ts";
+import type { Gates } from "./events/pass.ts";
+import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
+import { VARIABLES_GITHUB } from "./identites.ts";
+import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
@@ -72,6 +78,9 @@ export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise =
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
   Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> &
+  // Les statuts de commit où se lisent et s'écrivent les gates d'une tête
+  // (#2456). Absents, la station ne les joue pas.
+  Partial<GitHubDesGates> &
   GitHubDeLaReparation &
   GitHubDeLaFermeture & {
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
@@ -154,6 +163,13 @@ export type OptionsDeStation = {
   clone?: string;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
+  // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
+  // (#2456) ? Absent, oui : la CI de la PR est attendue, comme avant.
+  ciDesPR?: (fichiers: string[]) => boolean;
+  // Le lieu des gates de la tête d'une PR, sur cette station (#2456) : un
+  // projet sans CI sur ses PR est jugé par elles. Absent, la station ne les
+  // joue pas, et une autre le fera.
+  gates?: (ticket: TicketLu, pr: PRAFusionner) => Promise<LieuDesGates>;
 };
 
 // Le préfixe du label par lequel un ticket demande une capacité.
@@ -211,6 +227,10 @@ const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
 // Combien de cooks sans livraison, pour un même ticket, avant qu'il sorte de la cuisine.
 export const ECHECS_MAX = 3;
 const MARQUE_D_ECHEC = "<!-- brigade:echec";
+
+// Des gates qui n'ont pas pu se jouer sur une tête se retentent au plus tôt
+// après ce délai (#2456).
+export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
@@ -365,6 +385,53 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
   const relancerLaBase = relanceDeLaBase(github, avertir, nom);
 
+  // Les PR d'un projet sans CI sur elles se jugent sur ses gates, jouées sur
+  // leur tête (#2456). Une PR que `prsOuvertes` ne liste pas, on ne sait pas ce
+  // qu'elle change : sa CI est attendue.
+  const ciDesPR = (sienne: { fichiers: string[] } | undefined) => sienne === undefined || (options.ciDesPR?.(sienne.fichiers) ?? true);
+  // Les gates d'une tête, une à la fois sur la station : elles prennent la
+  // machine comme un cook.
+  let serieDesGates: Promise<unknown> = Promise.resolve();
+  // Les têtes dont les gates ne se jouent pas ici, et depuis quand : elles se
+  // retentent sur une tête neuve, ou `RELANCE_DES_GATES_MS` passé — un clone
+  // en retard, GitHub qui refuse le statut ne tiennent pas pour toujours.
+  const sansGates = new Map<number, { sha: string; depuis: number }>();
+  const instant = () => (options.maintenant?.() ?? new Date()).getTime();
+  // Joue les gates de la tête de la PR, si personne ne l'a jugée ni ne les
+  // joue ; rouges, ce qui a échoué s'écrit sur l'issue, que le cook lit. Rend
+  // vrai si un verdict est posé : le tour suivant le lit.
+  const jouerLesGates = async (ticket: TicketLu, pr: PRAFusionner): Promise<boolean> => {
+    const { statuts, poserStatut } = github;
+    const preparer = options.gates;
+    const ecartee = sansGates.get(pr.number);
+    if (preparer === undefined || statuts === undefined || poserStatut === undefined) {
+      // Dit une fois par tête.
+      if (ecartee?.sha !== pr.sha) avertir(`brigade : PR #${pr.number} (#${ticket.number}) has no CI and waits for the project's gates, which station ${nom} does not run`);
+      sansGates.set(pr.number, { sha: pr.sha, depuis: instant() });
+      return false;
+    }
+    if (ecartee?.sha === pr.sha && instant() - ecartee.depuis < RELANCE_DES_GATES_MS) return false;
+    const ecarter = (motif: string) => {
+      sansGates.set(pr.number, { sha: pr.sha, depuis: instant() });
+      avertir(`brigade : the gates of PR #${pr.number} (#${ticket.number}) are not run on ${nom} — ${motif}; retried in ${RELANCE_DES_GATES_MS / 60_000} min, or on a new head`);
+      return false;
+    };
+    const suite = serieDesGates.then(() => jouerLesGatesDeLaTete(pr.sha, { github: { statuts: statuts.bind(github), poserStatut: poserStatut.bind(github) }, station: nom, preparer: () => preparer(ticket, pr) }));
+    serieDesGates = suite.catch(() => undefined);
+    let fait: Awaited<typeof suite>;
+    try {
+      fait = await suite;
+    } catch (erreur) {
+      return ecarter(message(erreur));
+    }
+    if (fait.issue === "non-jouees") return ecarter(fait.motif);
+    if (fait.issue !== "jouees") return false;
+    if (!fait.verdict.vert) {
+      await github.commenter(ticket.number, `Station \`${nom}\` ran the project's gates on \`${pr.sha.slice(0, 7)}\` (PR #${pr.number}) — no CI runs on this project's PRs — and they are red.${fait.verdict.detail === "" ? "" : `\n\n${fait.verdict.detail}`}`);
+    }
+    return true;
+  };
+
   const tour = async () => {
     renvoyes.clear();
     const checksDeLaBase = await relancerLaBase(await github.checksDeLaBase());
@@ -409,9 +476,27 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           // verte sur sa tête, et mergeable (le conflit est renvoyé plus haut).
           // Rouge, elle repart à un cook ; en cours, elle reste à la cuisine ;
           // la carte se lève si elle était posée, et revient d'elle-même au vert.
-          const ci = etatDeLaBase(await github.ci(pr.sha));
+          const ci = ciDeLaTete(await github.ci(pr.sha), ciDesPR(sienne));
           if (ci !== "green") {
             if (ticket.labels.includes(A_LA_MAIN)) await github.delabelliser(ticket.number, A_LA_MAIN);
+            // Sans CI sur ses PR, le projet la juge sur ses gates, jouées hors du tour.
+            if (ci === "gates-a-jouer" && !enRelecture.has(ticket.number) && enRelecture.size < PASS_MAX) {
+              const numero = ticket.number;
+              enRelecture.set(
+                numero,
+                (async () => {
+                  let bouge = false;
+                  try {
+                    bouge = await jouerLesGates(ticket, pr);
+                  } catch (erreur) {
+                    avertir(`brigade : gates de #${numero} sur ${nom} — ${message(erreur)}`);
+                  } finally {
+                    enRelecture.delete(numero);
+                    if (bouge) station.presser?.();
+                  }
+                })(),
+              );
+            }
             if (ci === "red") {
               try {
                 await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
@@ -457,20 +542,27 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           if (tentees.get(pr.number) !== tentee) {
             // Le merge demandé à GitHub ouvre sa phase ; mergée, le temps du ticket s'écrit.
             const fusion = await enSerie(() =>
-              fusionner(pr, {
-                commentaires: (numero) => github.commentaires(numero),
-                commenter: (numero, corps) => github.commenter(numero, corps),
-                mettreAJour: (numero, sha) => github.mettreAJour(numero, sha),
-                ci: (sha) => github.ci(sha),
-                merger: (numero, sha) => {
-                  chrono.marquer(ticket.number, "merge");
-                  return github.merger(numero, sha);
+              fusionner(
+                pr,
+                {
+                  commentaires: (numero) => github.commentaires(numero),
+                  commenter: (numero, corps) => github.commenter(numero, corps),
+                  mettreAJour: (numero, sha) => github.mettreAJour(numero, sha),
+                  ci: (sha) => github.ci(sha),
+                  merger: (numero, sha) => {
+                    chrono.marquer(ticket.number, "merge");
+                    return github.merger(numero, sha);
+                  },
                 },
-              }),
+                { ciDesPR: ciDesPR(sienne) },
+              ),
             );
-            if (fusion.issue === "ci-attendue" || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
+            const attendue = fusion.issue === "ci-attendue" || fusion.issue === "gates-a-jouer";
+            if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
             if (fusion.issue === "mergee") servir(ticket.number);
-            if (fusion.issue === "ci-attendue") {
+            // Hors de la série des merges : des gates de plusieurs minutes ne retiennent pas les autres.
+            if (fusion.issue === "gates-a-jouer" && (await jouerLesGates(ticket, pr))) bouge = true;
+            if (attendue) {
               if (attendues.get(pr.number) !== tentee) bouge = true;
               attendues.set(pr.number, tentee);
             } else {
@@ -768,6 +860,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     etatDuRun: (run) => github.etatDuRun(run),
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
+    ...(github.statuts === undefined || github.poserStatut === undefined ? {} : { statuts: github.statuts.bind(github), poserStatut: github.poserStatut.bind(github) }),
     merger: (numero, sha) => github.merger(numero, sha),
     labelliser: (numero, labels) => github.labelliser(numero, labels),
     delabelliser: (numero, label) => github.delabelliser(numero, label),
@@ -789,8 +882,10 @@ export type OptionsDuDepot = {
   // d'avant, ce que mesurent les tests du coût par ticket.
   graphql?: boolean;
   github: GitHub;
-  // Le dépôt de la station, d'où partent les worktrees de ses cooks.
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete">>;
+  // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
+  // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
+  // est attendue, comme avant (#2456).
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "vue" | "fichiers" | "lire">>;
   // La prise de #2056, liée à la station ; null tant que son module n'est pas
   // dans ce runtime.
   prise: ((github: GitHubDuTour, station: string) => Prise) | null;
@@ -816,7 +911,45 @@ export type OptionsDuDepot = {
   observer?: (github: GitHubDuTour) => GitHubDuTour;
   // Le clone du projet, où s'écrit le temps des tickets mergés (#2342).
   clone?: string;
+  // Les gates d'un projet sans CI sur ses PR, que la station joue sur leur
+  // tête (#2456) : leur plafond de durée, le fichier des secrets de la machine,
+  // et si la station agit sous une identité par rôle — ses gates ne reçoivent
+  // alors aucun jeton GitHub. Absentes, la station ne les joue pas.
+  gates?: { delaiMs: number; secrets?: string | null; sansIdentite?: boolean };
 };
+
+// Les workflows d'un dépôt, d'où se lit la CI de ses PR.
+const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
+
+// Un workflow du projet se lance-t-il sur une PR vers `base` qui change ces
+// fichiers (#2456) ? Lu sur la base telle que le clone l'a rapatriée — une PR
+// qui touche ses workflows attend le chef —, une fois par commit de la base.
+// Dans le doute — un dépôt qui ne se lit pas, un workflow illisible —, oui : la
+// CI est attendue, comme avant.
+export function lecteurDeLaCiDesPR(depot: Partial<Pick<Depot, "vue" | "fichiers" | "lire">>, base: string): (fichiers: string[]) => boolean {
+  let workflows: { tete: string; contenus: string[] } | null = null;
+  return (fichiers) => {
+    const { vue, fichiers: suivis, lire } = depot;
+    if (vue === undefined || suivis === undefined || lire === undefined) return true;
+    try {
+      const tete = vue();
+      if (workflows?.tete !== tete) workflows = { tete, contenus: suivis().filter((chemin) => WORKFLOW.test(chemin)).map((chemin) => lire(tete, chemin) ?? "") };
+      return workflows.contenus.some((contenu) => declencheSurPr(contenu, base, fichiers));
+    } catch {
+      return true;
+    }
+  };
+}
+
+// Ce que des gates rendues disent, pour le statut et pour le cook.
+export function verdictDesGates(gates: Gates, delaiMs: number): VerdictDesGates {
+  const vert = gates.outcome === "green";
+  const resume = vert ? "" : gates.outcome === "timeout" ? `stopped after ${Math.round(delaiMs / 1000)} s` : (gates.failures[0] ?? `exit code ${gates.code ?? "none"}`);
+  if (vert) return { vert, resume, detail: "" };
+  const echecs = gates.failures.map((ligne) => `- \`${ligne.replace(/`/g, "'")}\``);
+  const fin = gates.tail === "" ? [] : ["", "The end of their output:", "", "```", gates.tail.replace(/```/g, "'''"), "```"];
+  return { vert, resume, detail: [gates.outcome === "timeout" ? `They were stopped after ${Math.round(delaiMs / 1000)} s.` : `They exited with code ${gates.code ?? "none"}.`, ...(echecs.length === 0 ? [] : ["", ...echecs]), ...fin].join("\n") };
+}
 
 const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileSync(fichier, "utf8") : "");
 
@@ -837,6 +970,50 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const github = (options.observer ?? ((client: GitHubDuTour) => client))(
     clientDuTour(options.github, base, options.graphql === false ? undefined : depotGitHub),
   );
+  // Coupe les gates en vol quand la station s'arrête : elles n'ont alors rien dit.
+  const abandon = new AbortController();
+
+  const ciDesPR = lecteurDeLaCiDesPR(depot, base);
+
+  // Le lieu des gates de la tête d'une PR : la branche du ticket, telle que
+  // l'origine la porte, dans un worktree à elle. Il ne se joue que sur la tête
+  // même de la PR, et que si le projet a des gates et que ses secrets se donnent.
+  const lieuDesGates = async (ticket: TicketLu, pr: PRAFusionner): Promise<LieuDesGates> => {
+    const reglage = options.gates;
+    if (reglage === undefined || depot.tete === undefined) return { nonJouees: "this station does not run gates" };
+    const branche = brancheDuTicket(ticket.number);
+    let worktree: string;
+    try {
+      worktree = await depot.reprendre(`gates-${ticket.number}-github`, branche);
+    } catch (erreur) {
+      return { nonJouees: `its worktree could not be prepared: ${message(erreur)}` };
+    }
+    const liberer = () => depot.retirer(worktree);
+    const refus = (motif: string): LieuDesGates => {
+      liberer();
+      return { nonJouees: motif };
+    };
+    if (depot.tete(branche) !== pr.sha) return refus(`the station's clone holds \`${branche}\` at another head than PR #${pr.number}'s \`${pr.sha.slice(0, 7)}\``);
+    if (!aDesGates(worktree)) return refus(`the project has no \`${SCRIPT_GATES}\`: with no CI either, nothing would judge this delivery`);
+    const secrets = lireSecrets(worktree, reglage.secrets ?? null);
+    if (!secrets.pret) return refus(`the secrets the project declares cannot be given to its gates — ${secrets.problemes.join("; ")}`);
+    const envGates = environnementCook(options.env);
+    return {
+      liberer,
+      jouer: async () => {
+        const gates = await jouerGates({
+          worktree,
+          ticket: ticket.number,
+          ...(Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer }),
+          interdites: reglage.sansIdentite ? VARIABLES_GITHUB : [],
+          delaiMs: reglage.delaiMs,
+          cloison,
+          signal: abandon.signal,
+        });
+        return abandon.signal.aborted ? null : verdictDesGates(gates, reglage.delaiMs);
+      },
+    };
+  };
 
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
@@ -928,5 +1105,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.clone === undefined ? {} : { clone: options.clone }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.clone === undefined ? {} : { clone: options.clone }) });
+  const quitter = station.quitter;
+  station.quitter = async () => {
+    abandon.abort();
+    await quitter?.();
+  };
+  return station;
 }

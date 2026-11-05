@@ -23,12 +23,24 @@ const ticket = (number: number, ...labels: string[]): TicketLu => ({ number, tit
 
 // Un client du tour dont le test dit les tickets, les checks de la base et les merges.
 function clientDicte() {
-  const dicte = { tickets: [] as TicketLu[], checks: [] as Array<{ outcome: "green" | "red"; name?: string }>, merge: { fait: true } as { fait: true } | { fait: false; motif: string } };
+  const dicte = {
+    tickets: [] as TicketLu[],
+    checks: [] as Array<{ outcome: "green" | "red"; name?: string }>,
+    merge: { fait: true } as { fait: true } | { fait: false; motif: string },
+    // La tête de la PR de chaque ticket, et les checks de chaque tête.
+    tetes: new Map<number, string>(),
+    ci: new Map<string, Array<{ outcome: "green" | "red" | "pending"; name?: string }>>(),
+  };
   const client = {
     fires: async () => dicte.tickets,
     dependancesOuvertes: async () => [],
     checksDeLaBase: async () => dicte.checks,
     merger: async () => dicte.merge,
+    prDuTicket: async (issue: number) => {
+      const sha = dicte.tetes.get(issue);
+      return sha === undefined ? null : { number: 1000 + issue, sha, state: "open", merged: false, enRetard: false };
+    },
+    ci: async (sha: string) => dicte.ci.get(sha) ?? [],
   } as unknown as GitHubDuTour;
   return { dicte, client };
 }
@@ -38,7 +50,7 @@ test("le tour vu par la retenue : attendent les tickets en pass et ceux qu'une s
   const suivi = suivreLeTour(() => new Date(instant));
   const { dicte, client } = clientDicte();
   const github = suivi.envelopper(client);
-  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null });
+  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null, attenteCI: null });
 
   instant = A("00:05:00");
   dicte.tickets = [
@@ -130,6 +142,37 @@ test("GitHub seul : la base rouge sur ses checks Windows, rien de mergé depuis 
   c.passer("00:50:00");
   assert.deepEqual(c.levees(), [{ since: A("00:00:00"), reason: "served" }]);
   assert.deepEqual(c.lignes(), []);
+});
+
+// espace, le 2026-11-05 (#2456) : les livraisons approuvées attendaient une CI
+// que le projet ne lance pas sur ses PR, et `status` disait « cause unknown ».
+test("GitHub seul : des livraisons en pass dont la tête n'a aucun check — la ligne nomme l'attente de leur CI, puis les gates qui tournent", async (t) => {
+  const c = cuisineGitHubSeule(t);
+  c.dicte.tickets = [ticket(757, "in-pass"), ticket(759, "in-pass"), ticket(760, "in-pass"), ticket(30)];
+  for (const [issue, sha] of [[757, "a757"], [759, "a759"], [760, "a760"]] as const) c.dicte.tetes.set(issue, sha);
+  // #760 est rouge : il repart à un cook, il n'attend pas sa CI.
+  c.dicte.ci.set("a760", [{ outcome: "red", name: "brigade/gates" }]);
+  const lire = async () => {
+    await c.github.checksDeLaBase();
+    await c.github.fires();
+    for (const issue of [757, 759, 760]) {
+      const pr = await c.github.prDuTicket(issue);
+      if (pr !== null) await c.github.ci(pr.sha);
+    }
+  };
+  await lire();
+  c.passer("00:45:00");
+  assert.deepEqual(c.tenues()[0].cause, { kind: "ci-wait", tickets: [757, 759], running: [] });
+  assert.match(c.lignes()[0] ?? "", /HELD: nothing served while 4 tickets wait \(#30, #757, #759, #760\) — cause: 2 deliveries in pass wait for a CI on their PR head \(#757, #759\), and no check has started there — to lift: check that the project's CI runs on its PRs/);
+  assert.doesNotMatch(c.lignes()[0] ?? "", /cause unknown/);
+
+  // Une station joue les gates de #757 : la ligne le dit, et se lèvera seule.
+  c.dicte.ci.set("a757", [{ outcome: "pending", name: "brigade/gates" }]);
+  c.dicte.ci.set("a759", [{ outcome: "green", name: "brigade/gates" }]);
+  await lire();
+  c.passer("00:50:00");
+  assert.deepEqual(c.tenues().at(-1).cause, { kind: "ci-wait", tickets: [757], running: ["brigade/gates"] });
+  assert.match(c.lignes()[0] ?? "", /cause: 1 delivery in pass waits for a CI on its PR head \(#757\), still running: brigade\/gates — nothing to do/);
 });
 
 test("GitHub seul : la limite de GitHub lue au compteur de la station — la cause et sa reprise, sans geste", async (t) => {

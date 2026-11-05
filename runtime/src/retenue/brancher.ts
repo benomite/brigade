@@ -151,7 +151,7 @@ export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<Option
   const signaux = (): Signaux => {
     const duJournal = signauxDuJournal(base);
     const baseRouge = vue === null ? duJournal.baseRouge : vue.checksRouges !== null && vue.checksRouges.length > 0 ? { sha: null, checks: vue.checksRouges } : null;
-    return { ...duJournal, baseRouge, ...signauxDeLaStation(options.station, maintenant) };
+    return { ...duJournal, baseRouge, attenteCI: vue?.attenteCI ?? null, ...signauxDeLaStation(options.station, maintenant) };
   };
   return { observation, signaux };
 }

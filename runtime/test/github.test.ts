@@ -590,3 +590,27 @@ test("un commentaire se remplace par son corps : celui qui l'est encore est ré�
   assert.equal(await github.remplacerCommentaire(30, "disparu", "neuf"), false);
   assert.equal(gh.appels().length, appels + 1);
 });
+
+// Les gates d'un projet sans CI sur ses PR se publient en statut de commit (#2456).
+test("les statuts d'un commit se lisent sous leur contexte, du plus ancien au plus récent, et un statut posé rend son id", async (t) => {
+  const { gh, github } = sonde(t);
+  const sha = "a".repeat(40);
+  gh.repondre(`repos/${DEPOT}/commits/${sha}/statuses?per_page=100`, {
+    corps: [
+      { id: 12, state: "success", context: "brigade/gates", description: "Gates green on station box/claude", created_at: "2026-11-05T15:10:00Z" },
+      { id: 11, state: "pending", context: "brigade/gates", description: "Gates running on station box/claude", created_at: "2026-11-05T15:00:00Z" },
+      { id: 10, state: "success", context: "deploy", description: null, created_at: "2026-11-05T14:00:00Z" },
+    ],
+  });
+  assert.deepEqual(await github.statuts?.(sha, "brigade/gates"), [
+    { id: 11, state: "pending", context: "brigade/gates", description: "Gates running on station box/claude", createdAt: "2026-11-05T15:00:00Z" },
+    { id: 12, state: "success", context: "brigade/gates", description: "Gates green on station box/claude", createdAt: "2026-11-05T15:10:00Z" },
+  ]);
+  const chemin = `repos/${DEPOT}/statuses/${sha}`;
+  gh.repondre(chemin, { statut: 201, corps: { id: 13, state: "failure" } });
+  assert.equal(await github.poserStatut?.(sha, { state: "failure", context: "brigade/gates", description: `Gates red on station box/claude: ${"x".repeat(200)}` }), 13);
+  const pose = gh.appels().at(-1) ?? [];
+  assert.deepEqual(pose.slice(0, 9), ["api", "-i", "-X", "POST", "-f", "state=failure", "-f", "context=brigade/gates", "-f"]);
+  assert.equal(pose[9]?.length, "description=".length + 140);
+  assert.equal(pose.at(-1), chemin);
+});

@@ -3,7 +3,7 @@
 // lève quand il y en a un.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cleDeCause, detecterRetenue, diagnostiquer, direRetenueEn, GESTE_DE_LA_BASE, GESTE_DU_DISJONCTEUR, RETENUE_APRES_MS, SANS_SIGNAL, type Observation, type Signaux } from "../../src/retenue/retenue.ts";
+import { cleDeCause, detecterRetenue, diagnostiquer, direRetenue, direRetenueEn, GESTE_DE_LA_BASE, GESTE_DE_LA_CI, GESTE_DU_DISJONCTEUR, RETENUE_APRES_MS, SANS_SIGNAL, type Observation, type Signaux } from "../../src/retenue/retenue.ts";
 
 const A = (hhmmss: string) => `2026-11-04T${hhmmss}.000Z`;
 const MAINTENANT = new Date(A("03:00:00"));
@@ -72,7 +72,29 @@ test("cause inconnue : rien de ce que le runtime lit ne l'explique, et la ligne 
   const retenue = detecterRetenue(OBSERVATION, SANS_SIGNAL, MAINTENANT);
   assert.deepEqual(retenue?.cause, { kind: "unknown" });
   assert.equal(retenue?.gesture, null);
-  assert.match(direRetenueEn(retenue!), /cause unknown: neither a red base, the GitHub limit, the write budget nor the breaker explains it — no gesture known/);
+  assert.match(direRetenueEn(retenue!), /cause unknown: neither a red base, the GitHub limit, the write budget, the breaker nor a delivery waiting for its CI explains it — no gesture known/);
+});
+
+// espace, le 2026-11-05 : cinq livraisons approuvées attendaient une CI que le
+// projet ne lance plus sur ses PR, et la ligne disait « cause unknown » (#2456).
+test("cause : des livraisons en pass attendent une CI sur leur tête — la ligne nomme l'attente, jamais « cause unknown »", () => {
+  const jamais = detecterRetenue(OBSERVATION, signaux({ attenteCI: { tickets: [749, 757, 759, 760, 761], running: [] } }), MAINTENANT);
+  assert.deepEqual(jamais?.cause, { kind: "ci-wait", tickets: [749, 757, 759, 760, 761], running: [] });
+  assert.equal(jamais?.gesture, GESTE_DE_LA_CI);
+  const ligne = direRetenueEn(jamais!);
+  assert.doesNotMatch(ligne, /cause unknown/);
+  assert.match(ligne, /cause: 5 deliveries in pass wait for a CI on their PR head \(#749, #757, #759, #760, #761\), and no check has started there — to lift: check that the project's CI runs on its PRs; with no CI on its PRs, a station runs its gates/);
+  assert.match(direRetenue(jamais!), /livraisons en attente de leur CI \(#749, #757, #759, #760, #761 : aucun check démarré sur leur tête\)/);
+  // Une CI qui tourne — les gates qu'une station joue — se lève seule.
+  const enCours = detecterRetenue(OBSERVATION, signaux({ attenteCI: { tickets: [757], running: ["brigade/gates"] } }), MAINTENANT);
+  assert.equal(enCours?.gesture, null);
+  assert.match(direRetenueEn(enCours!), /cause: 1 delivery in pass waits for a CI on its PR head \(#757\), still running: brigade\/gates — nothing to do: it lifts on its own once the running checks conclude$/);
+  // Qu'un check démarre change la cause ; d'autres tickets, non.
+  assert.notEqual(cleDeCause(jamais!.cause), cleDeCause(enCours!.cause));
+  assert.equal(cleDeCause(jamais!.cause), cleDeCause({ kind: "ci-wait", tickets: [757], running: [] }));
+  // Les autres causes passent avant ; sans livraison qui attend, elle est inconnue.
+  assert.equal(diagnostiquer(signaux({ baseRouge: { sha: null, checks: ["lint"] }, attenteCI: { tickets: [757], running: [] } })).cause.kind, "base-red");
+  assert.equal(diagnostiquer(signaux({ attenteCI: { tickets: [], running: [] } })).cause.kind, "unknown");
 });
 
 test("plusieurs causes : le disjoncteur, puis la limite de GitHub, puis le budget des écritures, puis la base rouge", () => {

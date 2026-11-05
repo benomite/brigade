@@ -6,15 +6,16 @@
 // l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
 // `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
-import type { GitHub } from "../src/github.ts";
+import type { GitHub, StatutDeCommit } from "../src/github.ts";
+import { CONTEXTE_DES_GATES, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
 import { reglagesDuTexte, ReglageRefuse, texteDuFichier } from "../src/reglages-projet/reglages.ts";
 import { jusqua } from "./outils.ts";
 
@@ -22,6 +23,17 @@ const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
 type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
 type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; mergeePar: string | null; fichiers: string[] };
+
+type OptionsDuFaux = {
+  places?: number;
+  capacites?: string[];
+  cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>;
+  juger?: Juger;
+  avertir?: (texte: string) => void;
+  ciDesPR?: (fichiers: string[]) => boolean;
+  gates?: (ticket: { number: number }, pr: { number: number; sha: string }) => Promise<LieuDesGates>;
+  maintenant?: () => Date;
+};
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
 // de la station qui le fait, et rend la main avant de répondre, pour que deux
@@ -44,6 +56,9 @@ class FauxGitHub {
   // Les PR dont la CI est rouge, et celles dont la CI tourne encore.
   ciRouge = new Set<number>();
   ciEnCours = new Set<number>();
+  // Les PR qui ne portent aucune CI (espace, #2456), et les statuts de chaque commit.
+  sansCI = new Set<number>();
+  statutsDeCommit = new Map<string, StatutDeCommit[]>();
   // Le run de GitHub Actions du check `tests` de la base, que la station peut
   // relancer (#2323) ; null : un check sans lien, qui ne se relance pas.
   runDeLaBase: number | null = null;
@@ -193,8 +208,23 @@ class FauxGitHub {
       ci: async (sha) => {
         await noter("ci");
         const pr = this.prs.find((p) => p.sha === sha);
-        if (pr !== undefined && this.ciEnCours.has(pr.number)) return [{ name: "tests", outcome: "pending" as const }];
-        return [{ name: "tests", outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }];
+        // Les statuts de commit, le dernier de chaque contexte, comme GitHub les combine.
+        const derniers = new Map((this.statutsDeCommit.get(sha) ?? []).map((statut) => [statut.context, statut]));
+        const statuts = [...derniers.values()].map(({ context, state }) => ({ name: context, outcome: state === "success" ? ("green" as const) : state === "pending" ? ("pending" as const) : ("red" as const) }));
+        if (pr !== undefined && this.sansCI.has(pr.number)) return statuts;
+        if (pr !== undefined && this.ciEnCours.has(pr.number)) return [{ name: "tests", outcome: "pending" as const }, ...statuts];
+        return [{ name: "tests", outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }, ...statuts];
+      },
+      statuts: async (sha, contexte) => {
+        await noter("statuts");
+        return (this.statutsDeCommit.get(sha) ?? []).filter((statut) => statut.context === contexte);
+      },
+      poserStatut: async (sha, { state, context, description }) => {
+        await noter("poserStatut");
+        this.horloge += 1;
+        const statut = { id: this.horloge, state, context, description, createdAt: new Date().toISOString() };
+        this.statutsDeCommit.set(sha, [...(this.statutsDeCommit.get(sha) ?? []), statut]);
+        return statut.id;
       },
       mettreAJour: async (numero, sha) => {
         await noter("mettreAJour");
@@ -223,7 +253,7 @@ class FauxGitHub {
 
   // Un tour du faux attend ses relectures, qui tournent hors du tour (#2329) :
   // `horsDuTour` laisse le tour rendre la main pendant qu'elles tournent.
-  station(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void; horsDuTour?: boolean } = {}): StationGitHub {
+  station(nom: string, options: OptionsDuFaux & { horsDuTour?: boolean } = {}): StationGitHub {
     const station = this.stationSeule(nom, options);
     if (options.horsDuTour === true) return station;
     // La même station, pas une copie : ce que la boucle y pose (`presser`), elle le lit.
@@ -235,10 +265,13 @@ class FauxGitHub {
     return station;
   }
 
-  stationSeule(nom: string, options: { places?: number; capacites?: string[]; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger; avertir?: (texte: string) => void } = {}): StationGitHub {
+  stationSeule(nom: string, options: OptionsDuFaux = {}): StationGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
+      ...(options.ciDesPR === undefined ? {} : { ciDesPR: options.ciDesPR }),
+      ...(options.gates === undefined ? {} : { gates: options.gates }),
+      ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
       places: options.places ?? 1,
       ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",
@@ -486,6 +519,196 @@ test("a restarted station gives back, at its first turn, the tickets it held wit
   assert.deepEqual(faux.pris(), [1, 2, 6]);
 });
 
+// Des gates que le test dit, et les têtes sur lesquelles chaque station les a jouées.
+function gatesDites(verdict: VerdictDesGates) {
+  const jouees: Array<{ station: string; sha: string }> = [];
+  const pour = (station: string) => async (_ticket: { number: number }, pr: { sha: string }): Promise<LieuDesGates> => ({
+    jouer: async () => {
+      jouees.push({ station, sha: pr.sha });
+      return verdict;
+    },
+    liberer: () => {},
+  });
+  return { jouees, pour };
+}
+
+// espace, le 2026-11-05 (#2456) : depuis le 2026-10-22, GitHub Actions ne
+// teste plus ses PR (`ci.yml` en `workflow_dispatch` seul), ses gates tournent
+// sur la box. PR #757, #759, #761 approuvées par `box/claude` attendaient une CI
+// qui ne viendrait jamais, et rien n'était mergé.
+test("espace on 2026-11-05: an approved PR with no check on its head ends merged after green gates, run once by one station and published as a status", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(757);
+  const gates = gatesDites({ vert: true, resume: "", detail: "" });
+  const sansCI = () => false;
+  // Le second de deux merges est refusé par GitHub : la station le dit, sans plus.
+  const avertir = () => {};
+  const [box, mac] = [faux.station("box/claude", { ciDesPR: sansCI, gates: gates.pour("box/claude"), avertir }), faux.station("mac/claude", { ciDesPR: sansCI, gates: gates.pour("mac/claude"), avertir })];
+  await box.tour();
+  await box.calme();
+  const pr = faux.prs.find((p) => p.issue === 757);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4 && faux.mergee(757) === undefined; i += 1) {
+    await Promise.all([box.tour(), mac.tour()]);
+    await Promise.all([box.calme(), mac.calme()]);
+  }
+  assert.equal(faux.mergee(757)?.number, pr.number);
+  // Les gates ont tourné une fois, sur la tête mergée, et leur verdict se lit sur la PR.
+  assert.equal(gates.jouees.length, 1);
+  assert.equal(gates.jouees[0]?.sha, pr.sha);
+  // Deux stations ont pu prendre la tête au même instant : seule la première les a jouées.
+  const statuts = faux.statutsDeCommit.get(pr.sha) ?? [];
+  assert.ok(statuts.every(({ context }) => context === CONTEXTE_DES_GATES));
+  assert.deepEqual(statuts.filter(({ state }) => state !== "pending").map(({ state }) => state), ["success"]);
+  assert.equal(statuts.at(-1)?.state, "success");
+  assert.match(faux.statutsDeCommit.get(pr.sha)?.at(-1)?.description ?? "", /^Gates green on station (box|mac)\/claude$/);
+});
+
+test("with no CI on its PRs, red gates send the delivery back to a cook like a red CI, with what failed written on the issue (#2456)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(759);
+  const gates = gatesDites({ vert: false, resume: "FAIL  runtime/test/pass.test.ts", detail: "They exited with code 1.\n\n- `FAIL  runtime/test/pass.test.ts`" });
+  const a = faux.station("box/claude", { ciDesPR: () => false, gates: gates.pour("box/claude") });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 759);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4 && !(faux.commentaires.get(759) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(759), undefined);
+  const commentaires = faux.commentaires.get(759) ?? [];
+  assert.match(commentaires.find((c) => c.body.includes("ran the project's gates"))?.body ?? "", /Station `box\/claude` ran the project's gates on `[0-9a-f]{7}` \(PR #\d+\) — no CI runs on this project's PRs — and they are red\.\n\nThey exited with code 1\.\n\n- `FAIL  runtime\/test\/pass\.test\.ts`/);
+  assert.match(commentaires.find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: brigade\/gates/);
+  assert.deepEqual([...faux.statutsDeCommit.values()].flat().map(({ state }) => state), ["pending", "failure"]);
+});
+
+test("a project with CI on its PRs keeps requiring it: an approved PR whose CI never starts is not merged, and no gates are run for it (#2456)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(761);
+  const gates = gatesDites({ vert: true, resume: "", detail: "" });
+  const a = faux.station("box/claude", { ciDesPR: () => true, gates: gates.pour("box/claude") });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 761);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(761), undefined);
+  assert.equal(verdictDe(faux, pr.number).length, 1);
+  assert.deepEqual(gates.jouees, []);
+  assert.equal(faux.statutsDeCommit.size, 0);
+  // Sa CI démarre puis passe au vert : la PR se merge.
+  faux.sansCI.delete(pr.number);
+  await a.tour();
+  await a.calme();
+  assert.equal(faux.mergee(761)?.number, pr.number);
+});
+
+test("with no CI on its PRs and a station that does not run gates, the delivery waits, said once on the service log (#2456)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(760);
+  const dits: string[] = [];
+  const a = faux.station("mac/claude", { ciDesPR: () => false, avertir: (texte) => dits.push(texte) });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 760);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(760), undefined);
+  assert.equal(dits.filter((dit) => /has no CI and waits for the project's gates, which station mac\/claude does not run/.test(dit)).length, 1);
+});
+
+test("the CI of a project's PRs is read from its workflows on the base: espace's dispatch-only CI runs none, brigade's runs one; in doubt, the CI is awaited (#2456)", () => {
+  const depotDe = (workflows: Record<string, string>, tete = "c0ffee") => {
+    let lectures = 0;
+    return {
+      lectures: () => lectures,
+      depot: {
+        vue: () => tete,
+        fichiers: () => ["README.md", ...Object.keys(workflows)],
+        lire: (_revision: string, chemin: string) => {
+          lectures += 1;
+          return workflows[chemin] ?? null;
+        },
+      },
+    };
+  };
+  // espace depuis le 2026-10-22 : `ci.yml` ne part qu'à la main.
+  const espace = depotDe({ ".github/workflows/ci.yml": "name: CI\non:\n  workflow_dispatch:\njobs: {}\n" });
+  const ciDEspace = lecteurDeLaCiDesPR(espace.depot, "main");
+  assert.equal(ciDEspace(["src/app.ts"]), false);
+  // Lus une fois par commit de la base.
+  assert.equal(ciDEspace(["src/other.ts"]), false);
+  assert.equal(espace.lectures(), 1);
+  // Aucun workflow : aucune CI sur les PR.
+  assert.equal(lecteurDeLaCiDesPR(depotDe({}).depot, "main")(["a.ts"]), false);
+  // brigade : sa CI se lance sur toute PR vers main ; ses pages, seulement sur les leurs.
+  const brigade = depotDe({
+    ".github/workflows/ci.yml": "on:\n  pull_request:\n    branches: [main]\n  push:\n    branches: [main]\n",
+    ".github/workflows/pages.yml": "on:\n  pull_request:\n    paths: [site/**]\n",
+  });
+  assert.equal(lecteurDeLaCiDesPR(brigade.depot, "main")(["runtime/src/pass.ts"]), true);
+  const pagesSeules = depotDe({ ".github/workflows/pages.yml": "on:\n  pull_request:\n    paths: [site/**]\n" });
+  assert.equal(lecteurDeLaCiDesPR(pagesSeules.depot, "main")(["runtime/src/pass.ts"]), false);
+  assert.equal(lecteurDeLaCiDesPR(pagesSeules.depot, "main")(["site/index.html"]), true);
+  // Dans le doute, la CI est attendue : un dépôt qui ne se lit pas, un workflow illisible.
+  assert.equal(lecteurDeLaCiDesPR({}, "main")(["a.ts"]), true);
+  assert.equal(lecteurDeLaCiDesPR({ ...espace.depot, vue: () => assert.fail("no origin/main") }, "main")(["a.ts"]), true);
+  assert.equal(lecteurDeLaCiDesPR({ ...espace.depot, lire: () => null }, "main")(["a.ts"]), true);
+});
+
+test("what the gates said, for the status and for the cook: green says nothing more, red names its failures and its end (#2456)", () => {
+  assert.deepEqual(verdictDesGates({ outcome: "green", code: 0, failures: [], tail: "ok" }, 1_800_000), { vert: true, resume: "", detail: "" });
+  const rouge = verdictDesGates({ outcome: "red", code: 1, failures: ["FAIL  runtime/test/pass.test.ts"], tail: "1 failed" }, 1_800_000);
+  assert.equal(rouge.vert, false);
+  assert.equal(rouge.resume, "FAIL  runtime/test/pass.test.ts");
+  assert.equal(rouge.detail, "They exited with code 1.\n\n- `FAIL  runtime/test/pass.test.ts`\n\nThe end of their output:\n\n```\n1 failed\n```");
+  assert.equal(verdictDesGates({ outcome: "timeout", code: null, failures: [], tail: "" }, 1_800_000).resume, "stopped after 1800 s");
+});
+
+test("gates that cannot run on a head — GitHub refusing the status, a clone behind — are retried 30 min later, not at every turn (#2456)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(762);
+  let instant = Date.parse("2026-11-05T15:00:00Z");
+  const dits: string[] = [];
+  let preparations = 0;
+  const gates = async (): Promise<LieuDesGates> => {
+    preparations += 1;
+    return preparations === 1 ? { nonJouees: "the station's clone holds the branch at another head" } : { jouer: async () => ({ vert: true, resume: "", detail: "" }), liberer: () => {} };
+  };
+  const a = faux.station("box/claude", { ciDesPR: () => false, gates, avertir: (texte) => dits.push(texte), maintenant: () => new Date(instant) });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 762);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(preparations, 1);
+  assert.equal(faux.mergee(762), undefined);
+  assert.match(dits.join("\n"), /the gates of PR #\d+ \(#762\) are not run on box\/claude — the station's clone holds the branch at another head; retried in 30 min, or on a new head/);
+  instant += RELANCE_DES_GATES_MS;
+  for (let i = 0; i < 3 && faux.mergee(762) === undefined; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(preparations, 2);
+  assert.equal(faux.mergee(762)?.number, pr.number);
+});
+
 test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then off the kitchen after 2 sends back (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(31);
@@ -566,6 +789,26 @@ test("a delivery that changes what judges it asks the chef only once its CI is g
   faux.ticket(37).labels.add(LABEL_IN_PASS);
   for (let i = 0; i < 4; i += 1) await a.tour();
   assert.ok(faux.ticket(37).labels.has("blocked-on-human"), "green CI: the card shows");
+});
+
+test("with no CI on its PRs, a delivery that changes what judges it has its gates run on its head, and asks the chef once they are green (#2456)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(38);
+  const gates = gatesDites({ vert: true, resume: "", detail: "" });
+  const a = faux.station("box/claude", { ciDesPR: () => false, gates: gates.pour("box/claude") });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 38);
+  assert.ok(pr);
+  pr.fichiers = [".claude/brigade/gates.sh"];
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4 && !faux.ticket(38).labels.has("blocked-on-human"); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(gates.jouees.length, 1);
+  assert.ok(faux.ticket(38).labels.has("blocked-on-human"), "green gates: the card shows");
+  assert.equal(faux.mergee(38), undefined);
 });
 
 test("a head already sent back is not sent back again, even if a stale list still shows it in pass (#2189)", async () => {
@@ -1154,6 +1397,86 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
     ],
   );
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Remark \(`a\.ts`\): a nit/);
+});
+
+// espace, le 2026-11-05, sur la station de la box (#2456) : son `ci.yml` ne part
+// qu'à la main, ses PR n'ont aucun check. La station lit ses workflows sur la
+// base, joue `.claude/brigade/gates.sh` sur la tête de la PR approuvée, en pose
+// le statut, et merge au tour suivant.
+test("the station of this runtime, on espace: reading its dispatch-only CI, it runs the project's gates on the approved PR head, posts their status, and merges", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(757, ["fire", "model:opus", "effort:high"]);
+  const fait: string[] = [];
+  const lancer: Lancer = ({ args, flux }) => {
+    writeFileSync(flux, fluxQuiConclut(args.includes("--tools") ? JSON.stringify({ verdict: "vert", resume: "Looks right.", constats: [] }) : "done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  // Le worktree d'un run : celui des gates porte les gates du projet, qui notent où elles ont tourné.
+  const worktreeDe = (run: string) => {
+    const worktree = join(repertoire, run);
+    mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
+    const script = join(worktree, ".claude/brigade/gates.sh");
+    writeFileSync(script, `#!/bin/sh\necho "gates in $1" >> "${join(repertoire, "gates.log")}"\necho "PASS  all"\n`);
+    chmodSync(script, 0o755);
+    return worktree;
+  };
+  const bas = faux.pour("box");
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "BOBL-tech/espace",
+    github: { ...fauxClient(faux), ci: async (sha) => (await bas.ci(sha)).map((check) => ({ ...check, conclusion: "", url: null })), statuts: bas.statuts, poserStatut: bas.poserStatut } as GitHub,
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: worktreeDe(run), branche: `cook/${run}` }),
+      reprendre: async (run, branche) => {
+        fait.push(`reprendre ${run} ${branche}`);
+        return worktreeDe(run);
+      },
+      retirer: (worktree) => void fait.push(`retirer ${worktree.slice(repertoire.length + 1)}`),
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => ["src/app.ts"],
+      diff: () => "diff --git a/src/app.ts b/src/app.ts\n+x\n",
+      tete: (branche) => faux.prs.findLast((p) => p.branche === branche)?.sha ?? "",
+      vue: () => "e5ba5e",
+      fichiers: () => [".github/workflows/ci.yml", "src/app.ts"],
+      lire: (_revision, chemin) => (chemin === ".github/workflows/ci.yml" ? "name: CI\non:\n  workflow_dispatch:\njobs:\n  test:\n    runs-on: ubuntu-latest\n" : null),
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    gates: { delaiMs: 60_000 },
+    avertir: (texte) => assert.fail(texte),
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  const pr = faux.prs.find((p) => p.issue === 757);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let tour = 0; tour < 4 && faux.mergee(757) === undefined; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  assert.equal(faux.mergee(757)?.mergeePar, "box");
+  assert.deepEqual(fait, ["reprendre review-757-github cook/757-github", "retirer review-757-github", "reprendre gates-757-github cook/757-github", "retirer gates-757-github"]);
+  assert.equal(readFileSync(join(repertoire, "gates.log"), "utf8"), `gates in ${join(repertoire, "gates-757-github")}\n`);
+  assert.deepEqual((faux.statutsDeCommit.get(pr.sha) ?? []).map(({ state, description }) => [state, description]), [
+    ["pending", "Gates running on station box"],
+    ["success", "Gates green on station box"],
+  ]);
 });
 
 test("a ticket whose branch a previous cook left in the clone is resumed from that branch, not prepared anew, and a failed resume keeps the branch", async (t) => {
