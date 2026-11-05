@@ -258,6 +258,8 @@ export type Pont = {
   // « Add a project » : les dépôts que le `gh` du poste peut lire, chacun avec sa branche par
   // défaut — ou pourquoi ils ne sont pas lus.
   depotsDuChef(): Promise<{ depots: DepotDuChef[] } | { refus: string }>;
+  // Un dépôt quelconque lu par son nom `owner/repo` (public et pas au chef compris) : sa branche par défaut, ou le refus en une phrase.
+  lireUnDepot(depot: string): Promise<DepotDuChef | { refus: string }>;
   // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie, et rend le nom
   // du projet — ou chaque champ qui manque, avec sa raison, ou le refus de GitHub. Rien n'est écrit alors.
   ajouterAUneStation(saisie: { depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;

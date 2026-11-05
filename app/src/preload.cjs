@@ -72,6 +72,7 @@ const pont = {
   telechargerVersion: (url) => ipcRenderer.invoke("telechargerVersion", url),
   appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
+  lireUnDepot: (depot) => ipcRenderer.invoke("lireUnDepot", depot),
   ajouterAUneStation: (saisie) => ipcRenderer.invoke("ajouterAUneStation", saisie),
   confierAUneStation: (saisie) => ipcRenderer.invoke("confierAUneStation", saisie),
   defautsDeStation: (nom) => ipcRenderer.invoke("defautsDeStation", nom),

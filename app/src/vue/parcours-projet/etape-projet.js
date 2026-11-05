@@ -76,8 +76,9 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante }) {
   // Un dépôt choisi ou résolu : ajouté, puis la suite ; refusé, la phrase, et rien ne bouge.
   let enCours = false;
   const adopter = async (/** @type {Depot} */ depot) => {
-    if (enCours) return;
+    if (enCours) return dire(`${depot.depot} is being added.`);
     enCours = true;
+    dire("");
     try {
       const refus = await ajouter(depot);
       if (refus !== undefined) dire(refus.refus);
