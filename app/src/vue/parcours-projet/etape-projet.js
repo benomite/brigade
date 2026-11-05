@@ -115,10 +115,11 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante }) {
     );
   };
   recherche.addEventListener("input", poserListe);
-  if (Array.isArray(depots)) {
+  if ("refus" in depots) racine.append(attendu, lectureIndisponible(doc, "repositories unavailable", depots.refus));
+  else {
     poserListe();
     racine.append(attendu, recherche, liste);
-  } else racine.append(attendu, lectureIndisponible(doc, "repositories unavailable", depots.refus));
+  }
 
   const colle = cree(doc, "input");
   colle.type = "text";
