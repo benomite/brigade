@@ -232,8 +232,8 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 // relu à chaque lecture du tableau (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
 // conditionnelles dont un 304 ne coûte rien. Un projet sur GitHub seul (`githubOnlyState`, #2220) : son rail et ses cooks
 // sont lus de GitHub — ses issues, leurs labels, leurs commentaires de prise et ses PR (vue/rail/github.ts) —, pas du
-// rail figé que le tableau garde de l'ancien chemin ; et son TODO est ce qui attend le chef lu de GitHub, la lecture même
-// que le second relaie à son ouverture (tableau/attente-du-chef.ts, #2460).
+// rail figé que le tableau garde de l'ancien chemin. Sur tout projet, GitHub seul ou non, TODO est ce qui attend le chef lu
+// de GitHub, la lecture même que le second relaie à son ouverture (tableau/attente-du-chef.ts, #2460).
 const interrupteursDuRail = new Map<string, boolean>();
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;

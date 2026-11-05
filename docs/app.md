@@ -553,8 +553,8 @@ conditional: a 304 costs nothing.
 
 ### What awaits the chef, read from GitHub (#2460)
 
-For a GitHub-only project, Todo is what awaits the chef read from GitHub alone — and nothing of the queue the Kitchen board
-publishes. The second reads the same thing at its opening, on any project (above, "The queue is read for the second"): one
+On every project, GitHub-only or of the old path, Todo is what awaits the chef read from GitHub alone — and nothing of the
+queue the Kitchen board publishes. The second reads the same thing at its opening, on any project (above, "The queue is read for the second"): one
 reader, `lireCeQuiAttendLeChef` in `app/src/tableau/attente-du-chef.ts`, so the app and the second never contradict each
 other. The chef's rule (#2455): an item of Todo is a fact on GitHub — a label, a PR awaiting the chef — and always asks the
 chef a question. On the repository's open issues:
@@ -571,16 +571,16 @@ carrying `waiting` waits for a third party, not the chef; the Kitchen board issu
 stays on the rail (#2422). Items go oldest first: since the comment that says them, or since their label was put. They are
 written as the `awaiting` block of `status` (the line of each ticket, then its title), which Todo, the home page and the second
 all read; when there is none, the block says `nothing awaits the chef`. What the board still publishes in its queue (a
-station's connection, a red base, the grant tally) is no longer in Todo for such a project: it is not a GitHub fact. A
-GitHub reading that fails is a failed board reading (the rail keeps its last columns and says it is stale), never an empty
-Todo. A project of the old path keeps its board's Todo until #2061 removes that path; the second reads GitHub there too.
+station's connection, a red base, the grant tally) is no longer in Todo: it is not a GitHub fact. A GitHub reading that
+fails is a failed board reading (the rail keeps its last columns and says it is stale), never an empty Todo. The app still
+finds the project through its Kitchen board (`lireLeTableauDuDepot`): reading the rest of the view without it is #2061's.
 *Code: `app/src/tableau/attente-du-chef.ts`, used by `avecLeRailGithub` (`app/src/vue/rail/github.ts`) and
 `app/src/second/file.ts`. Tests: `app/test/tableau/attente-du-chef.test.ts`, `app/test/second/file.test.ts`.*
 
-### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
+### The chef's TODO read from GitHub (#2221, epic #2209)
 
-For a project whose `.claude/brigade/projet.json` says `githubOnlyState: true`, Todo also lists one card per open issue
-carrying the label `chef-todo` (the convention in `app/src/tableau/todo-github.ts`, read by `app/src/tableau/attente-du-chef.ts`
+On every project since #2460 (first for a project whose `.claude/brigade/projet.json` says `githubOnlyState: true`), Todo
+lists one card per open issue carrying the label `chef-todo` (the convention in `app/src/tableau/todo-github.ts`, read by `app/src/tableau/attente-du-chef.ts`
 with the token of this computer's `gh`, conditional reads). The card takes its kind and its text from the issue's latest comment that starts with
 `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read as is): one line
 that says what the kind asks of the chef, then the comment's text. The issue number on the card opens the issue on GitHub. An
@@ -627,7 +627,7 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 with choices, a click on each gesture against a fake GitHub).*
 
 Todo holds nothing else (#2460, above): when GitHub cannot be read, the reading fails and the rail says it is stale, never
-an empty Todo nor the board's. A project of the old path (`githubOnlyState` off or absent) shows the Todo it always had.
+an empty Todo nor the board's. A project of the old path (`githubOnlyState` off or absent) reads its Todo the same way.
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
 is the question "Merge PR #N by hand? It changes what judges it." with the PR link and `merge the PR`; a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its

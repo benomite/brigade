@@ -13,8 +13,8 @@
 // Et, pour les stations de l'onglet Cooks (ticket 2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
 // gist, sous le compte du chef, que le process principal lit à son pas (vue/cooks/signes-de-vie.ts) — reçu ici, pas lu.
 //
-// Et ce qui attend le chef — TODO, et le bloc `awaiting` de `status` —, lu de GitHub comme le second le lit (#2460,
-// tableau/attente-du-chef.ts) : rien de la file que le tableau publie.
+// Et ce qui attend le chef — TODO, et le bloc `awaiting` de `status` —, lu de GitHub comme le second le lit, sur tout
+// projet (ticket 2460, tableau/attente-du-chef.ts) : rien de la file que le tableau publie.
 //
 // Le reste du tableau — ce qui est avant le rail, les livrés — est gardé tel que la box l'a publié. Est retiré ce
 // que le journal seul disait du rail et des cooks et qui ne vaut plus : la cuisine oisive (« aucun cook n'a tourné »), ce
@@ -236,19 +236,23 @@ export async function avecLeRailGithub(lu: LectureDuTableauDuDepot, appeler: App
   const lecteur = memoire === undefined ? appeler : lectureConditionnelle(appeler, memoire);
   const interrupteur = await interrupteurDuDepot(lu.depot, lecteur);
   if (interrupteur !== null) interrupteurs.set(lu.depot, interrupteur);
-  if (interrupteurs.get(lu.depot) !== true) return avecLesEtatsGithub(lu, appeler, memoire);
-  // Les durées des cartes se comptent jusqu'à la lecture du tableau par l'app : celle-ci, à quelques secondes près.
-  const maintenant = () => new Date(lu.luLe);
-  let rail: RailSurGithub;
+  const refait = await (interrupteurs.get(lu.depot) === true ? leRailDeGithub(lu, lecteur, signes) : avecLesEtatsGithub(lu, appeler, memoire));
+  if (!refait.lu) return refait;
+  // TODO : ce qui attend le chef, lu de GitHub comme le second le lit (attente-du-chef.ts, ticket 2460), sur tout projet —
+  // GitHub seul ou ancien chemin : rien de la file que le tableau publie, et l'app ne dit jamais autre chose que le second.
+  // Pas lu : une lecture ratée, jamais un TODO vide.
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler: lecteur, maintenant: () => new Date(lu.luLe) });
+  if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison };
+  return avecLAttenteDuChef(refait, attente);
+}
+
+// Le rail et les cooks d'un projet sur GitHub seul, lus de GitHub ; une lecture qui échoue est une lecture du tableau ratée.
+async function leRailDeGithub(lu: TableauLu, lecteur: AppelGitHub, signes: () => Promise<SignesDeVie>): Promise<LectureDuTableauDuDepot> {
   try {
-    rail = await lireLeRailSurGithub({ depot: lu.depot, appeler: lecteur, maintenant });
+    // Les durées des cartes se comptent jusqu'à la lecture du tableau par l'app : celle-ci, à quelques secondes près.
+    return avecLeRail(lu, await lireLeRailSurGithub({ depot: lu.depot, appeler: lecteur, maintenant: () => new Date(lu.luLe) }), await signes());
   } catch (erreur) {
     const dit = (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
     return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: `The rail of ${lu.depot} was not read from GitHub: ${dit}.` };
   }
-  // TODO : ce qui attend le chef, lu de GitHub comme le second le lit (attente-du-chef.ts, #2460) — rien de la file que le
-  // tableau publie. Pas lu : une lecture ratée, jamais un TODO vide.
-  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler: lecteur, maintenant });
-  if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison };
-  return avecLAttenteDuChef(avecLeRail(lu, rail, await signes()), attente);
 }
