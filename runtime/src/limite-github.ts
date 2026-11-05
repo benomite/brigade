@@ -153,18 +153,28 @@ export class AppelEspace extends EcritureEspacee {
 
 type Lire = <T>(sql: string, ...params: Array<string | number>) => T[];
 
+// Les points de la minute d'un compte, dans l'ordre où ils ont été pris. Choix :
+// en mémoire, propres au process, comme la file et ses requêtes en vol — la
+// station et tous ses projets en tiennent une ; une commande hors d'elle, la
+// sienne. Un 304 n'en sort pas.
+type PointsDuCompte = { pris: Array<{ instant: number; points: number }>; total: number };
+
+// Ce qui est sorti de la minute ne compte plus.
+function oublierLaMinute(tenus: PointsDuCompte, instant: number): void {
+  while (tenus.pris.length > 0 && (tenus.pris[0] as { instant: number }).instant <= instant - MINUTE_MS) tenus.total -= (tenus.pris.shift() as { points: number }).points;
+}
+
 // L'instant où un appel de `cout` points du compte peut partir : quand assez
 // de points de la minute en sont sortis — null s'il part tout de suite.
-function prochainAppel(lire: Lire, compte: string, instant: number, cout: number): { jusqua: number; points: number } | null {
-  const lus = lire<{ instant: number; points: number }>("SELECT instant, points FROM points WHERE compte = ? AND instant > ? ORDER BY instant ASC", compte, instant - MINUTE_MS);
-  const points = lus.reduce((somme, lu) => somme + lu.points, 0);
-  if (points + cout <= POINTS_PAR_MINUTE) return null;
-  let restants = points;
-  for (const lu of lus) {
-    restants -= lu.points;
-    if (restants + cout <= POINTS_PAR_MINUTE) return { jusqua: lu.instant + MINUTE_MS, points };
+function prochainAppel(tenus: PointsDuCompte, instant: number, cout: number): { jusqua: number; points: number } | null {
+  oublierLaMinute(tenus, instant);
+  if (tenus.total + cout <= POINTS_PAR_MINUTE) return null;
+  let restants = tenus.total;
+  for (const pris of tenus.pris) {
+    restants -= pris.points;
+    if (restants + cout <= POINTS_PAR_MINUTE) return { jusqua: pris.instant + MINUTE_MS, points: tenus.total };
   }
-  return { jusqua: instant + MINUTE_MS, points };
+  return { jusqua: instant + MINUTE_MS, points: tenus.total };
 }
 
 // L'instant où la prochaine écriture du compte peut partir : la sortie de la
@@ -281,8 +291,9 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   base.script(
     "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
-  // Les points de la cuisine sur la minute (#2443) : à part des appels, qu'un 304 quitte.
-  base.script("CREATE TABLE IF NOT EXISTS points (instant INTEGER NOT NULL, compte TEXT NOT NULL, points INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS points_par_compte ON points (compte, instant);");
+  // Les points de la cuisine sur la minute (#2443), par compte : à part des appels, qu'un 304 quitte.
+  const points = new Map<string, PointsDuCompte>();
+  const pointsDe = (compte: string): PointsDuCompte => points.get(compte) ?? points.set(compte, { pris: [], total: 0 }).get(compte)!;
 
   // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
@@ -306,7 +317,6 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
-        base.executer("DELETE FROM points WHERE instant <= ?", instant - MINUTE_MS);
         const cout = etiquette?.ecriture === true ? POINTS_PAR_ECRITURE : POINTS_PAR_LECTURE;
         if (usage === "cuisine") {
           // La limite de GitHub atteinte : rien ne part, et rien n'est compté.
@@ -322,9 +332,11 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
             if (espacer !== null) return { espacer, ecrites: base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ?", compte, instant - FENETRE_MS)[0]?.n ?? 0 };
           }
           // Le débit du compte, lectures et écritures ensemble (#2443).
-          const debit = prochainAppel((sql, ...params) => base.lire(sql, ...params), compte, instant, cout);
+          const tenus = pointsDe(compte);
+          const debit = prochainAppel(tenus, instant, cout);
           if (debit !== null) return { debit: debit.jusqua, points: debit.points };
-          base.executer("INSERT INTO points (instant, compte, points) VALUES (?, ?, ?)", instant, compte, cout);
+          tenus.pris.push({ instant, points: cout });
+          tenus.total += cout;
         }
         const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
         const lecture = etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other");

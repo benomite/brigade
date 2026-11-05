@@ -154,7 +154,8 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   14:31 on 2026-11-05): that is what set the secondary limit off several times a day. Every kitchen
   request now goes through the same counter's budget of `POINTS_PAR_MINUTE` (450) in any sliding
   minute, per account and for all the station's projects (`POINTS_PAR_LECTURE` 1, `POINTS_PAR_ECRITURE`
-  5, kept in the counter's `points` table, which a 304 does not leave). The other half is the chef's:
+  5). The points are kept in memory, per process, like the queue they pace: the station and its projects
+  share one, a command outside it keeps its own; a 304 does not leave them. The other half is the chef's:
   his Mac's app and his gestures, which are never paced and take nothing from the budget. A request over
   budget waits in the queue (`AppelEspace`), and every later request of its account, reads included,
   stays behind it; the log says it once (`brigade : appels GitHub espacés par le débit — …`).
