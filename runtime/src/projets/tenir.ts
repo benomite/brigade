@@ -602,6 +602,10 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         continue;
       }
       if (aLaMain.has(projet.nom)) {
+        // La station le sert déjà par cette ligne, pour ce dépôt : rien à écrire, une seule cuisine — il est servi.
+        if (new Set(servis.projets()).has(projet.nom) && servis.depots?.()[projet.nom] === projet.depot) {
+          continue;
+        }
         suivis.set(projet.nom, suiviDu(projet, "refuse", `the station's configuration already has a line for ${projet.nom}, written by hand: remove it, and the station takes this one`, [], "hand-written-line"));
         continue;
       }
