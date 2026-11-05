@@ -1937,6 +1937,26 @@ key check refuses it) and reads it only from its clone's working tree — its ro
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
 `app/src/vue/projet/cuisine/sante/PlafondsDuree.js`.
 
+**Kitchen > Cooks: the cooks' specializations, and adding one** (#2492, epic #2484). A **specialization** is a cook for
+one kind of ticket: the model and the effort it runs with, and the capabilities a station needs to run it. Each one is a
+file of the project's repository, **`agents/cook-<name>.md`** — where the design cook already lives
+(`PROFIL_COOK_DESIGN`, `runtime/src/calibrage.ts`) —, a Claude Code agent whose frontmatter carries `name`,
+`description` and, when set, `model`, `effort` and `capabilities` (`code, navigateur-headless`). The **Specializations**
+block of Cooks lists them, one row each, by name: the cook and what it cooks, its model, its effort, its capabilities;
+a model or an effort the file does not set reads **per ticket** (the ticket's calibration decides, on hover), no
+capability reads **none**. Without any, one line: "no specialization yet: every ticket goes to the general cook". The
+app reads them on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/specialisations.ts`)
+— when Cooks opens, then at most once a minute while it stays open; a failed reading is one line, its detail on hover.
+**`Add a specialization`** opens the form in place: what is expected at its head, then **Name** (lowercase letters,
+digits and hyphens; `general` is the ordinary cook's), **What it cooks** (one line, required), **Model** and **Effort**
+(`per ticket` first), **Capabilities**; **add** (recommended) creates `agents/cook-<name>.md` on the integration branch
+— never over an existing one: a name already taken is refused —, the form closes, one line says it was added, and the
+specialization joins the list. Reopened, the app reads it back from the repository. A refusal (a bad name, GitHub's
+answer) stays under the form in one line, its detail on hover, with what was filled; **cancel** closes it. The app
+neither edits nor removes a specialization: its file is edited in the repository. Today the runtime routes only the
+design cook (`cook:design`); the other specializations wait in the repository until it routes them. Screenshots:
+`docs/captures/2492/`. Module: `app/src/vue/projet/cuisine/cuisiniers/Specialisations.js`.
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of

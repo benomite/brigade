@@ -8403,3 +8403,121 @@ button.recommande {
   font-size: 12px;
   color: var(--discret);
 }
+/* Les spécialisations, sur Kitchen > Cooks (ticket 2492) : une ligne par cook — son nom et ce qu'il cuisine, son modèle,
+   son effort, ses capacités, ce qui n'est pas posé en discret —, puis « Add a specialization » et son formulaire, qui
+   s'ouvre sur place comme l'étape d'« Add a station ». */
+.bloc-du-projet[data-bloc="specialisations"] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+[data-bloc="specialisations"] .liste-des-specialisations {
+  width: 100%;
+  border-collapse: collapse;
+}
+[data-bloc="specialisations"] .liste-des-specialisations th {
+  padding: 0 12px 4px 0;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+  color: var(--discret);
+}
+[data-bloc="specialisations"] .liste-des-specialisations td {
+  padding: 6px 12px 6px 0;
+  vertical-align: top;
+  border-top: 1px solid var(--trait-doux);
+}
+[data-bloc="specialisations"] .liste-des-specialisations .qui {
+  width: 50%;
+}
+[data-bloc="specialisations"] .qui strong {
+  font-weight: 600;
+}
+[data-bloc="specialisations"] .qui .description {
+  display: block;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+[data-bloc="specialisations"] :is(.par-ticket, .aucune, .specialisations-aucune, .specialisations-lecture) {
+  color: var(--discret);
+}
+[data-bloc="specialisations"] .capacite {
+  display: inline-block;
+  margin: 0 4px 2px 0;
+  padding: 1px 6px;
+  font-size: 12px;
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bon);
+}
+[data-bloc="specialisations"] :is(.ajouter-une-specialisation, .ajout-de-specialisation .gestes) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+[data-bloc="specialisations"] :is(.ajouter-une-specialisation, .ajout-de-specialisation) button:not(.aide) {
+  padding: 4px 12px;
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation button.recommande {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--fond);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+[data-bloc="specialisations"] .ajouter-une-specialisation .dit {
+  color: var(--texte-doux);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation .attendu {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  color: var(--texte);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation .champs {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 2fr) 110px 110px minmax(0, 1fr);
+  gap: 10px;
+}
+[data-bloc="specialisations"] .ajout-de-specialisation .champ {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--discret);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation :is(input, select) {
+  min-width: 0;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="specialisations"] .ajout-de-specialisation .refus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: var(--rouge-clair);
+}

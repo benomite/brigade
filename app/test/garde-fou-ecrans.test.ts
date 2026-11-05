@@ -56,6 +56,8 @@ async function ouvrir(reponses: Reponses = {}, entrer = true): Promise<Jouee> {
     espace: () => [SECOND, SHELL],
     machines: () => [{ id: "poste", titre: "this Mac" }],
     gestesDeFiche: (carte) => gestesDeCarte(carte),
+    // Les spécialisations de Cooks (#2492) se lisent sur GitHub, pas sur la box : le dépôt n'en déclare aucune.
+    specialisations: () => ({ branche: "main", specialisations: [] }),
     ...reponses,
   });
   if (entrer) {

@@ -139,7 +139,7 @@ import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
 import { poserBlocPlafondsDuree } from "./projet/cuisine/sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/cuisine/sante/Closer.js";
-import { poserBlocSpecialisations } from "./projet/cuisine/cuisiniers/Specialisations.js";
+import { etatFerme as ajoutDeSpecialisationFerme, poserBlocSpecialisations } from "./projet/cuisine/cuisiniers/Specialisations.js";
 import { poserBlocCahier } from "./projet/cuisine/cuisiniers/Cahier.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
@@ -320,6 +320,16 @@ const avis = element("avis");
 // la lecture brute de `station`.
 // Sous ses stations (ticket 1272) : ses tickets servis, renvoyés et remontés au chef dans la dernière heure et le
 // dernier jour. poserCuisson le remplit ; poserRail le pose.
+// Les spécialisations des cooks du projet (ticket 2492) : ce qui en est lu, l'ajout de chaque projet, et l'élément de leur
+// bloc, le même d'une pose de Cooks à l'autre (blocDesSpecialisations).
+/** @type {Map<string, import("../specialisations.ts").LectureDesSpecialisations>} */
+const specialisationsLues = new Map();
+/** @type {Map<string, number>} */
+const specialisationsLuesLe = new Map();
+const specialisationsEnLecture = new Set();
+/** @type {Map<string, import("./projet/cuisine/cuisiniers/Specialisations.js").Etat>} */
+const ajoutsDeSpecialisation = new Map();
+const specialisationsDuProjet = document.createElement("section");
 const activiteDuProjet = document.createElement("div");
 activiteDuProjet.id = "activite-du-projet";
 // Dessous, ce que ses gates ont coûté les dernières 24 h, à côté du budget d'un passage (ticket 1318). poserCuisson le
@@ -5147,7 +5157,7 @@ function poserLeRail(projet) {
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
   // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, poserBlocSpecialisations(document), poserBlocCahier(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage?.lecons : undefined), lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, blocDesSpecialisations(projet), poserBlocCahier(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage?.lecons : undefined), lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -7137,6 +7147,100 @@ async function changerUnPlafond(projet, cle, saisie) {
     if (lue !== undefined && "plafonds" in lue) plafondsLus.set(projet.nom, { ...lue, plafonds: lue.plafonds.map((plafond) => (plafond.cle === rendu.cle ? { ...plafond, valeur: rendu.valeur } : plafond)) });
   } else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
   reposerLaSante(projet);
+}
+
+// Kitchen > Cooks (ticket 2492) : les spécialisations des cooks du projet, et « Add a specialization ». Elles se lisent
+// sur GitHub par le process principal (specialisations.ts) — à l'ouverture de Cooks, puis au plus une fois la minute tant
+// qu'il reste ouvert. Leur bloc vit dans un élément qui reste le même d'une pose de Cooks à l'autre : la relecture de la
+// cuisine ne refait pas le formulaire où le chef écrit, elle le remet en place et lui rend le clavier. Il ne se refait
+// que quand ce qu'il montre change — une lecture, un geste du chef, un autre projet.
+// Les déclarations sont en tête du module (`specialisationsDuProjet`) : Cooks peut se poser avant que le module arrive ici.
+/** @param {Projet} projet */
+function blocDesSpecialisations(projet) {
+  if (specialisationsDuProjet.dataset.projet !== projet.nom) poserLesSpecialisations(projet);
+  if (Date.now() - (specialisationsLuesLe.get(projet.nom) ?? 0) > 60_000) void lireLesSpecialisationsDuProjet(projet);
+  const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
+  if (tape != null && tape !== specialisationsDuProjet && specialisationsDuProjet.contains(tape)) {
+    const [debut, fin] = [tape.selectionStart, tape.selectionEnd];
+    queueMicrotask(() => {
+      tape.focus?.();
+      if (typeof debut === "number" && typeof fin === "number") tape.setSelectionRange?.(debut, fin);
+    });
+  }
+  return specialisationsDuProjet;
+}
+/** @param {Projet} projet */
+function poserLesSpecialisations(projet) {
+  specialisationsDuProjet.dataset.projet = projet.nom;
+  const lecture = specialisationsLues.get(projet.nom);
+  const etat = ajoutsDeSpecialisation.get(projet.nom) ?? ajoutDeSpecialisationFerme();
+  ajoutsDeSpecialisation.set(projet.nom, etat);
+  poserBlocSpecialisations(
+    document,
+    {
+      ...(lecture === undefined ? {} : { lecture }),
+      etat,
+      gestes: {
+        ouvrir: () => {
+          ajoutsDeSpecialisation.set(projet.nom, { ...ajoutDeSpecialisationFerme(), ouvert: true });
+          reposerLesSpecialisations(projet);
+        },
+        saisir: (champ, valeur) => void (etat.saisie[champ] = valeur),
+        annuler: () => {
+          ajoutsDeSpecialisation.set(projet.nom, ajoutDeSpecialisationFerme());
+          reposerLesSpecialisations(projet);
+        },
+        ajouter: () => void ajouterUneSpecialisation(projet),
+      },
+    },
+    specialisationsDuProjet,
+  );
+}
+/** @param {Projet} projet */
+function reposerLesSpecialisations(projet) {
+  if (specialisationsDuProjet.dataset.projet === projet.nom) poserLesSpecialisations(projet);
+}
+/** @param {Projet} projet */
+async function lireLesSpecialisationsDuProjet(projet) {
+  if (specialisationsEnLecture.has(projet.nom)) return;
+  specialisationsEnLecture.add(projet.nom);
+  specialisationsLuesLe.set(projet.nom, Date.now());
+  /** @type {import("../specialisations.ts").LectureDesSpecialisations} */
+  let lue;
+  try {
+    lue = (await brigade.specialisations?.(projet.nom)) ?? { sans: "specializations unavailable", detail: SANS_PONT };
+  } catch (erreur) {
+    lue = { sans: "specializations unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  } finally {
+    specialisationsEnLecture.delete(projet.nom);
+  }
+  specialisationsLues.set(projet.nom, lue);
+  reposerLesSpecialisations(projet);
+}
+// « add » : le process principal crée le fichier de la spécialisation dans le dépôt. Tant qu'il n'a pas répondu, le bouton
+// dit qu'il s'y met ; écrite, le formulaire se referme, une ligne le dit et elle entre dans la liste ; refusée, le refus se
+// dit sous le formulaire, son détail au survol, et ce que le chef a rempli reste.
+/** @param {Projet} projet */
+async function ajouterUneSpecialisation(projet) {
+  const etat = ajoutsDeSpecialisation.get(projet.nom);
+  if (etat === undefined || etat.enCours === true) return;
+  ajoutsDeSpecialisation.set(projet.nom, { ...etat, enCours: true, refus: undefined });
+  reposerLesSpecialisations(projet);
+  /** @type {import("../specialisations.ts").RenduDeLaSpecialisation} */
+  let rendu;
+  try {
+    rendu = (await brigade.ajouterSpecialisation?.(projet.nom, { ...etat.saisie })) ?? { refus: "nothing was added: nothing was sent", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "nothing was added: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("fait" in rendu) {
+    ajoutsDeSpecialisation.set(projet.nom, { ...ajoutDeSpecialisationFerme(), fait: rendu.fait });
+    const lue = specialisationsLues.get(projet.nom);
+    const avant = lue !== undefined && "specialisations" in lue ? lue : { specialisations: [], branche: null };
+    const specialisations = [...avant.specialisations.filter(({ nom }) => nom !== rendu.specialisation.nom), rendu.specialisation].sort((a, b) => a.nom.localeCompare(b.nom));
+    specialisationsLues.set(projet.nom, { ...avant, specialisations });
+  } else ajoutsDeSpecialisation.set(projet.nom, { ...etat, enCours: false, refus: rendu });
+  reposerLesSpecialisations(projet);
 }
 
 // Les blocages du projet affiché (ticket 1399). Les gestes que l'app sait faire pour en lever un, par l'identifiant
