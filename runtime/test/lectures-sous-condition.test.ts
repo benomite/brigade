@@ -112,7 +112,11 @@ function uneStation(t: TestContext, etags: boolean) {
     instant += TICK_MS;
     return compte;
   };
-  return { gh, racine, limite, githubs, maintenant, compterUnTick };
+  // L'horloge avancée de `n` ticks sans rien lire.
+  const sauterDesTicks = (n: number) => {
+    instant += n * TICK_MS;
+  };
+  return { gh, racine, limite, githubs, maintenant, compterUnTick, sauterDesTicks };
 }
 
 // Un tick lit, sur l'ensemble des projets, 2 sondages par projet et 4 appels
@@ -129,17 +133,21 @@ test("avant : sans réponse 304, chaque tick de quatre projets compte toutes ses
   assert.ok(LECTURES_PAR_TICK * 60 > 2500, `${LECTURES_PAR_TICK * 60}`);
 });
 
-// Soixante ticks, chacun de ses lectures par la doublure de `gh` : quelques
-// secondes sous Linux, mais de 70 à 120 s sur un runner Windows, où chaque
-// process coûte cher — au bord des deux minutes laissées à un test. Sa garde
-// est plus large : elle ne sert qu'à ce qu'un test bloqué finisse par le dire.
-test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", { timeout: 600_000 }, async (t) => {
-  const { gh, racine, maintenant, compterUnTick } = uneStation(t, true);
+// Une heure de ticks sans rien de changé : le premier lit tout, chacun des suivants refait les mêmes lectures,
+// toutes rendues en 304. Le second tick et le soixantième sont joués, les autres sautés : ils ne diffèrent du
+// second que par l'heure, et le soixantième dit que rien n'a vieilli en une heure. Les jouer tous coûtait
+// 2 760 lancements de la doublure de `gh`, 24 s sous Linux, et ne prouvait rien de plus (#2464).
+const TICKS_JOUES = [0, 1, 59];
+test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", async (t) => {
+  const { gh, racine, maintenant, compterUnTick, sauterDesTicks } = uneStation(t, true);
   const parTick: number[] = [];
-  for (let i = 0; i < 60; i++) parTick.push(await compterUnTick());
+  for (const [rang, tick] of TICKS_JOUES.entries()) {
+    sauterDesTicks(tick - (rang === 0 ? 0 : TICKS_JOUES[rang - 1]! + 1));
+    parTick.push(await compterUnTick());
+  }
 
   // Chaque tick a bien relu GitHub : rien n'est servi sans lui demander.
-  assert.equal(gh.appels().length, 60 * LECTURES_PAR_TICK);
+  assert.equal(gh.appels().length, TICKS_JOUES.length * LECTURES_PAR_TICK);
   // Le premier tick lit tout ; le second gist du premier tick est déjà un 304.
   assert.equal(parTick[0], LECTURES_PAR_TICK - 1);
   assert.deepEqual(new Set(parTick.slice(1)), new Set([0]));
