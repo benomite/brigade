@@ -105,6 +105,7 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserLaLenteur } from "./projet/lenteur.js";
+import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
@@ -1140,6 +1141,9 @@ const remarquesDepliees = new Set();
 // tableau de la cuisine en donne, pour le projet affiché.
 /** @type {Map<string, import("../amont.ts").Vu>} */
 const amonts = new Map();
+// Les temps que la bande de chaque projet a posés : publiés autrement, elle se repose sans attendre la lecture du rail.
+/** @type {Map<string, string>} */
+const tempsDesBandes = new Map();
 // Les projets dont le chef a déplié la colonne Backlog : une lecture neuve ne la replie pas.
 /** @type {Set<string>} */
 const amontsDeplies = new Set();
@@ -4557,12 +4561,12 @@ function poserArreter(projet, arretee) {
   poserLesGroupes();
 }
 
-// En tête du rail, ce qui est avant lui (amont.ts, ticket 1836) : une petite barre empilée, une part par état, les
-// comptes au survol (avant-le-rail.js), à côté de l'histogramme des 24 heures ; un clic déplie la colonne Backlog, un
-// autre la replie. Quand aucun ticket n'est sur le rail, une phrase dit ce qui est avant lui et ce que le manager en
-// fait. Tout est déjà dit par le process principal : la vue pose.
+// Dans la bande du haut du rail, ce qui est avant lui (amont.ts, ticket 1836) : une petite barre empilée, une part par
+// état, les comptes au survol (avant-le-rail.js), à côté de l'histogramme des 24 heures ; un clic déplie la colonne
+// Backlog, un autre la replie. Quand aucun ticket n'est sur le rail, la phrase qui dit ce qui est avant lui est celle de
+// la colonne On the rail (ticket 2486). Tout est déjà dit par le process principal : la vue pose.
 /** @param {Projet} projet @param {import("../faits.ts").Rail} lu */
-function poserAmont(projet, { aucunTicket, cadence }) {
+function poserAmont(projet, { cadence }) {
   const vu = amonts.get(projet.nom);
   const tete = document.createElement("div");
   tete.className = "amont";
@@ -4586,13 +4590,30 @@ function poserAmont(projet, { aucunTicket, cadence }) {
   // Sur la même ligne, à quelle allure la cuisine sert : l'histogramme des 24 dernières heures (cadence.js, ticket 1811).
   const graphe = poserCadence(document, cadence);
   if (graphe !== null) tete.append(graphe);
-  // Rien sur le rail : la phrase dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
-  if (aucunTicket === true) {
-    const vide = bloc("p", vu?.vide ?? "nothing on the rail — what is before it is being read…");
-    vide.className = "vide";
-    tete.append(vide);
-  }
-  return [tete];
+  return tete;
+}
+/** @param {Projet} projet */
+const tempsVuDe = (projet) => JSON.stringify(projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.temps ?? null);
+// Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
+/** @param {Projet} projet */
+function railVide(projet) {
+  return amonts.get(projet.nom)?.vide ?? "nothing on the rail — what is before it is being read…";
+}
+
+// La bande du haut de l'onglet Rail (ticket 2486) : le temps d'un ticket, les cooks en cours et le backlog, sur une
+// ligne mince (projet/rail/bande-rail.js) ; l'âge du rail montré au bout. Sans tableau lu, elle ne dit que le temps d'un
+// ticket. Les cooks en cours : ceux que les faits nomment, sinon un par ticket de Taken — ce que GitHub dit.
+/** @param {Projet} projet @param {import("../faits.ts").Tableau} [tableau] @param {HTMLElement[]} [apres] */
+function bandeDuRail(projet, tableau, apres = []) {
+  const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  tempsDesBandes.set(projet.nom, tempsVuDe(projet));
+  if (tableau === undefined) return poserBandeRail(document, { temps: vu?.temps, apres });
+  const { enCours } = tableau.cooks;
+  const pris = tableau.compteurs.find(({ libelle }) => libelle === "taken")?.nombre ?? 0;
+  const cooks = enCours.length > 0 ? { nombre: enCours.length, tickets: enCours.map(({ ticket, titre, station }) => `#${ticket} ${titre} — ${station}`) } : { nombre: pris, tickets: [] };
+  // Ni barre ni histogramme : le backlog n'a pas de part dans la bande.
+  const backlog = poserAmont(projet, tableau.rail);
+  return poserBandeRail(document, { temps: vu?.temps, cooks, ...(backlog.childElementCount === 0 ? {} : { backlog }), apres });
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -5057,12 +5078,12 @@ function poserLeRail(projet) {
         const liste = bons(cartes, ton, tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass"));
         liste.append(...resolues);
         colonne.append(liste);
-      } else if (!avecDisjoncteur) colonne.append(bloc("p", vide));
+      } else if (!avecDisjoncteur) colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
       return colonne;
     }),
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail, ni les corrections.
-  if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
+  if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [bandeDuRail(projet), grille]));
   // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail », en tête de la rangée (ticket 2093).
   if (!cuisine) {
     const backlog = colonneBacklog(projet, bons);
@@ -5089,15 +5110,16 @@ function poserLeRail(projet) {
   railPoseDe = `${projet.nom}#${cuisine}`;
   // Hors ligne, le rail lu en dernier est atténué, et le signe dit depuis quand à la place de son âge (ticket 1818).
   if (horsLigne !== undefined) rail.dataset.horsLigne = "";
+  // Sur Rail, les signes d'abord — une lecture vieille, la panne, le projet éteint —, puis la bande du haut, qui porte
+  // l'âge du rail à son bout (ticket 2486).
   poser(
     ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? [signePerime(perime, tenu.a)] : fraicheur(tenu.a)),
-    ...(cuisine || tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
     ...(cuisine
       ? []
       : [
           ...panneDuRail(projet, tenu.tableau),
           ...teteDuRail(projet),
-          ...poserAmont(projet, tenu.tableau.rail),
+          bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
           ...poserLesProfils(projet, tenu.tableau.rail.profils),
         ]),
@@ -6841,10 +6863,11 @@ function poserLaLenteurDuProjet(projet) {
   lenteurDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
 // Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide ; la station qui n'en publie pas le dit.
+// Sur Cooks seulement : sur Rail, le temps d'un ticket est dans la bande du haut, son détail au survol (ticket 2486).
 /** @param {Projet | undefined} projet */
 function poserLesTempsDesTickets(projet) {
   const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
-  tempsTicketDuProjet.hidden = projet === undefined;
+  tempsTicketDuProjet.hidden = projet === undefined || ongletDe(projet) !== CUISINE;
   tempsTicketDuProjet.replaceChildren(...(projet === undefined ? [] : [poserTempsTicket(document, vu?.temps)]));
 }
 setInterval(() => {
@@ -8363,7 +8386,9 @@ brigade.surProjetsDesStations((vu) => {
   if (courant !== undefined) {
     const avant = alerteDeCuisine.hidden;
     poserCuisson(courant);
-    if (avant !== alerteDeCuisine.hidden) poserRail(courant);
+    // La bande du haut du rail suit les temps des tickets que la station publie (ticket 2486).
+    const bande = tempsDesBandes.get(courant.nom);
+    if (avant !== alerteDeCuisine.hidden || (bande !== undefined && bande !== tempsVuDe(courant))) poserRail(courant);
   }
 });
 // La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.

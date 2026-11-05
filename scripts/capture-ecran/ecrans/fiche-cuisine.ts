@@ -2,7 +2,8 @@
 // Le geste part sur le tableau de la cuisine (#1740) : la fiche dit qu'il y est posté, son commentaire au survol.
 import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
 import { situationDe } from "../../../app/src/histoire.ts";
-import { POSTE } from "../../../app/src/tableau-gestes/rail.ts";
+// Le geste posté sur le Kitchen board, tel que le disait `tableau-gestes/rail.ts` (retiré par #2061).
+const POSTE = "posted on the Kitchen board — the box plays it at its next tick and answers under it";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { RENDU, SECOND } from "./rail-waiting-commun.ts";
