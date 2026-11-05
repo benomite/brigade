@@ -493,10 +493,25 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
   Waiting — in `prio:` order, then oldest first. A taken card says the station that holds it and since its claim; a
   card in pass, who cooked it and since its PR, and its PR number on its `right now` line; a queued card, since its
   issue was opened.
-- **Cooks**: one station per station holding a claim comment on an issue (`<!-- brigade:prise station=… -->`, the
-  earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
-  says it as the runtime's `prise.ts` does). Each station is `cooking`, its cooks the cards of the tickets it holds, taken
-  or in pass with their PR.
+- **Cooks** (#2358): every station of the project as GitHub tells it, the box and a computer by the same rule, in the
+  same line — none is the main station, none carries "move the kitchen" or a stop button (stopping one station is an
+  old-path gesture the GitHub-only loop does not read). A station of the project is one the app chose the repository
+  for (`selection` of its registration gist), or one holding a claim comment on an issue (`<!-- brigade:prise station=… -->`,
+  the earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
+  says it as the runtime's `prise.ts` does); its name is the one of its claims, `<machine>/claude`. Its sign of life is
+  the `lastSeen` it rewrites in its registration gist every two minutes, read by the main process at that pace
+  (`app/src/vue/cooks/signes-de-vie.ts`). Each line says:
+  - **cooking**, `reached` — it holds a ticket: its cooks are the cards of the tickets it holds, taken or in pass with
+    their PR, within one reading of the board;
+  - **idle**, `reached` — it holds none, and its sign of life is fresh (at most two missed refreshes, the registration
+    contract's rule);
+  - **not reached**, and `last sign of life <date> UTC` on screen — it holds none and has gone silent, or stopped.
+    "open Brigade on that computer" is in the hover.
+  A station holding a ticket with a silent sign of life is still `cooking` (GitHub says so until its lease is taken
+  back), `not reached`. When the signs of life cannot be read, one line says so — the reason in the hover — and only
+  the stations holding a ticket are listed, their pill `no word`. Nothing of the block comes from the old log's
+  `facts`, from the stations it declares, or from the main station the app knows. *Rule:
+  `runtime/src/stations-github/stations.ts`. View: `app/src/vue/cooks/stations-github.js`.*
 - What the old path said and the GitHub-only loop does not follow is no longer shown: the idle-kitchen fault, the
   stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
   switched off are shown as published. The backlog and Served still come from the board, and so does TODO, with
@@ -521,8 +536,11 @@ refreshed from GitHub (#2059), as before; once read on, the switch is remembered
 conditional: a 304 costs nothing.
 
 *Code: `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in `app/src/main.ts`. Tests:
-`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`. Captures: `docs/captures/2220/` —
-`rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`.*
+`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`, `app/test/vue/cooks/stations-github.test.ts`,
+`app/test/vue/cooks/signes-de-vie.test.ts`, `runtime/test/stations-github/stations.test.ts`. Captures:
+`docs/captures/2220/` — `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`;
+`docs/captures/2358/` — `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and
+`-apres.png` (one station cooking, one idle, one silent).*
 
 ### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
 

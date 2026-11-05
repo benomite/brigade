@@ -6,6 +6,7 @@
 //
 // Ce module redit la règle du runtime sans l'importer : prise.ts tire avec lui le rail du runtime, que l'app ne charge pas.
 // Un test les joue toutes deux sur les mêmes commentaires (test/vue/cooks/prises.test.ts).
+import { stationsSurGithub, type SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../faits.ts";
 import type { StationDesFaits } from "../../ordinaires.ts";
 
@@ -47,14 +48,23 @@ export function tenantDeLIssue(commentaires: readonly Brut[], evenements: readon
   return tient;
 }
 
-// Les stations du projet sur l'onglet Cooks, d'après les prises : une par station qui tient un ticket, dans l'ordre de
-// sa plus ancienne prise, avec ses cooks. Sur GitHub seul, aucune n'est distante d'une autre : toutes prennent, cuisent,
-// jugent et mergent. Une station qui tient un ticket cuit : son mot est `cooking`. Ce que GitHub ne dit pas d'elle — son
-// plafond, son bac à sable, ses tickets ordinaires — reste nul.
-export function stationsDesPrises(cooks: readonly (Cook & { le: string })[]): StationDesFaits[] {
-  const parStation = new Map<string, Cook[]>();
-  for (const { ticket, titre, station } of [...cooks].sort((a, b) => Date.parse(a.le) - Date.parse(b.le) || a.ticket - b.ticket)) {
-    parStation.set(station, [...(parStation.get(station) ?? []), { ticket, titre, station }]);
-  }
-  return [...parStation].map(([station, siens]) => ({ station, distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "cooking", cooks: siens }));
+// Les stations du projet sur l'onglet Cooks (#2358) : chacune telle que GitHub la dit — les tickets qu'elle tient, et
+// son dernier signe de vie dans son gist (runtime/src/stations-github/stations.ts) —, la box comme un ordinateur, par la
+// même règle. Aucune n'est distante d'une autre, ni principale : toutes prennent, cuisent, jugent et mergent. Son mot est
+// `cooking` (elle tient un ticket), `idle` (fraîche, sans ticket) ou `silent` (tue) ; `presente`, son signe de vie
+// frais, absent quand aucun ne se lit pour elle ; `vueLe`, ce dernier signe de vie. Ce que GitHub ne dit pas d'elle —
+// son plafond, son bac à sable, ses tickets ordinaires — reste nul.
+export function stationsDeGithub(cooks: readonly (Cook & { le: string })[], signes: readonly SigneDeVie[] | null, depot: string, maintenant: number): StationDesFaits[] {
+  return stationsSurGithub({ depot, prises: cooks, signes, maintenant }).map(({ station, etat, atteinte, cooks: siens, signeDeVie }) => ({
+    station,
+    distante: false,
+    plafond: null,
+    ordinaires: false,
+    bacASable: null,
+    prendOrdinaires: false,
+    cuisson: etat,
+    cooks: siens.map(({ ticket, titre }) => ({ ticket, titre, station })),
+    ...(atteinte === null ? {} : { presente: atteinte }),
+    vueLe: signeDeVie,
+  }));
 }

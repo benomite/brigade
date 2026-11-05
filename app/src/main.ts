@@ -39,6 +39,7 @@ import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import type { MemoireDesLectures } from "./tableau/rail-github.ts";
+import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { avecLeRailGithub } from "./vue/rail/github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
@@ -230,10 +231,19 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 const interrupteursDuRail = new Map<string, boolean>();
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
+// Ses stations, sur l'onglet Cooks, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
+// (#2358, vue/cooks/signes-de-vie.ts) : relu au pas où les stations l'écrivent, deux minutes, par la lecture des stations
+// du compte que la vue fait déjà.
+const signesDeVie = tenirLesSignesDeVie({
+  lire: async () => {
+    const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
+    return lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  },
+});
 const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
   if (!lu.lu) return lu;
-  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail);
+  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail, () => signesDeVie.signes());
   return relu.lu ? avecLesEnvois(await avecLeTodoGithub(relu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : relu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
@@ -1141,6 +1151,7 @@ ipcMain.handle("stationsDuChef", async (): Promise<StationsDuChef> => {
 ipcMain.handle("stationsDuCompte", async (): Promise<StationsDuCompte> => {
   const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
   const lu = await lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  signesDeVie.poser(lu);
   if (lu.state === "unavailable") return retenirLaPage(lu);
   const github = githubDesStations({ gh: ghIci, delaiMs: 30_000 });
   return avecLeursAjouts(lu, (id) => github.lire(id));

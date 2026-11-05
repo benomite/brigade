@@ -145,7 +145,7 @@ function motDuRole(doc, role) {
 // Les cooks en cours d'une station, une ligne chacun : son ticket et son titre (l'écran étroit) — après ce qu'elle fait
 // tourner d'autre, une ligne chacun : son rôle, son ticket, ce qu'il fait.
 /** @param {Fabrique} doc @param {readonly Cook[]} siens @param {readonly Agent[]} agents */
-function lignesDeCooks(doc, siens, agents) {
+export function lignesDeCooks(doc, siens, agents) {
   const cooks = cree(doc, "ul");
   cooks.className = siens.length === 0 && agents.length === 0 ? "cooks vide" : "cooks";
   cooks.append(
@@ -203,7 +203,7 @@ function carteDAgent(doc, station, agent) {
 // Les cooks en cours d'une station, la carte de son ticket chacun, telle que `carte` la pose — après la carte de chaque
 // agent qu'elle fait tourner d'autre. Rien du tout : une ligne le dit.
 /** @param {Fabrique} doc @param {string} station @param {readonly Cook[]} siens @param {readonly Agent[]} agents @param {(cook: Cook) => any} carte */
-function cartesDeCooks(doc, station, siens, agents, carte) {
+export function cartesDeCooks(doc, station, siens, agents, carte) {
   if (siens.length === 0 && agents.length === 0) {
     const vide = cree(doc, "p", RIEN_NE_TOURNE);
     vide.className = "aucun-cook";
