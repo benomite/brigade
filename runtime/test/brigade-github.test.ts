@@ -134,7 +134,7 @@ class FauxGitHub {
       },
       issuesDepuis: async () => {
         await noter("issuesDepuis");
-        return [...this.tickets.values()].map((t) => ({ number: t.number, body: t.corps, association: "OWNER", state: t.state }));
+        return [...this.tickets.values()].map((t) => ({ number: t.number, body: t.corps, association: "OWNER" }));
       },
       fermerIssue: async (numero) => {
         await noter("fermerIssue");
@@ -966,7 +966,6 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
     teteDeLaBase: async () => faux.teteDeLaBase,
-    issuesDepuis: async () => [],
     prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
     issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
   };

@@ -308,9 +308,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Rouge après sa relance, la base a son ticket de réparation : un seul par commit (#2339).
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
+    const lus = await github.fires();
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
-    await fermerLaReparation(checksDeLaBase).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
-    const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
+    await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
+    const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
     let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
