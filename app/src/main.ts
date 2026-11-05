@@ -59,7 +59,7 @@ import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
 import { tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
-import { chercherUneMiseAJour, posteDe, refuser as refuserLaVersion, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
+import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
@@ -139,14 +139,18 @@ const dire = (canal: string, ...faits: unknown[]) => {
 };
 
 // L'app installée se tient à jour sur les versions publiées (mise-a-jour/) : elle regarde au
-// lancement puis toutes les six heures, télécharge la nouvelle, et l'installe au geste du chef ou
-// à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
+// lancement puis tous les quarts d'heure (#2431), télécharge la nouvelle, et l'installe au geste du
+// chef ou à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
 // Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`. Le même chemin sur
 // un Mac et sous Windows : seuls l'installeur publié qu'elle lit et ce qui le joue sont du poste.
 const dossierDeMiseAJour = join(dirname(cheminConfiguration()), "mise-a-jour");
 const installeur = installeurDuPoste({ plateforme, ressources: process.resourcesPath, executable: process.execPath, pid: process.pid, dossier: dossierDeMiseAJour });
+// Un quart d'heure, et non plus six heures (#2431) : une version publiée le matin se voit dans la matinée. Les deux
+// vérifications ensemble lisent l'API de GitHub au plus trois fois par quart d'heure, loin de ses 60 lectures par heure.
+const CADENCE_DES_VERSIONS_MS = 15 * 60 * 1000;
 const miseAJour = tenirMiseAJour({
   version: app.getVersion(),
+  cadenceMs: CADENCE_DES_VERSIONS_MS,
   inactive: emplacements.facon === "installee" ? undefined : "launched from the repository, it updates through its clone",
   flux: fluxDe(process.env.BRIGADE_APP_MISE_A_JOUR_SOURCE, formatDe(plateforme)),
   dossier: dossierDeMiseAJour,
@@ -159,16 +163,17 @@ const miseAJour = tenirMiseAJour({
 // station n'est pas lancée, sa fenêtre ne s'ouvre pas — l'app se ferme, l'installeur la rouvre sur
 // la nouvelle version.
 const installeeAuLancement = miseAJour.auLancement();
-// Le bandeau d'une version plus haute (#1528, mise-a-jour/avis.ts) : sur l'app installée d'un Mac ou d'un PC, la plus
-// haute version publiée au-dessus de celle qui tourne, avec le lien direct de son paquet — relue au lancement, puis
-// toutes les six heures. La version que le chef écarte est gardée à côté du fichier des projets, hors du dossier que la
-// mise à jour vide. Lancée depuis le dépôt, l'app ne regarde rien : son clone la met à jour.
+// La ligne d'une version plus haute (#1528, #2431, mise-a-jour/avis.ts) : sur l'app installée d'un Mac ou d'un PC, la
+// plus haute version publiée au-dessus de celle qui tourne, avec le lien direct de son paquet — relue au lancement, puis
+// tous les quarts d'heure. Rien ne l'écarte, et une lecture qui ne trouve rien (GitHub muet) ne la retire pas : la
+// version qui tourne ne change pas tant que l'app tourne, une version plus haute connue le reste. Lancée depuis le
+// dépôt, l'app ne regarde rien : son clone la met à jour.
 const posteDeLAvis = emplacements.facon === "installee" ? posteDe(plateforme) : undefined;
-const versionEcartee = join(dirname(cheminConfiguration()), "version-ecartee.json");
 let avisDeVersion: Promise<AvisDeVersion | undefined> = Promise.resolve(undefined);
 const verifierLaVersion = () => {
   if (posteDeLAvis === undefined) return;
-  avisDeVersion = chercherUneMiseAJour({ version: app.getVersion(), poste: posteDeLAvis, fichier: versionEcartee });
+  const precedent = avisDeVersion;
+  avisDeVersion = chercherUneMiseAJour({ version: app.getVersion(), poste: posteDeLAvis }).then(async (avis) => avis ?? (await precedent));
   void avisDeVersion.then((avis) => dire("avisDeVersion", avis));
 };
 let verificationsDeVersion: ReturnType<typeof setInterval> | undefined;
@@ -1345,8 +1350,7 @@ ipcMain.handle("passer", () => {
 ipcMain.handle("miseAJour", () => miseAJour.vu());
 ipcMain.handle("verifierMiseAJour", () => miseAJour.verifier());
 ipcMain.handle("installerMiseAJour", () => miseAJour.installerMaintenant());
-// Le bandeau d'une version plus haute : le dernier avis, son lien ouvert dans le navigateur — celui de l'avis, et lui
-// seul —, et la version que le chef écarte, gardée d'un lancement à l'autre.
+// La ligne d'une version plus haute : le dernier avis, et son lien ouvert dans le navigateur — celui de l'avis, et lui seul.
 ipcMain.handle("avisDeVersion", () => avisDeVersion);
 ipcMain.handle("telechargerVersion", async (_, url: unknown) => {
   if (typeof url !== "string" || (await avisDeVersion)?.url !== url) return false;
@@ -1354,11 +1358,6 @@ ipcMain.handle("telechargerVersion", async (_, url: unknown) => {
     () => true,
     () => false,
   );
-});
-ipcMain.handle("refuserVersion", async (_, version: unknown) => {
-  if (typeof version !== "string" || !refuserLaVersion(versionEcartee, version)) return false;
-  if ((await avisDeVersion)?.version === version) avisDeVersion = Promise.resolve(undefined);
-  return true;
 });
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
@@ -1619,11 +1618,11 @@ void app.whenReady().then(() => {
   });
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
   void retards.relire();
-  // La première vérification des versions publiées, puis une toutes les six heures.
+  // La première vérification des versions publiées, puis une tous les quarts d'heure.
   miseAJour.demarrer();
-  // Et celle du bandeau d'une version plus haute, puis une toutes les six heures.
+  // Et celle de la ligne d'une version plus haute, à la même cadence.
   verifierLaVersion();
-  verificationsDeVersion = setInterval(verifierLaVersion, 6 * 60 * 60 * 1000);
+  verificationsDeVersion = setInterval(verifierLaVersion, CADENCE_DES_VERSIONS_MS);
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
   // Les préférences du chef : lues dans son gist — qui en prend celles du fichier, s'il n'en a encore

@@ -1,7 +1,7 @@
 // L'app installée se tient à jour d'elle-même, sur les versions que publie le workflow publier-app
 // (flux.ts) : le chef ne télécharge rien.
 //
-// Au lancement, puis toutes les six heures — et quand la vue le demande —, elle regarde si une
+// Au lancement, puis tous les quarts d'heure (#2431) — et quand la vue le demande —, elle regarde si une
 // version plus haute que la sienne est publiée. S'il y en a une, elle l'annonce (`disponible`, avec
 // son numéro) et la télécharge aussitôt, vérifiée contre la taille et le sha512 publiés
 // (`telechargement`, puis `prete`). Ensuite, deux chemins : le chef dit « installer maintenant » —
@@ -139,7 +139,7 @@ async function empreinte(fichier: string): Promise<string> {
 
 export function tenirMiseAJour(options: OptionsMiseAJour): MiseAJour {
   const { version, dossier } = options;
-  const cadenceMs = options.cadenceMs ?? 6 * 3_600_000;
+  const cadenceMs = options.cadenceMs ?? 15 * 60_000;
   const maintenant = options.maintenant ?? (() => new Date());
   const telecharger = options.telecharger ?? telechargerParFetch(options.silenceMs ?? 60_000);
   const delaiFluxMs = options.delaiFluxMs ?? 60_000;
