@@ -69,6 +69,10 @@ export type PR = {
   version?: string;
 };
 
+// Un statut de commit tel que GitHub le garde : `id` croît avec l'ordre où il
+// les reçoit ; `description` tient en 140 caractères.
+export type StatutDeCommit = { id: number; state: "pending" | "success" | "failure" | "error"; context: string; description: string; createdAt: string };
+
 // `fait: false` : GitHub a refusé, et dit pourquoi. Une panne — rien ne dit
 // alors si le merge a eu lieu — lève.
 export type Merge = { fait: true } | { fait: false; motif: string };
@@ -113,6 +117,11 @@ export type GitHub = {
   prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
+  // Tous les statuts du commit sous ce contexte, chacun tel qu'il a été posé,
+  // du plus ancien au plus récent (#2456). Facultatif : seul le client réel le porte.
+  statuts?(sha: string, contexte: string): Promise<StatutDeCommit[]>;
+  // Pose un statut sur le commit ; rend son id (#2456). Facultatif, de même.
+  poserStatut?(sha: string, statut: { state: StatutDeCommit["state"]; context: string; description: string }): Promise<number>;
   // Une requête GraphQL de lecture, ses variables en texte : son `data`, ou une erreur.
   lireGraphql?(requete: string, variables: Record<string, string | number>): Promise<unknown>;
   // Les checks des derniers commits de la branche d'intégration, mis bout à
@@ -602,6 +611,20 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       // qui avance, et seulement finie : rien qui tourne encore.
       if (/^[0-9a-f]{40}$/.test(sha) && checks.length > 0 && checks.every((check) => check.outcome !== "pending")) memoriser(ciFinie, sha, checks);
       return checks;
+    },
+    async statuts(sha, contexte) {
+      const chemin = `repos/${depot}/commits/${sha}/statuses?per_page=100`;
+      const lus = (await lireLaListe(chemin)).flatMap((page) => JSON.parse(page.corps) as Array<{ id?: number; state?: string; context?: string; description?: string | null; created_at?: string }>);
+      return lus
+        .filter((lu) => lu.context === contexte && typeof lu.id === "number" && ["pending", "success", "failure", "error"].includes(lu.state ?? ""))
+        .map((lu) => ({ id: lu.id as number, state: lu.state as StatutDeCommit["state"], context: contexte, description: lu.description ?? "", createdAt: lu.created_at ?? "" }))
+        .sort((a, b) => a.id - b.id);
+    },
+    async poserStatut(sha, { state, context, description }) {
+      const reponse = await creer(`repos/${depot}/statuses/${sha}`, { state, context, description: description.slice(0, 140) });
+      const id = (JSON.parse(reponse.corps) as { id?: unknown }).id;
+      if (typeof id !== "number") throw new Error(`gh api repos/${depot}/statuses/${sha} : statut posé sans id`);
+      return id;
     },
     async ciDeLaBase(branche) {
       const chemin = `repos/${depot}/commits?sha=${encodeURIComponent(branche)}&per_page=${COMMITS_DE_LA_BASE}`;

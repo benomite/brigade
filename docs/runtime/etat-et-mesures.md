@@ -82,8 +82,10 @@ party or another ticket —, the runtime writes `kitchen.held` to the log and th
 count from the latest of: the last service, the kitchen's opening (runtime start, project switched back on), and the
 moment the waiting tickets started to wait. The cause is the first that holds of: the breaker (`to lift:` its `Resume`
 button), the GitHub limit or the box's reserve for your gestures, the GitHub write budget (both say `nothing to do: it
-lifts on its own around HH:MM`), the red base with its failing checks named (`to lift: fix the base by hand…`), or
-`cause unknown`, with no gesture. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
+lifts on its own around HH:MM`), the red base with its failing checks named (`to lift: fix the base by hand…`), on the
+GitHub-only state the deliveries in pass whose PR head has no concluded CI (#2456: `cause: 2 deliveries in pass wait for
+a CI on their PR head (#757, #759), and no check has started there — to lift: check that the project's CI runs on its
+PRs…`, or `still running: brigade/gates — nothing to do`), or `cause unknown`, with no gesture. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
 its start. When the kitchen serves again — or nothing waits any more, or you stop the kitchen —, `kitchen.hold-lifted`
 is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
 GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The

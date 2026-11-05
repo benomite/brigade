@@ -235,6 +235,8 @@ try {
             observer: suiviDuTour.envelopper,
             // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
             clone: station.clone,
+            // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
+            gates: { delaiMs: delais.delaiGatesMs, secrets, sansIdentite: identites !== null },
             // Le « stop », le disjoncteur, le quota et l'arbitre, comme sur
             // l'ancien chemin (#2213) : l'arbitre est alors à elle seule.
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),

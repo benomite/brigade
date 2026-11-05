@@ -18,10 +18,20 @@
 // de la mettre à jour, et on ne la merge pas. Une fois à jour, la station qui
 // passe la merge. Si la base bouge entre la lecture et le merge, c'est GitHub
 // qui refuse : le refus est rendu tel quel, la station suivante relira la PR.
+//
+// Rien n'est mergé sans une CI verte sur la tête. Un projet dont les PR ne
+// portent aucune CI (#2456) n'attend pas une CI qui ne viendra jamais : ce sont
+// les gates du projet, jouées par une station sur la tête, qui en tiennent lieu
+// (`gates-de-la-tete.ts`). Ce qui sépare « pas de CI » de « CI pas encore
+// partie » n'est pas l'absence de check — elle est la même dans les deux cas —,
+// mais les workflows du projet : la station dit à `fusionner` si l'un d'eux se
+// lance sur cette PR (`ciDesPR`). S'il s'en lance un, sa CI reste exigée, et
+// un statut des gates ne la remplace pas.
 import { DE_CONFIANCE } from "../alimenter.ts";
 import type { Check } from "../events/pass.ts";
 import type { Merge, PR } from "../github.ts";
 import { etatDeLaBase } from "./etats.ts";
+import { CONTEXTE_DES_GATES } from "./gates-de-la-tete.ts";
 
 export type Verdict = "approve" | "request-changes";
 
@@ -101,17 +111,37 @@ export async function relire(pr: PRAFusionner, { github, station, juger }: Conte
   return dernierVerdict(await github.commentaires(pr.number));
 }
 
+// Ce que la CI de la tête dit, pour le merge. `gates-a-jouer` : le projet ne
+// lance aucune CI sur cette PR, et ses gates n'y ont pas encore de verdict —
+// aucun statut, ou un `pending` : frais, une station les joue et les autres
+// l'attendent ; laissé par une station tombée pendant, il se reprend. C'est
+// `jouerLesGatesDeLaTete`, qui lit l'âge des statuts, qui tranche. Avec une CI
+// sur ses PR (`ciDesPR`), seule elle compte : ni le statut des gates ne la
+// remplace, ni rien ne la remplace tant qu'elle n'a pas démarré.
+export type CIDeLaTete = "green" | "red" | "pending" | "gates-a-jouer";
+
+export function ciDeLaTete(checks: Pick<Check, "outcome" | "name">[], ciDesPR: boolean): CIDeLaTete {
+  if (ciDesPR) return etatDeLaBase(checks.filter((check) => check.name !== CONTEXTE_DES_GATES)) ?? "pending";
+  const ci = etatDeLaBase(checks);
+  if (ci === "red") return "red";
+  if (checks.find((check) => check.name === CONTEXTE_DES_GATES)?.outcome !== "green") return "gates-a-jouer";
+  return ci ?? "pending";
+}
+
 // `mergee` : GitHub a mergé. `mise-a-jour` : la branche était en retard, sa
 // mise à jour est demandée, rien n'est mergé. `non-approuvee` : rien n'est
 // écrit. `ci-attendue` : la CI de sa tête n'a pas fini, ou rien n'y tourne
-// encore. `ci-rouge` : un check de sa tête est rouge. `close` : la PR n'est
-// plus ouverte. `refusee` : GitHub a refusé le merge, et dit pourquoi.
-export type Fusion = { issue: "mergee" | "mise-a-jour" | "non-approuvee" | "ci-attendue" | "ci-rouge" | "close" } | { issue: "refusee"; motif: string };
+// encore. `gates-a-jouer` : le projet ne lance aucune CI sur ses PR, et les
+// gates de sa tête n'ont pas de verdict : une station les jouera, ou les joue. `ci-rouge` : un check de sa
+// tête est rouge. `close` : la PR n'est plus ouverte. `refusee` : GitHub a
+// refusé le merge, et dit pourquoi.
+export type Fusion = { issue: "mergee" | "mise-a-jour" | "non-approuvee" | "ci-attendue" | "gates-a-jouer" | "ci-rouge" | "close" } | { issue: "refusee"; motif: string };
 
 // Merge la PR si elle est fusionnable, depuis la station qui appelle, quelle
 // qu'elle soit. En retard sur sa base, la PR approuvée est mise à jour, jamais
-// mergée.
-export async function fusionner(pr: PRAFusionner, github: GitHubDeLaFusion): Promise<Fusion> {
+// mergée. `ciDesPR` : un workflow du projet se lance sur cette PR — par
+// défaut, oui : sa CI est attendue.
+export async function fusionner(pr: PRAFusionner, github: GitHubDeLaFusion, { ciDesPR = true }: { ciDesPR?: boolean } = {}): Promise<Fusion> {
   if (pr.state !== "open" || pr.merged) return { issue: "close" };
   if (!approuvee(await github.commentaires(pr.number))) return { issue: "non-approuvee" };
   if (pr.enRetard) {
@@ -119,9 +149,11 @@ export async function fusionner(pr: PRAFusionner, github: GitHubDeLaFusion): Pro
     return { issue: "mise-a-jour" };
   }
   // Rien n'est mergé sans une CI verte sur la tête même (#2053) : `main` n'exige
-  // aucun check, la station est le seul garde. Sans check, elle attend.
-  const ci = etatDeLaBase(await github.ci(pr.sha));
+  // aucun check, la station est le seul garde. Sans check, elle attend — ou, sur
+  // un projet sans CI sur ses PR, fait jouer ses gates (#2456).
+  const ci = ciDeLaTete(await github.ci(pr.sha), ciDesPR);
   if (ci === "red") return { issue: "ci-rouge" };
+  if (ci === "gates-a-jouer") return { issue: "gates-a-jouer" };
   if (ci !== "green") return { issue: "ci-attendue" };
   const merge = await github.merger(pr.number, pr.sha);
   return merge.fait ? { issue: "mergee" } : { issue: "refusee", motif: merge.motif };

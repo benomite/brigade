@@ -20,8 +20,10 @@
 // de GitHub et le budget des écritures (ils retiennent tout appel, ou toute
 // écriture, tant qu'ils tiennent), puis la base rouge — qui ne retient une
 // livraison que rouge sur un check que celle-ci passe aussi (#2279), et
-// n'explique donc la retenue qu'à défaut des autres. Aucune : la cause est
-// inconnue, et la ligne le dit.
+// n'explique donc la retenue qu'à défaut des autres. Puis les livraisons en
+// pass qui attendent un check sur leur tête (#2456) : une CI qui tourne
+// encore, ou qui n'y a jamais démarré. Aucune : la cause est inconnue, et la
+// ligne le dit.
 import { ECRITURES_PAR_HEURE } from "../limite-github.ts";
 import type { CauseDeRetenue } from "./evenements.ts";
 
@@ -48,12 +50,15 @@ export type Observation = {
 // retient rien. `disjoncteur` : son ouverture. `limiteGitHub` : la limite que
 // GitHub a posée, ou la réserve des gestes que la box garde, et sa reprise.
 // `ecritures` : le budget des écritures qui les retient, et la prochaine.
-// `baseRouge` : ce qui échoue sur la base.
+// `baseRouge` : ce qui échoue sur la base. `attenteCI` : les livraisons en
+// pass dont la tête n'a pas de CI conclue, et les checks qui y tournent —
+// lues par le tour GitHub seul ; absente ailleurs.
 export type Signaux = {
   disjoncteur: string | null;
   limiteGitHub: { limit: string | null; backAt: string } | null;
   ecritures: { writes: number; nextAt: string } | null;
   baseRouge: { sha: string | null; checks: string[] } | null;
+  attenteCI?: { tickets: number[]; running: string[] } | null;
 };
 
 export const SANS_SIGNAL: Signaux = { disjoncteur: null, limiteGitHub: null, ecritures: null, baseRouge: null };
@@ -69,13 +74,17 @@ export type Retenue = Diagnostic & { since: string; tickets: number[] };
 // Les gestes, dits comme le bloc `awaiting` les dit : par le bouton de l'app,
 // ou « no app button for it yet ».
 export const GESTE_DU_DISJONCTEUR = "look at what fails, then press the `Resume` button on the breaker line of TODO";
+// Aucun check n'a démarré sur la tête : la CI du projet ne se lance pas sur ses
+// PR, ou ses gates n'ont aucune station pour les jouer (#2456).
+export const GESTE_DE_LA_CI = "check that the project's CI runs on its PRs; with no CI on its PRs, a station runs its gates (`.claude/brigade/gates.sh`) on the PR head — the station's service log says why it did not: no app button for it yet";
 export const GESTE_DE_LA_BASE = "fix the base by hand, the kitchen starts again on its own once it is green; a red that is not down to the code is replayed on the station: no app button for it yet";
 
-export function diagnostiquer({ disjoncteur, limiteGitHub, ecritures, baseRouge }: Signaux): Diagnostic {
+export function diagnostiquer({ disjoncteur, limiteGitHub, ecritures, baseRouge, attenteCI = null }: Signaux): Diagnostic {
   if (disjoncteur !== null) return { cause: { kind: "breaker", since: disjoncteur }, gesture: GESTE_DU_DISJONCTEUR };
   if (limiteGitHub !== null) return { cause: { kind: "github-limit", limit: limiteGitHub.limit, backAt: limiteGitHub.backAt }, gesture: null };
   if (ecritures !== null) return { cause: { kind: "write-pacer", writes: ecritures.writes, nextAt: ecritures.nextAt }, gesture: null };
   if (baseRouge !== null) return { cause: { kind: "base-red", sha: baseRouge.sha, checks: baseRouge.checks }, gesture: GESTE_DE_LA_BASE };
+  if (attenteCI !== null && attenteCI.tickets.length > 0) return { cause: { kind: "ci-wait", tickets: [...attenteCI.tickets], running: [...attenteCI.running] }, gesture: attenteCI.running.length === 0 ? GESTE_DE_LA_CI : null };
   return { cause: { kind: "unknown" }, gesture: null };
 }
 
@@ -102,6 +111,9 @@ export function cleDeCause(cause: CauseDeRetenue): string {
       return JSON.stringify([cause.kind, cause.limit]);
     case "breaker":
       return JSON.stringify([cause.kind, cause.since]);
+    // Qu'un check démarre change le geste ; d'autres tickets, non.
+    case "ci-wait":
+      return JSON.stringify([cause.kind, cause.running.length === 0]);
     default:
       return JSON.stringify([cause.kind]);
   }
@@ -138,8 +150,12 @@ export function direCause(cause: CauseDeRetenue): string {
       return `cause: the GitHub write budget holds the kitchen's writes, ${cause.writes} of ${ECRITURES_PAR_HEURE} in the last hour, next write at ${hhmm(cause.nextAt)}`;
     case "breaker":
       return `cause: the breaker is open since ${hhmm(cause.since)}, no cook leaves`;
+    case "ci-wait": {
+      const n = cause.tickets.length;
+      return `cause: ${n} deliver${n > 1 ? "ies" : "y"} in pass wait${n > 1 ? "" : "s"} for a CI on ${n > 1 ? "their" : "its"} PR head (${nommerTickets(cause.tickets)}), ${cause.running.length === 0 ? "and no check has started there" : `still running: ${cause.running.join(", ")}`}`;
+    }
     case "unknown":
-      return "cause unknown: neither a red base, the GitHub limit, the write budget nor the breaker explains it";
+      return "cause unknown: neither a red base, the GitHub limit, the write budget, the breaker nor a delivery waiting for its CI explains it";
   }
 }
 
@@ -149,6 +165,7 @@ function direSuite({ cause, gesture }: Diagnostic): string {
   if (gesture !== null) return `to lift: ${gesture}`;
   if (cause.kind === "github-limit") return `nothing to do: it lifts on its own around ${hhmm(cause.backAt)}`;
   if (cause.kind === "write-pacer") return `nothing to do: it lifts on its own around ${hhmm(cause.nextAt)}`;
+  if (cause.kind === "ci-wait") return "nothing to do: it lifts on its own once the running checks conclude";
   return "no gesture known: the station's service log says what it tried";
 }
 
@@ -167,8 +184,14 @@ export function direRetenue(retenue: Retenue): string {
     "github-limit": "limite de GitHub",
     "write-pacer": "budget des écritures GitHub",
     breaker: "disjoncteur ouvert",
+    "ci-wait": "livraisons en attente de leur CI",
     unknown: "cause inconnue",
   };
-  const detail = retenue.cause.kind === "base-red" ? ` (${retenue.cause.checks.join(", ") || "aucun check nommé"})` : "";
+  const detail =
+    retenue.cause.kind === "base-red"
+      ? ` (${retenue.cause.checks.join(", ") || "aucun check nommé"})`
+      : retenue.cause.kind === "ci-wait"
+        ? ` (${nommerTickets(retenue.cause.tickets)} : ${retenue.cause.running.length === 0 ? "aucun check démarré sur leur tête" : `en cours : ${retenue.cause.running.join(", ")}`})`
+        : "";
   return `CUISINE RETENUE : rien de servi alors que ${n} ticket${n > 1 ? "s" : ""} attend${n > 1 ? "ent" : ""} (${nommerTickets(retenue.tickets)}) — ${causes[retenue.cause.kind]}${detail} — ${retenue.gesture === null ? "aucun geste : elle se lève seule, ou sa cause n'est pas connue" : `pour la lever : ${retenue.gesture}`}`;
 }

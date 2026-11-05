@@ -247,6 +247,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               observer: suiviDuTour.envelopper,
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
+              // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
+              gates: { delaiMs: delais.delaiGatesMs, secrets, sansIdentite: identites !== null },
             });
         if ("refus" in ouverte) stationRefusee = true;
         return ouverte;

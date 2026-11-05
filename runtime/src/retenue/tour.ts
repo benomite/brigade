@@ -11,6 +11,8 @@
 // - Servi : un merge que ce tour a fait, ou un ticket en pass qui n'est plus
 //   parmi les tickets ouverts — une autre station l'a mergé.
 // - Depuis quand ils attendent : le premier tour qui a vu chacun d'eux attendre.
+// - Attendent leur CI (#2456) : ceux en pass dont la tête de PR, au dernier
+//   tour, n'avait aucun check, ou des checks qui tournaient, et aucun rouge.
 //
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, le compte repart.
 import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
@@ -27,7 +29,9 @@ const AILLEURS = [HORS_CUISINE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
 // Ce que le tour a vu : l'observation (sans `eteinte`, que le journal dit), et
 // les noms des checks rouges de la base, nuls tant qu'aucun n'est lu.
 // `checks` : tous ceux de la base au dernier tour (nom et issue), nuls avant.
-export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null };
+// `attenteCI` : les tickets en pass dont la tête attend sa CI, et les checks
+// qui y tournent ; nulle si aucun.
+export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null; attenteCI: { tickets: number[]; running: string[] } | null };
 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
@@ -46,6 +50,9 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   let attendent = new Map<number, string>();
   let enPass = new Set<number>();
   let enveloppe: GitHubDuTour | null = null;
+  // La tête de la PR de chaque ticket, et les checks lus sur chaque tête.
+  const tetes = new Map<number, string>();
+  const ciDesTetes = new Map<string, Array<{ name?: string; outcome: string }>>();
 
   const noterTickets = (tickets: TicketLu[]) => {
     const instant = maintenant().toISOString();
@@ -78,6 +85,17 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         checks = lus.map(({ name, outcome }) => ({ name, outcome }));
         return lus;
       },
+      prDuTicket: async (issue) => {
+        const pr = await github.prDuTicket(issue);
+        if (pr !== null && pr.state === "open" && !pr.merged) tetes.set(issue, pr.sha);
+        else tetes.delete(issue);
+        return pr;
+      },
+      ci: async (sha) => {
+        const lus = await github.ci(sha);
+        ciDesTetes.set(sha, lus);
+        return lus;
+      },
       merger: async (numero, sha) => {
         const merge = await github.merger(numero, sha);
         if (merge.fait) dernierService = maintenant().toISOString();
@@ -86,7 +104,23 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     }),
     vue: () => {
       const depuis = [...attendent.values()].sort()[0] ?? null;
-      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks };
+      // Ce qu'on ne garde plus : les têtes des tickets sortis du pass.
+      for (const ticket of tetes.keys()) if (!enPass.has(ticket)) tetes.delete(ticket);
+      const vives = new Set(tetes.values());
+      for (const sha of ciDesTetes.keys()) if (!vives.has(sha)) ciDesTetes.delete(sha);
+      const enCours = new Set<string>();
+      const attendentLaCI = [...enPass]
+        .filter((ticket) => attendent.has(ticket))
+        .filter((ticket) => {
+          const lus = ciDesTetes.get(tetes.get(ticket) ?? "");
+          if (lus === undefined || lus.some(({ outcome }) => outcome === "red")) return false;
+          const tournent = lus.filter(({ outcome }) => outcome === "pending");
+          for (const { name } of tournent) enCours.add(name ?? "unnamed check");
+          return lus.length === 0 || tournent.length > 0;
+        })
+        .sort((a, b) => a - b);
+      const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };
+      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI };
     },
   };
 }
