@@ -37,6 +37,15 @@ case "$scenario" in
     echo "gates : ROUGE" >&2
     exit 1
     ;;
+  # Rouges à leur premier jeu, vertes ensuite : le scénario passe au vert de
+  # lui-même, sans qu'un test ait à le changer avant que le renvoi ne livre.
+  rouge-une-fois)
+    printf vert >"$FAUSSES_GATES"
+    echo "ok    JSON valide"
+    echo "FAIL  tests du projet en échec" >&2
+    echo "gates : ROUGE" >&2
+    exit 1
+    ;;
   # Tout passe, sur une machine plus lente que celle où le plafond de durée a
   # été mesuré : il est le seul rouge.
   plafond)
