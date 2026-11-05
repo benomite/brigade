@@ -1,5 +1,5 @@
 // Les temps des derniers tickets de « parade » (#2346, épique #2336) : les enregistrements de
-// `.claude/brigade/temps-tickets.json`, en secondes, posés sous `temps` du projet vu.
+// `.claude/brigade/temps-tickets.json`, en secondes, tels que la principale les publie sous `temps` du projet vu.
 import { donnees, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
 const MIN = 60;
@@ -18,4 +18,4 @@ const enregistrement = (ticket: number, minutes: number) => ({
 export const NORMAL = [9, 11, 8, 12, 10, 14, 9, 13, 11, 18].map((m, i) => enregistrement(2331 + i, m));
 export const LENT = [19, 22, 17, 25, 21, 30, 18, 24, 20, 28].map((m, i) => enregistrement(2331 + i, m));
 
-export const avec = (enregistrements: ReturnType<typeof enregistrement>[]) => () => donnees({ ...SUR_LA_BOX, temps: { enregistrements, tempsMaxTicketMin: 15 } } as typeof SUR_LA_BOX);
+export const avec = (enregistrements: ReturnType<typeof enregistrement>[]) => () => donnees({ ...SUR_LA_BOX, temps: { enregistrements, tempsMaxTicketMin: 15 } });

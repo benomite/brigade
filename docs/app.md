@@ -1743,9 +1743,12 @@ Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
 waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
 `data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
-`vide` ("No ticket measured yet", never a blank or a zero). The records are those of
-`.claude/brigade/temps-tickets.json` (integer seconds), read from `temps` of the project's view
-(`{ enregistrements, tempsMaxTicketMin }`); until the station publishes it, the block shows its empty state.
+`vide` ("No ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone,
+so their sum can differ from the median total. The principal station reads the project's clone
+(`.claude/brigade/temps-tickets.json`, integer seconds, and `tempsMaxTicketMin` of `projet.json`; `lesTempsDesTickets` in
+`runtime/src/temps-ticket/ligne-status.ts`) and publishes `temps` (`{ enregistrements, tempsMaxTicketMin }`) in its
+project tracking, next to `delai`; the app relays it on the project's view. A station that does not publish it yet
+(an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
 Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
 
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as

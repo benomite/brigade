@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { dureeEnClair, poserTempsTicket, synthese } from "../../../src/vue/temps-ticket/temps-ticket.js";
+import { lireSuivi } from "../../../src/projets/demande.ts";
 import { Faux } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -80,5 +81,34 @@ describe("le bloc", () => {
       assert.match(texte, /No ticket measured yet/);
       assert.doesNotMatch(texte, /\b0 (s|min)\b/);
     }
+  });
+
+  test("une médiane égale au plafond n'est pas au-dessus", () => {
+    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 15 * MIN)], tempsMaxTicketMin: 15 });
+    assert.equal(bloc.dataset.temps, "normal");
+  });
+
+  test("temps non publiés par la station : le dit, sans prétendre qu'aucun ticket n'est mesuré", () => {
+    const bloc = poserTempsTicket(doc, undefined);
+    assert.equal(bloc.dataset.temps, "vide");
+    assert.equal(bloc.dataset.publie, "non");
+    const texte = bloc.dessous("p").map((p: { textContent?: string }) => p.textContent ?? "").join("|");
+    assert.match(texte, /not available yet/);
+    assert.doesNotMatch(texte, /No ticket measured/);
+  });
+});
+
+describe("ce que l'app relit du suivi de la station", () => {
+  const relu = (temps: unknown) => lireSuivi(JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", ...(temps === undefined ? {} : { temps }) }] }))[0]?.temps;
+
+  test("les temps publiés arrivent tels quels, avec le plafond", () => {
+    const lignes = [ticket(7, 20 * MIN)];
+    assert.deepEqual(relu({ enregistrements: lignes, tempsMaxTicketMin: 30 }), { enregistrements: lignes, tempsMaxTicketMin: 30 });
+    assert.equal(relu({ enregistrements: [], tempsMaxTicketMin: -1 })?.tempsMaxTicketMin, 15);
+  });
+
+  test("absents ou illisibles : rien", () => {
+    assert.equal(relu(undefined), undefined);
+    assert.equal(relu({ enregistrements: "non" }), undefined);
   });
 });

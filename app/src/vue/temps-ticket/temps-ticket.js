@@ -9,12 +9,12 @@ import { survol } from "../briques.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number, claimedAt: string, mergedAt: string, cuisson: number, cuissonTests: number, attentePasse: number, revue: number, ci: number, merge: number }} Enregistrement */
-/** @typedef {{ enregistrements: Enregistrement[] | undefined, tempsMaxTicketMin?: number | undefined }} TempsDuProjet */
+/** @typedef {{ enregistrements: unknown[] | undefined, tempsMaxTicketMin?: number | undefined }} TempsDuProjet */
 
 export const MAX_PAR_DEFAUT_MIN = 15;
 export const NOMBRE_DE_TICKETS = 10;
 
-// Les cinq phases montrées : la cuisson compte ses tests, qui se disent au survol.
+// Les cinq phases montrées : chacune est la médiane de cette phase seule (leur somme peut donc différer de la médiane du total) ; la cuisson compte ses tests, qui se disent au survol.
 /** @type {{ cle: "cuisson" | "attentePasse" | "revue" | "ci" | "merge", libelle: string }[]} */
 export const PHASES = [
   { cle: "cuisson", libelle: "Cooking" },
@@ -94,17 +94,26 @@ function noeud(doc, balise, classe, texte) {
 }
 
 // Le bloc à poser sur la page du projet : toujours un bloc, jamais un blanc ni un zéro. Trois états — `data-temps` :
-// « normal », « depasse » (la médiane passe le plafond) et « vide » (aucun ticket mesuré).
+// « normal », « depasse » (la médiane passe le plafond) et « vide » (aucun ticket mesuré). `temps` indéfini : la station
+// du projet ne publie pas encore ses temps — « vide » aussi, mais qui le dit, pour ne pas affirmer qu'aucun ticket n'est mesuré.
 /**
  * @param {Fabrique} doc
- * @param {TempsDuProjet} temps
+ * @param {TempsDuProjet | undefined} temps
  */
 export function poserTempsTicket(doc, temps) {
-  const lu = synthese(temps);
+  const lu = synthese(temps ?? { enregistrements: [] });
   const bloc = noeud(doc, "div", "temps-ticket");
   const tete = noeud(doc, "p", "temps-tete");
   tete.append(noeud(doc, "span", "temps-titre", "Ticket times"));
   bloc.append(tete);
+  if (temps === undefined) {
+    bloc.dataset.temps = "vide";
+    bloc.dataset.publie = "non";
+    const vide = noeud(doc, "p", "temps-vide", "Ticket times not available yet");
+    vide.append(survol(doc, "The project's station does not publish its ticket times yet: this is not a count of zero tickets"));
+    bloc.append(vide);
+    return bloc;
+  }
   if (lu === null) {
     bloc.dataset.temps = "vide";
     const vide = noeud(doc, "p", "temps-vide", "No ticket measured yet");

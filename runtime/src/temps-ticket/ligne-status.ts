@@ -68,15 +68,23 @@ function lireJson(chemin: string): unknown {
   }
 }
 
-export function ligneDesTempsDesTickets(repertoireDepot: string | undefined): string {
-  if (!repertoireDepot) return direLesTempsDesTickets([]);
+// What the two files say, as the app's project view takes it: the valid records
+// (as written, in order) and the project's max. Nothing is written; a missing or
+// unreadable file reads as no record and the default max.
+export function lesTempsDesTickets(repertoireDepot: string | undefined): { enregistrements: TempsTicket[]; tempsMaxTicketMin: number } {
+  if (!repertoireDepot) return { enregistrements: [], tempsMaxTicketMin: MAX_PAR_DEFAUT_MIN };
   const dossier = join(repertoireDepot, ".claude", "brigade");
   const brut = lireJson(join(dossier, "temps-tickets.json"));
   const liste = Array.isArray(brut) ? brut : [];
-  const valides = liste.filter(
+  const enregistrements = liste.filter(
     (r): r is TempsTicket => typeof r === "object" && r !== null && Number.isInteger(r.ticket) && PHASES.every((p) => entier(r[p])) && entier(r.cuissonTests),
   );
   const projet = lireJson(join(dossier, "projet.json")) as { tempsMaxTicketMin?: unknown } | null;
   const max = projet?.tempsMaxTicketMin;
-  return direLesTempsDesTickets(valides, typeof max === "number" && max > 0 ? max : MAX_PAR_DEFAUT_MIN);
+  return { enregistrements, tempsMaxTicketMin: typeof max === "number" && max > 0 ? max : MAX_PAR_DEFAUT_MIN };
+}
+
+export function ligneDesTempsDesTickets(repertoireDepot: string | undefined): string {
+  const { enregistrements, tempsMaxTicketMin } = lesTempsDesTickets(repertoireDepot);
+  return direLesTempsDesTickets(enregistrements, tempsMaxTicketMin);
 }

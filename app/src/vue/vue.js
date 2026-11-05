@@ -6807,12 +6807,12 @@ function poserLeDelai(projet) {
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
-// Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide tant que la station n'en publie pas.
+// Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide ; la station qui n'en publie pas le dit.
 /** @param {Projet | undefined} projet */
 function poserLesTempsDesTickets(projet) {
   const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   tempsTicketDuProjet.hidden = projet === undefined;
-  tempsTicketDuProjet.replaceChildren(...(projet === undefined ? [] : [poserTempsTicket(document, /** @type {any} */ (vu)?.temps ?? { enregistrements: [] })]));
+  tempsTicketDuProjet.replaceChildren(...(projet === undefined ? [] : [poserTempsTicket(document, vu?.temps)]));
 }
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
