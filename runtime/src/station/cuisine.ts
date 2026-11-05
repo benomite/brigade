@@ -241,6 +241,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
               avertir: dire,
               observer: suiviDuTour.envelopper,
+              // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+              clone: station.clone,
             });
         if ("refus" in ouverte) stationRefusee = true;
         return ouverte;

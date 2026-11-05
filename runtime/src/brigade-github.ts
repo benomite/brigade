@@ -43,6 +43,8 @@ import { environnementClaude } from "./jeton-claude.ts";
 import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
+import { lireLesRecus } from "./gates-du-cook.ts";
+import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
@@ -111,8 +113,9 @@ export const secoupent = (a: string, b: string): boolean => {
 };
 
 // Le cook d'un ticket pris : la branche qu'il a poussée, ou pourquoi il n'a
-// rien livré.
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<{ branche: string } | { echec: string }>;
+// rien livré — et ce que ses tests et ses gates ont pris, en millisecondes,
+// quand il l'a dit (`gates-du-cook.ts`).
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 
@@ -140,6 +143,12 @@ export type OptionsDeStation = {
   gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
+  // Le clone du projet : le temps de chaque ticket que la station merge
+  // s'ajoute à son `.claude/brigade/temps-tickets.json` (#2342). Absent, rien
+  // ne s'écrit.
+  clone?: string;
+  // L'horloge des phases de ces temps. Par défaut, la vraie.
+  maintenant?: () => Date;
 };
 
 // Le préfixe du label par lequel un ticket demande une capacité.
@@ -212,6 +221,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   const ouvrirLaReparation = ouvreReparation({ github, base });
+  // Le parcours de chaque ticket, de sa prise à son merge, phase par phase (#2342).
+  const chrono = chronometre(options.maintenant);
+  const servir = (issue: number) => {
+    const temps = chrono.servir(issue);
+    if (temps === null || options.clone === undefined) return;
+    try {
+      enregistrerTemps(options.clone, temps);
+    } catch (erreur) {
+      avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
+    }
+  };
   const fermerLaReparation = fermeReparation({ github, base });
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
@@ -244,7 +264,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const issue = ticket.number;
     try {
       const fait = await cuisiner(ticket, calibrage);
+      if (fait.testsMs !== undefined) chrono.tests(issue, fait.testsMs);
       if ("branche" in fait) {
+        chrono.marquer(issue, "attentePasse");
         // Un renvoi pousse sur la branche d'une PR encore ouverte : elle porte
         // déjà la livraison, il n'en faut pas une seconde.
         const ouverte = await github.prDuTicket(issue);
@@ -262,7 +284,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
       const echecs = (await github.commentaires(issue).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length + 1;
       await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${echecs >= ECHECS_MAX ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
-      if (echecs >= ECHECS_MAX) await github.labelliser(issue, [HORS_CUISINE]);
+      if (echecs >= ECHECS_MAX) {
+        chrono.oublier(issue);
+        await github.labelliser(issue, [HORS_CUISINE]);
+      }
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — ${message(erreur)}`);
@@ -292,11 +317,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (deja >= RENVOIS_MAX) {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
       await github.labelliser(ticket.number, [HORS_CUISINE]);
+      chrono.oublier(ticket.number);
     } else {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
+    // De retour en cuisine : le temps jusqu'au cook suivant est de la cuisson.
+    if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "cuisson");
   };
 
   // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
@@ -367,14 +395,30 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             github,
             station: nom,
             juger: async (lue) => {
+              chrono.marquer(ticket.number, "revue");
               const jugement = await juger(ticket, lue);
+              chrono.marquer(ticket.number, "ci");
               bouge = true;
               return jugement;
             },
           });
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           if (tentees.get(pr.number) !== tentee) {
-            const fusion = await enSerie(() => fusionner(pr, github));
+            // Le merge demandé à GitHub ouvre sa phase ; mergée, le temps du ticket s'écrit.
+            const fusion = await enSerie(() =>
+              fusionner(pr, {
+                commentaires: (numero) => github.commentaires(numero),
+                commenter: (numero, corps) => github.commenter(numero, corps),
+                mettreAJour: (numero, sha) => github.mettreAJour(numero, sha),
+                ci: (sha) => github.ci(sha),
+                merger: (numero, sha) => {
+                  chrono.marquer(ticket.number, "merge");
+                  return github.merger(numero, sha);
+                },
+              }),
+            );
+            if (fusion.issue === "ci-attendue" || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
+            if (fusion.issue === "mergee") servir(ticket.number);
             if (fusion.issue === "ci-attendue") {
               if (attendues.get(pr.number) !== tentee) bouge = true;
               attendues.set(pr.number, tentee);
@@ -463,6 +507,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         throw erreur;
       }
       if (!pris.prise) continue;
+      chrono.prendre(ticket.number);
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
     await gardes?.redire(enVol.size);
@@ -701,6 +746,8 @@ export type OptionsDuDepot = {
   // Ce qui regarde le tour par son client GitHub, sans rien y changer : la
   // retenue de la cuisine (`retenue/tour.ts`).
   observer?: (github: GitHubDuTour) => GitHubDuTour;
+  // Le clone du projet, où s'écrit le temps des tickets mergés (#2342).
+  clone?: string;
 };
 
 const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileSync(fichier, "utf8") : "");
@@ -756,20 +803,22 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
     const fin = await lance.fin;
+    // Les gates que le cook a jouées par le lanceur, s'il en a laissé les reçus : la part de sa cuisson qu'elles ont prise.
+    const testsMs = lireLesRecus(worktree).reduce((somme, passage) => somme + passage.durationMs, 0);
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
       depot.retirer(worktree, reprise ? undefined : branche);
-      return { echec: fin.erreur ?? conclusion };
+      return { echec: fin.erreur ?? conclusion, testsMs };
     }
     await depot.ranger(worktree, branche);
-    if (depot.commits(branche) === 0) return { echec: "the cook committed nothing" };
-    if (avant !== null && depot.tete?.(branche) === avant) return { echec: "the cook added nothing since its last delivery" };
+    if (depot.commits(branche) === 0) return { echec: "the cook committed nothing", testsMs };
+    if (avant !== null && depot.tete?.(branche) === avant) return { echec: "the cook added nothing since its last delivery", testsMs };
     try {
       depot.pousser(branche);
     } catch (erreur) {
-      return { echec: `its branch could not be pushed: ${message(erreur)}` };
+      return { echec: `its branch could not be pushed: ${message(erreur)}`, testsMs };
     }
-    return { branche };
+    return { branche, testsMs };
   };
 
   const juger: Juger = async (ticket, pr) => {
@@ -794,5 +843,5 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }) });
+  return stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.clone === undefined ? {} : { clone: options.clone }) });
 }
