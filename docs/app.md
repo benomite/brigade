@@ -2335,9 +2335,12 @@ of all projects lives at the app level (see "The cost of all projects"), each pr
 own, in one card titled `project`. The `this machine` block is gone from it — its lines (ordinary tickets, the station's
 GitHub Apps, the projects it serves, the app's code) are not shown in Settings; they move to Stations.
 
-| Settings |
-|---|
-| the project's settings in its repository (below), stored in `.claude/brigade/projet.json`; one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it; its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette; and `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first |
+- the project's settings in its repository (below), stored in `.claude/brigade/projet.json`;
+- one line per grant (`grant merge`…), and the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that
+  resumes it — which the station that serves the project keeps;
+- its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette — and
+  `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
+  its projects file.
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
 field and `propose`, a switch, a checkbox, a number, a palette, a button. What the control opened or returned — a

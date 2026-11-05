@@ -18,15 +18,19 @@ const holder = entier.indexOf('<div id="reglages-machine"');
 const settings = entier.slice(0, holder === -1 ? undefined : holder);
 
 const PROJET_JSON = ".claude/brigade/projet.json";
-// Les réglages que la page montre dans Settings, et où chacun est gardé. Les réglages lus par `setting` sont ceux de
-// CLES ; les autres lignes sont celles que le projet porte en plus.
-const MONTRES: Record<string, string> = {
-  ...Object.fromEntries(CLES.map((cle) => [cle, PROJET_JSON])),
-  grants: "the station that serves the project (grants)",
-  kitchen: "the station that serves the project (service)",
-  sigle: "the app's projects file",
-  couleurs: "the app's projects file",
-  retrait: "the app's projects file",
+const STATION = "the station that serves the project";
+const FICHIER_DES_PROJETS = "the app's projects file";
+// Les blocs que la page pose dans Settings, lus dans index.html — pas une liste à part — : chaque `id` d'un bloc de réglage.
+const BLOCS = [...settings.matchAll(/<div id="([\w-]+)"/g)].map((trouve) => trouve[1]);
+// Où chaque bloc garde ce qu'il règle. Un bloc posé dans Settings sans ligne ici fait échouer le test, et une ligne sans
+// bloc aussi. `reglages-du-projet` porte une ligne par clé de `setting` (CLES) : toutes dans projet.json.
+const STOCKAGE: Record<string, string> = {
+  "reglages-du-projet": PROJET_JSON,
+  grants: STATION,
+  "arreter-cuisine": STATION,
+  sigle: FICHIER_DES_PROJETS,
+  couleurs: FICHIER_DES_PROJETS,
+  retrait: FICHIER_DES_PROJETS,
 };
 
 describe("Settings : les réglages du projet seulement", () => {
@@ -44,10 +48,18 @@ describe("Settings : les réglages du projet seulement", () => {
     assert.doesNotMatch(vue, /rangeeDeReglage\("in your app"/);
   });
 
-  test("chaque réglage montré a un stockage ; ceux que `setting` lit sont dans .claude/brigade/projet.json", () => {
-    for (const cle of CLES) assert.equal(MONTRES[cle], PROJET_JSON, cle);
-    for (const cle of Object.keys(NIVEAUX).filter((cle) => cle in MONTRES)) assert.ok(MONTRES[cle], cle);
+  test("chaque réglage montré a son stockage, dit par une table qui suit la page ; ceux que `setting` lit sont dans projet.json", () => {
+    assert.deepEqual([...BLOCS].sort(), Object.keys(STOCKAGE).sort(), "la table suit les blocs posés dans Settings");
+    for (const cle of CLES) assert.equal(STOCKAGE["reglages-du-projet"], PROJET_JSON, cle);
     // Rien de ce qui est à la machine ne reste listé.
-    for (const cle of Object.keys(MONTRES)) assert.notEqual(NIVEAUX[cle], "machine", cle);
+    for (const id of BLOCS) assert.notEqual(NIVEAUX[id], "machine", id);
+  });
+
+  // Le critère « tout est dans projet.json » ne tient pas encore : le sigle, les couleurs et le retrait sont gardés par
+  // l'app, la cuisine et les grants par la station. Ce test les nomme pour que le jour où ils rejoignent projet.json,
+  // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
+  test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
+    const dehors = BLOCS.filter((id) => STOCKAGE[id] !== PROJET_JSON).sort();
+    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "grants", "retrait", "sigle"]);
   });
 });

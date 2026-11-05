@@ -27,7 +27,7 @@
 // partie closer, qui écrit dans le second le réglage du closer sans l'envoyer (boutons.ts). La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
-// Settings (ticket 1700) ne tient que ce que le chef règle, en trois groupes — le projet, cette machine, toi —, une
+// Settings (tickets 1700, 2494) ne tient que les réglages du projet, dans un seul groupe, une
 // ligne par réglage : son nom, sa valeur en vigueur, un seul contrôle. Les grants y sont une ligne chacun, déjà lus par
 // le process principal (grants.ts) : son état, ce qu'il lui reste, et un interrupteur dont le clic ouvre la
 // confirmation qui dit ce que le grant change avant de partir.
@@ -1564,7 +1564,7 @@ function montrer() {
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
   rail.inert = !contenu.hidden || !fiche.hidden;
-  // Settings est une seule page, sans sous-pages (ticket 1700) : ses trois groupes, et rien d'autre.
+  // Settings est une seule page, sans sous-pages (ticket 1700) : son seul groupe, celui du projet, et rien d'autre.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
   luOnglet.hidden = relaye === undefined;
   // Le journal : un geste, pas un onglet. Le recliquer le referme.
