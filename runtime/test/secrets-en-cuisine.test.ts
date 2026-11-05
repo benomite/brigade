@@ -138,7 +138,7 @@ describe("les secrets du projet", () => {
     assert.equal(traces(lieu).includes(CLE), false);
   });
 
-  test("un secret commité sur un renvoi ne condamne pas le ticket : la branche revient à la livraison refusée, et le cook suivant livre", { skip: posixOnly("on a real repository with red gates, a sent-back cook commits a secret: expects the branch reset to the refused delivery and the next cook to deliver; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so no cook is launched") }, async (t) => {
+  test("un secret commité sur un renvoi ne condamne pas le ticket : rien n'est poussé, et la branche revient à la livraison refusée", { skip: posixOnly("on a real repository with red gates, a sent-back cook commits a secret: expects the branch reset to the refused delivery, with nothing pushed; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so no cook is launched") }, async (t) => {
     // Un vrai dépôt, dont la base porte des gates et déclare un secret.
     const depot = depotGit(t);
     const semis = join(repertoireTemporaire(t), "semis");
@@ -154,7 +154,7 @@ describe("les secrets du projet", () => {
     writeFileSync(join(lieux.repertoire, "gates.txt"), "rouge");
 
     const lieu = cuisine(t, { lieux, git: true, pass: true, suite: ["livre", "laisse-un-secret", "ecrit-sans-commiter"], secrets: { declares: "", valeurs: VALEURS } });
-    const { origine, clone, journal, gh, gates } = lieu;
+    const { origine, clone, journal, gh } = lieu;
     const comptesRendus = () => journal.duTicket(17).filter((e) => e.type === "cook.reported").map((e) => e.payload as { ending: string; reason: string | null; branch: string });
     await jusqua(() => comptesRendus().length >= 2);
 
@@ -164,12 +164,10 @@ describe("les secrets du projet", () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("secret-committed")));
     assert.match(gh.commentaires.find(([, corps]) => corps.includes("secret-committed"))?.[1] ?? "", /ramenée à la livraison que la pass avait refusée/);
 
-    // Le suivant reprend la même branche, débarrassée du commit fautif, et livre.
-    await jusqua(() => comptesRendus().length === 3);
-    gates.regler("vert");
+    // Rien du commit fautif n'est poussé, ni ne reste sur la branche ramenée. Que le cook suivant la
+    // reprenne et livre est suivi par « un jeton copié sous un autre nom sur un renvoi… », plus bas : la
+    // même branche ramenée, sur un autre fautif. Joué jusque-là, ce test-ci passait 2 s sous la charge.
     const branche = String(livraison?.branch);
-    assert.deepEqual([comptesRendus()[2]?.ending, comptesRendus()[2]?.branch], ["done", branche]);
-    assert.equal(git(origine, "show", `${branche}:brouillon.txt`), "le travail du cook, jamais commité");
     assert.equal(git(origine, "log", "--patch", "--text", `${BASE}..${branche}`).includes(CLE), false);
     assert.equal(git(clone, "log", "--patch", "--text", `origin/${BASE}..${branche}`).includes(CLE), false);
     assert.equal(traces(lieu).includes(CLE), false);
