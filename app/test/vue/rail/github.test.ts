@@ -304,6 +304,9 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     const question = { id: 40, body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old column order?\n\nBoth are defensible.", author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" };
     const vu = dessine(await lire(github({ issues: () => [issue(2312, ["fire", "hors-cuisine"])], commentaires: { 2312: [renvoi(1, conflit), question] } })));
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
-    assert.deepEqual(todo.map(({ ticket, ligne, chef }) => ({ ticket, ligne, chef })), [{ ticket: 2312, ligne: "Should the export keep the old column order?", chef: { sorte: "product-question", texte: "Should the export keep the old column order?\n\nBoth are defensible." } }]);
+    // La question n'est dite qu'une fois, sur la carte (#2434) : la ligne dit ce que sa sorte attend.
+    assert.deepEqual(todo.map(({ ticket, ligne, chef, todo: carte }) => ({ ticket, ligne, chef, question: carte?.question })), [
+      { ticket: 2312, ligne: "A product question waits for your answer.", chef: { sorte: "product-question", texte: "Should the export keep the old column order?\n\nBoth are defensible." }, question: "Should the export keep the old column order?" },
+    ]);
   });
 });

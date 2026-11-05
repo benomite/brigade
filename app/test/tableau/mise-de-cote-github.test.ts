@@ -66,4 +66,15 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
     assert.equal(labelDeMiseDeCote(["fire", "hors-cuisine", "waiting"]), null);
     assert.equal(labelDeMiseDeCote(["fire", "taken"]), null);
   });
+
+  test("une question de produit que suit une réponse du chef (#2434) n'attend plus rien de lui : le ticket ne va plus au chef", () => {
+    const question = commentaire("<!-- brigade:todo kind=product-question -->\nKeep the old column order?\n- [resume] Yes\n- [close] No");
+    assert.equal(miseDeCoteDe(DEPOT, "hors-cuisine", [question]).auChef, true);
+    const repondue = miseDeCoteDe(DEPOT, "hors-cuisine", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes")]);
+    assert.equal(repondue.auChef, false);
+    assert.equal(repondue.chef, undefined);
+    // Une nouvelle question, posée après la réponse, est de nouveau la sienne ; une réponse d'un inconnu ne compte pas.
+    assert.equal(miseDeCoteDe(DEPOT, "hors-cuisine", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes"), question]).auChef, true);
+    assert.equal(miseDeCoteDe(DEPOT, "hors-cuisine", [question, commentaire("<!-- brigade:reponse gesture=close -->\nNo", "NONE")]).auChef, true);
+  });
 });

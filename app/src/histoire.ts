@@ -115,7 +115,8 @@ export function histoireDe(sortie: string): Histoire {
 // du chef se dit en tête de la fiche, dans les mots de l'app (decision.ts) — et rien ici ne le
 // répète quand la carte ne dit rien d'autre.
 export type Situation = { libelle: string; lignes: string[] } | undefined;
-type Carte = { etat?: string; attendu?: boolean; attend: readonly string[]; dit: readonly { libelle: string; valeur: string }[] };
+// `question` : celle qu'une carte du chef lue de GitHub pose (#2434) — la fiche la dit, plutôt que « not communicated ».
+type Carte = { etat?: string; attendu?: boolean; attend: readonly string[]; dit: readonly { libelle: string; valeur: string }[]; question?: string };
 
 const AU_TRAVAIL = ["pris", "en pass"];
 const EN_ATTENTE = ["en attente", "BLOQUÉ", "WAITING", "86"];
@@ -127,6 +128,7 @@ export function situation(carte: Carte): Situation {
     const fait = carte.dit.find(({ libelle }) => libelle === "right now");
     return { libelle: "right now", lignes: [fait?.valeur ?? "activity not given"] };
   }
+  if (carte.question !== undefined && carte.question.trim() !== "") return { libelle: "question", lignes: [carte.question] };
   if ((etat !== undefined && EN_ATTENTE.includes(etat)) || carte.attend.length > 0) {
     const dits = carte.dit.filter(({ libelle }) => CE_QUI_BLOQUE.includes(libelle)).map(({ libelle, valeur }) => `${libelle}: ${valeur}`);
     if (dits.length > 0) return { libelle: "blocked", lignes: dits };
@@ -139,5 +141,5 @@ export function situation(carte: Carte): Situation {
 export function situationDe(carte: unknown): Situation {
   if (!objet(carte) || !Array.isArray(carte.attend) || !Array.isArray(carte.dit)) return undefined;
   const dit = carte.dit.flatMap((fait) => (objet(fait) && texte(fait.libelle) && texte(fait.valeur) ? [{ libelle: fait.libelle, valeur: fait.valeur }] : []));
-  return situation({ ...(texte(carte.etat) ? { etat: carte.etat } : {}), attend: carte.attend.filter(texte), dit });
+  return situation({ ...(texte(carte.etat) ? { etat: carte.etat } : {}), attend: carte.attend.filter(texte), dit, ...(texte(carte.question) ? { question: carte.question } : {}) });
 }

@@ -45,6 +45,7 @@ import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
+import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
@@ -1348,12 +1349,23 @@ ipcMain.handle("reprendreLeDisjoncteur", async (_, nom: unknown) => {
   if (vise === undefined) return undefined;
   return reprendreLeDisjoncteur(await depotDuProjet(vise), clientDuDisjoncteur);
 });
-// Le « yes » ou le « no » du chef sur une correction ou un profil proposés (correction.ts, profil.ts), et sa réponse à
-// une carte de TODO (carte-todo.ts) : ils partaient sur le tableau de la cuisine, que plus aucun runtime ne lit (#2061).
-// Aucune lecture de GitHub ne porte plus de proposition ni de carte à choix : rien ne part, et la phrase dit pourquoi.
+// Le « yes » ou le « no » du chef sur une correction ou un profil proposés (correction.ts, profil.ts) : ils partaient sur le
+// tableau de la cuisine, que plus aucun runtime ne lit (#2061). Aucune lecture de GitHub ne porte plus de proposition :
+// rien ne part, et la phrase dit pourquoi.
 ipcMain.handle("corriger", () => ({ refus: SANS_FAIT.proposition, detail: "" }));
-ipcMain.handle("repondreCarte", () => ({ refus: SANS_FAIT.carte, detail: "" }));
 ipcMain.handle("trancherLeProfil", () => ({ refus: SANS_FAIT.proposition, detail: "" }));
+// La réponse du chef à une carte de TODO (carte-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
+// sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (tableau-gestes/reponse-github.ts) —, ni
+// tableau, ni box. Toute autre carte ne se répond plus de l'app (#2061) : rien ne part, et la phrase dit pourquoi.
+ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return undefined;
+  const chef = faits.chef(vise.nom, ticket);
+  if (chef === undefined) return { refus: SANS_FAIT.carte, detail: "" };
+  const rendu = await repondreSurGithub({ depot: await depotDuProjet(vise), ticket, chef, reponse, client: clientDesLabels });
+  if ("repondue" in rendu) tableaux.oublier();
+  return rendu;
+});
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :
 // une adresse https seulement, pour un projet que l'app connaît. Rend si elle a été ouverte.
 ipcMain.handle("ouvrirBilan", (_, nom: unknown, url: unknown) => {

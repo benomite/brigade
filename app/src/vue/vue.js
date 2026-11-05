@@ -3163,9 +3163,10 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
     const question = carte.todo.question;
     bon.append(...poserLaCarteDeTodo(projet, ticket, carte.todo).map((posee) => tenirEnMain(projet, ticket, question, bon, posee)));
   }
-  // Une carte du chef lue de GitHub (projet GitHub seul, ticket 2221) : le texte du commentaire du runtime sous la phrase de sa
-  // sorte. Rien à y répondre : le chef lève le label sur l'issue, dont le numéro est le lien.
-  if (attendu && carte.chef !== undefined) {
+  // Une carte du chef lue de GitHub (projet GitHub seul, ticket 2221) : sa question se pose comme toute carte de TODO, juste
+  // au-dessus, et se répond sur la carte (ticket 2434). Celle d'une issue sans commentaire marqué n'a rien à quoi répondre :
+  // son texte le dit, sous la phrase de sa sorte.
+  if (attendu && carte.chef !== undefined && carte.todo === undefined) {
     const duChef = document.createElement("section");
     duChef.className = "carte-todo";
     duChef.dataset.sorte = carte.chef.sorte;
@@ -3847,7 +3848,7 @@ function poserHistoire(projet, ticket, carte, cookPose = false) {
   if (dite !== undefined && !(cookPose && dite.libelle !== "blocked")) {
     const section = document.createElement("section");
     section.className = "situation";
-    section.append(bloc("h4", dite.libelle === "blocked" ? "what blocks it" : "right now"), ...dite.lignes.map((ligne) => bloc("p", ligne)));
+    section.append(bloc("h4", dite.libelle === "blocked" ? "what blocks it" : dite.libelle === "question" ? "what it asks you" : "right now"), ...dite.lignes.map((ligne) => bloc("p", ligne)));
     posees.push(section);
   }
   const histoire = histoires.get(`${projet.nom}#${ticket}`);
@@ -3953,7 +3954,9 @@ async function lireHistoire(projet, carte) {
   /** @type {import("../histoire.ts").Histoire} */
   let lue;
   try {
-    situations.set(cle, await brigade.situation({ ...(carte.etat === undefined ? {} : { etat: carte.etat }), attend: carte.attend, dit: carte.dit }));
+    // La carte du chef lue de GitHub (ticket 2434) : la fiche dit sa question.
+    const question = carte.attendu && carte.chef !== undefined ? carte.todo?.question : undefined;
+    situations.set(cle, await brigade.situation({ ...(carte.etat === undefined ? {} : { etat: carte.etat }), attend: carte.attend, dit: carte.dit, ...(question == null ? {} : { question }) }));
     lue = (await brigade.lireHistoire(projet.nom, ticket)) ?? { sans: "no station for this project: the app has nothing to read" };
   } catch (erreur) {
     lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
