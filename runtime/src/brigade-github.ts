@@ -118,7 +118,9 @@ export const secoupent = (a: string, b: string): boolean => {
 // Le cook d'un ticket pris : la branche qu'il a poussée, ou pourquoi il n'a
 // rien livré — et ce que ses tests et ses gates ont pris, en millisecondes,
 // quand il l'a dit (`gates-du-cook.ts`).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string }) & { testsMs?: number }>;
+// `reste` : le cook n'a rien ajouté, mais la PR qu'il aurait livrée est en
+// conflit ou rouge (#2454) : ce n'est pas un échec, il reste du travail.
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 
@@ -300,6 +302,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await github.delabelliser(issue, LABEL_TAKEN);
         // Livrée : sa relecture part tout de suite, pas au prochain tour (#2333).
         station.presser?.(true);
+        return;
+      }
+      // Une PR en conflit ou rouge que le cook n'a pas fait avancer n'est pas
+      // un cook raté : le travail reste, le ticket est rendu sans compter (#2454).
+      if ("reste" in fait) {
+        await github.commenter(issue, `Station \`${nom}\`: the cook added nothing, and the delivery still has work left — ${fait.reste}. The ticket is given back; this is not counted as a failed cook.`);
+        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
         return;
       }
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
@@ -857,6 +866,23 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // (#2372) — sans quoi la pass ressort une tête déjà renvoyée, et le ticket
     // boucle entre elle et les cooks sans qu'aucun échec ne compte.
     const avant = reprise && depot.tete !== undefined ? depot.tete(branche) : null;
+    // La PR de cette branche, si elle est encore ouverte et qu'elle ne se merge
+    // pas : en conflit avec la base, ou rouge. Le cook doit la remettre à jour (#2454).
+    let resteAFaire: string | null = null;
+    if (reprise) {
+      try {
+        const ouverte = await options.github.prDeBranche(branche);
+        if (ouverte !== null && ouverte.state === "open") {
+          if (ouverte.enConflit === true) resteAFaire = `PR #${ouverte.number} conflicts with \`${base}\``;
+          else if (etatDeLaBase(await options.github.ci(ouverte.sha)) === "red") resteAFaire = `the CI of PR #${ouverte.number} is red`;
+        }
+      } catch {
+        // Illisible, la PR ne retient pas le cook : il part comme avant.
+      }
+    }
+    if (resteAFaire !== null) {
+      joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
+    }
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
@@ -871,7 +897,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     await depot.ranger(worktree, branche);
     if (depot.commits(branche) === 0) return { echec: "the cook committed nothing", testsMs };
-    if (avant !== null && depot.tete?.(branche) === avant) return { echec: "the cook added nothing since its last delivery", testsMs };
+    if (avant !== null && depot.tete?.(branche) === avant) return resteAFaire !== null ? { reste: resteAFaire, testsMs } : { echec: "the cook added nothing since its last delivery", testsMs };
     try {
       depot.pousser(branche);
     } catch (erreur) {

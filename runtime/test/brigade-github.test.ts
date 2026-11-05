@@ -1060,7 +1060,7 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     tickets: async () => ({ inchange: false, issues: (await bas.fires()).map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
     prDeBranche: async (branche) => {
       const pr = faux.prs.findLast((p) => p.branche === branche);
-      return pr === undefined ? null : { number: pr.number, url: "", base: "main", sha: pr.sha, state: pr.state, merged: pr.merged, enRetard: pr.enRetard, mergeePar: pr.mergeePar };
+      return pr === undefined ? null : { number: pr.number, url: "", base: "main", sha: pr.sha, state: pr.state, merged: pr.merged, enRetard: pr.enRetard, mergeePar: pr.mergeePar, ...(pr.enConflit ? { enConflit: true } : {}) };
     },
     ci: async () => [{ name: "tests", conclusion: "success", outcome: "green", url: null }] as never,
     commentaires: async (numero) => (await bas.commentaires(numero)).map(({ body, association, createdAt }) => ({ body, author: "brigade", association, createdAt })),
@@ -1207,11 +1207,12 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
 
 // Une station dont le cook reprend la branche que le clone porte déjà, conclut
 // « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
-async function repriseQui(t: TestContext, avance: boolean) {
+async function repriseQui(t: TestContext, avance: boolean, enConflit = false) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
   faux.feu(14);
+  if (enConflit) faux.prs.push({ number: 99, issue: 14, branche: "cook/14-github", sha: "c".repeat(40), state: "open", merged: false, enRetard: false, enConflit: true, mergeePar: null, fichiers: [] });
   let tete = "a".repeat(40);
   const lancer: Lancer = ({ flux }) => {
     writeFileSync(flux, fluxQuiConclut("done"));
@@ -1258,6 +1259,21 @@ test("a cook that resumes a branch and adds nothing to it delivers nothing: it c
   const faux = await repriseQui(t, false);
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
   assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
+});
+
+test("a cook that adds nothing to a branch whose PR conflicts with main is not a failed cook: three of them do not take the ticket off the kitchen (#2454, #2061 of 2026-11-05)", async (t) => {
+  for (let i = 0; i < 3; i += 1) {
+    const faux = await repriseQui(t, false, true);
+    const corps = (faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n");
+    assert.doesNotMatch(corps, /brigade:echec/);
+    assert.equal(faux.ticket(14).labels.has("hors-cuisine"), false);
+    assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+  }
+});
+
+test("a cook that takes a ticket whose PR conflicts with main is told to bring the branch up to date, and its delivery goes back in pass (#2454)", async (t) => {
+  const faux = await repriseQui(t, true, true);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
 });
 
 test("a cook that resumes a branch and moves its head delivers as before (#2372)", async (t) => {
