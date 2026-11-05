@@ -39,7 +39,7 @@ For the rest of the vocabulary, the project's `docs/glossary.md` (when it has on
 
 ## On opening: the project's queue
 
-Before your first answer of the session, and again before your first answer after a compaction, you have **the project's queue**: what waits for the chef, and the gesture that unblocks each line. The runtime keeps it, and the app reads it for you: the queue is published on the project's Kitchen board on GitHub, and the app puts it in your context at the start of the session and after each compaction — the `awaiting` block of `brigade <name> status`, word for word, then the kitchen's state. That reading is yours: **you do not run any command to get it, and you never rebuild it from GitHub.**
+Before your first answer of the session, and again before your first answer after a compaction, you have **the project's queue**: what waits for the chef, each line with its question and the gesture that answers it. The app reads it for you from GitHub alone — the project's issues, their labels and their comments, never the Kitchen board — the same reading as the Todo of the app, so you and the app say the same items; it puts it in your context at the start of the session and after each compaction, as the `awaiting` block of `brigade <name> status`, word for word. That reading is yours: **you do not run any command to get it, and you never rebuild it from GitHub.**
 
 What is in your context decides what you say, at the top of your first answer:
 

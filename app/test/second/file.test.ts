@@ -1,6 +1,8 @@
 // La file du projet lue pour le second par un crochet SessionStart : déclaré dans les seuls réglages de l'onglet
 // Second, joué à la main il rend le contexte que `claude` attend, et une file illisible est dite sans bloquer. La file
-// vient du tableau de la cuisine que la box publie sur GitHub, lu par le `gh` du poste (#1845) : aucune commande lancée sur une autre machine.
+// est ce qui attend le chef, lu sur GitHub seul par le `gh` du poste (#1845, #2460) : ses issues, leurs labels, leurs
+// commentaires — ni tableau de la cuisine, ni box, ni station. Que l'app et le second disent la même chose :
+// test/tableau/attente-du-chef.test.ts.
 import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,10 +10,10 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, test, type TestContext } from "node:test";
 import { crochetsDeLaFile, MATCHER } from "../../src/second/crochet-de-la-file.ts";
-import { contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
+import { appelParGh, contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
 import { argumentsDuSecond, reglagesDuSecond, type ReglagesDuSecond } from "../../src/second/lancement.ts";
 import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
-import { DEPOT, githubDuTableau, NUMERO, projetPublie } from "../tableau/projet-publie.ts";
+import type { AppelGitHub } from "../../src/tableau/client.ts";
 
 const SCRIPT = join(import.meta.dirname, "..", "..", "src", "second", "file.ts");
 // Le faux `gh` est un script `sh` : un Windows ne le lance pas.
@@ -35,20 +37,56 @@ function fauxGh(t: TestContext, code: number, sortie: string, erreur = ""): stri
   return gh;
 }
 
+// Un faux `gh` qui rend, chemin par chemin, ce que GitHub tient du projet (`reponseA`) : il écrit chaque appel reçu.
+// `attente` : ce que chaque appel met à répondre, en secondes.
+function ghDuProjet(t: TestContext, attente = 0): string {
+  const d = dossier(t);
+  const chemins = ["repos/x/issues?labels=fire", "repos/x/issues?labels=chef-todo", "repos/x/issues/8/comments", "repos/x/issues/20/comments"];
+  chemins.forEach((chemin, rang) => writeFileSync(join(d, `${rang}.json`), JSON.stringify(reponseA(chemin))));
+  const gh = join(d, "gh");
+  const cas = ["*labels=fire*", "*labels=chef-todo*", "*/issues/8/comments*", "*/issues/20/comments*"].map((motif, rang) => `  ${motif}) /bin/cat '${join(d, `${rang}.json`)}' ;;`).join("\n");
+  writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\n${attente === 0 ? "" : `sleep ${attente}\n`}case "$2" in\n${cas}\n  *) echo '[]' ;;\nesac\n`);
+  chmodSync(gh, 0o755);
+  return gh;
+}
+
 // Le crochet tel que `claude` le joue : `node file.ts <nom> <depot> <gh>`, dans le dossier de la session.
 function jouer(t: TestContext, gh: string, nom: string, depot: string) {
   const r = spawnSync(process.execPath, [SCRIPT, nom, depot, gh], { encoding: "utf8", cwd: dossier(t), env: { PATH: join(gh, ".."), HOME: dossier(t) } });
   return { ...r, json: r.stdout.trim() === "" ? undefined : (JSON.parse(r.stdout) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } }) };
 }
 
-// Le bloc `awaiting` de `status`, bords compris : ce que le second relaie mot pour mot.
-const awaiting = (status: string) => {
-  const lignes = status.split("\n");
-  const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
-  const fin = lignes.indexOf("end awaiting");
-  assert.ok(debut >= 0 && fin > debut, "le status porte son bloc awaiting");
-  return lignes.slice(debut, fin + 1).join("\n");
+const DEPOT = "acme/brigade";
+const LU = "2026-11-05T12:00:00.000Z";
+
+// Ce que GitHub tient du projet : #8, en pass, sa livraison touche à ce qui la juge — la PR #2326 attend le chef ; #20, une
+// carte `chef-todo` ; #1, sur le rail, n'attend rien. Rendu par chemin de l'API, comme `gh api` le rend.
+const FIRE = [
+  { number: 1, title: "Ticket 1", html_url: `https://github.com/${DEPOT}/issues/1`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }] },
+  { number: 8, title: "Ticket 8", html_url: `https://github.com/${DEPOT}/issues/8`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "in-pass" }, { name: "blocked-on-human" }] },
+];
+const CHEF = [{ number: 20, title: "Ticket 20", html_url: `https://github.com/${DEPOT}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];
+const COMMENTAIRES: Record<number, unknown[]> = {
+  8: [{ body: "Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", author_association: "OWNER", created_at: "2026-11-05T09:00:00Z" }],
+  20: [{ body: "<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", author_association: "OWNER", created_at: "2026-11-05T10:00:00Z" }],
 };
+// La réponse de GitHub à un chemin : la liste au label demandé, les commentaires d'une issue, rien d'autre.
+function reponseA(chemin: string): unknown {
+  const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
+  if (label === "fire") return FIRE;
+  if (label === "chef-todo") return CHEF;
+  const commentees = /\/issues\/(\d+)\/comments/.exec(chemin)?.[1];
+  return commentees === undefined ? [] : (COMMENTAIRES[Number(commentees)] ?? []);
+}
+const github: AppelGitHub = async (chemin) => ({ status: 200, data: reponseA(chemin) });
+
+// Le bloc `awaiting` que l'app et le second en lisent, bords compris.
+const BLOC = [
+  "awaiting   2 decisions await the chef — the oldest for 3 h 00",
+  "  #8  for 3 h 00  Merge PR #2326 by hand? It changes what judges it. — merge PR #2326 with `merge the PR` on its Todo card, or on GitHub  Ticket 8",
+  "  #20  for 2 h 00  Which token does the box use for the registry? — answer on its Todo card, in your own words  Ticket 20",
+  "end awaiting",
+].join("\n");
 
 describe("le crochet de la file, dans les réglages du second", () => {
   test("SessionStart pour startup, resume et compact", () => {
@@ -87,36 +125,31 @@ describe("le crochet de la file, dans les réglages du second", () => {
   });
 });
 
-describe("la file lue sur le tableau de la cuisine, sans autre machine", () => {
-  test("le bloc `awaiting` que la box publie, mot pour mot, puis l'état de la cuisine — et l'heure de l'état qu'elle a lu", async (t) => {
-    const publie = projetPublie(t);
-    const { appeler, chemins } = githubDuTableau(publie.corps);
-    const lue = await lireLaFile(appeler, DEPOT);
+describe("la file lue sur GitHub seul, sans tableau de la cuisine ni autre machine", () => {
+  test("ce qui attend le chef, chaque entrée avec sa question et son geste, dans le bloc `awaiting` — et l'heure de la lecture", async () => {
+    const chemins: string[] = [];
+    const lue = await lireLaFile(async (chemin) => (chemins.push(chemin), github(chemin)), DEPOT, () => new Date(LU));
     assert.ok(lue.lue, JSON.stringify(lue));
-    assert.ok(lue.texte.startsWith(`${awaiting(publie.status)}\n`), lue.texte);
-    assert.match(lue.texte, /^runtime {4}/m);
-    assert.equal(chemins.length, 1);
+    assert.equal(lue.texte, `${BLOC}\n`);
+    assert.equal(lue.lu, LU);
+    assert.ok(!chemins.some((chemin) => chemin.includes("kitchen-board")), "the Kitchen board is never asked for");
     const contexte = contexteDeLaFile({ nom: "brigade", depot: DEPOT }, lue);
-    assert.ok(contexte.includes(awaiting(publie.status)));
-    assert.match(contexte, /from the Kitchen board the box of brigade publishes on GitHub/);
-    assert.match(contexte, /do not run it again/);
+    assert.ok(contexte.endsWith(`\n\n${BLOC}`), contexte);
+    assert.match(contexte, /from GitHub only — the issues of the project, their labels and their comments, not the Kitchen board/);
+    assert.match(contexte, /the same items as the app's Todo, each with its question and its gesture/);
+    assert.match(contexte, /do not run it again\. Read at 2026-11-05T12:00:00\.000Z, on acme\/brigade\./);
   });
 
-  test("un tableau d'une box qui ne publie pas encore la file : dit, jamais une file vide", async (t) => {
-    const publie = projetPublie(t);
-    const ancien = publie.corps.replace(/,\\?"fileDeStatus\\?":\[[^\]]*\]/, "");
-    assert.notEqual(ancien, publie.corps, "la doublure retire bien la file publiée");
-    const lue = await lireLaFile(githubDuTableau(ancien).appeler, DEPOT);
-    assert.ok(!lue.lue);
-    assert.match(contexteDeLaFile({ nom: "brigade" }, lue), /file non lue : tableau de la cuisine pas lu\n.*does not publish the project's queue yet: update the box/);
+  test("rien n'attend le chef : le bloc le dit, bords compris", async () => {
+    const lue = await lireLaFile(async (chemin) => ({ status: 200, data: chemin.includes("labels=fire") ? [FIRE[0]] : [] }), DEPOT, () => new Date(LU));
+    assert.ok(lue.lue);
+    assert.match(contexteDeLaFile({ nom: "brigade" }, lue), /\n\nawaiting {3}nothing awaits the chef\nend awaiting$/);
   });
 
-  test("GitHub qui refuse, ou pas de tableau : dit en une phrase", async () => {
+  test("GitHub qui refuse : dit en une phrase, jamais une file vide", async () => {
     const refus = await lireLaFile(async () => ({ status: 404, data: { message: "Not Found" } }), DEPOT);
     assert.ok(!refus.lue);
-    assert.match(contexteDeLaFile({ nom: "brigade" }, refus), /file non lue : tableau de la cuisine pas lu\n.*HTTP 404/);
-    const sans = await lireLaFile(async () => ({ status: 200, data: [] }), DEPOT);
-    assert.match(contexteDeLaFile({ nom: "brigade" }, sans), /There is no open Kitchen board in acme\/brigade/);
+    assert.match(contexteDeLaFile({ nom: "brigade" }, refus), /file non lue : GitHub n'a pas rendu ce qui attend le chef\n.*HTTP 404/);
   });
 
   test("GitHub pas joint : dit, sans bloquer", async () => {
@@ -126,27 +159,37 @@ describe("la file lue sur le tableau de la cuisine, sans autre machine", () => {
 });
 
 describe("le crochet joué à la main", () => {
-  test("il lit le tableau par le `gh` du poste, et rend la file au format du contexte additionnel — rien d'autre que `gh` dans son PATH", { skip: SANS_SH }, (t) => {
-    const publie = projetPublie(t);
-    const gh = fauxGh(t, 0, JSON.stringify([publie.issue]));
+  test("il lit GitHub par le `gh` du poste, et rend la file au format du contexte additionnel — rien d'autre que `gh` dans son PATH", { skip: SANS_SH }, (t) => {
+    const gh = ghDuProjet(t);
     const r = jouer(t, gh, "brigade", DEPOT);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.json?.hookSpecificOutput.hookEventName, "SessionStart");
-    assert.ok(r.json?.hookSpecificOutput.additionalContext.includes(awaiting(publie.status)), r.json?.hookSpecificOutput.additionalContext);
-    assert.match(readFileSync(join(gh, "..", "recu"), "utf8"), new RegExp(`^api repos/${DEPOT}/issues\\?labels=kitchen-board&state=open`));
-    assert.equal(NUMERO, publie.issue.number);
+    const contexte = r.json?.hookSpecificOutput.additionalContext ?? "";
+    // Les durées se comptent jusqu'à la lecture : la même file que BLOC, à l'heure près.
+    assert.equal(contexte.slice(contexte.indexOf("\n\nawaiting") + 2).replace(/for \d+ (?:d|h \d\d|min|s)\b/g, "for …"), BLOC.replace(/for \d+ (?:d|h \d\d|min|s)\b/g, "for …"), contexte);
+    const recus = readFileSync(join(gh, "..", "recu"), "utf8");
+    assert.match(recus, new RegExp(`^api repos/${DEPOT}/issues\\?state=open&labels=fire&`, "m"));
+    assert.doesNotMatch(recus, /kitchen-board/);
   });
 
   test("GitHub qui refuse : dit, et la session n'est pas bloquée", { skip: SANS_SH }, (t) => {
     const r = jouer(t, fauxGh(t, 1, JSON.stringify({ message: "Not Found" }), "gh: Not Found (HTTP 404)"), "brigade", DEPOT);
     assert.equal(r.status, 0);
-    assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : tableau de la cuisine pas lu\n.*HTTP 404/);
+    assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : GitHub n'a pas rendu ce qui attend le chef\n.*HTTP 404/);
   });
 
   test("un projet sans dépôt, dans un dossier sans origine : dit qu'aucun dépôt n'est connu, et sort en 0", { skip: SANS_SH }, (t) => {
     const r = jouer(t, fauxGh(t, 0, "[]"), "brigade", "");
     assert.equal(r.status, 0);
     assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : aucun dépôt GitHub pour ce projet/);
+  });
+
+  test("la lecture entière tient dans son délai, toutes ses vagues d'appels comprises : passé, la file est dite non lue, avant que `claude` ne tue le crochet", { skip: SANS_SH }, async (t) => {
+    // Chaque appel répond en 0,4 s, sous le délai de 0,6 s ; mais les commentaires de #8 ne se demandent qu'une fois les
+    // listes rendues : deux vagues, 0,8 s au moins — la seconde passe l'échéance commune.
+    const lue = await lireLaFile(appelParGh(ghDuProjet(t, 0.4), 600), DEPOT);
+    assert.ok(!lue.lue, JSON.stringify(lue));
+    assert.match(contexteDeLaFile({ nom: "brigade" }, lue), /file non lue : GitHub pas joint\n.*no answer in 1 s/);
   });
 
   test("un gh introuvable : dit, et sort en 0", (t) => {

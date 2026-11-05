@@ -54,7 +54,9 @@ function monde() {
   const prJson = (numero: number, pr: PR) => ({ number: numero, state: pr.state, merged: pr.merged, html_url: `https://github.com/${DEPOT}/pull/${numero}`, created_at: "2026-11-04T00:00:00Z", head: { ref: pr.ref }, body: pr.body });
   const lire = async (chemin: string): Promise<ReponseGitHub> => {
     if (chemin.endsWith("/contents/.claude/brigade/projet.json")) return ok({ content: Buffer.from(JSON.stringify({ version: 1, githubOnlyState: true })).toString("base64") });
-    if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok([...issues].filter(([, issue]) => issue.state === "open" && issue.labels.has("fire")).map(([numero, issue]) => issueJson(numero, issue)));
+    // Les issues ouvertes au label demandé : le rail (`fire`) comme ce qui attend le chef (attente-du-chef.ts).
+    const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
+    if (chemin.includes("/issues?") && label !== undefined) return ok([...issues].filter(([, issue]) => issue.state === "open" && issue.labels.has(label)).map(([numero, issue]) => issueJson(numero, issue)));
     if (chemin.includes("/pulls?")) return ok([...prs].filter(([, pr]) => pr.state === "open").map(([numero, pr]) => prJson(numero, pr)));
     const pr = /\/pulls\/(\d+)$/.exec(chemin)?.[1];
     if (pr !== undefined) return prs.has(Number(pr)) ? ok(prJson(Number(pr), prs.get(Number(pr)) as PR)) : ok({ message: "Not Found" }, 404);

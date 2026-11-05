@@ -13,11 +13,15 @@
 // Et, pour les stations de l'onglet Cooks (ticket 2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
 // gist, sous le compte du chef, que le process principal lit à son pas (vue/cooks/signes-de-vie.ts) — reçu ici, pas lu.
 //
-// Le reste du tableau — TODO, ce qui est avant le rail, les livrés — est gardé tel que la box l'a publié. Est retiré ce
+// Et ce qui attend le chef — TODO, et le bloc `awaiting` de `status` —, lu de GitHub comme le second le lit, sur tout
+// projet (ticket 2460, tableau/attente-du-chef.ts) : rien de la file que le tableau publie.
+//
+// Le reste du tableau — ce qui est avant le rail, les livrés — est gardé tel que la box l'a publié. Est retiré ce
 // que le journal seul disait du rail et des cooks et qui ne vaut plus : la cuisine oisive (« aucun cook n'a tourné »), ce
 // qui tourne à côté des cooks, les stations déclarées à l'ancien chemin, et la cuisine retenue par lui.
 import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
 import { SANS_RAISON, type Cook } from "../../faits.ts";
+import { avecLAttenteDuChef, lireCeQuiAttendLeChef } from "../../tableau/attente-du-chef.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
 import type { LectureDuTableauDuDepot, TableauLu } from "../../tableau/lecture.ts";
 import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
@@ -165,8 +169,9 @@ const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en
 // Le tableau lu, dont le rail et les cooks sont ceux de GitHub : ses tickets dans l'ordre du service — la priorité, puis
 // le plus ancien —, les lignes de leurs bons, ses compteurs, et ses stations d'après leurs prises et leurs signes de vie
 // (ticket 2358) — rien des stations que le tableau figé de l'ancien chemin disait. `stationsSurGithub` le marque : l'onglet
-// Cooks les montre toutes par la même règle, et dit quand leurs signes de vie ne se lisent pas. Un ticket mis de côté
-// attend le chef : il entre dans `attend` avec ce qui le met de côté, à la place de ce que le tableau figé en disait (ticket 2075).
+// Cooks les montre toutes par la même règle, et dit quand leurs signes de vie ne se lisent pas. Un ticket mis de côté qui
+// ne demande rien au chef reste sur le rail, dans sa colonne, avec sa ligne (ticket 2422) ; celui qui lui demande quelque
+// chose est dans TODO, que `avecLAttenteDuChef` pose (tableau/attente-du-chef.ts).
 export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {
   const ranges = [...tickets].sort((a, b) => (a.priorite ?? Number.POSITIVE_INFINITY) - (b.priorite ?? Number.POSITIVE_INFINITY) || a.ticket - b.ticket);
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
@@ -174,22 +179,6 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
   const compteurs = objet(avant.compteurs) ?? {};
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
   const { cuisineOisive: _oisive, agents: _agents, ...gardes } = avant;
-  // Dans TODO, seul ce qui demande quelque chose au chef (ticket 2422) : une PR à merger à la main, une question de produit. Le reste
-  // de ce qui est mis de côté — renvois épuisés, cooks sans livraison — reste sur le rail, dans sa colonne, avec sa ligne.
-  const misDeCote = ranges.flatMap(({ ticket, titre, url, miseDeCote }) =>
-    miseDeCote === undefined || !miseDeCote.auChef
-      ? []
-      : [{
-          ticket,
-          titre,
-          url,
-          miseDeCote,
-          ...(miseDeCote.pr == null ? {} : { decision: { quoi: "merge", motif: "review-required", cause: null, pr: miseDeCote.pr.url } }),
-          ...(miseDeCote.chef === undefined ? {} : { chef: miseDeCote.chef }),
-        }],
-  );
-  const misDeCoteDits = new Set(ranges.flatMap(({ ticket, miseDeCote }) => (miseDeCote === undefined ? [] : [ticket])));
-  const attend = misDeCoteDits.size === 0 ? {} : { attend: [...(Array.isArray(gardes.attend) ? (gardes.attend as unknown[]) : []).filter((entree) => !misDeCoteDits.has(objet(entree)?.ticket as number)), ...misDeCote] };
   // Les lignes de `status` que le rail de GitHub remplace : celles du rail et des cooks dites de GitHub ; celle des
   // stations déclarées à l'ancien chemin — qui n'en lance plus aucun cook — retirée.
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
@@ -225,7 +214,6 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
         ...activiteDe(ticket),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
-      ...attend,
       stations: stationsDeGithub(cooks, "lus" in signes ? signes.lus : null, lu.depot, Date.parse(luLe)),
       stationsSurGithub: { illisible: "illisible" in signes ? signes.illisible : null },
       agents: [],
@@ -248,7 +236,18 @@ export async function avecLeRailGithub(lu: LectureDuTableauDuDepot, appeler: App
   const lecteur = memoire === undefined ? appeler : lectureConditionnelle(appeler, memoire);
   const interrupteur = await interrupteurDuDepot(lu.depot, lecteur);
   if (interrupteur !== null) interrupteurs.set(lu.depot, interrupteur);
-  if (interrupteurs.get(lu.depot) !== true) return avecLesEtatsGithub(lu, appeler, memoire);
+  const refait = await (interrupteurs.get(lu.depot) === true ? leRailDeGithub(lu, lecteur, signes) : avecLesEtatsGithub(lu, appeler, memoire));
+  if (!refait.lu) return refait;
+  // TODO : ce qui attend le chef, lu de GitHub comme le second le lit (attente-du-chef.ts, ticket 2460), sur tout projet —
+  // GitHub seul ou ancien chemin : rien de la file que le tableau publie, et l'app ne dit jamais autre chose que le second.
+  // Pas lu : une lecture ratée, jamais un TODO vide.
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler: lecteur, maintenant: () => new Date(lu.luLe) });
+  if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison };
+  return avecLAttenteDuChef(refait, attente);
+}
+
+// Le rail et les cooks d'un projet sur GitHub seul, lus de GitHub ; une lecture qui échoue est une lecture du tableau ratée.
+async function leRailDeGithub(lu: TableauLu, lecteur: AppelGitHub, signes: () => Promise<SignesDeVie>): Promise<LectureDuTableauDuDepot> {
   try {
     // Les durées des cartes se comptent jusqu'à la lecture du tableau par l'app : celle-ci, à quelques secondes près.
     return avecLeRail(lu, await lireLeRailSurGithub({ depot: lu.depot, appeler: lecteur, maintenant: () => new Date(lu.luLe) }), await signes());

@@ -1,7 +1,8 @@
 // Le rail et les cooks d'un projet sur GitHub seul (#2220) : son interrupteur posé dans `projet.json`, la vue du rail range
 // ses issues `fire` d'après leurs labels et leurs PR — en attente, prises, en pass, en WAITING —, et l'onglet Cooks montre
 // les stations d'après leurs commentaires de prise et leurs signes de vie (#2358), jamais le rail figé du tableau de l'ancien chemin.
-// Un projet de l'ancien chemin garde son rail tel qu'avant (#2059). Joué sur un faux GitHub, puis rendu par le rail de l'app.
+// Un projet de l'ancien chemin garde son rail tel qu'avant (#2059), et son TODO est, comme partout, ce qui attend le chef
+// lu de GitHub (#2460). Joué sur un faux GitHub, puis rendu par le rail de l'app.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { porter } from "../../../src/bon.ts";
@@ -9,6 +10,7 @@ import { gestesDeCarte } from "../../../src/gestes-fiche.ts";
 import { comprendre, SANS_RAISON, tableau as tableauDe, tenirFaits, type Faits, type Tableau } from "../../../src/faits.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../../src/tableau/client.ts";
 import type { LectureDuTableauDuDepot, TableauLu } from "../../../src/tableau/lecture.ts";
+import { avecLAttenteDuChef, blocDuChef, lireCeQuiAttendLeChef } from "../../../src/tableau/attente-du-chef.ts";
 import { avecLesEtatsGithub, type MemoireDesLectures } from "../../../src/tableau/rail-github.ts";
 import { statusDuTableau } from "../../../src/tableau/rail.ts";
 import { avecLeRailGithub, interrupteurLu } from "../../../src/vue/rail/github.ts";
@@ -349,15 +351,32 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
   });
 });
 
-describe("un projet de l'ancien chemin : le même rail qu'avant", () => {
+describe("un projet de l'ancien chemin : le même rail qu'avant, et ce qui attend le chef lu de GitHub", () => {
   for (const interrupteur of [false, "absent", "refuse"] as const) {
-    test(`interrupteur ${interrupteur === false ? "éteint" : interrupteur === "absent" ? "absent" : "illisible, jamais lu posé"} : le tableau, ses états refaits de GitHub (#2059)`, async () => {
-      const appels: string[] = [];
-      const lu = await avecLeRailGithub(tableauFige(), github({ interrupteur, appels }));
-      assert.deepEqual(lu, await avecLesEtatsGithub(tableauFige(), github({ interrupteur })));
-      assert.ok(!appels.some((chemin) => chemin.includes("labels=fire") || chemin.includes("/comments")), "nothing of the GitHub-only rail is read");
+    test(`interrupteur ${interrupteur === false ? "éteint" : interrupteur === "absent" ? "absent" : "illisible, jamais lu posé"} : le tableau, ses états refaits de GitHub (#2059), son TODO lu comme le second le lit`, async () => {
+      const lu = await avecLeRailGithub(tableauFige(), github({ interrupteur }));
+      const attente = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: github({ interrupteur }), maintenant: () => new Date(LU) });
+      assert.ok(attente.lue);
+      assert.deepEqual(lu, avecLAttenteDuChef(await avecLesEtatsGithub(tableauFige(), github({ interrupteur })), attente));
+      // Le rail reste celui du tableau, ses états refaits : rien du rail de GitHub seul.
+      assert.ok(lu.lu);
+      assert.deepEqual((lu.faits?.rail as { ticket: number }[]).map(({ ticket }) => ticket), [1, 2, 3]);
     });
   }
+
+  test("ce qui attend le chef est la lecture du second : la même entrée dans TODO que dans le bloc qu'il relaie, rien de la file du tableau", async () => {
+    const question = { id: 40, body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old column order?", author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" };
+    const monde = () => github({ interrupteur: false, issues: () => [issue(2312, ["fire", "hors-cuisine"])], commentaires: { 2312: [question] } });
+    const fige = { ...tableauFige(), file: [{ nom: "#7", ticket: 7, titre: "Ticket 7", quoi: "decision", depuis: LU, ligne: "a station is not connected", decision: null, carte: null }] } as unknown as TableauLu;
+    const lu = await avecLeRailGithub(fige, monde());
+    assert.ok(lu.lu);
+    const attente = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: monde(), maintenant: () => new Date(LU) });
+    assert.ok(attente.lue);
+    assert.deepEqual(lu.file.map(({ ticket }) => ticket), [2312]);
+    assert.deepEqual(statusDuTableau(lu).split("\n").filter((ligne) => ligne.includes("#2312") || ligne.includes("#7")), blocDuChef(attente).filter((ligne) => ligne.includes("#2312")));
+    const todo = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    assert.deepEqual(todo.map(({ ticket }) => ticket), [2312]);
+  });
 
   test("l'interrupteur se lit dans le contenu de `projet.json`, vrai seulement s'il le dit", () => {
     assert.equal(interrupteurLu(projetJson({ githubOnlyState: true }).data), true);
