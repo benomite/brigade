@@ -598,7 +598,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await jusqua(() => c.avertissements.some((message) => /interrompu/.test(message)));
     chef(c.repertoire, "manager.disabled");
     c.gh.pannes.creationsMax = Infinity;
-    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    await c.laisserReveiller();
     assert.deepEqual(c.gh.creations, [501]);
 
     chef(c.repertoire, "manager.enabled");

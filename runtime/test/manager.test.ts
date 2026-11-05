@@ -609,12 +609,12 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("éteint pendant un jugement, le manager ne pose rien ; rallumé, il pose la décision sans rejuger", async (t) => {
-    const { repertoire, gh, jugements, labels, faits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    const { repertoire, gh, jugements, labels, faits, laisserReveiller } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 
     chef(repertoire, "manager.disabled");
     await jusqua(() => faits(30).some((e) => e.type === "manager.judged"));
-    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    await laisserReveiller();
     assert.deepEqual(gh.labellisations, []);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged"]);
 
