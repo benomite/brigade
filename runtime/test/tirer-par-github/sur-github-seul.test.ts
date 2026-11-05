@@ -85,6 +85,7 @@ class FauxGitHub {
         await appel();
         return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state }));
       },
+      dependancesOuvertes: async () => [],
       prDuTicket: async (issue) => {
         await appel();
         const pr = this.prs.findLast((p) => p.issue === issue);

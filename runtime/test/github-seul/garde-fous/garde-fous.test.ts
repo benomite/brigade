@@ -49,6 +49,7 @@ class FauxGitHub {
     };
     return {
       fires: async (): Promise<TicketLu[]> => [...this.tickets.values()].map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state })),
+      dependancesOuvertes: async () => [],
       prDuTicket: async () => null,
       corpsDuTicket: async () => "",
       prsOuvertes: async () => this.prs.map((branche) => ({ branche, fichiers: [] })),
