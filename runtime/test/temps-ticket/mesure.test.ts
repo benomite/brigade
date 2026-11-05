@@ -149,6 +149,7 @@ test("after the station merges a ticket, the project's file holds its record, ph
   const github = {
     checksDeLaBase: async () => [{ name: "tests", outcome: "green" as const }],
     fires: async () => [{ number: 7, title: "ticket 7", labels: [...labels], state: "open" as const }],
+    dependancesOuvertes: async () => [],
     prDuTicket: async () => (faux.pr === null ? null : { ...faux.pr }),
     prsOuvertes: async () => (faux.pr?.state === "open" ? [{ branche: brancheDuTicket(7), fichiers: ["src/a.ts"] }] : []),
     corpsDuTicket: async () => "",
