@@ -776,6 +776,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/tests-touches.test.ts", test: "à la station, une dépendance, un lockfile, un tsconfig ou le setup changés rejouent toujours tout" },
   { file: "test/valeur-tests/historique/historique.test.ts", test: "le rapport du vrai lanceur, un test qui échoue et un qui réussit : les deux sont inscrits, le dernier échec est la date du tour pour l'un, null pour l'autre" },
   { file: "test/valeurs-a-donner.test.ts", test: "le runtime lancé sur une machine sans configuration refuse de démarrer en les disant toutes, et sort en 2" },
+  { file: "test/verrou-des-gates.test.ts", test: "le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu" },
   { file: "test/verrou-des-gates.test.ts", test: "un passage tué en cours rend son tour au suivant" },
   { file: "test/appairage/canal.test.ts", test: "le canal crée un gist secret, en réécrit un fichier sans toucher aux autres, et le relit" },
   { file: "test/appels-par-projet.test.ts", test: "deux GitHub, deux projets, un faux gh : `status` et les faits de l'app disent le même total, le même projet et la même lecture en tête ; l'heure passée, ils sortent" },
