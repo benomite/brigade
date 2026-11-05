@@ -289,8 +289,7 @@ class FauxGitHub {
           this.relectures.push({ station: nom, pr: pr.number });
           return { verdict: "approve", motif: "" };
         }),
-      // Un cook qui s'arrête sans livrer se dit au journal (#2508) ; tout autre avertissement est une panne.
-      avertir: options.avertir ?? ((texte) => (/the cook stopped without a delivery/.test(texte) ? undefined : assert.fail(texte))),
+      avertir: options.avertir ?? ((texte) => assert.fail(texte)),
     });
   }
 
@@ -440,7 +439,7 @@ test("a review that requests changes keeps the PR unmerged", async () => {
 test("a cook that delivers nothing gives the ticket back on the issue, which another station then takes", async () => {
   const faux = new FauxGitHub();
   faux.feu(6);
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "gates red" }) });
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "gates red" }), avertir: () => {} });
   await a.tour();
   await a.calme();
   assert.deepEqual([...faux.ticket(6).labels].sort(), [...CALIBRE].sort());
@@ -885,7 +884,7 @@ test("a delivery that conflicts with the base goes back to a cook to merge the b
 test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(35);
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }) });
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
   for (let i = 0; i < 8; i += 1) {
     await a.tour();
     await a.calme();
@@ -899,7 +898,7 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
 test("removing hors-cuisine restarts the count of cooks without a delivery (#2430)", async () => {
   const faux = new FauxGitHub();
   faux.feu(35);
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }) });
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
   for (let i = 0; i < 8 && !faux.ticket(35).labels.has("hors-cuisine"); i += 1) {
     await a.tour();
     await a.calme();
@@ -1548,11 +1547,10 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
 
 // Une station dont le cook reprend la branche que le clone porte déjà, conclut
 // « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
-async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12) {
+async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
-  const faux = new FauxGitHub();
-  faux.feu(14);
+  if (faux.tickets.size === 0) faux.feu(14);
   if (enConflit) faux.prs.push({ number: 99, issue: 14, branche: "cook/14-github", sha: "c".repeat(40), state: "open", merged: false, enRetard: false, enConflit: true, mergeePar: null, fichiers: [] });
   let tete = "a".repeat(40);
   const lancer: Lancer = ({ flux }) => {
@@ -1587,6 +1585,7 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
     reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
+    maintenant,
     avertir: () => {},
   });
   assert.ok(!("refus" in station));
@@ -1609,7 +1608,8 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
   const faux = new FauxGitHub();
   faux.feu(77);
   const journal: string[] = [];
-  const limite = { type: "rate_limit_event", rate_limit_info: { status: "rejected", resetsAt: 1793000000, rateLimitType: "five_hour" } };
+  let heure = Date.parse("2026-11-05T21:17:00Z");
+  const limite = { type: "rate_limit_event", rate_limit_info: { status: "rejected", resetsAt: (heure + 2 * 3_600_000) / 1000, rateLimitType: "five_hour" } };
   const lancer: Lancer = ({ flux }) => {
     writeFileSync(flux, `${JSON.stringify(limite)}\n${JSON.stringify({ type: "result", is_error: true, result: "You've hit your limit" })}\n`);
     writeFileSync(`${flux}.stderr`, "Claude usage limit reached\n");
@@ -1642,6 +1642,7 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
     reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
+    maintenant: () => new Date(heure),
     avertir: (texte) => void journal.push(texte),
   });
   assert.ok(!("refus" in station));
@@ -1649,12 +1650,18 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
   for (let i = 0; i < 3; i += 1) {
     await station.tour();
     await station.calme();
+    // Le tour suivant, tout de suite : le ticket attend le retour du quota.
+    await station.tour();
+    await station.calme();
+    assert.equal(faux.cuissons.length, 0);
+    heure += 2 * 3_600_000 + 60_000;
   }
   const corps = (faux.commentaires.get(77) ?? []).map((c) => c.body);
   assert.equal(corps.filter((c) => /exit code 1[\s\S]*Claude usage limit reached/.test(c)).length, 3);
   assert.equal(corps.filter((c) => c.includes("brigade:echec")).length, 0);
   assert.equal(faux.ticket(77).labels.has("hors-cuisine"), false);
   assert.equal(journal.filter((l) => /exit code 1.*Claude usage limit reached/.test(l)).length, 3);
+  assert.equal(corps.filter((c) => c.includes("brigade:attente")).length, 3);
 });
 
 test("a cook that stops in its first turns after a send-back, adding nothing, has not worked on the review: the try is not counted (#2508)", async (t) => {
@@ -1662,6 +1669,43 @@ test("a cook that stops in its first turns after a send-back, adding nothing, ha
   const corps = (faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n");
   assert.doesNotMatch(corps, /brigade:echec/);
   assert.match(corps, /before it could work on the review's remarks/);
+});
+
+test("a cook that keeps stopping in its first turns after a send-back, adding nothing, is counted after 3 such stops, and waits between them (#2508)", async (t) => {
+  const faux = new FauxGitHub();
+  let heure = Date.parse("2026-11-05T21:17:00Z");
+  for (let i = 0; i < 3; i += 1) {
+    await repriseQui(t, false, false, 1, faux, () => new Date(heure));
+    // Retenu par l'attente : un second tour immédiat ne le reprend pas.
+    if (i < 2) await repriseQui(t, false, false, 1, faux, () => new Date(heure));
+    heure += 31 * 60_000;
+  }
+  const corps = (faux.commentaires.get(14) ?? []).map((c) => c.body);
+  assert.equal(corps.filter((c) => c.includes("brigade:attente")).length, 2);
+  assert.equal(corps.filter((c) => c.includes("brigade:echec")).length, 1);
+});
+
+test("a cook killed by a signal is not a failed cook: the ticket waits, and nothing is counted (#2508)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(78);
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, "");
+    return { fin: Promise.resolve({ code: null, signal: "SIGKILL", turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux),
+    depot: { connait: () => false, preparer: async (run) => ({ worktree: join(repertoire, run), branche: "cook/78-github" }), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
+    prise: priseDeLaStation, claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  const corps = (faux.commentaires.get(78) ?? []).map((c) => c.body).join("\n");
+  assert.match(corps, /signal SIGKILL/);
+  assert.doesNotMatch(corps, /brigade:echec/);
 });
 
 test("a cook that adds nothing to a branch whose PR conflicts with main is not a failed cook: three of them do not take the ticket off the kitchen (#2454, #2061 of 2026-11-05)", async (t) => {

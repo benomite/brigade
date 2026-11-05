@@ -337,9 +337,13 @@ issue changes, and enters the log (`ticket.arrived`, `ticket.changed`, field `ca
 The comment on the issue and the station journal both say why: the exit code and the last lines
 `claude` wrote (its standard error, else its last message). A stop the cook did not cause does not
 count as one of the 3 tries: Claude quota or usage limit, a lost Claude session, a GitHub limit, a
-station stopped or a process killed. The ticket is given back, waits, and is retried — never set
-aside for it. After a send back, "added nothing since its last delivery" is a failed cook only if the
-cook ran past its first 3 turns; stopping earlier means it never worked on the review's remarks.
+station stopped or a process killed. The ticket is given back with an `attente` marker on its issue
+and is not taken again before it ends: 30 minutes, or the time the quota comes back when the stream
+says it (6 hours at most). It is then retried, never set aside for it. After a send back, "added
+nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
+stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
+cause — but the third such stop in a row counts as a failed cook, so a cook that never works does
+not loop for ever.
 
 ### Relaunching a set-aside ticket
 
