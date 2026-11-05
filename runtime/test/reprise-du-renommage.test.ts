@@ -237,7 +237,7 @@ describe("la cuisine reprise après le renommage", () => {
           },
         }),
     });
-    const { gh, journal, heure, conclure, etat } = lieu;
+    const { gh, journal, heure, conclure, retenir, etat } = lieu;
     chef(lieu.repertoire, "grant.activated");
     const fiche = (zone: string) => `${MARQUEUR}\n- attend : rien\n- zone : ${zone}`;
     gh.ficher(17, "2026-10-08T09:00:00Z", fiche("runtime/src/garde-fous.ts, runtime/test/garde-fous.test.ts"));
@@ -286,6 +286,11 @@ describe("la cuisine reprise après le renommage", () => {
     await jusqua(() => [17, 19, 20].every((numero) => faits("pass.waiting", numero).some((e) => (e.payload as { reason?: string }).reason === "paused")));
     assert.equal(gh.merges.length, 0);
     assert.equal(appels.length, 0);
+    // Le cook que la cuisine relancera sur #19 commite, puis attend : relivrée
+    // aussitôt, sa branche ne se porterait pas davantage, et la cuisine la
+    // reprendrait encore — `fix`, calibrage monté, abandon — pendant que le
+    // test attend les merges de #17 et #20 (#2439).
+    retenir();
 
     // L'outil finit : le renommage est mergé, la pause levée sans geste du chef.
     writeFileSync(feu, "");
@@ -296,10 +301,21 @@ describe("la cuisine reprise après le renommage", () => {
     assert.deepEqual(livree.moves, MOUVEMENTS);
     assert.equal(pauseEnCours(journal.base), null);
     for (const numero of [17, 19, 20]) assert.equal(mergeRetenu(journal.base, numero), null);
-    // Les zones sont sur les nouveaux chemins dès la levée ; celle qui n'en touchait aucun est la même.
-    assert.deepEqual(zone(17), ["runtime/src/guardrails.ts", "runtime/test/garde-fous.test.ts"]);
+    // Les zones sont sur les nouveaux chemins dès la levée, réécrites dans sa
+    // transaction ; celle qui n'en touchait aucun est la même. Lues au journal,
+    // juste après `pause.released` et de sa main : #17 et #20 sortent du rail
+    // dès leur merge, que la cuisine peut avoir fait avant que le test ne
+    // regarde (#2439).
+    const faitDeLaLevee = faits("pause.released")[0];
+    const apresLaLevee = journal.depuis(faitDeLaLevee?.seq ?? 0);
+    const finDeLaLevee = apresLaLevee.findIndex((e) => e.type !== "ticket.changed" || e.author !== faitDeLaLevee?.author);
+    const reecrites = new Map(apresLaLevee.slice(0, finDeLaLevee === -1 ? apresLaLevee.length : finDeLaLevee).map((e) => [e.ticket, (e.payload as { card: Fiche }).card.zone]));
+    assert.deepEqual(reecrites.get(17), ["runtime/src/guardrails.ts", "runtime/test/garde-fous.test.ts"]);
+    assert.deepEqual(reecrites.get(19), ["runtime/src/freeze/pause.ts"]);
+    assert.equal(reecrites.has(20), false);
+    assert.deepEqual((faits("ticket.arrived", 20)[0]?.payload as { card: Fiche }).card.zone, ["runtime/src/rail.ts"]);
+    // #19, qui ne se porte pas, reste au rail : il y est sur les nouveaux chemins.
     assert.deepEqual(zone(19), ["runtime/src/freeze/pause.ts"]);
-    assert.deepEqual(zone(20), ["runtime/src/rail.ts"]);
 
     // #17 : porté, poussé, jugé et mergé sur sa nouvelle tête.
     await jusqua(() => faits("merge.done", 17).length === 1);
@@ -328,11 +344,14 @@ describe("la cuisine reprise après le renommage", () => {
     assert.match(String((faits("pass.returned", 19).at(-1)?.payload as { findings: string[] }).findings[0]), /ne se porte pas sur l'arbre renommé : conflit sur `runtime\/src\/freeze\/pause\.ts`/);
     assert.equal(faits("merge.done", 19).length, 0);
     assert.equal(attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 19), undefined);
+    // Le cook relancé sur #19 est là, retenu.
+    await jusqua(() => cooks(19) === 2);
 
     // Et la cuisine prend et merge à nouveau, sans geste du chef. La fiche
     // d'un ticket écrite sur les anciens chemins se lit sur les nouveaux.
     gh.ficher(18, "2026-10-08T09:00:00Z", fiche("runtime/src/pause/autre.ts, docs"));
     gh.poser(issue(18));
+    conclure();
     await jusqua(() => faits("merge.done", 18).length === 1);
     assert.equal(cooks(18), 1);
     assert.equal(faits("rename.carried", 18).length, 0);
