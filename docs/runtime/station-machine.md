@@ -116,10 +116,21 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **GitHub's limit reached** (its 429, or its 403 "rate limit"; a 403 on a forbidden merge stays a
   refusal): the station stops every call and sets a pause on the counter, shared by all its processes,
   until the end of the window, read in `retry-after`, else `x-ratelimit-reset`, else `gh api
-  rate_limit`, else 60 s. During the pause no kitchen call leaves and nothing is counted (a chef's
-  gesture still tries, and fails on GitHub's refusal). The log says it once (`brigade : station — GitHub
-  a atteint sa limite d'appels : …`). The resumption is automatic. During the wait the station does not
-  write its state on GitHub, and the app says it offline after 2 × `cadenceMs` + 30 s.
+  rate_limit`, else 60 s — doubled at each limit that comes back within 15 min of the previous pause's
+  end, up to 15 min (`RECUL_MAX_MS`, #2436): resuming every project after one minute set the secondary
+  limit off again, and each new try lengthens it. Refusals of one burst, arriving during the pause they
+  set, do not double it. During the pause no kitchen call leaves and nothing is counted (a chef's
+  gesture still tries, and fails on GitHub's refusal). The log says it twice, whatever the number of
+  projects (#2436): `brigade : GitHub limit reached — no call leaves the station before HH:MM` when it
+  starts, `brigade : GitHub calls resumed` when the next call leaves; the manager, the GitHub-only turn
+  and the stale-branch cleanup say nothing of it. The resumption is automatic. During the wait the
+  station does not write its state on GitHub, and the app says it offline after 2 × `cadenceMs` + 30 s.
+- **No burst at start (#2436).** The station opens its projects together, but their first GitHub-only
+  turns are spaced `ECART_DES_PROJETS_MS` (20 s) apart (`runtime/src/station/station.ts`). The stale
+  `cook/<n>-github` branches are cleaned a few at a time: each pass reads the issues of at most
+  `BRANCHES_PAR_TOUR` (3) branches, and the next pass goes on from there
+  (`runtime/src/github-seul/boucles-perimees/boucles-perimees.ts`) — before, every tick read the issue of
+  every branch, for every project.
 - **Writes are paced (#2145).** GitHub's secondary limits cap writes (about 80 a minute and 500 an
   hour per account). Every kitchen write (`gh api` with a method other than GET, or with fields) goes
   through the same counter, per account and for all the station's projects together: at most

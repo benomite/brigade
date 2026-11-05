@@ -683,6 +683,10 @@ export async function appelerGitHub<T>(limite: Limite, options: OptionsAppel, re
   const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
   const file = fileDe(limite);
   const appel = await file.prendre(usage, compte, options.etiquette, maintenant, attendre);
+  if (pauseDite && usage === "cuisine") {
+    pauseDite = false;
+    direLaPauseDansLeJournal?.("brigade : GitHub calls resumed");
+  }
   // L'appel part : il se compte à l'identité dont il porte le jeton (#2316).
   compteurDuProcess().compter(compte);
   try {
@@ -750,9 +754,34 @@ export function direLesEcrituresRetenues({ ecrites, reprise }: { ecrites: number
   return `held by the GitHub write budget — ${ecrites} of ${ECRITURES_PAR_HEURE} in the last hour, next write at ${heure(reprise)}`;
 }
 
+// Sans attente dite par GitHub, la pause double à chaque limite qui revient
+// moins de `RECUL_OUBLIE_MS` après la fin de la précédente, jusqu'à
+// `RECUL_MAX_MS` (#2436) : reprendre au bout d'une minute, tous projets
+// ensemble, relance la limite secondaire, que chaque nouvel essai prolonge.
+export const RECUL_MAX_MS = 15 * 60_000;
+const RECUL_OUBLIE_MS = 15 * 60_000;
+// La dernière pause posée par ce process, par compteur : sa fin et sa durée.
+const reculs = new WeakMap<Limite, { fin: number; duree: number }>();
+
+// Le journal de la station dit la pause une fois quand elle commence, et une
+// fois quand un appel repart — pas une ligne par projet et par minute (#2436).
+let direLaPauseDansLeJournal: ((ligne: string) => void) | null = null;
+let pauseDite = false;
+
+export function journaliserLaPause(dire: (ligne: string) => void): void {
+  direLaPauseDansLeJournal = dire;
+}
+
+// Vrai pour le refus d'un appel que la pause de GitHub retient : la pause est
+// déjà au journal, l'appelant n'a rien à en redire. La retenue de la box
+// (`CuisineRalentie`) n'en est pas une.
+export const estLaPauseDeGitHub = (erreur: unknown): boolean => erreur instanceof LimiteGitHubAtteinte && !(erreur instanceof CuisineRalentie);
+
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
 // fin de la fenêtre — `retry-after`, sinon `x-ratelimit-reset`, sinon ce que
-// dit `gh api rate_limit`, sinon 60 s — et rend l'erreur à lever.
+// dit `gh api rate_limit`, sinon 60 s, doublées à chaque limite qui revient —
+// et rend l'erreur à lever. Plusieurs refus d'une même rafale, arrivés pendant
+// la pause qu'ils ont posée, ne la doublent pas.
 export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number }): Promise<LimiteGitHubAtteinte> {
   const maintenant = options.maintenant ?? (() => Date.now());
   const instant = maintenant();
@@ -762,8 +791,19 @@ export async function constaterLimite(limite: Limite, reponse: ReponseHttp, opti
   if (reponse.entetes.has("retry-after") && Number.isFinite(retry) && retry >= 0) jusqua = instant + retry * 1000;
   else if (reponse.entetes.has("x-ratelimit-reset") && Number.isFinite(reset) && reset * 1000 > instant) jusqua = reset * 1000;
   jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant });
-  jusqua ??= instant + ATTENTE_PAR_DEFAUT_MS;
+  const precedente = reculs.get(limite) ?? { fin: Number.NEGATIVE_INFINITY, duree: 0 };
+  const enCours = instant < precedente.fin;
+  if (jusqua === null) {
+    const recidive = instant - precedente.fin < RECUL_OUBLIE_MS;
+    jusqua = enCours ? precedente.fin : instant + (recidive ? Math.min(precedente.duree * 2, RECUL_MAX_MS) : ATTENTE_PAR_DEFAUT_MS);
+  }
+  if (!enCours) reculs.set(limite, { fin: jusqua, duree: jusqua - instant });
+  else if (jusqua > precedente.fin) reculs.set(limite, { fin: jusqua, duree: precedente.duree });
   limite.suspendre(jusqua);
+  if (!enCours) {
+    pauseDite = true;
+    direLaPauseDansLeJournal?.(`brigade : GitHub limit reached — no call leaves the station before ${heure(jusqua)}`);
+  }
   return new LimiteGitHubAtteinte(jusqua, Math.max(0, jusqua - instant));
 }
 

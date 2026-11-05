@@ -14,6 +14,8 @@ import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
 import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
 
 export type OptionsStation = {
+  // Entre les premiers tours de deux projets ; par défaut `ECART_DES_PROJETS_MS`.
+  ecartDesProjetsMs?: number;
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa configuration,
   // l'état et les clones de ses projets.
   racine: string;
@@ -89,6 +91,10 @@ const causeDe = (erreur: unknown): CodeDeRefus => {
 export const nommer = (projet: string, ligne: string) => `brigade [${projet}] : ${ligne.replace(/^brigade : /, "")}`;
 const auNomDe = (dire: (ligne: string) => void, projet: string) => (ligne: string) => dire(nommer(projet, ligne));
 
+// Entre les premiers tours GitHub seul de deux projets de la station (#2436) :
+// ouverts ensemble, ils ne lisent pas GitHub tous à la fois.
+export const ECART_DES_PROJETS_MS = 20_000;
+
 export function ouvrirStation(options: OptionsStation): Station {
   const { racine, env, dire } = options;
   const ouvrir = options.ouvrir ?? ouvrirCuisine;
@@ -142,7 +148,7 @@ export function ouvrirStation(options: OptionsStation): Station {
         for (const ligne of demenagement.deplaces) dit(`déménagé dans l'atelier de la station — ${ligne}`);
         for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
       }
-      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.retenue === undefined ? {} : { retenue: options.retenue }) }));
+      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.retenue === undefined ? {} : { retenue: options.retenue }), departMs: ouvertes.size * (options.ecartDesProjetsMs ?? ECART_DES_PROJETS_MS) }));
       ouvertes.set(projet.nom, { cle, depot: projet.depot, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);

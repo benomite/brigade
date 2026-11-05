@@ -796,6 +796,33 @@ test("a review that requests changes presses the next turns: the ticket sent bac
   assert.deepEqual(pressions.slice(0, 2), [true, false], "the verdict presses");
 });
 
+test("the loop: with a first-turn delay, the first turn waits for it, then the interval runs as before (#2436)", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const tours: number[] = [];
+  const station: StationGitHub = {
+    tour: async () => void tours.push(Date.now() / 1000),
+    enCuisine: () => [],
+    calme: async () => {},
+    relu: async () => {},
+  };
+  const ouvert = brancherBrigadeGithub({ reglages: { githubOnlyState: true }, ancien: () => assert.fail("old path"), station: () => station, intervalleMs: 120_000, premierTourMs: 40_000, avertir: () => {} });
+  t.after(() => (ouvert.chemin === "github" ? ouvert.arreter() : undefined));
+  const fini = async () => {
+    for (let i = 0; i < 10; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
+  };
+  await fini();
+  assert.deepEqual(tours, []);
+  t.mock.timers.tick(39_000);
+  await fini();
+  assert.deepEqual(tours, []);
+  t.mock.timers.tick(1_000);
+  await fini();
+  assert.deepEqual(tours, [40]);
+  t.mock.timers.tick(120_000);
+  await fini();
+  assert.deepEqual(tours, [40, 160]);
+});
+
 test("the loop: a press brings the next turn within 30 s, a delivery's at once, then TOURS_PRESSES turns 30 s apart and the interval again; a quiet kitchen keeps the interval (#2333)", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
   const tours: number[] = [];

@@ -10,7 +10,7 @@ import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { ConfigInvalide, DejaEnCours } from "../../src/runtime.ts";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
 import { ecrirePortes } from "../../src/station/portes.ts";
-import { ouvrirStation } from "../../src/station/station.ts";
+import { ECART_DES_PROJETS_MS, ouvrirStation } from "../../src/station/station.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -200,6 +200,25 @@ test("la retenue de la mise à jour atteint chaque cuisine, et la station dit le
   seVide = true;
   assert.deepEqual(retenues.map((r) => r?.()), [true, true]);
   assert.deepEqual(servie.enCuisine().sort((a, b) => a - b), [12, 13, 40]);
+});
+
+test("ouverts ensemble, les projets de la station ne lisent pas GitHub tous à la fois : chacun part un écart après le précédent (#2436)", (t) => {
+  const racine = repertoireTemporaire(t);
+  writeFileSync(join(racine, "projets"), "brigade acme/brigade main\nespace acme/espace main\nmirrorlab acme/mirrorlab main\n");
+  const departs: Array<number | undefined> = [];
+  const servie = ouvrirStation({
+    racine,
+    env: { BRIGADE_CLAUDE_BIN: "claude" },
+    dire: () => {},
+    relectureMs: 3_600_000,
+    portes: null,
+    ouvrir: (env, options) => {
+      departs.push(options.departMs);
+      return { projet: env.BRIGADE_PROJECT ?? "", repertoireEtat: env.BRIGADE_STATE_DIR ?? "", arreter: () => {} };
+    },
+  });
+  aArreter(t, () => servie.arreter("fin du test"));
+  assert.deepEqual(departs, [0, ECART_DES_PROJETS_MS, 2 * ECART_DES_PROJETS_MS]);
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
