@@ -286,7 +286,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // La retenue de la cuisine : rien de servi depuis 30 min alors que des
     // tickets attendent, sa cause et son geste entrent une fois dans la file
     // du chef, et en sortent quand la cuisine sert de nouveau.
-    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null, dire });
+    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.chemin === "github" ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH, dire });
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées tant que l'ancien chemin est arrêté ; et le
     // closer sur le chemin GitHub seul (#2361) : sa passe est une issue que les stations cuisinent, et il relève la
     // dérive que `status` lit, des flux des cooks GitHub seul.
