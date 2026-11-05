@@ -434,8 +434,8 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
   // est lancé sur la première de chaque liste. Le lancer sur chacune coûtait six secondes (#2464).
   for (const commande of permises) assert.equal(estUneVerification(commande), true, commande);
   for (const commande of refusees) assert.equal(estUneVerification(commande), false, commande);
-  assert.equal(autorise(permises[0]!), true, permises[0]);
-  assert.equal(autorise(refusees[0]!), false, refusees[0]);
+  assert.equal(autorise(permises[0]!), true, permises[0]!);
+  assert.equal(autorise(refusees[0]!), false, refusees[0]!);
   // Aucune règle `Bash(…)` : le droit tient dans le crochet, jamais dans un motif.
   assert.deepEqual(
     configurer(projet()).reglages.permissions.allow.filter((regle) => regle.startsWith("Bash")),
