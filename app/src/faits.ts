@@ -29,7 +29,7 @@ import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { anciennete, cadenceLue, essaisLus, histogramme, points, type Anciennete, type EssaiLu, type Point, type CadenceLue, type Histogramme } from "./cadence.ts";
 import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
-import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
+import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
 import type { MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
@@ -1143,9 +1143,14 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     // Mis de côté par un label, sur GitHub seul : il t'attend, et sa ligne dit pourquoi (#2075).
     const miseDeCote = dit === undefined ? undefined : donne?.miseDeCote;
     const pourquoi = miseDeCote === undefined ? undefined : (miseDeCote.raison ?? SANS_RAISON);
+    // La carte du chef lue de GitHub, dans la forme de toute carte de TODO (#2434) : sa question n'est dite qu'une fois, sur
+    // la carte — la ligne dit ce que sa sorte attend du chef, jamais la question.
+    const duChef = dit === undefined || donne?.chef === undefined ? undefined : carteDuChefDeTodo(donne.chef);
     const ligne: LigneDeCarte =
       connu?.illisible !== undefined || donne?.illisible !== undefined
         ? ligneIllisible()
+        : duChef !== undefined && donne?.chef !== undefined
+        ? ligneQuiMAttend(phraseDuChef(donne.chef.sorte))
         : pourquoi !== undefined
         ? ligneMiseDeCote(pourquoi)
         : dit !== undefined
@@ -1190,7 +1195,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: {
         ...entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }), ...(ecrite === undefined ? {} : { prio: ecrite }) }),
-        ...(dit === undefined ? {} : { attendu: pourquoi ?? attenduDe(donne?.decision).phrase }),
+        ...(dit === undefined ? {} : { attendu: duChef?.question ?? pourquoi ?? attenduDe(donne?.decision).phrase }),
         ...(dit === undefined ? {} : tete(teteDe(donne?.decision, donne?.livraison))),
       },
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
@@ -1198,7 +1203,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
       ...(dit !== undefined && donne?.chef !== undefined ? { chef: donne.chef } : {}),
       ...(miseDeCote === undefined ? {} : { miseDeCote: { label: miseDeCote.label, liens: miseDeCote.raison === null ? [] : miseDeCote.liens.map(({ numero }) => numero) } }),
-      ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte, envois?.get(ticket)) } : {}),
+      ...(duChef !== undefined ? { todo: duChef } : dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte, envois?.get(ticket)) } : {}),
       // Confié à un humain : sa tâche (vue/attente-capacite/).
       ...(dit !== undefined && donne?.tache !== undefined ? { tache: donne.tache } : {}),
       ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
@@ -1504,6 +1509,12 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     carte(projet: unknown, ticket: unknown): CarteLue | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
       return donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.carte;
+    },
+    // La carte du chef d'un ticket, lue de GitHub à la dernière lecture (#2434, tableau/todo-github.ts) : celle à laquelle le
+    // chef répond sur GitHub même. Rien pour un ticket qui n'en a pas.
+    chef(projet: unknown, ticket: unknown): CarteDuChef | undefined {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      return donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.chef;
     },
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {

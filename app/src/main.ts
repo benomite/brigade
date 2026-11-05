@@ -53,6 +53,7 @@ import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
+import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
@@ -1422,9 +1423,17 @@ ipcMain.handle("corriger", async (_, nom: unknown, proposition: unknown, reponse
 // tableau-gestes/rail.ts), en commentaire `choose` ou `answer`, par le jeton du `gh` de ce poste : ni
 // box jointe. La box la joue à son tick suivant — `rail choose` ou `rail answer` l'écrit sur
 // l'issue, sort la carte de TODO et fait avancer le ticket.
+// Sur un projet GitHub seul, la carte du chef lue de GitHub (#2434) : la réponse est postée sur son issue et son geste joué
+// par l'app même, par le même jeton (tableau-gestes/reponse-github.ts) — ni tableau, ni box.
 ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
+  const chef = faits.chef(vise.nom, ticket);
+  if (chef !== undefined) {
+    const rendu = await repondreSurGithub({ depot: await depotDuProjet(vise), ticket, chef, reponse, client: clientDesLabels });
+    if ("repondue" in rendu) tableaux.oublier();
+    return rendu;
+  }
   const lue = reponseLue(faits.carte(vise.nom, ticket), ticket, reponse);
   if ("refus" in lue) return lue;
   const rendu = await reponseDeCarteAuTableau(tableaux.dernier(vise.nom), lue, clientDesGestes);

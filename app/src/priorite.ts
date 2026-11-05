@@ -16,10 +16,12 @@ export const PRIORITES: readonly string[] = ["1", "2", "3", "4", "5", "6", "7", 
 // Les labels de priorité que la box lit (runtime/src/alimenter.ts, `priorite`) : `prio:0` à `prio:9`.
 const LABEL_DE_PRIORITE = /^prio:([0-9])$/;
 
-// Un `POST` ou un `DELETE` à cette adresse, avec ces en-têtes et ce corps — un objet, que la plateforme écrit en JSON.
+// Un `POST` ou un `DELETE` à cette adresse — ou un `PUT`, un `PATCH`, pour la réponse à une carte du chef (#2434,
+// tableau-gestes/reponse-github.ts) —, avec ces en-têtes et ce corps — un objet, que la plateforme écrit en JSON.
 // Lève quand rien n'a répondu.
-export type EnvoiGitHub = (methode: "POST" | "DELETE", adresse: string, entetes: Record<string, string>, corps?: unknown) => Promise<ReponseGitHub>;
-export type ClientDeLaPriorite = { lire: AppelGitHub; ecrire: (methode: "POST" | "DELETE", chemin: string, corps?: unknown) => Promise<ReponseGitHub> };
+export type MethodeDEcriture = "POST" | "DELETE" | "PUT" | "PATCH";
+export type EnvoiGitHub = (methode: MethodeDEcriture, adresse: string, entetes: Record<string, string>, corps?: unknown) => Promise<ReponseGitHub>;
+export type ClientDeLaPriorite = { lire: AppelGitHub; ecrire: (methode: MethodeDEcriture, chemin: string, corps?: unknown) => Promise<ReponseGitHub> };
 
 // Le client : la lecture de l'issue par le `GET` du tableau (client.ts), l'écriture de ses labels avec le même jeton.
 export function clientDeLaPriorite({ jeton, appeler, envoyer }: { jeton: () => Promise<string | null>; appeler: AppelGitHub; envoyer: EnvoiGitHub }): ClientDeLaPriorite {

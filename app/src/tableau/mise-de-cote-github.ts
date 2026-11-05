@@ -30,6 +30,7 @@ export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
 const PRODUCT_QUESTION = "product-question";
 const DE_CONFIANCE = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const MARQUE_DU_MANAGER = "<!-- brigade:manager";
+const MARQUE_DE_REPONSE = /^\s*<!--\s*brigade:reponse\b/;
 // Au-delà, la ligne s'arrête au mot, d'un « … » : le reste est sur l'issue.
 const LONGUEUR_MAX = 160;
 
@@ -99,13 +100,16 @@ export function ligneDuCommentaire(corps: string): string | null {
 }
 
 // La question que le dernier commentaire marqué d'un auteur du dépôt pose au chef — rien si ce n'est pas une
-// `product-question`.
+// `product-question`, ni si une réponse du chef la suit (`<!-- brigade:reponse`, #2434, tableau-gestes/reponse-github.ts) :
+// répondue, elle n'attend plus rien de lui, quel que soit le geste que la réponse a joué.
 function questionDuChef(commentaires: readonly Brut[]): CarteDuChef | null {
-  const dernier = [...commentaires]
-    .reverse()
-    .map(({ body, author_association: association }) => (typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) ? carteDuCommentaire(body) : null))
-    .find((carte) => carte !== null);
-  return dernier?.sorte === PRODUCT_QUESTION ? dernier : null;
+  const dits = [...commentaires].reverse().filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association));
+  for (const { body } of dits) {
+    if (MARQUE_DE_REPONSE.test(body as string)) return null;
+    const carte = carteDuCommentaire(body as string);
+    if (carte !== null) return carte.sorte === PRODUCT_QUESTION ? carte : null;
+  }
+  return null;
 }
 
 // Ce que la carte dit d'un ticket mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au plus

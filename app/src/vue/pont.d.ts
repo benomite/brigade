@@ -134,7 +134,7 @@ export type Pont = {
   lireQuestion(projet: string, ticket: number): Promise<QuestionLue | undefined>;
   // Ce que la fiche dit d'un ticket vivant — ce que son cook fait, ou ce qui le bloque —, d'après
   // la carte cliquée (histoire.ts, `situation`). Rien pour un ticket que la cuisine ne tient pas.
-  situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[] }): Promise<import("../histoire.ts").Situation>;
+  situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[]; question?: string }): Promise<import("../histoire.ts").Situation>;
   // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (gestes-fiche.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
