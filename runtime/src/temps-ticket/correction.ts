@@ -34,6 +34,21 @@ export type RailClient = {
   createIssue(issue: { title: string; body: string; labels: string[] }): Promise<{ number: number }>;
 };
 
+// What `nommerLePlusLent` (lenteur/nommer.ts, #2350) returns; null when nothing was measured.
+export type PlusLent = { partie: string; phrase: string; chiffres: { mediane: number; impact: number; mesures: number } };
+export type Nommer = (projet: string) => PlusLent | null;
+
+// The real naming lives in lenteur/nommer.ts, loaded on demand; if it is not there, nothing is named.
+async function nommerParDefaut(projet: string): Promise<PlusLent | null> {
+  try {
+    const chemin = "../lenteur/nommer.ts"; // a variable: the type check does not need the module to exist
+    const module = (await import(chemin)) as { nommerLePlusLent: Nommer };
+    return module.nommerLePlusLent(projet);
+  } catch {
+    return null;
+  }
+}
+
 export type Decision =
   | { action: "none"; reason: "no-records" | "under-max" | "already-open"; number?: number }
   | { action: "opened"; number: number; phase: Phase };
@@ -75,7 +90,12 @@ export function measure(records: TimeRecord[]): Measure | null {
 
 const minutes = (seconds: number) => `${Math.round((seconds / 60) * 10) / 10} min`;
 
-export function correctionTicket(m: Measure, maxMinutes: number): { title: string; body: string } {
+function slowestPartLines(plusLent: PlusLent | null): string[] {
+  if (plusLent === null) return ["Slowest part: no duration was recorded yet."];
+  return [`Slowest part: ${plusLent.phrase} (${plusLent.chiffres.mesures} runs)`];
+}
+
+export function correctionTicket(m: Measure, maxMinutes: number, plusLent: PlusLent | null = null): { title: string; body: string } {
   const name = PHASE_NAMES[m.slowest];
   const title = `Tickets are too slow: ${name} is the slowest phase (median ${minutes(m.phaseMedians[m.slowest])})`;
   const body = [
@@ -86,6 +106,8 @@ export function correctionTicket(m: Measure, maxMinutes: number): { title: strin
     "",
     "Median per phase:",
     ...PHASES.map((phase) => `- ${PHASE_NAMES[phase]}: ${minutes(m.phaseMedians[phase])}`),
+    "",
+    ...slowestPartLines(plusLent),
     "",
     `Max: ${maxMinutes} min (\`tempsMaxTicketMin\` in \`.claude/brigade/projet.json\`).`,
     "",
@@ -117,7 +139,7 @@ export async function readMaxMinutes(repoDir: string): Promise<number> {
 }
 
 // Check after each recorded merge. At most one correction ticket is open at a time.
-export async function checkMedian(repoDir: string, rail: RailClient): Promise<Decision> {
+export async function checkMedian(repoDir: string, rail: RailClient, nommer: Nommer | ((projet: string) => Promise<PlusLent | null>) = nommerParDefaut): Promise<Decision> {
   const m = measure(await readRecords(repoDir));
   if (m === null) return { action: "none", reason: "no-records" };
   const maxMinutes = await readMaxMinutes(repoDir);
@@ -125,7 +147,7 @@ export async function checkMedian(repoDir: string, rail: RailClient): Promise<De
   const issues = await rail.listIssues({ label: CORRECTION_LABEL });
   const open = issues.filter((i) => i.state === "open" && i.body.includes(MARKER)).sort((a, b) => a.number - b.number)[0];
   if (open !== undefined) return { action: "none", reason: "already-open", number: open.number };
-  const { title, body } = correctionTicket(m, maxMinutes);
+  const { title, body } = correctionTicket(m, maxMinutes, await nommer(repoDir));
   const created = await rail.createIssue({ title, body, labels: [CORRECTION_LABEL] });
   return { action: "opened", number: created.number, phase: m.slowest };
 }
