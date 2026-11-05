@@ -16,7 +16,7 @@
 // pas : la base reste rouge pour lui.
 import type { Check } from "../events/pass.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
-import { runRouge } from "../relance-main-rouge.ts";
+import { estInformatif, runRouge } from "../relance-main-rouge.ts";
 import { cleDeCause, type Retenue } from "./retenue.ts";
 
 type CheckLu = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
@@ -46,7 +46,7 @@ export type PorteDeLaRelance = {
   filtrer(brute: Retenue | null): Retenue | null;
 };
 
-const rouges = (checks: CheckLu[]) => checks.filter(({ outcome }) => outcome === "red");
+const rouges = (checks: CheckLu[]) => checks.filter((check) => check.outcome === "red" && !estInformatif(check));
 
 export function relanceDeLaRetenue(github: GitHubDeLaRelanceDeLaBase, options: OptionsRelance = {}): PorteDeLaRelance {
   const avertir = options.avertir ?? (() => {});
