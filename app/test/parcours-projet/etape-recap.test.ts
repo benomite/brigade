@@ -2,7 +2,7 @@
 // prend le premier ticket labellisé `fire`. Jamais un projet sans station et sans suite.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { CHOISIR_UNE_STATION, poserEtapeRecap, SANS_STATION } from "../../src/vue/parcours-projet/etape-recap.js";
+import { CHOISIR_UNE_STATION, etapeDuRecap, poserEtapeRecap, SANS_STATION } from "../../src/vue/parcours-projet/etape-recap.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -42,5 +42,21 @@ describe("l'étape récap", () => {
   test("une station vide vaut une station absente", () => {
     const { ligne } = monter("  ");
     assert.equal(ligne("station"), undefined);
+  });
+});
+
+describe("le descripteur du registre", () => {
+  test("il pose l'étape du dépôt retenu avec sa station, et ne la dit jamais faite", () => {
+    const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade", station: "this Mac" }, { retour: () => {} }) as Faux[];
+    const texte = [...racine.descendants()].map((element) => element.textContent).join(" ");
+    assert.match(texte, /chef\/parade/);
+    assert.match(texte, /this Mac/);
+    assert.equal(etapeDuRecap.faite(), false);
+  });
+
+  test("sans dépôt retenu il ne pose rien, et sans station il pose le chemin de retour", () => {
+    assert.deepEqual(etapeDuRecap.poser(doc, {}, { retour: () => {} }), []);
+    const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade" }, { retour: () => {} }) as Faux[];
+    assert.equal([...racine.descendants()].some((element) => element.textContent === SANS_STATION), true);
   });
 });

@@ -77,3 +77,18 @@ export function poserEtapeRecap(doc, { projet, station, retour }) {
   racine.append(ligne(doc, STATION, station, "station"), phrase(doc, ENSUITE));
   return racine;
 }
+
+// Le descripteur que le registre du parcours (ETAPES, #2475) prend, comme celui de la station : `id`, `titre`, `faite`,
+// `poser`. La dernière étape n'est jamais « faite » : le parcours finit dessus. Elle lit le dépôt retenu (`depot`) et la
+// machine qui l'a reçu (`station`) ; son geste : `retour()`, revenir à l'étape de la station.
+/** @typedef {{ depot?: string, station?: string }} EtatPourLeRecap */
+export const etapeDuRecap = {
+  id: "recap",
+  titre: TITRE,
+  faite: () => false,
+  /** @param {Fabrique} doc @param {EtatPourLeRecap} etat @param {{ retour: () => void }} geste */
+  poser: (doc, etat, geste) => {
+    if (etat.depot === undefined) return [];
+    return [poserEtapeRecap(doc, { projet: etat.depot, ...(etat.station === undefined ? {} : { station: etat.station }), retour: geste.retour })];
+  },
+};
