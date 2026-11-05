@@ -289,7 +289,7 @@ const backlog = (vue: Jouee): Faux | undefined => colonnes(vue).find((pose) => p
 const fiche = (vue: Jouee) => vue.element("fiche");
 
 describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de lui", () => {
-  test("une barre empilée, sans un mot : une part par état, de la longueur de son compte ; les comptes au survol", async (t) => {
+  test("une barre empilée, nommée Backlog, ses comptes en mots à côté ; le survol les redit en phrase", async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
@@ -301,7 +301,7 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
 
     const pose = laBarre(vue);
     assert.deepEqual(
-      pose.children.map((part) => [part.className, part.dataset.etat, part.style.getPropertyValue("flex-grow")]),
+      pose.children[1]!.children.map((part) => [part.className, part.dataset.etat, part.style.getPropertyValue("flex-grow")]),
       [
         ["part", "non-lue", "3"],
         ["part", "epique", "2"],
@@ -309,15 +309,17 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
         ["part", "mise-de-cote", "2"],
       ],
     );
-    assert.equal(tete(vue).textContent, "");
+    // Sans survol : le titre et les comptes en mots, dont qui agit sur l'incomplète.
+    const mots = "Backlog" + "2 not read yet · 1 incomplete (the second completes them) · 2 epic, not split · 1 ready, not fired · 1 set aside";
+    assert.equal(tete(vue).textContent, mots);
     assert.equal((pose as Faux & { ariaExpanded?: string }).ariaExpanded, "false");
     // Le survol dit les comptes, et lui seul.
     const dit = SURVOL;
     assert.equal(pose.ariaLabel, dit);
     pose.declencher("mouseenter");
-    assert.equal(tete(vue).textContent, dit);
+    assert.equal(tete(vue).textContent, mots + dit);
     pose.declencher("mouseleave");
-    assert.equal(tete(vue).textContent, "");
+    assert.equal(tete(vue).textContent, mots);
     // Le rail n'est pas vide : aucune phrase à la place, et la colonne Backlog n'est pas dépliée.
     assert.deepEqual(tete(vue).dessous("p"), []);
     assert.equal(backlog(vue), undefined);
@@ -403,7 +405,8 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
     vue.dire("surAmont", voir(lecture(JSON.stringify({ lu: A, depot: DEPOT, issues: [] }))));
     assert.equal(phrase(), "nothing on the rail, nothing before it");
     // Rien avant le rail : la barre est vide, et son survol le dit.
-    assert.deepEqual(laBarre(vue).children, []);
+    assert.deepEqual(laBarre(vue).children[1]?.children, []);
+    assert.equal(laBarre(vue).children[2]?.textContent, "nothing before the rail");
     assert.equal(laBarre(vue).dataset.vide, "");
     assert.equal(laBarre(vue).ariaLabel, "nothing before the rail: every open issue of the repository is on it");
   });
@@ -415,7 +418,7 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
 
     const pose = laBarre(vue);
     assert.equal(pose.dataset.sans, "");
-    assert.deepEqual(pose.children, []);
+    assert.deepEqual(pose.children[1]?.children, []);
     assert.match(pose.ariaLabel ?? "", /HTTP 403\)\. This is not “nothing before the rail”$/);
     pose.click();
     const colonne = backlog(vue) ?? assert.fail("la colonne n'est pas dépliée");

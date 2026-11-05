@@ -11,10 +11,10 @@
 // gist, sous le compte du chef, que le process principal lit à son pas (vue/cooks/signes-de-vie.ts) — reçu ici, pas lu.
 import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
-import type { Cook } from "../../faits.ts";
+import { SANS_RAISON, type Cook } from "../../faits.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
 import type { ActiviteDuCook, TableauLu } from "../../tableau/lecture.ts";
-import { labelDeMiseDeCote, miseDeCoteDe, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
+import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
 import { etatDeLaBaseGithub, MOT_DE_L_ETAT, ticketDeLaPR } from "../../tableau/rail-github.ts";
 import { stationsDeGithub, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
 
@@ -22,6 +22,8 @@ const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
 // Le mot d'un ticket mis de côté (faits.ts, `TONS_DE_TICKET`) : sa carte est dans TODO (ticket 2075).
 const MOT_MIS_DE_COTE = "86";
+// La colonne où reste un ticket mis de côté qui ne demande rien au chef (faits.ts, `COLONNES_DE_FAITS`) : celle du rail.
+const COLONNE_DE_LA_MISE_DE_COTE = "On the rail";
 // Les mots dont un ticket a une station qui le tient.
 const TENUS = new Set(["pris", "en pass", "base rouge"]);
 
@@ -84,6 +86,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   const duRail = issues.flatMap((issue) => {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") return [];
     const labels = liste(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
+    if (labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE)) return [];
     return [{ numero: issue.number, titre: texte(issue.title), url: texte(issue.html_url), creeLe: texte(issue.created_at), labels }];
   });
   // La base ne se lit que si un ticket est en pass : c'est le seul que sa couleur touche.
@@ -166,8 +169,21 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
   const compteurs = objet(lu.faits.compteurs) ?? {};
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
-  const misDeCote = ranges.flatMap(({ ticket, titre, url, miseDeCote }) => (miseDeCote === undefined ? [] : [{ ticket, titre, url, miseDeCote }]));
-  const attend = misDeCote.length === 0 ? {} : { attend: misDeCote };
+  // Dans TODO, seul ce qui demande quelque chose au chef (ticket 2422) : une PR à merger à la main, une question de produit. Le reste
+  // de ce qui est mis de côté — renvois épuisés, cooks sans livraison — reste sur le rail, dans sa colonne, avec sa ligne.
+  const misDeCote = ranges.flatMap(({ ticket, titre, url, miseDeCote }) =>
+    miseDeCote === undefined || !miseDeCote.auChef
+      ? []
+      : [{
+          ticket,
+          titre,
+          url,
+          miseDeCote,
+          ...(miseDeCote.pr == null ? {} : { decision: { quoi: "merge", motif: "review-required", cause: null, pr: miseDeCote.pr.url } }),
+          ...(miseDeCote.chef === undefined ? {} : { chef: miseDeCote.chef }),
+        }],
+  );
+  const attend = ranges.some(({ miseDeCote }) => miseDeCote !== undefined) ? { attend: misDeCote } : {};
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
   return {
     ...lu,
@@ -184,6 +200,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
       lu: luLe,
       compteurs: { livres24h: 0, attend: 0, ...compteurs, rail: ranges.length, auTravail: nombre("pris"), aLaPass: nombre("en pass", "base rouge") },
       rail: ranges.map((ticket) => ({
+        ...(ticket.miseDeCote === undefined || ticket.miseDeCote.auChef ? {} : { attente: { raison: ticket.miseDeCote.raison ?? SANS_RAISON, colonne: COLONNE_DE_LA_MISE_DE_COTE, retour: null } }),
         ticket: ticket.ticket,
         etat: ticket.etat,
         titre: ticket.titre,

@@ -22,6 +22,7 @@ import { direLesAppelsParIdentite, lireAppelsParIdentite } from "./appels-par-id
 import { lireDeriveGithub } from "./closer-github-passe/derive-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
+import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
@@ -143,6 +144,10 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
+  // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
+  const nom = etat.projet ?? env.BRIGADE_PROJECT;
+  const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;
+  if (lent !== null) lignes.push(`slowest     ${lent.phrase}`);
   return { lignes, dernierSeq: etat.dernierSeq };
 }
 

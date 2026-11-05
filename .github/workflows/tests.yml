@@ -148,6 +148,9 @@ jobs:
           # pas d'entrée, pas de proxy de Node, ni les variables de ce job ; le répertoire temporaire en
           # mémoire, le cache de compilation à sa place.
           export NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}"
+          # La garde des 2 s (#2322) : sur une PR, elle ne fait échouer que les tests que la PR ajoute ou change ;
+          # sur `main`, elle liste les tests lents sans échouer.
+          if [ "$EVENEMENT" = pull_request ]; then export BRIGADE_DUREE_MODE=pr BRIGADE_DUREE_BASE=HEAD^1; else export BRIGADE_DUREE_MODE=main; fi
           unset NODE_USE_ENV_PROXY ZONE PART OF EVENEMENT
           if [ -w /dev/shm ]; then export TMPDIR="$(mktemp -d /dev/shm/brigade-tests.XXXXXX)"; trap 'rm -rf "$TMPDIR"' EXIT; fi
           # Les tests en échec, par leur nom et leur erreur, deviennent une annotation du check : elle se

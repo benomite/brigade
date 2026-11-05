@@ -505,18 +505,26 @@ the project's repository alone — nothing comes from a box —, every 30 second
 - **A failed reading** keeps the last columns, said stale (#2151); with nothing read before, it is titled
   `NOT READ FROM GITHUB`, its reason in one sentence. GitHub not reached at all is offline (#1818): the last rail stays,
   and says since when.
-- **A set-aside ticket is in Todo (#2075)**, never in a column of its own and never "outside the columns": an issue
-  labelled `fire` that carries `hors-cuisine` or `blocked-on-human` waits for the chef, whatever its other labels say
-  (a `blocked-on-human` delivery keeps `in-pass`: it is not in Pass). With `waiting` as well, the chef moved it to a
-  third party: it is in Waiting, as any card there. Its card says why in one line, taken from the latest comment of a
-  repository author (`OWNER`, `MEMBER`, `COLLABORATOR`) that names the label — or, for `blocked-on-human`, the station's
-  "this delivery changes what judges it" comment —, the manager's comments aside. The station's comments are said short
-  ("off the kitchen after 2 sends back — the review requested changes", "off the kitchen after 3 cooks without a
-  delivery — …", "changes what judges it: merge PR #2326 by hand"); any other comment, by its first line. A `#N` in the
-  line opens that issue or PR on GitHub on click. With no such comment (a label put by hand), the line says "set aside
-  by hand — no reason on the issue", and the card is still in Todo. No claim is read for it, and the `rail` line of
-  `status` counts it apart (`3 set aside`). *Code: `app/src/tableau/mise-de-cote-github.ts`. Tests:
-  `app/test/tableau/mise-de-cote-github.test.ts`, `app/test/vue/rail/github.test.ts`, `app/test/rail.test.ts`.*
+- **Todo holds only what asks something of the chef, and each card asks it (#2422, after #2075).** An issue labelled
+  `fire` that carries `hors-cuisine` or `blocked-on-human` is set aside, whatever its other labels say (a
+  `blocked-on-human` delivery keeps `in-pass`: it is not in Pass); with `waiting` as well, the chef moved it to a third
+  party: it is in Waiting. Then:
+  - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
+    "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the sheet offers `merge the PR`.
+  - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
+    is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
+    (**On the rail**, `86`), with its reason line as before ("off the kitchen after 2 sends back — the CI is red on
+    7579211", "… after 3 cooks without a delivery — the cook committed nothing", "set aside by hand — no reason on the
+    issue"). Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
+    (the convention of #2217) enters Todo, and its card is that question.
+  - **An issue labelled `kitchen-board`** (the Kitchen board itself) is never a card, on the rail or in Todo.
+
+  The reason line is taken from the latest comment of a repository author (`OWNER`, `MEMBER`, `COLLABORATOR`) that names the
+  label — or, for `blocked-on-human`, the station's "this delivery changes what judges it" comment —, the manager's comments
+  aside. The station's comments are said short; any other comment, by its first line. A `#N` in the line opens that issue or
+  PR on GitHub on click. No claim is read for it, and the `rail` line of `status` counts it apart (`3 set aside`). *Code:
+  `app/src/tableau/mise-de-cote-github.ts`, `app/src/vue/rail/github.ts`. Tests: `app/test/tableau/mise-de-cote-github.test.ts`,
+  `app/test/vue/rail/github.test.ts` (the Todo of 2026-11-05: 13 issues, two cards), `app/test/rail.test.ts`.*
 
 *Code: `app/src/tableau/lecture.ts`, `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`,
 `app/src/vue/cooks/signes-de-vie.ts`, `lireLeTableau` in `app/src/main.ts`. Tests: `app/test/vue/rail/github.test.ts`,
@@ -530,13 +538,18 @@ one idle, one silent).*
 
 Todo lists one card per open issue carrying the label `chef-todo` (`app/src/tableau/todo-github.ts`, read with the token
 of this computer's `gh`, conditional reads). The card takes its kind and its text from the issue's latest comment that
-starts with `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217, read
-as is): one line that says what the kind asks of the chef, then the comment's text. The issue number on the card opens
-the issue on GitHub. An issue with the label and no marked comment still gets a card, which says its comment is missing.
-No answer leaves the app from such a card: the chef acts on the issue — lifts the label, or closes it —, and the card
-leaves Todo at the next reading (thirty seconds, or after a gesture). When those issues cannot be read, Todo says it is
-not read, never that it is empty. Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards
-without the kind and the text) and `todo-github-seul-apres.png`.
+starts with `<!-- brigade:todo kind=<blocked|merge-by-hand|product-question|abandoned> -->` (the convention of #2217,
+read as is): one line that says what the kind asks of the chef, then the comment's text. The issue number on the card
+opens the issue on GitHub. An issue with the label and no marked comment still gets a card, which says its comment is
+missing. No answer leaves the app from such a card: the chef acts on the issue — lifts the label, or closes it —, and
+the card leaves Todo at the next reading (thirty seconds, or after a gesture). When those issues cannot be read, Todo
+says it is not read, never that it is empty. **What goes into Todo (#2422):** only what asks something of the chef, and
+each card asks it. A `blocked-on-human` ticket is the question "Merge PR #N by hand? It changes what judges it." with
+the PR link and `merge the PR`; a technical `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is
+the second's work: it stays on the rail, in its set-aside column, with its reason line, and only one whose marked
+comment is a `product-question` enters Todo; an issue carrying `kitchen-board` is never a card (the rule, with its
+reading, is in the rail section above). Captures: `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four
+cards without the kind and the text) and `todo-github-seul-apres.png`.
 
 ### Changing a ticket's priority (#1739)
 
@@ -2110,7 +2123,7 @@ it is kept on hover:
 | Group | Its settings |
 |---|---|
 | **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
-| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the projects this computer's station serves, one checkbox per project (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
 | **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
@@ -2375,6 +2388,34 @@ station and are never sent to the repository** (what the Apps are for on hover).
 Only this computer's station is reached: a phone has no station, and the lines are not laid there. The modules are
 `app/src/vue/identites-github.js` and, in the main process, `appsDeLaStation` / `rangerUneApp` (`app/src/main.ts`).
 Captures: `docs/captures/2317/`.
+
+### The projects this computer serves, in Settings (#2359, epic #2356)
+
+**A computer's station cooks only the projects you choose for it**, straight from GitHub (`runtime/src/station-ordinateur/`,
+#2357). You choose them in Settings' **this machine** group, under a line `projects this Mac serves` (`this PC` under
+Windows):
+
+- **On a fresh install, none is chosen**, and the line says so in plain words, in yellow: `this Mac serves no project`.
+  Its station then takes no ticket. Once one project or more is chosen, it says `serves 1 project` (`serves 2 projects`…).
+  What choosing does — the station clones the project on this computer and takes its tickets, at its next turn, within
+  two minutes — is on hover.
+- **One line per project of the app**, in the order of the bar: its name and its repository (`chef/parade`), `served`
+  (green) or `not served`, and a checkbox. Ticking it adds the repository to the station's list; unticking it removes
+  it — the station's cooks in flight on it finish and deliver. The line says `saving…` until the station has written
+  the list, and every box waits meanwhile: one project at a time. **The value shown is always the list written**, re-read
+  each time a project's space opens: chosen, closed and reopened, a project is still ticked.
+- A project whose repository the app does not know (added by hand without `depot`) has its checkbox muted, the reason on
+  hover. A repository on the station's list that no project of the app carries keeps its line, ticked, so that you see
+  everything this computer cooks and can untick it.
+- **What does not write is said**: a repository the station refuses reads `nothing was written: …` under its line, the
+  rest of the station's sentence on hover, and the box stays unticked. A list the station cannot read says `projects
+  served here unavailable`, the reason on hover — never `serves no project`.
+
+The list lives in the station's own state (`<station dir>/projets-servis.json`), never in the projects file nor in the
+repository. Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules
+are `app/src/vue/projets-servis/projets-servis.js` and, in the main process, `projetsServis` / `servirUnProjet`
+(`app/src/main.ts`), which call `lireProjetsServis`, `ajouterProjetServi` and `retirerProjetServi` of the runtime.
+Captures: `docs/captures/2359/`.
 
 ### The grants, in Settings
 

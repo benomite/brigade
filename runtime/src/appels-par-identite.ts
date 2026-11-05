@@ -117,6 +117,13 @@ export function compteurDuProcess(): Compteur {
   return duProcess;
 }
 
+// Le ferme : le prochain appel en rouvre un. Pour un test qui efface ensuite la
+// station : sous Windows, un répertoire qui garde une base ouverte ne s'efface pas.
+export function fermerLeCompteurDuProcess(): void {
+  duProcess?.fermer();
+  duProcess = null;
+}
+
 // Ce que la cuisine de `projet` annonce en démarrant, retenu pour `status`.
 export function noterLeModeDesIdentites(env: Record<string, string | undefined>, projet: string, roles: boolean): void {
   sansLever(() => {

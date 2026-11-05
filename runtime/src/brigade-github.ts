@@ -72,6 +72,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
+    // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui
+    // sont encore ouvertes : tant qu'il y en a, le ticket n'est pas à prendre.
+    dependancesOuvertes(issue: number): Promise<number[]>;
     // La PR qui livre le ticket, ou null. `version` change avec tout ce que
     // GitHub change à la PR.
     prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
@@ -170,6 +173,16 @@ export type StationGitHub = {
   presser?: (maintenant?: boolean) => void;
 };
 
+// Les issues dont un corps dit dépendre : les numéros d'une ligne `Depends on
+// #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`).
+export function dependancesDuCorps(corps: string): number[] {
+  const numeros = new Set<number>();
+  for (const [, liste = ""] of corps.matchAll(/^[ \t>*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) {
+    for (const [, numero] of liste.matchAll(/#(\d+)/g)) numeros.add(Number(numero));
+  }
+  return [...numeros];
+}
+
 // Après une livraison, un verdict ou une fusion tentée (mergée, branche mise à
 // jour, CI qui tourne encore), la station tourne de nouveau dans les 30 s,
 // quelques fois, puis reprend son intervalle (#2333). Un tour coûte 2 points
@@ -206,6 +219,16 @@ export const PASS_MAX = 5;
 export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
+
+// Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
+// dernier retrait de `hors-cuisine`, que GitHub date pour toutes les stations
+// (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
+// livraison. Des retraits illisibles ne remettent rien à zéro.
+const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
+  const retraits = await github.retraitsDeLabels(numero).catch(() => []);
+  const relance = Math.max(0, ...retraits.filter((r) => r.label === HORS_CUISINE).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
+  return commentaires.filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
+};
 
 // Le motif d'un verdict, sous son marqueur et sa ligne « Changes requested ».
 const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number) => commentaires.find((c) => c.id === id)?.body.split("\n").slice(2).join("\n").trim() || "see the PR";
@@ -277,7 +300,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
       // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
-      const echecs = (await github.commentaires(issue).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length + 1;
+      // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
+      const echecs = (await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC)).length + 1;
       await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${echecs >= ECHECS_MAX ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
       if (echecs >= ECHECS_MAX) {
         chrono.oublier(issue);
@@ -299,12 +323,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
   const renvoyes = new Set<number>();
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string) => {
-    const renvois = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    const tous = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
+    const renvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
     // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
     // Mais il doit quitter le pass : si le retrait de \`in-pass\` avait échoué
     // (GitHub qui limite ses appels), il se refait, sans second commentaire (#2319).
-    if (renvois.some((c) => c.body.includes(` sha=${sha} `))) {
+    if (tous.some((c) => c.body.includes(` sha=${sha} `))) {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
       return;
     }
@@ -489,6 +515,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un ticket sans calibrage complet ne part pas.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
+      // Une dépendance ouverte retient le ticket ; sans lecture de GitHub, il attend aussi.
+      try {
+        if ((await github.dependancesOuvertes(ticket.number)).length > 0) continue;
+      } catch (erreur) {
+        avertir(`brigade : dépendances de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        continue;
+      }
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       if (await tenue(ticket)) continue;
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
@@ -649,6 +682,11 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       derniers = sonde.issues.filter((issue) => !issue.pr);
       sonde.confirmer();
       return derniers;
+    },
+    dependancesOuvertes: async (numero) => {
+      const dependances = dependancesDuCorps((await github.issue(numero))?.body ?? "").filter((dependance) => dependance !== numero);
+      const etats = await Promise.all(dependances.map(async (dependance) => (await github.issue(dependance))?.state));
+      return dependances.filter((_, rang) => etats[rang] === "open");
     },
     // Une PR ouverte se lit dans l'instantané ; une PR mergée ou fermée n'y est
     // pas, et se lit en REST — ce qui n'arrive qu'une fois par ticket.

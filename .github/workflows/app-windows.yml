@@ -29,10 +29,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  # Un plafond de durée (#1645), de 3 min depuis #2086 : le job passe en deux minutes, ses tests en
-  # moins d'une et demie ; un test qui pend sous Windows (le plafond de 120 s par test ne tient pas un
-  # process fils resté vivant) rendait le check
-  # silencieux jusqu'aux six heures de GitHub, et la pass le remontait au chef comme `ci-silent`.
+  # Un plafond de durée (#1645) : un test qui pend sous Windows (le plafond de 120 s par test ne tient
+  # pas un process fils resté vivant) rendait le check silencieux jusqu'aux six heures de GitHub, et la
+  # pass le remontait au chef comme `ci-silent`.
+  # Ce qui cale tombe sur le plafond de son pas, jamais sur celui du job (#2408) : coupé par son
+  # plafond, un job ne laisse aucun journal (comme les parts du runtime, #2406). Plafonné à 3 min par
+  # #2086, quand il passait en deux, le job ne laissait derrière le plafond de 2 min de ses tests que
+  # 60 s au checkout, à node, à `npm ci` et au contrôle de types : sur f069d50 (236 fichiers de test,
+  # 214 à #2086), il est mort muet, deux fois. Chaque pas qui joue `npm` a son plafond, et celui du job
+  # couvre leur somme et une minute pour le reste ; app/test/ci-windows.test.ts les tient d'accord.
   # Passé le plafond du pas, le job est rouge, et son journal dit lequel : `test:en-cours` joue la
   # même suite avec un reporter qui écrit chaque DEBUT de test (app/test/aides/reporter-en-cours.ts) ;
   # le dernier DEBUT sans FIN du journal est le test qui bloque.
@@ -41,7 +46,7 @@ jobs:
     # l'état de la base — ils ne tournent que sur `main` et n'y bloquent rien (#2240).
     name: windows app tests
     runs-on: windows-latest
-    timeout-minutes: 3
+    timeout-minutes: 10
     steps:
       # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
       # du dépôt y attendent les `\n` du dépôt.
@@ -52,11 +57,13 @@ jobs:
         with:
           node-version: 26
       - name: Installer les dépendances de l'app
+        timeout-minutes: 2
         run: npm ci --ignore-scripts --prefix app
       - name: Tests de l'app
-        timeout-minutes: 2
+        timeout-minutes: 5
         run: npm --prefix app run test:en-cours
       - name: Contrôle de types de l'app
+        timeout-minutes: 2
         run: npm --prefix app run typecheck
 
   # L'installeur Windows (#1155), de bout en bout sur un Windows : construit depuis le clone tel quel

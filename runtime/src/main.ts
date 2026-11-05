@@ -209,7 +209,7 @@ try {
   // La retenue ne lance rien : rien de servi depuis 30 min alors que des
   // tickets attendent, elle écrit sa cause et son geste — une fois — dans la
   // file du chef, et l'en ôte quand la cuisine sert de nouveau.
-  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null });
+  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH });
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
   const alertee = brancherAlerteUrgence(retenue);

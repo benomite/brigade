@@ -332,6 +332,17 @@ what must be corrected. Readable or removed, it returns by itself (`ticket.relea
 `card-readable`); what remains to be corrected reads in `run rail`. The card is read again when the
 issue changes, and enters the log (`ticket.arrived`, `ticket.changed`, field `card`).
 
+### Relaunching a set-aside ticket
+
+A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks without a delivery, or
+after 2 sends back of the same delivery. To relaunch it, fix the cause, then **remove `hors-cuisine`**
+from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
+the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
+from the removal, which every station reads on GitHub (the issue's label-removal event), so the next
+set-aside needs the full number of failures again. The earlier `brigade:echec` and `brigade:renvoi`
+comments stay on the issue as history. A delivery that was already good needs no `in-pass` by hand:
+it is reviewed again once the ticket is served.
+
 ### The capabilities a ticket asks for
 
 **A station provides capabilities** (see "Declaring the stations"); **a ticket asks for some** by the

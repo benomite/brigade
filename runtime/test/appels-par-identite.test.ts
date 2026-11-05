@@ -8,19 +8,26 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test, type TestContext } from "node:test";
-import { IDENTITES, ROLES_DES_APPS, identiteDuCompte, lireAppelsParIdentite, noterLeModeDesIdentites, type AppelsParIdentite } from "../src/appels-par-identite.ts";
+import { IDENTITES, ROLES_DES_APPS, fermerLeCompteurDuProcess, identiteDuCompte, lireAppelsParIdentite, noterLeModeDesIdentites, type AppelsParIdentite } from "../src/appels-par-identite.ts";
 import { ouvrirGitHub, type Transport } from "../src/github.ts";
 import { ouvrirLimitesDuCompte } from "../src/github-limite.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirLimite } from "../src/limite-github.ts";
+import { fermerLesMesuresDuProcess } from "../src/mesures-github.ts";
 import { photoDuProjet } from "../src/status.ts";
 
 // Le compteur du process se pose sur l'environnement à son premier appel : la
-// station de ce fichier est la sienne, posée avant tout appel.
+// station de ce fichier est la sienne, posée avant tout appel. Le compteur et
+// les mesures du process y gardent leur base ouverte : fermées d'abord, sans quoi
+// Windows refuse d'effacer la station (EPERM, #2419).
 const STATION = mkdtempSync(join(tmpdir(), "brigade-test-station-"));
 process.env.BRIGADE_STATION_DIR = STATION;
-after(() => rmSync(STATION, { recursive: true, force: true }));
+after(() => {
+  fermerLeCompteurDuProcess();
+  fermerLesMesuresDuProcess();
+  rmSync(STATION, { recursive: true, force: true });
+});
 
 const MAINTENANT = new Date("2026-11-04T12:00:00.000Z");
 const DEPOT = "acme/parade";

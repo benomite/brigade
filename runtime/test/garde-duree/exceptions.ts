@@ -867,7 +867,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/porte.test.ts", garde: "delaiMs: 5000" },
   { file: "test/remedes/modes.test.ts", garde: "delaiMs: 5_000" },
   { file: "test/sans-invite.test.ts", garde: "timeout: 60_000" },
-  { file: "test/support/windows.ts", garde: "garde: 60_000" },
+  { file: "test/support/windows.ts", garde: "GARDE_MS: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
 ];
