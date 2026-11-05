@@ -545,6 +545,29 @@ test("a delivery that changes what judges it is never merged on the review alone
   assert.equal(dits.length, 1);
 });
 
+test("a delivery that changes what judges it asks the chef only once its CI is green: red goes back to a cook, running waits, green raises the card by itself (#2442)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(37);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 37);
+  assert.ok(pr);
+  pr.fichiers = [".github/workflows/tests.yml", "runtime/src/x.ts"];
+  faux.ciEnCours.add(pr.number);
+  for (let i = 0; i < 4; i += 1) await a.tour();
+  assert.ok(!faux.ticket(37).labels.has("blocked-on-human"), "running CI: no card");
+  faux.ciEnCours.delete(pr.number);
+  faux.ciRouge.add(pr.number);
+  for (let i = 0; i < 4; i += 1) await a.tour();
+  assert.ok(!faux.ticket(37).labels.has("blocked-on-human"), "red CI: no card");
+  assert.equal(faux.mergee(37), undefined);
+  faux.ciRouge.delete(pr.number);
+  faux.ticket(37).labels.add(LABEL_IN_PASS);
+  for (let i = 0; i < 4; i += 1) await a.tour();
+  assert.ok(faux.ticket(37).labels.has("blocked-on-human"), "green CI: the card shows");
+});
+
 test("a head already sent back is not sent back again, even if a stale list still shows it in pass (#2189)", async () => {
   const faux = new FauxGitHub();
   faux.feu(34);

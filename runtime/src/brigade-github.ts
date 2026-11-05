@@ -29,7 +29,7 @@ import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from 
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
-import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
@@ -396,6 +396,22 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const sienne = ouvertes.find((ouverte) => ouverte.branche === brancheDuTicket(ticket.number));
         const juges = sienne?.fichiers.filter((fichier) => JUGES.some((juge) => fichier.startsWith(juge))) ?? [];
         if (juges.length > 0) {
+          // Le chef n'a à répondre que d'une livraison qu'il peut merger : CI
+          // verte sur sa tête, et mergeable (le conflit est renvoyé plus haut).
+          // Rouge, elle repart à un cook ; en cours, elle reste à la cuisine ;
+          // la carte se lève si elle était posée, et revient d'elle-même au vert.
+          const ci = etatDeLaBase(await github.ci(pr.sha));
+          if (ci !== "green") {
+            if (ticket.labels.includes(A_LA_MAIN)) await github.delabelliser(ticket.number, A_LA_MAIN);
+            if (ci === "red") {
+              try {
+                await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
+              } catch (erreur) {
+                avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+              }
+            }
+            continue;
+          }
           if (!ticket.labels.includes(A_LA_MAIN)) {
             await github.commenter(ticket.number, `Station \`${nom}\`: this delivery changes what judges it (${juges.map((f) => `\`${f}\``).join(", ")}), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr.number}.`);
             await github.labelliser(ticket.number, [A_LA_MAIN]);
