@@ -61,6 +61,8 @@ class FauxGitHub {
   // relancer (#2323) ; null : un check sans lien, qui ne se relance pas.
   runDeLaBase: number | null = null;
   tentatives = new Map<number, number>();
+  // Les issues que GitHub ne ferme pas au merge de leur PR (#2467), malgré `Closes #N`.
+  nonFermees = new Set<number>();
   // Une relance tourne : le check `tests` de la base est en cours jusqu'à
   // `finirLaRelance`.
   relanceEnCours = false;
@@ -238,7 +240,7 @@ class FauxGitHub {
         if (pr.sha !== sha) return { fait: false, motif: "HTTP 409 — Head branch was modified" };
         if (pr.enRetard) return { fait: false, motif: "HTTP 405 — Head branch is out of date" };
         Object.assign(pr, { merged: true, state: "closed", mergeePar: station });
-        this.ticket(pr.issue).state = "closed";
+        if (!this.nonFermees.has(pr.issue)) this.ticket(pr.issue).state = "closed";
         return { fait: true };
       },
     };
@@ -353,6 +355,27 @@ test("the `Depends on` lines of an issue body name its dependencies", () => {
   assert.deepEqual(dependancesDuCorps("no dependency, see #5"), []);
   assert.deepEqual(dependancesDuCorps("Depends on #7"), [7]);
   assert.deepEqual(dependancesDuCorps("intro\nDepends on #7, #8 and #9\nDepends on #7\nrelated to #10"), [7, 8, 9]);
+});
+
+test("a merged PR that GitHub did not close the issue for: the station closes the ticket and drops in-pass (replay of espace#756)", async (t) => {
+  const faux = new FauxGitHub();
+  faux.nonFermees.add(1);
+  faux.feu(1);
+  ouvrir(t, faux.station("A"));
+  await jusqua(() => faux.mergee(1) !== undefined);
+  await jusqua(() => faux.ticket(1).state === "closed");
+  assert.equal(faux.ticket(1).labels.has("in-pass"), false);
+});
+
+test("a ticket left open with in-pass while its PR is merged is closed by the next turn of any station", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(1, [...CALIBRE, "in-pass"]);
+  faux.prs.push({ number: 1000, issue: 1, branche: "cook/1-github", sha: faux.sha(), state: "closed", merged: true, enRetard: false, mergeePar: "A", fichiers: [] });
+  const station = faux.station("B");
+  await station.tour();
+  assert.equal(faux.ticket(1).state, "closed");
+  assert.equal(faux.ticket(1).labels.has("in-pass"), false);
+  assert.deepEqual(faux.cuissons, []);
 });
 
 for (const [arretee, restante] of [
@@ -1329,6 +1352,9 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     merger: bas.merger,
     labelliser: bas.labelliser,
     delabelliser: bas.delabelliser,
+    fermerIssue: async (numero) => {
+      faux.ticket(numero).state = "closed";
+    },
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
     teteDeLaBase: async () => faux.teteDeLaBase,
