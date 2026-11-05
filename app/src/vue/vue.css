@@ -7997,6 +7997,39 @@ button.recommande {
   color: var(--discret);
 }
 
+/* Kitchen > Cooks (ticket 2493) : le cahier de leçons du projet, en lecture seule — chaque entrée son identifiant, son texte, sa date. */
+[data-bloc="cahier"] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+[data-bloc="cahier"] .cahier-vide {
+  color: var(--texte-doux);
+}
+[data-bloc="cahier"] .cahier-entrees {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-bloc="cahier"] .cahier-entree {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+[data-bloc="cahier"] .cahier-entree .id {
+  color: var(--discret);
+}
+[data-bloc="cahier"] .cahier-entree .texte {
+  flex: 1 1 24ch;
+}
+[data-bloc="cahier"] .cahier-entree .depuis {
+  color: var(--discret);
+}
+
 /* Kitchen > Health (ticket 2490) : le temps des tickets en détail, puis les plafonds de durée. Les couleurs sont celles
    de la carte des temps de Cooks : le ticket en bleu, sa pass en jaune, le plafond et ce qui le passe en rouge. */
 .bloc-du-projet h3,

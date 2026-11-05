@@ -2405,6 +2405,7 @@ whole is said once, by the tab's reading line, not again in the section.
   profile` (#1456) —, **and no list**, nothing to open. It comes from `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
   read by `app/src/apprentissage.ts`; a runtime from before this field does not return it either, and the page says the
   same sentence. While the project's facts are not read, the section is not laid.
+- **The project's notebook, read-only** (#2493, epic #2484), the "Notebook" block of Kitchen > Cooks: the lessons of the project's notebook, entry by entry — the identifier in monospace, the text, the day of its entry (`since 10/1/2026`) —, from the promoted lessons of `facts` (`apprentissage`, read by `app/src/apprentissage.ts`); a provisional lesson is not in the notebook yet. Nothing in it is clickable (opening a line on GitHub stays with "what the cooks learned"). **With no entry** — no promoted lesson, or facts not read — the block says `No lesson in the notebook yet`, never a blank area.
 - **What the project cost is no longer there** (#1699): the "cost of this project" block — its lost tokens and its
   most expensive tickets, read in its own `station` — was dropped instead of moved. The app's cost page (see "The cost of
   all projects") gives each project's share of every figure, and the lost tokens and most expensive tickets of all

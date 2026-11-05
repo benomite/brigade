@@ -5051,7 +5051,7 @@ function poserLeRail(projet) {
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
   // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, poserBlocSpecialisations(document), poserBlocCahier(document), lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, poserBlocSpecialisations(document), poserBlocCahier(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage?.lecons : undefined), lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
