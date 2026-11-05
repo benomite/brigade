@@ -237,60 +237,6 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.doesNotMatch(gates.tail, /gates jouées/);
   });
 
-  test("un setup qui dépasse le plafond des gates les arrête avant qu'elles ne partent", { skip: posixOnly("plays a setup that sleeps 30 s under a 200 ms cap and expects the gates stopped as a timeout before they start; on Windows the cap's kill of the setup's process group (a negative pid) fails silently, so the setup sleeps its 30 s and the gates then come back green") }, async (t) => {
-    const racine = worktree(t, { setup: "sleep 30", gates: 'echo "gates jouées"' });
-
-    const gates = await jouer(racine, 200);
-
-    assert.equal(gates.outcome, "timeout");
-    assert.doesNotMatch(gates.tail, /gates jouées/);
-  });
-
-  test("des gates qui dépassent leur plafond sont arrêtées, avec ce qu'elles ont lancé", { skip: posixOnly("plays gates that wait on a background `sleep 30` under a 200 ms cap and expects them stopped, with what they launched, long before the sleep ends; on Windows the kill of their process group (a negative pid) fails silently, so the gates wait the sleep out and exit 0, green") }, async (t) => {
-    const racine = worktree(t, { gates: "sleep 30 & wait" });
-
-    const debut = Date.now();
-    const gates = await jouer(racine, 200);
-
-    assert.deepEqual([gates.outcome, gates.code], ["timeout", null]);
-    // Le `sleep` tient la sortie des gates : s'il leur survivait, elles ne
-    // rendraient rien avant trente secondes.
-    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
-  });
-
-  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", { skip: posixOnly("holds the runtime's event loop until the gates have exited on their own and their cap has passed, using `ps -o stat=` to see their script as a zombie not yet reaped; Windows processes have no zombie state, so the test has nothing to wait for") }, async (t) => {
-    // Le process que le runtime lance est le shell qui attend les gates pour
-    // dire leur processeur : leur parent.
-    const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $PPID > pid' });
-    const plafondMs = 100;
-    // Le runtime en retard : sa boucle d'événements est tenue, sans rendre la
-    // main, du lancement des gates jusqu'à ce qu'elles aient fini seules ET que
-    // leur plafond soit échu. Relâchée dans sa phase « check », elle passe par
-    // ses minuteurs — le plafond tombe — avant de lire la fin du script.
-    await new Promise((resoudre) => setImmediate(resoudre));
-    let lancees = false;
-    const temoin: Cloison = { bin: "", masques: [], identifiants: "", jeton: null, claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
-    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: plafondMs, cloison: temoin });
-    while (!lancees) await Promise.resolve();
-    const debut = Date.now();
-    // Fini, et pas encore recueilli par le runtime : le script est un zombie.
-    // Le fichier existe dès son ouverture, avant que le pid y soit écrit : seul
-    // un pid terminé par son retour à la ligne est complet. Un process que `ps`
-    // ne connaît plus (sortie 1) a déjà été recueilli : ce n'est pas un zombie.
-    const fini = () => {
-      const ecrit = existsSync(join(racine, "pid")) ? readFileSync(join(racine, "pid"), "utf8") : "";
-      if (!/^\d+\n$/.test(ecrit)) return false;
-      return spawnSync("ps", ["-o", "stat=", "-p", ecrit.trim()], { encoding: "utf8" }).stdout.startsWith("Z");
-    };
-    while (!fini() || Date.now() - debut <= plafondMs) {
-      if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
-    }
-
-    const gates = await enCours;
-
-    assert.deepEqual([gates.outcome, gates.code, gates.tail], ["green", 0, "gates : VERT"]);
-  });
-
   test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
     const racine = worktree(t, { gates: `sleep 30 & echo "pid=${PID_DU_FOND}"; echo "gates : VERT"` });
 
@@ -330,26 +276,6 @@ describe("les gates", { concurrency: 8 }, () => {
   test("un worktree sans gates se reconnaît avant de rien jouer", (t) => {
     assert.equal(aDesGates(worktree(t, {})), false);
     assert.equal(aDesGates(worktree(t, { gates: "exit 0" })), true);
-  });
-});
-
-// Le vrai minuteur, pour attendre un vrai script pendant que l'horloge du plafond est tenue par le test.
-const vraiMinuteur = setTimeout;
-const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
-
-// Le plafond tombe à l'horloge du test, pas à celle du mur : il ne peut ni devancer ce que les gates ont écrit, ni
-// le faire attendre (#2464). Un seul test à la fois — l'horloge tenue est celle de tout le process.
-describe("les gates, à l'horloge du test", () => {
-  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` until the test moves its clock past their 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
-    const ecrites = join(repertoireTemporaire(t), "ecrites");
-    const racine = worktree(t, { gates: `${PLAFOND_FRANCHI}; touch '${ecrites}'; sleep 30 & wait` });
-    t.mock.timers.enable({ apis: ["setTimeout"] });
-
-    const enCours = jouer(racine, 2000);
-    while (!existsSync(ecrites)) await souffler();
-    t.mock.timers.tick(2000);
-
-    assert.equal((await enCours).outcome, "timeout");
   });
 });
 
@@ -415,16 +341,6 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.equal(setup.pret, false);
   });
 
-  test("un setup qui dépasse son plafond est arrêté, avec ce qu'il a lancé", { skip: posixOnly("plays a setup that waits on a background `sleep 30` under a 200 ms cap and expects it stopped as over its cap, with its child; on Windows the kill of the setup's process group (a negative pid) fails silently, so the setup waits the sleep out and comes back ready") }, async (t) => {
-    const racine = worktree(t, { setup: "sleep 30 & wait" });
-
-    const debut = Date.now();
-    const setup = await preparer(racine, 200);
-
-    assert.deepEqual([setup.pret, !setup.pret && setup.depasse], [false, true]);
-    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
-  });
-
   test("un setup ne laisse rien tourner derrière lui", async (t) => {
     const racine = worktree(t, { setup: `sleep 30 >/dev/null 2>&1 & echo "pid=${PID_DU_FOND}" >&2; echo "export PRET=1"` });
 
@@ -434,5 +350,107 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.equal(setup.pret && setup.env.PRET, "1");
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
     await mort(Number(/pid=(\d+)/.exec(setup.sortie)?.[1]));
+  });
+});
+
+// Le vrai minuteur, pour attendre un vrai script pendant que l'horloge du plafond est tenue par le test.
+const vraiMinuteur = setTimeout;
+const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
+
+// Le plafond tombe à l'horloge du test, pas à celle du mur : il ne peut ni devancer ce que les gates ont écrit, ni
+// le faire attendre (#2464). Un seul test à la fois — l'horloge tenue est celle de tout le process.
+describe("les gates, à l'horloge du test", () => {
+  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` until the test moves its clock past their 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
+    const ecrites = join(repertoireTemporaire(t), "ecrites");
+    const racine = worktree(t, { gates: `${PLAFOND_FRANCHI}; touch '${ecrites}'; sleep 30 & wait` });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const enCours = jouer(racine, 2000);
+    while (!existsSync(ecrites)) await souffler();
+    t.mock.timers.tick(2000);
+
+    assert.equal((await enCours).outcome, "timeout");
+  });
+
+  test("un setup qui dépasse le plafond des gates les arrête avant qu'elles ne partent", { skip: posixOnly("plays a setup that sleeps 30 s until the test moves its clock past a 200 ms cap, and expects the gates stopped as a timeout before they start; on Windows the cap's kill of the setup's process group (a negative pid) fails silently, so the setup sleeps its 30 s and the gates then come back green") }, async (t) => {
+    const parti = join(repertoireTemporaire(t), "parti");
+    const racine = worktree(t, { setup: `touch '${parti}'; sleep 30`, gates: 'echo "gates jouées"' });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const enCours = jouer(racine, 200);
+    while (!existsSync(parti)) await souffler();
+    t.mock.timers.tick(200);
+    const gates = await enCours;
+
+    assert.equal(gates.outcome, "timeout");
+    assert.doesNotMatch(gates.tail, /gates jouées/);
+  });
+
+  test("des gates qui dépassent leur plafond sont arrêtées, avec ce qu'elles ont lancé", { skip: posixOnly("plays gates that wait on a background `sleep 30` until the test moves its clock past a 200 ms cap, and expects them stopped, with what they launched, long before the sleep ends; on Windows the kill of their process group (a negative pid) fails silently, so the gates wait the sleep out and exit 0, green") }, async (t) => {
+    const lance = join(repertoireTemporaire(t), "lance");
+    const racine = worktree(t, { gates: `sleep 30 & touch '${lance}'; wait` });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const debut = Date.now();
+    const enCours = jouer(racine, 200);
+    while (!existsSync(lance)) await souffler();
+    t.mock.timers.tick(200);
+    const gates = await enCours;
+
+    assert.deepEqual([gates.outcome, gates.code], ["timeout", null]);
+    // Le `sleep` tient la sortie des gates : s'il leur survivait, elles ne
+    // rendraient rien avant trente secondes.
+    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
+  });
+
+  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", { skip: posixOnly("holds the runtime's event loop until the gates have exited on their own and their cap has passed, using `ps -o stat=` to see their script as a zombie not yet reaped, then moves the test's clock past their cap; Windows processes have no zombie state, so the test has nothing to wait for") }, async (t) => {
+    // Le process que le runtime lance est le shell qui attend les gates pour
+    // dire leur processeur : leur parent.
+    const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $PPID > pid' });
+    const plafondMs = 100;
+    // Le runtime en retard : sa boucle d'événements est tenue, sans rendre la
+    // main, du lancement des gates jusqu'à ce qu'elles aient fini seules ; leur
+    // plafond échoit alors, à l'horloge du test, avant que la boucle relâchée ne
+    // lise la fin du script.
+    await new Promise((resoudre) => setImmediate(resoudre));
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    let lancees = false;
+    const temoin: Cloison = { bin: "", masques: [], identifiants: "", jeton: null, claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
+    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: plafondMs, cloison: temoin });
+    while (!lancees) await Promise.resolve();
+    const debut = Date.now();
+    // Fini, et pas encore recueilli par le runtime : le script est un zombie.
+    // Le fichier existe dès son ouverture, avant que le pid y soit écrit : seul
+    // un pid terminé par son retour à la ligne est complet. Un process que `ps`
+    // ne connaît plus (sortie 1) a déjà été recueilli : ce n'est pas un zombie.
+    const fini = () => {
+      const ecrit = existsSync(join(racine, "pid")) ? readFileSync(join(racine, "pid"), "utf8") : "";
+      if (!/^\d+\n$/.test(ecrit)) return false;
+      return spawnSync("ps", ["-o", "stat=", "-p", ecrit.trim()], { encoding: "utf8" }).stdout.startsWith("Z");
+    };
+    while (!fini()) {
+      if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
+    }
+    // Leur plafond échoit avant que la boucle ne soit relâchée.
+    t.mock.timers.tick(plafondMs);
+
+    const gates = await enCours;
+
+    assert.deepEqual([gates.outcome, gates.code, gates.tail], ["green", 0, "gates : VERT"]);
+  });
+
+  test("un setup qui dépasse son plafond est arrêté, avec ce qu'il a lancé", { skip: posixOnly("plays a setup that waits on a background `sleep 30` until the test moves its clock past a 200 ms cap, and expects it stopped as over its cap, with its child; on Windows the kill of the setup's process group (a negative pid) fails silently, so the setup waits the sleep out and comes back ready") }, async (t) => {
+    const lance = join(repertoireTemporaire(t), "lance");
+    const racine = worktree(t, { setup: `sleep 30 & touch '${lance}'; wait` });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const debut = Date.now();
+    const enCours = preparer(racine, 200);
+    while (!existsSync(lance)) await souffler();
+    t.mock.timers.tick(200);
+    const setup = await enCours;
+
+    assert.deepEqual([setup.pret, !setup.pret && setup.depasse], [false, true]);
+    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 });
