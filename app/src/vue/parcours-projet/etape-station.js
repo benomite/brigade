@@ -140,7 +140,8 @@ export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci
             if ("refus" in choix) return { ligne: choix.refus, detail: choix.detail ?? "" };
           };
           const dit = cree(doc, "span", station.available ? EN_LIGNE : HORS_LIGNE);
-          dit.className = station.available ? "en-ligne" : "hors-ligne";
+          if (station.available) dit.className = "en-ligne";
+          else dit.className = "hors-ligne";
           ligne.append(boutonAction(doc, station.name, () => void confier(station.name, ecrire), {}), dit);
           if (!station.available) ligne.append(survol(doc, HORS_LIGNE_DIT));
           return ligne;
