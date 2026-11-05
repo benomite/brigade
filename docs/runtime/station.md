@@ -332,6 +332,15 @@ what must be corrected. Readable or removed, it returns by itself (`ticket.relea
 `card-readable`); what remains to be corrected reads in `run rail`. The card is read again when the
 issue changes, and enters the log (`ticket.arrived`, `ticket.changed`, field `card`).
 
+### A cook that stops without a delivery
+
+The comment on the issue and the station journal both say why: the exit code and the last lines
+`claude` wrote (its standard error, else its last message). A stop the cook did not cause does not
+count as one of the 3 tries: Claude quota or usage limit, a lost Claude session, a GitHub limit, a
+station stopped or a process killed. The ticket is given back, waits, and is retried — never set
+aside for it. After a send back, "added nothing since its last delivery" is a failed cook only if the
+cook ran past its first 3 turns; stopping earlier means it never worked on the review's remarks.
+
 ### Relaunching a set-aside ticket
 
 A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks without a delivery, or

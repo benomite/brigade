@@ -289,7 +289,8 @@ class FauxGitHub {
           this.relectures.push({ station: nom, pr: pr.number });
           return { verdict: "approve", motif: "" };
         }),
-      avertir: options.avertir ?? ((texte) => assert.fail(texte)),
+      // Un cook qui s'arrête sans livrer se dit au journal (#2508) ; tout autre avertissement est une panne.
+      avertir: options.avertir ?? ((texte) => (/the cook stopped without a delivery/.test(texte) ? undefined : assert.fail(texte))),
     });
   }
 
@@ -1547,7 +1548,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
 
 // Une station dont le cook reprend la branche que le clone porte déjà, conclut
 // « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
-async function repriseQui(t: TestContext, avance: boolean, enConflit = false) {
+async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -1557,7 +1558,7 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false) {
   const lancer: Lancer = ({ flux }) => {
     writeFileSync(flux, fluxQuiConclut("done"));
     if (avance) tete = "b".repeat(40);
-    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    return { fin: Promise.resolve({ code: 0, signal: null, turns, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({
     nom: "box",
@@ -1599,6 +1600,68 @@ test("a cook that resumes a branch and adds nothing to it delivers nothing: it c
   const faux = await repriseQui(t, false);
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
   assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
+});
+
+// #2477, 2026-11-05 : trois cooks arrêtés par le quota, une minute après leur prise.
+test("three one-minute stops caused by a Claude quota limit leave the ticket on the rail, with the reason said each time (#2508, #2477 of 2026-11-05)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(77);
+  const journal: string[] = [];
+  const limite = { type: "rate_limit_event", rate_limit_info: { status: "rejected", resetsAt: 1793000000, rateLimitType: "five_hour" } };
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, `${JSON.stringify(limite)}\n${JSON.stringify({ type: "result", is_error: true, result: "You've hit your limit" })}\n`);
+    writeFileSync(`${flux}.stderr`, "Claude usage limit reached\n");
+    return { fin: Promise.resolve({ code: 1, signal: null, turns: 1, tokens: 1, durationMs: 60_000, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: join(repertoire, run), branche: "cook/77-github" }),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 0,
+      changes: () => [],
+      diff: () => "",
+      tete: () => "a".repeat(40),
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: (texte) => void journal.push(texte),
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  for (let i = 0; i < 3; i += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  const corps = (faux.commentaires.get(77) ?? []).map((c) => c.body);
+  assert.equal(corps.filter((c) => /exit code 1[\s\S]*Claude usage limit reached/.test(c)).length, 3);
+  assert.equal(corps.filter((c) => c.includes("brigade:echec")).length, 0);
+  assert.equal(faux.ticket(77).labels.has("hors-cuisine"), false);
+  assert.equal(journal.filter((l) => /exit code 1.*Claude usage limit reached/.test(l)).length, 3);
+});
+
+test("a cook that stops in its first turns after a send-back, adding nothing, has not worked on the review: the try is not counted (#2508)", async (t) => {
+  const faux = await repriseQui(t, false, false, 1);
+  const corps = (faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n");
+  assert.doesNotMatch(corps, /brigade:echec/);
+  assert.match(corps, /before it could work on the review's remarks/);
 });
 
 test("a cook that adds nothing to a branch whose PR conflicts with main is not a failed cook: three of them do not take the ticket off the kitchen (#2454, #2061 of 2026-11-05)", async (t) => {
