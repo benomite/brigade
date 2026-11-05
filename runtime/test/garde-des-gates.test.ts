@@ -43,8 +43,10 @@ const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {
 describe("la garde d'horloge des gates", () => {
   test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 0 s clock guard counted from the freeze, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
     // Sur une machine chargée, la suite peut mettre plus que le délai à démarrer : le témoin
-    // (`BRIGADE_GATES_GARDE_APRES`) ne fait courir la garde qu'une fois le fichier figé.
-    const suite = `node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`;
+    // (`BRIGADE_GATES_GARDE_APRES`) ne fait courir la garde qu'une fois le fichier figé. Le
+    // fichier se joue dans son propre Node, sans lanceur au-dessus : il reste sous la doublure
+    // de `npm`, qui ne l'emporte pas en mourant — seul le groupe entier, tué, l'emporte.
+    const suite = `node ${JSON.stringify(TEST_FIGE)}`;
     const racine = projet(t, suite);
     const temoin = join(racine, "pid-du-fichier");
     // Si la garde manque son process, il ne doit pas survivre au test.
@@ -65,7 +67,7 @@ describe("la garde d'horloge des gates", () => {
     // reconnaît pour rejouer ces gates plus tard, sur une machine saturée.
     assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 0 s sans rendre la main"], lignes.join("\n"));
     assert.equal(code, 1);
-    // Tuer le lanceur ne suffit pas : le process du fichier lui survivrait.
+    // Tuer la doublure de `npm` ne suffit pas : le process du fichier lui survivrait.
     assert.ok(existsSync(temoin), "la garde est tombée avant que le fichier d'essai ne démarre");
     await mort(Number(readFileSync(temoin, "utf8")));
     // La sortie de la suite est gardée, comme pour tout échec.
