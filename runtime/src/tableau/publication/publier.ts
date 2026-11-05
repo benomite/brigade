@@ -25,9 +25,10 @@
 // publier ce qui est avant le rail (#1836, amont.ts). Une lecture qui échoue
 // garde la dernière, avec son heure ; jamais lue, le bloc n'en dit rien.
 import { avantLeRail } from "../../amont.ts";
+import { avecLaBaseRouge, baseRougeDesOuvertes, type BaseRougeDuTodo, type CacheDesCommentaires } from "../../base-rouge/todo-base-rouge.ts";
 import { cartesDeCorrection } from "../../correctif/cartes.ts";
 import { lireEtat } from "../../etat.ts";
-import { HORS_CUISINE, type Issue, type Sondage } from "../../github.ts";
+import { HORS_CUISINE, type Commentaire, type Issue, type Sondage } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { appelsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "../../limite-github.ts";
 import { refusDuProjet } from "../../mise-a-jour/en-service.ts";
@@ -205,6 +206,9 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
   // Les issues ouvertes du dépôt, PR comprises (`ouvertesDuDepot`) : relues
   // avant chaque rafraîchissement, de quoi publier ce qui est avant le rail.
   ouvertes?: () => Promise<Issue[]>;
+  // Les commentaires d'une issue (#2341) : de quoi dire pourquoi une réparation de
+  // base rouge a échoué. Sans eux, la raison est celle du label.
+  commentaires?: (numero: number) => Promise<Commentaire[]>;
 };
 
 // Les issues ouvertes que le tableau a lues, et quand.
@@ -233,8 +237,8 @@ export function ouvertesDuDepot(github: { ouvertes(): Promise<Sondage> }): () =>
 // proposés —, les gestes du chef lus sous lui, ce que la box a prêté aux
 // stations distantes et répondu à leurs demandes par GitHub (`tirer-par-github/`),
 // et ce que fait chaque cook (`activites/`).
-export function tableauDuJournal(journal: Journal, projet: string, instant: Date, options: { depot: string; station?: string; gestes?: GestesDuTableau; ouvertes?: OuvertesLues | null }): Tableau {
-  const { depot, station, gestes, ouvertes } = options;
+export function tableauDuJournal(journal: Journal, projet: string, instant: Date, options: { depot: string; station?: string; gestes?: GestesDuTableau; ouvertes?: OuvertesLues | null; baseRouge?: BaseRougeDuTodo | null }): Tableau {
+  const { depot, station, gestes, ouvertes, baseRouge } = options;
   const tableau = tableauDeLaCuisine(lireEtat(journal, instant), instant, {
     limiteGithub: pauseDeLaStation(station, instant.getTime()),
     retenue: retenueDeLaStation(station, instant.getTime()),
@@ -246,7 +250,8 @@ export function tableauDuJournal(journal: Journal, projet: string, instant: Date
   });
   const distantes = distantesDuTableau(journal.base, instant);
   const avant = ouvertes === undefined || ouvertes === null ? {} : { avantLeRail: { lu: ouvertes.lu, issues: avantLeRail(journal.base, ouvertes.issues) } };
-  return { ...tableau, ...(gestes === undefined ? {} : { gestes: gestes.lus() }), ...(distantes === null ? {} : { distantes }), activites: activitesDesCooks(journal.base, instant), ...avant };
+  const complet = { ...tableau, ...(gestes === undefined ? {} : { gestes: gestes.lus() }), ...(distantes === null ? {} : { distantes }), activites: activitesDesCooks(journal.base, instant), ...avant };
+  return baseRouge === undefined || baseRouge === null ? complet : avecLaBaseRouge(complet, baseRouge);
 }
 
 // Branche le tableau au runtime : un rafraîchissement d'emblée, puis à chaque
@@ -262,7 +267,9 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
   const { station } = options;
   const { gestes, mentions } = options;
   let ouvertes: OuvertesLues | null = null;
-  const lire = options.lire ?? ((instant: Date) => tableauDuJournal(runtime.journal, runtime.projet, instant, { depot: options.depot, station, gestes, ouvertes }));
+  let baseRouge: BaseRougeDuTodo | null = null;
+  const commentairesLus: CacheDesCommentaires = new Map();
+  const lire = options.lire ?? ((instant: Date) => tableauDuJournal(runtime.journal, runtime.projet, instant, { depot: options.depot, station, gestes, ouvertes, baseRouge }));
   const avertir = options.avertir ?? ((ligne: string) => console.error(ligne));
   const corpsRendu = options.corpsRendu ?? (station === undefined ? undefined : (corps: string) => noterLaTaille(station, runtime.projet, corps));
   const publication = publierLeTableau({ ...options, lire, avertir, ...(corpsRendu === undefined ? {} : { corpsRendu }) });
@@ -276,6 +283,7 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
     try {
       const issues = await options.ouvertes();
       ouvertes = { lu: maintenant().toISOString(), issues };
+      baseRouge = await baseRougeDesOuvertes(issues, options.commentaires ?? (async () => []), commentairesLus);
       dernierEchecDesOuvertes = null;
     } catch (erreur) {
       const motif = erreur instanceof Error ? erreur.message : String(erreur);

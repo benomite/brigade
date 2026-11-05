@@ -97,6 +97,12 @@ const pont = {
   etatDuCodeDeTelephone: (id, code) => ipcRenderer.invoke("etatDuCodeDeTelephone", id, code),
   telephonesDeLaStation: (id) => ipcRenderer.invoke("telephonesDeLaStation", id),
   revoquerUnTelephone: (id, nom) => ipcRenderer.invoke("revoquerUnTelephone", id, nom),
+  // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
+  appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),
+  rangerUneApp: (role, id, cle) => ipcRenderer.invoke("rangerUneApp", role, id, cle),
+  // Les projets que la station de cet ordinateur sert (ticket 2359) : sa liste, et un projet ajouté ou retiré.
+  projetsServis: () => ipcRenderer.invoke("projetsServis"),
+  servirUnProjet: (depot, servi) => ipcRenderer.invoke("servirUnProjet", depot, servi),
   // Le premier lancement, sur un ordinateur neuf (ticket 1434) : les stations du chef et leurs projets, lus par le
   // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.

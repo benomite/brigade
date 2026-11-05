@@ -440,8 +440,13 @@ describe("la station, son process", { concurrency: 8 }, () => {
       }
       station.process.kill("SIGTERM");
       assert.equal(await station.fin, 0);
+      // `status` dit le mode, et les appels comptés à chaque App (#2316).
+      const commande = appeler(status, [], { BRIGADE_STATE_DIR: etat("brigade"), BRIGADE_STATION_DIR: env.BRIGADE_STATION_DIR });
+      assert.equal(await commande.fin, 0, commande.sortie());
+      assert.match(commande.sortie(), /^identity {3}GitHub — one identity per role$/m);
+      assert.match(commande.sortie(), /calls by identity: cook [1-9]\d*, pass \d+, manager [1-9]\d*, chef's account \d+$/m);
       const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
-      const ecrits = [JSON.stringify(faits("brigade", "cook.launched")), JSON.stringify(faits("brigade", "cook.exited")), station.sortie()];
+      const ecrits = [JSON.stringify(faits("brigade", "cook.launched")), JSON.stringify(faits("brigade", "cook.exited")), station.sortie(), commande.sortie()];
       for (const ecrit of ecrits) for (const secret of secrets) assert.ok(!ecrit.includes(secret), `un jeton s'est écrit : ${ecrit.slice(0, 200)}`);
     });
   });

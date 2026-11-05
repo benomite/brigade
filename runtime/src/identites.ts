@@ -4,10 +4,11 @@
 // mémoire : il n'entre ni au journal, ni dans un message d'erreur, ni dans
 // l'environnement d'un cook, de gates ou d'un juge.
 import { createPrivateKey, sign, type KeyObject } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { ouvertADAutres } from "./droits.ts";
 import { ouvrirGitHub, type GitHub } from "./github.ts";
+import { retenirJeton } from "./identifiants.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Le reviewer n'y est pas : il n'a aucun geste GitHub — son verdict est publié
@@ -33,15 +34,101 @@ export type ConfigIdentites = {
 
 const API = "https://api.github.com";
 
-// Lit les Apps dans le répertoire que nomme `BRIGADE_GITHUB_APPS_DIR` : pour
-// chaque rôle, `<rôle>.id` et `<rôle>.pem`. Sans la variable, null : le
-// runtime tourne sous l'identité unique du `gh` de la machine.
+// L'identifiant d'une App : son « App ID » (un nombre) ou son « Client ID ».
+export const ID_D_APP = /^[A-Za-z0-9.]+$/;
+
+// Le répertoire où une station garde les Apps de ses rôles, sous le sien
+// (`BRIGADE_STATION_DIR`) : pour chaque rôle, `<rôle>.id` et `<rôle>.pem`. Le
+// même sur toute station — la box comme le Mac du chef, où l'app les y range
+// (`identites-stations.ts`). Ce répertoire en 700, chaque fichier en 600 : au
+// seul compte du service. Il est à côté de l'état des projets (`etat/`), que
+// la sauvegarde copie, jamais dessous, et hors de tout dépôt.
+export const APPS_DE_LA_STATION = "apps-github";
+export const repertoireDesApps = (station: string): string => join(resolve(station), APPS_DE_LA_STATION);
+
+// D'où lire les Apps : `BRIGADE_GITHUB_APPS_DIR` s'il est donné — le réglage
+// d'avant, sur la box —, sinon le répertoire de la station. Null : ni l'un ni
+// l'autre, le runtime tourne sous l'identité unique du `gh` de la machine.
+export function lieuDesApps(env: Record<string, string | undefined>): { repertoire: string; deLaStation: boolean } | null {
+  if (env.BRIGADE_GITHUB_APPS_DIR) return { repertoire: env.BRIGADE_GITHUB_APPS_DIR, deLaStation: false };
+  if (env.BRIGADE_STATION_DIR) return { repertoire: repertoireDesApps(env.BRIGADE_STATION_DIR), deLaStation: true };
+  return null;
+}
+
+const dans = (chemin: string, parent: string): boolean => {
+  const depuis = relative(parent, chemin);
+  return depuis === "" || (!depuis.startsWith("..") && !isAbsolute(depuis));
+};
+
+// Ce qu'une clé ne doit jamais rejoindre : ce que la sauvegarde copie, les
+// sauvegardes elles-mêmes, le dépôt du projet.
+const LIEUX_INTERDITS: Array<[string, string]> = [
+  ["BRIGADE_STATE_DIR", "the project's state, which backups copy"],
+  ["BRIGADE_BACKUP_DIR", "the backups' destination"],
+  ["BRIGADE_REPO_DIR", "the project's repository"],
+];
+
+// Pourquoi `repertoire` ne peut pas garder de clé d'App, ou null : il est sous
+// l'état d'un projet, ses sauvegardes, son dépôt, ou dans un dépôt git
+// quelconque — où un `git add` la publierait.
+export function lieuInterdit(repertoire: string, env: Record<string, string | undefined>): string | null {
+  const ici = resolve(repertoire);
+  for (const [variable, quoi] of LIEUX_INTERDITS) {
+    const racine = env[variable];
+    if (racine && dans(ici, resolve(racine))) return `it is under ${variable} (${quoi}) — an App key never goes there`;
+  }
+  for (let dossier = ici; ; dossier = dirname(dossier)) {
+    if (existsSync(join(dossier, ".git"))) return `it is inside the git repository "${dossier}" — an App key never goes there`;
+    if (dirname(dossier) === dossier) return null;
+  }
+}
+
+// Le mode du répertoire des Apps s'il laisse entrer d'autres que le compte du
+// service (`755`), ou null. Sous Windows, ce sont les ACL de chaque clé qui le
+// disent (`droits.ts`) : le répertoire n'a pas de bits de mode.
+export function repertoireOuvert(repertoire: string): string | null {
+  if (process.platform === "win32") return null;
+  const mode = statSync(repertoire).mode & 0o777;
+  return (mode & 0o077) === 0 ? null : mode.toString(8);
+}
+
+// Retient chaque ligne d'une clé, pour qu'aucune ne sorte jamais du runtime :
+// ni au journal, ni dans journald (`masquerLaConsole`), ni dans un flux ou un
+// texte publié — le masque des identifiants (`identifiants.ts`) les remplace.
+// Une ligne suffit à la reconnaître, où qu'elle soit coupée.
+export function retenirCle(pem: string): void {
+  for (const ligne of pem.split(/\r?\n/)) {
+    if (!ligne.startsWith("-----")) retenirJeton(ligne);
+  }
+}
+
+const fichiersDesApps = (): string[] => ROLES.flatMap((role) => [`${role}.id`, `${role}.pem`]);
+
+// Lit les Apps : pour chaque rôle, `<rôle>.id` et `<rôle>.pem`, dans le
+// répertoire que nomme `BRIGADE_GITHUB_APPS_DIR`, sinon dans celui de la
+// station. Null : aucune App — ni la variable, ni rien d'écrit dans le
+// répertoire de la station —, le runtime tourne sous l'identité unique du `gh`
+// de la machine. Les Apps de la station à moitié écrites, un répertoire ouvert
+// à d'autres, ou rangé là où une sauvegarde ou un dépôt la prendrait : refusé.
 export function configIdentites(env: Record<string, string | undefined>): ConfigIdentites | null {
-  const repertoire = env.BRIGADE_GITHUB_APPS_DIR;
-  if (!repertoire) return null;
+  const lieu = lieuDesApps(env);
+  if (lieu === null) return null;
+  const { repertoire } = lieu;
+  const nom = lieu.deLaStation ? "Apps GitHub de la station invalides" : "BRIGADE_GITHUB_APPS_DIR invalide";
   const refuser = (fichier: string, pourquoi: string): never => {
-    throw new ConfigInvalide(`BRIGADE_GITHUB_APPS_DIR invalide : « ${join(repertoire, fichier)} » ${pourquoi}`);
+    throw new ConfigInvalide(`${nom} : « ${join(repertoire, fichier)} » ${pourquoi}`);
   };
+  if (lieu.deLaStation) {
+    if (!existsSync(repertoire)) return null;
+    const presents = fichiersDesApps().filter((fichier) => existsSync(join(repertoire, fichier)));
+    if (presents.length === 0) return null;
+    const ouvert = repertoireOuvert(repertoire);
+    if (ouvert !== null) refuser("", `est ouvert à d'autres que le compte du service (mode ${ouvert}) — il garde les clés des Apps GitHub : chmod 700`);
+    const manquants = fichiersDesApps().filter((fichier) => !presents.includes(fichier));
+    if (manquants.length > 0) refuser("", `ne porte pas les Apps de tous les rôles — il manque ${manquants.join(", ")} : chaque rôle (${ROLES.join(", ")}) a son App, ou aucun`);
+    const interdit = lieuInterdit(repertoire, env);
+    if (interdit !== null) refuser("", `ne peut pas garder de clé : ${interdit}`);
+  }
   const lire = (fichier: string): string => {
     try {
       return readFileSync(join(repertoire, fichier), "utf8");
@@ -52,8 +139,9 @@ export function configIdentites(env: Record<string, string | undefined>): Config
   const apps = {} as ConfigIdentites["apps"];
   for (const role of ROLES) {
     const id = lire(`${role}.id`).trim();
-    if (!/^[A-Za-z0-9.]+$/.test(id)) refuser(`${role}.id`, "ne porte pas un identifiant d'App — attendu son « App ID » (un nombre) ou son « Client ID »");
+    if (!ID_D_APP.test(id)) refuser(`${role}.id`, "ne porte pas un identifiant d'App — attendu son « App ID » (un nombre) ou son « Client ID »");
     const pem = lire(`${role}.pem`);
+    retenirCle(pem);
     const ouvert = ouvertADAutres(join(repertoire, `${role}.pem`), "c'est la clé d'une App");
     if (ouvert !== null) refuser(`${role}.pem`, ouvert);
     let cle: KeyObject;
@@ -65,7 +153,7 @@ export function configIdentites(env: Record<string, string | undefined>): Config
     }
     const jumeau = ROLES.find((autre) => apps[autre]?.id === id);
     if (jumeau) {
-      throw new ConfigInvalide(`BRIGADE_GITHUB_APPS_DIR invalide : « ${jumeau} » et « ${role} » portent la même App (${id}) — une identité par rôle, donc une App par rôle`);
+      throw new ConfigInvalide(`${nom} : « ${jumeau} » et « ${role} » portent la même App (${id}) — une identité par rôle, donc une App par rôle`);
     }
     apps[role] = { id, cle };
   }

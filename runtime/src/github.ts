@@ -118,6 +118,9 @@ export type GitHub = {
   // Les checks des derniers commits de la branche d'intégration, mis bout à
   // bout : de quoi dire quel job y a déjà été vu vert.
   ciDeLaBase(branche: string): Promise<Check[]>;
+  // Le sha du dernier commit de la branche d'intégration. Facultatif : seul le
+  // client réel le porte (`brigade-github.ts`, le contrôle de la base).
+  teteDeLaBase?(branche: string): Promise<string>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
@@ -125,6 +128,9 @@ export type GitHub = {
   journalDuCheck(check: Check): Promise<string | null>;
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
+  // La tentative en cours d'un run de GitHub Actions (1 tant qu'il n'a pas été
+  // relancé), et si elle est finie.
+  etatDuRun(run: number): Promise<{ tentative: number; termine: boolean }>;
   // Remplace, sur l'issue, le commentaire dont le corps est `ancien` par
   // `nouveau` : rend faux si aucun ne l'est plus.
   remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
@@ -602,6 +608,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const commits = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<{ sha: string }>;
       return (await Promise.all(commits.map(({ sha }) => this.ci(sha)))).flat();
     },
+    async teteDeLaBase(branche) {
+      const chemin = `repos/${depot}/commits/${encodeURIComponent(branche)}`;
+      const { sha } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { sha?: unknown };
+      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : commit sans sha`);
+      return sha;
+    },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;
       return exiger(await lireSousCondition(["-H", "Accept: application/vnd.github.diff", chemin]), chemin).corps;
@@ -615,6 +627,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
       exiger(await appeler(["-X", "POST", chemin]), chemin, 201);
+    },
+    async etatDuRun(run) {
+      const chemin = `repos/${depot}/actions/runs/${run}`;
+      const lu = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as { run_attempt?: number; status?: string };
+      return { tentative: lu.run_attempt ?? 1, termine: lu.status === "completed" };
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);

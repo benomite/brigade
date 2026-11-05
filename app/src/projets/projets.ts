@@ -24,7 +24,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet } from "./demande.ts";
+import { capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet, type TempsPublie } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
@@ -90,6 +90,8 @@ export type ProjetVu = {
   blocages?: Blocage[];
   // Le temps de son ajout à son premier ticket servi, tel que sa principale le publie (#1401). Absent sans délai publié.
   delai?: Delai;
+  // Les temps de ses derniers tickets et son plafond, tels que sa principale les publie (#2346). Absent sans temps publiés.
+  temps?: TempsPublie;
   // Ce qui manque à sa principale pour ses tests, un choix par besoin, tel qu'elle le publie (#1398) — et les
   // issues que l'app a écrites dans sa demande, que la station n'a peut-être pas encore lues (#1400). Absents quand
   // il n'y en a pas.
@@ -487,6 +489,8 @@ export function tenirProjets(options: OptionsProjets): Projets {
             else delete vu.blocages;
             if (dit?.delai !== undefined) vu.delai = dit.delai;
             else delete vu.delai;
+            if (dit?.temps !== undefined) vu.temps = dit.temps;
+            else delete vu.temps;
             if (dit?.choix !== undefined) vu.choix = dit.choix;
             else delete vu.choix;
             if (projet.choix !== undefined) vu.choisis = projet.choix;

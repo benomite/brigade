@@ -1,12 +1,13 @@
 // « parade » passé sur GitHub seul (`githubOnlyState`, #2220) : sa box publie encore le tableau de sa cuisine, mais son
 // rail y est celui de l'ancien chemin, figé — six tickets en attente, aucune station déclarée, la cuisine retenue et
 // « oisive ». Sur GitHub, ses stations ont pris #14 (box/claude) et #16 (mac/claude), livré #30 (PR #41, cuisiné par
-// box/claude), #40 attend un tiers, #21 et #22 attendent sur le rail. La vue reçoit ce que l'app en tire
-// (app/src/vue/rail/github.ts, `avecLeRail`) — `facts` et `status` passés par le code de l'app, rien écrit à la main.
+// box/claude), #40 attend un tiers, #21 et #22 attendent sur le rail ; la box et le Mac y ont donné signe de vie il y a
+// une minute (#2358). La vue reçoit ce que l'app en tire (app/src/vue/rail/github.ts, `avecLeRail`) — `facts` et
+// `status` passés par le code de l'app, rien écrit à la main.
 import type { Faits } from "../../../app/src/faits.ts";
 import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
 import { statusDuTableau } from "../../../app/src/tableau/rail.ts";
-import { avecLeRail, type RailSurGithub, type TicketSurGithub } from "../../../app/src/vue/rail/github.ts";
+import { avecLeRail, type RailSurGithub, type SignesDeVie, type TicketSurGithub } from "../../../app/src/vue/rail/github.ts";
 import { MAINTENANT, type Rendu } from "./commun.ts";
 import { RENDUS } from "./cuisine-figee.ts";
 
@@ -56,7 +57,7 @@ export const TABLEAU_FIGE = {
   etatLuLe: "2026-10-13T10:04:11.000Z",
 } as unknown as TableauLu;
 
-const ticket = (numero: number, etat: string, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: TITRES[numero] as string, url: issue(numero), etat, priorite: null, creeLe: "2026-10-12T16:20:00.000Z", pr: null, prise: null, ...autres });
+export const ticket = (numero: number, etat: string, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: TITRES[numero] as string, url: issue(numero), etat, priorite: null, creeLe: "2026-10-12T16:20:00.000Z", pr: null, prise: null, ...autres });
 
 // Ce que GitHub dit du projet, à la même heure : ses issues `fire`, leurs labels, leurs prises et leurs PR.
 export const SUR_GITHUB: RailSurGithub = {
@@ -71,9 +72,14 @@ export const SUR_GITHUB: RailSurGithub = {
   ],
 };
 
+// Le signe de vie d'une station du compte, à qui l'app a choisi « parade » (#2358).
+export const signe = (name: string, lastSeen: string) => ({ name, lastSeen, stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] });
+// La box et le Mac, une minute avant la lecture.
+export const SIGNES: SignesDeVie = { lus: [signe("box", "2026-10-13T10:03:10.000Z"), signe("mac", "2026-10-13T10:03:30.000Z")] };
+
 // Les sorties que la vue reçoit pour « parade » : celles du tableau figé, ou celles qu'en tire l'app d'après GitHub.
 export function renduDeParade(lu: TableauLu): Rendu {
   return { ...(RENDUS.parade as Rendu), facts: lu.faits as unknown as Faits, status: statusDuTableau(lu) };
 }
 export const RENDU_FIGE = renduDeParade(TABLEAU_FIGE);
-export const RENDU_GITHUB = renduDeParade(avecLeRail(TABLEAU_FIGE, SUR_GITHUB));
+export const RENDU_GITHUB = renduDeParade(avecLeRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES));

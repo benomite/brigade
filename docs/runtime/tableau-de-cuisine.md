@@ -35,8 +35,8 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 |---|---|
 | `projet` | The project's name, as the log knows it; `null` for an empty log |
 | `lu` | When the state was read. No line counts a duration up to it: the body writes absolute times (`since 2026-10-12 10:00 UTC`, `lease until …`), and the app computes « 4 min ago » itself |
-| `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` |
-| `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed |
+| `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status`, plus a failed base-red repair (`quoi: "base-rouge"`, no gesture) with its reason |
+| `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed, and a red base whose repair is cooking (an open ticket carrying `<!-- brigade:base-rouge sha=… -->`: “The base is red at …: a repair is cooking”) |
 | `cuisine` | The kitchen's state |
 | `gestes` | The chef's latest gestures read under the board, oldest first ([`../tableau-gestes.md`](../tableau-gestes.md), "What the apps read") |
 | `faits` | The rail view's facts: the object of `facts` |

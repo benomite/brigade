@@ -30,7 +30,7 @@ const reponse = {
         { number: 91, headRefName: "second/x", headRefOid: "d".repeat(40), mergeable: "MERGEABLE", mergeStateStatus: "BEHIND", files: { nodes: [{ path: "docs/b.md" }] }, commits: { nodes: [] } },
       ],
     },
-    ref: { target: { statusCheckRollup: { contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: "FAILURE" }] } } } },
+    ref: { target: { statusCheckRollup: { contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: "https://github.com/acme/brigade/actions/runs/7/job/9" }] } } } },
   },
 };
 
@@ -47,7 +47,8 @@ test("the snapshot reads tickets, open PRs with their CI, files and mergeability
     { name: "gates", outcome: "pending" },
     { name: "deploy", outcome: "red" },
   ]);
-  assert.deepEqual(lu.base, [{ name: "tests", outcome: "red" }]);
+  // Un job rouge garde son lien : la station relance son run (#2323).
+  assert.deepEqual(lu.base, [{ name: "tests", outcome: "red", url: "https://github.com/acme/brigade/actions/runs/7/job/9" }]);
 });
 
 test("a turn served by the snapshot reads its tickets, PRs, CI and files with one GraphQL call and no REST read", async () => {
@@ -67,7 +68,7 @@ test("a turn served by the snapshot reads its tickets, PRs, CI and files with on
     retraitsDeLabels: async () => [],
   } as unknown as GitHub;
   const tour = clientDuTour(github, "main", "acme/brigade");
-  assert.deepEqual(await tour.checksDeLaBase(), [{ name: "tests", outcome: "red" }]);
+  assert.deepEqual(await tour.checksDeLaBase(), [{ name: "tests", outcome: "red", url: "https://github.com/acme/brigade/actions/runs/7/job/9" }]);
   assert.deepEqual((await tour.fires()).map((t) => t.number), [12]);
   const pr = await tour.prDuTicket(12);
   assert.deepEqual([pr?.number, pr?.sha, pr?.enConflit], [90, SHA, true]);

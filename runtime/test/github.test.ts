@@ -4,7 +4,6 @@ import { test, type TestContext } from "node:test";
 import { jobDuCheck, ouvrirGitHub } from "../src/github.ts";
 import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
 import { CHEMIN_TICKETS, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
 
 function sonde(t: TestContext) {
   const gh = fauxGh(t);
@@ -389,7 +388,7 @@ test("la liste des issues ouvertes a son propre ETag : confirmée, elle ne coût
   assert.deepEqual(await github.tickets(), { inchange: true });
 });
 
-test("labelliser une issue y ajoute les labels, sans toucher aux autres", { skip: posixOnly("labels issue 15 with fire and model:sonnet and expects a single POST of two `labels[]=` fields; on Windows the fake gh, run by Git Bash, exits non-zero without a message on calls carrying a `labels[]=` field, while POSTs whose fields hold no brackets pass") }, async (t) => {
+test("labelliser une issue y ajoute les labels, sans toucher aux autres", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/issues/15/labels`;
   gh.repondre(chemin, { corps: [] });
@@ -413,14 +412,14 @@ test("retirer un label le supprime de l'issue ; déjà absent, il n'y a rien à 
   await assert.rejects(github.delabelliser(17, "effort:low"), /HTTP 403/);
 });
 
-test("un label refusé par GitHub lève", { skip: posixOnly("expects a label POST that GitHub answers with 403 to throw HTTP 403; on Windows the fake gh, run by Git Bash, exits non-zero without a message on calls carrying a `labels[]=` field, while POSTs whose fields hold no brackets pass") }, async (t) => {
+test("un label refusé par GitHub lève", async (t) => {
   const { gh, github } = sonde(t);
   gh.repondre(`repos/${DEPOT}/issues/15/labels`, { statut: 403, corps: { message: "Forbidden" } });
 
   await assert.rejects(github.labelliser(15, ["fire"]), /HTTP 403/);
 });
 
-test("créer une issue poste son titre, son corps et ses labels tels quels, et rend son numéro", { skip: posixOnly("creates an issue and expects its title, multi-line body and two `labels[]=` fields posted verbatim, and its number returned; on Windows the fake gh, run by Git Bash, exits non-zero without a message on calls carrying a `labels[]=` field, while POSTs whose fields hold no brackets pass") }, async (t) => {
+test("créer une issue poste son titre, son corps et ses labels tels quels, et rend son numéro", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/issues`;
   gh.repondre(chemin, { statut: 201, corps: { number: 501 } });
@@ -558,6 +557,19 @@ test("les jobs en échec d'un run de GitHub Actions se relancent, eux seuls ; un
   await github.relancerLesEchecs(123);
   assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", chemin]]);
   await assert.rejects(github.relancerLesEchecs(124), /HTTP 403/);
+});
+
+test("un run de GitHub Actions dit sa tentative et s'il est fini ; un refus de GitHub lève", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/actions/runs/123`;
+  gh.repondre(chemin, { corps: { run_attempt: 2, status: "completed" } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/124`, { corps: { run_attempt: 1, status: "in_progress" } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/125`, { statut: 404, corps: { message: "Not Found" } });
+
+  assert.deepEqual(await github.etatDuRun(123), { tentative: 2, termine: true });
+  assert.deepEqual(gh.appels(), [["api", "-i", chemin]]);
+  assert.deepEqual(await github.etatDuRun(124), { tentative: 1, termine: false });
+  await assert.rejects(github.etatDuRun(125), /HTTP 404/);
 });
 
 test("un check dit son run et son job quand c'est un job de GitHub Actions ; sinon, rien", () => {

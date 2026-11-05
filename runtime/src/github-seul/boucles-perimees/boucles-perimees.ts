@@ -1,6 +1,7 @@
 // The old-path loops that read the log, once the GitHub-only switch is on. The
 // log is then stale: each loop stops at its entry (it asks `perimee()`), and
 // the stale `cook/<n>-github` branches are cleaned from what GitHub says.
+import { promisify } from "node:util";
 import { execFile } from "../../sans-invite.ts";
 import type { GitHub } from "../../github.ts";
 import { surGitHubSeul } from "../../brigade-github.ts";
@@ -8,7 +9,7 @@ import type { ReglagesProjet } from "../../reglages-projet/reglages.ts";
 import type { Runtime } from "../../runtime.ts";
 
 // The loops that stop with the switch on, by the name the guard tests carry.
-export const BOUCLES_PERIMEES = ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup"] as const;
+export const BOUCLES_PERIMEES = ["rail-feeding", "closer", "product-role", "base-check", "station-gist-rail", "cleanup", "pass"] as const;
 
 // True while the old path must not read the log. Read at each entry, never
 // kept: the switch is the one the project settings carry.
@@ -86,7 +87,7 @@ export function brancherElagageGithub<R extends Runtime>(runtime: R, options: Op
 // issues' state read from GitHub.
 export function elagageDuClone(options: { clone: string; github: Pick<GitHub, "issue">; env?: NodeJS.ProcessEnv; avertir?: (message: string) => void }): OptionsElagage {
   const git = async (...args: string[]) => {
-    const { stdout } = await execFile("git", args, { cwd: options.clone, env: options.env ?? process.env, encoding: "utf8", timeout: 60_000 });
+    const { stdout } = await promisify(execFile)("git", args, { cwd: options.clone, env: options.env ?? process.env, encoding: "utf8", timeout: 60_000 });
     return String(stdout);
   };
   return {

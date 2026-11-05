@@ -67,6 +67,7 @@ elsewhere):
 | `resources/app/` | `src/`, the app's `package.json` (named `Brigade`, at the built version, without scripts or dev dependencies) and its production dependencies. node-pty keeps only its win32-x64 build, without debug symbols (`.pdb`) |
 | `resources/runtime/` | `src/` and `package.json` of the runtime, at the built version |
 | `resources/node/bin/node.exe` | the `node` that runs the station |
+| `resources/plugin/commands/` | `dev.md` and `ask.md` from `commands/`: what the app installs in the projects it opens (`app/src/plugin-app.ts`) |
 | `Uninstall Brigade.exe` | the uninstaller |
 
 It also adds:

@@ -111,6 +111,17 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
     if (texte === "") return refuse("an answer in your own words says something: it is empty");
   }
 
+  // La carte d'un check de la base (carte-ci-windows.ts) n'a ni issue ni place
+  // sur le rail : la réponse est notée, la carte sort, rien d'autre ne bouge.
+  if (ticket < 0) {
+    base.transaction(() => {
+      const commun = { project: projet, ticket, author: AUTEUR } as const;
+      journal.ajouter({ ...commun, type: "todo.answered", payload: { choice: rang, answer: texte, then: suite } });
+      journal.ajouter({ ...commun, type: "todo.left", payload: { why: `answered by the chef${rang === null ? "" : ` (choice ${rang})`}` } });
+    });
+    return { done: true, price: "your answer is noted; the card leaves TODO and does not come back unless the check turns green and red again" };
+  }
+
   const sur = ticketDuRail(base, ticket);
   const avancee = ((): Avancee => {
     if (attente.quoi === "abandon" && !sur) return avanceeDeLAbandon(base, ticket, attente, suite);
