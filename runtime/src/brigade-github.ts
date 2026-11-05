@@ -225,6 +225,16 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 
+// Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
+// dernier retrait de `hors-cuisine`, que GitHub date pour toutes les stations
+// (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
+// livraison. Des retraits illisibles ne remettent rien à zéro.
+const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
+  const retraits = await github.retraitsDeLabels(numero).catch(() => []);
+  const relance = Math.max(0, ...retraits.filter((r) => r.label === HORS_CUISINE).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
+  return commentaires.filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
+};
+
 // Le motif d'un verdict, sous son marqueur et sa ligne « Changes requested ».
 const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number) => commentaires.find((c) => c.id === id)?.body.split("\n").slice(2).join("\n").trim() || "see the PR";
 
@@ -295,7 +305,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
       // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
-      const echecs = (await github.commentaires(issue).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length + 1;
+      // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
+      const echecs = (await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC)).length + 1;
       await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${echecs >= ECHECS_MAX ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
       if (echecs >= ECHECS_MAX) {
         chrono.oublier(issue);
@@ -317,12 +328,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
   const renvoyes = new Set<number>();
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string) => {
-    const renvois = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    const tous = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
+    const renvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
     // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
     // Mais il doit quitter le pass : si le retrait de \`in-pass\` avait échoué
     // (GitHub qui limite ses appels), il se refait, sans second commentaire (#2319).
-    if (renvois.some((c) => c.body.includes(` sha=${sha} `))) {
+    if (tous.some((c) => c.body.includes(` sha=${sha} `))) {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
       return;
     }
