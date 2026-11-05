@@ -31,6 +31,8 @@ class FauxGitHub {
   prs: PR[] = [];
   commentaires = new Map<number, Array<CommentaireDeVerdict & { station: string }>>();
   appels: Array<{ station: string; quoi: string }> = [];
+  // Les retraits de label, comme GitHub les date.
+  retraits = new Map<number, Array<{ label: string; createdAt: string }>>();
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
   base: "green" | "red" = "green";
@@ -162,8 +164,10 @@ class FauxGitHub {
       delabelliser: async (issue, label) => {
         await noter("delabelliser");
         this.ticket(issue).labels.delete(label);
+        this.horloge += 1;
+        this.retraits.set(issue, [...(this.retraits.get(issue) ?? []), { label, createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString() }]);
       },
-      retraitsDeLabels: async () => [],
+      retraitsDeLabels: async (numero) => this.retraits.get(numero) ?? [],
       etatDuRun: async (run) => {
         await noter("etatDuRun");
         return { tentative: this.tentatives.get(run) ?? 1, termine: !this.relanceEnCours };
@@ -555,6 +559,26 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
   assert.equal(echecs.length, 3);
   assert.match(echecs[2]?.body ?? "", /Taken off the kitchen/);
   assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+});
+
+test("removing hors-cuisine restarts the count of cooks without a delivery (#2430)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }) });
+  for (let i = 0; i < 8 && !faux.ticket(35).labels.has("hors-cuisine"); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+  // Le second relance le ticket : il retire `hors-cuisine`, sur GitHub.
+  await faux.pour("chef").delabelliser(35, "hors-cuisine");
+  for (let i = 0; i < 1; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
+  assert.equal(echecs.length, 4);
+  assert.equal(faux.ticket(35).labels.has("hors-cuisine"), false);
 });
 
 test("a send-back whose label removal failed is completed at the next turn, without a second comment (#2319)", async () => {
