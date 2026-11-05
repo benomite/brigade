@@ -822,8 +822,11 @@ describe("la pass", () => {
 
     // Le `fix` quitte le rail : la livraison repart, sur sa branche, sans consommer de renvoi.
     journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
-    await jusquAu("pass.kitchen-took-over", 2);
-    assert.deepEqual(prise(2), { cause: "wrong-base", move: "resume", issue: 501 });
+    // Le deuxième par son rang, pas le dernier : la livraison renvoyée remonte aussitôt, et le
+    // troisième — l'abandon — peut déjà être écrit quand le test lit le journal (run 42067087018).
+    const prisesEnMain = () => journal.duTicket(17).filter((e) => e.type === "pass.kitchen-took-over").map(charge);
+    await jusqua(() => prisesEnMain().length >= 2);
+    assert.deepEqual(prisesEnMain()[1], { cause: "wrong-base", move: "resume", issue: 501 });
     const renvoi = dernier("pass.returned", 17);
     assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
     assert.match(String((renvoi?.findings as string[])[0]), /Le ticket `fix` #501, ouvert par la cuisine .* est servi : la livraison te revient/);
