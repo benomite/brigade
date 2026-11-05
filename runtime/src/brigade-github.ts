@@ -30,7 +30,7 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
-import { fermeReparation } from "./base-rouge/ferme-reparation.ts";
+import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
@@ -70,7 +70,8 @@ export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise =
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
   Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> &
-  GitHubDeLaReparation & {
+  GitHubDeLaReparation &
+  GitHubDeLaFermeture & {
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.

@@ -134,7 +134,7 @@ class FauxGitHub {
       },
       issuesDepuis: async () => {
         await noter("issuesDepuis");
-        return [...this.tickets.values()].map((t) => ({ number: t.number, body: t.corps, association: "OWNER" }));
+        return [...this.tickets.values()].map((t) => ({ number: t.number, body: t.corps, association: "OWNER", state: t.state }));
       },
       fermerIssue: async (numero) => {
         await noter("fermerIssue");
