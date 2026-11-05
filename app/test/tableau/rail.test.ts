@@ -362,7 +362,8 @@ test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisen
     const declaration = new RegExp(`^const ${veille} = (\\w+)\\(\\{([\\s\\S]*?)^\\}\\);`, "m").exec(main);
     assert.equal(declaration?.[1], "ouvrirVeilleDuTableau", veille);
   }
-  // Les gestes du rail qui ont un fait sur GitHub visent la dernière lecture réussie ; répondre à une carte ne part pas.
+  // Les gestes du rail qui ont un fait sur GitHub visent la dernière lecture réussie ; seule la carte du chef lue de GitHub
+  // se répond, sur son issue (#2434) — toute autre carte ne part pas.
   assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?retirerLeLabel\(tableaux\.dernier/);
-  assert.match(main, /ipcMain\.handle\("repondreCarte", \(\) => \(\{ refus: SANS_FAIT\.carte/);
+  assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?if \(chef === undefined\) return \{ refus: SANS_FAIT\.carte[\s\S]*?repondreSurGithub\(/);
 });
