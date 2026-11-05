@@ -3,7 +3,11 @@
 # runtime/test/support/windows.ts, qui joue tous les fichiers. Les tests propres à Linux ou à macOS se
 # sautent eux-mêmes, avec leur raison dans le journal (runtime/test/support/plateforme.ts). Entière, la
 # suite est trop longue pour un seul job sous Windows : elle se joue en
-# quatre parts, une par runner, qui ensemble couvrent chaque fichier une fois (`--part`). Chaque part
+# huit parts, une par runner, qui ensemble couvrent chaque fichier une fois (`--part`). À quatre, deux
+# parts dépassaient le plafond du job sur b1d0e1d (#2406) : la suite était passée de 370 à 429 fichiers
+# depuis le 2 novembre, où la part 2 prenait déjà 11 min 28 s. Coupé par GitHub, un job ne laisse ni
+# annotation ni sortie. Le garde de la part (windows.ts, GARDE_MS) tombe avant ce plafond, pour nommer
+# ce qui cale ; test/support/windows.test.ts tient les deux d'accord. Chaque part
 # finit par ses échecs, ses tests sautés et ses comptes en annotations du check, lisibles par l'API de
 # GitHub sans le journal du job (runtime/test/support/annotations.ts) :
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
@@ -26,16 +30,14 @@ jobs:
   tests:
     # « windows » en tête : la station GitHub seul ne lit pas ces checks pour
     # l'état de la base (#2087 : informatifs, jamais bloquants).
-    name: windows tests (${{ matrix.part }}/4)
+    name: windows tests (${{ matrix.part }}/8)
     runs-on: windows-latest
-    # Le garde de la part (test/support/windows.ts) part à 13 min, avant ce plafond : une part trop
-    # longue finit en nommant ses tests en cours, pas coupée sans annotation (#2382).
     timeout-minutes: 15
     strategy:
       # Une part rouge n'arrête pas les autres : le job dit tout ce qui casse sous Windows, en un run.
       fail-fast: false
       matrix:
-        part: [1, 2, 3, 4]
+        part: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
       # du dépôt y attendent les `\n` du dépôt.
@@ -52,4 +54,4 @@ jobs:
         run: mkdir -p /tmp
       - name: Tests du runtime
         working-directory: runtime
-        run: node test/support/windows.ts --part ${{ matrix.part }}/4
+        run: node test/support/windows.ts --part ${{ matrix.part }}/8

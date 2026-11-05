@@ -38,6 +38,7 @@ import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
+import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherCadence } from "../produit/cadence/brancher.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
@@ -240,6 +241,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
               avertir: dire,
               observer: suiviDuTour.envelopper,
+              // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+              clone: station.clone,
             });
         if ("refus" in ouverte) stationRefusee = true;
         return ouverte;
@@ -315,8 +318,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     const mentions = mentionsDuTableau({ client: clientDesGestes, journal: connectee.journal, projet, avertir: dire });
     // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
-    const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
-    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire, ouvertes });
+    const githubDuTableau = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) });
+    const ouvertes = ouvertesDuDepot(githubDuTableau);
+    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire, ouvertes, commentaires: (numero) => githubDuTableau.commentaires(numero) });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();
@@ -328,6 +332,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     throw erreur;
   }
 
+  // Le mode se retient aussi pour `status`, qui le dit avec les appels de chaque identité (#2316).
+  noterLeModeDesIdentites(envProjet, projet, identites !== null);
   dire(
     identites
       ? `GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`

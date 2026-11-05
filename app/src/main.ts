@@ -39,6 +39,7 @@ import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLeTodoGithub } from "./tableau/todo-github.ts";
 import type { MemoireDesLectures } from "./tableau/rail-github.ts";
+import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { avecLeRailGithub } from "./vue/rail/github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
@@ -230,10 +231,19 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 const interrupteursDuRail = new Map<string, boolean>();
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
+// Ses stations, sur l'onglet Cooks, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
+// (#2358, vue/cooks/signes-de-vie.ts) : relu au pas où les stations l'écrivent, deux minutes, par la lecture des stations
+// du compte que la vue fait déjà.
+const signesDeVie = tenirLesSignesDeVie({
+  lire: async () => {
+    const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
+    return lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  },
+});
 const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
   if (!lu.lu) return lu;
-  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail);
+  const relu = await avecLeRailGithub(lu, appelerGitHub, memoireDuRail(lu.depot), interrupteursDuRail, () => signesDeVie.signes());
   return relu.lu ? avecLesEnvois(await avecLeTodoGithub(relu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : relu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
@@ -1096,6 +1106,56 @@ void duRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>(
   },
   (erreur: unknown) => console.error(`brigade: the second's proposals cannot be followed — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
 );
+// Les GitHub Apps de la station de cet ordinateur, depuis Settings (#2317, vue/identites-github.js) : ce qu'elle a
+// de chaque rôle, et en ranger une, par ce que le runtime en fait (identites-stations.ts : `appsRangees`, `rangerApp`)
+// dans le répertoire de la station. La clé ne fait que passer : rien ne la garde ici, et rien ne la rend à la vue — ni
+// la lecture, ni un refus. Un téléphone n'a pas de station : rien.
+const appsDuRuntime = () => duRuntime<typeof import("../../runtime/src/identites-stations.ts")>("identites-stations.ts");
+const codeDe = (erreur: unknown) => (erreur as NodeJS.ErrnoException | undefined)?.code ?? "error";
+ipcMain.handle("appsDeLaStation", async () => {
+  if (role.role !== "station") return undefined;
+  try {
+    const { appsRangees } = await appsDuRuntime();
+    return { apps: appsRangees(racineDeLaStation) };
+  } catch (erreur) {
+    return { refus: `this station's Apps directory cannot be read (${codeDe(erreur)})` };
+  }
+});
+ipcMain.handle("rangerUneApp", async (_, roleDeLApp: unknown, id: unknown, cle: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no station — it keeps no App" };
+  if (typeof roleDeLApp !== "string" || typeof id !== "string" || typeof cle !== "string") return { refus: "the app sent an App this station cannot read" };
+  const { AppRefusee, rangerApp } = await appsDuRuntime();
+  try {
+    const rangee = rangerApp({ station: racineDeLaStation, role: roleDeLApp, id, cle, env: process.env });
+    return { rangee: { role: rangee.role, id: rangee.id } };
+  } catch (erreur) {
+    // Le refus du runtime ne cite jamais la clé ; une écriture qui échoue, son seul code.
+    return { refus: erreur instanceof AppRefusee ? erreur.message : `the ${roleDeLApp} App could not be stored (${codeDe(erreur)})` };
+  }
+});
+// Les projets que la station de cet ordinateur sert elle-même sur GitHub seul, depuis Settings (#2359,
+// vue/projets-servis/) : la liste qu'elle tient dans son répertoire, lue et écrite par ce que le runtime en fait
+// (station-ordinateur/projets-servis.ts). Elle la relit à son tour suivant. Un téléphone n'a pas de station : rien.
+const projetsServisDuRuntime = () => duRuntime<typeof import("../../runtime/src/station-ordinateur/projets-servis.ts")>("station-ordinateur", "projets-servis.ts");
+ipcMain.handle("projetsServis", async () => {
+  if (role.role !== "station") return undefined;
+  try {
+    const { lireProjetsServis } = await projetsServisDuRuntime();
+    return { depots: lireProjetsServis(racineDeLaStation) };
+  } catch (erreur) {
+    return { refus: erreur instanceof Error ? erreur.message : `this station's served projects cannot be read (${codeDe(erreur)})` };
+  }
+});
+ipcMain.handle("servirUnProjet", async (_, depot: unknown, servi: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no station — it serves no project" };
+  if (typeof depot !== "string" || typeof servi !== "boolean") return { refus: "the app sent a project this station cannot read" };
+  try {
+    const { ajouterProjetServi, retirerProjetServi } = await projetsServisDuRuntime();
+    return { depots: servi ? ajouterProjetServi(racineDeLaStation, depot) : retirerProjetServi(racineDeLaStation, depot) };
+  } catch (erreur) {
+    return { refus: erreur instanceof Error ? erreur.message : `the served projects could not be written (${codeDe(erreur)})` };
+  }
+});
 // Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
 // celles-là s'ouvrent depuis l'écran.
 const pagesDuPremier = new Set<string>();
@@ -1114,6 +1174,7 @@ ipcMain.handle("stationsDuChef", async (): Promise<StationsDuChef> => {
 ipcMain.handle("stationsDuCompte", async (): Promise<StationsDuCompte> => {
   const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
   const lu = await lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  signesDeVie.poser(lu);
   if (lu.state === "unavailable") return retenirLaPage(lu);
   const github = githubDesStations({ gh: ghIci, delaiMs: 30_000 });
   return avecLeursAjouts(lu, (id) => github.lire(id));

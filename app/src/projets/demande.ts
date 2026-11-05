@@ -90,6 +90,9 @@ export type Selections = Record<string, string>;
 // Le temps de l'ajout du projet à son premier ticket servi (#1401, runtime/src/installation/delai/) : `ajouteLe` (ISO),
 // `serviLe` (ISO, ou null tant qu'aucun ticket n'est servi) et `duree` (millisecondes, figée, ou null).
 export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | null };
+// Les temps des derniers tickets mesurés du projet, tels que sa principale les lit dans `.claude/brigade/` (#2346,
+// runtime/src/temps-ticket/) : les enregistrements (secondes entières ; la vue écarte les illisibles) et le plafond en minutes.
+export type TempsPublie = { enregistrements: unknown[]; tempsMaxTicketMin: number };
 // `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
 // tient (#1756, runtime/src/projets/secondaires.ts) — déclarées à son journal, chacune par son gist, avec ce qu'elle
 // fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
@@ -98,7 +101,7 @@ export type SecondaireTenue = { nom: string; station: string; gist: string; cook
 // runtime/src/projets/rejoindre.ts) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
 // en une phrase (`phrase`), sans en ouvrir une seconde. Absent quand aucune autre station ne le sert.
 export type Rejoindre = { issue: "rejointe"; principale: string } | { issue: "refusee"; phrase: string };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; choix?: Choix[]; secondaires?: SecondaireTenue[]; rejoindre?: Rejoindre; depot: string | null; base: string | null; cooks: number | null };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; temps?: TempsPublie; choix?: Choix[]; secondaires?: SecondaireTenue[]; rejoindre?: Rejoindre; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -251,6 +254,13 @@ function lireDelai(lu: unknown): Delai | null {
   return servi !== null && typeof duree === "number" && Number.isFinite(duree) && duree >= 0 ? { ajouteLe: ajoute, serviLe: servi, duree } : { ajouteLe: ajoute, serviLe: null, duree: null };
 }
 
+// Les temps publiés d'un projet. Absents ou illisibles : rien — la vue dit alors que la station ne les publie pas.
+function lireTemps(lu: unknown): TempsPublie | null {
+  const { enregistrements, tempsMaxTicketMin } = (lu ?? {}) as Record<string, unknown>;
+  if (!Array.isArray(enregistrements)) return null;
+  return { enregistrements, tempsMaxTicketMin: typeof tempsMaxTicketMin === "number" && Number.isFinite(tempsMaxTicketMin) && tempsMaxTicketMin > 0 ? tempsMaxTicketMin : 15 };
+}
+
 // Ce que la station a écrit de ses projets demandés. Absent ou illisible : rien encore.
 export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
   if (brut === undefined) return [];
@@ -258,11 +268,12 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, choix, secondaires, rejoindre, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, temps, choix, secondaires, rejoindre, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       const echecDuClone = lireClone(clone);
       const lesBlocages = Array.isArray(blocages) ? blocages.flatMap(lireUnBlocage) : [];
       const leDelai = lireDelai(delai);
+      const lesTemps = lireTemps(temps);
       const lesChoix = Array.isArray(choix) ? choix.flatMap(lireUnChoix) : [];
       const lesSecondaires = Array.isArray(secondaires) ? secondaires.flatMap(lireUneSecondaire) : [];
       const laJonction = lireRejoindre(rejoindre);
@@ -282,6 +293,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           ...(echecDuClone === null ? {} : { clone: echecDuClone }),
           ...(lesBlocages.length === 0 ? {} : { blocages: lesBlocages }),
           ...(leDelai === null ? {} : { delai: leDelai }),
+          ...(lesTemps === null ? {} : { temps: lesTemps }),
           ...(lesChoix.length === 0 ? {} : { choix: lesChoix }),
           ...(lesSecondaires.length === 0 ? {} : { secondaires: lesSecondaires }),
           ...(laJonction === null ? {} : { rejoindre: laJonction }),

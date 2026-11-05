@@ -83,7 +83,8 @@ a place of its own.
 4. **Download each App's private key** (*Private keys → Generate a private key*). It is a `.pem`
    file, given once.
 5. **Hand the three IDs and keys to the app**, which gives them to any station that runs the
-   project. A station receives them from the app, never from a file it keeps by hand.
+   project: on the computer that runs the station, Settings → **this machine** → `GitHub Apps`, one
+   line per role (`docs/app.md`, "This station's GitHub Apps, in Settings"). A station receives them from the app, never from a file it keeps by hand.
 6. **Reserve the merge** with a branch rule — add a rule, do not remove one. An active *ruleset*
    on the integration branch (*Settings → Rules → Rulesets*, or `gh api -X POST
    repos/<owner>/<repo>/rulesets`) with **Restrict updates**, **Restrict deletions**, **Block force
@@ -127,7 +128,10 @@ member or a collaborator. A comment posted by an App (`<app>[bot]`) is likely to
 so trusting the project's own Apps there is the next step.
 
 At start the runtime states its mode: `GitHub — une identité par rôle (cook, pass, manager) …` or
-`GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). A badly
+`GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). `status` says
+the same mode, `GitHub — one identity per role` or the single-identity line, with the calls counted
+under each identity — cook, pass, manager, the chef's account (see "Calls by identity" in
+[`station-machine.md`](station-machine.md)). A badly
 installed App does not refuse the start: journald says so from the first tick (`identité « pass » :
 son App (…) n'est pas installée sur <owner>/<repo>`), and nothing leaves under that role. What
 remains unguaranteed: "What the pass does not guarantee" in [`pass-merge.md`](pass-merge.md).
