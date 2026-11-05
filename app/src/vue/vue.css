@@ -426,6 +426,18 @@ main > header,
 #delai-du-projet .delai[data-delai="fige"] {
   color: var(--texte);
 }
+/* Le plus lent du projet (ticket 2351) : une ligne douce, comme le délai ci-dessus. */
+#lenteur-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#lenteur-du-projet .lenteur {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--texte-doux);
+}
 /* Les temps des derniers tickets (ticket 2346) : une carte ; la médiane en grand, le plus lent dessous, le partage en
    cinq phases. Passé le plafond, la carte vire au rouge et le dit en toutes lettres — pas seulement par la couleur. */
 #temps-ticket-du-projet {

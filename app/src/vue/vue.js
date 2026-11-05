@@ -103,6 +103,7 @@ import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, RE
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
+import { poserLaLenteur } from "./projet/lenteur.js";
 import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
@@ -627,6 +628,7 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que sa principale le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+const lenteurDuProjet = element("lenteur-du-projet");
 const tempsTicketDuProjet = element("temps-ticket-du-projet");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
@@ -6713,6 +6715,7 @@ function poserStationsDuProjet() {
     poserLesChoix(undefined);
     poserLesBlocages(undefined);
     poserLeDelai(undefined);
+    poserLaLenteurDuProjet(undefined);
     poserLesTempsDesTickets(undefined);
     return;
   }
@@ -6758,6 +6761,7 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
+  poserLaLenteurDuProjet(projet);
   poserLesTempsDesTickets(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
@@ -6806,6 +6810,15 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+// Ce qui est le plus lent dans le projet affiché (ticket 2351) : la phrase que la station publie sous `lenteur` du
+// projet vu, ou rien. Le champ n'est pas encore dans `ProjetVu` (projets.ts) : l'app ne lit que ce qui est publié.
+/** @param {Projet | undefined} projet */
+function poserLaLenteurDuProjet(projet) {
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const pose = poserLaLenteur(document, /** @type {{ lenteur?: import("./projet/lenteur.js").Lenteur | null } | undefined} */ (vu)?.lenteur);
+  lenteurDuProjet.hidden = pose === null;
+  lenteurDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
 // Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide ; la station qui n'en publie pas le dit.
 /** @param {Projet | undefined} projet */
