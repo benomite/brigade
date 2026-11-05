@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DUREES_GARDEES, enregistrerDuree, fichierDesDurees, lireDurees } from "../src/lenteur/durees.ts";
+import { DUREES_GARDEES, enregistrerDuree, fichierDesDurees, lireDurees, noterDureeDeLaCi, noterDureeDesGates, noterDureeEntre } from "../src/lenteur/durees.ts";
 import { ETATS } from "../src/station/configuration.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -92,4 +92,44 @@ test("hors station, le process retient les durées de son seul projet, dans son 
   assert.equal(fichierDesDurees("web", ou), join(etat, "durees.json"));
   assert.deepEqual(lireDurees("web", ou), { ci: [], gates: [12], tests: [] });
   assert.deepEqual(lireDurees("shop", ou), { ci: [], gates: [], tests: [] });
+});
+
+test("les crochets des gates et des tests retiennent ce que leurs sites ont déjà dans les mains", (t) => {
+  const ou = { env: { BRIGADE_STATION_DIR: repertoireTemporaire(t) } };
+  // Un passage des gates et ce qu'il a coûté, tel que `jouerGatesMesurees` le rend.
+  assert.equal(noterDureeDesGates("web", { durationMs: 41_250, cpuMs: 90_000 }, ou), true);
+  // Le setup en échec : les gates n'ont pas tourné.
+  assert.equal(noterDureeDesGates("web", null, ou), false);
+  // Des tests, de leur lancement à leur résultat.
+  assert.equal(noterDureeEntre("web", "tests", "2026-11-05T10:00:00.000Z", "2026-11-05T10:00:18.500Z", ou), true);
+  assert.equal(noterDureeEntre("web", "tests", new Date("2026-11-05T10:01:00Z"), Date.parse("2026-11-05T10:01:03Z"), ou), true);
+  assert.equal(noterDureeEntre("web", "tests", "2026-11-05T10:00:05Z", "2026-11-05T10:00:00Z", ou), false);
+  assert.equal(noterDureeEntre("web", "tests", "jamais", "2026-11-05T10:00:00Z", ou), false);
+  assert.deepEqual(lireDurees("web", ou), { ci: [], gates: [41.25], tests: [18.5, 3] });
+});
+
+test("le crochet de la CI retient un run fini une fois par commit, même relu après un redémarrage", async (t) => {
+  const station = repertoireTemporaire(t);
+  const ou = { env: { BRIGADE_STATION_DIR: station } };
+  const sha = "a".repeat(40);
+  const jobs = [
+    { started_at: "2026-11-05T10:00:00Z", completed_at: "2026-11-05T10:03:00Z" },
+    { started_at: "2026-11-05T10:00:30Z", completed_at: "2026-11-05T10:05:12Z" },
+  ];
+  // Un job qui tourne encore : la CI n'est pas finie.
+  assert.equal(noterDureeDeLaCi("web", sha, [jobs[0]!, { started_at: "2026-11-05T10:00:30Z", completed_at: null }], ou), false);
+  assert.equal(noterDureeDeLaCi("web", sha, [], ou), false);
+  assert.equal(noterDureeDeLaCi("web", sha, jobs, ou), true);
+  // Le sondage suivant relit la même CI : elle est déjà comptée.
+  assert.equal(noterDureeDeLaCi("web", sha, jobs, ou), false);
+  const neuf = (await import(new URL("../src/lenteur/durees.ts?redemarrage-ci", import.meta.url).href)) as typeof import("../src/lenteur/durees.ts");
+  assert.equal(neuf.noterDureeDeLaCi("web", sha, jobs, ou), false);
+  // Un autre commit, ou le même commit sur un autre projet, compte.
+  assert.equal(noterDureeDeLaCi("web", "b".repeat(40), jobs.slice(0, 1), ou), true);
+  assert.equal(noterDureeDeLaCi("shop", sha, jobs, ou), true);
+  assert.deepEqual(lireDurees("web", ou), { ci: [312, 180], gates: [], tests: [] });
+  assert.deepEqual(lireDurees("shop", ou), { ci: [312], gates: [], tests: [] });
+  // Les autres genres s'écrivent sans rien oublier des commits vus.
+  enregistrerDuree("web", "gates", 7, ou);
+  assert.equal(noterDureeDeLaCi("web", sha, jobs, ou), false);
 });
