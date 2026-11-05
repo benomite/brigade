@@ -18,6 +18,7 @@
 //     `cook/<n>-github` — reprise de l'origine si une PR ouverte la porte —,
 //     lancé dans le bac à sable du poste : la station qui n'en a pas ne
 //     reçoit rien ;
+//     Pas de ticket neuf non plus tant que `PASS_MAX` livraisons sont en pass ;
 //   - renouveler : accepté tant que la station tient le ticket sur l'issue ;
 //     le chef qui retire `taken` ou `fire` arrête son cook ;
 //   - rendre : livré, sa branche est sur l'origine — sa PR s'ouvre, le ticket
@@ -36,7 +37,7 @@
 import { existsSync } from "node:fs";
 import type { Fichiers } from "../appairage/canal.ts";
 import { configurerLeCook, constater, dansLeBacASable } from "../bac-a-sable/ordinaires.ts";
-import { brancheDuTicket, runDuTicket, secoupent, zoneDuCorps, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
+import { brancheDuTicket, enPass, PASS_MAX, runDuTicket, secoupent, zoneDuCorps, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
 import { calibrage as calibrageDesLabels, complet } from "../calibrage.ts";
 import { argumentsClaude, consigne } from "../claude.ts";
 import type { Demande, Mission, Refus, Reponse } from "../events/remote.ts";
@@ -124,7 +125,10 @@ export async function repondreSurGitHubSeul(options: OptionsDeLaReponse): Promis
       const limits = etatDesGardeFous(journal.base).limits;
       if (limits === null) return { reponse: { ok: false, verb: "claim", refusal: "invalid", said: "guardrails without caps in the log: no cook leaves without them" }, dit: "refusé, les garde-fous du projet n'ont pas de plafonds au journal", ticket: null };
       // Libres, comme le tour les lit : ni pris, ni en pass, ni en attente, ni hors cuisine.
-      const libres = (await github.fires())
+      const lus = await github.fires();
+      // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende (#2300).
+      if (enPass(lus) >= PASS_MAX) return rien(null, `rien à prendre, ${PASS_MAX} livraisons ou plus sont en pass`);
+      const libres = lus
         .filter((ticket) => !ticket.labels.includes(HORS_CUISINE) && !ticket.labels.includes(LABEL_IN_PASS) && !ticket.labels.includes(LABEL_TAKEN) && etatDuTicket({ state: ticket.state, labels: ticket.labels, pr: null }) === null)
         .sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
       let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;

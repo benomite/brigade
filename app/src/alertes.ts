@@ -216,6 +216,26 @@ function desRetenues(faits: Faits | Sans): Alerte[] {
   }));
 }
 
+// --- L'interrupteur GitHub seul refusé ----------------------------------------------
+//
+// L'interrupteur est allumé dans les réglages du projet et le runtime l'a refusé : il garde l'ancien chemin, et
+// ne le dit que dans son log. `facts` porte la raison (`githubSeul`, ticket 2161) ; la ligne la redit, en tête.
+function duRefusDeGitHubSeul(faits: Faits | Sans): Alerte[] {
+  if ("sans" in faits || faits.githubSeulRefuse === undefined) return [];
+  const { reason } = faits.githubSeulRefuse;
+  return [
+    {
+      sujet: "cuisine",
+      verifie: true,
+      ton: "jaune",
+      dit: `GitHub-only state refused: ${reason} — the old path is kept`,
+      pourquoi: "the setting is on in the project, but this runtime cannot serve it, so it runs the old state path",
+      geste: "lift what the runtime refuses, then restart it",
+      prix: AUCUN,
+    },
+  ];
+}
+
 // --- Le manager ---------------------------------------------------------------
 
 // L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit. Tant que la file ne porte
@@ -651,7 +671,7 @@ const avecBouton = (alerte: Alerte): Alerte => {
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+  return parGravite([...deLUrgence(faits), ...duRefusDeGitHubSeul(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,

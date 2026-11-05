@@ -32,6 +32,13 @@ The "cook" identity is the one under which the **station** delivers. The cook's 
   `runs/<run>.ticket.md` — title, body, comments with author — outside the worktree. Unreadable
   then: **no cook is launched**, the ticket goes **86** for ten minutes (`ticket-unreadable`), then
   returns to queued.
+- **On the GitHub-only path** (`brigade-github.ts`), the ticket is in the cook's prompt itself,
+  between `<ticket>` and `</ticket>`: body, the zone of its card, the card and the last eight
+  comments (claim marks left out), bounded so the prompt stays a valid argument
+  (`bac-a-sable/hors-github.ts`). Unreadable: no cook, the ticket is released with the reason on
+  the issue. Its environment loses the `gh` tokens on every machine, and `GH_CONFIG_DIR` too in
+  the Mac's sandbox, where `gh` then meets the forbidden `~/.config/gh`. The station pushes the
+  branch and opens the PR, under the cook identity when each role has one.
 - What the station writes on the issue goes out under the **manager** identity: commenting needs
   `issues: write`, which also allows closing and labelling — the cook identity cannot.
 
@@ -56,42 +63,75 @@ stays what the runtime assumes.
 
 ### What you create at GitHub
 
-Once per project, by someone who administers the organization. **This path could not be played from
-a dev session**: it is the recipe.
+Once per project, by the chef, on his **personal GitHub account**. No organization is needed. Every
+station is equal: each receives the three App IDs and keys through the app, and none keeps them in
+a place of its own.
 
-1. **Three GitHub Apps**, on the **organization** (*Settings → Developer settings → GitHub Apps*),
-   named `<project>-cook`, `<project>-pass`, `<project>-manager`. No webhook, no organization or
-   account right, *Only on this account*. Repository rights — cook: *Contents* and *Pull requests*
-   read/write; pass: the same, plus *Issues* read/write, *Checks* and *Commit statuses* read;
-   manager: *Issues* read/write. **No *Workflows* right** for the cook App: a ticket touching
-   `.github/workflows/` cannot be pushed, and its failure says so. Giving less makes the token be
-   refused (`jeton refusé`, journald, French).
-2. **Install each on the project's repository alone** (*Only select repositories*), noting its
-   **private key** (`.pem`, given once) and *App ID*.
-3. **On the box**, a directory only the service account reads:
+1. **Create three GitHub Apps** on your account (*Settings → Developer settings → GitHub Apps →
+   New GitHub App*), named `<project>-cook`, `<project>-pass` and `<project>-manager`. For each: no
+   webhook, *Only on this account*, no organization or account right, and the repository rights of
+   its role:
+   - **cook**: *Contents* and *Pull requests*, read and write. **No *Workflows* right**: a ticket
+     touching `.github/workflows/` cannot be pushed, and its failure says so.
+   - **pass**: *Contents* and *Pull requests*, read and write; *Issues*, read and write; *Checks*
+     and *Commit statuses*, read.
+   - **manager**: *Issues*, read and write.
 
-   ```bash
-   sudo install -d -m 700 -o <account> /etc/brigade/<project>/apps
-   # For each of the three roles: cook, pass, manager
-   echo <App ID> | sudo -u <account> tee /etc/brigade/<project>/apps/<role>.id
-   sudo install -m 600 -o <account> <the downloaded key>.pem /etc/brigade/<project>/apps/<role>.pem
-   ```
-
-   then in the drop-in: `Environment=BRIGADE_GITHUB_APPS_DIR=/etc/brigade/<project>/apps`. A missing
-   file, a key readable by anyone else, a non-key file, or two roles under one App: the runtime
-   **refuses to start**, naming the file. Never copy these keys into the drop-in, a readable backup
-   or the repository.
-4. **Remove the GitHub account from the machine**: `sudo -u <account> gh auth logout`, no SSH key of
-   the account at GitHub, no `GH_TOKEN` in the drop-in. On a private repository, make the first
-   clone with a token of yours, not left in `origin`'s address.
-5. **The branch rule that reserves the merge** — add a rule, do not remove one. An active *ruleset*
+   Giving less makes GitHub refuse the token (`jeton refusé`, in journald).
+2. **Install each App on the project's repository alone** (*Install App → Only select repositories*).
+3. **Note each App ID** (shown on the App's settings page).
+4. **Download each App's private key** (*Private keys → Generate a private key*). It is a `.pem`
+   file, given once.
+5. **Hand the three IDs and keys to the app**, which gives them to any station that runs the
+   project: on the computer that runs the station, Settings → **this machine** → `GitHub Apps`, one
+   line per role (`docs/app.md`, "This station's GitHub Apps, in Settings"). A station receives them from the app, never from a file it keeps by hand.
+6. **Reserve the merge** with a branch rule — add a rule, do not remove one. An active *ruleset*
    on the integration branch (*Settings → Rules → Rulesets*, or `gh api -X POST
    repos/<owner>/<repo>/rulesets`) with **Restrict updates**, **Restrict deletions**, **Block force
    pushes** (`update`, `deletion`, `non_fast_forward`); in the *Bypass list*, the **pass** App
-   (`Integration`, *Always*) and the humans who merge. Neither the cook nor manager App.
+   (`Integration`, *Always*) and the humans who merge. Neither the cook nor the manager App.
+
+**Keys are never written to the repository, a backup or a log.** A `.pem` is a secret: do not commit
+it, do not copy it into a backup, do not paste it into a log, a comment or an issue. The App IDs are
+not secret, but they stay with the keys they belong to.
+
+### Where a station keeps them
+
+Each station keeps the three Apps in **its own directory**, `<BRIGADE_STATION_DIR>/apps-github/`:
+`<role>.id` and `<role>.pem` for cook, pass and manager. The directory is `700` and each file `600`,
+readable by the station's service account alone. This is the same on the box and on the chef's Mac.
+The app stores one role at a time (`runtime/src/identites-stations.ts`):
+
+```bash
+BRIGADE_STATION_DIR=<station> node src/identites-stations.ts store <role> <App ID> < <key>.pem
+BRIGADE_STATION_DIR=<station> node src/identites-stations.ts show
+```
+
+The key arrives on standard input, never as an argument, and is never printed back: `show` gives each
+role's App ID and whether its key is there. Storing refuses a file that is not a private key, an
+unknown role, one App for two roles, an existing directory open to other accounts (`chmod 700`;
+nothing is written), and a directory inside a git repository or under `BRIGADE_STATE_DIR`,
+`BRIGADE_BACKUP_DIR` or `BRIGADE_REPO_DIR`. The directory sits next to the projects' state (`etat/`),
+never under it, so a backup never copies it. Every line of a key that is read or stored goes into the
+identifiers mask, so journald, the log and the published texts show `[jeton Claude masqué]` instead.
+
+A project opened after the three Apps are stored acts under them: no restart of the station is
+needed for a project not yet open. **No App stored**: the single identity, as before. **Some roles
+stored but not all**, or a directory open to others: the project **refuses to open**, and the
+missing files are named. `BRIGADE_GITHUB_APPS_DIR`, the box's older setting, is still read first when
+it is set.
+
+On the GitHub-only path, every station claims, labels, judges, merges and reads under the **pass**
+App, and opens the cook's PR under the **cook** App. The rail and the manager act under the
+**manager** App. **Still open**: the claim and verdict readers only trust comments from the owner, a
+member or a collaborator. A comment posted by an App (`<app>[bot]`) is likely to count as `NONE`,
+so trusting the project's own Apps there is the next step.
 
 At start the runtime states its mode: `GitHub — une identité par rôle (cook, pass, manager) …` or
-`GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). A badly
+`GitHub — identité unique … rien ne réserve le merge à la pass` (French until translated). `status` says
+the same mode, `GitHub — one identity per role` or the single-identity line, with the calls counted
+under each identity — cook, pass, manager, the chef's account (see "Calls by identity" in
+[`station-machine.md`](station-machine.md)). A badly
 installed App does not refuse the start: journald says so from the first tick (`identité « pass » :
 son App (…) n'est pas installée sur <owner>/<repo>`), and nothing leaves under that role. What
 remains unguaranteed: "What the pass does not guarantee" in [`pass-merge.md`](pass-merge.md).

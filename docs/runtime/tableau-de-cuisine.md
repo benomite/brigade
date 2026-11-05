@@ -35,8 +35,8 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 |---|---|
 | `projet` | The project's name, as the log knows it; `null` for an empty log |
 | `lu` | When the state was read. No line counts a duration up to it: the body writes absolute times (`since 2026-10-12 10:00 UTC`, `lease until …`), and the app computes « 4 min ago » itself |
-| `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` |
-| `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed |
+| `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status`, plus a failed base-red repair (`quoi: "base-rouge"`, no gesture) with its reason |
+| `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed, and a red base whose repair is cooking (an open ticket carrying `<!-- brigade:base-rouge sha=… -->`: “The base is red at …: a repair is cooking”) |
 | `cuisine` | The kitchen's state |
 | `gestes` | The chef's latest gestures read under the board, oldest first ([`../tableau-gestes.md`](../tableau-gestes.md), "What the apps read") |
 | `faits` | The rail view's facts: the object of `facts` |
@@ -137,7 +137,10 @@ answers as it does `pull`, one request at a time. The answer is published here
 | `attributions[]` | Each ticket a remote station holds: `ticket`, `station`, `run`, `bailJusqua` — its lease's end, which a renewal moves forward. A station that goes silent lets it pass: the main station stops its cook and the ticket returns to the rail |
 | `reponses[]` | The latest answer to each slot of each station, for fifteen minutes: `demande` (the request's `id`), `station`, `geste` (`announce`, `claim`, `renew`, `deliver`), `run` (`null` for a claim), `le`, `reponse` — what `pull` would have printed, except a claimed mission's `args`, published without the brief (`args` is `["-p", prompt, ...suiteDesArgs]`) |
 
-`distantes` is never removed from a body that is too long: it is the arbitration itself, and bounded.
+`distantes` is the last thing removed from a body that is too long (see `resserre`): it is the only
+channel through which a second station reads its mission and the answers to its renewals. Removed,
+the box lends a ticket the station never sees, and stops it at the idleness cap with 0 turns and 0
+tokens (#2095).
 
 ### `activites` — what each cook is doing, for an app connected to GitHub
 
@@ -200,15 +203,15 @@ GitHub refuses a body over 65,536 characters. Too long, the body first shortens 
 then removes from the block, in this order, until it fits; each step that removed something is named
 in `resserre`:
 
-1. `distantes` — the remote stations' relay (the old path epic #2053 removes);
-2. `activites.etapes` — each cook's past steps: what it does right now stays;
-3. `faits.livres.relecture` — the reviews of the served tickets;
-4. `gestes` — the chef's gestures already played;
-5. `activites` — what each cook does, whole;
-6. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
-7. `faits.corrections.diff` — the proposed corrections' diffs;
-8. `avantLeRail.dit` — each `dit` becomes `""`, the issues and their state stay;
-9. `avantLeRail` — the issues before the rail, whole.
+1. `activites.etapes` — each cook's past steps: what it does right now stays;
+2. `faits.livres.relecture` — the reviews of the served tickets;
+3. `gestes` — the chef's gestures already played;
+4. `activites` — what each cook does, whole;
+5. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
+6. `faits.corrections.diff` — the proposed corrections' diffs;
+7. `avantLeRail.dit` — each `dit` becomes `""`, the issues and their state stay;
+8. `avantLeRail` — the issues before the rail, whole;
+9. `distantes` — the remote stations' relay, last: a second station cooks through it alone.
 
 The rail (`faits`, `lignesDuRail`), the queue with its cards (TODO) and `cuisine` are **never** removed
 (`faits` and `lignesDuRail` stay in the type only to read a block written before). The readable part

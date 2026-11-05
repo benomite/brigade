@@ -58,9 +58,18 @@ export function constater(dit: unknown, hotes: Regle[]): Constat {
   return { disponible: true, poste };
 }
 
-// La configuration du bac à sable du cook de ce run, sur ce poste.
+// Le fichier où la station remet son ticket au cook de ce run : à côté de son
+// worktree, comme son flux — hors de ce qui se commite. Dans le bac à sable,
+// `gh` n'a aucun identifiant (`~/.config/gh` et le trousseau sont refusés) :
+// le cook n'y lirait pas son ticket, et s'arrêterait sans rien faire (#2095).
+export function ticketRemisAuCook(poste: Pick<Poste, "worktrees">, run: string): string {
+  return `${posix.join(poste.worktrees, run)}.ticket.md`;
+}
+
+// La configuration du bac à sable du cook de ce run, sur ce poste : il y lit
+// le ticket que la station lui remet, et rien d'autre hors de son worktree.
 export function configurerLeCook(poste: Poste, run: string, hotes: Regle[]): ConfigDeBacASable {
-  return configurer({ worktree: posix.join(poste.worktrees, run), caches: poste.caches, hotes, home: poste.home });
+  return configurer({ worktree: posix.join(poste.worktrees, run), caches: poste.caches, hotes, home: poste.home, lit: [ticketRemisAuCook(poste, run)] });
 }
 
 // Les arguments d'un cook (`argumentsClaude`), lancé dans le bac à sable : son

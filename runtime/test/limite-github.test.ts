@@ -491,6 +491,9 @@ test("what counts as a write in a `gh api` call", () => {
   assert.equal(estUneEcriture(["--method=DELETE", "repos/o/r/issues/1/labels/taken"]), true);
   assert.equal(estUneEcriture(["-X", "GET", "repos/o/r/issues", "-f", "state=open"]), false);
   assert.equal(estUneEcriture(["-i", "repos/o/r/issues/1/comments"]), false);
+  // A GraphQL call is a POST, but only a mutation writes (#2301).
+  assert.equal(estUneEcriture(["graphql", "-f", "query=query($o: String!) { repository(owner: $o) { id } }"]), false);
+  assert.equal(estUneEcriture(["graphql", "-f", "query=mutation { addStar(input: {}) { clientMutationId } }"]), true);
 });
 
 // La file des appels (#2195) : au plus `REQUETES_EN_VOL` requêtes en vol, et les

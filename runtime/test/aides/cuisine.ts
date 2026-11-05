@@ -8,6 +8,7 @@ import { avecRail } from "../../src/alimenter.ts";
 import type { Arbitrage } from "../../src/arbitrage.ts";
 import type { Session } from "../../src/claude.ts";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
+import { ecrireSecret } from "../../src/droits.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
 import type { Check } from "../../src/events/pass.ts";
 import type { BacASableLocal } from "../../src/bac-a-sable/local.ts";
@@ -210,6 +211,7 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     diff: async (numero) => diffs.get(numero) ?? "",
     journalDuCheck: async (check) => journauxDeCI.get(check.name) ?? null,
+    etatDuRun: async () => ({ tentative: 1, termine: true }),
     async relancerLesEchecs(run) {
       if (pannes.relance) throw new Error(`gh api repos/${DEPOT}/actions/runs/${run}/rerun-failed-jobs : HTTP 403`);
       relances.push(run);
@@ -571,7 +573,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: { ...ENV_GIT, ...options.env } }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined, options.secrets?.declares);
   // Le fichier de la machine vit hors de l'état, comme sur la box.
   const fichierSecrets = join(repertoireTemporaire(t), "secrets.env");
-  const poserSecrets = (valeurs: string) => writeFileSync(fichierSecrets, valeurs, { mode: 0o600 });
+  // Écrit comme le runtime écrit les siens : sous Windows, `mode` n'y fait rien,
+  // et l'ACL héritée du répertoire temporaire l'ouvrirait aux Administrators.
+  const poserSecrets = (valeurs: string) => ecrireSecret(fichierSecrets, valeurs);
   if (options.secrets && options.secrets.valeurs !== null) poserSecrets(options.secrets.valeurs);
   const secretsDeLaMachine = options.secrets && options.secrets.valeurs !== null ? fichierSecrets : null;
   const depotDuTest = options.depot?.(depot) ?? depot;

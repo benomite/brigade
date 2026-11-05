@@ -55,6 +55,11 @@ export type Mission = {
   prompt: string;
   args: string[];
   sandbox?: true;
+  // Dans le bac à sable, le cook n'a aucun accès à GitHub : la station lit
+  // son ticket et ses commentaires par son propre `gh`, et les écrit dans ce
+  // fichier — `<worktree>.ticket.md` — avant de le lancer. Sa consigne le
+  // nomme, et sa configuration l'autorise à le lire.
+  ticketFile?: string;
   limits: Plafonds;
   leaseMs: number;
   leaseUntil: string;

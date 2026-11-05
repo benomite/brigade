@@ -7,8 +7,9 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
-import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, lectureDe, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -59,6 +60,8 @@ export type PR = {
   state: "open" | "closed";
   merged: boolean;
   enRetard: boolean;
+  // Sa branche ne se fusionne pas avec la base : un conflit, que seul un cook résout.
+  enConflit?: boolean;
   mergeePar: string | null;
   // Ce qui change dès que GitHub change quoi que ce soit à la PR — sa tête, sa
   // base, ce qu'il dit de sa fusion — : l'ETag de sa fiche. Absent s'il n'en
@@ -110,9 +113,14 @@ export type GitHub = {
   prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
+  // Une requête GraphQL de lecture, ses variables en texte : son `data`, ou une erreur.
+  lireGraphql?(requete: string, variables: Record<string, string | number>): Promise<unknown>;
   // Les checks des derniers commits de la branche d'intégration, mis bout à
   // bout : de quoi dire quel job y a déjà été vu vert.
   ciDeLaBase(branche: string): Promise<Check[]>;
+  // Le sha du dernier commit de la branche d'intégration. Facultatif : seul le
+  // client réel le porte (`brigade-github.ts`, le contrôle de la base).
+  teteDeLaBase?(branche: string): Promise<string>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
@@ -120,6 +128,9 @@ export type GitHub = {
   journalDuCheck(check: Check): Promise<string | null>;
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
+  // La tentative en cours d'un run de GitHub Actions (1 tant qu'il n'a pas été
+  // relancé), et si elle est finie.
+  etatDuRun(run: number): Promise<{ tentative: number; termine: boolean }>;
   // Remplace, sur l'issue, le commentaire dont le corps est `ancien` par
   // `nouveau` : rend faux si aucun ne l'est plus.
   remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
@@ -275,7 +286,7 @@ type CheckRun = { name: string; status: string; conclusion: string | null; html_
 type Statut = { context: string; state: string; target_url: string | null };
 
 // Les conclusions d'un job qui ne sont pas un échec.
-const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
+export const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
 
 function lire(brute: IssueBrute): Issue {
   return {
@@ -329,8 +340,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     // la liste des process.
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    return appelerGitHub(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant }, async (appel) => {
+    return appelerGitHub(limite, { usage: options.usage, compte, etiquette: etiquetteDe(args, { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), usage: options.usage }), gh: bin, env: environnement, maintenant: options.maintenant }, async (appel) => {
       await environnement();
+      // Une écriture qui part est comptée à la minute, une fois la pause passée.
+      if (estUneEcriture(args)) mesuresGitHubDuProcess().noterEcriture();
       const { erreur, stdout, stderr } = await (options.transport ?? parGh)(args, { bin, env, signal: abandon.signal, delaiMs: options.delaiMs ?? 30_000 });
       const reponse = decouper(stdout);
       if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
@@ -343,7 +356,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const limites = options.limitesDuCompte ?? limitesDuProcess();
       if (refusPourLimite(reponse)) {
         const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
-        limites.constater(compte, lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua }));
+        const lue = lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua });
+        limites.constater(compte, lue);
+        mesuresGitHubDuProcess().noterLimite(lue.depuis, lue.reprise);
         throw atteinte;
       }
       if (reponse.statut < 400) limites.aboutir(compte);
@@ -355,6 +370,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // réponse gardée. Deux lectures identiques en même temps n'en font qu'une.
   // `liste` : une page d'une liste que l'on feuillette.
   const enVol = new Map<string, Promise<Reponse>>();
+  // Ce qui ne peut plus changer, gardé en mémoire (#2298) : les fichiers d'une PR
+  // par sa tête, et la CI finie d'un commit. Bornés : au-delà, le plus ancien part.
+  const fichiersParTete = new Map<string, string[]>();
+  const ciFinie = new Map<string, Check[]>();
+  const memoriser = <V>(carte: Map<string, V>, cle: string, valeur: V) => {
+    carte.set(cle, valeur);
+    if (carte.size > 500) carte.delete(carte.keys().next().value as string);
+  };
   const lireSousCondition = (args: string[], liste = false): Promise<Reponse> => {
     const cle = [bin, compte, ...args].join("\0");
     const deja = enVol.get(cle);
@@ -526,28 +549,45 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         state: brute.state,
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
         enRetard: brute.mergeable_state === "behind",
+        ...(brute.mergeable_state === "dirty" ? { enConflit: true } : {}),
         mergeePar: brute.merged_by?.login || null,
         ...(version ? { version } : {}),
       };
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string } }>);
       return Promise.all(
         ouvertes.map(async ({ number, head }) => {
+          // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
+          const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
+          const gardes = cle === null ? undefined : fichiersParTete.get(cle);
+          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes };
           const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
           const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
+          if (cle !== null) memoriser(fichiersParTete, cle, fichiers);
           return { number, branche: head.ref, fichiers };
         }),
       );
     },
+    async lireGraphql(requete, variables) {
+      const args = ["graphql", "-f", `query=${requete}`, ...Object.entries(variables).flatMap(([nom, valeur]) => (typeof valeur === "number" ? ["-F", `${nom}=${valeur}`] : ["-f", `${nom}=${valeur}`]))];
+      const reponse = await appeler(args);
+      if (reponse.statut >= 400) throw new Error(`gh api graphql : HTTP ${reponse.statut}`);
+      const lu = JSON.parse(reponse.corps) as { data?: unknown; errors?: Array<{ message?: string }> };
+      if (lu.errors !== undefined && lu.errors.length > 0) throw new Error(`gh api graphql : ${lu.errors.map((e) => e.message ?? "?").join("; ")}`);
+      return lu.data;
+    },
     async ci(sha) {
+      // Une CI finie ne change plus : elle n'est relue que tant qu'un check tourne (#2298).
+      const finie = ciFinie.get(sha);
+      if (finie !== undefined) return finie;
       const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;
       const statuts = `repos/${depot}/commits/${sha}/status?per_page=100`;
       const [runs, combine] = await Promise.all([lireSousCondition([jobs]), lireSousCondition([statuts])]);
       const { check_runs = [] } = JSON.parse(exiger(runs, jobs).corps) as { check_runs?: CheckRun[] };
       const { statuses = [] } = JSON.parse(exiger(combine, statuts).corps) as { statuses?: Statut[] };
-      return [
+      const checks = [
         ...check_runs.map((run): Check => {
           const conclusion = run.status === "completed" ? (run.conclusion ?? "inconnue") : run.status;
           const outcome = run.status !== "completed" ? "pending" : CONCLUSIONS_VERTES.includes(conclusion) ? "green" : "red";
@@ -558,11 +598,21 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
         }),
       ];
+      // Gardée seulement pour un commit (40 hexadécimaux), jamais pour une branche
+      // qui avance, et seulement finie : rien qui tourne encore.
+      if (/^[0-9a-f]{40}$/.test(sha) && checks.length > 0 && checks.every((check) => check.outcome !== "pending")) memoriser(ciFinie, sha, checks);
+      return checks;
     },
     async ciDeLaBase(branche) {
       const chemin = `repos/${depot}/commits?sha=${encodeURIComponent(branche)}&per_page=${COMMITS_DE_LA_BASE}`;
       const commits = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<{ sha: string }>;
       return (await Promise.all(commits.map(({ sha }) => this.ci(sha)))).flat();
+    },
+    async teteDeLaBase(branche) {
+      const chemin = `repos/${depot}/commits/${encodeURIComponent(branche)}`;
+      const { sha } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { sha?: unknown };
+      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : commit sans sha`);
+      return sha;
     },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;
@@ -577,6 +627,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
       exiger(await appeler(["-X", "POST", chemin]), chemin, 201);
+    },
+    async etatDuRun(run) {
+      const chemin = `repos/${depot}/actions/runs/${run}`;
+      const lu = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as { run_attempt?: number; status?: string };
+      return { tentative: lu.run_attempt ?? 1, termine: lu.status === "completed" };
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);

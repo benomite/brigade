@@ -15,11 +15,11 @@ import { lireStations } from "../../src/stations-declarees.ts";
 import { superviser, type Fin, type Supervise } from "../../src/superviseur.ts";
 import type { ClientDuTableau, IssueDuTableau } from "../../src/tableau/publication/client.ts";
 import { publierLeTableau, tableauDuJournal } from "../../src/tableau/publication/publier.ts";
-import { cuisinerPourLaPrincipale, cuisinerUneMission, tenirLesCuisinesRejointes, type CuisinePourLaPrincipale } from "../../src/tirer-par-github/cuisiner.ts";
+import { cuisinerPourLaPrincipale, cuisinerUneMission, intervalleDeRenouvellement, tenirLesCuisinesRejointes, type CuisinePourLaPrincipale } from "../../src/tirer-par-github/cuisiner.ts";
 import { lecteurDuTableau } from "../../src/tirer-par-github/demander.ts";
 import { relayerLesDemandes } from "../../src/tirer-par-github/relayer.ts";
 import { chef, cuisine, issue, PLAFONDS, pousserSurLOrigine } from "../aides/cuisine.ts";
-import { BASE, DEPOT, depotGit, FAUX_CLAUDE, git, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { BASE, DEPOT, depotGit, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -233,6 +233,138 @@ test("la principale a arrêté le cook — son bail est tombé : la station l'ar
   assert.deepEqual(ranges, ["/nulle-part/run-21"]);
 });
 
+// Un cook qui tourne tant que le test ne le finit pas, et dit ce qu'il a consommé.
+function cookEnCours(mesure = { turns: 3, tokens: 900 }) {
+  let finir: (fin: Fin) => void = () => {};
+  const cook: Supervise = {
+    pid: undefined,
+    mesure: () => mesure,
+    arreter: () => {},
+    abandonner: () => {},
+    fin: new Promise<Fin>((resoudre) => void (finir = resoudre)),
+  };
+  return { cook, finir: () => finir({ code: 0, signal: null, ...mesure, durationMs: 1, arret: null, erreur: null }) };
+}
+
+const viderLesPromesses = async () => {
+  for (let tour = 0; tour < 20; tour++) await new Promise((resoudre) => setImmediate(resoudre));
+};
+
+test("aux réglages de la box — bail de 30 min, 10 min d'inactivité —, la station rapporte la mesure de son cook bien avant le plafond d'inactivité, et la principale ne l'arrête plus à 0 tour et 0 token (#2095)", async (t) => {
+  // Au tiers du bail seul, le premier renouvellement partait à 10 min : le plafond même.
+  const mission: Mission = { ...MISSION, leaseMs: 1_800_000, limits: { ...PLAFONDS, idleMs: 600_000 } };
+  assert.ok(intervalleDeRenouvellement(mission) <= mission.limits.idleMs / 4, `${intervalleDeRenouvellement(mission)} ms entre deux renouvellements`);
+  // Le bail reste la borne quand il est le plus court ; et jamais moins d'une seconde.
+  assert.equal(intervalleDeRenouvellement({ leaseMs: 60_000, limits: { ...PLAFONDS, idleMs: 3_600_000 } }), 20_000);
+  assert.equal(intervalleDeRenouvellement({ leaseMs: 60_000, limits: { ...PLAFONDS, idleMs: 100 } }), 1_000);
+
+  // Sur l'horloge de la station : avant que le plafond d'inactivité ne s'écoule,
+  // la principale a reçu plusieurs mesures du cook — celles qu'elle juge.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const demandes: Demande[] = [];
+  const { cook, finir } = cookEnCours();
+  const issue = cuisinerUneMission({
+    mission,
+    worktree: "/nulle-part/run-21",
+    clone: "/nulle-part/clone",
+    claude: "claude",
+    env: {},
+    gh: "gh",
+    demander: async (demande) => {
+      demandes.push(demande);
+      return demande.verb === "renew" ? { ok: true, verb: "renew", leaseUntil: "2026-10-27T12:30:00.000Z" } : { ok: true, verb: "deliver", ending: "failed", reason: null };
+    },
+    dire: () => {},
+    preparer: async () => {},
+    // Sans le `git` réel : ses process prennent du temps réel, que la boucle
+    // sur l'horloge simulée n'attend pas — sous Windows, aucun ne finissait
+    // avant elle, et aucun renouvellement ne partait.
+    empreinte: async () => null,
+    lancer: () => cook,
+    pousser: async () => {},
+    ranger: async () => {},
+  });
+  const pas = 50_000;
+  for (let ecoule = 0; ecoule + pas < mission.limits.idleMs; ecoule += pas) {
+    await viderLesPromesses();
+    t.mock.timers.tick(pas);
+  }
+  await viderLesPromesses();
+  const renouvellements = demandes.filter((demande) => demande.verb === "renew");
+  assert.ok(renouvellements.length >= 3, `${renouvellements.length} renouvellement(s) avant le plafond d'inactivité`);
+  assert.ok(renouvellements.every((demande) => demande.verb === "renew" && demande.turns === 3 && demande.tokens === 900));
+  finir();
+  await viderLesPromesses();
+  t.mock.timers.tick(mission.limits.idleMs);
+  await issue;
+});
+
+test("dans le bac à sable, le cook n'a aucun accès à GitHub : la station lui remet son ticket et ses commentaires, lus par son propre `gh`, là où la mission le dit — puis le retire (#2095)", posix("drives the station's own gh through the fake gh script to read the ticket handed to a sandboxed cook"), async (t) => {
+  const gh = fauxGh(t);
+  gh.repondre(`repos/${DEPOT}/issues/21`, { corps: { ...issueGitHub(21, { title: "Un ticket" }), body: "Les critères du ticket #21." } });
+  gh.commentaires(21, "<!-- brigade:fiche -->\n- zone : runtime/src/");
+  const worktree = join(repertoireTemporaire(t), "worktrees", MISSION.run);
+  const mission: Mission = { ...MISSION, repository: DEPOT, sandbox: true, ticketFile: `${worktree}.ticket.md` };
+  const lu: string[] = [];
+  const { cook, finir } = cookEnCours();
+  const issue = await cuisinerUneMission({
+    mission,
+    worktree,
+    clone: "/nulle-part/clone",
+    claude: "claude",
+    env: {},
+    gh: gh.bin,
+    demander: async () => ({ ok: true, verb: "deliver", ending: "failed", reason: null }),
+    dire: () => {},
+    preparer: async () => void mkdirSync(worktree, { recursive: true }),
+    lancer: () => {
+      // Au lancement du cook, son ticket l'attend déjà.
+      lu.push(readFileSync(`${worktree}.ticket.md`, "utf8"));
+      finir();
+      return cook;
+    },
+    pousser: async () => {},
+    ranger: async (ici) => rmSync(ici, { recursive: true, force: true }),
+  });
+  assert.ok("rendue" in issue);
+  assert.equal(lu.length, 1);
+  assert.match(lu[0]!, /^# #21 — Un ticket\n\nLes critères du ticket #21\./);
+  assert.match(lu[0]!, /- zone : runtime\/src\//);
+  assert.equal(existsSync(`${worktree}.ticket.md`), false, "le ticket remis est retiré avec le worktree");
+});
+
+test("un ticket que la station ne peut pas remettre — illisible, ou nommé ailleurs qu'à côté du worktree — ne lance aucun cook : la mission est rendue en échec, en disant pourquoi", async (t) => {
+  const worktree = join(repertoireTemporaire(t), "worktrees", MISSION.run);
+  const cas: Array<{ mission: Mission; lire: () => Promise<string>; raison: RegExp }> = [
+    { mission: { ...MISSION, sandbox: true, ticketFile: `${worktree}.ticket.md` }, lire: async () => Promise.reject(new Error("gh: HTTP 502")), raison: /^ticket: gh: HTTP 502/ },
+    { mission: { ...MISSION, sandbox: true, ticketFile: "/Users/chef/.zshrc" }, lire: async () => "# #21", raison: /^ticket: the mission hands the ticket in \/Users\/chef\/\.zshrc, not beside the cook's worktree/ },
+  ];
+  for (const { mission, lire, raison } of cas) {
+    const demandes: Demande[] = [];
+    const issue = await cuisinerUneMission({
+      mission,
+      worktree,
+      clone: "/nulle-part/clone",
+      claude: "claude",
+      env: {},
+      gh: "gh",
+      demander: async (demande) => (demandes.push(demande), { ok: true, verb: "deliver", ending: "failed", reason: null }),
+      dire: () => {},
+      preparer: async () => void mkdirSync(worktree, { recursive: true }),
+      lireLeTicket: lire,
+      lancer: () => assert.fail("aucun cook ne part sans son ticket"),
+      pousser: async () => assert.fail("rien n'est poussé"),
+      ranger: async (ici) => rmSync(ici, { recursive: true, force: true }),
+    });
+    assert.ok("rendue" in issue);
+    const [livraison] = demandes;
+    assert.ok(livraison?.verb === "deliver");
+    assert.equal(livraison.ending, "failed");
+    assert.match(String(livraison.reason), raison);
+    assert.deepEqual([livraison.turns, livraison.tokens], [0, 0]);
+  }
+});
+
 test("une boucle par cuisine rejointe : ouverte, rouverte quand ce qu'elle en dit change, fermée quand elle ne la rejoint plus", async () => {
   const journal: string[] = [];
   const ouvrir = (rejointe: { depot: string; cooks: number }, gist: string): CuisinePourLaPrincipale => {
@@ -254,3 +386,28 @@ test("le côté de la station qui a rejoint n'ouvre aucun journal et ne passe pa
 });
 
 test("cuisiner.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+
+test("un push refusé : la station rend ce que git a dit en entier, sans le couper", posix("pushes with a stub that fails and expects the whole git output in the reason"), async (t) => {
+  const { clone } = depotGit(t);
+  const worktree = join(repertoireTemporaire(t), "worktrees", MISSION.run);
+  const demandes: Demande[] = [];
+  const dit = `remote: ${"refus ".repeat(80)}\n! [remote rejected] branche -> branche (hook declined)`;
+  await cuisinerUneMission({
+    mission: MISSION,
+    worktree,
+    clone,
+    claude: FAUX_CLAUDE,
+    env: { ...process.env, FAUX_CLAUDE: "livre" },
+    gh: "gh-jamais-lance",
+    demander: async (demande) => (demandes.push(demande), { ok: true, verb: "deliver", ending: "failed", reason: null }),
+    dire: () => {},
+    pousser: async () => {
+      throw new Error(dit);
+    },
+  });
+  const [livraison] = demandes;
+  assert.ok(livraison?.verb === "deliver");
+  assert.equal(livraison.ending, "failed");
+  assert.ok(dit.length > 200);
+  assert.equal(livraison.reason, `push: ${dit}`);
+});

@@ -12,6 +12,10 @@ import { pathToFileURL } from "node:url";
 
 const RACINE_TESTS = join(import.meta.dirname, "..");
 
+// Le garde d'une part : il tombe avant le plafond du job (`timeout-minutes` de runtime-windows.yml),
+// qui coupe sans laisser d'annotation (#2406).
+export const GARDE_MS = 12 * 60_000;
+
 // Tous les fichiers de test, chemins relatifs à runtime/ écrits avec `/`, triés : aucun n'est écarté.
 export function fichiersDeTest(racine = join(RACINE_TESTS, "..")): string[] {
   return globSync("test/**/*.test.ts", { cwd: racine }).map((f) => f.replaceAll("\\", "/")).sort();
@@ -78,18 +82,19 @@ if (import.meta.main) {
   const rapport = mkdtempSync(join(tmpdir(), "brigade-annotations-"));
   const annotations = join(rapport, "annotations.txt");
   const reporters = ["--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${pathToFileURL(join(import.meta.dirname, "annotations.ts")).href}`, `--test-reporter-destination=${annotations}`];
-  // Le garde : une part dure d'ordinaire 6 à 12 minutes. Si un runner cale (un test qui bloque la boucle
-  // ou gonfle sans fin), le job meurt vers 45 min sans journal ni annotation (« lost communication »,
-  // #2080) : le runner ne répond déjà plus une dizaine de minutes avant. À 25 min, le garde nomme les
-  // tests en cours et les process laissés, tue l'arbre des process et sort en échec : le check dit alors
-  // où ça cale.
+  // Le garde : une part sur huit dure d'ordinaire 4 à 7 minutes. Si un runner cale (un test qui bloque la
+  // boucle ou gonfle sans fin), le job meurt sans journal ni annotation (« lost communication », #2080) ;
+  // coupé par son plafond de 15 min (runtime-windows.yml), il n'en laisse pas davantage : à 25 min, le
+  // garde ne tombait jamais, et deux parts de b1d0e1d sont mortes muettes (#2406). À GARDE_MS, avant le
+  // plafond, le garde nomme les tests en cours et les process laissés, tue l'arbre des process et sort en
+  // échec : le check dit alors où ça cale.
   // Les process laissés : sous Windows, tuer un process ne tue pas ses enfants, et une doublure qui
   // survit à son test charge le runner jusqu'à la fin de la part. Comptés contre l'état de départ, à la
   // fin de la part comme au garde.
   const auDepart = images();
   const laisses = () => enPlus(auDepart, images()).join(", ") || "none";
   const suivi = join(rapport, "en-cours.txt");
-  const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? 25 * 60_000);
+  const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? GARDE_MS);
   const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",

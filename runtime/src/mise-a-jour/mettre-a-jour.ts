@@ -41,9 +41,16 @@ export type OptionsMiseAJour = {
   gardeMs?: number;
   // Entre deux regards sur la station qui démarre.
   pasMs?: number;
+  // Le temps minimal entre deux passages réussis (#2374).
+  espacementMs?: number;
 };
 
 export const GARDE_MS = 120_000;
+// Chaque merge sur la branche d'intégration publie une version, et chaque
+// installation relance la station, coupant le travail en cours : le 4 nov.
+// 2026, onze relances en trois heures. Une nouvelle version s'installe donc au
+// plus une fois par demi-heure après la dernière passée (#2374).
+export const ESPACEMENT_MS = 30 * 60_000;
 const PAS_MS = 250;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -58,6 +65,7 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   const maintenant = options.maintenant ?? (() => new Date());
   const gardeMs = options.gardeMs ?? GARDE_MS;
   const pasMs = options.pasMs ?? PAS_MS;
+  const espacementMs = options.espacementMs ?? ESPACEMENT_MS;
   const paquets = join(dossier, PAQUETS);
   const paquetDe = (version: string) => join(paquets, `${version}.deb`);
 
@@ -184,6 +192,13 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   const visee = plusRecente.version;
   if (reglages.gel) {
     etat.retenue = `version gelée en ${installee} : ${visee} attend que le gel soit levé`;
+    return conclure();
+  }
+  // Passée il y a moins d'une demi-heure : la suivante attend. Une version
+  // revenue en arrière, ou aucune encore, ne retient rien.
+  const derniere = etat.derniere?.quoi === "passee" ? Date.parse(etat.derniere.le) : Number.NaN;
+  if (Number.isFinite(derniere) && maintenant().getTime() - derniere < espacementMs) {
+    etat.retenue = `${visee} attend ${new Date(derniere + espacementMs).toISOString()} : une version au plus toutes les ${Math.round(espacementMs / 60_000)} min, chaque installation relançant la station et coupant son travail en cours — ${installee} reste en service`;
     return conclure();
   }
   if (ratees.has(visee)) {
