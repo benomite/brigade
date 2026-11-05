@@ -46,6 +46,7 @@ import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
+import { ajouterUneSpecialisation, lireLesSpecialisations } from "./specialisations.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
@@ -1220,6 +1221,18 @@ ipcMain.handle("changerPlafondDuree", async (_, nom: unknown, cle: unknown, sais
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   return changerLePlafond({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+});
+// Les spécialisations des cooks du projet, sur Kitchen > Cooks (#2492, specialisations.ts) : les `agents/cook-<nom>.md` de
+// son dépôt, lus et ajoutés sur sa branche d'intégration par le jeton du `gh` de ce poste — ni box.
+ipcMain.handle("specialisations", async (_, nom: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { sans: `${String(nom)} is no longer in the projects file` };
+  return lireLesSpecialisations({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), client: clientDesLabels });
+});
+ipcMain.handle("ajouterSpecialisation", async (_, nom: unknown, demande: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return ajouterUneSpecialisation({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), demande, client: clientDesLabels });
 });
 ipcMain.handle("cuireSurLaStation", () => ({ refus: SANS_FAIT.cuisson }));
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.

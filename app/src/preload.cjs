@@ -92,6 +92,9 @@ const pont = {
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
   plafondsDuree: (projet) => ipcRenderer.invoke("plafondsDuree", projet),
   changerPlafondDuree: (projet, cle, saisie) => ipcRenderer.invoke("changerPlafondDuree", projet, cle, saisie),
+  // Les spécialisations des cooks du projet, sur Kitchen > Cooks (ticket 2492) : lues et ajoutées dans son dépôt, sur GitHub.
+  specialisations: (projet) => ipcRenderer.invoke("specialisations", projet),
+  ajouterSpecialisation: (projet, demande) => ipcRenderer.invoke("ajouterSpecialisation", projet, demande),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // « Pair a phone », sur la ligne d'une station (ticket 1598) : un code et son QR, son état, les téléphones appairés, une révocation.

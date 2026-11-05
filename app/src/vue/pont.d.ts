@@ -324,6 +324,10 @@ export type Pont = {
   // (`.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (plafonds-duree.ts).
   plafondsDuree(projet: string): Promise<import("../plafonds-duree.ts").LectureDesPlafonds>;
   changerPlafondDuree(projet: string, cle: string, saisie: string): Promise<import("../plafonds-duree.ts").RenduDuPlafond>;
+  // Les spécialisations des cooks du projet, sur Kitchen > Cooks (ticket 2492) : les `agents/cook-<nom>.md` de son dépôt,
+  // lus et ajoutés sur sa branche d'intégration, sur GitHub (specialisations.ts).
+  specialisations(projet: string): Promise<import("../specialisations.ts").LectureDesSpecialisations>;
+  ajouterSpecialisation(projet: string, demande: import("../specialisations.ts").DemandeDeSpecialisation): Promise<import("../specialisations.ts").RenduDeLaSpecialisation>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // « Pair a phone », sur la ligne d'une station de l'accueil (ticket 1598), la station nommée par son gist : un code neuf
