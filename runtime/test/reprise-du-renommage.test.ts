@@ -301,10 +301,21 @@ describe("la cuisine reprise après le renommage", () => {
     assert.deepEqual(livree.moves, MOUVEMENTS);
     assert.equal(pauseEnCours(journal.base), null);
     for (const numero of [17, 19, 20]) assert.equal(mergeRetenu(journal.base, numero), null);
-    // Les zones sont sur les nouveaux chemins dès la levée ; celle qui n'en touchait aucun est la même.
-    assert.deepEqual(zone(17), ["runtime/src/guardrails.ts", "runtime/test/garde-fous.test.ts"]);
+    // Les zones sont sur les nouveaux chemins dès la levée, réécrites dans sa
+    // transaction ; celle qui n'en touchait aucun est la même. Lues au journal,
+    // juste après `pause.released` et de sa main : #17 et #20 sortent du rail
+    // dès leur merge, que la cuisine peut avoir fait avant que le test ne
+    // regarde (#2439).
+    const faitDeLaLevee = faits("pause.released")[0];
+    const apresLaLevee = journal.depuis(faitDeLaLevee?.seq ?? 0);
+    const finDeLaLevee = apresLaLevee.findIndex((e) => e.type !== "ticket.changed" || e.author !== faitDeLaLevee?.author);
+    const reecrites = new Map(apresLaLevee.slice(0, finDeLaLevee === -1 ? apresLaLevee.length : finDeLaLevee).map((e) => [e.ticket, (e.payload as { card: Fiche }).card.zone]));
+    assert.deepEqual(reecrites.get(17), ["runtime/src/guardrails.ts", "runtime/test/garde-fous.test.ts"]);
+    assert.deepEqual(reecrites.get(19), ["runtime/src/freeze/pause.ts"]);
+    assert.equal(reecrites.has(20), false);
+    assert.deepEqual((faits("ticket.arrived", 20)[0]?.payload as { card: Fiche }).card.zone, ["runtime/src/rail.ts"]);
+    // #19, qui ne se porte pas, reste au rail : il y est sur les nouveaux chemins.
     assert.deepEqual(zone(19), ["runtime/src/freeze/pause.ts"]);
-    assert.deepEqual(zone(20), ["runtime/src/rail.ts"]);
 
     // #17 : porté, poussé, jugé et mergé sur sa nouvelle tête.
     await jusqua(() => faits("merge.done", 17).length === 1);
