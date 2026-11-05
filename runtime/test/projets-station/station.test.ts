@@ -12,7 +12,7 @@ import { FICHIER_LOCAL } from "../../src/enregistrement-station/enregistrer.ts";
 import { FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { AUCUN_PROJET } from "../../src/projets-station/source.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
-import { ENV_GIT, FAUX_CLAUDE, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { ENV_GIT, FAUX_CLAUDE, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -61,12 +61,12 @@ test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un d�
 
   // Ce qu'elle en fait, elle le publie à côté de son enregistrement : la doublure
   // ne clone rien, mais le projet est le sien.
-  for (;;) {
+  await jusqua(() => {
     const suivi = lire().files[FICHIER_SUIVI]?.content;
-    if (suivi !== undefined && (JSON.parse(suivi) as { projets: Array<{ nom: string }> }).projets.some(({ nom }) => nom === "shop")) break;
+    if (suivi !== undefined && (JSON.parse(suivi) as { projets: Array<{ nom: string }> }).projets.some(({ nom }) => nom === "shop")) return true;
     assert.equal(station.process.exitCode, null, station.sortie());
-    await new Promise((resoudre) => setTimeout(resoudre, 50));
-  }
+    return false;
+  });
   // La sélection reste celle de l'app.
   assert.match(lire().files[FICHIER_SELECTION]?.content ?? "", /"acme\/shop"/);
 });

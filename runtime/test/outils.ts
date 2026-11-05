@@ -537,10 +537,13 @@ export function fauxGh(t: TestContext): FauxGh {
 // vain, chacun une fois, sur la base comme sur les PR (#2080), et le même commit repassait vert.
 // Sous Linux la CI joue les gates avec toute la suite à la fois (charge 8 sur 4 cœurs) : machine.test.ts
 // attendait 69 s pour 60 s permises. Le plafond par test est de 120 s : l'attente reste en dessous.
+// C'est l'attente d'un fait de la suite, pas une attente sur l'horloge (#2464) : le résultat d'un test ne dépend
+// jamais du temps qu'elle sonde. Ses 20 ms ne règlent que sa latence, son délai ne fait que finir un test cassé.
+// La condition peut être asynchrone : une réponse HTTP, un gist relu.
 const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 100_000;
-export async function jusqua(condition: () => boolean, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
+export async function jusqua(condition: () => boolean | Promise<boolean>, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
   const limite = Date.now() + delaiMs;
-  while (!condition()) {
+  while (!(await condition())) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
     await new Promise((resoudre) => setTimeout(resoudre, 20));
   }

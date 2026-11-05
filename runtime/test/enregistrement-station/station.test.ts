@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { FICHIER_LOCAL } from "../../src/enregistrement-station/enregistrer.ts";
 import { lireLesStationsDuCompte, type StationEnregistree } from "../../src/enregistrement-station/stations-du-compte.ts";
-import { ENV_GIT, FAUX_CLAUDE, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { ENV_GIT, FAUX_CLAUDE, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -69,14 +69,20 @@ async function avecGarde<T>(t: TestContext, attente: Promise<T>, quoi: string, s
 }
 
 async function attendreStation(stations: () => Promise<StationEnregistree[]>, condition: (station: StationEnregistree) => boolean, station: { process: { exitCode: number | null }; sortie: () => string }) {
-  const limite = Date.now() + GARDE_MS;
-  for (;;) {
-    const [lue] = await stations();
-    if (lue !== undefined && condition(lue)) return lue;
+  const lues: { derniere?: StationEnregistree } = {};
+  const ecrite = async () => {
+    [lues.derniere] = await stations();
+    if (lues.derniere !== undefined && condition(lues.derniere)) return true;
     assert.equal(station.process.exitCode, null, station.sortie());
-    assert.ok(Date.now() < limite, `la station n'a pas écrit ce que le test attend : ${JSON.stringify(lue)}\n${station.sortie()}`);
-    await new Promise((resoudre) => setTimeout(resoudre, 50));
+    return false;
+  };
+  try {
+    await jusqua(ecrite, GARDE_MS);
+  } catch (erreur) {
+    if ((erreur as Error).message !== "condition jamais remplie") throw erreur;
+    assert.fail(`la station n'a pas écrit ce que le test attend : ${JSON.stringify(lues.derniere)}\n${station.sortie()}`);
   }
+  return lues.derniere!;
 }
 
 test("démarrée, la station est enregistrée sous le compte sans aucune commande ; redémarrée, elle rafraîchit le même gist", { timeout: 300_000 }, async (t) => {

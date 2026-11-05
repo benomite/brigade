@@ -9,7 +9,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { demarrer } from "../src/runtime.ts";
 import { principal as status } from "../src/status.ts";
-import { appeler, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
+import { appeler, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, jusqua, lancer, photographier, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
@@ -36,9 +36,7 @@ function cuisine(t: TestContext) {
 
 test("pendant qu'un cook tourne, la commande répond et montre le runtime, le rail, le cook et les derniers événements", async (t) => {
   const { repertoire, runtime, cook } = cuisine(t);
-  while (!runtime.journal.duTicket(7).some((e) => e.type === "cook.progressed" && e.payload.turns === 1)) {
-    await new Promise((resoudre) => setTimeout(resoudre, 5));
-  }
+  await jusqua(() => runtime.journal.duTicket(7).some((e) => e.type === "cook.progressed" && e.payload.turns === 1));
 
   const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
 
