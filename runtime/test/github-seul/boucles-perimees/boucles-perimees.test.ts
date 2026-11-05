@@ -175,11 +175,13 @@ describe("the station", () => {
   test("switch on, a remote station's request gets no answer from the gist rail; off, it is answered", async (t) => {
     const sw = interrupteur(true);
     const k = cuisine(t, { stations: DECLAREES, scenario: "muet", perimee: sw.perimee });
-    const annoncer = (attenteMs: number) => demander(k.repertoire, MAC, { verb: "announce" }, { maintenant: k.heure.maintenant, pasMs: 2, attenteMs });
+    const annoncer = (attenteMs?: number) => demander(k.repertoire, MAC, { verb: "announce" }, { maintenant: k.heure.maintenant, pasMs: 2, attenteMs });
     await assert.rejects(annoncer(300), SansReponse);
 
     sw.etat.allume = false;
-    const reponse = await annoncer(5_000);
+    // The answer is a fact to wait for: the gesture's own wait, as every other
+    // station test, not 5 s of wall clock a loaded Windows runner can outlast.
+    const reponse = await annoncer();
     assert.equal(reponse.ok, true);
   });
 

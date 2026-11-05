@@ -2903,7 +2903,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           // repasse pas, et ne relance pas le jugement qu'elle vient de voir finir.
         } while (aRefaire && !arrete && !options.perimee?.());
       } catch (erreur) {
-        if (!arrete) avertir(`brigade : la pass a buté —${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+        if (!arrete) avertir(`brigade : la pass a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
       } finally {
         enCours = false;
       }
