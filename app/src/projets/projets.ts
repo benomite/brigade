@@ -127,6 +127,8 @@ export type Manquant = "depot" | "base" | "cooks";
 // chaque capacité qu'elle peut déclarer, dite détectée ou non. `refus` : cet ordinateur n'a pas pu être lu.
 export type CapaciteDeLaMachine = { capacite: string; nom: string; detectee: boolean };
 export type DefautsDeLaMachine = { cooks: number; cooksDit: string; espaceDeTravail: string; capacites: CapaciteDeLaMachine[] } | { refus: string; detail?: string };
+// Les dossiers de la station de cet ordinateur pour un projet (#2489) : son clone, les worktrees de ses cooks.
+export type DossiersDeLaStation = { clone: string; worktrees: string } | { refus: string; detail?: string };
 // Ce que le clone d'un projet sur cet ordinateur dit de lui : son dépôt, sa branche d'intégration.
 export type DitDuClone = { depot: string | null; base: string | null };
 export type Ajout = { ajoute: string } | { signales: Signales; manque?: Manquant[] } | { refus: string };

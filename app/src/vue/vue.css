@@ -8521,3 +8521,92 @@ button.recommande {
   padding: 0;
   color: var(--rouge-clair);
 }
+
+/* La station locale (ticket 2489) : son nom à côté du titre, puis chaque réglage en une ligne, la même que dans Settings —
+   son nom et l'étiquette de son niveau, sa valeur, son contrôle, et dessous ce que le contrôle a rendu. */
+.bloc-du-projet[data-bloc="station-locale"] h3 small {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+}
+.bloc-du-projet[data-bloc="station-locale"] h3,
+#rail .bloc-du-projet[data-bloc="station-locale"] h3 {
+  padding-bottom: 6px;
+}
+.bloc-du-projet[data-bloc="station-locale"] > .vide {
+  margin: 6px 0 0 16px;
+  color: var(--discret);
+}
+/* La carte a l'allure de celles de « Station settings », au-dessus (ticket 2488), alignée comme elles sur la liste. */
+.bloc-du-projet[data-bloc="station-locale"] > .carte {
+  margin: 10px 16px 0;
+  padding: 4px 14px;
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.bloc-du-projet[data-bloc="station-locale"] .carte > .reglage {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 440px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  padding: 9px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--trait-doux);
+}
+.bloc-du-projet[data-bloc="station-locale"] .carte > .reglage:first-child {
+  border-top: 0;
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage .champ > button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage .champ > button.recommande {
+  border-color: var(--accent);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > .nom {
+  color: var(--discret);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit {
+  grid-column: 2 / -1;
+  font-size: 12px;
+  color: var(--discret);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit.refus {
+  color: var(--jaune);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage input[type="number"] {
+  width: 8ch;
+  padding: 5px 8px;
+  font: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat] {
+  padding-left: 0;
+  border-left: 0;
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="connectee"] {
+  color: var(--vert);
+}
+.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="perdue"] {
+  color: var(--rouge-clair);
+}

@@ -211,6 +211,29 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
     assert.equal(caseDe(ligneDe(stationDe(relancee, "mac/claude"), "ordinaires")).checked, true);
   });
 
+  // Le bac à sable de la station locale (#2489), sur le même onglet, écrit la même option : les deux blocs disent la même.
+  test("les tickets ordinaires cochés ici se lisent dans la station locale, et décochés là, ici", async () => {
+    const tenu = stockage();
+    const vue = await lancer(tenu);
+    const locale = () => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "station-locale") ?? assert.fail("pas de bloc de la station locale");
+    const bacASable = () => locale().dessous("div").find(({ className, dataset }) => className === "reglage" && dataset.cle === "ordinaires") ?? assert.fail("pas de bac à sable");
+    await repos();
+    assert.equal(bacASable().children[1]?.children[0]?.textContent, "not taken");
+    const coche = caseDe(ligneDe(stationDe(vue, "mac/claude"), "ordinaires"));
+    coche.checked = true;
+    coche.declencher("change");
+    await repos();
+    assert.equal(bacASable().children[1]?.children[0]?.textContent, "taken");
+    const option = caseDe(bacASable());
+    option.checked = false;
+    option.declencher("change");
+    await repos();
+    await repos();
+    assert.deepEqual(vue.dernier("reglerOrdinaires"), [PARADE, false, 2]);
+    assert.equal(lu(stationDe(vue, "mac/claude"))[2]?.valeur, "not taken");
+    assert.equal(caseDe(ligneDe(stationDe(vue, "mac/claude"), "ordinaires")).checked, false);
+  });
+
   test("ne plus servir le projet demande confirmation, retire la station, et elle n'y revient pas à la relance", async () => {
     const tenu = stockage();
     const vue = await lancer(tenu);

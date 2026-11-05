@@ -2948,11 +2948,15 @@ let ordinairesPose = "";
 /** @param {Projet} projet */
 async function poserOrdinaires(projet) {
   const recu = await brigade.ordinaires(projet.nom);
-  // L'onglet Stations dit l'option sur la station de ce poste (ticket 2488).
+  // L'onglet Stations dit l'option sur la station de ce poste (ticket 2488), et le bac à sable de la station locale le
+  // même (ticket 2489).
   ordinairesVus.set(projet.nom, recu);
+  const locale = stationLocaleLue.projet === projet.nom && JSON.stringify(stationLocaleLue.ordinaires) !== JSON.stringify(recu ?? null);
+  if (locale) stationLocaleLue.ordinaires = recu ?? null;
   // Le chef a pu ouvrir un autre projet pendant la lecture.
   if (courant?.nom !== projet.nom) return;
-  reposerLesReglagesDesStations(projet);
+  if (locale) reposerLaStationLocale(stationLocaleLue);
+  else reposerLesReglagesDesStations(projet);
   // Hors d'un Mac, ils ne se règlent pas : il n'y a rien à poser — le groupe dit qu'il n'a rien à régler.
   if (recu === undefined || recu.reglable === false) {
     ordinaires.hidden = true;
@@ -5084,6 +5088,132 @@ function poserCuisineEtroite(projet, tenu) {
   rail.replaceChildren(bloc("h3", pourquoi));
 }
 
+// L'onglet Stations (ticket 2485) : ses trois blocs. Celui de la station locale (ticket 2489) reste posé tant que ce qu'il
+// montre ne change pas — le chef peut être en train d'écrire combien de cooks à la fois : une relecture ne le lui ôte pas.
+/** @param {Projet} projet */
+function poserOngletStations(projet) {
+  const locale = blocDeLaStationLocale(projet);
+  const autres = [poserBlocListeStations(document, { liste: cuissonDuProjet, ...ajoutDeStationDe(projet) }), reglagesDesStations(projet)];
+  if (locale.parentElement !== rail) return rail.replaceChildren(...autres, locale);
+  for (const enfant of [...rail.children]) if (enfant !== locale) enfant.remove();
+  rail.prepend(...autres);
+}
+
+// La station de cet ordinateur, sur l'onglet Stations (ticket 2489, projet/stations/StationLocale.js) : ses dossiers, son
+// bac à sable, sa connexion à Claude, ses téléphones appairés. Lus à l'ouverture de l'onglet, puis toutes les trente
+// secondes tant qu'il se repose ; ses gestes sont ceux que l'app avait déjà — le réglage des tickets ordinaires de
+// Settings, le login de la panne de connexion, l'écran « Pair a phone ». Elle seule a ce bloc.
+const RELECTURE_DE_LA_STATION_LOCALE_MS = 30_000;
+/** @typedef {Omit<import("./projet/stations/StationLocale.js").EtatDeLaStationLocale, "poste" | "projet" | "station"> & { projet: string, a: number, telephonesDe?: string }} LuDeLaStationLocale */
+/** @type {LuDeLaStationLocale} */
+let stationLocaleLue = { projet: "", a: 0 };
+/** @type {HTMLElement | undefined} */
+let blocStationLocale;
+let blocStationLocalePose = "";
+// La station de cet ordinateur, telle que GitHub la publie : nulle sur un appareil qui n'en a pas — un téléphone, un poste
+// de travail —, indéfinie tant qu'elle n'est pas lue.
+function laStationLocale() {
+  if (telephoneVu !== undefined) return null;
+  if (projetsVus === undefined) return undefined;
+  const locale = projetsVus.locale ?? null;
+  return locale === null ? null : (stationsVues?.stations ?? []).find(({ id }) => id === locale);
+}
+/** @param {unknown} erreur */
+const rateDit = (erreur) => (erreur instanceof Error ? erreur.message : String(erreur));
+/** @param {LuDeLaStationLocale} lu */
+function reposerLaStationLocale(lu) {
+  if (stationLocaleLue === lu && courant?.nom === lu.projet && ongletDe(courant) === STATIONS) poserRail(courant);
+}
+/** @param {Projet} projet */
+function lireLaStationLocale(projet) {
+  const nom = projet.nom;
+  /** @type {LuDeLaStationLocale} */
+  const lu = { projet: nom, a: Date.now(), ...(stationLocaleLue.projet === nom ? { refusOrdinaires: stationLocaleLue.refusOrdinaires, connexionDite: stationLocaleLue.connexionDite } : {}) };
+  stationLocaleLue = lu;
+  void Promise.resolve(brigade.dossiersDeLaStation?.(nom) ?? { refus: "its folders could not be read", detail: "this app does not read them" }).then(
+    (rendu) => (lu.dossiers = rendu),
+    (erreur) => (lu.dossiers = { refus: "its folders could not be read", detail: rateDit(erreur) }),
+  ).then(() => reposerLaStationLocale(lu));
+  void lireLesOrdinairesLocaux(lu);
+}
+// Le bac à sable, tel que Settings le lit (ordinaires.ts) : rien, le projet ne cuit pas sur cet ordinateur. La ligne des
+// tickets ordinaires de « Station settings », sur le même onglet (ticket 2488), suit la même lecture.
+/** @param {LuDeLaStationLocale} lu */
+async function lireLesOrdinairesLocaux(lu) {
+  try {
+    const recu = await brigade.ordinaires(lu.projet);
+    lu.ordinaires = recu ?? null;
+    ordinairesVus.set(lu.projet, recu);
+  } catch (erreur) {
+    lu.ordinaires = null;
+    lu.refusOrdinaires = `the sandbox could not be read: ${rateDit(erreur)}`;
+  }
+  reposerLaStationLocale(lu);
+}
+// Les téléphones appairés, une fois la station connue : par son gist, comme l'écran « Pair a phone ».
+/** @param {LuDeLaStationLocale} lu @param {string} id */
+async function lireLesTelephonesLocaux(lu, id) {
+  lu.telephonesDe = id;
+  try {
+    lu.telephones = (await brigade.telephonesDeLaStation?.(id)) ?? { refus: "the paired phones could not be read", detail: "this app does not read them" };
+  } catch (erreur) {
+    lu.telephones = { refus: "the paired phones could not be read", detail: rateDit(erreur) };
+  }
+  reposerLaStationLocale(lu);
+}
+/** @param {Projet} projet @returns {HTMLElement} */
+function blocDeLaStationLocale(projet) {
+  if (stationLocaleLue.projet !== projet.nom || Date.now() - stationLocaleLue.a > RELECTURE_DE_LA_STATION_LOCALE_MS) lireLaStationLocale(projet);
+  const lu = stationLocaleLue;
+  const station = laStationLocale();
+  if (station != null && lu.telephonesDe !== station.id) void lireLesTelephonesLocaux(lu, station.id);
+  /** @type {import("./projet/stations/StationLocale.js").EtatDeLaStationLocale} */
+  const etat = {
+    poste: POSTE.nom,
+    projet: projet.nom,
+    station: station == null ? station : { id: station.id, nom: station.nom, max: station.max, pannes: station.pannes },
+    ...(lu.dossiers === undefined ? {} : { dossiers: lu.dossiers }),
+    ...(lu.ordinaires === undefined ? {} : { ordinaires: lu.ordinaires }),
+    ...(lu.telephones === undefined ? {} : { telephones: lu.telephones }),
+    ...(lu.refusOrdinaires === undefined ? {} : { refusOrdinaires: lu.refusOrdinaires }),
+    ...(lu.connexionDite === undefined ? {} : { connexionDite: lu.connexionDite }),
+  };
+  const pose = JSON.stringify(etat);
+  if (blocStationLocale !== undefined && pose === blocStationLocalePose) return blocStationLocale;
+  blocStationLocalePose = pose;
+  // Un bloc reposé à l'identique garde ses gestes : chacun prend la lecture en cours au moment du clic.
+  const cree = poserBlocStationLocale(document, etat, {
+    // Le même appel que la ligne des tickets ordinaires de Settings ; son refus se lit sous la ligne, puis elle se relit.
+    regler: async (actif, limite) => {
+      const refus = await brigade.reglerOrdinaires(projet.nom, actif, limite);
+      const enCours = stationLocaleLue;
+      enCours.refusOrdinaires = refus ?? "";
+      // Settings se repose sur la valeur écrite à sa prochaine ouverture.
+      ordinairesPose = "";
+      await lireLesOrdinairesLocaux(enCours);
+    },
+    seConnecter: async (cle) => {
+      if (station == null) return;
+      /** @type {string} */
+      let dite;
+      try {
+        const rendu = await brigade.panne(station.id, cle);
+        dite = "refus" in rendu ? rendu.refus : rendu.fait;
+      } catch (erreur) {
+        dite = `nothing was done: ${rateDit(erreur)}`;
+      }
+      const enCours = stationLocaleLue;
+      enCours.connexionDite = dite;
+      reposerLaStationLocale(enCours);
+    },
+    appairer: () => {
+      if (station != null) ouvrirLesTelephones({ id: station.id, nom: station.nom });
+    },
+  });
+  blocStationLocale = cree;
+  return cree;
+}
+
 // Le rail en six colonnes — On the rail, Taken, Pass, Todo, Waiting, Served (ticket 2093) —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
@@ -5110,11 +5240,11 @@ function poserLeRail(projet) {
   rail.ariaLabel = cuisine ? "The cooks" : onglet === STATIONS ? "The stations" : onglet === SANTE ? "The kitchen's health" : "The rail";
   blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
   // Stations : la liste de ses stations, celle que Cooks pose (ticket 2487), et « Add a station » ; les réglages de
-  // chacune (ticket 2488) ; Health : ses blocs (ticket 2490).
+  // chacune (ticket 2488) ; la station de cet ordinateur (ticket 2489). Health : ses blocs (ticket 2490).
   if (onglet === STATIONS) {
     poserCuisson(projet);
     const reprise = repriseDuClavier();
-    rail.replaceChildren(poserBlocListeStations(document, { liste: cuissonDuProjet, ...ajoutDeStationDe(projet) }), reglagesDesStations(projet), poserBlocStationLocale(document));
+    poserOngletStations(projet);
     return rendreLeClavier(reprise);
   }
   if (onglet === SANTE) return poserLaSante(projet);
@@ -8731,6 +8861,8 @@ brigade.surStations((vu) => {
   poserStationsDuProjet();
   // « Its stations » dit de chacune si elle est atteinte, et la principale si elle peut déménager (ticket 1786).
   if (courant !== undefined) poserCuisson(courant);
+  // La station locale de l'onglet Stations dit sa connexion à Claude telle qu'elle la publie (ticket 2489).
+  if (courant !== undefined && ongletDe(courant) === STATIONS) poserRail(courant);
 });
 // L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
 brigade.surAccueil((vu) => {
@@ -8759,6 +8891,8 @@ brigade.surProjetsDesStations((vu) => {
     // La bande du haut du rail suit les temps des tickets que la station publie (ticket 2486).
     const bande = tempsDesBandes.get(courant.nom);
     if (avant !== alerteDeCuisine.hidden || (bande !== undefined && bande !== tempsVuDe(courant))) poserRail(courant);
+    // La station de cet ordinateur se connaît par cette lecture : l'onglet Stations la montre (ticket 2489).
+    else if (ongletDe(courant) === STATIONS) poserRail(courant);
   }
 });
 // La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.
