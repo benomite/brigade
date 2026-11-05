@@ -106,6 +106,9 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     // La même histoire de pass, jugement par jugement.
     assert.deepEqual(repris.histoire(), neuf.histoire());
     assert.deepEqual(repris.histoire().filter((type) => type === "pass.judged").length, 2);
+    // Un seul renvoi chacune : les gates « rouge-une-fois » ont bien été jouées rouges une fois, au premier jugement
+    // (les verdicts plus bas le disent jugement par jugement), et vertes ensuite.
+    for (const lieu of [repris, neuf]) assert.equal(lieu.compter("pass.returned"), 1);
     // Les gates jouées autant de fois, sur les mêmes lieux ; le reviewer, autant de fois.
     const lieux = (appels: string[]) => appels.map((appel) => appel.split(/[\\/]worktrees[\\/]/).at(-1));
     assert.deepEqual(lieux(repris.gates.appels()), lieux(neuf.gates.appels()));
