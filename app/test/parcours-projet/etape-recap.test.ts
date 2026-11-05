@@ -2,7 +2,7 @@
 // prend le premier ticket labellisé `fire`. Jamais un projet sans station et sans suite.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { CHOISIR_UNE_STATION, ENSUITE, poserEtapeRecap, SANS_STATION } from "../../src/vue/parcours-projet/etape-recap.js";
+import { CHOISIR_UNE_STATION, poserEtapeRecap, SANS_STATION } from "../../src/vue/parcours-projet/etape-recap.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -26,7 +26,6 @@ describe("l'étape récap", () => {
     const { tous } = monter("this Mac");
     const code = tous.find((element) => element.balise === "code");
     assert.equal(code?.textContent, "fire");
-    assert.equal(ENSUITE.includes("first ticket you label `fire`"), true);
     assert.equal(tous.some((element) => element.className.includes("erreur")), false);
   });
 

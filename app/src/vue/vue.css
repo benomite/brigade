@@ -5771,6 +5771,44 @@ button.recommande {
 .etape-station .erreur {
   color: var(--rouge-clair);
 }
+/* L'étape « récap » du parcours d'ajout (ticket 2478, parcours-projet/etape-recap.js) : la phrase de l'attendu en tête, le
+   projet et sa station, une ligne chacun, puis ce qui se passe ensuite. Sans station, la ligne le dit et un bouton revient. */
+.etape-recap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.etape-recap > p {
+  margin: 0;
+}
+.etape-recap .attendu {
+  font-size: 15px;
+  font-weight: 600;
+}
+.etape-recap .ligne-recap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.etape-recap .etiquette {
+  color: var(--discret);
+}
+.etape-recap .erreur {
+  color: var(--rouge-clair);
+}
+.etape-recap button {
+  padding: 4px 12px;
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.etape-recap button.recommande {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fond);
+}
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
   margin: 14px 0 0;
