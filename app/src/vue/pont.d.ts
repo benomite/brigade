@@ -221,16 +221,14 @@ export type Pont = {
   // `miseAJour`, le pont ne rend aucune offre : `surOffreApk` n'y reçoit jamais rien.
   installerApk(apkUrl: string): Promise<unknown> | void;
   surOffreApk(recevoir: (offre: UpdateOffer) => void): void;
-  // Le bandeau d'une version plus haute (le ticket 1528, mise-a-jour/avis.ts) : la plus haute version publiée au-dessus de
-  // celle qui tourne, avec le lien direct du paquet de ce poste et la ligne du premier lancement — ou rien, si l'app est
-  // à jour, si le chef a écarté cette version, ou si ce poste ne se met pas à jour par là (lancée depuis le dépôt).
+  // La ligne d'une version plus haute (les tickets 1528 et 2431, mise-a-jour/avis.ts) : la plus haute version publiée
+  // au-dessus de celle qui tourne, la version qui tourne, le lien direct du paquet de ce poste et le premier lancement — ou
+  // rien, si l'app est à jour ou si ce poste ne se met pas à jour par là (lancée depuis le dépôt). Rien ne l'écarte.
   // `avisDeVersion` rend la dernière vérification, `surAvisDeVersion` reçoit chacune de celles qui suivent.
-  // `telechargerVersion` ouvre dans le navigateur le lien de l'avis rendu, et lui seul ; `refuserVersion` écarte une
-  // version, et le pont s'en souvient d'un lancement à l'autre — une version plus haute est montrée de nouveau.
+  // `telechargerVersion` ouvre dans le navigateur le lien de l'avis rendu, et lui seul.
   avisDeVersion(): Promise<AvisDeVersion | undefined>;
   surAvisDeVersion(recevoir: (avis: AvisDeVersion | undefined) => void): void;
   telechargerVersion(url: string): Promise<boolean>;
-  refuserVersion(version: string): Promise<boolean>;
   // Le statut de la station de cet ordinateur (le ticket 2191, épique 2182 ; le contrat du runtime, ticket 2189) : la version
   // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
   // alors sa version inconnue (station-version/station-version.js).

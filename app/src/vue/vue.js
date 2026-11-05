@@ -8297,18 +8297,20 @@ brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
 });
-// La mise à jour de l'app : son état remplace celui d'avant ; le message de l'accueil le suit.
+// La mise à jour de l'app : son état remplace celui d'avant ; le message de l'accueil et la ligne de tête le suivent.
 brigade.surMiseAJour((vu) => {
   miseAJourVue = vu;
   poserApp();
+  bandeauDeVersion.suivre(vu);
 });
 // L'offre d'une version plus haute de l'app Android, au lancement : l'invite se pose sur l'espace ; « Not now » la
 // ferme jusqu'au lancement suivant, « Update » remet l'adresse de l'APK à l'installation.
 const inviteDeMiseAJour = tenirInvite(element("offre-apk"), document, { installer: (apkUrl) => brigade.installerApk(apkUrl) });
 brigade.surOffreApk((offre) => inviteDeMiseAJour.offrir(offre));
-// Une version plus haute publiée pour ce poste (mise-a-jour/avis.ts) : le bandeau se pose en tête de l'app, avec le lien
-// direct de son paquet. La croix l'écarte pour cette version ; le pont s'en souvient d'un lancement à l'autre.
-const bandeauDeVersion = tenirBandeau(element("nouvelle-version"), document, { telecharger: (url) => brigade.telechargerVersion(url), refuser: (version) => brigade.refuserVersion(version) });
+// Une version plus haute publiée pour ce poste (mise-a-jour/avis.ts) : une ligne en tête de l'app, la version qui tourne
+// et la dernière, et où en est la mise à jour de l'app installée (mise-a-jour/etat.ts) — jusqu'à ce que l'app tourne sur
+// la dernière. Rien ne l'écarte.
+const bandeauDeVersion = tenirBandeau(element("nouvelle-version"), document, { telecharger: (url) => brigade.telechargerVersion(url), installer: () => brigade.installerMiseAJour() });
 brigade.surAvisDeVersion((avis) => bandeauDeVersion.recevoir(avis));
 void Promise.resolve(brigade.avisDeVersion()).then((avis) => bandeauDeVersion.recevoir(avis), () => undefined);
 // Le statut de la station de cet ordinateur : lu au lancement, puis à chaque fois que le pont le relit. Une lecture qui
@@ -8564,6 +8566,7 @@ stationsVues ??= demarrage.stations;
 projetsVus ??= demarrage.projetsDesStations;
 accueilVu ??= demarrage.accueil;
 miseAJourVue ??= demarrage.miseAJour;
+bandeauDeVersion.suivre(miseAJourVue);
 CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
 // Le téléphone (l'app Android, ticket 1161) : son appairage, que le pont garde — rien sur le desktop. Pas encore

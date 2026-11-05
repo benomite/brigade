@@ -79,12 +79,15 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
 | | Chemin signé | Chemin non signé |
 | --- | --- | --- |
 | Quand | les six secrets sont posés | aucun n'est posé |
-| Mac | `Brigade-<v>-mac-arm64.dmg`, signé Developer ID, notarisé, agrafé, et `latest-mac.yml` | `Brigade-<v>-mac-arm64.dmg`, signé ad hoc |
+| Mac | `Brigade-<v>-mac-arm64.dmg`, signé Developer ID, notarisé, agrafé, et `latest-mac.yml` | `Brigade-<v>-mac-arm64.dmg`, signé ad hoc, et `latest-mac.yml` (#2431) |
 | Windows | `Brigade-<v>-windows-x64-setup.exe`, signé, et `latest.yml` | `Brigade-<v>-windows-x64-setup.exe`, non signé |
 | Android | rien | `Brigade-<v>-android.apk`, signé de la clé de debug |
-| Mise à jour des apps installées | oui, par `latest-mac.yml` et `latest.yml` | non : ces deux fichiers ne sont pas publiés, une app installée ne se met pas à jour vers une app non signée |
+| Mise à jour des apps installées | oui, par `latest-mac.yml` et `latest.yml` | sur un Mac, oui, par `latest-mac.yml` ; sous Windows, non : `latest.yml` n'est pas publié, une app installée ne se met pas à jour vers un installeur non signé |
 
-Quatre fichiers sur le chemin signé, trois sur le chemin non signé. Un jeu de secrets incomplet n'est
+Quatre fichiers sur chaque chemin. Sur le chemin non signé, avant de publier `latest-mac.yml`, le job
+`mac` vérifie l'app du .dmg comme le fera l'installeur des apps installées (`codesign --verify --deep
+--strict`, `app/src/mise-a-jour/installation.ts`) : une app signée ad hoc qui ne s'y vérifie pas
+arrête le run, au lieu de partir vers des apps qui refuseraient de s'y mettre à jour. Un jeu de secrets incomplet n'est
 pas un chemin : il arrête le run.
 
 C'est le seul chemin de publication : un tag `app-v*` poussé à la main ne publie rien. Il devient la

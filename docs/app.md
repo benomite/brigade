@@ -1113,11 +1113,21 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/main — read at 14:32:07, reread wh
 
 At launch, the Android app checks the manifest of the latest release (`app/src/mise-a-jour/android.ts`). When that check returns an offer, the app puts a prompt at the very top of the window, above every screen: **"Version 1.5.0 is available"**, the release notes under it, and two buttons — **Update** (recommended) and **Not now**. *Update* hands the offer's `apkUrl` to the install step (`brigade.installerApk`); *Not now* closes the prompt, and it does not come back until the next launch. With no update — or a failed check — nothing is shown and the launch is unchanged. The desktop app never gets an offer: it updates itself (`miseAJour`). The view is `app/src/vue/mise-a-jour/invite.js`; the capture is `scripts/capture-ecran` screen `offre-apk` (`docs/captures/1170/`). The Android bridge (`app/android/web/pont.js`) does not yet run the check nor the install: until it does, the prompt is built and tested but nothing sends it an offer.
 
-### The new-version download banner (#1528)
+### The new-version line (#1528, #2431)
 
-When a newer `app-v<version>` release is published, the app puts a banner at the very top of the window, above every screen: **"Version 1.5.0 available — Download"**. *Download* is a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser. On a Mac and on Windows, one line under it says how to open the unsigned build the first time: *right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows. Android has no such line. The **×** at the right dismisses the banner for this version only: the dismissed version is kept next to the projects file (`version-ecartee.json`), so the banner stays hidden after a restart, and a still newer version brings it back. With the app on the latest version — or a failed check — there is no banner.
+When a newer `app-v<version>` release is published and the app does not run it, the app puts **one line** at the very top of the window, above every screen, with the running version and the latest one, then where its own update stands:
 
-The check is `app/src/mise-a-jour/avis.ts` (#1527), run by the main process at launch and every six hours, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no banner. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, and the two gestures `telechargerVersion` (opens the link of the current notice, and only it) and `refuserVersion`. The view is `app/src/vue/mise-a-jour/bandeau.js`; its tests, against a mocked release list, are in `app/test/bandeau-mise-a-jour/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the banner is built and tested for Android but nothing sends it a notice there.
+```
+Brigade 1.0.102 is running — 1.0.105 is out · downloading it, 40 %
+Brigade 1.0.102 is running — 1.0.105 is out · it is downloaded: it installs at the next launch   [Install now]
+Brigade 1.0.102 is running — 1.0.105 is out · installing it — the app relaunches itself…
+Brigade 1.0.102 is running — 1.0.105 is out · it could not update itself — Download
+Brigade 1.0.102 is running — 1.0.105 is out — Download
+```
+
+The suite follows the state of the installed app's update (`miseAJour`, "Launching the app", *Updating it*): downloading, ready with **Install now** (recommended; its price on hover: it closes the app's terminals and relaunches it on the new version — a refusal takes the suite's place), installing. When the update is downloading a version lower than the latest (a newer one came out since), the line names it (`· 1.0.104 is downloaded: …`). When the app does not update itself to it — the update failed (the reason on hover of the line), the release carries no `latest-mac.yml` (one published before #2431), or Android —, the line ends with **Download**, a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser, and its hover says how to open the unsigned build the first time (*right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows; nothing on Android). **Nothing dismisses the line**: it stays until the app runs the latest version, and a check that finds nothing (GitHub silent) does not remove a newer version already known — the running version does not change while the app runs. With the app on the latest version there is no line.
+
+The check is `app/src/mise-a-jour/avis.ts` (#1527), run by the main process at launch and every fifteen minutes, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no line. Its notice carries the latest version, the running one (`courante`) and the package link. Together with the update's own check, it reads GitHub's API at most three times every fifteen minutes. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, the gesture `telechargerVersion` (opens the link of the current notice, and only it), and the update's `surMiseAJour` and `installerMiseAJour`. The view is `app/src/vue/mise-a-jour/bandeau.js`; its tests, against a mocked release list and the update's states, are in `app/test/bandeau-mise-a-jour/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`, taken before #2431). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the line is built and tested for Android but nothing sends it a notice there.
 
 ### Pairing the phone with your projects (#1161)
 
@@ -3527,20 +3537,27 @@ machine. It reads `~/.config/brigade/` as it is — your projects and settings a
 app —, takes the `PATH` of your login shell (to find `claude` and `gh`), and does not update through
 `git`: it keeps itself up to date from the published versions (below). Every merge on `main` that
 changes the app publishes an `app-v<version>` release with the Mac and Windows installers, built by
-the `publier-app` workflow; nobody pushes a tag. Until signing lands (#1441), the published `.dmg` is
-only ad hoc signed, like one you build yourself: copied from another Mac, macOS asks for "Open
-anyway". What it carries, how it is built and tested: [`app/packaging/README.md`](../app/packaging/README.md).
+the `publier-app` workflow; nobody pushes a tag. The builds are not signed (decision of 2026-11-03):
+the published `.dmg` is only ad hoc signed, like one you build yourself — the first time, opened from a
+download, macOS asks for "Open anyway"; after that, the app updates itself (below) and never asks
+again. What it carries, how it is built and tested: [`app/packaging/README.md`](../app/packaging/README.md).
 
-**Updating it** (#1013). The installed app checks at launch, then every six hours, whether a version
-higher than its own is published — an `app-v<version>` release that carries its `latest-mac.yml`. If
-there is one, it announces it with its number and downloads it right away, checked against the
+**Updating it** (#1013, #2431). **How the app updates**: you never download a `.dmg` by hand after the
+first one. The installed app checks at launch, then **every fifteen minutes**, whether a version
+higher than its own is published — an `app-v<version>` release that carries its `latest-mac.yml`. Every
+release carries it, **signed or not**: until #2431 the unsigned path published the `.dmg` without it,
+so an installed app saw no newer version, said nothing and stayed where it was (1.0.102 while 1.0.105
+was out). If there is one, it announces it with its number and downloads it right away, checked against the
 published size and sha512, under `~/.config/brigade/mise-a-jour/`. Once ready, it installs on the
 "install now" action — the app closes, the new one takes its place and reopens —, or, with no
-action, at the next opening, before anything starts in it. The installer checks the signature of the
-new version (the same developer as the one running); if that fails, the app in place is not touched,
-it reopens and says why. A feed that does not answer never stops the app from opening: the error is
-reported, the next check tries again. Launched from the repo, it checks nothing — its clone updates
-it. The state and the actions go through the view's bridge (`miseAJour`, `verifierMiseAJour`,
+action, at the next opening, before anything starts in it. The installer checks the new version's
+signature — its integrity (`codesign --verify --deep --strict`), which an ad hoc signed build passes,
+and, when the running app is signed by an identified developer, that the new one is signed by the
+same; if that fails, the app in place is not touched, it reopens and says why. The `publier-app`
+workflow runs the same check on the unsigned `.dmg` before it publishes it, so a build that installed
+apps would refuse never goes out. A feed that does not answer never stops the app from
+opening: the error is reported, the next check tries again. Launched from the repo, it checks
+nothing — its clone updates it. The state and the actions go through the view's bridge (`miseAJour`, `verifierMiseAJour`,
 `installerMiseAJour`, `surMiseAJour`); the code is in `app/src/mise-a-jour/`. To try it without
 GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that answers like GitHub.
 
@@ -3549,7 +3566,8 @@ GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that a
 `app-v<version>` releases, the same checks, the same states, the same actions and the same words. Only
 two things differ. It reads the release's `latest.yml` and downloads the setup `.exe` it names. A
 release that carries only the Mac's files is not a new version for Windows, and the reverse holds
-too. And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
+too — and while the builds are unsigned, releases carry no `latest.yml`: an installed app on Windows
+does not update itself to an unsigned installer, and the new-version line gives it the **Download** link. And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
 (`app/src/mise-a-jour/windows.ts`). Once the app has quit, the script moves the installed folder aside
 (Windows refuses while one of its files is still open, and then nothing has moved). It runs the setup
 silently (`/S`) into that same folder (`/D=`) and checks that `resources\app\package.json` now holds
@@ -3558,7 +3576,9 @@ puts the old folder back as it was, writes the reason (which the reopened app sh
 The app refuses to update when it does not run from the folder the installer laid out
 (`Uninstall Brigade.exe` next to `Brigade.exe`), or when that folder cannot be written to, and says so.
 
-**What the chef sees of it** (#1014). On "All projects", an **App** section gives the running
+**What the chef sees of it** (#1014, #2431). At the very top of the window, as long as a newer version is
+published and the app does not run it, **one line** says both versions and where the update stands (see
+"The new-version line"). On "All projects", an **App** section gives the running
 version (`Brigade 1.4.0`) — in every state, including up to date, in error or launched from the
 repo; the reason for an error is in the hover of the version. When a higher version is published, a
 line announces it (`version 1.5.0 is available`, with the progress during the download) and carries
