@@ -7996,3 +7996,221 @@ button.recommande {
   font-weight: 600;
   color: var(--discret);
 }
+
+/* Kitchen > Health (ticket 2490) : le temps des tickets en détail, puis les plafonds de durée. Les couleurs sont celles
+   de la carte des temps de Cooks : le ticket en bleu, sa pass en jaune, le plafond et ce qui le passe en rouge. */
+.bloc-du-projet h3,
+#rail .bloc-du-projet h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+.bloc-du-projet[data-bloc="temps-tickets"],
+.bloc-du-projet[data-bloc="plafonds-duree"] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bloc-du-projet :is(p, table) {
+  margin: 0;
+}
+[data-bloc="temps-tickets"] .temps-vide {
+  color: var(--texte-doux);
+}
+[data-bloc="temps-tickets"] .temps-chiffres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 32px;
+}
+[data-bloc="temps-tickets"] .temps-chiffre {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+[data-bloc="temps-tickets"] .temps-valeur {
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--texte);
+}
+[data-bloc="temps-tickets"] .temps-chiffre[data-depasse="oui"] .temps-valeur {
+  color: var(--rouge-clair);
+}
+[data-bloc="temps-tickets"] .temps-legende {
+  color: var(--texte-doux);
+}
+[data-bloc="temps-tickets"] .temps-courbe {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+[data-bloc="temps-tickets"] .temps-colonnes {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+  padding: 0 2px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+[data-bloc="temps-tickets"] .temps-colonne {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+[data-bloc="temps-tickets"] .temps-ticket-part {
+  background: var(--bleu);
+  border-radius: 3px 3px 0 0;
+}
+[data-bloc="temps-tickets"] .temps-pass-part {
+  background: var(--jaune);
+}
+[data-bloc="temps-tickets"] .temps-colonne[data-depasse="oui"] .temps-ticket-part {
+  background: var(--rouge);
+}
+[data-bloc="temps-tickets"] .temps-plafond {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--rouge);
+  pointer-events: none;
+}
+[data-bloc="temps-tickets"] :is(.temps-axe, .temps-cles) {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--discret);
+}
+[data-bloc="temps-tickets"] .temps-axe {
+  justify-content: space-between;
+}
+[data-bloc="temps-tickets"] .temps-cle::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border-radius: 2px;
+  background: var(--bleu);
+}
+[data-bloc="temps-tickets"] .temps-cle.pass::before {
+  background: var(--jaune);
+}
+[data-bloc="temps-tickets"] .temps-cle.max::before {
+  height: 0;
+  border-radius: 0;
+  border-top: 1px dashed var(--rouge);
+  vertical-align: 3px;
+}
+[data-bloc="temps-tickets"] .temps-par-ticket {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 640px;
+}
+[data-bloc="temps-tickets"] .temps-par-ticket :is(th, td) {
+  padding: 4px 24px 4px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--trait-doux);
+}
+[data-bloc="temps-tickets"] .temps-par-ticket th {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--discret);
+}
+[data-bloc="temps-tickets"] .temps-par-ticket tr[data-depasse="oui"] .temps-total {
+  color: var(--rouge-clair);
+}
+[data-bloc="plafonds-duree"] .plafond {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+[data-bloc="plafonds-duree"] .plafond > .nom {
+  color: var(--discret);
+}
+[data-bloc="plafonds-duree"] .plafond > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+[data-bloc="plafonds-duree"] .plafond > .valeur strong {
+  font-weight: 600;
+}
+[data-bloc="plafonds-duree"] .plafond > .valeur small,
+[data-bloc="plafonds-duree"] .plafond > .champ :is(.unite),
+[data-bloc="plafonds-duree"] .plafond > .champ.fige,
+[data-bloc="plafonds-duree"] .plafonds-lecture {
+  font-size: 12px;
+  color: var(--discret);
+}
+[data-bloc="plafonds-duree"] .plafond input[type="text"] {
+  width: 10ch;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="plafonds-duree"] .plafond .action > button {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="plafonds-duree"] .plafond .action > button:disabled {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+[data-bloc="plafonds-duree"] .plafond > p.dit {
+  grid-column: 2 / -1;
+  font-size: 12px;
+  color: var(--discret);
+}
+[data-bloc="plafonds-duree"] .plafond > p.dit.refus {
+  color: var(--jaune);
+}
+#rail [data-bloc="plafonds-duree"] .replie {
+  margin: 0;
+  padding: 6px 0 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--trait-doux);
+  border-radius: 0;
+}
+[data-bloc="plafonds-duree"] .replie > summary {
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+}
+[data-bloc="plafonds-duree"] .replie > summary::before {
+  content: "";
+  border-left: 6px solid var(--discret);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+[data-bloc="plafonds-duree"] .replie[open] > summary::before {
+  transform: rotate(90deg);
+}
+[data-bloc="plafonds-duree"] .replie > summary strong {
+  font-weight: 600;
+  color: var(--discret);
+}
+[data-bloc="plafonds-duree"] .replie > summary .resume {
+  color: var(--texte-doux);
+}

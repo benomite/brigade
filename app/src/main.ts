@@ -45,6 +45,7 @@ import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
+import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
@@ -1207,6 +1208,19 @@ const clientDesLabels = clientDeLaPriorite({ jeton: jetonDeGh({ gh: ghIci, delai
 // Cooks (#1185) : ils partaient sur le tableau de la cuisine, que plus aucun runtime ne lit (#2061). Une station prend
 // autant de tickets qu'elle déclare de places : rien ne part, et la phrase dit où le faire (gestes-github.ts).
 ipcMain.handle("reglerLePlafond", () => ({ refus: SANS_FAIT.plafond }));
+// Les plafonds de durée du projet, sur Kitchen > Health (#2490, plafonds-duree.ts) : lus et écrits dans
+// `.claude/brigade/projet.json` de son dépôt, sur sa branche d'intégration, par le jeton du `gh` de ce poste — ni box.
+const brancheDuProjet = (projet: Projet) => projet.base ?? projetsDesStations.vu()?.projets.find(({ nom }) => nom === projet.nom)?.base ?? null;
+ipcMain.handle("plafondsDuree", async (_, nom: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { sans: `${String(nom)} is no longer in the projects file` };
+  return lireLesPlafonds({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), client: clientDesLabels });
+});
+ipcMain.handle("changerPlafondDuree", async (_, nom: unknown, cle: unknown, saisie: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return changerLePlafond({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+});
 ipcMain.handle("cuireSurLaStation", () => ({ refus: SANS_FAIT.cuisson }));
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));

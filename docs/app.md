@@ -5,9 +5,9 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 
 **The project's menu is four entries, Rail · Stations · Kitchen · Settings** (#2485), next to the project name; **Rail is the
 tab opened by default**. Kitchen has two sub-tabs, **Health** and **Cooks**, shown under it, each one click away. Settings opens over
-the middle as before, with its content unchanged. Stations and Health are placeholders for now: each block is mounted in
-its own file under `app/src/vue/projet/` (`stations/`, `cuisine/sante/`, `cuisine/cuisiniers/`, `rail/BandeRail.js`) and a later
-ticket fills it. What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
+the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
+(`stations/`, `cuisine/sante/`, `cuisine/cuisiniers/`, `rail/BandeRail.js`) and its own ticket fills it; **Health** shows
+the ticket time in detail and the duration caps (#2490, see "Kitchen > Health" below). What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
@@ -1876,6 +1876,29 @@ so their sum can differ from the median total. The principal station reads the p
 project tracking, next to `delai`; the app relays it on the project's view. A station that does not publish it yet
 (an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
 Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
+
+**Kitchen > Health: ticket time and duration caps** (#2490, epic #2484). Two blocks, then the closer's.
+**Ticket time** reads the same measures as the Ticket times card (`temps` of the project's view): a ticket's time runs
+from its claim to its merge, its **pass** is the wait for the pass plus the review (`attentePasse + revue`). At the head,
+three figures — the ticket's median and the pass's median over the last 10 measured tickets, and the max of a ticket
+(`tempsMaxTicketMin`). Over time, one column per ticket (the last 30, oldest left), its pass at the bottom in yellow, a
+ticket over the max in red, the max as a dashed line; the ticket, its date and both durations on hover. Per ticket, the
+last 10, newest first: number, merge date, time, pass. The same empty states as the card ("No ticket measured yet",
+"Ticket times not available yet"). Module: `app/src/vue/projet/cuisine/sante/TempsTickets.js`.
+**Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
+first the **ticket duration** (#2336's `tempsMaxTicketMin`, as the station publishes it), then the durations the
+repository declares — `drift.testsSeconds`, `drift.gatesSeconds` (100 s by default) —, then, folded behind one line
+("Other drift thresholds · 1 set in the repository"), every other `drift.*` threshold of `projet.json`. Each `drift.*`
+cap has a field and **save** (disabled until the value changes; Enter saves too): the app writes it into
+`.claude/brigade/projet.json` on the project's integration branch, on GitHub, with the chef's `gh` token
+(`app/src/plafonds-duree.ts`: the file is read again for its `sha`, only `drift.<key>` changes, a missing file is
+created with `version` and `integrationBranch`); the runtime reads it at its next fetch (`reglages-projet/en-vigueur.ts`).
+An empty field removes the cap from the repository. A value the runtime would refuse (zero, a fraction for a whole
+threshold) writes nothing and says so under the field; GitHub's refusal (a protected branch) too, its detail on hover.
+**The ticket duration is not editable here yet**: the runtime does not accept `tempsMaxTicketMin` in `projet.json` (its
+key check refuses it) and reads it only from its clone's working tree — its row says so, the reason on hover. The caps
+are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
+`app/src/vue/projet/cuisine/sante/PlafondsDuree.js`.
 
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
