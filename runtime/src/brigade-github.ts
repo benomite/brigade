@@ -151,6 +151,9 @@ export type OptionsDeStation = {
   // Ce que la station fournit (#2187) : un ticket qui demande une capacité
   // qu'elle n'a pas, par un label `needs:<capacité>`, n'est jamais pris ici.
   capacites?: readonly string[];
+  // Appelé quand la porte de prise saute un ticket prenable, avec pourquoi
+  // (zone tenue, capacité) : la retenue de la cuisine le dit (#2429).
+  sauter?: (ticket: number, pourquoi: string) => void;
   // Les garde-fous (#2213) : le « stop », le disjoncteur, le quota et
   // l'arbitre, lus avant chaque prise. Absents, rien ne retient.
   gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
@@ -700,12 +703,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     // Une zone tenue : un de ses chemins en recoupe un que change une PR
     // ouverte qui n'est pas celle du ticket.
-    const tenue = async (ticket: TicketLu): Promise<boolean> => {
+    const tenue = async (ticket: TicketLu): Promise<string | null> => {
       const zone = zoneDuCorps(await github.corpsDuTicket(ticket.number));
-      if (zone.length === 0) return false;
+      if (zone.length === 0) return null;
       ouvertes ??= await github.prsOuvertes();
       const propre = brancheDuTicket(ticket.number);
-      return ouvertes.some((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
+      return ouvertes.find((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))))?.branche ?? null;
     };
     // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
     // dernier), puis les plus anciens (#2209).
@@ -716,8 +719,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (enPass(tickets, renvoyes) >= PASS_MAX) break;
       if (enVol.has(ticket.number)) continue;
       // Une capacité qui manque à la station : le ticket attend celle qui l'a.
-      if (besoinsDuTicket(ticket.labels).some((besoin) => !capacites.has(besoin))) continue;
-      // Un ticket sans calibrage complet ne part pas.
+      const manques = besoinsDuTicket(ticket.labels).filter((besoin) => !capacites.has(besoin));
+      if (manques.length > 0) {
+        options.sauter?.(ticket.number, `capability missing on this station: ${manques.join(", ")}`);
+        continue;
+      }
+      // Un ticket sans calibrage complet ne part pas, (#2213).
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
       // Une dépendance ouverte retient le ticket ; sans lecture de GitHub, il attend aussi.
@@ -730,7 +737,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un arrêt subi l'a mis en attente : il n'est pas repris avant son terme (#2508).
       if (await enAttente(ticket)) continue;
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
-      if (await tenue(ticket)) continue;
+      const tenant = await tenue(ticket);
+      if (tenant !== null) {
+        const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
+        options.sauter?.(ticket.number, `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`);
+        continue;
+      }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
       if (gardes !== undefined && (await gardes.retenue(enVol.size)) !== null) break;
       let pris: { prise: boolean };
@@ -999,6 +1011,8 @@ export type OptionsDuDepot = {
   // lancer, sous la cloison, et son plafond de durée (#2535). Absent, le cook
   // part dans un worktree tel que git l'a posé, sans dépendances.
   setup?: { delaiMs: number };
+  // Ce que la porte de prise a dit d'un ticket qu'elle a sauté (#2429).
+  sauter?: (ticket: number, pourquoi: string) => void;
 };
 
 // Le plafond de durée des gates d'une tête, en millisecondes (#2456) : 30 min
@@ -1232,7 +1246,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
   const quitter = station.quitter;
   station.quitter = async () => {
     abandon.abort();

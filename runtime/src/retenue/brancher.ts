@@ -21,7 +21,7 @@ import { attentesDuChef } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import type { Journal } from "../journal.ts";
-import { ecrituresRetenuesDeLaStation, pauseDeLaStation, retenueDeLaStation } from "../limite-github.ts";
+import { dernierRefusDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, retenueDeLaStation } from "../limite-github.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
 import { etatDeLaBase, gatesDuRouge } from "../projections/pass.ts";
 import { lireRail } from "../projections/rail.ts";
@@ -45,9 +45,29 @@ export function eteinteAuJournal(base: Base): boolean {
   return etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false;
 }
 
+// Combien de temps après son dernier refus GitHub tient encore la cuisine pour
+// limitée : deux tours du tour GitHub seul (#2429).
+export const REFUS_RECENT_MS = 5 * 60_000;
+
 const plusAncien = (instants: string[]): string | null => [...instants].sort()[0] ?? null;
 const plusRecent = (instants: Array<string | null | undefined>): string | null =>
   instants.filter((instant): instant is string => typeof instant === "string").sort().at(-1) ?? null;
+
+// Ce que dit le rail de ce qui n'avance pas : un ticket qui en attend un autre
+// que la cuisine a mis de côté (`hors-cuisine`, `fire` retiré) le dit avec la
+// ligne de raison du départ ; un ticket prenable que la zone d'un autre tient,
+// de même (#2429).
+export function explicationsDuRail(rail: ReturnType<typeof lireRail>, attendentLeChef: ReadonlySet<number> = new Set()): string[] {
+  const lignes: string[] = [];
+  for (const { ticket, state, awaits, held, waitingFor } of rail) {
+    if (state !== "waiting" || attendentLeChef.has(ticket) || waitingFor !== null) continue;
+    for (const { ticket: attendu, left } of awaits) {
+      if (left !== null) lignes.push(`#${ticket} waits on #${attendu}, set aside: ${left.reason}`);
+    }
+    if (awaits.length === 0 && held.length > 0) lignes.push(`#${ticket} is claimable but not claimed, the claim gate skipped it: zone held by ${[...new Set(held.map(({ ticket: tenant }) => `#${tenant}`))].join(", ")}`);
+  }
+  return lignes;
+}
 
 // Ce que l'ancien chemin observe, à son journal.
 export function observationDuJournal(base: Base, maintenant: Date): Observation {
@@ -62,6 +82,7 @@ export function observationDuJournal(base: Base, maintenant: Date): Observation 
     eteinte: eteinteAuJournal(base),
     enAttente: enAttente.map(({ ticket }) => ticket),
     attenteDepuis: plusAncien(enAttente.map(({ since }) => since)),
+    explications: explicationsDuRail(rail, attendentLeChef),
     dernierService: servi?.at ?? null,
     // L'ouverture : le démarrage du runtime, ou le projet rallumé depuis.
     ouverture: plusRecent([sessionEnCours(base)?.startedAt, interrupteur?.on === true ? interrupteur.since : null]),
@@ -89,6 +110,7 @@ export function signauxDeLaStation(racine: string | undefined, maintenant: Date)
   const limite = limiteDuCompteDeLaStation(racine);
   const pause = pauseDeLaStation(racine, instant);
   const reserve = retenueDeLaStation(racine, instant);
+  const refus = dernierRefusDeLaStation(racine, instant, REFUS_RECENT_MS);
   const ecritures = ecrituresRetenuesDeLaStation(racine, instant);
   return {
     limiteGitHub:
@@ -98,7 +120,10 @@ export function signauxDeLaStation(racine: string | undefined, maintenant: Date)
           ? { limit: null, backAt: iso(pause) }
           : reserve !== null
             ? { limit: "reserve", backAt: iso(reserve) }
-            : null,
+            : refus !== null
+              ? // La reprise dite est passée et GitHub refuse encore : la limite tient.
+                { limit: limite?.limit ?? null, backAt: limite?.backAt ?? iso(refus), refusedAt: iso(refus) }
+              : null,
     ecritures: ecritures === null ? null : { writes: ecritures.ecrites, nextAt: iso(ecritures.reprise) },
   };
 }
@@ -147,11 +172,11 @@ export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<Option
   const observation: Observation =
     vue === null
       ? observationDuJournal(base, maintenant)
-      : { eteinte: eteinteAuJournal(base), enAttente: vue.enAttente, attenteDepuis: vue.attenteDepuis, dernierService: vue.dernierService, ouverture: vue.ouverture };
+      : { eteinte: eteinteAuJournal(base), enAttente: vue.enAttente, attenteDepuis: vue.attenteDepuis, explications: vue.explications, dernierService: vue.dernierService, ouverture: vue.ouverture };
   const signaux = (): Signaux => {
     const duJournal = signauxDuJournal(base);
     const baseRouge = vue === null ? duJournal.baseRouge : vue.checksRouges !== null && vue.checksRouges.length > 0 ? { sha: null, checks: vue.checksRouges } : null;
-    return { ...duJournal, baseRouge, attenteCI: vue?.attenteCI ?? null, ...signauxDeLaStation(options.station, maintenant) };
+    return { ...duJournal, baseRouge, attenteCI: vue?.attenteCI ?? null, ...signauxDeLaStation(options.station, maintenant), explications: observation.explications ?? [] };
   };
   return { observation, signaux };
 }
