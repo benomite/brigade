@@ -3582,7 +3582,7 @@ main > header,
   gap: 8px;
   min-width: 0;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .ou {
+#rail :is(.station-declaree, .station-de-cuisson, .station-reglee) .ou {
   padding: 0 6px;
   font-size: 11px;
   font-weight: 500;
@@ -3593,12 +3593,12 @@ main > header,
   border-radius: var(--rayon-bouton);
 }
 #rail .station-declaree[data-ou="poste"] .ou,
-#rail .station-de-cuisson .ou[data-ou="poste"] {
+#rail :is(.station-de-cuisson, .station-reglee) .ou[data-ou="poste"] {
   color: var(--accent);
   border-color: var(--accent);
 }
 #rail .station-declaree[data-ou="ailleurs"] .ou,
-#rail .station-de-cuisson .ou[data-ou="ailleurs"] {
+#rail :is(.station-de-cuisson, .station-reglee) .ou[data-ou="ailleurs"] {
   border-style: dashed;
 }
 #rail :is(.station-declaree, .station-de-cuisson) .plafond {
@@ -3641,14 +3641,14 @@ main > header,
   color: var(--accent);
   border-color: var(--accent);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes button:disabled {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button:disabled {
   color: var(--discret);
   background: none;
   border-style: dashed;
   border-color: var(--trait-fort);
   cursor: default;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
@@ -3659,13 +3659,13 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .champ {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .champ {
   display: flex;
   align-items: center;
   gap: 10px;
   font-weight: 600;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition input[type="number"] {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) input[type="number"] {
   width: 8ch;
   padding: 5px 8px;
   font: inherit;
@@ -3675,22 +3675,22 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition fieldset {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) fieldset {
   margin: 0;
   padding: 0;
   border: 0;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition legend {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) legend {
   margin-bottom: 8px;
   padding: 0;
   font-weight: 600;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacites {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacites {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 8px;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -3704,32 +3704,32 @@ main > header,
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite:hover {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite:hover {
   border-color: var(--trait-fort);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite input {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite input {
   margin: 0;
   accent-color: var(--accent);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite small {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite small {
   grid-column: 2;
   font-size: 12px;
   color: var(--discret);
 }
 /* Sous les cases, une capacité hors de ces cases (ticket 1959) : un champ, « Add » et son aide au survol ; un refus
    passe dessous, en une ligne. */
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite-libre {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite-libre .saisie {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre .saisie {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite-libre input[type="text"] {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre input[type="text"] {
   width: 34ch;
   padding: 5px 8px;
   font-size: 13px;
@@ -3738,7 +3738,7 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite-libre .action button {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre .action button {
   padding: 3px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -3746,34 +3746,34 @@ main > header,
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite-libre .action button:disabled {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre .action button:disabled {
   color: var(--discret);
   border-style: dashed;
   cursor: default;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes .retrait {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes .retrait {
   margin-left: auto;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation {
   flex-flow: row wrap;
   align-items: center;
   gap: 6px 8px;
   margin: 0;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation > p {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > p {
   flex: 1 1 100%;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation > p.prix {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > p.prix {
   color: var(--jaune);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes button,
-#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation > button {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button,
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > button {
   padding: 3px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -3781,11 +3781,11 @@ main > header,
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition button.recommande {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) button.recommande {
   border-color: var(--accent);
 }
 #rail :is(.station-declaree, .station-de-cuisson) .fait,
-#rail :is(.station-declaree, .station-de-cuisson) .edition .indisponible {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .indisponible {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 12px;
@@ -8319,4 +8319,89 @@ button.recommande {
   gap: 6px;
   margin: 0 0 12px;
   color: var(--rouge-clair);
+}
+/* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
+   ses quatre réglages, la même ligne que Settings : le nom et son niveau, la valeur en vigueur, le contrôle. « Save »
+   vient sous le plafond et les capacités, qu'il enregistre ; les deux cases s'écrivent seules. */
+.reglages-station h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.reglages-station > .vide {
+  margin: 6px 0 0;
+  font-style: italic;
+  color: var(--discret);
+}
+#rail .station-reglee {
+  margin: 10px 0 0;
+  padding: 8px 16px 10px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .station-reglee h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+#rail .station-reglee > .reglage {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 220px) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  padding: 7px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--trait-doux);
+}
+#rail .station-reglee > .reglage > .nom {
+  color: var(--discret);
+}
+#rail .station-reglee > .reglage > .valeur {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+#rail .station-reglee > .reglage > .valeur strong {
+  font-weight: 600;
+}
+#rail .station-reglee > .reglage[data-pris="false"] > .valeur strong,
+#rail .station-reglee > .reglage[data-pris="inconnu"] > .valeur strong {
+  font-weight: 400;
+  color: var(--discret);
+}
+#rail .station-reglee > .reglage > .champ {
+  display: block;
+  font-weight: 400;
+}
+#rail .station-reglee > .reglage > .confirmation {
+  grid-column: 2 / -1;
+}
+#rail .station-reglee > .reglage input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+}
+#rail .station-reglee > .reglage .capacites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#rail .station-reglee > .reglage .capacite {
+  padding: 3px 10px;
+}
+#rail .station-reglee > .reglage .capacite-libre {
+  margin-top: 6px;
+}
+#rail .station-reglee > .gestes {
+  padding: 0 0 8px calc(200px + 220px + 24px);
+}
+#rail .station-reglee > :is(.fait, .indisponible) {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--discret);
 }

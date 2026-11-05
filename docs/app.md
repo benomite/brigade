@@ -15,7 +15,8 @@ gesture the app already makes: this computer serves the project as its Settings 
 selection as on its home page; what each does is in its `?`. Once written, the step closes and one line says which machine
 was given the project — the station joins the list once it takes it; a refusal stays in the step, in one line, its detail
 in a hover; `cancel` closes without writing anything. The narrow screen, which sets nothing, and a project whose
-repository the app does not know have no button. What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
+repository the app does not know have no button. Under the list, **Station settings** sets each station (#2488, below).
+What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
@@ -417,6 +418,30 @@ parts wraps a whole part to the next line; nothing is cut. Captures: `docs/captu
 
 *Code: `app/src/vue/projet/rail/bande-rail.js` (the band), `bandeDuRail` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/rail/bande-rail.test.ts`.*
+
+### Every setting of each station, on the Stations tab (#2488, epic #2484)
+
+The **Station settings** block of the Stations tab has one card per station the project declares, in the order of the
+declaration: its name and where it runs (`this workstation`, `box station`, `remote` — the words of Cooks), then four
+lines, each the same row as in Settings — the setting's name and its **level** (`this machine`, from
+`app/src/vue/niveaux.js`), the value in force, and its control:
+
+- **cooks at once** — a number; **what it provides** — the capability boxes of "edit" on Cooks, and a field for one no
+  box offers. **Save** (recommended, greyed until something changed) sends both to the project's declaration of its
+  stations, the same gesture as "edit" on Cooks (`changerUneStation`); the re-read declaration then shows the new values.
+- **ordinary tickets** — `taken` or `not taken`. On the station that runs on this computer, the box is this computer's
+  option, the same as Settings (`reglerOrdinaires`, its cooks limit kept): it writes at once. On a box station, `taken`,
+  greyed — a box station takes every ticket it can cook. On a remote station, what `facts` says of it, greyed, the
+  reason on hover; `not said` when its main station does not say it.
+- **serves this project** — ticked for every declared station. Unticking asks first, with what it costs in one line
+  (`Stop serving parade on pc/claude?`); confirmed, the station is removed from the declaration. The project's only
+  station cannot be unticked, the reason on hover.
+
+Nothing is stored by the block: each change goes through the storage that already existed, and a reload of the app shows
+it as written. Captures: `docs/captures/2488/`.
+
+*Code: `app/src/vue/projet/stations/ReglagesStation.js`, `reglagesDesStations` in `app/src/vue/vue.js`. Test:
+`app/test/vue/projet/reglages-station.test.ts`.*
 
 ### Cards never vanish while GitHub holds them (#2151)
 
