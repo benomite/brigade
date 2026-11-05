@@ -25,10 +25,11 @@ const RENVOI_MS = 300_000;
 const RENVOI = { timeout: 600_000 };
 
 // Une cuisine avec sa pass, un ticket sur le rail, et des gates rouges : sa
-// première livraison est renvoyée. Elles passent au vert dès le renvoi.
-function renvoye(t: TestContext, options: Options = {}) {
+// première livraison est renvoyée. Le test les passe au vert dès le renvoi —
+// ou, « rouge-une-fois », elles y passent d'elles-mêmes après leur premier jeu.
+function renvoye(t: TestContext, options: Options = {}, gates: "rouge" | "rouge-une-fois" = "rouge") {
   const lieu = cuisine(t, { pass: true, issues: [issue(17)], configClaude: true, suite: ["livre-en-session", "livre-en-session"], ...options });
-  lieu.gates.regler("rouge");
+  lieu.gates.regler(gates);
   const { journal } = lieu;
   const compter = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;
   const jusquAu = async (type: string, combien = 1) => jusqua(() => compter(type) >= combien, RENVOI_MS);
@@ -92,17 +93,12 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
 
   test("un renvoi repris repasse exactement les gates et la relecture d'un renvoi reparti de zéro : rien n'est sauté, rien n'est assoupli", RENVOI, async (t) => {
     // Deux cuisines de front, mêmes gates, même reviewer : l'une retrouve la session du premier cook, l'autre non.
-    const repris = renvoye(t);
-    const neuf = renvoye(t, { configClaude: false });
-    // Chacune passe au vert dès son propre renvoi : attendre l'une laisserait
-    // l'autre renvoyée une seconde fois.
-    await Promise.all(
-      [repris, neuf].map(async (lieu) => {
-        await lieu.jusquAu("pass.returned");
-        chef(lieu.repertoire, "grant.activated");
-        lieu.gates.regler("vert");
-      }),
-    );
+    // Chacune passe au vert dès son premier jeu de gates, et a sa délégation dès le départ : les passer au vert ou
+    // la donner après avoir vu le renvoi, c'est courir contre le cook du renvoi — s'il livre avant, sa cuisine est
+    // renvoyée une seconde fois (ou retenue), et les deux histoires divergent.
+    const repris = renvoye(t, {}, "rouge-une-fois");
+    const neuf = renvoye(t, { configClaude: false }, "rouge-une-fois");
+    for (const lieu of [repris, neuf]) chef(lieu.repertoire, "grant.activated");
     await Promise.all([repris.jusquAu("ticket.left"), neuf.jusquAu("ticket.left")]);
 
     assert.equal(reprend(repris.cooks()[1]?.args, repris.sessionDe(repris.lances()[0])), true);
@@ -110,6 +106,9 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     // La même histoire de pass, jugement par jugement.
     assert.deepEqual(repris.histoire(), neuf.histoire());
     assert.deepEqual(repris.histoire().filter((type) => type === "pass.judged").length, 2);
+    // Un seul renvoi chacune : les gates « rouge-une-fois » ont bien été jouées rouges une fois, au premier jugement
+    // (les verdicts plus bas le disent jugement par jugement), et vertes ensuite.
+    for (const lieu of [repris, neuf]) assert.equal(lieu.compter("pass.returned"), 1);
     // Les gates jouées autant de fois, sur les mêmes lieux ; le reviewer, autant de fois.
     const lieux = (appels: string[]) => appels.map((appel) => appel.split(/[\\/]worktrees[\\/]/).at(-1));
     assert.deepEqual(lieux(repris.gates.appels()), lieux(neuf.gates.appels()));
