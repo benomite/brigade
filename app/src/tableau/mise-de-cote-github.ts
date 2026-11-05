@@ -1,0 +1,100 @@
+// Un ticket mis de côté, lu de GitHub, pour un projet GitHub seul (#2075) : la station ou le chef pose sur son issue
+// `hors-cuisine` (trop de renvois, trop de cooks sans livraison : un humain décide) ou `blocked-on-human` (la livraison
+// touche à ce qui la juge), et la station dit pourquoi dans un commentaire, en posant le label. Le ticket attend le chef :
+// sa carte est dans TODO — dans WAITING si le chef l'y a mis —, et dit en une ligne pourquoi, tirée de ce commentaire.
+//
+// Le commentaire lu est le dernier qui nomme le label que l'issue porte — ou, pour `blocked-on-human`, celui que la station
+// écrit en le posant, qui ne le nomme pas (« this delivery changes what judges it ») —, d'un auteur du dépôt
+// (`author_association` OWNER, MEMBER ou COLLABORATOR : tout le monde peut commenter une issue publique), hors ceux du
+// manager (`<!-- brigade:manager -->`), qui nomment les labels sans en être la raison. Aucun : la carte le dit (faits.ts,
+// `SANS_RAISON`), et reste dans TODO.
+//
+// Les commentaires de la station (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts) se disent en
+// une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
+// GitHub mène de l'une à l'autre.
+
+export const HORS_CUISINE = "hors-cuisine";
+export const BLOCKED_ON_HUMAN = "blocked-on-human";
+// Dans l'ordre où la carte les nomme quand l'issue porte les deux.
+export const LABELS_DE_MISE_DE_COTE = [HORS_CUISINE, BLOCKED_ON_HUMAN] as const;
+const DE_CONFIANCE = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+const MARQUE_DU_MANAGER = "<!-- brigade:manager";
+// Au-delà, la ligne s'arrête au mot, d'un « … » : le reste est sur l'issue.
+const LONGUEUR_MAX = 160;
+
+// Un `#N` de la ligne, et l'adresse qu'il ouvre.
+export type LienDeLigne = { numero: number; url: string };
+// Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
+// commentaire ne la porte —, et les `#N` qu'elle nomme.
+export type MiseDeCote = { label: string; raison: string | null; liens: LienDeLigne[] };
+
+type Brut = Record<string, unknown>;
+
+// Le label qui met l'issue de côté, ou rien. `waiting` l'emporte : le chef a mis le ticket en attente d'un tiers.
+export function labelDeMiseDeCote(labels: readonly string[]): string | null {
+  if (labels.includes("waiting")) return null;
+  return LABELS_DE_MISE_DE_COTE.find((label) => labels.includes(label)) ?? null;
+}
+
+const nomme = (corps: string, label: string) => new RegExp(`(?<![\\w-])${label}(?![\\w-])`).test(corps);
+// Le commentaire de la station qui pose `blocked-on-human` sur une livraison qui touche à ce qui la juge.
+const JUGES = /changes what judges it\b[\s\S]*?merge it by hand: PR #(\d+)/;
+const ditLaMiseDeCote = (corps: string, label: string) => nomme(corps, label) || (label === BLOCKED_ON_HUMAN && JUGES.test(corps.replace(/`/g, "")));
+
+// Le texte d'un commentaire, sans ses marques, sa mise en forme, ni le « Station `x`: » qui l'ouvre.
+const nettoyer = (texte: string) =>
+  texte
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\*\*|__|`/g, "")
+    .trim();
+const sansStation = (texte: string) => texte.replace(/^Station [^:\n]*:\s*/, "");
+// Une raison du runtime en une phrase : sa première ligne, jusqu'à son détail — après le premier « : ».
+const motif = (raison: string) =>
+  (raison.split("\n")[0] ?? "")
+    .replace(/:(\s.*)?$/, "")
+    .trim();
+
+function couper(ligne: string): string {
+  const une = ligne.replace(/\s+/g, " ").trim();
+  if (une.length <= LONGUEUR_MAX) return une;
+  const coupee = une.slice(0, LONGUEUR_MAX);
+  const espace = coupee.lastIndexOf(" ");
+  return `${(espace > LONGUEUR_MAX / 2 ? coupee.slice(0, espace) : coupee).replace(/[\s,;:—-]+$/, "")}…`;
+}
+
+// La ligne qu'un commentaire de mise de côté donne à la carte.
+export function ligneDuCommentaire(corps: string): string | null {
+  const texte = sansStation(nettoyer(corps));
+  const tete = texte.split(/\n\s*\n/)[0] ?? "";
+  // Les renvois épuisés (renvois.ts, brigade-github.ts) : « still not mergeable after 2 sends back — <raison> ».
+  const renvois = /^still not mergeable after (\d+) sends? back — ([\s\S]*)$/.exec(tete);
+  if (renvois !== null) {
+    const pourquoi = motif(renvois[2] as string);
+    return couper(`off the kitchen after ${renvois[1]} sends back${pourquoi === "" ? "" : ` — ${pourquoi}`}`);
+  }
+  // Les cooks sans livraison (brigade-github.ts) : « the cook stopped without a delivery — <échec> », puis leur nombre.
+  const echec = /^the cook stopped without a delivery — ([\s\S]*)$/.exec(tete);
+  const cooks = /after (\d+) cooks without a delivery/.exec(texte);
+  if (echec !== null && cooks !== null) return couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`);
+  // Une livraison qui touche à ce qui la juge (brigade-github.ts) : la merger à la main.
+  const juges = JUGES.exec(texte);
+  if (juges !== null) return `changes what judges it: merge PR #${juges[1]} by hand`;
+  const premiere = texte
+    .split("\n")
+    .map((ligne) => ligne.replace(/^\s*(?:#+|>|[-*])\s*/, "").trim())
+    .find((ligne) => ligne !== "");
+  return premiere === undefined ? null : couper(premiere);
+}
+
+// Ce que la carte dit d'un ticket mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au plus
+// récent, tels que l'API de GitHub les rend.
+export function miseDeCoteDe(depot: string, label: string, commentaires: readonly Brut[]): MiseDeCote {
+  const raison =
+    [...commentaires]
+      .reverse()
+      .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && ditLaMiseDeCote(body, label))
+      .map(({ body }) => ligneDuCommentaire(body as string))
+      .find((ligne) => ligne !== null) ?? null;
+  const numeros = [...new Set([...(raison ?? "").matchAll(/#(\d+)\b/g)].map((trouve) => Number(trouve[1])))];
+  return { label, raison, liens: numeros.map((numero) => ({ numero, url: `https://github.com/${depot}/issues/${numero}` })) };
+}

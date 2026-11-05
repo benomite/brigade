@@ -4136,6 +4136,13 @@ main > header,
 #rail .bon p.ligne-carte {
   color: var(--bon-encre);
 }
+/* Un `#N` de la ligne d'un ticket mis de côté (#2075) : un lien dans la phrase, comme le numéro de la carte. */
+#rail .bon p.ligne-carte button.lien-de-ligne {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+}
 #rail .bon p.signal {
   font-weight: 600;
   color: var(--bon-encre);
