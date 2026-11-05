@@ -59,6 +59,7 @@ import { attenteDUneStation, direAttenteDUneStationEn, direMiseDeCote, miseDeCot
 import { requisDuRail, tacheDuTicket, tachesHumaines, type TacheHumaine } from "./sortie-attente-capacite/sortie.ts";
 import { direReprise, direRepriseEn, reprisesDuRail, type RepriseDuTicket } from "./remontee-a-la-cuisine.ts";
 import { aSortirAvec, direSortieAvecEn, type AbandonEnChaine } from "./abandon-en-chaine.ts";
+import { decisionsPosees } from "./decisions.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
@@ -250,7 +251,8 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     pause: pauseDeLaCuisine(base, rail),
     interrupteur,
     stations,
-    sansStation: sansStationDepuis(base),
+    // Le journal d'un projet GitHub seul n'écrit plus `stations.undeclared` : une décision `stations` du chef vaut déclaration.
+    sansStation: decisionsPosees(base).BRIGADE_STATIONS === undefined ? sansStationDepuis(base) : null,
     taches: tachesHumaines(base),
     setup: setupBloque(base),
     miseDeCote: miseDeCoteBloquee(base),
