@@ -80,6 +80,7 @@ import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairag
 import { tenirConversation } from "./telephone/conversation.js";
 import { BOUTON as APPAIRER_UN_TELEPHONE, poserLesTelephones, tenirLesTelephones } from "./telephones-de-station.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
+import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -103,9 +104,12 @@ import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, RE
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
+import { poserLaLenteur } from "./projet/lenteur.js";
+import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
+import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
@@ -268,6 +272,17 @@ function poserLesAppsGithub() {
   const etat = identitesGithub.etat;
   appsGithub.hidden = etat === undefined;
   appsGithub.replaceChildren(...(etat === undefined ? [] : [poserLesIdentites(document, etat, identitesGithub.gestes)]));
+  poserLesGroupes();
+}
+// Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : une ligne par
+// projet de l'app, et, la liste vide, la ligne qui dit que cet ordinateur n'en sert aucun. Relus à l'ouverture de
+// chaque projet ; un appareil sans station (le téléphone) n'en pose aucun.
+const projetsServis = element("projets-servis");
+const servis = tenirLesProjetsServis({ pont: brigade, rendre: () => poserLesProjetsServisIci() });
+function poserLesProjetsServisIci() {
+  const etat = servis.etat;
+  projetsServis.hidden = etat === undefined;
+  projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom }, servis.gestes)]));
   poserLesGroupes();
 }
 const reglagesDuProjet = element("reglages-du-projet");
@@ -626,6 +641,8 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que sa principale le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+const lenteurDuProjet = element("lenteur-du-projet");
+const tempsTicketDuProjet = element("temps-ticket-du-projet");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
 const blocagesDeplies = new Map();
@@ -2562,7 +2579,7 @@ for (const [niveau, aide] of /** @type {const} */ ([
 function poserLesGroupes() {
   videProjet.hidden = !reglagesDuProjet.hidden || !grants.hidden || !arreterCuisine.hidden;
   videProjet.textContent = videProjet.hidden ? "" : "nothing to set: no station reads this project";
-  videMachine.hidden = !ordinaires.hidden || !appsGithub.hidden || !code.hidden;
+  videMachine.hidden = !ordinaires.hidden || !appsGithub.hidden || !projetsServis.hidden || !code.hidden;
   videMachine.textContent = videMachine.hidden ? "" : `nothing to set on ${POSTE.nom} for this project`;
 }
 // Le projet dans ton app (ticket 1700) : une ligne du groupe de toi — il est dans la barre, et « Remove from the app »
@@ -4664,22 +4681,26 @@ function poserCuisson(projet, posees = new Map()) {
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const siens = (/** @type {Map<string, any>} */ ou) => new Map([...ou].flatMap(([cle, valeur]) => (cle.startsWith(cleDeCuisson(projet.nom, "")) ? [[cle.slice(cleDeCuisson(projet.nom, "").length), valeur]] : [])));
   const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(projet, tenu.tableau, heureDe(tenu.a)) : [];
-  const pose = stationsDeCuisson(document, {
+  // Sur un écran large, chaque cook en cours est la carte de son ticket ; sur l'écran étroit, une ligne.
+  const carte =
+    etroit() || ongletDe(projet) !== CUISINE
+      ? undefined
+      : (/** @type {import("../faits.ts").Cook} */ cook) => {
+          const carte = carteDuCook(projet.nom, cook);
+          const bon = poserBon(projet, carte, undefined);
+          posees.set(carte, bon);
+          return bon;
+        };
+  // Un projet sur GitHub seul : ses stations telles que GitHub les dit, toutes par la même règle (ticket 2358) — ni celles que
+  // l'ancien journal déclare, ni la principale que l'app lui connaît.
+  const surGithub = poserLesStationsSurGithub(document, { cuisson: stations, pastille, ...(carte === undefined ? {} : { carte }), tete: laCuisine });
+  const pose = surGithub ?? stationsDeCuisson(document, {
     lignes: stations?.lignes,
     enCours: siens(cuissonsEnCours),
     dits: siens(cuissonsDites),
     jouer: (station, geste) => void cuire(projet.nom, station, geste),
     pastille,
-    ...(etroit() || ongletDe(projet) !== CUISINE
-      ? {}
-      : {
-          carte: (/** @type {import("../faits.ts").Cook} */ cook) => {
-            const carte = carteDuCook(projet.nom, cook);
-            const bon = poserBon(projet, carte, undefined);
-            posees.set(carte, bon);
-            return bon;
-          },
-        }),
+    ...(carte === undefined ? {} : { carte }),
     plafonds: accueilVu?.plafonds?.[projet.nom],
     plafondsDits: siens(plafondsDeCuisson),
     saisies: { lire: (station) => plafondsSaisis.get(cleDeCuisson(projet.nom, station)) ?? "", ecrire: (station, valeur) => void plafondsSaisis.set(cleDeCuisson(projet.nom, station), valeur) },
@@ -6711,6 +6732,8 @@ function poserStationsDuProjet() {
     poserLesChoix(undefined);
     poserLesBlocages(undefined);
     poserLeDelai(undefined);
+    poserLaLenteurDuProjet(undefined);
+    poserLesTempsDesTickets(undefined);
     return;
   }
   if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
@@ -6755,6 +6778,8 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
+  poserLaLenteurDuProjet(projet);
+  poserLesTempsDesTickets(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
@@ -6802,6 +6827,22 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+// Ce qui est le plus lent dans le projet affiché (ticket 2351) : la phrase que la station publie sous `lenteur` du
+// projet vu, ou rien. Le champ n'est pas encore dans `ProjetVu` (projets.ts) : l'app ne lit que ce qui est publié.
+/** @param {Projet | undefined} projet */
+function poserLaLenteurDuProjet(projet) {
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const pose = poserLaLenteur(document, /** @type {{ lenteur?: import("./projet/lenteur.js").Lenteur | null } | undefined} */ (vu)?.lenteur);
+  lenteurDuProjet.hidden = pose === null;
+  lenteurDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+// Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide ; la station qui n'en publie pas le dit.
+/** @param {Projet | undefined} projet */
+function poserLesTempsDesTickets(projet) {
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  tempsTicketDuProjet.hidden = projet === undefined;
+  tempsTicketDuProjet.replaceChildren(...(projet === undefined ? [] : [poserTempsTicket(document, vu?.temps)]));
 }
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
@@ -8085,6 +8126,7 @@ async function ouvrir(projet) {
   poserCouleurs(projet);
   void poserOrdinaires(projet);
   void identitesGithub.lire();
+  void servis.lire();
   poserLesReglagesDuProjet(projet);
   void lireLesReglages(projet);
   brigade.regarder(projet.nom, ++demande);
@@ -8574,5 +8616,7 @@ brigade.surConfiguration((recue, partis) => {
     for (const [projet, shell] of aDroite) if (shell === id) aDroite.delete(projet);
   }
   configuration = recue;
+  // Un projet ajouté ou retiré a sa ligne parmi les projets servis, ou ne l'a plus.
+  if (servis.etat !== undefined) poserLesProjetsServisIci();
   afficher();
 });

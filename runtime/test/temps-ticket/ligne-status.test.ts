@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { direLesTempsDesTickets, ligneDesTempsDesTickets, type TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
+import { direLesTempsDesTickets, lesTempsDesTickets, ligneDesTempsDesTickets, type TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 const m = (n: number) => n * 60;
@@ -43,4 +43,15 @@ test("reads both files; a missing file still gives a line", (tc) => {
   writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify([{ ticket: 5, cuisson: 600, cuissonTests: 60, attentePasse: 0, revue: 0, ci: 0, merge: 0 }]));
   writeFileSync(join(dossier, "projet.json"), JSON.stringify({ tempsMaxTicketMin: 5 }));
   assert.match(ligneDesTempsDesTickets(depot), /median 10m \(slowest #5 10m\).*max 5m — over the max$/);
+});
+
+test("the published times: valid records and the project's max, the default without files", (tc) => {
+  assert.deepEqual(lesTempsDesTickets(undefined), { enregistrements: [], tempsMaxTicketMin: 15 });
+  const depot = repertoireTemporaire(tc);
+  const dossier = join(depot, ".claude", "brigade");
+  mkdirSync(dossier, { recursive: true });
+  const bon = t(7, 5, 1, 1, 1, 1, 1);
+  writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify([bon, { ticket: 8 }]));
+  writeFileSync(join(dossier, "projet.json"), JSON.stringify({ tempsMaxTicketMin: 30 }));
+  assert.deepEqual(lesTempsDesTickets(depot), { enregistrements: [bon], tempsMaxTicketMin: 30 });
 });

@@ -493,10 +493,25 @@ drawn from GitHub, at each reading of the board (every 30 seconds):
   Waiting — in `prio:` order, then oldest first. A taken card says the station that holds it and since its claim; a
   card in pass, who cooked it and since its PR, and its PR number on its `right now` line; a queued card, since its
   issue was opened.
-- **Cooks**: one station per station holding a claim comment on an issue (`<!-- brigade:prise station=… -->`, the
-  earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
-  says it as the runtime's `prise.ts` does). Each station is `cooking`, its cooks the cards of the tickets it holds, taken
-  or in pass with their PR.
+- **Cooks** (#2358): every station of the project as GitHub tells it, the box and a computer by the same rule, in the
+  same line — none is the main station, none carries "move the kitchen" or a stop button (stopping one station is an
+  old-path gesture the GitHub-only loop does not read). A station of the project is one the app chose the repository
+  for (`selection` of its registration gist), or one holding a claim comment on an issue (`<!-- brigade:prise station=… -->`,
+  the earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
+  says it as the runtime's `prise.ts` does); its name is the one of its claims, `<machine>/claude`. Its sign of life is
+  the `lastSeen` it rewrites in its registration gist every two minutes, read by the main process at that pace
+  (`app/src/vue/cooks/signes-de-vie.ts`). Each line says:
+  - **cooking**, `reached` — it holds a ticket: its cooks are the cards of the tickets it holds, taken or in pass with
+    their PR, within one reading of the board;
+  - **idle**, `reached` — it holds none, and its sign of life is fresh (at most two missed refreshes, the registration
+    contract's rule);
+  - **not reached**, and `last sign of life <date> UTC` on screen — it holds none and has gone silent, or stopped.
+    "open Brigade on that computer" is in the hover.
+  A station holding a ticket with a silent sign of life is still `cooking` (GitHub says so until its lease is taken
+  back), `not reached`. When the signs of life cannot be read, one line says so — the reason in the hover — and only
+  the stations holding a ticket are listed, their pill `no word`. Nothing of the block comes from the old log's
+  `facts`, from the stations it declares, or from the main station the app knows. *Rule:
+  `runtime/src/stations-github/stations.ts`. View: `app/src/vue/cooks/stations-github.js`.*
 - What the old path said and the GitHub-only loop does not follow is no longer shown: the idle-kitchen fault, the
   stations declared to the old path (`no station declared`), and a kitchen `held` by it. The chef's stop and a kitchen
   switched off are shown as published. The backlog and Served still come from the board, and so does TODO, with
@@ -521,8 +536,11 @@ refreshed from GitHub (#2059), as before; once read on, the switch is remembered
 conditional: a 304 costs nothing.
 
 *Code: `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`, `lireLeTableau` in `app/src/main.ts`. Tests:
-`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`. Captures: `docs/captures/2220/` —
-`rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`.*
+`app/test/vue/rail/github.test.ts`, `app/test/vue/cooks/prises.test.ts`, `app/test/vue/cooks/stations-github.test.ts`,
+`app/test/vue/cooks/signes-de-vie.test.ts`, `runtime/test/stations-github/stations.test.ts`. Captures:
+`docs/captures/2220/` — `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`;
+`docs/captures/2358/` — `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and
+`-apres.png` (one station cooking, one idle, one silent).*
 
 ### The chef's TODO read from GitHub, for a GitHub-only project (#2221, epic #2209)
 
@@ -1739,6 +1757,24 @@ the final duration the station froze (« First ticket served 2 h 34 min after th
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
 Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
 
+**Slowest part** (#2351, epic #2337): one line under the first-ticket line, the sentence `nommerLePlusLent` returns
+for the project (« CI: 7 min median », « a cook spends 70 % of its time in tests »), with its figures on hover. The
+view reads it from `lenteur` of the project's view; **the field is not yet carried by `ProjetVu`**
+(`app/src/projets/projets.ts`) — until the station publishes it and the app relays it, no line shows. No sentence, no
+line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
+
+**Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project: the median total of the last 10
+measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
+waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
+`data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
+`vide` ("No ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone,
+so their sum can differ from the median total. The principal station reads the project's clone
+(`.claude/brigade/temps-tickets.json`, integer seconds, and `tempsMaxTicketMin` of `projet.json`; `lesTempsDesTickets` in
+`runtime/src/temps-ticket/ligne-status.ts`) and publishes `temps` (`{ enregistrements, tempsMaxTicketMin }`) in its
+project tracking, next to `delai`; the app relays it on the project's view. A station that does not publish it yet
+(an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
+Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of
@@ -2097,7 +2133,7 @@ it is kept on hover:
 | Group | Its settings |
 |---|---|
 | **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
-| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); this station's GitHub Apps, one line per role (below); the projects this computer's station serves, one checkbox per project (below); the app's code, and each brigade clone, in one sentence with its one button when it has one |
 | **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
 
 **Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
@@ -2362,6 +2398,34 @@ station and are never sent to the repository** (what the Apps are for on hover).
 Only this computer's station is reached: a phone has no station, and the lines are not laid there. The modules are
 `app/src/vue/identites-github.js` and, in the main process, `appsDeLaStation` / `rangerUneApp` (`app/src/main.ts`).
 Captures: `docs/captures/2317/`.
+
+### The projects this computer serves, in Settings (#2359, epic #2356)
+
+**A computer's station cooks only the projects you choose for it**, straight from GitHub (`runtime/src/station-ordinateur/`,
+#2357). You choose them in Settings' **this machine** group, under a line `projects this Mac serves` (`this PC` under
+Windows):
+
+- **On a fresh install, none is chosen**, and the line says so in plain words, in yellow: `this Mac serves no project`.
+  Its station then takes no ticket. Once one project or more is chosen, it says `serves 1 project` (`serves 2 projects`…).
+  What choosing does — the station clones the project on this computer and takes its tickets, at its next turn, within
+  two minutes — is on hover.
+- **One line per project of the app**, in the order of the bar: its name and its repository (`chef/parade`), `served`
+  (green) or `not served`, and a checkbox. Ticking it adds the repository to the station's list; unticking it removes
+  it — the station's cooks in flight on it finish and deliver. The line says `saving…` until the station has written
+  the list, and every box waits meanwhile: one project at a time. **The value shown is always the list written**, re-read
+  each time a project's space opens: chosen, closed and reopened, a project is still ticked.
+- A project whose repository the app does not know (added by hand without `depot`) has its checkbox muted, the reason on
+  hover. A repository on the station's list that no project of the app carries keeps its line, ticked, so that you see
+  everything this computer cooks and can untick it.
+- **What does not write is said**: a repository the station refuses reads `nothing was written: …` under its line, the
+  rest of the station's sentence on hover, and the box stays unticked. A list the station cannot read says `projects
+  served here unavailable`, the reason on hover — never `serves no project`.
+
+The list lives in the station's own state (`<station dir>/projets-servis.json`), never in the projects file nor in the
+repository. Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules
+are `app/src/vue/projets-servis/projets-servis.js` and, in the main process, `projetsServis` / `servirUnProjet`
+(`app/src/main.ts`), which call `lireProjetsServis`, `ajouterProjetServi` and `retirerProjetServi` of the runtime.
+Captures: `docs/captures/2359/`.
 
 ### The grants, in Settings
 

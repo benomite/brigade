@@ -95,6 +95,13 @@ export function mesuresGitHubDuProcess(): MesuresGitHub {
   return duProcess;
 }
 
+// Les ferme : le prochain appel en rouvre. Pour un test qui efface ensuite la
+// station : sous Windows, un répertoire qui garde une base ouverte ne s'efface pas.
+export function fermerLesMesuresDuProcess(): void {
+  duProcess?.fermer();
+  duProcess = null;
+}
+
 // Le relevé des sept derniers jours, en lecture seule : rien n'est écrit ni créé.
 // null si la station n'a rien relevé ou si le relevé ne se lit pas.
 export function releveGitHubDeLaStation(racine: string | undefined, maintenant: number): ReleveGitHub | null {

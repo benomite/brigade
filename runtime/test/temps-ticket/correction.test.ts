@@ -100,3 +100,22 @@ test("the slowest phase is the one with the largest median", async () => {
   assert.equal(decision.action === "opened" && decision.phase, "ci");
   assert.match(created[0]!.title, /CI/);
 });
+
+test("the body names the slowest part with its numbers when data exists", async () => {
+  const dir = await repo([1, 2, 3].map(slow));
+  const { rail, created } = fakeRail();
+  const nommer = (projet: string) => {
+    assert.equal(projet, dir);
+    return { partie: "ci", phrase: "CI: 7 min median", chiffres: { mediane: 420, impact: 420, mesures: 12 } };
+  };
+  assert.equal((await checkMedian(dir, rail, nommer)).action, "opened");
+  assert.match(created[0]!.body, /Slowest part: CI: 7 min median \(12 runs\)/);
+});
+
+test("with no duration recorded the body says so and the ticket is still opened", async () => {
+  const dir = await repo([1, 2, 3].map(slow));
+  const { rail, created } = fakeRail();
+  assert.equal((await checkMedian(dir, rail, () => null)).action, "opened");
+  assert.equal(created.length, 1);
+  assert.match(created[0]!.body, /Slowest part: no duration was recorded yet/);
+});

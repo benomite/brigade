@@ -16,6 +16,7 @@
 // l'ancien chemin), au tour (les checks rouges de la base) et au compteur des
 // appels de la station (la limite de GitHub, le budget des écritures) — celui
 // d'aucune station sur le poste de dev : ces deux-là n'y sont pas lus.
+import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
 import { attentesDuChef } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
@@ -131,6 +132,8 @@ export type OptionsRetenue = {
   // en échec avant d'alerter (relance-base.ts). Par défaut, celle du tour
   // GitHub seul, s'il y en a un ; sans tour, aucune relance.
   relance?: PorteDeLaRelance | null;
+  // La branche d'intégration, que lisent les checks Windows de la base (#2413) ; `main` par défaut.
+  branche?: string;
   maintenant?: () => Date;
   // Une ligne du journal de service.
   dire?: (ligne: string) => void;
@@ -175,6 +178,9 @@ export function brancherRetenue<R extends Runtime>(runtime: R, options: OptionsR
   const passer = () => {
     try {
       const instant = maintenant();
+      // Un check Windows rouge sur la base a sa carte dans TODO, une seule ; vert, elle en sort (#2413).
+      const checks = options.tour?.vue().checks ?? null;
+      if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, options.branche ?? "main", checks);
       const { observation, signaux } = lireLaCuisine(runtime.journal.base, instant, options);
       // Les signaux ne se lisent que pour une retenue : le compteur de la
       // station n'est pas ouvert à chaque fait écrit au journal.
