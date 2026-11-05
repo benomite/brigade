@@ -327,7 +327,7 @@ function laVueJouable(): { texte: string; modules: string[] } {
   if (jouable !== undefined) return jouable;
   const source = readFileSync(join(VUE, "vue.js"), "utf8");
   const imports = /^import \{ FitAddon \} from "@xterm\/addon-fit";\nimport \{ Terminal as Xterm \} from "@xterm\/xterm";$/m;
-  const siens = /^import (\{[^}]*\}) from "\.\/((?:[a-z-]+\/)*[a-z-]+\.js)";$/gm;
+  const siens = /^import (\{[^}]*\}) from "\.\/((?:[a-z-]+\/)*[A-Za-z-]+\.js)";$/gm;
   if (!imports.test(source) || /^import /m.test(source.replace(imports, "").replace(siens, ""))) throw new Error("vue.js n'importe plus ce que la fausse vue remplace : ses deux imports de xterm, et ses propres modules");
   const modules: string[] = [];
   const corps = source.replace(imports, "const { FitAddon } = globalThis.fauxXterm;\nconst { Xterm } = globalThis.fauxXterm;").replace(siens, (_, noms: string, module: string) => {
@@ -453,10 +453,15 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
 // attendre, tout est donc fait quand la file des promesses est vide — aucun délai n'est couru.
 export const repos = (): Promise<void> => new Promise((fait) => setImmediate(fait));
 
-// Montre un des deux onglets du projet, Rail ou Cooks (#1184), comme le chef : d'un clic, à côté de son nom.
-// Rend l'onglet cliqué.
-export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Cooks"): Promise<Faux> {
-  const onglet = vue.element("onglets-du-projet").children.find((candidat) => candidat.textContent === titre);
+// Montre un onglet du projet comme le chef : d'un clic sur le menu, à côté de son nom (#1184, #2485). Health et Cooks
+// sont les sous-onglets de Kitchen : Kitchen d'abord, puis le sous-onglet. Rend l'onglet cliqué.
+export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Stations" | "Kitchen" | "Health" | "Cooks"): Promise<Faux> {
+  const dans = titre === "Health" || titre === "Cooks" ? "onglets-cuisine" : "onglets-du-projet";
+  if (dans === "onglets-cuisine" && vue.element(dans).hidden) {
+    vue.element("onglets-du-projet").children.find((candidat) => candidat.textContent === "Kitchen")?.click();
+    await repos();
+  }
+  const onglet = vue.element(dans).children.find((candidat) => candidat.textContent === titre);
   if (onglet === undefined) throw new Error(`pas d'onglet « ${titre} »`);
   onglet.click();
   await repos();
@@ -470,7 +475,11 @@ export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
   const ici = trouve();
   if (ici !== undefined) return ici;
   const autre = vue.element("rail").dataset.onglet === "cooks" ? "Rail" : "Cooks";
-  vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === autre)?.click();
+  if (autre === "Rail") vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Rail")?.click();
+  else {
+    vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Kitchen")?.click();
+    vue.element("onglets-cuisine").children.find((onglet) => onglet.textContent === "Cooks")?.click();
+  }
   return trouve();
 }
 
@@ -493,7 +502,7 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     return geste;
   }
   if (titre !== "Settings" && titre !== "Grants") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
-  return cliquer(vue.element("onglets"), "Settings");
+  return cliquer(vue.element("onglets-du-projet"), "Settings");
 }
 
 // Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : depuis l'accueil, sans

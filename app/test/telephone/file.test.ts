@@ -19,7 +19,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { FauxEcran, type Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { FauxEcran, type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
@@ -91,8 +91,7 @@ async function ouvrir({ etroit }: { etroit: boolean }): Promise<Jouee> {
 }
 
 async function taper(vue: Jouee, titre: string): Promise<void> {
-  (vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === titre) ?? assert.fail(`pas d'onglet « ${titre} »`)).click();
-  await repos();
+  await ouvrirOnglet(vue, titre as "Rail" | "Cooks");
 }
 
 const sections = (vue: Jouee) => vue.element("rail").dessous("section").filter((pose) => pose.className === "colonne");

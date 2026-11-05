@@ -20,7 +20,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { type Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { type Faux, FauxEcran, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
@@ -220,8 +220,7 @@ describe("depuis le téléphone, un geste qui échoue le dit et laisse la file t
 
 describe("depuis le téléphone, arrêter ou relancer la cuisine d'un projet", () => {
   const cooks = async (vue: Jouee) => {
-    (vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Cooks") ?? assert.fail("pas d'onglet Cooks")).click();
-    await repos();
+    await ouvrirOnglet(vue, "Cooks");
   };
   const ligne = (vue: Jouee) => rail(vue).dessous("li").find((li) => li.className === "station-de-cuisson") ?? assert.fail("pas de station");
   const bouton = (vue: Jouee) => ligne(vue).dessous("button").find((pose) => pose.className !== "aide") ?? assert.fail("pas de bouton sur la station");

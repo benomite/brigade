@@ -72,8 +72,8 @@ const cliquer = async (vue: Jouee, ou: Faux, texte: string) => {
   await repos();
 };
 // En haut, les onglets de pages ; à droite, ceux des terminaux.
-const titres = (vue: Jouee) => vue.element("onglets").children.map((pose) => pose.textContent);
-const selectionne = (vue: Jouee) => vue.element("onglets").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent);
+const titres = (vue: Jouee) => vue.element("onglets-du-projet").children.map((pose) => pose.textContent);
+const selectionne = (vue: Jouee) => vue.element("onglets-du-projet").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent);
 const terminaux = (vue: Jouee) => vue.element("terminaux").children.map((pose) => pose.textContent);
 const montre = (vue: Jouee) => vue.element("terminaux").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent);
 // Les cadres des terminaux, là où la vue les a posés : dans la colonne de droite, et nulle part ailleurs.
@@ -102,12 +102,12 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
     // En haut, un onglet de pages, Paramètres : ni « Second », ni shell — ni Cost, qui vit au niveau de l'app (#1022).
-    assert.deepEqual(titres(vue), ["Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
     // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
     assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
     assert.deepEqual(montre(vue), ["second · claude"]);
     // Aucune page n'est ouverte : le rail a le centre pour lui.
-    assert.deepEqual(selectionne(vue), []);
+    assert.deepEqual(selectionne(vue), ["Rail"]);
     assert.equal(vue.element("contenu").hidden, true);
   });
 
@@ -286,8 +286,8 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     const avant = vue.xterms[0]?.focalise ?? 0;
     await cliquer(vue, vue.element("terminaux"), "second · claude");
     assert.equal(vue.xterms[0]?.focalise, avant + 1);
-    // Rien ne s'ouvre au centre : ni page, ni zone sous le rail.
-    assert.deepEqual(selectionne(vue), []);
+    // Rien ne s'ouvre au centre : ni page, ni zone sous le rail ; Rail reste l'onglet montré.
+    assert.deepEqual(selectionne(vue), ["Rail"]);
     assert.equal(vue.element("contenu").hidden, true);
   });
 
@@ -435,7 +435,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
   test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; un onglet, et le geste du journal", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(titres(vue), ["Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
@@ -449,7 +449,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
   test("Settings est une seule page, sans sous-pages ni lecture de `status` (#1700) ; recliqué, il se referme", async () => {
     const vue = await ouvrir();
 
-    await cliquer(vue, vue.element("onglets"), "Settings");
+    await cliquer(vue, vue.element("onglets-du-projet"), "Settings");
     assert.equal(vue.element("etat").hidden, false);
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(selectionne(vue), ["Settings"]);
@@ -460,7 +460,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     // Ce que Settings lit, ce sont les grants.
     assert.equal(vue.dernier("onglet")[1], "grants");
     // Recliqué, il se referme.
-    await cliquer(vue, vue.element("onglets"), "Settings");
+    await cliquer(vue, vue.element("onglets-du-projet"), "Settings");
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
   });
@@ -473,13 +473,13 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(rail.inert, false);
 
     for (const page of ["Settings"]) {
-      await cliquer(vue, vue.element("onglets"), page);
+      await cliquer(vue, vue.element("onglets-du-projet"), page);
       assert.equal(vue.element("contenu").hidden, false, page);
       // Couvert, pas défait : il est encore là, et rien de lui ne se clique au travers.
       assert.equal(rail.hidden, false, page);
       assert.equal(rail.inert, true, page);
       assert.equal(vue.element("alertes").hidden, false, page);
-      await cliquer(vue, vue.element("onglets"), page);
+      await cliquer(vue, vue.element("onglets-du-projet"), page);
       assert.equal(vue.element("contenu").hidden, true, page);
       assert.equal(rail.inert, false, page);
       assert.equal(rail.textContent, avant, page);

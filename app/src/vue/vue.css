@@ -340,7 +340,8 @@ main > header,
    la largeur, ils défilent. */
 /* Les deux onglets du projet (ticket 1184), Rail et Cooks, entre son nom et Settings : les mêmes onglets, soulignés de
    son accent quand ils sont montrés. Un trait les sépare de Settings, qui s'ouvre par-dessus. */
-#onglets-du-projet {
+#onglets-du-projet,
+#onglets-cuisine {
   flex: none;
   align-self: stretch;
   display: flex;
@@ -367,6 +368,7 @@ main > header,
   overflow-x: auto;
 }
 #onglets-du-projet button,
+#onglets-cuisine button,
 #onglets button,
 #terminaux button {
   padding: 10px 14px;
@@ -376,16 +378,19 @@ main > header,
   border-bottom: 2px solid transparent;
 }
 #onglets-du-projet button:hover,
+#onglets-cuisine button:hover,
 #onglets button:hover,
 #terminaux button:hover {
   color: var(--texte-doux);
 }
 #onglets-du-projet button:focus-visible,
+#onglets-cuisine button:focus-visible,
 #onglets button:focus-visible,
 #terminaux button:focus-visible {
   outline-offset: -2px;
 }
 #onglets-du-projet button[aria-selected="true"],
+#onglets-cuisine button[aria-selected="true"],
 #onglets button[aria-selected="true"],
 #terminaux button[aria-selected="true"] {
   color: var(--texte);
@@ -7987,4 +7992,19 @@ button.recommande {
 }
 #accueil-stations .version-d-une-station[data-ton="jaune"] .phrase {
   color: var(--jaune);
+}
+
+/* Les blocs de Stations, de Health et de Cooks (ticket 2485) : chacun son titre, en attendant son contenu. */
+.bloc-du-projet {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--trait);
+}
+.bloc-du-projet:empty {
+  display: none;
+}
+.bloc-du-projet h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--discret);
 }

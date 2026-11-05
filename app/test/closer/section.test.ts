@@ -338,7 +338,7 @@ describe("la partie closer, sur l'onglet Cooks du projet (#1699)", () => {
     vue.dire("surContenu", lecture(OBSERVEE, demande), undefined, undefined);
     await repos();
     // Une page ouverte par-dessus — Settings — : Cooks n'est plus lu, sa section se vide.
-    (vue.element("onglets").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    (vue.element("onglets-du-projet").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
     await repos();
     assert.equal(page.children.length, 0);
     await ouvrirOnglet(vue, "Rail");
