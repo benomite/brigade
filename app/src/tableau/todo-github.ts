@@ -13,9 +13,8 @@
 // libre joue `resume`. La réponse part du `gh` du chef (tableau-gestes/reponse-github.ts).
 export const LABEL_DU_CHEF = "chef-todo";
 const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*)$/;
-// Une issue au label dont aucun commentaire ne porte la marque : la carte reste — le label la fait —, et le dit.
-export const SORTE_SANS_MARQUE = "todo";
-export const TEXTE_SANS_MARQUE = "No readable card on this issue: its marked comment is missing. Open the issue.";
+// Une carte du chef pose une question, ou n'est pas dans TODO (#2455) : sans commentaire marqué, ou sans texte, elle n'est
+// pas montrée, et le second en est prévenu (attente-du-chef.ts).
 
 // Ce que la vue pose sur une carte du chef : la sorte (`blocked`, `merge-by-hand`, `product-question`, `abandoned`, ou
 // ce que le runtime ajoute un jour) et le texte du commentaire.

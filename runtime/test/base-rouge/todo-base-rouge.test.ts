@@ -32,18 +32,35 @@ test("an open marked repair being cooked: a line that asks nothing of the chef",
 });
 
 test("a failed repair is listed for the chef with its reason", async (t) => {
-  await t.test("the cook gave up: hors-cuisine, reason from its failure comment", () => {
+  await t.test("hors-cuisine with a product question: the question is the card", () => {
     const todo = baseRougeDuTodo([
       issue({
         labels: ["prio:0", "hors-cuisine"],
-        commentaires: [{ association: "OWNER", body: "<!-- brigade:echec n=3 -->\nStation `a`: the cook stopped without a delivery — gates stay red" }],
+        commentaires: [
+          { association: "OWNER", body: "<!-- brigade:echec n=3 -->\nStation `a`: the cook stopped without a delivery — gates stay red" },
+          { association: "OWNER", body: "<!-- brigade:todo kind=product-question -->\nShould the repair drop the legacy export?" },
+        ],
       }),
     ]);
     assert.equal(todo.enCours.length, 0);
+    assert.equal(todo.pourLeSecond.length, 0);
     assert.equal(todo.pourLeChef.length, 1);
     assert.equal(todo.pourLeChef[0]!.ticket, 50);
-    assert.match(todo.pourLeChef[0]!.texte, /needs you/);
-    assert.match(todo.pourLeChef[0]!.texte, /gates stay red/);
+    assert.match(todo.pourLeChef[0]!.texte, /legacy export/);
+  });
+  await t.test("#2061, 2026-11-05: three echec markers, hors-cuisine, no question: no card, the second is told why", () => {
+    const echec = (n: number) => ({ association: "OWNER", body: `<!-- brigade:echec n=${n} -->\nStation \`a\`: the cook stopped without a delivery — stale conflicting branch` });
+    const todo = baseRougeDuTodo([issue({ number: 2061, labels: ["prio:0", "hors-cuisine"], commentaires: [echec(1), echec(2), echec(3)] })]);
+    assert.deepEqual(todo.pourLeChef, []);
+    assert.deepEqual(todo.enCours, []);
+    assert.equal(todo.pourLeSecond.length, 1);
+    assert.equal(todo.pourLeSecond[0]!.ticket, 2061);
+    assert.match(todo.pourLeSecond[0]!.pourquoi, /stale conflicting branch/);
+  });
+  await t.test("chef-todo without a readable card: not shown, the second is told why", () => {
+    const todo = baseRougeDuTodo([issue({ labels: ["chef-todo"], commentaires: [{ association: "OWNER", body: "<!-- brigade:todo kind=abandoned -->\n" }] })]);
+    assert.deepEqual(todo.pourLeChef, []);
+    assert.match(todo.pourLeSecond[0]!.pourquoi, /no readable card/);
   });
   await t.test("marked as needing the chef: the card text is the reason", () => {
     const todo = baseRougeDuTodo([
@@ -59,19 +76,19 @@ test("a failed repair is listed for the chef with its reason", async (t) => {
     assert.match(todo.pourLeChef[0]!.texte, /needing the chef/);
   });
   await t.test("a stranger's comment is not believed", () => {
-    const todo = baseRougeDuTodo([issue({ labels: ["hors-cuisine"], commentaires: [{ association: "NONE", body: "<!-- brigade:echec n=1 -->\nsecret lie" }] })]);
+    const todo = baseRougeDuTodo([issue({ labels: ["blocked-on-human"], commentaires: [{ association: "NONE", body: "<!-- brigade:echec n=1 -->\nsecret lie" }] })]);
     assert.doesNotMatch(todo.pourLeChef[0]!.texte, /secret lie/);
   });
 });
 
 test("no marked ticket: nothing changes", () => {
-  assert.deepEqual(baseRougeDuTodo([]), { enCours: [], pourLeChef: [] });
-  assert.deepEqual(baseRougeDuTodo([issue({ body: "A plain ticket." })]), { enCours: [], pourLeChef: [] });
-  assert.deepEqual(baseRougeDuTodo([issue({ association: "NONE" })]), { enCours: [], pourLeChef: [] });
+  assert.deepEqual(baseRougeDuTodo([]), { enCours: [], pourLeChef: [], pourLeSecond: [] });
+  assert.deepEqual(baseRougeDuTodo([issue({ body: "A plain ticket." })]), { enCours: [], pourLeChef: [], pourLeSecond: [] });
+  assert.deepEqual(baseRougeDuTodo([issue({ association: "NONE" })]), { enCours: [], pourLeChef: [], pourLeSecond: [] });
 });
 
 test("a marked ticket closed (base green): no base-red line", () => {
-  assert.deepEqual(baseRougeDuTodo([issue({ state: "closed" }), issue({ state: "closed", labels: ["hors-cuisine"] })]), { enCours: [], pourLeChef: [] });
+  assert.deepEqual(baseRougeDuTodo([issue({ state: "closed" }), issue({ state: "closed", labels: ["hors-cuisine"] })]), { enCours: [], pourLeChef: [], pourLeSecond: [] });
 });
 
 test("the reader fetches comments of failed repairs only, and a failing read raises", async () => {
@@ -87,7 +104,8 @@ test("the reader fetches comments of failed repairs only, and a failing read rai
   const todo = await lireLaBaseRouge(github);
   assert.deepEqual(lus, [2]);
   assert.equal(todo.enCours.length, 1);
-  assert.equal(todo.pourLeChef.length, 1);
+  assert.equal(todo.pourLeChef.length, 0);
+  assert.equal(todo.pourLeSecond.length, 1);
   await assert.rejects(lireLaBaseRouge({ issuesOuvertes: async () => Promise.reject(new Error("rate limited")), commentaires: async () => [] }), /rate limited/);
 });
 
@@ -125,14 +143,21 @@ test("TODO, a repair being cooked: a line saying the base is red, outside the ch
   assert.match(corps, /## Awaiting the chef — nothing/);
 });
 
-test("TODO, a failed repair: listed for the chef with its reason", async (t) => {
-  const { avec, corps } = await todoRendu(t, [ouverte({ labels: ["prio:0", "hors-cuisine"] })], { 50: [{ association: "OWNER", body: "<!-- brigade:echec n=3 -->\nthe cook stopped: gates stay red" }] });
+test("TODO, a failed repair with a question for the chef: listed with the question", async (t) => {
+  const { avec, corps } = await todoRendu(t, [ouverte({ labels: ["prio:0", "hors-cuisine"] })], { 50: [{ association: "OWNER", body: "<!-- brigade:todo kind=product-question -->\nKeep the legacy export?" }] });
   assert.equal(avec.file.length, 1);
   assert.equal(avec.file[0]!.nom, "#50");
   assert.match(corps, /## Awaiting the chef — 1 decision/);
   assert.match(corps, /its repair #50 failed/);
-  assert.match(corps, /gates stay red/);
+  assert.match(corps, /Keep the legacy export\?/);
   assert.doesNotMatch(corps, /a repair is cooking/);
+});
+
+test("TODO, a failed repair set aside with no question (#2061): no card for the chef", async (t) => {
+  const { avec, corps } = await todoRendu(t, [ouverte({ labels: ["prio:0", "hors-cuisine"] })], { 50: [1, 2, 3].map((n) => ({ association: "OWNER", body: `<!-- brigade:echec n=${n} -->\nthe cook stopped: gates stay red` })) });
+  assert.equal(avec.file.length, 0);
+  assert.match(corps, /## Awaiting the chef — nothing/);
+  assert.match(corps, /repair #50 failed and is the second's to handle/);
 });
 
 test("TODO, no marked ticket: unchanged compared to before", async (t) => {

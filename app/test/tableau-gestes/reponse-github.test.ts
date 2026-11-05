@@ -161,8 +161,8 @@ describe("le commentaire marqué porte ses choix", () => {
     const carte = carteDuChefDeTodo({ sorte: "product-question", texte: "Which plan?" });
     assert.deepEqual(carte?.choix, []);
     assert.match(carte?.prixDuTexte ?? "", /removes `hors-cuisine` and `chef-todo`/);
-    // Une issue sans commentaire marqué n'a rien à quoi répondre.
-    assert.equal(carteDuChefDeTodo({ sorte: "todo", texte: "No readable card on this issue: its marked comment is missing. Open the issue." }), undefined);
+    // Un commentaire marqué sans texte n'a rien à quoi répondre.
+    assert.equal(carteDuChefDeTodo({ sorte: "blocked", texte: "  " }), undefined);
   });
 });
 

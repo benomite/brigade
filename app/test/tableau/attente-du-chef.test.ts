@@ -102,16 +102,21 @@ describe("ce qui attend le chef, lu de GitHub", () => {
     assert.deepEqual((await lue(github(monde))).attentes.map(({ ticket }) => ticket), [30, 8]);
   });
 
-  test("une issue `chef-todo` sans commentaire marqué reste une entrée, qui le dit ; un `blocked-on-human` sans PR se lève", async () => {
-    const monde = { 5: { labels: ["chef-todo"], created_at: "2026-11-05T05:00:00Z" }, 9: { labels: ["fire", "blocked-on-human"], created_at: "2026-11-05T07:00:00Z" } };
-    const { attentes } = await lue(github(monde));
-    assert.deepEqual(
-      attentes.map(({ ticket, ligne }) => [ticket, ligne]),
-      [
-        [5, "No readable card on this issue: its marked comment is missing. What does it ask you? — open the issue, answer there, then remove `chef-todo`"],
-        [9, ECARTS["blocked-on-human"]],
-      ],
-    );
+  test("une issue `chef-todo` dont la question ne se lit pas n'est pas une entrée, et le second en est prévenu (#2455) ; un `blocked-on-human` sans PR se lève", async () => {
+    const monde = {
+      5: { labels: ["chef-todo"], created_at: "2026-11-05T05:00:00Z" },
+      6: { labels: ["chef-todo"], created_at: "2026-11-05T05:30:00Z", commentaires: [dit("<!-- brigade:todo kind=blocked -->\n  ", "2026-11-05T05:40:00Z")] },
+      9: { labels: ["fire", "blocked-on-human"], created_at: "2026-11-05T07:00:00Z" },
+    };
+    const lecture = await lue(github(monde));
+    assert.deepEqual(lecture.attentes.map(({ ticket, ligne }) => [ticket, ligne]), [[9, ECARTS["blocked-on-human"]]]);
+    assert.equal(lecture.illisibles.length, 2);
+    assert.match(lecture.illisibles[0] ?? "", /^#5 carries `chef-todo` but is not shown in Todo: no comment marked/);
+    assert.match(lecture.illisibles[1] ?? "", /^#6 carries `chef-todo` but is not shown in Todo: its marked card has no text/);
+    // Le second le lit dans le bloc `awaiting`.
+    const bloc = blocDuChef(lecture);
+    assert.ok(bloc.includes(`  ${lecture.illisibles[0]}`) && bloc.includes(`  ${lecture.illisibles[1]}`), bloc.join("\n"));
+    assert.ok(!bloc.some((ligne) => ligne.startsWith("  #5  for")));
   });
 
   test("le tableau de la cuisine n'est jamais lu, ni une entrée", async () => {
