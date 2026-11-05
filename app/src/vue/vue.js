@@ -4677,7 +4677,7 @@ function poserCuisson(projet, posees = new Map()) {
           posees.set(carte, bon);
           return bon;
         };
-  // Un projet sur GitHub seul : ses stations telles que GitHub les dit, toutes par la même règle (#2358) — ni celles que
+  // Un projet sur GitHub seul : ses stations telles que GitHub les dit, toutes par la même règle (ticket 2358) — ni celles que
   // l'ancien journal déclare, ni la principale que l'app lui connaît.
   const surGithub = poserLesStationsSurGithub(document, { cuisson: stations, pastille, ...(carte === undefined ? {} : { carte }), tete: laCuisine });
   const pose = surGithub ?? stationsDeCuisson(document, {

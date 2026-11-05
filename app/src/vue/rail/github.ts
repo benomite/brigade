@@ -10,7 +10,7 @@
 //     état tiré de ses labels, de sa PR et de la base (`etatDuTicket`) — sans aucun des quatre, il est en attente ;
 //   - pour un ticket pris ou en pass, les commentaires et les événements de son issue : la station qui le tient
 //     (vue/cooks/prises.ts). Ce sont les cooks de l'onglet Cooks, chacun sous sa station, avec sa PR quand il en a une.
-// Et, pour les stations de l'onglet Cooks (#2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
+// Et, pour les stations de l'onglet Cooks (ticket 2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
 // gist, sous le compte du chef, que le process principal lit à son pas (vue/cooks/signes-de-vie.ts) — reçu ici, pas lu.
 //
 // Le reste du tableau — TODO, ce qui est avant le rail, les livrés — est gardé tel que la box l'a publié. Est retiré ce
@@ -161,7 +161,7 @@ const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en
 
 // Le tableau lu, dont le rail et les cooks sont ceux de GitHub : ses tickets dans l'ordre du service — la priorité, puis
 // le plus ancien —, les lignes de leurs bons, ses compteurs, et ses stations d'après leurs prises et leurs signes de vie
-// (#2358) — rien des stations que le tableau figé de l'ancien chemin disait. `stationsSurGithub` le marque : l'onglet
+// (ticket 2358) — rien des stations que le tableau figé de l'ancien chemin disait. `stationsSurGithub` le marque : l'onglet
 // Cooks les montre toutes par la même règle, et dit quand leurs signes de vie ne se lisent pas. Un ticket mis de côté
 // attend le chef : il entre dans `attend` avec ce qui le met de côté, à la place de ce que le tableau figé en disait (ticket 2075).
 export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {

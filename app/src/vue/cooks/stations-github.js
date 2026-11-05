@@ -1,5 +1,5 @@
 // @ts-check
-// Les stations d'un projet sur GitHub seul, sur l'onglet Cooks (#2358) : chacune telle que GitHub la dit — les tickets
+// Les stations d'un projet sur GitHub seul, sur l'onglet Cooks (ticket 2358) : chacune telle que GitHub la dit — les tickets
 // qu'elle tient sur leurs issues, et son dernier signe de vie dans son gist (runtime/src/stations-github/stations.ts) —,
 // la box comme un ordinateur, par la même règle et dans le même bloc. Aucune n'y est principale : toutes prennent,
 // cuisent, jugent et mergent. Rien ne s'y lit des `facts` de l'ancien journal, ni des stations qu'il déclarait.

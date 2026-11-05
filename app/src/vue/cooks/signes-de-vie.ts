@@ -1,4 +1,4 @@
-// Les signes de vie des stations du compte, pour l'onglet Cooks d'un projet sur GitHub seul (#2358) : chaque station
+// Les signes de vie des stations du compte, pour l'onglet Cooks d'un projet sur GitHub seul (ticket 2358) : chaque station
 // réécrit son enregistrement dans son gist toutes les deux minutes (runtime/src/enregistrement-station/contrat.ts,
 // `RAFRAICHI_MS`) ; le process principal le relit à ce pas, pas plus vite — le rail, lui, se relit toutes les trente
 // secondes, et chaque lecture reprend la dernière lecture des signes. Une lecture que la vue a déjà faite (les stations
