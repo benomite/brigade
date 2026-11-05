@@ -11,6 +11,8 @@ import { limitesDeLaStation } from "../../src/github-limite.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ECRITURES_PAR_MINUTE, limiteDeLaStation } from "../../src/limite-github.ts";
 import { brancherRetenue, signauxDeLaStation } from "../../src/retenue/brancher.ts";
+import { cartesEnTodo } from "../../src/carte-todo.ts";
+import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
 import { suivreLeTour } from "../../src/retenue/tour.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
 import { repertoireTemporaire } from "../outils.ts";
@@ -35,7 +37,7 @@ test("le tour vu par la retenue : attendent les tickets en pass et ceux qu'une s
   const suivi = suivreLeTour(() => new Date(instant));
   const { dicte, client } = clientDicte();
   const github = suivi.envelopper(client);
-  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null });
+  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null });
 
   instant = A("00:05:00");
   dicte.tickets = [
@@ -104,7 +106,8 @@ function cuisineGitHubSeule(t: TestContext, station?: string) {
   const tenues = () => journal.base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'kitchen.held' ORDER BY seq").map(({ payload }) => JSON.parse(payload));
   const levees = () => journal.base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'kitchen.hold-lifted' ORDER BY seq").map(({ payload }) => JSON.parse(payload));
   const lignes = () => decrireEtat(lireEtat(journal, new Date(instant)), new Date(instant)).filter((ligne) => /^ {2}kitchen {2}for /.test(ligne));
-  return { dicte, github, a, passer, tenues, levees, lignes };
+  const cartes = () => cartesEnTodo(journal.base).map(({ ticket }) => ticket);
+  return { dicte, github, a, passer, tenues, levees, lignes, cartes };
 }
 
 test("GitHub seul : la base rouge sur ses checks Windows, rien de mergé depuis 30 min — une ligne dans la file du chef nomme les checks, et tombe au merge suivant", async (t) => {
@@ -158,4 +161,20 @@ test("le budget des écritures lu au compteur de la station : les écritures de 
   assert.deepEqual(signauxDeLaStation(station, new Date(horloge)).ecritures, { writes: ECRITURES_PAR_MINUTE, nextAt: new Date(horloge + 60_000).toISOString() });
   // Sans station — le poste de dev —, rien ne se lit, rien ne se crée.
   assert.deepEqual(signauxDeLaStation(undefined, new Date(horloge)), { limiteGitHub: null, ecritures: null });
+});
+
+test("GitHub seul : un check Windows rouge sur la base lu par le tour met une seule carte dans TODO, que le tick rejoue sans doublon, et elle sort au vert (#2413)", async (t) => {
+  const c = cuisineGitHubSeule(t);
+  const lire = async (...checks: Array<{ outcome: "green" | "red"; name: string }>) => {
+    c.dicte.checks = checks;
+    await c.github.checksDeLaBase();
+    c.passer("00:01:00");
+  };
+  await lire({ outcome: "red", name: "runtime-windows" }, { outcome: "red", name: "app-windows" }, { outcome: "red", name: "lint" });
+  await lire({ outcome: "red", name: "runtime-windows" }, { outcome: "red", name: "app-windows" });
+  assert.deepEqual(c.cartes().sort(), [ticketDuCheck("runtime-windows", "main"), ticketDuCheck("app-windows", "main")].sort());
+  await lire({ outcome: "green", name: "runtime-windows" }, { outcome: "red", name: "app-windows" });
+  assert.deepEqual(c.cartes(), [ticketDuCheck("app-windows", "main")]);
+  await lire({ outcome: "green", name: "runtime-windows" }, { outcome: "green", name: "app-windows" });
+  assert.deepEqual(c.cartes(), []);
 });

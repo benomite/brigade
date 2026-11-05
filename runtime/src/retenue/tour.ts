@@ -18,6 +18,7 @@ import { calibrage, complet } from "../calibrage.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { HORS_CUISINE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
+import type { CheckVu } from "../carte-ci-windows.ts";
 import type { Observation } from "./retenue.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
@@ -25,7 +26,8 @@ const AILLEURS = [HORS_CUISINE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
 
 // Ce que le tour a vu : l'observation (sans `eteinte`, que le journal dit), et
 // les noms des checks rouges de la base, nuls tant qu'aucun n'est lu.
-export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null };
+// `checks` : tous ceux de la base au dernier tour (nom et issue), nuls avant.
+export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null };
 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
@@ -39,6 +41,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   const ouverture = maintenant().toISOString();
   let dernierService: string | null = null;
   let checksRouges: string[] | null = null;
+  let checks: CheckVu[] | null = null;
   // Les tickets qui attendent, et le tour qui a vu chacun commencer d'attendre.
   let attendent = new Map<number, string>();
   let enPass = new Set<number>();
@@ -70,9 +73,10 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         return tickets;
       },
       checksDeLaBase: async () => {
-        const checks = await github.checksDeLaBase();
-        checksRouges = checks.filter(({ outcome }) => outcome === "red").map(({ name }) => name ?? "unnamed check");
-        return checks;
+        const lus = await github.checksDeLaBase();
+        checksRouges = lus.filter(({ outcome }) => outcome === "red").map(({ name }) => name ?? "unnamed check");
+        checks = lus.map(({ name, outcome }) => ({ name, outcome }));
+        return lus;
       },
       merger: async (numero, sha) => {
         const merge = await github.merger(numero, sha);
@@ -82,7 +86,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     }),
     vue: () => {
       const depuis = [...attendent.values()].sort()[0] ?? null;
-      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges };
+      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks };
     },
   };
 }

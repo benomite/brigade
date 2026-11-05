@@ -8,7 +8,7 @@
 // La carte n'a pas de ticket : sa clé en tient lieu, un numéro négatif dérivé
 // du nom et de la branche, stable d'un tour à l'autre. La relance des runs
 // rouges (relance-main-rouge.ts) n'est pas touchée.
-import { cartesEnTodo, entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
+import { cartesEnTodo, cartesRetenues, entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
 import type { Journal } from "./journal.ts";
 
 export const CHECKS_WINDOWS = ["runtime-windows", "app-windows"] as const;
@@ -37,14 +37,17 @@ export function suivreLesChecksWindows(journal: Journal, projet: string, branche
     const ticket = ticketDuCheck(nom, branche);
     const enTodo = cartesEnTodo(journal.base).some((carte) => carte.ticket === ticket);
     if (lus.some((check) => check.outcome === "red")) {
-      if (enTodo) continue;
+      // Dans TODO, ou retenue par le triage : rien n'est reproposé à chaque tour.
+      if (enTodo || cartesRetenues(journal.base).some((carte) => carte.ticket === ticket)) continue;
       const entree = entrerDansTodo(journal, projet, ticket, {
         type: "product",
         resume: `The Windows check ${nom} is red on ${branche}. It does not block merges.`,
-        enonce: `Do you want a repair ticket for ${nom} on ${branche}?`,
+        enonce: `Will you leave ${nom} alone until it turns green on ${branche}?`,
+        // La porte veut deux gestes à une question. Aucun ne répare : la carte
+        // se résout seule au vert, et « Close » la rend sans attendre.
         choix: [
-          { texte: "Leave it, it will clear when the check turns green", suite: "drop" },
-          { texte: "Close this card", suite: "close" },
+          { texte: "Yes, leave it, the card clears when the check turns green", suite: "drop" },
+          { texte: "No need to wait, close this card now", suite: "close" },
         ],
       }, AUTEUR);
       if (entree.porte === "todo") entrees.push(nom);

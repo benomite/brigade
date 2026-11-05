@@ -1,7 +1,7 @@
 // La carte d'un check Windows rouge sur main : une seule, par check et par branche (#2413).
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { cartesEnTodo } from "../src/carte-todo.ts";
+import { brancherLeTriage, cartesEnTodo, cartesRetenues } from "../src/carte-todo.ts";
 import { suivreLesChecksWindows, ticketDuCheck, type CheckVu } from "../src/carte-ci-windows.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
@@ -45,4 +45,14 @@ test("un check en cours ou étranger ne touche à aucune carte", (t) => {
   suivre(rouge("runtime-windows"), rouge("lint"));
   suivre({ name: "runtime-windows", outcome: "pending" });
   assert.equal(cartes().length, 1);
+});
+
+test("une carte que le triage retient n'est pas reproposée à chaque run rouge", (t) => {
+  const { journal, suivre, cartes } = cuisine(t);
+  t.after(brancherLeTriage(journal.base, () => true));
+  suivre(rouge("runtime-windows"));
+  suivre(rouge("runtime-windows"));
+  assert.equal(cartes().length, 0);
+  assert.equal(cartesRetenues(journal.base).length, 1);
+  assert.equal(journal.base.lire("SELECT 1 FROM events WHERE type = 'todo.held'").length, 1);
 });
