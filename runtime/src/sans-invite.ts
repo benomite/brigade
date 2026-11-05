@@ -122,6 +122,24 @@ export function ligneDeCmd(fichier: string, args: readonly string[]): string {
   return [echapperPourCmd(fichier), ...args.map((argument) => echapperPourCmd(echapperPourCmd(citerArgument(argument))))].join(" ");
 }
 
+// Un argument tel que le bash et le sh de Git le relisent de leur ligne de
+// commande. Ils ne la lisent pas comme la bibliothèque C : msys2-runtime y coupe
+// aussi aux sauts de ligne, y lit `'` comme une citation et `@fichier` comme le
+// contenu du fichier, et développe en motif un argument qui porte `*`, `?`, `[`,
+// `{` ou `(`, ou commence par `~`. Un `[]` sans `]` plus loin (`labels[]=fire`)
+// y fait lire le motif au-delà de sa fin : le bash meurt avant le script, sans
+// un mot (#2388). Node ne cite qu'un argument qui porte une espace, une
+// tabulation ou un guillemet, et rien n'est développé entre guillemets. Un autre
+// argument qui ne se relirait pas tel quel part entre apostrophes, ses
+// contre-obliques doublées : msys2-runtime l'y relit tel quel. Un argument qui
+// porte lui-même une apostrophe ne s'écrit pas sans guillemet, que Node
+// échapperait : il part tel quel.
+export function argumentPourLeBashDeGit(argument: string): string {
+  if (argument === "" || /[ \t"']/.test(argument)) return argument;
+  if (!/[\r\n*?[{}()]/.test(argument) && !/^[~@]/.test(argument)) return argument;
+  return `'${argument.replaceAll("\\", "\\\\")}'`;
+}
+
 // L'interprète que nomme une ligne de shebang, et ce qu'il reçoit avant le
 // script : `#!/usr/bin/env -S node --no-warnings` est `node`, avec
 // `--no-warnings`. Null : la ligne n'en est pas une.
@@ -143,8 +161,9 @@ export function interpreteDuShebang(ligne: string): { nom: string; args: string[
 // PATH résoudra, reste tel quel.
 export function lancementSousWindows(commande: string, args: readonly string[], outils: OutilsWindows): LancementWindows {
   const tel = { commande, args: [...args], tels: false };
-  if (BASH.has(commande)) return { ...tel, commande: outils.shells().bash };
-  if (SH.has(commande)) return { ...tel, commande: outils.shells().sh };
+  const pourGit = (liste: readonly string[]) => liste.map(argumentPourLeBashDeGit);
+  if (BASH.has(commande)) return { ...tel, commande: outils.shells().bash, args: pourGit(args) };
+  if (SH.has(commande)) return { ...tel, commande: outils.shells().sh, args: pourGit(args) };
   const extension = win32.extname(commande).toLowerCase();
   if (extension === ".cmd" || extension === ".bat") return { commande: outils.cmd, args: ["/d", "/s", "/c", `"${ligneDeCmd(commande, args)}"`], tels: true };
   if (extension === ".exe" || extension === ".com" || !/[\\/]/.test(commande)) return tel;
@@ -154,8 +173,8 @@ export function lancementSousWindows(commande: string, args: readonly string[], 
   // Le bash de Git lit un chemin de Windows écrit avec des barres obliques.
   const script = commande.replaceAll("\\", "/");
   if (interprete.nom === "node") return { ...tel, commande: outils.node, args: [...interprete.args, commande, ...args] };
-  if (interprete.nom === "bash") return { ...tel, commande: outils.shells().bash, args: [...interprete.args, script, ...args] };
-  if (interprete.nom === "sh") return { ...tel, commande: outils.shells().sh, args: [...interprete.args, script, ...args] };
+  if (interprete.nom === "bash") return { ...tel, commande: outils.shells().bash, args: pourGit([...interprete.args, script, ...args]) };
+  if (interprete.nom === "sh") return { ...tel, commande: outils.shells().sh, args: pourGit([...interprete.args, script, ...args]) };
   return { ...tel, commande: interprete.nom, args: [...interprete.args, commande, ...args] };
 }
 
