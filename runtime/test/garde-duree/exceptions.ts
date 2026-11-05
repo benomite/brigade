@@ -317,8 +317,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/mise-a-jour/machine.test.ts", test: "la version gelée, une version publiée n'est pas installée ; le gel levé, elle l'est" },
   { file: "test/mise-a-jour/machine.test.ts", test: "trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage" },
   { file: "test/mise-a-jour/machine.test.ts", test: "une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée" },
-  { file: "test/mise-a-jour/mettre-a-jour.test.ts", test: "une station qui tourne sans se dire en service dans la garde n'est pas gardée" },
-  { file: "test/mise-a-jour/mettre-a-jour.test.ts", test: "une version qui ne sert plus un projet que la précédente servait n'est pas gardée : le motif nomme le projet et son refus" },
   { file: "test/outils.test.ts", test: "lancerSurPortPose : l'arbitre sur un port repris à chaque essai, le compte d'essais s'épuise et le dit" },
   { file: "test/paquet/paquet.test.ts", test: "la première installation crée le compte, puis active et démarre la station et son renouvellement" },
   { file: "test/paquet/paquet.test.ts", test: "le runtime du paquet démarre la station et ses portes telles que leurs unités les lancent — la station filtrée, ses portes non" },
