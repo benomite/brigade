@@ -166,7 +166,7 @@ describe("les projets de la station sur le téléphone appairé", () => {
     assert.equal(phrase(vue), undefined);
     assert.equal(lignes(vue).length, 2);
     assert.match(lignes(vue)[0] ?? "", /^parade.*waiting for the chef/);
-    assert.match(lignes(vue)[1] ?? "", /^cantine.*nothing cooking, nothing waits for you/);
+    assert.match(lignes(vue)[1] ?? "", /^cantine.*idle/);
     // La barre porte chaque projet, à côté de « T ».
     assert.deepEqual(
       vue.element("projets").children.slice(1, 3).map((cas) => cas.title.split(" — ")[0]),
@@ -212,7 +212,7 @@ describe("les projets de la station sur le téléphone appairé", () => {
     // Ce que le réseau en a dit, et ce qu'il faut vérifier, au survol.
     assert.match([...dite.descendants()].map((pose) => pose.ariaLabel ?? "").join("\n"), /failed to connect to \/192\.168\.1\.20.*tries again every 30 s/s);
     assert.equal(lignes(vue).length, 2);
-    for (const ligne of lignes(vue)) assert.match(ligne, /station unreachable/);
+    for (const ligne of lignes(vue)) assert.match(ligne, /held/);
     // Rien d'autre n'est demandé à une station qui ne répond pas.
     assert.ok(demandes.every((chemin) => chemin === "/projects"));
     // Ouverte, la file d'un projet le dit en une ligne, elle aussi.
