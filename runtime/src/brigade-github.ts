@@ -48,6 +48,7 @@ import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
+import { motifArretCook } from "./motif-arret-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
@@ -1306,14 +1307,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
       return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
     }
+    const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
     await depot.ranger(worktree, branche);
-    if (depot.commits(branche) === 0) return { echec: "the cook committed nothing" };
+    if (depot.commits(branche) === 0) return { echec: motifArretCook("the cook committed nothing", arretDuCook()) };
     if (avant !== null && depot.tete?.(branche) === avant) {
       if (resteAFaire !== null) return { reste: resteAFaire };
       // Un cook qui s'arrête dans ses premiers tours n'a pas travaillé sur les
       // remarques de la relecture : ce n'est pas un essai (#2508).
       if (fin.turns <= TOURS_POUR_TRAVAILLER) return { court: true, subi: `the cook stopped after ${fin.turns} turn${fin.turns === 1 ? "" : "s"}, before it could work on the review's remarks, and added nothing since its last delivery` };
-      return { echec: `the cook added nothing since its last delivery (${fin.turns} turns)` };
+      return { echec: motifArretCook("the cook added nothing since its last delivery", arretDuCook()) };
     }
     try {
       depot.pousser(branche);
