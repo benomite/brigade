@@ -113,22 +113,10 @@ test("l'accueil n'a que deux blocs, les projets puis la station de cet ordinateu
     ],
   );
   assert.equal(projets().parentElement, tous.children[0], "les lignes des projets sont dans leur bloc");
-  // Ni stations, ni « + station », ni Cost, ni Closer, ni version de l'app, ni santé.
+  // Ni toutes les stations, ni « + station » (onglet Stations), ni Cost, ni Closer (Kitchen > Health), ni version de l'app,
+  // ni santé (retirées) : ni sur l'accueil, ni cachées dans la page.
   assert.doesNotMatch(visible(tous), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
-  for (const parti of ["accueil-stations", "accueil-couts", "accueil-ratios", "accueil-app", "sante"]) assert.ok(![...tous.descendants()].includes(vue.element(parti)), parti);
-});
-
-test("la ligne de santé, hors de l'accueil depuis #2638 : verte quand tout va, une phrase quand Max ou GitHub cloche", async () => {
-  const { vue } = await lAccueil();
-  const sante = vue.element("sante");
-  assert.equal(sante.parentElement, vue.element("hors-de-l-accueil"));
-  assert.equal(sante.dataset.ok, "true");
-  assert.equal(visible(sante), "Max ✓ · GitHub ✓");
-  vue.dire("surAccueil", { ...ACCUEIL, sante: { ton: "rouge", dit: "Max ✓  ·  GitHub limits calls, back around 3:16 PM", survol: "" } });
-  await repos();
-  assert.equal(sante.dataset.ok, "false");
-  assert.equal(sante.children[0]?.dataset.ton, "rouge");
-  assert.equal(visible(sante), "Max ✓ · GitHub limits calls, back around 3:16 PM");
+  for (const parti of ["toutes-les-stations", "de-tous-les-projets", "accueil-app", "sante", "hors-de-l-accueil"]) assert.throws(() => vue.element(parti), parti);
 });
 
 test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par projet, les projets des stations, l'ajout d'un projet — ni commande, ni champ ouvert", async () => {
@@ -139,8 +127,8 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   assert.deepEqual(tous.dessous("article"), []);
   assert.deepEqual(tous.dessous("pre"), []);
   assert.doesNotMatch(texte, /\b(brigade|gh|git)\s+(-|\S+\s)/);
-  // Le seul champ de l'accueil est celui du code d'appairage, replié sous « + station ».
-  assert.ok(tous.dessous("input").every((champ) => champ.parentElement?.hidden === true));
+  // Aucun champ : celui du code d'appairage, sous « + station », est dans l'onglet Stations (#2638).
+  assert.deepEqual(tous.dessous("input"), []);
   // Le code de l'app est dans Settings, sous cette machine (#1700), et au survol de « T ».
   assert.equal(vue.element("code").parentElement, vue.element("reglages-machine"));
   assert.match(vue.element("projets").children[0]?.title ?? "", /^All projects — this app's code is 3 commits behind$/);

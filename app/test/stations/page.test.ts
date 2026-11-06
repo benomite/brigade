@@ -17,7 +17,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, ouvrirToutesLesStations, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 const EN_LIGNE: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
@@ -55,9 +55,8 @@ const enTete = (page: Faux) => {
 // L'app ouverte sur l'accueil, puis la page de la station `nom` ouverte d'un clic sur sa ligne.
 async function laPage(nom: string, reponses: Reponses = {}) {
   const jouee = await jouerLaVue({ demarrage, espace: () => [], ...reponses });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
-  const ligne = jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom)) ?? assert.fail(`pas de ligne « ${nom} »`);
+  await ouvrirToutesLesStations(jouee);
+  const ligne = jouee.element("toutes-les-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom)) ?? assert.fail(`pas de ligne « ${nom} »`);
   ligne.click();
   await repos();
   return { jouee, page: jouee.element("station") };
@@ -123,10 +122,9 @@ async function retirer(page: Faux) {
 test("la ligne de mise à jour, sous l'en-tête : « up to date · on this version for 3 days » ; vide, elle ne se pose pas", async () => {
   const dite = { ...EN_LIGNE, versionDit: "up to date · on this version for 3 days" };
   const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage(), stations: { a: A, stations: [dite, HORS_LIGNE] } }), espace: () => [] });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
+  await ouvrirToutesLesStations(jouee);
   const ouvrir = async (nom: string) => {
-    jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))?.click();
+    jouee.element("toutes-les-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))?.click();
     await repos();
     return jouee.element("station");
   };
@@ -166,7 +164,7 @@ test("confirmer retire la station et ramène à l'accueil", async () => {
   jouee.dire("surStations", { a: A, stations: [HORS_LIGNE, SATUREE] });
   jouee.dire("surAccueil", { ...ACCUEIL, stations: ACCUEIL.stations?.filter(({ id }) => id !== "g1") });
   await repos();
-  const lignes = jouee.element("accueil-stations").dessous("button").filter(({ className }) => className === "ligne");
+  const lignes = jouee.element("toutes-les-stations").dessous("button").filter(({ className }) => className === "ligne");
   assert.deepEqual(lignes.map(({ textContent }) => textContent.startsWith("mac") ? "mac" : "atelier"), ["mac", "atelier"]);
 });
 

@@ -442,17 +442,20 @@ const code = document.createElement("div");
 code.id = "code";
 code.ariaLive = "polite";
 groupeMachine.append(code);
-// L'accueil, « Tous les projets » : la vue d'ensemble de brigade (accueil.ts). Une liste des projets,
-// une des stations — une ligne chacun, un clic ouvre sa page —, et en bas la ligne de santé. On n'y
-// agit pas : seul « + station » y ouvre le champ où le chef tape le code qu'une station neuve affiche.
+// L'accueil, « Tous les projets » : la vue d'ensemble de brigade (accueil.ts). Deux blocs (ticket 2638) : la liste des
+// projets — une ligne chacun, un clic ouvre son espace —, et la station de cet ordinateur. On n'y agit pas.
 const projetsDeLAccueil = document.createElement("section");
 projetsDeLAccueil.id = "accueil-projets";
 projetsDeLAccueil.className = "liste";
 projetsDeLAccueil.ariaLabel = "Projects";
+// Toutes les stations — une ligne par machine, un clic ouvre sa page —, et « + station » : sur l'accueil jusqu'au ticket
+// 2638, elles sont en bas de l'onglet Stations de chaque projet, sous celles du projet et la station de cet ordinateur.
+const TOUTES_LES_STATIONS = "All stations";
 const stationsDeLAccueil = document.createElement("section");
-stationsDeLAccueil.id = "accueil-stations";
-stationsDeLAccueil.className = "liste";
-stationsDeLAccueil.ariaLabel = "Stations";
+stationsDeLAccueil.id = "toutes-les-stations";
+stationsDeLAccueil.className = "bloc-du-projet";
+stationsDeLAccueil.ariaLabel = TOUTES_LES_STATIONS;
+stationsDeLAccueil.dataset.bloc = "toutes-les-stations";
 const listeDesStations = document.createElement("div");
 listeDesStations.ariaLive = "polite";
 // « + station », sous la liste : le champ du code s'ouvre dessous, et nulle part ailleurs. Il est posé
@@ -487,7 +490,7 @@ blocDesEnregistrees.hidden = true;
 // côte à côte, et ce poste dit en retard quand une station plus haute est publiée. Rien sur le téléphone, qui n'en a pas.
 const versionsDesStations = document.createElement("div");
 versionsDesStations.ariaLive = "polite";
-stationsDeLAccueil.append(listeDesStations, versionsDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
+stationsDeLAccueil.append(bloc("h3", TOUTES_LES_STATIONS), listeDesStations, versionsDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
 /** @type {import("./stations-du-compte.js").EtatDuCompte} */
 const etatDesEnregistrees = {};
 let enregistreesAbsentes = true;
@@ -523,18 +526,6 @@ const gestesDesEnregistrees = {
     poserStationsDeLAccueil();
   },
 };
-// « App », sur l'accueil : la version qui tourne, toujours dite ; et, quand une plus haute est publiée,
-// un message avec deux gestes — l'installer maintenant, ou la laisser au lancement suivant.
-const appDeLAccueil = document.createElement("section");
-appDeLAccueil.id = "accueil-app";
-appDeLAccueil.className = "liste";
-appDeLAccueil.ariaLabel = "App";
-appDeLAccueil.ariaLive = "polite";
-const titreDeLApp = bloc("h2", "App");
-titreDeLApp.hidden = true;
-const santeDeLAccueil = document.createElement("p");
-santeDeLAccueil.id = "sante";
-santeDeLAccueil.ariaLive = "polite";
 // La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, tous
 // les projets qu'elle porte, et le parcours « add a project » — le dépôt, ses stations, sa
 // principale — le serveur proposé d'office —, ses décisions, et valider. Rien ne s'y tape au terminal.
@@ -627,12 +618,11 @@ const sectionsDeStation = document.createElement("div");
 sectionsDeStation.className = "sections-de-station";
 pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, sectionsDeStation, titreDesProjets, listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation, projetsChoisisDeStation);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
-// un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
+// un projet. Une ligne « Cost » l'ouvre, en bas de Kitchen > Health de chaque projet (sur l'accueil jusqu'au ticket 2638). Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
 // le renvoi vers `/usage` (cost/). Un clic sur un projet l'ouvre ; sur un ticket, ouvre sa fiche dans son projet.
 const coutsDeLAccueil = document.createElement("section");
-coutsDeLAccueil.id = "accueil-couts";
-coutsDeLAccueil.className = "liste";
+coutsDeLAccueil.id = "couts-de-tous";
 coutsDeLAccueil.ariaLabel = "Cost";
 const ouvrirLesCouts = /** @type {HTMLButtonElement} */ (bloc("button", ""));
 ouvrirLesCouts.type = "button";
@@ -642,7 +632,7 @@ ouvrirLesCouts.ariaLabel = "the cost of all projects";
   const suite = bloc("span", "›");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
-  ouvrirLesCouts.append(bloc("strong", "all projects"), bloc("span", "tokens over 5 h, 24 h and 7 d · lost tokens · most expensive tickets"), suite);
+  ouvrirLesCouts.append(bloc("strong", "Cost"), bloc("span", "tokens over 5 h, 24 h and 7 d · lost tokens · most expensive tickets"), suite);
 }
 coutsDeLAccueil.append(ouvrirLesCouts);
 const pageDesCouts = document.createElement("section");
@@ -654,12 +644,11 @@ retourDesCouts.className = "retour";
 const corpsDesCouts = document.createElement("div");
 corpsDesCouts.ariaLive = "polite";
 pageDesCouts.append(retourDesCouts, corpsDesCouts);
-// Le rapport ajouté / retiré de tous les projets (ticket 1682), de même : sur l'accueil, une ligne « Closer » ouvre
-// sa page, sans ouvrir aucun projet — un projet par ligne qui a un closer réglé, son rapport et sa tendance
+// Le rapport ajouté / retiré de tous les projets (ticket 1682), de même : en bas de Kitchen > Health, une ligne
+// « Closer » ouvre sa page — un projet par ligne qui a un closer réglé, son rapport et sa tendance
 // (closer/tendance/). Un clic sur un projet l'ouvre.
 const ratiosDeLAccueil = document.createElement("section");
-ratiosDeLAccueil.id = "accueil-ratios";
-ratiosDeLAccueil.className = "liste";
+ratiosDeLAccueil.id = "ratios-de-tous";
 ratiosDeLAccueil.ariaLabel = "Closer";
 const ouvrirLesRatios = /** @type {HTMLButtonElement} */ (bloc("button", ""));
 ouvrirLesRatios.type = "button";
@@ -669,14 +658,20 @@ ouvrirLesRatios.ariaLabel = "the added / removed ratio of all projects";
   const suite = bloc("span", "›");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
-  ouvrirLesRatios.append(bloc("strong", "all projects"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
+  ouvrirLesRatios.append(bloc("strong", "Closer"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
 }
 ratiosDeLAccueil.append(ouvrirLesRatios);
+// Les deux lignes de tous les projets, sous Kitchen > Health de chacun (ticket 2638) : elles valent pour l'ensemble.
+const TOUS_LES_PROJETS = "All projects";
+const deTousLesProjets = document.createElement("section");
+deTousLesProjets.id = "de-tous-les-projets";
+deTousLesProjets.className = "bloc-du-projet";
+deTousLesProjets.ariaLabel = TOUS_LES_PROJETS;
+deTousLesProjets.dataset.bloc = "de-tous-les-projets";
+deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil);
 // L'accueil n'a que deux blocs (ticket 2638, épique 2497) : les projets, et la station de cet ordinateur — chacun son
-// composant, sous accueil/. Ce qu'il montrait d'autre attend ici, caché, que les tickets de l'épique le rangent ailleurs
-// ou le retirent : la liste des stations et « + station », les lignes « Cost » et « Closer », la version de l'app, la
-// ligne de santé. Leur page reste ouverte par les chemins qui y mènent encore — celle d'une station, par sa ligne dans
-// l'onglet Stations d'un projet.
+// composant, sous accueil/. La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
+// version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
 const blocDesProjets = poserBlocDesProjets(document, projetsDeLAccueil);
 // Les premiers réglages de la station qu'on vient d'installer : se connecter à GitHub (le geste que l'app a déjà), puis
 // choisir les projets qu'elle sert, sur sa page.
@@ -702,7 +697,6 @@ const blocDeLaStation = tenirBlocDeLaStation(document, {
   ],
   ouvrir: (id) => ouvrirStation(id),
 });
-element("hors-de-l-accueil").append(stationsDeLAccueil, coutsDeLAccueil, ratiosDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
 const pageDesRatios = document.createElement("section");
 pageDesRatios.id = "ratios";
 pageDesRatios.ariaLabel = TITRE_DES_RATIOS;
@@ -1332,11 +1326,6 @@ let enPassage = false;
 // La mise à jour de l'app installée, telle que la dernière lecture la dit (mise-a-jour/etat.ts). Indéfini : pas encore reçue.
 /** @type {import("../mise-a-jour/etat.ts").EtatDeMiseAJour | undefined} */
 let miseAJourVue;
-// La version dont le chef a dit « later » : son message ne revient pas avant le lancement suivant.
-let miseAJourReportee = "";
-// « Install now » en cours, ou refusée : ce que l'app en dit sous le message.
-let miseAJourInstalle = false;
-let miseAJourRefusee = "";
 // Ce que la dernière lecture des stations donne à poser (stations/stations.ts). Indéfini : pas encore lues.
 /** @type {import("../stations/stations.ts").VuDesStations | undefined} */
 let stationsVues;
@@ -2095,6 +2084,7 @@ function choisirOnglet(id) {
   // Sur le téléphone, choisir Second relit la conversation : ce qui est montré reste en attendant.
   if (id === CONVERSATION) conversationDuTelephone?.relire(courant.nom);
   retenir(courant.nom, id);
+  if (id === STATIONS) enregistreesARelire = true;
   laisse.delete(courant.nom);
   nonEcrit = "";
   if (ouverte !== undefined) fermerFiche();
@@ -5128,13 +5118,23 @@ function poserCuisineEtroite(projet, tenu) {
 
 // L'onglet Stations (ticket 2485) : ses trois blocs. Celui de la station locale (ticket 2489) reste posé tant que ce qu'il
 // montre ne change pas — le chef peut être en train d'écrire combien de cooks à la fois : une relecture ne le lui ôte pas.
+// En bas, toutes les stations et « + station » (ticket 2638) : les stations du compte se relisent à chaque ouverture de
+// l'onglet — d'un projet ouvert, ou de son menu —, pas à chaque fois qu'il se repose ; le champ du code, posé une fois,
+// garde ce que le chef tape.
+let enregistreesARelire = true;
 /** @param {Projet} projet */
 function poserOngletStations(projet) {
   const locale = blocDeLaStationLocale(projet);
   const autres = [poserBlocListeStations(document, { liste: cuissonDuProjet, ...ajoutDeStationDe(projet) }), reglagesDesStations(projet)];
-  if (locale.parentElement !== rail) return rail.replaceChildren(...autres, locale);
-  for (const enfant of [...rail.children]) if (enfant !== locale) enfant.remove();
+  poserStationsDeLAccueil();
+  if (enregistreesARelire) {
+    enregistreesARelire = false;
+    void lireLesEnregistrees();
+  }
+  if (locale.parentElement !== rail) return rail.replaceChildren(...autres, locale, stationsDeLAccueil);
+  for (const enfant of [...rail.children]) if (enfant !== locale && enfant !== stationsDeLAccueil) enfant.remove();
   rail.prepend(...autres);
+  rail.append(stationsDeLAccueil);
 }
 
 // La station de cet ordinateur, sur l'onglet Stations (ticket 2489, projet/stations/StationLocale.js) : ses dossiers, son
@@ -6260,66 +6260,6 @@ function poserAccueil() {
             : [bloc("p", "no project on this phone yet: a project is added from a computer")])
           : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, false)] : [])]),
   );
-  poserStationsDeLAccueil();
-  poserApp();
-  const sante = accueilVu?.sante ?? { ton: "gris", dit: "Max ?  ·  GitHub ?", survol: "first readings in progress" };
-  santeDeLAccueil.dataset.ok = String(sante.ton === "vert");
-  santeDeLAccueil.title = sante.survol;
-  santeDeLAccueil.replaceChildren(pastille(sante.dit, sante.ton), bloc("span", sante.dit));
-}
-
-// La version qui tourne, et le message d'une mise à jour disponible. Rien ne s'y dit d'une mise à jour
-// à jour, ni d'une erreur — la raison de celle-ci est au survol de la version. « Later » ne retient
-// rien : la version téléchargée s'installe d'elle-même au lancement suivant.
-function poserApp() {
-  const etat = miseAJourVue;
-  titreDeLApp.hidden = etat === undefined;
-  if (etat === undefined) return appDeLAccueil.replaceChildren();
-  const version = bloc("p", `Brigade ${etat.version}`);
-  version.className = "version mono";
-  if (etat.etat === "erreur") version.title = etat.raison;
-  const lignes = [version];
-  const annoncee = etat.etat === "disponible" || etat.etat === "telechargement" || etat.etat === "prete" || etat.etat === "installation";
-  if (annoncee && etat.nouvelle !== miseAJourReportee) {
-    const phrase =
-      etat.etat === "installation" || miseAJourInstalle
-        ? `installing ${etat.nouvelle} — the app relaunches itself…`
-        : etat.etat === "telechargement"
-          ? `version ${etat.nouvelle} is available — downloading it, ${etat.taille > 0 ? Math.floor((100 * etat.recus) / etat.taille) : 0} %`
-          : `version ${etat.nouvelle} is available`;
-    const message = document.createElement("div");
-    message.className = "mise-a-jour";
-    message.append(pastille("an update is available", "jaune"), bloc("span", phrase));
-    if (etat.etat !== "installation" && !miseAJourInstalle) {
-      const nouvelle = etat.nouvelle;
-      message.append(
-        boutonAction(
-          document,
-          "Install now",
-          () => {
-            miseAJourInstalle = true;
-            miseAJourRefusee = "";
-            poserApp();
-            void brigade.installerMiseAJour().then((rendu) => {
-              if (rendu === undefined) return;
-              miseAJourInstalle = false;
-              miseAJourRefusee = rendu.refus;
-              poserApp();
-            });
-          },
-          { recommande: true, prix: "closes the app's terminals, then relaunches it on the new version" },
-        ),
-        boutonAction(document, "Later", () => {
-          miseAJourReportee = nouvelle;
-          miseAJourRefusee = "";
-          poserApp();
-        }, { prix: "installed at next launch" }),
-      );
-    }
-    lignes.push(message);
-    if (miseAJourRefusee !== "") lignes.push(bloc("p", miseAJourRefusee));
-  }
-  appDeLAccueil.replaceChildren(...lignes);
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
@@ -6673,7 +6613,7 @@ function poserLesStations(vise, ou, averti, { exclues, principale: avecPrincipal
   }
   ou.replaceChildren(
     ...(appairees.length === 0
-      ? [bloc("p", exclues.length === 0 ? "no station to serve it: pair one first, with “+ station” on the home" : "no other paired station: pair one first, with “+ station” on the home")]
+      ? [bloc("p", exclues.length === 0 ? "no station to serve it: pair one first, with “+ station” under All stations, in the Stations tab" : "no other paired station: pair one first, with “+ station” under All stations, in the Stations tab")]
       : appairees.map((station) => {
           const ligne = document.createElement("p");
           ligne.dataset.etat = station.etat;
@@ -7369,6 +7309,7 @@ function poserLaSante(projet, garder = true) {
       changer: (cle, saisie) => void changerUnPlafond(projet, cle, saisie),
     }),
     poserLeCloserDeSante(projet),
+    deTousLesProjets,
   );
   if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);
   if (Date.now() - (closerDeSanteLuLe.get(projet.nom) ?? 0) > 60_000) void lireLeCloserDeSante(projet);
@@ -7751,7 +7692,7 @@ function poserLaConfiance(vise, projet, { exclues, demande, principale: aSaPrinc
   principaleDeConfiance.hidden = !avecPrincipale;
   choixDeLaPrincipale.replaceChildren(
     ...(appairees.length === 0
-      ? [bloc("p", "no station to cook it: pair one first, with “+ station” on the home")]
+      ? [bloc("p", "no station to cook it: pair one first, with “+ station” under All stations, in the Stations tab")]
       : appairees.map((station) =>
           uneMachine(station, "principale", vise.principale === station.id, station.id === recommandee, () => {
             vise.touchee = true;
@@ -8358,7 +8299,6 @@ function ouvrirTous() {
   poserBlocStation();
   tous.replaceChildren(blocDesProjets, blocDeLaStation.racine);
   brigade.tous(++demande);
-  void lireLesEnregistrees();
 }
 
 // La liste des stations de l'accueil (ticket 1778) : une ligne par machine, dans l'ordre des noms. Une machine appairée
@@ -8883,6 +8823,7 @@ function gestesDuRailPublie(projet) {
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  enregistreesARelire = true;
   stationOuverte = undefined;
   pageDeLApp = undefined;
   if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
@@ -9077,10 +9018,9 @@ brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
 });
-// La mise à jour de l'app : son état remplace celui d'avant ; le message de l'accueil et la ligne de tête le suivent.
+// La mise à jour de l'app : son état remplace celui d'avant ; la ligne de tête le suit.
 brigade.surMiseAJour((vu) => {
   miseAJourVue = vu;
-  poserApp();
   bandeauDeVersion.suivre(vu);
 });
 // L'offre d'une version plus haute de l'app Android, au lancement : l'invite se pose sur l'espace ; « Not now » la
@@ -9124,6 +9064,7 @@ brigade.surStations((vu) => {
 // L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
 brigade.surAccueil((vu) => {
   accueilVu = vu;
+  poserStationsDeLAccueil();
   if (courant !== undefined) poserCuisson(courant);
   if (courant !== undefined || ajoute) return;
   if (stationOuverte === undefined) poserAccueil();

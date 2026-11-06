@@ -174,7 +174,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     return vue;
   }
 
-  test("elle s'ouvre depuis l'accueil, sans ouvrir aucun projet, et sa tête additionne `station` de chaque box", async () => {
+  test("sa ligne, sous Health, l'ouvre à la place de l'accueil, et sa tête additionne `station` de chaque box", async () => {
     const vue = await ouvrirLaPage();
     const cout = vue.element("cout");
     assert.equal(cout.hidden, false);
@@ -182,7 +182,8 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     assert.equal(vue.element("tous").hidden, false);
     assert.equal(vue.element("main").hidden, true);
     assert.equal(vue.element("entree-tous").ariaCurrent, "true");
-    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 0);
+    // Le seul espace ouvert est celui du projet dont Health porte la ligne « Cost » (#2638) : la page n'en ouvre aucun.
+    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 1);
     const demande = vue.dernier("onglet")[2] as number;
     // Sa lecture n'est celle d'aucun projet : le process principal lit `station` sur chaque box.
     assert.deepEqual(vue.dernier("onglet").slice(0, 2), [undefined, "couts"]);

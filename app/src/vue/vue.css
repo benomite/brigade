@@ -100,7 +100,7 @@ pre.propos {
 }
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
-:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis, #accueil-app) button,
+:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis) button,
 #fiche button,
 #rail .pr {
   padding: 3px 10px;
@@ -111,12 +111,12 @@ pre.propos {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis, #accueil-app) button:hover:not(:disabled),
+:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis) button:hover:not(:disabled),
 #fiche button:hover,
 #rail .pr:hover {
   border-color: var(--trait-fort);
 }
-:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis, #accueil-app) button:disabled {
+:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis) button:disabled {
   color: var(--discret);
   background: none;
   border-style: dashed;
@@ -1554,15 +1554,13 @@ main > header,
   overflow-y: auto;
   user-select: text;
 }
-/* L'accueil : ses blocs, chacun une liste d'une ligne par chose.
-   Le titre d'une liste est discret : ce qui compte, ce sont les lignes. */
-/* L'accueil n'a que deux blocs (ticket 2638) : les projets, et la station de cet ordinateur, chacun son titre et sa carte. */
+/* L'accueil n'a que deux blocs (ticket 2638) : les projets, et la station de cet ordinateur, chacun son titre et sa carte.
+   Le titre d'un bloc est discret : ce qui compte, ce sont les lignes. */
 .bloc-de-l-accueil {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-#tous > h2,
 .bloc-de-l-accueil > h2 {
   font-size: 11px;
   font-weight: 700;
@@ -1576,13 +1574,13 @@ main > header,
   padding: 4px;
 }
 #tous .liste > p,
-#accueil-stations > div > p {
+#toutes-les-stations > div > p {
   margin: 0;
   padding: 8px 12px;
   color: var(--discret);
 }
 /* Une ligne : toute la ligne s'ouvre d'un clic — pastille, nom, ce qui s'y passe, et la flèche. */
-#tous .ligne {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -1591,24 +1589,24 @@ main > header,
   text-align: left;
   border-radius: var(--rayon-bouton);
 }
-#tous .ligne:hover {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne:hover {
   background: var(--case);
 }
-#tous .ligne .pastille {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne .pastille {
   align-self: center;
 }
-#tous .ligne strong {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne strong {
   flex: none;
   min-width: 9em;
   font-weight: 700;
 }
-#tous .ligne span:not(.pastille) {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span:not(.pastille) {
   flex: 1;
   min-width: 0;
   color: var(--texte-doux);
   overflow-wrap: anywhere;
 }
-#tous .ligne .ouvrir {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span.ouvrir {
   flex: none;
   color: var(--discret);
 }
@@ -1763,7 +1761,7 @@ main > header,
   max-width: 604px;
 }
 /* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
-#accueil-stations .ajout-de-station {
+#toutes-les-stations .ajout-de-station {
   align-self: flex-end;
   margin: 4px 8px;
   padding: 3px 10px;
@@ -1771,58 +1769,23 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#accueil-stations form {
+#toutes-les-stations form {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
   padding: 8px 12px;
 }
-#accueil-stations input {
+#toutes-les-stations input {
   flex: 0 1 22em;
 }
-#accueil-stations form p {
+#toutes-les-stations form p {
   flex-basis: 100%;
   margin: 0;
   color: var(--jaune);
 }
-#accueil-stations form p:empty {
+#toutes-les-stations form p:empty {
   display: none;
-}
-/* L'app : sa version, discrète ; le message d'une mise à jour disponible se lit, ses deux gestes à droite. */
-#accueil-app .version {
-  margin: 0;
-  padding: 8px 12px;
-  color: var(--discret);
-}
-#accueil-app .mise-a-jour {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-}
-#accueil-app .mise-a-jour > span:not(.pastille):not(.action) {
-  flex: 1;
-  min-width: 0;
-}
-#accueil-app > p:not(.version) {
-  margin: 0;
-  padding: 0 12px 8px;
-  color: var(--jaune);
-}
-/* La ligne de santé : verte et discrète quand tout va ; quand l'un des deux cloche, elle se lit. */
-#sante {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0 4px;
-  font-size: 12px;
-  color: var(--texte);
-}
-#sante[data-ok="true"] {
-  color: var(--discret);
 }
 /* La page d'une station : le retour à l'accueil, son en-tête, ses pannes, tous les projets qu'elle
    porte et le parcours « add a project ». */
@@ -1970,10 +1933,10 @@ main > header,
 /* Au bout de la ligne d'une station sur l'accueil, le bouton de la raison d'une station qui ne cuit pas encore
    (ticket 1758) : discret, comme « + station ». Ses gestes sont posés par-dessus la ligne, à droite, côte à côte : elle
    garde toute sa largeur — sa flèche reste alignée sur les autres —, et son clic. */
-#accueil-stations .ligne-et-geste {
+#toutes-les-stations .ligne-et-geste {
   position: relative;
 }
-#accueil-stations .gestes-de-la-ligne {
+#toutes-les-stations .gestes-de-la-ligne {
   position: absolute;
   top: 50%;
   right: 8px;
@@ -1981,7 +1944,7 @@ main > header,
   gap: 8px;
   transform: translateY(-50%);
 }
-#accueil-stations .remede-de-station {
+#toutes-les-stations .remede-de-station {
   padding: 3px 10px;
   color: var(--discret);
   border: 1px solid var(--trait);
@@ -7672,24 +7635,24 @@ button.recommande {
 /* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : une machine que seul
    son enregistrement fait connaître a sa ligne dans la liste des stations (ticket 1778), comme les autres, et ses projets
    à cocher dessous. Sous la liste, sans titre, ce que leur lecture a de plus à dire. */
-#accueil-stations .stations-du-compte {
+#toutes-les-stations .stations-du-compte {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding-top: 2px;
 }
-#accueil-stations .stations-du-compte[hidden] {
+#toutes-les-stations .stations-du-compte[hidden] {
   display: none;
 }
-#accueil-stations .stations-du-compte > p {
+#toutes-les-stations .stations-du-compte > p {
   margin: 0;
   padding: 4px 12px;
   color: var(--texte-doux);
 }
-#accueil-stations .stations-du-compte > p.indisponible {
+#toutes-les-stations .stations-du-compte > p.indisponible {
   color: var(--discret);
 }
-#accueil-stations .stations-du-compte .attendu .survol {
+#toutes-les-stations .stations-du-compte .attendu .survol {
   margin-left: 6px;
 }
 #station .projets-de-la-station {
@@ -7799,24 +7762,24 @@ button.recommande {
   flex: none;
   color: var(--accent);
 }
-#accueil-stations .stations-du-compte .installer {
+#toutes-les-stations .stations-du-compte .installer {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
 }
-#accueil-stations .stations-du-compte .installer > span:first-child {
+#toutes-les-stations .stations-du-compte .installer > span:first-child {
   flex: 0 0 11em;
   color: var(--discret);
 }
-#accueil-stations .stations-du-compte .installer code {
+#toutes-les-stations .stations-du-compte .installer code {
   flex: 1 1 20em;
   min-width: 0;
   color: var(--texte);
   overflow-wrap: anywhere;
   user-select: all;
 }
-#accueil-stations .stations-du-compte .installer button {
+#toutes-les-stations .stations-du-compte .installer button {
   padding: 2px 10px;
   font-size: 12px;
   color: var(--texte-doux);
@@ -7824,83 +7787,80 @@ button.recommande {
   border-radius: var(--rayon-bouton);
 }
 /* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
-#tous .ligne span.pourquoi {
+:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span.pourquoi {
   color: var(--discret);
 }
 
 /* Une passe de dessin sur les stations (ticket 1781, épique 1777) — rien ne change de ce qu'elles font, seulement ce qu'on
-   en lit. Sur l'accueil : chaque ligne a les mêmes colonnes — pastille, nom, état, raison — et sa flèche et ses gestes
+   en lit. Dans la liste de toutes les stations : chaque ligne a les mêmes colonnes — pastille, nom, état, raison — et sa flèche et ses gestes
    tombent au même endroit d'une ligne à l'autre ; les lignes sont séparées d'un trait fin, et celle qu'on survole montre
    où elle mène. Une station hors ligne se tient en retrait. */
-#accueil-stations {
-  padding: 6px;
-}
-#accueil-stations .ligne {
+#toutes-les-stations .ligne {
   align-items: center;
   gap: 14px;
   padding: 11px 14px;
   cursor: pointer;
 }
-#accueil-stations .ligne strong {
+#toutes-les-stations .ligne strong {
   flex: 0 0 13em;
   overflow-wrap: anywhere;
 }
-#accueil-stations .ligne span:not(.pastille):not(.ouvrir):not(.pourquoi) {
+#toutes-les-stations .ligne span:not(.pastille):not(.ouvrir):not(.pourquoi) {
   flex: 1 1 0;
 }
-#accueil-stations .ligne span.pourquoi {
+#toutes-les-stations .ligne span.pourquoi {
   flex: 0 1 16em;
   font-size: 13px;
 }
-#accueil-stations .ligne span.ouvrir {
+#toutes-les-stations .ligne span.ouvrir {
   flex: none;
   font-size: 16px;
   line-height: 1;
 }
-#accueil-stations .ligne:hover .ouvrir {
+#toutes-les-stations .ligne:hover .ouvrir {
   color: var(--accent);
 }
-#accueil-stations .ligne:has(.pastille[data-forme="anneau"]) strong {
+#toutes-les-stations .ligne:has(.pastille[data-forme="anneau"]) strong {
   color: var(--texte-doux);
 }
-#accueil-stations > :is(.ligne, .ligne-et-geste) + :is(.ligne, .ligne-et-geste) {
+#toutes-les-stations > :is(.ligne, .ligne-et-geste) + :is(.ligne, .ligne-et-geste) {
   border-top: 1px solid var(--trait-doux);
 }
-#accueil-stations .ligne-et-geste {
+#toutes-les-stations .ligne-et-geste {
   display: flex;
   align-items: center;
 }
-#accueil-stations .ligne-et-geste > .ligne {
+#toutes-les-stations .ligne-et-geste > .ligne {
   flex: 1 1 0;
   min-width: 0;
 }
-#accueil-stations .gestes-de-la-ligne {
+#toutes-les-stations .gestes-de-la-ligne {
   position: static;
   flex: 0 0 19em;
   justify-content: flex-end;
   padding-right: 8px;
   transform: none;
 }
-#accueil-stations .remede-de-station:hover,
-#accueil-stations .ajout-de-station:hover {
+#toutes-les-stations .remede-de-station:hover,
+#toutes-les-stations .ajout-de-station:hover {
   color: var(--texte);
   border-color: var(--trait-fort);
 }
-#accueil-stations .ajout-de-station {
+#toutes-les-stations .ajout-de-station {
   margin: 8px 8px 4px;
   padding: 4px 12px;
 }
 /* Sans station : la phrase se lit d'abord, les deux commandes sont deux cartes alignées sur les mêmes colonnes. */
-#accueil-stations .stations-du-compte {
+#toutes-les-stations .stations-du-compte {
   gap: 8px;
   padding: 10px 14px 6px;
 }
-#accueil-stations .stations-du-compte > p.attendu {
+#toutes-les-stations .stations-du-compte > p.attendu {
   padding: 0 0 4px;
   font-size: 15px;
   color: var(--texte);
 }
-#accueil-stations .stations-du-compte .installer {
+#toutes-les-stations .stations-du-compte .installer {
   flex-wrap: nowrap;
   align-items: center;
   gap: 14px;
@@ -7909,13 +7869,13 @@ button.recommande {
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-bouton);
 }
-#accueil-stations .stations-du-compte .installer > span:first-child {
+#toutes-les-stations .stations-du-compte .installer > span:first-child {
   flex: 0 0 11em;
 }
-#accueil-stations .stations-du-compte .installer code {
+#toutes-les-stations .stations-du-compte .installer code {
   font-size: 12.5px;
 }
-#accueil-stations .stations-du-compte .gestes {
+#toutes-les-stations .stations-du-compte .gestes {
   padding-left: 0;
 }
 /* La page d'une station, son choix de projets : l'en-tête serré — ses lignes vides ne laissent aucun creux —, les cases
@@ -8051,7 +8011,7 @@ button.recommande {
 
 /* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
    dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
-#accueil-stations .versions-des-stations {
+#toutes-les-stations .versions-des-stations {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -8060,16 +8020,16 @@ button.recommande {
   font-size: 13px;
   color: var(--texte-doux);
 }
-#accueil-stations .versions-des-stations > .titre {
+#toutes-les-stations .versions-des-stations > .titre {
   flex: 0 0 auto;
   color: var(--discret);
 }
-#accueil-stations .version-d-une-station {
+#toutes-les-stations .version-d-une-station {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
-#accueil-stations .version-d-une-station[data-ton="jaune"] .phrase {
+#toutes-les-stations .version-d-une-station[data-ton="jaune"] .phrase {
   color: var(--jaune);
 }
 
@@ -8132,7 +8092,9 @@ button.recommande {
 }
 .bloc-du-projet[data-bloc="temps-tickets"],
 .bloc-du-projet[data-bloc="plafonds-duree"],
-.bloc-du-projet[data-bloc="closer"] {
+.bloc-du-projet[data-bloc="closer"],
+.bloc-du-projet[data-bloc="toutes-les-stations"],
+.bloc-du-projet[data-bloc="de-tous-les-projets"] {
   display: flex;
   flex-direction: column;
   gap: 10px;

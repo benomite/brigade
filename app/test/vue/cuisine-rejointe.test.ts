@@ -26,7 +26,7 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ajoutsDuSuivi, avecLeursAjouts, type StationEnregistree, type StationsDuCompte } from "../../src/stations-du-compte.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 import { DEMANDEE, REFUSEE, REJOINTE } from "../../src/vue/stations-du-compte.js";
-import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, ouvrirToutesLesStations, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const VU = "2026-10-27T08:42:00.000Z";
 const LU = Date.parse(VU) + 1_000;
@@ -130,11 +130,10 @@ async function jouer(gistDuMac: () => Record<string, string>, selectionDuMac: ()
     return avecLeursAjouts({ state: "listed", stations: [BOX, mac], unreadable: [] }, async (id) => (id === mac.id ? gistDuMac() : null));
   };
   const vue = await jouerLaVue({ demarrage, espace: () => [], stationsDuCompte: lire, depotsDuChef: () => ({ depots: [{ depot: DEPOT, base: "v2" }] }), choisirLesProjets: async (_id: string, depots: string[]) => ({ selection: depots }) });
-  vue.element("entree-tous").click();
-  await repos();
+  await ouvrirToutesLesStations(vue);
   return vue;
 }
-const sections = (vue: Jouee) => vue.element("accueil-stations");
+const sections = (vue: Jouee) => vue.element("toutes-les-stations");
 async function pageDuMac(vue: Jouee) {
   const ligne = sections(vue).dessous("button").find((bouton) => bouton.className === "ligne" && bouton.dessous("strong")[0]?.textContent === "macbook") ?? assert.fail("pas de ligne macbook");
   ligne.click();
@@ -206,8 +205,7 @@ describe("refusé : la phrase du runtime au moment de l'ajout, et le projet tel 
     assert.equal(caseDe(vue.element("station")).dessous("small")[0]?.textContent, DEMANDEE);
     // La station répond : à la relecture suivante des stations du compte, son refus se lit sous la case.
     repondu = true;
-    vue.element("entree-tous").click();
-    await repos();
+    await ouvrirToutesLesStations(vue);
     const relue = await pageDuMac(vue);
     assert.equal(caseDe(relue).dessous("small")[0]?.textContent, REFUSEE);
     const dite = relue.dessous("p").filter(({ className }) => className === "refus");

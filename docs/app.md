@@ -1081,15 +1081,24 @@ projects are not affected.
 
 ## All projects at a glance
 
-**Two blocks, and nothing else (#2638, epic #2497).** The home now shows exactly two blocks: **Projects** — the project
+**Two blocks, and nothing else (#2638, epic #2497).** The home shows exactly two blocks: **Projects** — the project
 rows described below — and **This computer's station** (filled by #2640, below). Each block
 is its own component: `app/src/vue/accueil/projets/BlocDesProjets.js` and `app/src/vue/accueil/station/BlocDeLaStation.js`.
-Everything else the home used to show left it, and waits hidden (`#hors-de-l-accueil` in `index.html`) until a ticket of
-the epic places it elsewhere or removes it: the **Stations** list with "+ station" and the stations under your GitHub
-account, the station versions, the **Cost** and **Closer** rows, the **App** version section and the **health** row.
-A station's page is still opened from its row in a project's Stations tab, and a higher app version is still said by
-the new-version line at the top of the app; the rest of what follows about those rows describes the parked sections.
-Captures: `docs/captures/2638/`.
+What the home used to show besides went elsewhere, or was removed:
+
+- **All stations** — the list of stations, the stations under your GitHub account, the station versions and "+ station"
+  with its pairing code field — is the last block of **a project's Stations tab**, under the project's own stations and
+  this computer's station. The stations under your account are read again each time that tab opens.
+- The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
+  block, **All projects**, of **a project's Kitchen > Health**. Their pages are unchanged.
+- The **App** section (the running version, **Install now** / **Later**) is removed: a higher version is said, with
+  **Install now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
+  shown.
+- The **health row** (`Max ✓ · GitHub ✓`) is removed. The main process still computes it (`sante` of
+  `app/src/accueil.ts`); the view no longer shows it.
+
+With no project at all, the station lists and "+ station" have no tab to live in: on a computer, the first launch
+shows its stations and their projects (`premier-lancement.js`). Captures: `docs/captures/2638/`.
 
 **The station block (#2640, epic #2497).** Three states, in `BlocDeLaStation.js`. **No station on this computer**: one
 recommended button, **Install this computer's station**, and no other setting. A click runs `installerLaStation` of the
@@ -1113,18 +1122,7 @@ PROJECTS
 ● espace      5 decisions await you, for 2 d                       ›
 ● calculus    base red · #655 being repaired                       ›
 
-STATIONS
-● parade-box  online · 2 cooks · brigade, espace, calculus         ›
-○ Mac         offline for 12 min · no project                      ›
-                                                          + station
-
-COST
-  all projects  tokens over 5 h, 24 h and 7 d · lost tokens · most …  ›
-
-CLOSER
-  all projects  added / removed ratio and its trend                  ›
-
-● Max ✓  ·  GitHub ✓
+THIS COMPUTER'S STATION
 ```
 
 - **One row per project**, in the file's order: its name, its dot, and a short sentence that
@@ -1136,7 +1134,7 @@ CLOSER
   held, runtime off, station unreachable —, **yellow** when a decision awaits you, **green**
   otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project that no station serves
   on this computer. Not read is never green.
-- **One row per paired station**: its name, its dot, its state (`online`, or
+- **In All stations, under a project's Stations tab** (#2638), **one row per paired station**: its name, its dot, its state (`online`, or
   `offline for 12 min`), what it is doing — its cooks in progress, `saturated`, `update failed`,
   `Max connection lost`, or `idle` — and the projects it carries. Its machine (system, kernel) and its
   version can only be read **on hover**. Dot **red** when its Max connection is lost,
@@ -1145,25 +1143,19 @@ CLOSER
 - **A click anywhere on a row opens it**: the project's space, or the station's page
   (see "Your stations: paired by a code, read on GitHub"). **No row carries any
   action** — no merge, no triage, no removing `fire`: decisions are taken in the project.
-- **A "Cost" row**, under the stations, opens **the cost of all projects** (#1022), in place of
-  the home — without opening any project (see "The cost of all projects"). It shows no
-  figure: the cost reading only starts when its page is open.
+- **A "Cost" row**, in the All projects block of a project's Kitchen > Health (#2638), opens **the cost of all
+  projects** (#1022), in place of the home (see "The cost of all projects"). It shows no figure: the cost reading only
+  starts when its page is open.
 - **A "Closer" row**, under it, opens **the added / removed ratio of all projects** (#1682) the same way (see "The
   added / removed ratio of all projects").
-- **"+ station"**, under the list of stations, opens the pairing code field — nowhere
-  else on the home. Once paired, the station appears in the list and the field closes, with no
+- **"+ station"**, under All stations, opens the pairing code field — nowhere
+  else. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
 - **A station registered under your GitHub account** is in the same list (#1778): **each computer once**. A
   paired machine is said by its presence, the projects chosen for it under the account merged in, and "choose
   projects" next to its row opens them, to tick; a machine that is only registered has its own row, which opens on
   them (#1706, see "Your stations under your GitHub account, and the projects each serves"). There is no second
   list, and no "Under your GitHub account" heading.
-- **The health row**, at the bottom, sums up the Max connection and the access to GitHub. All is well: green
-  and discreet, `Max ✓ · GitHub ✓`. When one of the two is off, it says in one sentence what is
-  wrong: `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
-  `GitHub limits calls, back around 3:16 PM`, `GitHub: this computer is not signed in`. Not yet
-  read: `Max ?`, `GitHub ?`, and hovering says why. It shows **no gauge of
-  the account's consumption** (see the mockup, `docs/maquettes/app/README.md`).
 - **No command** (`brigade …`, `gh …`) **and no raw error text** is displayed there: what
   a row leaves out — the time of the reading, why a box did not answer —, its hover says
   in the app's own words, and the project's space shows it in full.
@@ -1188,8 +1180,8 @@ your stations" list and the "add a project" path, on a station's page.
 
 ### The cost of all projects
 
-*Tickets: #908 to #912, #1022.* **On the home, the "Cost" row opens the cost page of all projects**,
-in place of the home, without opening any project — the **T** icon remains the entry shown, and "‹ All projects"
+*Tickets: #908 to #912, #1022, #2638.* **In a project's Kitchen > Health, the "Cost" row opens the cost page of all
+projects**, in place of the home, the project's space closed — the **T** icon remains the entry shown, and "‹ All projects"
 brings you back to the home. What holds for all projects together lives at the app level; what holds for one project lives
 in the project (the home's rule, #868): **no project has a Cost tab**, and what a project has cost is read
 on this page, as its share of each figure (its own "cost of this project" block, under Reliability, was dropped by #1699). The page reads `station` (the cap, the cooks,
@@ -1235,8 +1227,8 @@ in place of the alert. The same thresholds judge, the same way, a project's cost
 
 ### The added / removed ratio of all projects
 
-*Ticket: #1682 (epic #1663).* **On the home, under "Cost", a "Closer" row opens the page of the added / removed
-ratio of every project**, in place of the home, like the cost page — "‹ All projects" brings you back. It reads
+*Ticket: #1682 (epic #1663).* **In a project's Kitchen > Health, under "Cost", a "Closer" row opens the page of the
+added / removed ratio of every project**, in place of the home, like the cost page — "‹ All projects" brings you back. It reads
 `closing --json` **on the box of each project** the cost page reads (`RATIOS`, `app/src/onglets.ts`), every thirty
 seconds while it is displayed, and only then. Nothing is added to the runtime: the page reads the object that
 `closing --json` writes today.
@@ -1626,7 +1618,7 @@ no test mounts a real tailnet.
 
 ### Your stations: paired with a code, read on GitHub
 
-**On the home screen**, the "Stations" list shows the ones you have paired, one line each —
+**At the bottom of a project's Stations tab** (#2638), the "All stations" list shows the ones you have paired, one line each —
 its name, its state, what it is doing and the projects it carries; its machine and version on hover
 (see "All projects at a glance"):
 
@@ -1709,7 +1701,7 @@ saturated station takes no ticket while that lasts: its sentence says only that.
   under the field, and nothing is written; when GitHub is what failed, what it answered is read on
   hover over that line.
 
-**When it breaks**, its line on the home screen says so in one word (`update failed`, `Max connection lost`),
+**When it breaks**, its line in All stations says so in one word (`update failed`, `Max connection lost`),
 and the fault is stated on the station's page, in one line, with a button — never a command to
 type (`app/src/pannes/`, #798):
 
@@ -1753,7 +1745,7 @@ since when a station has been on its version the first time it reads it: the lin
 while the app was closed is dated from the first read that follows.
 
 At the bottom of the page, **"remove the station"** opens a confirmation in the app, with a one-line price:
-the station leaves the home screen and is no longer read, it keeps running, and a new code pairs it
+the station leaves All stations and is no longer read, it keeps running, and a new code pairs it
 again. "cancel" closes it and leaves the station in place; "remove" takes its pairing out of its
 gist (`brigade-appairage.json`, the only file the app writes there), takes you back to the home screen, and the station
 is no longer in its list. If GitHub cannot be written to, the station stays, and the page says so in
@@ -1775,8 +1767,8 @@ publishes the reason key and the gesture (`raison`, `geste` of `secondaires` in 
 ### Your stations under your GitHub account, and the projects each serves (#1706)
 
 A station installed on one of your machines, its `gh` signed in to your GitHub account, registers itself under that
-account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **On the home screen, they are in
-the list of stations** (#1778), read each time the home opens — **one row per computer**:
+account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **In All stations, at the bottom of a
+project's Stations tab, they are in the list of stations** (#1778, #2638), read each time that tab opens — **one row per computer**:
 
 ```
 ● macbook-air-de-benoit  online · idle · benomite/brigade        ›
@@ -1850,7 +1842,7 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   or `BRIGADE_STATION_DIR`, if it is set. It runs under your account, with your `gh` and your
   `claude`.
 - **It pairs itself.** As on a server, it displays its code in its log; the app
-  reads it and types it for you, through the same gesture as "+ station" on the home screen. The machine appears
+  reads it and types it for you, through the same gesture as "+ station" in All stations. The machine appears
   in "Stations", like the others: `macbook  online · idle · no project`, its machine and its
   version (`code 1a2b3c4d5e6f`) on hover. If GitHub does not show its gist yet: the code is retyped every thirty
   seconds, and the refusal is stated once.
@@ -3913,14 +3905,8 @@ The app refuses to update when it does not run from the folder the installer lai
 
 **What the chef sees of it** (#1014, #2431). At the very top of the window, as long as a newer version is
 published and the app does not run it, **one line** says both versions and where the update stands (see
-"The new-version line"). On "All projects", an **App** section gives the running
-version (`Brigade 1.4.0`) — in every state, including up to date, in error or launched from the
-repo; the reason for an error is in the hover of the version. When a higher version is published, a
-line announces it (`version 1.5.0 is available`, with the progress during the download) and carries
-two actions: **Install now** (the recommended button; the app closes its terminals and relaunches on
-the new version, which its hover says) and **Later** (the line disappears until the next launch,
-where the downloaded version installs itself). A refusal of the installation is told in one line
-under the message. Up to date and in error, no message.
+"The new-version line"). The **App** section that "All projects" carried — the running version
+in every state, **Install now** and **Later** — was removed by #2638: the line at the top carries **Install now**.
 
 **From the repo:**
 

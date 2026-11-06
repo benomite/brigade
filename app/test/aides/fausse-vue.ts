@@ -100,11 +100,14 @@ export class Faux {
     }
     return noeuds;
   }
+  // Adoptés d'abord : un enfant déjà posé ici quitte sa place avant d'aller au bout, comme dans le DOM.
   append(...noeuds: Noeud[]): void {
-    this.#noeuds.push(...this.#adopter(noeuds));
+    const adoptes = this.#adopter(noeuds);
+    this.#noeuds.push(...adoptes);
   }
   prepend(...noeuds: Noeud[]): void {
-    this.#noeuds.unshift(...this.#adopter(noeuds));
+    const adoptes = this.#adopter(noeuds);
+    this.#noeuds.unshift(...adoptes);
   }
   replaceChildren(...noeuds: Noeud[]): void {
     for (const ancien of this.children) ancien.parentElement = null;
@@ -515,15 +518,37 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
   return cliquer(vue.element("onglets-du-projet"), "Settings");
 }
 
-// Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : depuis l'accueil, sans
-// ouvrir aucun projet, par sa ligne « Cost ». Rend la page.
-export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
-  vue.element("entree-tous").click();
+// Les lignes de tous les projets, « Cost » et « Closer », sont en bas de Kitchen > Health de chaque projet (#2638) : le
+// premier projet de la barre s'ouvre, puis Health, comme le chef le fait. Rend la ligne qui porte ce nom.
+async function ligneDeTousLesProjets(vue: Jouee, nom: string): Promise<Faux> {
+  vue.element("projets").children[1]?.click();
   await repos();
-  // La ligne « Cost » a quitté l'accueil (#2638) : elle attend, cachée, d'être rangée ailleurs — sa page reste la même.
-  const ligne = vue.element("hors-de-l-accueil").dessous("button").find(({ ariaLabel }) => ariaLabel === "the cost of all projects");
-  if (ligne === undefined) throw new Error("pas de ligne « Cost » hors de l'accueil");
-  ligne.click();
+  await ouvrirOnglet(vue, "Health");
+  const ligne = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === nom);
+  if (ligne === undefined) throw new Error(`pas de ligne « ${nom} » sous Health`);
+  return ligne;
+}
+
+// Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : par sa ligne « Cost », sous Health (#2638).
+// Rend la page.
+export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
+  (await ligneDeTousLesProjets(vue, "the cost of all projects")).click();
   await repos();
   return vue.element("cout");
+}
+
+// Ouvre la page des ratios de tous les projets (#1682) de même, par sa ligne « Closer ». Rend la page.
+export async function ouvrirLesRatios(vue: Jouee): Promise<Faux> {
+  (await ligneDeTousLesProjets(vue, "the added / removed ratio of all projects")).click();
+  await repos();
+  return vue.element("ratios");
+}
+
+// Toutes les stations et « + station », en bas de l'onglet Stations de chaque projet (#2638) : le premier projet de la
+// barre s'ouvre, puis Stations. Rend leur bloc.
+export async function ouvrirToutesLesStations(vue: Jouee): Promise<Faux> {
+  vue.element("projets").children[1]?.click();
+  await repos();
+  await ouvrirOnglet(vue, "Stations");
+  return vue.element("toutes-les-stations");
 }

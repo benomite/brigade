@@ -1,6 +1,6 @@
-// Les stations sur l'accueil, la vue jouée : une ligne chacune, telle que le process principal l'a
-// dite (accueil.ts) — un clic ouvre sa page —, et « + station », sous la liste, qui ouvre le champ où
-// le chef tape le code qu'une station neuve affiche.
+// Toutes les stations, la vue jouée — sur l'accueil jusqu'au ticket 2638, en bas de l'onglet Stations de chaque projet
+// depuis : une ligne chacune, telle que le process principal l'a dite (accueil.ts) — un clic ouvre sa page —, et
+// « + station », sous la liste, qui ouvre le champ où le chef tape le code qu'une station neuve affiche.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
@@ -15,7 +15,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Appairage, StationVue, VuDesStations } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-15T12:00:00.000Z";
 const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
@@ -48,36 +48,32 @@ const lignes = (section: Faux) => section.dessous("button").filter(({ className 
 
 async function laHome(accueil: Accueil | undefined, appairer: (code: string) => Appairage = () => ({ refus: "no station shows this code: check it on the station, it is 8 letters and digits" })) {
   const jouee = await jouerLaVue({ demarrage: () => demarrage(accueil, { a: A, stations: [BOX] }), appairer, espace: () => [] });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
-  const section = () => jouee.element("accueil-stations");
-  // La liste des stations et « + station » ont quitté l'accueil (#2638) : elles attendent, cachées, d'être rangées ailleurs.
+  await ouvrirToutesLesStations(jouee);
+  const section = () => jouee.element("toutes-les-stations");
   const bouton = (texte: string) =>
-    [...jouee.element("tous").dessous("button"), ...jouee.element("hors-de-l-accueil").dessous("button")].find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
+    [...jouee.element("tous").dessous("button"), ...jouee.element("rail").dessous("button")].find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
   return { jouee, section, bouton };
 }
 
-test("l'accueil liste ses stations sous ses projets, une ligne chacune : sa pastille, son nom, son état, ce qu'elle fait et ses projets — sa machine et sa version au survol seulement", async () => {
+test("toutes les stations, en bas de l'onglet Stations, une ligne chacune : sa pastille, son nom, son état, ce qu'elle fait et ses projets — sa machine et sa version au survol seulement", async () => {
   const { jouee, section } = await laHome(ACCUEIL);
-  assert.deepEqual(
-    jouee.element("hors-de-l-accueil").children.map(({ id }) => id),
-    // L'accueil n'a plus que ses deux blocs (#2638) : la liste des stations attend, cachée, avec ce qui l'a quitté aussi.
-    ["accueil-stations", "accueil-couts", "accueil-ratios", "", "accueil-app", "sante"],
-  );
+  // Le dernier bloc de l'onglet, sous ceux du projet (#2638) : son titre, puis ses lignes.
+  assert.equal(jouee.element("rail").children.at(-1), section());
+  assert.equal(section().children[0]?.textContent, "All stations");
   assert.deepEqual(lignes(section()), [
     { texte: "boxonline · 2 cooks · parade›", survol: "Linux 6.1.0 · version 1.4.0", ton: "vert" },
     { texte: "Macoffline for 12 min · no project›", survol: "macOS 25.0.0 · version 1.4.0", ton: "gris" },
   ]);
   // Ni la machine ni la version ne s'écrivent à plat sur les lignes : les versions ont leur propre ligne dessous (#2191).
   assert.doesNotMatch(section().children[0]?.textContent ?? "", /Linux|macOS|version/);
-  // Relu, l'accueil remplace ses lignes.
+  // Relu, l'accueil remplace ses lignes, l'onglet montré.
   jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · saturated · 2 cooks · parade", phrase: "saturated", survol: "Linux 6.1.0 · version 1.4.0" }] });
   await repos();
   assert.deepEqual(lignes(section()).map(({ texte }) => texte), ["boxonline · saturated · 2 cooks · parade›"]);
 });
 
-test("sans station, l'accueil dit quoi faire ; avant la première lecture, qu'elle est en cours", async () => {
-  assert.match((await laHome({ ...ACCUEIL, stations: [] })).section().textContent, /^no station yet: install one, then pair it here with “\+ station”/);
+test("sans station, la liste dit quoi faire ; avant la première lecture, qu'elle est en cours", async () => {
+  assert.match((await laHome({ ...ACCUEIL, stations: [] })).section().textContent, /^All stationsno station yet: install one, then pair it here with “\+ station”/);
   assert.match((await laHome({ projets: [], sante: SANTE })).section().textContent, /first read on GitHub in progress/);
 });
 
@@ -101,7 +97,7 @@ test("« + station » ouvre le champ du code, nulle part ailleurs ; un refus se 
   const { jouee, section, bouton } = await laHome(ACCUEIL, () => rendu);
   const formulaire = section().dessous("form")[0] ?? assert.fail("pas de formulaire");
   assert.equal(formulaire.hidden, true, "le champ n'est pas affiché d'office");
-  assert.equal(jouee.element("tous").dessous("input").filter((champ) => !champ.parentElement?.hidden).length, 0);
+  assert.equal(jouee.element("rail").dessous("input").filter((champ) => !champ.parentElement?.hidden).length, 0);
 
   bouton("+ station").click();
   await repos();
@@ -131,6 +127,6 @@ test("« + station » ouvre le champ du code, nulle part ailleurs ; un refus se 
   assert.equal(formulaire.hidden, true);
   assert.equal(champ.value, "");
   assert.equal(formulaire.dessous("p")[0]?.textContent, "");
-  assert.doesNotMatch(jouee.element("tous").textContent, /paired/);
+  assert.doesNotMatch(jouee.element("rail").textContent, /paired/);
   assert.equal(bouton("+ station").hidden, false);
 });

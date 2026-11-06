@@ -17,7 +17,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { RenduDePanne } from "../../src/pannes/gestes.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-15T12:00:00.000Z";
 const CONNEXION: Panne = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } };
@@ -47,11 +47,10 @@ const survolDe = (ligne: Faux | undefined) => ligne?.dessous("button").find(({ c
 test("chaque panne est une ligne sur la page de sa station, avec son bouton ; le clic le joue, et son rendu se lit à la suite", async () => {
   let rendu: RenduDePanne = { fait: "the login page opens in your browser: once you are signed in, cooking resumes by itself within the minute" };
   const jouee = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX] }), panne: () => rendu, espace: () => [] });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
+  await ouvrirToutesLesStations(jouee);
   // Sur l'accueil, la ligne de la station ne porte aucun bouton de panne : sa page les porte.
-  assert.equal(jouee.element("accueil-stations").dessous("button").some(({ textContent }) => textContent === "log in"), false);
-  (jouee.element("accueil-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
+  assert.equal(jouee.element("toutes-les-stations").dessous("button").some(({ textContent }) => textContent === "log in"), false);
+  (jouee.element("toutes-les-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
   await repos();
   const section = () => jouee.element("station");
   // En tête, son état en une phrase (#877) : ce qui casse est dessous, sa machine au survol de l'aide.
@@ -95,9 +94,8 @@ const HORS_LIGNE: StationVue = {
 async function pageDe(station: StationVue, phrase: string) {
   const accueil: Accueil = { ...ACCUEIL, stations: [{ id: station.id, nom: station.nom, ton: "gris", dit: phrase, phrase, survol: "Linux 6.1.0" }] };
   const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage({ a: A, stations: [station] }), accueil }), panne: () => ({ fait: "dismissed" }), espace: () => [] });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
-  (jouee.element("accueil-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
+  await ouvrirToutesLesStations(jouee);
+  (jouee.element("toutes-les-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
   await repos();
   return jouee.element("station");
 }

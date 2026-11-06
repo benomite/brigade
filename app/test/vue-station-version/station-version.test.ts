@@ -18,7 +18,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 import { casesDesVersions, caseDIci, INCONNUE, INCONNUE_BOX, INCONNUE_ICI, poserVersionsDesStations, statutLu, TITRE } from "../../src/vue/station-version/station-version.js";
-import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-11-03T20:00:00.000Z";
@@ -108,12 +108,12 @@ const demarrage = (stations: VuDesStations) => ({
   accueil: { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } satisfies Accueil,
 });
 
-describe("la vue jouée : sur l'accueil, sous la liste des stations", () => {
+describe("la vue jouée : sous toutes les stations, en bas de l'onglet Stations (#2638)", () => {
   test("le statut lu au lancement se pose ; un statut relu le remplace ; un pont qui ne le lit pas laisse la case inconnue", async () => {
     let statut: unknown = EN_RETARD;
     const jouee = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [], statutDeLaStation: () => statut } as Parameters<typeof jouerLaVue>[0]);
-    await repos();
-    const bloc = () => jouee.element("accueil-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sous la liste des stations");
+    await ouvrirToutesLesStations(jouee);
+    const bloc = () => jouee.element("toutes-les-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sous la liste des stations");
     assert.deepEqual(lues(bloc()).map(({ nom, phrase }) => `${nom}: ${phrase}`), ["parade-box: version 2.4.0 · up to date", "this Mac: version 2.3.1 · behind — 2.4.0 is out"]);
     assert.ok(jouee.appels.some(({ geste }) => geste === "statutDeLaStation"));
 
@@ -128,8 +128,8 @@ describe("la vue jouée : sur l'accueil, sous la liste des stations", () => {
 
     statut = undefined;
     const sans = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [] });
-    await repos();
-    const blocSans = sans.element("accueil-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sans statut");
+    await ouvrirToutesLesStations(sans);
+    const blocSans = sans.element("toutes-les-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sans statut");
     assert.deepEqual(lues(blocSans)[1], { nom: "this Mac", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI });
   });
 });

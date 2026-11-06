@@ -22,7 +22,7 @@ import type { StationVue, VuDesStations } from "../../../src/stations/stations.t
 import type { Terminal } from "../../../src/terminaux.ts";
 import { EN_COURS, OUVERT, SIGNALER, SURVOL } from "../../../src/vue/signalement/geste.js";
 import { ouvrirLeSignalement, type Demande } from "../../../src/vue/signalement/ouverture.ts";
-import { carteDuTicket, type Faux, type Jouee, jouerLaVue, ouvrirLecture, type Reponses, repos } from "../../aides/fausse-vue.ts";
+import { carteDuTicket, type Faux, type Jouee, jouerLaVue, ouvrirToutesLesStations, ouvrirLecture, type Reponses, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-02T09:00:00.000Z";
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
@@ -210,9 +210,8 @@ describe("une station en panne", () => {
   const accueil = (station: StationVue): Accueil => ({ ...ACCUEIL, stations: [{ id: station.id, nom: station.nom, ton: station.pannes.length > 0 ? "rouge" : "vert", dit: "online", phrase: "online · no cook running", survol: "Linux 6.1.0" }] });
   async function pageDe(station: StationVue, reponses: Reponses = {}) {
     const vue = await jouerLaVue({ demarrage: () => demarrage({ stations: { a: A, stations: [station] }, accueil: accueil(station) }), espace: () => [], ...reponses });
-    (vue.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-    await repos();
-    (vue.element("accueil-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
+    await ouvrirToutesLesStations(vue);
+    (vue.element("toutes-les-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
     await repos();
     return vue;
   }

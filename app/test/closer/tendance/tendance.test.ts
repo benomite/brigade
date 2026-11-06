@@ -19,7 +19,7 @@ import { COMMANDE_DES_RATIOS, ONGLETS, RATIOS, RUBRIQUES } from "../../../src/on
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { BRANCHE_ILLISIBLE, COMMANDE, ILLISIBLE, lireFermeture } from "../../../src/vue/closer/section.js";
 import { AUCUN, LECTURE, PEU, poserTendances, rapportDit, SENS, tendance, tranches } from "../../../src/vue/closer/tendance/tendance.js";
-import { Faux, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirLesRatios, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-26T12:00:00.000Z";
@@ -187,7 +187,7 @@ describe("la page des ratios, posée seule", () => {
 describe("la page des ratios, dans la vue jouée", () => {
   const PROJETS: Projet[] = ["brigade", "parade", "espace"].map((nom) => ({ nom, dossier: `/tmp/${nom}` }));
 
-  test("l'accueil l'ouvre ; elle lit `closing --json` pour chaque projet, et ne montre que ceux qui ont un closer", async () => {
+  test("sa ligne, sous Health, l'ouvre ; elle lit `closing --json` pour chaque projet, et ne montre que ceux qui ont un closer", async () => {
     const vue = await jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
@@ -202,13 +202,7 @@ describe("la page des ratios, dans la vue jouée", () => {
       }),
       espace: () => [],
     });
-    vue.element("entree-tous").click();
-    await repos();
-    // La ligne « Closer » a quitté l'accueil (#2638) : elle attend, cachée, d'être rangée ailleurs — sa page reste la même.
-    const ligne = vue.element("hors-de-l-accueil").dessous("button").find(({ ariaLabel }) => ariaLabel === "the added / removed ratio of all projects");
-    assert.ok(ligne !== undefined, "pas de ligne des ratios hors de l'accueil");
-    ligne.click();
-    await repos();
+    await ouvrirLesRatios(vue);
 
     // La page tient lieu d'onglet : sa lecture part, sans projet, sous son nom — celui que main.ts lit sur chaque box.
     const [projet, id, demande] = vue.dernier("onglet") as [unknown, unknown, number];

@@ -103,7 +103,8 @@ describe("la coque de la page d'une station", () => {
   });
 });
 
-// L'app jouée : la page d'une station ouverte d'un clic sur sa ligne de l'accueil monte la coque.
+// L'app jouée : la page d'une station ouverte depuis le bloc de la station de l'accueil (#2638) monte la coque — celle de
+// cet ordinateur par « Open its page », une autre par sa ligne sous « Your other stations ».
 const A = "2026-11-06T12:00:00.000Z";
 const MAC: StationVue = { id: "gist-mac", nom: "mac", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const PC: StationVue = { ...MAC, id: "gist-pc", nom: "pc", machine: "Windows 11" };
@@ -126,7 +127,10 @@ async function ouvrirLaStation(nom: string) {
   const vue = await jouerLaVue({ demarrage, espace: () => [] });
   (vue.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
   await repos();
-  const ligne = vue.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom)) ?? assert.fail(`pas de ligne « ${nom} »`);
+  const boutons = vue.element("accueil-bloc-station").dessous("button");
+  const ligne =
+    (nom === "mac" ? boutons.find(({ textContent }) => textContent.startsWith("Open its page")) : boutons.find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))) ??
+    assert.fail(`pas de bouton pour « ${nom} »`);
   ligne.click();
   await repos();
   return vue.element("station").dessous("div").find(({ className }) => className === "page-de-station") ?? assert.fail("pas de sections sur la page");
