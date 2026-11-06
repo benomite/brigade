@@ -234,7 +234,7 @@ const TAILLE_GARDEE = 1024 * 1024;
 // `pleine` : la dernière page d'une liste, remplie jusqu'à `per_page`. Une
 // entrée de plus irait sur une page suivante, que l'ETag de celle-ci ne dit
 // pas : elle se relit sans condition.
-type Gardee = { etag: string; reponse: Reponse; pleine: boolean };
+export type Gardee = { etag: string; reponse: Reponse; pleine: boolean };
 const gardees = new Map<string, Gardee>();
 let octetsGardes = 0;
 
@@ -254,6 +254,14 @@ function garder(cle: string, gardee: Gardee | null): void {
     octetsGardes -= lue.reponse.corps.length;
   }
 }
+
+// Le crochet de `cache-etag/` : ce cache se vide et se recharge d'un process à
+// l'autre. Rien d'autre ne le touche.
+export const gardeesDuProcess = {
+  lire: (): Array<[string, Gardee]> => [...gardees],
+  vider: (): void => [...gardees.keys()].forEach((cle) => garder(cle, null)),
+  remplir: (entrees: Array<[string, Gardee]>): void => entrees.forEach(([cle, gardee]) => garder(cle, gardee)),
+};
 
 // Vrai si `reponse` est la dernière page d'une liste remplie jusqu'à son `per_page`.
 function dernierePagePleine(chemin: string, reponse: Reponse): boolean {
