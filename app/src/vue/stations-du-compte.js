@@ -18,7 +18,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, caseACocher, lectureIndisponible, survol } from "./briques.js";
-import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier-lancement.js";
+import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcours-projet/connexion.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-du-compte.ts").StationsDuCompte} StationsDuCompte */

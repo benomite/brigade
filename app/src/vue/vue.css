@@ -5712,6 +5712,65 @@ button.recommande {
   background: var(--accent);
   color: var(--fond);
 }
+/* L'étape « station » du parcours d'ajout (ticket 2477, parcours-projet/etape-station.js) : la question en tête, cet
+   ordinateur d'abord — le bouton recommandé —, puis une ligne par station appairée, son bouton et son état. */
+.etape-station {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.etape-station > p {
+  margin: 0;
+}
+.etape-station > p:empty {
+  display: none;
+}
+.etape-station .attendu {
+  font-size: 15px;
+  font-weight: 600;
+}
+.etape-station .ici,
+.etape-station .station {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.etape-station button:not(.aide) {
+  padding: 4px 12px;
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.etape-station button.recommande {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fond);
+}
+.etape-station .aide,
+.etape-station .autres,
+.etape-station .lecture,
+.etape-station .etat {
+  color: var(--discret);
+}
+.etape-station .stations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.etape-station .en-ligne {
+  color: var(--vert);
+}
+.etape-station .hors-ligne {
+  color: var(--gris);
+}
+.etape-station .erreur {
+  color: var(--rouge-clair);
+}
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
   margin: 14px 0 0;

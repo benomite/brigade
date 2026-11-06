@@ -8,21 +8,24 @@
 
 import { ETATS_D_ETAPE } from "../onboarding/parcours.js";
 import { etapeDuCompte } from "./compte.js";
+import { etapeDeLaStation } from "./etape-station.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /**
  * Ce que le parcours tient. `compte` : le compte GitHub de cet ordinateur — absent, sa lecture est en route ;
- * `connexion` : la connexion à GitHub lancée — la même partout dans l'app (connexion.js).
- * @typedef {{ compte?: import("../../connexion-github.ts").CompteGitHub, connexion?: import("./connexion.js").Connexion }} EtatDuParcours
+ * `connexion` : la connexion à GitHub lancée — la même partout dans l'app (connexion.js) ; puis ce que l'étape de la
+ * station lit — le dépôt ajouté, les stations du compte, la machine qui l'a reçu (etape-station.js).
+ * @typedef {{ compte?: import("../../connexion-github.ts").CompteGitHub, connexion?: import("./connexion.js").Connexion } & import("./etape-station.js").EtatPourLaStation} EtatDuParcours
  */
 /**
- * Les gestes du parcours. `changerDeCompte` : se connecter d'un autre compte — le compte est relu au bout.
+ * Les gestes du parcours. `changerDeCompte` : se connecter d'un autre compte — le compte est relu au bout. Puis ceux
+ * de l'étape de la station : confier le dépôt ajouté à une machine (etape-station.js).
  * @typedef {{
  *   seConnecter: () => void,
  *   changerDeCompte: () => void,
  *   relireLeCompte: () => void,
  *   ouvrirLaPage: (url: string) => void,
- * }} GestesDuParcours
+ * } & import("./etape-station.js").GestesPourLaStation} GestesDuParcours
  */
 /**
  * Une étape : son nom, son titre, si elle est faite, et ce qu'elle pose sous son titre.
@@ -34,11 +37,12 @@ import { etapeDuCompte } from "./compte.js";
  * }} Etape
  */
 
-// Les étapes du parcours, dans leur ordre. Chacune vit dans son fichier, sous parcours-projet/ ; les suivantes —
-// le projet à choisir, la station qui le cuit, le récapitulatif — s'inscrivent ici, à la suite du compte, quand elles
-// arrivent (épique 2473). Pour l'heure, le parcours s'arrête au compte.
+// Les étapes du parcours, dans leur ordre. Chacune vit dans son fichier, sous parcours-projet/ ; les suivantes
+// s'inscrivent ici quand elles arrivent (épique 2473) — le projet à choisir entre le compte et la station, le
+// récapitulatif à la fin. La station qui cuit le projet (ticket 2477) suit le compte : d'ici là, le projet s'ajoute
+// sous le parcours, par son dossier.
 /** @type {readonly Etape[]} */
-export const ETAPES = [etapeDuCompte];
+export const ETAPES = [etapeDuCompte, etapeDeLaStation];
 
 export const TITRE = "Add a project";
 export const BIENVENUE = "Welcome to brigade. Add the first project its kitchen will cook.";

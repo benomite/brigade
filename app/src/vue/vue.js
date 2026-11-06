@@ -303,14 +303,18 @@ function poserLesProjetsServisIci() {
 // geste de la case de Settings — puis la liste qu'il sert se relit ; une station appairée, par celui de sa page sur
 // l'accueil. Le parcours change : l'onglet se repose, s'il est montré.
 const ajoutDeStation = tenirLAjoutDeStation({
-  servirIci: async (depot) => {
-    const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: "the app could not reach this computer's station" };
-    void servis.lire();
-    return rendu;
-  },
+  servirIci: (depot) => servirIciLeDepot(depot),
   choisir: (id, depots) => choisirPourUneEnregistree(id, depots),
   rendre: () => reposerLOngletStations(),
 });
+// La station de cet ordinateur sert un dépôt, par le geste de la case de Settings — puis la liste qu'il sert se relit.
+// « Add a station » et l'étape « station » du parcours d'ajout (ticket 2477) le font tous deux.
+/** @param {string} depot @returns {Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis>} */
+async function servirIciLeDepot(depot) {
+  const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: "the app could not reach this computer's station" };
+  void servis.lire();
+  return rendu;
+}
 function reposerLOngletStations() {
   if (courant !== undefined && ongletDe(courant) === STATIONS) poserRail(courant);
 }
@@ -8274,6 +8278,8 @@ async function lireLesEnregistrees() {
   if (lu !== undefined) etatDesEnregistrees.stations = lu;
   suivreLesAttendus();
   poserStationsDeLAccueil();
+  // L'étape « station » du parcours d'ajout les propose : un projet qui attend sa station les y voit arriver.
+  if (ajoute && ajoutDuParcours.depot !== undefined && ajoutDuParcours.station === undefined) poserLeParcoursDeLAjout();
   // La page d'un projet dit les stations du compte qui ont rejoint sa cuisine, ou qui refusent (ticket 1790).
   if (courant !== undefined) {
     poserStationsDuProjet();
@@ -8376,14 +8382,49 @@ let premierAOuvrir;
 // d'ajout : le compte GitHub de cet ordinateur, lu une fois à l'ouverture de l'un ou l'autre, et relu au bout d'une
 // connexion — ou d'un changement de compte, qui en est une. Chaque lecture repose les deux.
 const compteDuParcours = tenirLeCompte({ pont: brigade, rendre: () => poserLePremier() });
+// Le projet que l'ajout vient d'écrire, en attente de la station qui le cuit (étape « station », ticket 2477) : son
+// dépôt, son nom dans le fichier, et la machine qui l'a reçu. Vide, aucun projet n'attend.
+/** @type {{ depot?: string, projet?: string, station?: string }} */
+let ajoutDuParcours = {};
 /** @returns {import("./parcours-projet/parcours.js").EtatDuParcours} */
-const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }) });
+const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }), ...etatDeLaStationDuParcours() });
+// Ce que l'étape « station » lit : le dépôt ajouté, cet ordinateur — son nom à l'écran, l'id de sa station —, et les
+// stations du compte, telles que l'accueil les a lues : absentes, leur lecture est en route ; un pont qui ne les lit
+// pas (le téléphone) n'en a aucune.
+/** @returns {import("./parcours-projet/etape-station.js").EtatPourLaStation} */
+function etatDeLaStationDuParcours() {
+  const { depot, station } = ajoutDuParcours;
+  if (depot === undefined) return {};
+  /** @type {import("../stations-du-compte.ts").StationsDuCompte | undefined} */
+  const lues = brigade.stationsDuCompte === undefined ? { state: "listed", stations: [], unreadable: [] } : enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
+  const locale = projetsVus?.locale ?? undefined;
+  return {
+    depot,
+    ici: POSTE.nom,
+    ...(locale === undefined ? {} : { locale }),
+    ...(station === undefined ? {} : { station }),
+    ...(lues === undefined ? {} : { appairees: lues.state === "listed" ? lues.stations : { refus: [lues.reason, "detail" in lues ? lues.detail : undefined].filter(Boolean).join(" — ") } }),
+  };
+}
 /** @type {import("./premier-lancement.js").GestesDuPremier} */
 const gestesDuPremier = {
   ouvrir: (station, projet, depot) => void ouvrirDUneStation(station, projet, depot),
   seConnecter: () => void seConnecterAGitHub(),
   changerDeCompte: () => void seConnecterAGitHub(),
   relireLeCompte: () => void compteDuParcours.lire(),
+  // L'étape « station » : cet ordinateur sert le dépôt ajouté — s'il a une station —, ou une station appairée le reçoit
+  // dans sa sélection, par les gestes que l'app a déjà. Confié, le projet ajouté ouvre sa page, comme l'ajout le faisait.
+  ...(brigade.servirUnProjet === undefined ? {} : { servirIci: (depot) => servirIciLeDepot(depot) }),
+  choisir: (id, depots) => choisirPourUneEnregistree(id, depots),
+  stationChoisie: (nom) => {
+    const confie = ajoutDuParcours.projet === undefined ? undefined : projetDe(ajoutDuParcours.projet);
+    if (confie !== undefined) {
+      ajoutDuParcours = {};
+      return void ouvrir(confie);
+    }
+    ajoutDuParcours.station = nom;
+    poserLePremier();
+  },
   relire: () => void relireLePremier(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
   ajouterUnDossier: () => ouvrirAjout(),
@@ -8570,8 +8611,8 @@ function signaler(champ, raison = "") {
 }
 
 // Ajouter un projet à l'app sans écrire de JSON : son dossier se choisit, son dépôt et sa branche
-// en viennent. Aucune station n'y est demandée : sa cuisine se confie depuis sa page, quand le chef
-// le décide. Ce qui a été saisi reste, d'un passage à l'autre.
+// en viennent. Le formulaire ne demande aucune station : ajouté, le parcours au-dessus demande qui le
+// cuit (ticket 2477). Ce qui a été saisi reste, d'un passage à l'autre.
 function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
@@ -8630,11 +8671,12 @@ formulaire.addEventListener("submit", async (soumission) => {
   for (const champ of /** @type {const} */ (["dossier", "depot", "base"])) signaler(champ, issue.etat === "champs" ? issue.champs[champ] : "");
   poserIssue(issue);
   if (issue.etat !== "ajoute") return;
-  // Ajouté : la liste est déjà arrivée par `surConfiguration`. Sa page s'ouvre : c'est là que sa
-  // cuisine se confie à une station — tout de suite, plus tard, ou jamais.
+  // Ajouté : la liste est déjà arrivée par `surConfiguration`. Le parcours demande qui le cuit, sans quitter l'écran
+  // (étape « station », ticket 2477) ; les stations du compte se relisent pour s'y proposer.
   vider();
-  const projet = projetDe(issue.nom);
-  if (projet !== undefined) void ouvrir(projet);
+  ajoutDuParcours = { depot: projetDe(issue.nom)?.depot ?? saisie.depot, projet: issue.nom };
+  poserLeParcoursDeLAjout();
+  void lireLesEnregistrees();
 });
 
 // L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas.

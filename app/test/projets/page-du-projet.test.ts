@@ -124,7 +124,7 @@ test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni 
   assert.match(ecran, /<button type="submit" id="ajouter">Add to the app<\/button>/);
 });
 
-test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, et sa page s'ouvre", async () => {
+test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, le parcours demande qui le cuit (#2477), et confié, sa page s'ouvre", async () => {
   let jouee: Jouee | undefined;
   jouee = await jouerLaVue({
     demarrage: () => demarrage([], SANS_PROJET),
@@ -136,7 +136,12 @@ test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n
       jouee?.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: saisie.dossier, depot: saisie.depot, base: saisie.base }] }), []);
       return { etat: "ajoute", nom: "parade" };
     },
+    servirUnProjet: (depot) => ({ depots: [depot] }),
+    compteGitHub: () => ({ login: "benomite" }),
   });
+  // Sans projet, l'app s'ouvre sur le premier lancement : l'ajout par un dossier est au « + » de la barre.
+  (jouee.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
+  await repos();
   jouee.element("dossier").click();
   await repos();
   await repos();
@@ -156,8 +161,18 @@ test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n
     [],
   );
   assert.equal(jouee.appels.some(({ geste }) => geste === "confierAUneStation" || geste === "ajouterAUneStation"), false);
+  // L'écran reste celui de l'ajout : son parcours demande qui cuit le projet, cet ordinateur en tête.
+  assert.equal(jouee.element("ajout").hidden, false);
+  const etape = jouee.element("parcours-de-l-ajout").dessous("li").find((ligne) => ligne.dataset.etape === "station") ?? assert.fail("pas d'étape « station »");
+  assert.equal(etape.dataset.etat, "courante");
+  assert.ok([...etape.descendants()].some((pose) => pose.textContent === "Who cooks this project?"));
+  const ici = [...etape.descendants()].find((pose) => pose.dataset.station === "ici") ?? assert.fail("cet ordinateur n'est pas proposé");
+  // Un clic : la station de cet ordinateur sert le dépôt, par le geste de Settings, et la page du projet s'ouvre.
+  ici.dessous("button")[0]!.click();
+  await repos();
+  await repos();
+  assert.deepEqual(jouee.dernier("servirUnProjet"), ["benomite/parade", true]);
   assert.equal(jouee.element("espace").textContent, "parade", "sa page s'ouvre");
-  assert.match(jouee.element("stations-du-projet").textContent, /^No station cooks parade yet\./);
 });
 
 test("sans station, la page le dit en une phrase et offre le geste qui la lui confie, parmi les stations appairées", async () => {
