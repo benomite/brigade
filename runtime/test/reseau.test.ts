@@ -59,14 +59,6 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     assert.equal(variables.NODE_USE_ENV_PROXY, "1");
   });
 
-  test("le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien", async () => {
-    assert.equal(await sonderLeFiltre(envoi({ erreur: "EPERM" })), true);
-    assert.equal(await sonderLeFiltre(envoi({})), false);
-    // Aucune route, ou un envoi qui ne rend jamais : ni oui, ni non.
-    assert.equal(await sonderLeFiltre(envoi({ erreur: "ENETUNREACH" })), null);
-    assert.equal(await sonderLeFiltre(envoi("muet")), null);
-  });
-
   test("une déclaration illisible n'est pas une déclaration vide : la dernière liste lue tient, et c'est dit une fois", async (t) => {
     const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleTickMs: 10, maintenant: horloge() });
     t.after(() => runtime.arreter("test"));
@@ -152,4 +144,19 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     republier();
     assert.equal(declares().length, 2);
   });
+});
+
+// Hors du `describe` qui joue ses tests de front : l'horloge simulée est celle
+// de tout le process, et le tick des runtimes des autres tests s'y arrêterait.
+test("le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien", async (t) => {
+  assert.equal(await sonderLeFiltre(envoi({ erreur: "EPERM" })), true);
+  assert.equal(await sonderLeFiltre(envoi({})), false);
+  // Aucune route, ou un envoi qui ne rend jamais : ni oui, ni non. Le délai de
+  // la sonde (deux secondes) passe sur l'horloge du test, rendue avant la fin.
+  assert.equal(await sonderLeFiltre(envoi({ erreur: "ENETUNREACH" })), null);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const muette = sonderLeFiltre(envoi("muet"));
+  t.mock.timers.tick(2000);
+  t.mock.timers.reset();
+  assert.equal(await muette, null);
 });

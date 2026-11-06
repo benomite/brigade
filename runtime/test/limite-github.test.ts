@@ -211,8 +211,10 @@ test("la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'h
   const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
   t.after(() => github.fermer());
 
+  // Cinq sondages : chacun lance le faux `gh`, et le compte de la box est déjà
+  // au-delà de l'ancien budget dès le premier (#2464).
   const messages: string[] = [];
-  for (let tour = 0; tour < 30; tour++) {
+  for (let tour = 0; tour < 5; tour++) {
     horloge.avancer(10 * SECONDE);
     try {
       assert.equal((await github.tickets()).inchange, false);
@@ -221,17 +223,20 @@ test("la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'h
     }
   }
   assert.deepEqual(messages, []);
-  assert.equal(gh.appels().length, 30);
-  assert.equal(gh.restant(), 3570);
-  assert.deepEqual(limite.quota(), { restant: 3570, plafond: 5000, reset: DEPART + 40 * MINUTE, vu: horloge.maintenant() });
+  assert.equal(gh.appels().length, 5);
+  assert.equal(gh.restant(), 3595);
+  assert.deepEqual(limite.quota(), { restant: 3595, plafond: 5000, reset: DEPART + 40 * MINUTE, vu: horloge.maintenant() });
   assert.ok(limite.appels() > 2500);
 });
 
 test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réserve puis attendent, avant que GitHub ne refuse, sans lancer `gh` ; la fenêtre passée, ils reprennent", async (t) => {
   const gh = unGitHubQuiCompte(t);
   const horloge = uneHorloge();
-  const reset = DEPART + 10 * MINUTE;
-  gh.quota(540, reset);
+  // Cinq appels au-dessus de la réserve, une fenêtre de deux minutes : chaque
+  // sondage parti lance le faux `gh`, et chaque minute de retenue lui demande
+  // `rate_limit` (#2464).
+  const reset = DEPART + 2 * MINUTE;
+  gh.quota(505, reset);
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, limite, maintenant: horloge.maintenant });
@@ -253,22 +258,22 @@ test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réser
   // GitHub n'a jamais eu à refuser : la box s'est arrêtée à la réserve des gestes.
   assert.equal(gh.refus(), 0);
   assert.equal(gh.restant(), 500);
-  assert.equal(partis.length, 40);
+  assert.equal(partis.length, 5);
   // Aucun sondage retenu avant la réserve : un par tour jusqu'à elle.
-  assert.deepEqual(partis, Array.from({ length: 40 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
+  assert.deepEqual(partis, Array.from({ length: 5 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
   assert.ok(![...messages].some((message) => message.startsWith("quota GitHub entamé")));
   assert.ok([...messages].some((message) => message.startsWith("quota GitHub bas : 500 appels restants sur 5000")));
   assert.ok(![...messages].some((message) => /budget GitHub épuisé/.test(message)));
-  assert.equal(gh.appels().length, 40, "un sondage retenu ne lance pas `gh`");
+  assert.equal(gh.appels().length, 5, "un sondage retenu ne lance pas `gh`");
 
   // La fenêtre passée, GitHub a rendu son quota : les sondages reprennent seuls.
   horloge.poser(reset);
   gh.quota(4999, reset + FENETRE_MS);
-  for (let tour = 0; tour < 5; tour++) {
+  for (let tour = 0; tour < 2; tour++) {
     horloge.avancer(5 * SECONDE);
     assert.equal((await github.tickets()).inchange, false);
   }
-  assert.equal(gh.appels().length, 45);
+  assert.equal(gh.appels().length, 7);
 });
 
 test("un merge du chef part sur un compte au plus bas et une heure chargée côté box, et n'échoue que si GitHub refuse", async (t) => {

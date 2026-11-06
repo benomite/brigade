@@ -4,19 +4,19 @@
 // C'est une mesure : elle ne juge rien.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
+import { after, before, describe, test } from "node:test";
+import { ENV_ENFANT } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 
 // `suite` est la commande de test du projet d'essai : c'est elle que les gates
 // mesurent.
-function projet(t: TestContext, { binding, suite = "true" }: { binding?: string; suite?: string }): string {
-  const racine = repertoireTemporaire(t);
-  mkdirSync(join(racine, "runtime"));
+function projet(racine: string, { binding, suite = "true" }: { binding?: string; suite?: string }): string {
+  mkdirSync(join(racine, "runtime"), { recursive: true });
   writeFileSync(join(racine, "runtime/package.json"), JSON.stringify({ scripts: { test: suite } }));
   writeFileSync(
     join(racine, "CLAUDE.md"),
@@ -49,31 +49,48 @@ function releve(ligne: string): { processeur: number; utilisateur: number; syste
   return { processeur, utilisateur, systeme, horloge: Number(lu[7]) };
 }
 
-// Une suite qui calcule : deux secondes de processeur.
-const CALCULE = `node -e "while (process.cpuUsage().user < 2e6) for (let i = 0; i < 1e7; i++);"`;
+// Une suite qui calcule : quatre dixièmes de seconde de processeur.
+const CALCUL_S = 0.4;
+const CALCULE = `node -e "while (process.cpuUsage().user < ${CALCUL_S * 1e6}) for (let i = 0; i < 1e6; i++);"`;
+type Passage = Awaited<ReturnType<typeof jouer>>;
 
-// Chaque test a son projet : ils se jouent de front.
+// Les tests lisent deux passages des gates, joués une fois chacun et de front
+// (#2464) : un passage coûte une demi-seconde de processeur. Le témoin a une
+// suite qui ne fait rien ; l'autre une suite qui calcule, et un plafond déclaré.
 describe("la durée des gates", { concurrency: 8 }, () => {
-  test("les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond", async (t) => {
-    for (const binding of [undefined, "- **Plafond des gates** : `0,01 s` de processeur"]) {
-      const { lignes } = await jouer(projet(t, { binding }));
+  let racine = "";
+  let temoin: Promise<Passage>;
+  let calcul: Promise<Passage>;
+  before(() => {
+    racine = mkdtempSync(join(tmpdir(), "brigade-test-"));
+    temoin = jouer(projet(join(racine, "temoin"), {}));
+    calcul = jouer(projet(join(racine, "calcul"), { binding: "- **Plafond des gates** : `0,01 s` de processeur", suite: CALCULE }));
+  });
+  after(() => rmSync(racine, { recursive: true, force: true }));
 
+  test("les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond", async () => {
+    for (const { lignes } of [await temoin, await calcul]) {
       assert.equal(deLaDuree(lignes).length, 1, lignes.join("\n"));
       assert.match(deLaDuree(lignes)[0] ?? "", new RegExp(`^ok {4}${MESURE}$`));
     }
   });
 
-  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns two seconds of processor in node, and expects at least two seconds of user time in its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async (t) => {
-    const { processeur, utilisateur, systeme } = releve(deLaDuree((await jouer(projet(t, { suite: CALCULE }))).lignes)[0] ?? "");
+  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns processor in node, and expects that time in the user share of its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async () => {
+    const { processeur, utilisateur, systeme } = releve(deLaDuree((await calcul).lignes)[0] ?? "");
+    const sansCalcul = releve(deLaDuree((await temoin).lignes)[0] ?? "");
 
-    assert.ok(utilisateur >= 2, `utilisateur : ${utilisateur}`);
+    assert.ok(utilisateur >= CALCUL_S, `utilisateur : ${utilisateur}`);
+    // Le calcul de la suite, petit-enfant des gates par npm, est dans le compte :
+    // ce que les gates coûtent d'autre se retrouve chez le témoin. Au dixième
+    // près pour chacun, et une marge pour ce qu'un poste chargé ajoute.
+    assert.ok(utilisateur - sansCalcul.utilisateur >= CALCUL_S / 2, `utilisateur : ${utilisateur}, sans calcul : ${sansCalcul.utilisateur}`);
     // Chaque nombre est arrondi au dixième pour son compte.
     assert.ok(Math.abs(processeur - (utilisateur + systeme)) < 0.15, `${processeur} ≠ ${utilisateur} + ${systeme}`);
   });
 
-  test("une étape qui plante au lieu de rapporter écrit sa ligne FAIL : aucun rouge de ces gates n'est muet", async (t) => {
+  test("une étape qui plante au lieu de rapporter écrit sa ligne FAIL : aucun rouge de ces gates n'est muet", async () => {
     // Sans manifest, le contrôle de cohérence ne rapporte rien : il lève, et ne laisse qu'une trace.
-    const { lignes } = await jouer(projet(t, {}));
+    const { lignes } = await temoin;
 
     assert.ok(lignes.some((ligne) => /^Traceback /.test(ligne)), lignes.join("\n"));
     assert.ok(lignes.some((ligne) => /^FAIL {2}contrôle de cohérence .* planté/.test(ligne)), lignes.join("\n"));

@@ -18,7 +18,7 @@ import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import type { StationDeclaree } from "../src/stations-declarees.ts";
 import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
-import { jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Une cuisine dont le manager est allumé, sauf mention contraire.
 function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
@@ -29,12 +29,47 @@ function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);
   const faits = (numero: number) => c.journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
   const labels = (numero: number) => c.gh.lire(numero)?.labels ?? [];
-  // Laisse au manager le temps de plusieurs réveils.
-  const laisserTourner = async () => {
-    const depart = c.gh.sondages.ouvertes;
-    await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
+  // Un battement, écrit au journal par le test comme le tick du runtime l'écrit :
+  // la veille le voit dans ses vingt millisecondes et réveille le manager, sans
+  // attendre le tick, cent millisecondes plus loin (#2464). Par une autre
+  // connexion, comme la CLI du chef : la veille ne voit pas ce que la sienne écrit.
+  let autre: ReturnType<typeof ouvrirJournal> | undefined;
+  const battre = () => {
+    if (autre === undefined) {
+      const ouvert = ouvrirJournal(c.repertoire);
+      aArreter(t, () => ouvert.fermer());
+      autre = ouvert;
+    }
+    autre.ajouter({ project: c.runtime.projet, ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 100 } });
   };
-  return { ...c, jugements, dits, faits, labels, laisserTourner };
+  // Ce que le chef change sur GitHub, le manager le lit à son tour suivant : un
+  // battement le fait venir aussitôt.
+  const poser = c.gh.poser;
+  c.gh.poser = (i) => {
+    poser(i);
+    battre();
+  };
+  // Les réveils, comptés après ceux du manager, branchés avant : quand le compte
+  // passe, le manager a fait la part synchrone de son tour.
+  let reveils = 0;
+  c.runtime.surReveil(() => void reveils++);
+  // Laisse au manager plusieurs réveils, chacun sur un battement.
+  const laisserReveiller = async (n = 2) => {
+    for (let i = 0; i < n; i++) {
+      const depart = reveils;
+      battre();
+      await jusqua(() => reveils > depart);
+    }
+  };
+  // Laisse au manager plusieurs tours, chacun sur un battement : trois sondages des issues ouvertes.
+  const laisserTourner = async () => {
+    for (let i = 0; i < 3; i++) {
+      const depart = c.gh.sondages.ouvertes;
+      battre();
+      await jusqua(() => c.gh.sondages.ouvertes > depart);
+    }
+  };
+  return { ...c, jugements, dits, faits, labels, laisserReveiller, laisserTourner };
 }
 
 // Ce que ferait `manager -- rendre <n°>` depuis son propre process.
@@ -498,11 +533,12 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("tant que le chef a dit « stop », rien n'est jugé ; à « resume », le manager juge ce qui attendait", async (t) => {
-    const c = cuisine(t, { manager: {}, issues: [issue(30, [])] });
+    // Allumé après le « stop », comme le chef le fait : brigade l'allumerait avant.
+    const c = brigade(t, { eteint: true, issues: [issue(30, [])] });
     chef(c.repertoire, "kitchen.stopped");
     chef(c.repertoire, "manager.enabled");
-    const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools"));
-    await jusqua(() => c.gh.sondages.ouvertes >= 3);
+    const { jugements } = c;
+    await c.laisserTourner();
     assert.equal(jugements().length, 0);
 
     chef(c.repertoire, "kitchen.resumed");
@@ -594,7 +630,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.deepEqual(gh.labellisations, []);
     assert.deepEqual(labels(30), ["blocked-on-human"]);
-    assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]).at(-1), ["manager.set-aside", "blocked-on-human"]);
+    // La relecture de l'issue retenue (`manager.requalified`), au tour qui suit, n'est pas une décision.
+    assert.deepEqual(faits(30).filter((e) => e.type !== "manager.requalified").map((e) => [e.type, charge(e)?.reason]).at(-1), ["manager.set-aside", "blocked-on-human"]);
     assert.deepEqual(dits(30), []);
   });
 
