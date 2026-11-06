@@ -106,6 +106,13 @@ else. With a diff it is the report, in the PR body; with no diff it is the deliv
 Tags are read whatever their case. **With no deliverable**, a cook that committed is not a failure
 (its message is published as it is); one **with no commit** has failed (`no-deliverable`).
 
+**Nothing runs in the background when the cook ends.** Its instructions (`CONSIGNE_DE_FIN_DE_TOUR`)
+ask it to wait for, or stop, every background task — command, Monitor, sub-agent — before its last
+message: while one runs, `claude -p` does not exit and the station waits for it, counted as cooking.
+On the tickets of #2541, cooks wrote their report over a test left in the background, then waited 7
+to 8 min for the tool to kill it; and their answer to its end notification became their last
+message, in place of the deliverable.
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
