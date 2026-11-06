@@ -269,16 +269,26 @@ MS_TESTS=""
 # (`GOMAXPROCS=2 GOGC=200`) : 13,3 s de processeur au lieu de 18,7 pour le
 # runtime, à mémoire égale (1,1 Go), et son horloge reste sous celle des
 # tests (#1635).
-# Il ne part que pour une zone dont `suite` joue les tests : les autres
-# conditions de `suite` (dépendances absentes) laissent `tsc` absent, et le
-# contrôle ne part pas.
+# Il part pour une zone dont `suite` joue les tests, et pour toutes dès que le
+# changement touche du code d'une zone (`CODE_DES_ZONES`), même sans test
+# proche (#2549) : la CI juge les types des deux zones sur chaque PR (`types
+# (<zone>)`), et l'app importe du code du runtime. Sauté avec les tests, il
+# laissait passer une livraison que la CI rendait rouge — 84 gates de cooks
+# sur 221 sans aucun contrôle de types, et 12 livraisons rouges sur leurs
+# types à la CI (8 sur eux seuls), chacune recuite. Sans test ni code touché (une doc, un rôle, un
+# commit vide), il ne part pas. Les autres conditions de `suite` (dépendances
+# absentes) laissent `tsc` absent, et le contrôle ne part pas.
 # Usage : types_partir <dossier> <règle de sélection>. Pose `TYPES_<dossier>`
 # — vide sans contrôle à jouer, « injouable » sans `tsc`, sinon le fichier de
 # sa sortie — et `PID_TYPES_<dossier>`.
+CODE_DES_ZONES=0
+case "$(printf '%s\n' "${CHANGES:-}" | grep -E '^(runtime|app)/.*\.(ts|mts|cts|js|mjs|cjs|json)$' | head -1)" in
+  ?*) CODE_DES_ZONES=1 ;;
+esac
 types_partir() {
   local ZONE="$1" REGLE="$2" SORTIE
   printf -v "TYPES_$ZONE" '%s' ""
-  [ -f "$ZONE/package.json" ] && [ "$REGLE" != rien ] && command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 || return 0
+  [ -f "$ZONE/package.json" ] && { [ "$REGLE" != rien ] || [ "$CODE_DES_ZONES" -eq 1 ]; } && command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 || return 0
   node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null || return 0
   if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
     SORTIE="$(mktemp)"
@@ -291,13 +301,16 @@ types_partir() {
 }
 suite() {
   local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4" REGLE="$5"
-  local TYPES PID_TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS FICHIERS="" COMMANDE="" MOTIF
+  local TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS FICHIERS="" COMMANDE="" MOTIF
   if [ ! -f "$ZONE/package.json" ]; then
     ok "$ABSENTE : aucun test à jouer"
     return
   elif [ "$REGLE" = rien ]; then
     if [ -n "$PORTEE" ]; then ok "tests $DE non joués ici : aucun n'est proche de ce changement — ceux qu'il touche tournent sur la CI, la suite entière sur la base"
     else ok "tests $DE non joués : aucun ne touche ce changement — la suite entière tourne sur la base"; fi
+    # Ses types, eux, se jugent quand ils sont partis (`types_partir`).
+    TYPES="TYPES_$ZONE"
+    [ -z "${!TYPES:-}" ] || types_juger "$ZONE" "$DE"
     return
   elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
     SUITE_ROUGE=1
@@ -324,11 +337,6 @@ suite() {
           else ok "tests $DE : $(set -- $FICHIERS; echo $#) fichiers touchés par ce changement — la suite entière tourne sur la base"; fi ;;
       esac ;;
   esac
-  # Le contrôle de types est parti au début du tour (`types_partir`).
-  TYPES="TYPES_$ZONE"
-  TYPES="${!TYPES:-}"
-  PID_TYPES="PID_TYPES_$ZONE"
-  PID_TYPES="${!PID_TYPES:-}"
   # Les tests créent chacun leur répertoire temporaire : l'état d'un runtime
   # lancé à la main dans ce worktree ne doit jamais leur parvenir.
   # Leur sortie entière est gardée quand ils échouent : un échec intermittent ne
@@ -428,6 +436,17 @@ suite() {
     echo "sortie complète des tests : $WT/$JOURNAL" >&2
     fail "tests $DE en échec — rejoue : npm --prefix $ZONE test"
   fi
+  types_juger "$ZONE" "$DE"
+}
+# Le verdict du contrôle de types d'une zone, parti au début du tour
+# (`types_partir`), lu après ses tests.
+# Usage : types_juger <dossier> <« du runtime »>
+types_juger() {
+  local ZONE="$1" DE="$2" TYPES PID_TYPES
+  TYPES="TYPES_$ZONE"
+  TYPES="${!TYPES:-}"
+  PID_TYPES="PID_TYPES_$ZONE"
+  PID_TYPES="${!PID_TYPES:-}"
   if [ -z "$TYPES" ]; then
     ok "$ZONE sans script typecheck : aucun contrôle de types à jouer"
   elif [ "$TYPES" = "injouable" ]; then
