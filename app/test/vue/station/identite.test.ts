@@ -42,7 +42,9 @@ describe("la section identité de la page d'une station", () => {
     assert.equal(lignes(racine).length, 5);
     assert.ok(lignes(racine).every(({ niveau }) => niveau === "machine"));
     assert.equal(lignes(racine)[4]?.valeur, "behind — 1.5.0 is out");
-    assert.equal(boutons(racine).length, 0);
+    // À la place du bouton, la note « sur place » (ticket 2646) : jamais un bouton.
+    assert.deepEqual(boutons(racine).map(({ className }) => className), ["note-sur-place"]);
+    assert.equal(racine.descendants().filter(({ balise }) => balise === "button").length, 0);
   });
 
   test("ce que la station n'a pas dit se dit « unknown », jamais une case vide", () => {

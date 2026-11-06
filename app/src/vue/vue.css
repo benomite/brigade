@@ -9026,3 +9026,11 @@ button.recommande {
 #station .identite .reglage .valeur {
   flex: 1;
 }
+
+/* La note sur place (ticket 2646) : à la place du geste d'un réglage qui ne se change que sur la machine, vu d'une autre station. */
+.note-sur-place {
+  margin-left: 8px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--discret);
+}
