@@ -37,6 +37,12 @@ export const NIVEAUX = {
   ordinaires: "machine",
   sert: "machine",
   claude: "machine",
+  // La page d'une station (ticket 2642) : son nom, sa machine, ses cœurs, sa version et sa mise à jour.
+  "station-nom": "machine",
+  "station-machine": "machine",
+  "station-coeurs": "machine",
+  "station-version": "machine",
+  "station-mise-a-jour": "machine",
   // Toi : les couleurs de chaque projet, et le sigle de sa case dans la barre. L'app n'a aucune autre préférence
   // d'affichage (ni thème, ni densité, ni taille de police) : quand elle en aura une, sa ligne se posera ici, « you »,
   // avec son étiquette.

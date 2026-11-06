@@ -522,6 +522,16 @@ detail on hover. A device with no station (a phone, a workstation) says so in on
 station pairs it (#2500). Settings still shows its own **this machine** lines until a separate ticket
 removes them.
 
+### The station page, section Identity (#2642, epic #2497)
+
+The **Identity** section of a station's page has one line per fact — `name`, `machine`, `cores`, `version`, `updates` —
+each with its level label (`this machine`, from `app/src/vue/niveaux.js`). What the station has not said reads `unknown`.
+On this computer, a station that is behind shows **Update now** (recommended); up to date, the line says so. On another
+station the section is read-only: the same lines, never a button.
+
+*Code: `app/src/vue/station/page/sections/identite.js` (it reads `contexte.identite`, which the page shell supplies). Test:
+`app/test/vue/station/identite.test.ts`.*
+
 ### Cards never vanish while GitHub holds them (#2151)
 
 The chef's main screen does not lose a card because a reading went wrong:

@@ -13,7 +13,7 @@ import { Faux } from "./aides/fausse-vue.ts";
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const VUE = join(import.meta.dirname, "../src/vue");
 
-// Tout ce que la vue demande à la table : `niveauDe(doc, "cle")` ou `avecNiveau(élément, "cle")`, dans chaque module de la vue.
+// Tout ce que la vue demande à la table : `niveauDe(doc, "cle")` `avecNiveau(élément, "cle")` ou `contexte.niveau("cle")` (une section de la page d'une station), dans chaque module de la vue.
 function demandes(): Map<string, string[]> {
   const rendu = new Map<string, string[]>();
   const lire = (dossier: string) => {
@@ -21,7 +21,7 @@ function demandes(): Map<string, string[]> {
       const chemin = join(dossier, entree.name);
       if (entree.isDirectory()) lire(chemin);
       else if (entree.name.endsWith(".js") && entree.name !== "niveaux.js") {
-        for (const [, cle] of readFileSync(chemin, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)/g)) rendu.set(cle ?? "", [...(rendu.get(cle ?? "") ?? []), entree.name]);
+        for (const [, cleDe, cleSection] of readFileSync(chemin, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|contexte\.niveau\("([^"]+)"\)/g)) { const cle = cleDe ?? cleSection ?? ""; rendu.set(cle, [...(rendu.get(cle) ?? []), entree.name]); }
       }
     }
   };
