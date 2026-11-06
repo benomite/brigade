@@ -4,13 +4,14 @@
 // aucune station n'existe ici, et chaque adresse demandée est notée — toutes sont celles de l'API de GitHub.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, test } from "node:test";
+import { after, describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
+import vm from "node:vm";
 import { APP } from "../packaging/construire.ts";
-import { poserLesModules } from "../packaging/android.ts";
+import { demarrageDuPont, poserLaVue, poserLesModules } from "../packaging/android.ts";
 import type { Accueil } from "../src/accueil.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { tenirFaits, type Dessinable, type Tableau } from "../src/faits.ts";
@@ -19,6 +20,8 @@ import { avecCeQuiAttendLeChef } from "../src/tableau/attente-du-chef.ts";
 import { API_GITHUB, clientGitHub, type Envoi, type ReponseGitHub } from "../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../src/tableau/lecture.ts";
 import { FAITS, lectureDuTableau, STATUS } from "../src/tableau/rail.ts";
+import type { Pont } from "../src/vue/pont.d.ts";
+import { FauxEcran, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const LU = "2026-11-06T09:00:00.000Z";
 const maintenant = () => new Date(LU);
@@ -279,5 +282,188 @@ describe("ce que le téléphone envoie et lit de GitHub", () => {
     poserLesModules(www, APP, join(APP, "src", "lecture-github-telephone.ts"));
     const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "lecture-github-telephone.js")).href], { encoding: "utf8" });
     assert.equal(charge.stdout.trim(), "INTERVALLE_MS lireLesProjetsDuCompte ouvrirLaLectureGitHub parCapacitor", charge.stderr);
+  });
+});
+
+// Le téléphone tel que l'APK le porte : le pont (www/android/pont.js), joué comme dans la WebView, et la lecture qu'il
+// charge à côté de la vue (www/src/lecture-github-telephone.js), posés par la construction. Le coffre garde le jeton du
+// chef (#2500) ; le HTTP natif de Capacitor est le faux GitHub de ce fichier, qui ne joint rien d'autre que l'API de
+// GitHub. Le stockage garde aussi un appairage d'avant #2500, avec l'adresse de sa station : elle n'est jamais demandée.
+const POSEE = mkdtempSync(join(tmpdir(), "lecture-github-telephone-apk-"));
+after(() => rmSync(POSEE, { recursive: true, force: true }));
+let posee: Promise<string> | undefined;
+function laVuePosee(): Promise<string> {
+  posee ??= demarrageDuPont().then((demarrage) => {
+    poserLaVue(demarrage, join(POSEE, "www"));
+    return join(POSEE, "www");
+  });
+  return posee;
+}
+const STATION = "http://192.168.1.20:7010";
+const APPAIRAGE = JSON.stringify({ station: "atelier", adresse: STATION, jeton: "brgt_secret" });
+type AppelNatif = { plugin: string; methode: string; options: Record<string, unknown> };
+
+async function telephoneDeLAPK({ monde = MONDE, refuser, connus }: { monde?: Monde; refuser?: Parameters<typeof github>[1]; connus?: ProjetDuCompte[] } = {}) {
+  const { envoyer, demandes } = github(monde, refuser);
+  const natifs: AppelNatif[] = [];
+  const planifiees: number[] = [];
+  const stockage = new Map([["brigade.github", "chef"], ["brigade.telephone", APPAIRAGE], ...(connus === undefined ? [] : [["brigade.github.projets", JSON.stringify(connus)] as [string, string]])]);
+  const window: Record<string, unknown> = {
+    location: { href: pathToFileURL(join(await laVuePosee(), "src", "vue", "index.html")).href },
+    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
+    // La lecture suivante, dans trente secondes : notée, jamais courue.
+    setTimeout: (_faire: () => void, ms: number) => planifiees.push(ms),
+    clearTimeout: () => undefined,
+    Capacitor: {
+      nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => {
+        natifs.push({ plugin, methode, options: JSON.parse(JSON.stringify(options)) });
+        if (plugin === "Coffre" && methode === "lire") return { valeur: JETON };
+        if (plugin === "Coffre") return {};
+        if (plugin !== "CapacitorHttp") return assert.fail(`unexpected call: ${plugin}.${methode}`);
+        const { status, data, etag } = await envoyer(String(options.url), options.headers as Record<string, string>);
+        return { status, data, headers: etag === undefined ? {} : { ETag: etag } };
+      },
+    },
+  };
+  vm.runInNewContext(readFileSync(join(await laVuePosee(), "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
+  const pont = window.brigade as Record<string, (...args: unknown[]) => unknown>;
+  const http = () => natifs.filter(({ plugin }) => plugin === "CapacitorHttp").map(({ options }) => String(options.url));
+  return { pont, natifs, http, demandes, planifiees, stockage };
+}
+
+// La vue de l'app — celle du desktop, sur un écran de téléphone (aides/fausse-vue.ts) — branchée sur ce pont : chaque
+// geste de la vue lui est demandé, et chaque envoi du pont arrive à la vue.
+const CANAUX = ["surConfiguration", "surFaits", "surAlertes", "surAccueil", "surActivites", "surAmont", "surTelephone"] as const;
+async function lAppSurLeTelephone(options: Parameters<typeof telephoneDeLAPK>[0] = {}) {
+  const apk = await telephoneDeLAPK(options);
+  let vue: Jouee | undefined;
+  const avant: [string, unknown[]][] = [];
+  const passer = (canal: string, args: unknown[]) => (vue as unknown as { dire: (canal: string, ...args: unknown[]) => void }).dire(canal, ...args);
+  for (const canal of CANAUX) apk.pont[canal]!((...args: unknown[]) => {
+    const recus = JSON.parse(JSON.stringify(args)) as unknown[];
+    if (vue === undefined) avant.push([canal, recus]);
+    else passer(canal, recus);
+  });
+  const geste = (nom: string) => (...args: unknown[]) => apk.pont[nom]!(...args);
+  const gestes = Object.fromEntries(["demarrage", "faits", "tous", "regarder", "relireBox", "onglet"].map((nom) => [nom, geste(nom)]));
+  vue = await jouerLaVue({ ...(gestes as { demarrage: Pont["demarrage"] }), espace: () => [], machines: () => [] }, { ecran: new FauxEcran(true) });
+  for (const [canal, args] of avant.splice(0)) passer(canal, args);
+  return { ...apk, vue };
+}
+// Attend un fait — la vue et le pont répondent sans horloge : il est là quand la file des promesses et des fichiers est vide.
+async function jusqua(fait: () => boolean): Promise<void> {
+  for (let tour = 0; tour < 2000 && !fait(); tour++) await repos();
+  assert.ok(fait(), "the fact never came");
+}
+const colonnesVues = (vue: Jouee) =>
+  Object.fromEntries(
+    vue
+      .element("rail")
+      .dessous("section")
+      .filter((pose) => pose.className === "colonne")
+      .map((colonne) => [colonne.children[0]?.children[0]?.textContent, colonne.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent)]),
+  );
+const caseDe = (vue: Jouee, nom: string): Faux => vue.element("projets").children.find((pose) => pose.ariaLabel?.split(" — ")[0] === nom) ?? assert.fail(`no case for ${nom} in the bar`);
+
+describe("l'app Android lit ses projets sur GitHub par son pont, aucune station jointe", () => {
+  test("connecté, le pont rend le téléphone connecté et lit la liste, le rail et TODO sur GitHub — l'adresse de la station appairée n'est jamais demandée", async () => {
+    const { pont, http, natifs, stockage, planifiees } = await telephoneDeLAPK();
+    const recus: Record<string, unknown[]> = {};
+    for (const canal of CANAUX) pont[canal]!((premier: unknown) => void (recus[canal] ??= []).push(JSON.parse(JSON.stringify(premier))));
+    const demarrage = JSON.parse(JSON.stringify(await pont.demarrage!()));
+    assert.deepEqual(demarrage.telephone, { appaire: false, github: { compte: "chef" } });
+    assert.deepEqual(demarrage.configuration.projets, []);
+    assert.deepEqual(http(), []);
+    // La barre posée, puis « All projects » : la liste se lit, et la vue, qui la reçoit, redemande les faits et l'écran.
+    pont.faits!(1);
+    pont.tous!(2);
+    await jusqua(() => recus.surConfiguration !== undefined);
+    assert.deepEqual((recus.surConfiguration?.at(-1) as { projets: { nom: string }[] }).projets.map(({ nom }) => nom), ["cantine", "parade"]);
+    pont.faits!(3);
+    pont.tous!(4);
+    const dessines = () => (recus.surFaits ?? []) as Dessinable[];
+    await jusqua(() => ["parade", "cantine"].every((nom) => dessines().some((recue) => recue.projet === nom && "tableau" in recue && recue.tableau.rail.attendLu !== undefined)));
+    // Le rail et TODO de parade : ce que le desktop dessine du même projet, sur le même GitHub.
+    const parade = dessines().findLast((recue) => recue.projet === "parade");
+    assert.deepEqual(colonnes(tableauDe(parade))["Todo"], [12, 20]);
+    // Le téléphone lit à l'heure qu'il est, le desktop de ce test à `LU` : seules leurs heures diffèrent, et depuis
+    // combien de temps chaque carte attend.
+    const sansHeure = (recue: unknown) =>
+      JSON.parse(
+        JSON.stringify(recue)
+          .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z/g, "<heure>")
+          .replace(/"for [^"]*?  /g, '"for <durée>  '),
+      );
+    assert.deepEqual(sansHeure(parade), sansHeure(await commeLeDesktop("parade", "chef/parade", 3, 4)));
+    // Chaque demande est partie à l'API de GitHub, avec le jeton du coffre ; aucune à la station.
+    assert.ok(http().length > 0);
+    assert.deepEqual(http().filter((url) => !url.startsWith(`${API_GITHUB}/`)), []);
+    assert.ok(natifs.filter(({ plugin }) => plugin === "CapacitorHttp").every(({ options }) => (options.headers as Record<string, string>).Authorization === `Bearer ${JETON}`));
+    assert.ok(!JSON.stringify(natifs).includes(STATION));
+    // La liste lue est gardée — relancée, l'app la montre avant de relire —, et la lecture suivante part dans trente secondes.
+    assert.deepEqual(JSON.parse(stockage.get("brigade.github.projets") ?? "null"), [{ nom: "cantine", depot: "chef/cantine" }, { nom: "parade", depot: "chef/parade" }]);
+    assert.deepEqual([...new Set(planifiees)], [INTERVALLE_MS]);
+    assert.deepEqual((recus.surTelephone?.at(-1) as TelephoneGitHub).liste, { a: (recus.surTelephone?.at(-1) as { liste: { a: string } }).liste.a, lue: true });
+  });
+
+  test("sans connexion à GitHub, un téléphone appairé avant #2500 ne lit rien à sa station : la vue s'ouvre sur la connexion", async () => {
+    const stockage = new Map([["brigade.telephone", APPAIRAGE]]);
+    const appels: AppelNatif[] = [];
+    const window: Record<string, unknown> = {
+      location: { href: pathToFileURL(join(await laVuePosee(), "src", "vue", "index.html")).href },
+      localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
+      Capacitor: { nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => (appels.push({ plugin, methode, options }), {}) },
+    };
+    vm.runInNewContext(readFileSync(join(await laVuePosee(), "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
+    const pont = window.brigade as Record<string, (...args: unknown[]) => unknown>;
+    assert.deepEqual(JSON.parse(JSON.stringify(await pont.demarrage!())).telephone, { appaire: false });
+    pont.faits!(1);
+    pont.tous!(2);
+    pont.regarder!("parade", 3);
+    pont.relireBox!();
+    for (let tour = 0; tour < 50; tour++) await repos();
+    assert.deepEqual(appels.filter(({ plugin }) => plugin !== "Coffre"), []);
+  });
+
+  test("l'app connectée liste les projets du chef ; chaque projet ouvert montre son rail et son TODO, lus sur GitHub", async () => {
+    const { vue, http } = await lAppSurLeTelephone();
+    await jusqua(() => ["cantine", "parade"].every((nom) => vue.element("projets").children.some((pose) => pose.ariaLabel?.split(" — ")[0] === nom)));
+    assert.match(vue.element("connexion-github").textContent, /^Signed in to GitHub as chef\./);
+    caseDe(vue, "parade").click();
+    await jusqua(() => (colonnesVues(vue)["Todo"] ?? []).length === 2);
+    assert.deepEqual(colonnesVues(vue)["Todo"], ["#12", "#20"]);
+    assert.deepEqual(colonnesVues(vue)["On the rail"], ["#1"]);
+    // Le projet vide : un rail sans carte, et TODO qui dit que rien n'attend le chef — pas un écran vide.
+    caseDe(vue, "cantine").click();
+    await jusqua(() => /nothing awaits you/.test(vue.element("rail").textContent));
+    assert.deepEqual(Object.values(colonnesVues(vue)).flat(), []);
+    assert.deepEqual(http().filter((url) => !url.startsWith(`${API_GITHUB}/`)), []);
+  });
+
+  test("GitHub qui refuse la liste : « All projects » le dit en une ligne, le détail au survol — jamais un écran vide", async () => {
+    const { vue } = await lAppSurLeTelephone({ refuser: (chemin) => (chemin.startsWith("/gists?") ? { status: 500, data: "<html>oops</html>" } : undefined) });
+    await jusqua(() => /GitHub did not give your projects\./.test(vue.element("tous").textContent));
+    const ligne = vue.element("tous").dessous("p").find((pose) => pose.className === "indisponible");
+    assert.equal(ligne?.dataset.etat, "injoignable");
+    assert.match(ligne?.dessous("button").find((pose) => pose.className === "aide")?.ariaLabel ?? "", /HTTP 500.*tries again every 30 s/);
+  });
+
+  test("la session GitHub refusée (401) : la ligne le dit, avec le geste qui reconnecte le téléphone", async () => {
+    const { vue } = await lAppSurLeTelephone({ refuser: (chemin) => (chemin.startsWith("/gists?") ? { status: 401, data: { message: "Bad credentials" } } : undefined) });
+    await jusqua(() => /GitHub no longer accepts this phone's sign-in\./.test(vue.element("tous").textContent));
+    assert.deepEqual(
+      vue.element("tous").dessous("button").filter((pose) => pose.parentElement?.className === "action").map((pose) => [pose.textContent, pose.className]),
+      [["sign in again", "recommande"]],
+    );
+  });
+
+  test("GitHub injoignable : la liste le dit, le projet connu reste, et son rail montre l'échec — jamais un écran vide", async () => {
+    const { vue, http } = await lAppSurLeTelephone({ connus: [{ nom: "parade", depot: "chef/parade" }], refuser: () => new Error('Unable to resolve host "api.github.com"') });
+    await jusqua(() => /This phone cannot reach GitHub\./.test(vue.element("tous").textContent));
+    assert.match(vue.element("tous").textContent, /parade/);
+    caseDe(vue, "parade").click();
+    // L'échec que le desktop montre d'un rail que GitHub ne rend pas : hors ligne, depuis la dernière lecture tentée.
+    await jusqua(() => /offline since/.test(vue.element("rail").textContent));
+    assert.deepEqual(http().filter((url) => !url.startsWith(`${API_GITHUB}/`)), []);
   });
 });

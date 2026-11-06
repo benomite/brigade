@@ -77,7 +77,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserLaListe } from "./telephone/appairage.js";
-import { poserConnecte, tenirConnexionGitHub } from "./connexion-github.js";
+import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./connexion-github.js";
 import { tenirConversation } from "./telephone/conversation.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
@@ -6126,13 +6126,16 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
 function poserAccueil() {
   const lignes = new Map((accueilVu?.projets ?? []).map((ligne) => [ligne.nom, ligne]));
   const desProjets = configuration.projets.map((projet) => ligneDAccueil(projet.nom, lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" }, () => void ouvrir(projet)));
-  // Sur le téléphone appairé, les projets sont ceux de sa station : la section dit ce qui manque à leur liste (telephone/appairage.js).
+  // Sur le téléphone, les projets sont ceux qu'il lit — sur GitHub, connecté (connexion-github.js), ou à la station d'un
+  // appairage d'avant le ticket 2500 (telephone/appairage.js) : la section dit ce qui manque à leur liste.
   projetsDeLAccueil.replaceChildren(
     ...(telephoneVu?.appaire === true
       ? [...poserLaListe(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
-      : desProjets.length === 0
-        ? [bloc("p", telephoneVu === undefined ? "no project yet: “+” in the bar adds one" : "no project on this phone yet: a project is added from a computer")]
-        : desProjets),
+      : telephoneVu?.github !== undefined
+        ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
+        : desProjets.length === 0
+          ? [bloc("p", telephoneVu === undefined ? "no project yet: “+” in the bar adds one" : "no project on this phone yet: a project is added from a computer")]
+          : desProjets),
   );
   poserStationsDeLAccueil();
   poserApp();

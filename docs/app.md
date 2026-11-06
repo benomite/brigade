@@ -1282,8 +1282,7 @@ the "?" next to the title.
   (*This phone is signed in to GitHub.* when GitHub did not say the account). The token stays in the phone's vault
   (`Coffre.java`, encrypted by a key of Android's Keystore); the view never sees it, and only the account name is kept in
   the app's storage. At the next launch the app opens straight on "All projects", with the same line. Uninstalling the
-  app forgets the sign-in. Until the phone reads projects from GitHub, "All projects" says *no project on this phone
-  yet: a project is added from a computer*.
+  app forgets the sign-in. "All projects" then lists the projects read on GitHub (below).
 - **Not signed in**, one line under the button, in red, the detail on hover, and the button starts again: *The sign-in
   was cancelled on GitHub: this phone is not signed in.* (denied on the GitHub page) — *The code expired before it was
   typed on GitHub: sign in again.* — *GitHub refused the sign-in: sign in again.* — *This phone could not reach GitHub:
@@ -1299,8 +1298,40 @@ and keeps asking through a lost network until the code expires. On the desktop, 
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
 
 **Phones paired with a station before #2500.** The pairing screen — the station's address, its code, its QR, the
-`brigade://pair` link — is gone, and no new pairing is drawn. A phone that was paired before keeps reading its station's
-phone desk, as below (#1414), without going through the sign-in screen.
+`brigade://pair` link — is gone, and no new pairing is drawn. A phone that was paired before no longer reads its
+projects at its station (#2501): it opens on the sign-in screen like a fresh install. What remains of its pairing only
+carries the sheet's gestures and the conversation with the second, at its station's phone desk (below).
+
+### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
+
+Signed in, **the phone reads the chef's projects, each project's rail and its TODO on GitHub alone** — no station is
+reached, no station address is asked for. Every request goes to `api.github.com` with the token from the phone's vault,
+through Capacitor's native HTTP (`parCapacitor`). The reading is `app/src/lecture-github-telephone.ts`
+(`ouvrirLaLectureGitHub`), every 30 s and whenever the view asks (`faits`, `tous`, `regarder`, *try again now*):
+
+- **The projects** are those the app asked of the chef's stations, written in each station's gist under the chef's
+  account: `brigade-projets.json` (a name and a repository per project) and `brigade-selection.json` (repositories,
+  each named as the station names it). One repository is one project; sorted by name. The last list read is kept
+  (`brigade.github.projets` in the app's storage): a relaunched app shows it before reading again.
+- **The rail and TODO of each project** are the desktop's own reading (`lireLeTableauDuDepot`, then
+  `avecCeQuiAttendLeChef`, conditional reads where a 304 costs nothing), and what is done with it is what the desktop's
+  main process does — `facts` through `tenirFaits`, `status` through `mettreAPart` and `attendre`, the alert band, the
+  lines of "All projects", the cooks' activity and, in an open project's space, what is before the rail. A project on
+  the phone shows the cards the desktop shows of the same project at the same reading.
+- **What does not read says so, never a blank screen.** Above the lines of "All projects", one sentence says what the
+  list lacks, and nothing when it was just read and has projects (`poserLaListeGitHub`, `app/src/vue/connexion-github.js`):
+  *Your projects on GitHub: first read in progress…*; *None of your stations serves a project yet: a project is added
+  from a computer.*; *This phone cannot reach GitHub.*; *GitHub did not give your projects.* — what GitHub or the
+  network said on hover, with *This phone tries again every 30 s.* The projects already known stay under it. A sign-in
+  GitHub refuses (`401`) says *GitHub no longer accepts this phone's sign-in.*, with **sign in again**, which forgets
+  the sign-in (the vault's token, the account, the list) and reopens the app on the sign-in screen. A rail GitHub does
+  not give is the desktop's failed rail (*offline since …*, or GitHub's refusal in one sentence); an empty project is an
+  empty rail, read, whose Todo says *nothing awaits you*.
+
+The APK build lays the module, and what it imports from `app/src/` and `runtime/src/`, next to the view without their
+types (`www/src/lecture-github-telephone.js`, `poserLesModules` in `app/packaging/android.ts`); the bridge loads it at
+its first reading. Its tests, against a mocked GitHub with no station reachable — the module alone, then the laid bridge
+and the real view on a phone screen — are `app/test/lecture-github-telephone.test.ts`.
 
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
@@ -1313,7 +1344,8 @@ station's configuration in its order, each `served`, `refused` (with its `reason
 reads for that project, read the same way at the same moment (`runtime/src/telephone/projets.ts`); `404` a project the
 station does not have, `503` a log it cannot read, with what the command would say.
 
-**The paired phone reads them** (#1414). The Android bridge reads `GET /projects` and each project's `queue` with its
+**The paired phone read them** (#1414; since #2501 the bridge no longer calls this reading for projects, rail and
+TODO — what follows describes `app/android/web/lecture.ts`, which still carries the gestures and the conversation). The Android bridge reads `GET /projects` and each project's `queue` with its
 token, every 30 s and whenever the view asks (opening a project, "All projects", *try again now*). It does with them
 what the desktop's main process does with its readings: the same modules of `app/src/` — `facts` through `tenirFaits`,
 `status` through `mettreAPart` and `attendre`, the alert band and the lines of "All projects" — so a queue on the phone

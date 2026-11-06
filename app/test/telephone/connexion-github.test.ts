@@ -96,7 +96,8 @@ describe("sur une installation neuve, le premier écran connecte le téléphone 
     assert.equal(vue.element("ajout").hidden, true);
     assert.equal(ecran().className, "fait");
     assert.match(ecran().textContent, /^Signed in to GitHub as benomite\./);
-    assert.match(vue.element("tous").textContent, /no project on this phone yet: a project is added from a computer/);
+    // Ses projets se lisent sur GitHub (#2501) : la section le dit, jusqu'à la première liste lue.
+    assert.match(vue.element("tous").textContent, /Your projects on GitHub: first read in progress…/);
   });
 
   test("annulé ou refusé sur GitHub : l'écran reste, la ligne le dit, le détail au survol — et le bouton relance", async () => {
