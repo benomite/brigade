@@ -37,7 +37,9 @@ export type PrDuTicket = { numero: number; url: string; le: string };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote };
-export type RailSurGithub = { lu: string; tickets: TicketSurGithub[] };
+// Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
+export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
+export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[] };
 // Les signes de vie des stations du compte, tels que le process principal les a lus — ou pourquoi ils ne l'ont pas été,
 // en une phrase.
 export type SignesDeVie = { lus: SigneDeVie[] } | { illisible: string };
@@ -64,6 +66,43 @@ async function toutesLesPages(lire: (chemin: string) => Promise<unknown>, chemin
   return toutes;
 }
 
+const VINGT_QUATRE_HEURES = 24 * 3600 * 1000;
+
+// Les tickets servis dans les 24 h avant `maintenant`, d'après les PR fermées, la plus récemment mise à jour d'abord :
+// une lecture, page après page jusqu'à une PR plus ancienne que la fenêtre. Seule une PR mergée sert un ticket — une
+// issue fermée sans PR mergée (not planned, doublon) n'est jamais servie. La station est celle que la PR dit avoir
+// cuisiné (« Cooked by station `x` »). Le plus récemment mergé d'abord, un seul service par ticket.
+async function lireLesServis(lire: (chemin: string) => Promise<unknown>, depot: string, maintenant: number): Promise<ServiSurGithub[]> {
+  const depuis = maintenant - VINGT_QUATRE_HEURES;
+  const servis = new Map<number, ServiSurGithub>();
+  for (let page = 1; page <= 10; page++) {
+    const brute = await lire(`/repos/${depot}/pulls?state=closed&sort=updated&direction=desc&per_page=${PAR_PAGE}&page=${page}`);
+    if (!Array.isArray(brute)) throw new Error("GitHub's answer is not a list");
+    const lue = liste(brute);
+    for (const pr of lue) {
+      const mergeLe = texte(pr.merged_at);
+      const instant = Date.parse(mergeLe);
+      if (Number.isNaN(instant) || instant < depuis || instant > maintenant) continue;
+      const ticket = ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
+      if (ticket === null || typeof pr.number !== "number") continue;
+      const connu = servis.get(ticket);
+      if (connu !== undefined && Date.parse(connu.livre) >= instant) continue;
+      servis.set(ticket, {
+        ticket,
+        titre: texte(pr.title).replace(/^#\d+\s*[—-]\s*/, ""),
+        url: `https://github.com/${depot}/issues/${ticket}`,
+        livre: mergeLe,
+        station: /Cooked by station `([A-Za-z0-9._/-]+)`/.exec(texte(pr.body))?.[1] ?? null,
+        pr: texte(pr.html_url),
+      });
+    }
+    // Triées par mise à jour, une page dont la dernière PR est plus ancienne que la fenêtre n'a plus rien après elle.
+    const derniere = Date.parse(texte(lue[lue.length - 1]?.updated_at));
+    if (lue.length < PAR_PAGE || (!Number.isNaN(derniere) && derniere < depuis)) break;
+  }
+  return [...servis.values()].sort((a, b) => Date.parse(b.livre) - Date.parse(a.livre));
+}
+
 // Le rail d'un projet : ses tickets au label `fire`, chacun dans son état, avec sa PR et sa station. Un ticket qui porte
 // `hors-cuisine` ou `blocked-on-human` — sans `waiting` — est mis de côté, quoi que ses autres labels disent : ses
 // commentaires, toutes pages, disent pourquoi (tableau/mise-de-cote-github.ts, ticket 2075). Une lecture qui échoue
@@ -77,7 +116,9 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   };
   const issues = await toutesLesPages(lire, `/repos/${depot}/issues?state=open&labels=${LABEL_FIRE}&sort=created&direction=asc`);
   const prs = await toutesLesPages(lire, `/repos/${depot}/pulls?state=open`);
-  const lu = (options.maintenant ?? (() => new Date()))().toISOString();
+  const maintenant = (options.maintenant ?? (() => new Date()))();
+  const lu = maintenant.toISOString();
+  const servis = await lireLesServis(lire, depot, maintenant.getTime());
   const livrees = new Map<number, PrDuTicket>();
   for (const pr of prs) {
     const ticket = ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
@@ -108,7 +149,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
       : null;
     tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(miseDeCote === undefined ? {} : { miseDeCote }) });
   }
-  return { lu, tickets };
+  return { lu, tickets, servis };
 }
 
 // Une heure comme `status` l'écrit dans ses lignes : `2026-11-04 02:58 UTC` (bon.ts, `HEURE_EN`).
@@ -165,7 +206,7 @@ function cookDe(ticket: TicketSurGithub): ActiviteDuCook[] {
 // et leurs signes de vie (ticket 2358) : `stationsSurGithub` dit à l'onglet Cooks quand ces signes ne se lisent pas. Un
 // ticket mis de côté qui ne demande rien au chef reste sur le rail, dans sa colonne, avec sa ligne (ticket 2422) ; celui
 // qui lui demande quelque chose est dans TODO, que `avecLAttenteDuChef` pose (tableau/attente-du-chef.ts, ticket 2460).
-export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {
+export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [] }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {
   const ranges = [...tickets].sort((a, b) => (a.priorite ?? Number.POSITIVE_INFINITY) - (b.priorite ?? Number.POSITIVE_INFINITY) || a.ticket - b.ticket);
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
   const compteurs = objet(lu.faits.compteurs) ?? {};
@@ -184,7 +225,8 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets }: RailSurGithub, 
     faits: {
       ...lu.faits,
       lu: luLe,
-      compteurs: { livres24h: 0, attend: 0, ...compteurs, rail: ranges.length, auTravail: nombre("pris"), aLaPass: nombre("en pass", "base rouge") },
+      compteurs: { attend: 0, ...compteurs, livres24h: servis.length, rail: ranges.length, auTravail: nombre("pris"), aLaPass: nombre("en pass", "base rouge") },
+      livres: servis.map(({ ticket, titre, url, livre, station, pr }) => ({ ticket, titre, url, livre, station, pr })),
       rail: ranges.map((ticket) => ({
         ...(ticket.miseDeCote === undefined || ticket.miseDeCote.auChef ? {} : { attente: { raison: ticket.miseDeCote.raison ?? SANS_RAISON, colonne: COLONNE_DE_LA_MISE_DE_COTE, retour: null } }),
         ticket: ticket.ticket,
