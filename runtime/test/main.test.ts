@@ -1,15 +1,19 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { generateKeyPairSync } from "node:crypto";
 import { join } from "node:path";
 import { after } from "node:test";
 import { describe, test, type TestContext } from "node:test";
 import { signalerLArbre } from "../src/arbre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
-import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
+import { ecrireSecret } from "../src/droits.ts";
+import { ROLES } from "../src/identites.ts";
+import { principal as interrupteur } from "../src/interrupteur-cli.ts";
+import { principal as manager } from "../src/manager-cli.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
-import { BASE, DEPOT, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, temporaireDuFichier } from "./outils.ts";
+import { appeler, BASE, decisionsAuJournal, DEPOT, ENV_ENFANT, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, temporaireDuFichier } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -113,6 +117,112 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
   return releve;
 }
 
+// Un second runtime partagé, réglé cette fois : un fichier d'app à créer, une
+// cloison, un plafond de jetons, un fichier de secrets et un jeton OAuth dans
+// l'environnement — des réglages qui ne se croisent pas. Les tests qui lisent
+// chacun ce qu'un de ces réglages fait dire ou écrire au démarrage le lisent
+// de ce relevé, comme ceux du runtime par défaut ; il est arrêté par SIGTERM.
+// Sous Windows, ni cloison ni secrets : les tests qui les lisent y sont sautés,
+// et un fichier de secrets y ferait refuser le démarrage.
+type ReleveRegle = {
+  sortie: string;
+  journal: ReturnType<typeof relire>;
+  // Les lieux, pour les lignes qui les nomment.
+  racine: string;
+  secrets: string;
+  // Le fichier de l'app, lu une fois le runtime démarré.
+  app: unknown;
+  code: number | null;
+};
+let releveRegle: Promise<ReleveRegle> | undefined;
+function runtimeRegle(t: TestContext): Promise<ReleveRegle> {
+  releveRegle ??= (async () => {
+    const posix = process.platform !== "win32";
+    // L'état et le clone sous une même racine, que la cloison masque ; le compte à côté.
+    const racine = repertoireTemporaire(t);
+    const repertoire = join(racine, "etats/brigade");
+    const clone = join(racine, "etats/depot");
+    // L'état existe avant le démarrage : les décisions du chef y sont posées.
+    mkdirSync(repertoire, { recursive: true });
+    mkdirSync(clone, { recursive: true });
+    git(clone, "init", "-q");
+    const app = join(repertoireTemporaire(t), "config/app.json");
+    // Les secrets sous ce que la cloison masque, hors de l'état et du clone.
+    const secrets = join(racine, "etats/secrets.env");
+    if (posix) writeFileSync(secrets, "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
+    const env = {
+      ...environnement(t, repertoire),
+      BRIGADE_REPO_DIR: clone,
+      BRIGADE_APP_CONFIG: app,
+      BRIGADE_MAX_TOKENS: "2000000",
+      CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement",
+      ...(posix ? { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: join(racine, "compte"), BRIGADE_SECRETS_FILE: secrets } : {}),
+    };
+    const depuis = Date.now();
+    const runtime = lancer(t, MAIN, [], env);
+    await runtime.attendre("démarré");
+    const releve = { sortie: runtime.sortie(), journal: relire(repertoire), racine, secrets, app: JSON.parse(readFileSync(app, "utf8")) as unknown };
+    if (process.platform === "win32") await signalerLArbre(runtime.process.pid ?? 0, "SIGKILL", { depuis });
+    else runtime.process.kill("SIGTERM");
+    return { ...releve, code: await runtime.fin };
+  })();
+  return releveRegle;
+}
+
+// Les refus de démarrer, joués tous dans un seul process (aides/refus-de-main.ts) :
+// main.ts y est réévalué pour chaque cas, sur son environnement, et ses modules
+// ne se chargent qu'une fois — un Node par refus en coûtait trente. Chaque test
+// déclare son cas, l'environnement préparé sur les lieux qu'il se donne, et ne
+// lit que son relevé : le premier qui le demande les joue tous, et attend le
+// relevé entier avant de finir — les lieux sont les siens. Qu'un refus sorte
+// par le vrai `process.exit` d'un vrai process, code et message, le test
+// « sans BRIGADE_STATE_DIR » et celui du second runtime le prouvent.
+const REFUS_DE_MAIN = join(import.meta.dirname, "aides/refus-de-main.ts");
+type Refus = { code: number | null; sortie: string; rienEcrit: boolean; etatCree: boolean };
+type CasDeRefus = (t: TestContext, gh: FauxGh) => { env: Record<string, string>; repertoire: string };
+const casDeRefus = new Map<string, CasDeRefus>();
+let refusJoues: Promise<Map<string, Refus>> | undefined;
+// Déclare un cas, au moment où son test se déclare ; un test sauté n'en déclare aucun.
+function refusDe(nom: string, cas: CasDeRefus, saute: string | false = false): (t: TestContext) => Promise<Refus> {
+  if (saute === false) casDeRefus.set(nom, cas);
+  return async (t) => {
+    refusJoues ??= (async () => {
+      // Aucun cas n'atteint GitHub : un seul faux `gh` pour tous.
+      const gh = fauxGh(t);
+      gh.issues([]);
+      const joues = [...casDeRefus].map(([cle, preparer]) => {
+        const { env, repertoire } = preparer(t, gh);
+        // Ce que `lancer` donne à main.ts : les décisions du chef posées au journal.
+        return { cle, repertoire, env: { ...ENV_ENFANT, ...decisionsAuJournal(MAIN, env) } };
+      });
+      // En deux process de front : chacun charge les modules une fois, et le
+      // relevé prend la moitié du temps.
+      const lieux = repertoireTemporaire(t);
+      const moitie = Math.ceil(joues.length / 2);
+      const parts = await Promise.all(
+        [joues.slice(0, moitie), joues.slice(moitie)].map(async (part, rang) => {
+          const fichier = join(lieux, `cas-${rang}.json`);
+          writeFileSync(fichier, JSON.stringify(part.map((cas) => cas.env)));
+          const jeu = lancer(t, REFUS_DE_MAIN, [fichier]);
+          assert.equal(await jeu.fin, 0, jeu.sortie());
+          const releves = JSON.parse(jeu.sortie()) as Array<{ code: number | null; sortie: string }>;
+          return part.map((_, i) => releves[i]);
+        }),
+      );
+      const releves = parts.flat();
+      return new Map(
+        joues.map(({ cle, repertoire }, rang) => [
+          cle,
+          { ...(releves[rang] ?? { code: null, sortie: "non joué : un cas d'avant a démarré le runtime" }), rienEcrit: rienEcritParLeRuntime(repertoire), etatCree: existsSync(repertoire) },
+        ]),
+      );
+    })();
+    const releve = (await refusJoues).get(nom);
+    assert.ok(releve, `cas non déclaré : ${nom}`);
+    return releve;
+  };
+}
+
 // Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
 describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
@@ -176,13 +286,10 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   });
 
   test("sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const app = join(repertoireTemporaire(t), "config/app.json");
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_APP_CONFIG: app });
-    await runtime.attendre("démarré");
+    const runtime = await runtimeRegle(t);
 
-    assert.deepEqual(JSON.parse(readFileSync(app, "utf8")), { projets: [] });
-    assert.match(runtime.sortie(), /app\.json created with the default settings/);
+    assert.deepEqual(runtime.app, { projets: [] });
+    assert.match(runtime.sortie, /app\.json created with the default settings/);
   });
 
   test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient", async (t) => {
@@ -194,57 +301,53 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   });
 
   test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", { skip: posixOnly("starts the runtime under the fake bwrap and checks the sandbox line it prints and its isolation.configured fact; the expected line is a RegExp built from Windows paths, whose backslashes it reads as escapes, so it never matches there") }, async (t) => {
-    // L'état et le clone sous une même racine, que la cloison masque ; le compte à côté.
-    const racine = repertoireTemporaire(t);
-    const repertoire = join(racine, "etats/brigade");
-    const clone = join(racine, "etats/depot");
-    // L'état existe avant le démarrage : les décisions du chef y sont posées.
-    mkdirSync(repertoire, { recursive: true });
-    mkdirSync(clone, { recursive: true });
-    git(clone, "init", "-q");
-    const env = { ...environnement(t, repertoire), BRIGADE_REPO_DIR: clone, BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: join(racine, "compte") };
-    const runtime = lancer(t, MAIN, [], env);
-    await runtime.attendre("démarré");
+    const runtime = await runtimeRegle(t);
+    const { racine } = runtime;
 
-    assert.match(runtime.sortie(), new RegExp(`brigade : cloison — every launch \\(setup, cook, gates, reviewer, judges\\) runs in \`${FAUX_BWRAP}\` — hidden: ${join(racine, "etats")}`));
-    assert.deepEqual(relire(repertoire).find((e) => e.type === "isolation.configured")?.payload, {
+    assert.match(runtime.sortie, new RegExp(`brigade : cloison — every launch \\(setup, cook, gates, reviewer, judges\\) runs in \`${FAUX_BWRAP}\` — hidden: ${join(racine, "etats")}`));
+    assert.deepEqual(runtime.journal.find((e) => e.type === "isolation.configured")?.payload, {
       sandbox: { bin: FAUX_BWRAP, hidden: [join(racine, "etats")], credentials: join(racine, "compte/.claude/.credentials.json") },
       proxy: null,
     });
   });
 
   test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", { skip: posixOnly("starts the runtime with BRIGADE_MAX_TOKENS=2000000 and reads the ceilings of its guard.configured fact; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "2000000" });
-    await runtime.attendre("démarré");
+    const runtime = await runtimeRegle(t);
 
-    assert.deepEqual(relire(repertoire).find((e) => e.type === "guard.configured")?.payload, {
+    assert.deepEqual(runtime.journal.find((e) => e.type === "guard.configured")?.payload, {
       limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
       breakerThreshold: 3,
       judgements: 3,
     });
   });
 
-  test("un plafond illisible est un refus de démarrer, avant d'avoir rien écrit", async (t) => {
+  const plafondIllisible = refusDe("plafond illisible", (t, gh) => {
     const repertoire = join(repertoireTemporaire(t), "etat");
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "beaucoup" });
+    return { repertoire, env: { ...environnement(t, repertoire, gh), BRIGADE_MAX_TOKENS: "beaucoup" } };
+  });
+  test("un plafond illisible est un refus de démarrer, avant d'avoir rien écrit", async (t) => {
+    const runtime = await plafondIllisible(t);
 
-    assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /refus de démarrer.*BRIGADE_MAX_TOKENS/);
-    assert.equal(existsSync(repertoire), false);
+    assert.equal(runtime.code, REFUS);
+    assert.match(runtime.sortie, /refus de démarrer.*BRIGADE_MAX_TOKENS/);
+    assert.equal(runtime.etatCree, false);
   });
 
-  for (const [variable, env] of [
-    ["BRIGADE_STATE_DIR", { BRIGADE_PROJECT: "brigade" }],
-    ["BRIGADE_PROJECT", { BRIGADE_STATE_DIR: "/chemin/jamais/cree" }],
-  ] as const) {
-    test(`sans ${variable}, le runtime refuse de démarrer et nomme la variable`, async (t) => {
-      const runtime = lancer(t, MAIN, [], env);
+  // Le refus d'un vrai process : son code de sortie, et ce qu'il dit.
+  test("sans BRIGADE_STATE_DIR, le runtime refuse de démarrer et nomme la variable", async (t) => {
+    const runtime = lancer(t, MAIN, [], { BRIGADE_PROJECT: "brigade" });
 
-      assert.equal(await runtime.fin, REFUS);
-      assert.match(runtime.sortie(), new RegExp(`refus de démarrer[\\s\\S]*${variable} is not set`));
-    });
-  }
+    assert.equal(await runtime.fin, REFUS);
+    assert.match(runtime.sortie(), /refus de démarrer[\s\S]*BRIGADE_STATE_DIR is not set/);
+  });
+
+  const sansProjet = refusDe("sans BRIGADE_PROJECT", () => ({ repertoire: "/chemin/jamais/cree", env: { BRIGADE_STATE_DIR: "/chemin/jamais/cree" } }));
+  test("sans BRIGADE_PROJECT, le runtime refuse de démarrer et nomme la variable", async (t) => {
+    const runtime = await sansProjet(t);
+
+    assert.equal(runtime.code, REFUS);
+    assert.match(runtime.sortie, /refus de démarrer[\s\S]*BRIGADE_PROJECT is not set/);
+  });
 
   for (const [cas, variables, motif] of [
     ["sans BRIGADE_GITHUB_REPO", { BRIGADE_GITHUB_REPO: "" }, /BRIGADE_GITHUB_REPO is not set/],
@@ -274,14 +377,17 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     ["avec un port de porte illisible", { BRIGADE_PROXY_PORT: "porte" }, /invalid BRIGADE_PROXY_PORT/],
     ["avec un port d'arbitre illisible", { BRIGADE_ARBITER_PORT: "arbitre" }, /invalid BRIGADE_ARBITER_PORT/],
   ] as const) {
-    test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
+    const refus = refusDe(cas, (t, gh) => {
       const repertoire = repertoireTemporaire(t);
-      const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), ...variables });
+      return { repertoire, env: { ...environnement(t, repertoire, gh), ...variables } };
+    });
+    test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
+      const runtime = await refus(t);
 
-      assert.equal(await runtime.fin, REFUS);
-      assert.match(runtime.sortie(), /refus de démarrer/);
-      assert.match(runtime.sortie(), motif);
-      assert.equal(rienEcritParLeRuntime(repertoire), true);
+      assert.equal(runtime.code, REFUS);
+      assert.match(runtime.sortie, /refus de démarrer/);
+      assert.match(runtime.sortie, motif);
+      assert.equal(runtime.rienEcrit, true);
     });
   }
 
@@ -326,9 +432,10 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     ]);
 
     // Le manager seul ne s'éteint plus : la commande nomme l'interrupteur du projet.
-    const eteindre = lancer(t, join(import.meta.dirname, "../src/manager-cli.ts"), ["off"], { BRIGADE_STATE_DIR: repertoire });
+    // Les commandes du chef se jouent dans le process du test : c'est le journal qu'elles touchent.
+    const eteindre = appeler(manager, ["off"], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await eteindre.fin, 1);
-    const projet = lancer(t, join(import.meta.dirname, "../src/interrupteur-cli.ts"), ["off"], { BRIGADE_STATE_DIR: repertoire });
+    const projet = appeler(interrupteur, ["off"], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await projet.fin, 0);
     assert.ok(relire(repertoire).some((e) => e.type === "project.switched-off" && e.author === "chef"));
     runtime.process.kill("SIGTERM");
@@ -348,22 +455,18 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const sans = await runtimeParDefaut(t);
     assert.match(sans.sortie, /secrets du projet — aucun \(BRIGADE_SECRETS_FILE n'est pas défini\)/);
 
-    const fichier = join(repertoireTemporaire(t), "secrets.env");
-    writeFileSync(fichier, "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
-    const avec = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), BRIGADE_SECRETS_FILE: fichier });
-    await avec.attendre("démarré");
-    assert.ok(avec.sortie().includes(`secrets du projet — ${fichier}, relu à chaque lancement`), avec.sortie());
-    assert.equal(avec.sortie().includes("une-valeur-de-dev"), false);
+    const avec = await runtimeRegle(t);
+    assert.ok(avec.sortie.includes(`secrets du projet — ${avec.secrets}, relu à chaque lancement`), avec.sortie);
+    assert.equal(avec.sortie.includes("une-valeur-de-dev"), false);
   });
 
   test("avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude`", { skip: posixOnly("starts the runtime with CLAUDE_CODE_OAUTH_TOKEN in its environment and checks it says it passes it to no `claude`, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement" });
-    await runtime.attendre("démarré");
+    const runtime = await runtimeRegle(t);
 
-    assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\); CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
-    assert.equal(runtime.sortie().includes("sk-ant-oat01-pose-dans-l-environnement"), false);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
+    assert.match(runtime.sortie, /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\); CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
+    assert.equal(runtime.sortie.includes("sk-ant-oat01-pose-dans-l-environnement"), false);
+    // Le relevé a envoyé SIGTERM.
+    assert.equal(runtime.code, 0);
   });
 
   test("sans jeton, le runtime démarre sur la connexion du compte et le dit", { skip: posixOnly("checks the shared runtime's `the account's own` connection line and its exit code 0 after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, so its exit code is never 0") }, async (t) => {
@@ -374,36 +477,69 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(runtime.code, 0);
   });
 
-  test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: posixOnly("writes the claude token file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the file as readable by others before it looks at where it lies") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    writeFileSync(join(repertoire, "jeton-claude"), "sk-ant-oat01-range-dans-l-etat\n", { mode: 0o600 });
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_CLAUDE_TOKEN_FILE: join(repertoire, "jeton-claude") });
+  const sautJeton = posixOnly("writes the claude token file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the file as readable by others before it looks at where it lies");
+  const jetonDansLEtat = refusDe(
+    "jeton dans l'état",
+    (t, gh) => {
+      const repertoire = repertoireTemporaire(t);
+      writeFileSync(join(repertoire, "jeton-claude"), "sk-ant-oat01-range-dans-l-etat\n", { mode: 0o600 });
+      return { repertoire, env: { ...environnement(t, repertoire, gh), BRIGADE_CLAUDE_TOKEN_FILE: join(repertoire, "jeton-claude") } };
+    },
+    sautJeton,
+  );
+  test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: sautJeton }, async (t) => {
+    const runtime = await jetonDansLEtat(t);
 
-    assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_CLAUDE_TOKEN_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
-    assert.equal(runtime.sortie().includes("sk-ant-oat01-range-dans-l-etat"), false);
-    assert.equal(rienEcritParLeRuntime(repertoire), true);
+    assert.equal(runtime.code, REFUS);
+    assert.match(runtime.sortie, /refus de démarrer — BRIGADE_CLAUDE_TOKEN_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
+    assert.equal(runtime.sortie.includes("sk-ant-oat01-range-dans-l-etat"), false);
+    assert.equal(runtime.rienEcrit, true);
   });
 
-  test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: posixOnly("writes the secrets file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the secrets as readable by others before it looks at where they lie") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    writeFileSync(join(repertoire, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_SECRETS_FILE: join(repertoire, "secrets.env") });
+  const sautSecrets = posixOnly("writes the secrets file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the secrets as readable by others before it looks at where they lie");
+  const secretsDansLEtat = refusDe(
+    "secrets dans l'état",
+    (t, gh) => {
+      const repertoire = repertoireTemporaire(t);
+      writeFileSync(join(repertoire, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
+      return { repertoire, env: { ...environnement(t, repertoire, gh), BRIGADE_SECRETS_FILE: join(repertoire, "secrets.env") } };
+    },
+    sautSecrets,
+  );
+  test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: sautSecrets }, async (t) => {
+    const runtime = await secretsDansLEtat(t);
 
-    assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_SECRETS_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
-    assert.equal(rienEcritParLeRuntime(repertoire), true);
+    assert.equal(runtime.code, REFUS);
+    assert.match(runtime.sortie, /refus de démarrer — BRIGADE_SECRETS_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
+    assert.equal(runtime.rienEcrit, true);
   });
 
-  test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", { skip: posixOnly("removes manager.pem from a GitHub Apps directory and expects the refusal to name it; on Windows the runtime first reads cook.pem's ACL through PowerShell, and that read fails or outlasts the test there, so the refusal never names manager.pem") }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const apps = await fauxGitHubApps(t);
-    rmSync(join(apps.repertoire, "manager.pem"));
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_GITHUB_APPS_DIR: apps.repertoire, BRIGADE_GITHUB_API_URL: apps.url });
+  // Un répertoire d'Apps où manquent la clé du manager : les autres clés sont
+  // de vraies clés privées — une courbe elliptique, qui se tire en une
+  // milliseconde ; le refus tombe avant qu'aucune ne serve à GitHub.
+  const sautApps = posixOnly("removes manager.pem from a GitHub Apps directory and expects the refusal to name it; on Windows the runtime first reads cook.pem's ACL through PowerShell, and that read fails or outlasts the test there, so the refusal never names manager.pem");
+  let appsIncompletes = "";
+  const appsSansManager = refusDe(
+    "apps incomplètes",
+    (t, gh) => {
+      const repertoire = repertoireTemporaire(t);
+      appsIncompletes = join(repertoireTemporaire(t), "apps");
+      mkdirSync(appsIncompletes, { mode: 0o700 });
+      const cle = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+      for (const [rang, role] of ROLES.entries()) {
+        writeFileSync(join(appsIncompletes, `${role}.id`), `${1001 + rang}\n`);
+        if (role !== "manager") ecrireSecret(join(appsIncompletes, `${role}.pem`), cle);
+      }
+      return { repertoire, env: { ...environnement(t, repertoire, gh), BRIGADE_GITHUB_APPS_DIR: appsIncompletes } };
+    },
+    sautApps,
+  );
+  test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", { skip: sautApps }, async (t) => {
+    const runtime = await appsSansManager(t);
 
-    assert.equal(await runtime.fin, REFUS);
-    assert.ok(runtime.sortie().includes(`refus de démarrer — BRIGADE_GITHUB_APPS_DIR invalide : « ${join(apps.repertoire, "manager.pem")} »`), runtime.sortie());
-    assert.equal(rienEcritParLeRuntime(repertoire), true);
+    assert.equal(runtime.code, REFUS);
+    assert.ok(runtime.sortie.includes(`refus de démarrer — BRIGADE_GITHUB_APPS_DIR invalide : « ${join(appsIncompletes, "manager.pem")} »`), runtime.sortie);
+    assert.equal(runtime.rienEcrit, true);
   });
 
   test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pas un refus", () => {

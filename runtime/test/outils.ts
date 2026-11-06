@@ -286,7 +286,7 @@ export function poserJournalVide(repertoire: string): void {
 // Ce que le journal porte déjà n'est pas écrasé, et la variable reste alors à
 // l'environnement : le runtime l'ignore et le dit.
 // `BRIGADE_TEST_SANS_DECISIONS=1` laisse les variables où elles sont.
-function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
+export function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
   const { BRIGADE_TEST_SANS_DECISIONS: sans, ...reste } = env;
   const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
   const etat = reste.BRIGADE_STATE_DIR;
