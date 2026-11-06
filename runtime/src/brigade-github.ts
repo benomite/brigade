@@ -51,6 +51,7 @@ import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corp
 import { motifArretCook } from "./motif-arret-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
+import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
@@ -450,10 +451,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
       // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
-      const echecs = (await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC)).length + 1;
+      const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
+      const echecs = precedents.length + 1;
+      // Hors cuisine seulement si le même motif revient `ECHECS_MAX` fois de suite (#2593).
+      const motifDe = (corps: string) => corps.match(/ — ([^\n]*)/)?.[1] ?? "";
+      const sortie = horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
-      await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${echecs >= ECHECS_MAX ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
-      if (echecs >= ECHECS_MAX) {
+      await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${sortie ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
+      if (sortie) {
         chrono.oublier(issue);
         await github.labelliser(issue, [HORS_CUISINE]);
       }
