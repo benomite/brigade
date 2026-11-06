@@ -8935,3 +8935,47 @@ button.recommande {
 .installation-du-depot[data-etat="echec"] .dit {
   color: var(--rouge-clair);
 }
+
+/* L'avis « pas préparé pour Brigade » (ticket 2628), sur la page du projet et en tête de TODO : ce qui manque en une phrase,
+   le détail au survol, un seul bouton recommandé. La préparation en route, ou son refus en une phrase, à côté. */
+.avis-depot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--attend);
+  border: 1px solid var(--trait);
+  border-left-width: 6px;
+  border-radius: var(--rayon-bouton);
+}
+.avis-depot p.dit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+.avis-depot p.dit strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
+.avis-depot .controle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.avis-depot .action > button:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+.avis-depot .en-route {
+  font-size: 12px;
+  color: var(--discret);
+}
+.avis-depot .refus {
+  color: var(--rouge-clair);
+}
