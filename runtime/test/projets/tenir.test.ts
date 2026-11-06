@@ -48,7 +48,7 @@ const SHOP = {
 // `appairees` : les gists appairés du compte, où elle lit les stations que
 // l'app appaire à ses projets en plus d'elle — relus à chaque cycle.
 // `gists` : ceux des autres stations du compte, que son canal lit aussi.
-function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; appairees?: () => Promise<LectureDesAppairees>; gists?: Record<string, Fichiers> } = {}) {
+function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; appairees?: () => Promise<LectureDesAppairees>; gists?: Record<string, Fichiers>; clonesServis?: Record<string, string> } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: GIST, appairee: options.appairee ?? true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -90,7 +90,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
     canal,
     station: "box",
     env: remote === undefined ? {} : { ...ENV_GIT, HOME: repertoireTemporaire(t), GIT_SSL_NO_VERIFY: "1" },
-    servis: { projets: servis, depots: () => Object.fromEntries(configuration().split("\n").filter((ligne) => ligne.trim() !== "" && !ligne.startsWith("#") && !ligne.startsWith(DEBUT) && !ligne.startsWith(FIN)).map((ligne) => ligne.split(/\s+/)).filter(([nom]) => servis().includes(nom ?? "")).map(([nom, depot]) => [nom, depot])), refus: (nom) => refuses.get(nom) ?? null },
+    servis: { projets: servis, depots: () => Object.fromEntries(configuration().split("\n").filter((ligne) => ligne.trim() !== "" && !ligne.startsWith("#") && !ligne.startsWith(DEBUT) && !ligne.startsWith(FIN)).map((ligne) => ligne.split(/\s+/)).filter(([nom]) => servis().includes(nom ?? "")).map(([nom, depot]) => [nom, depot])), clones: () => options.clonesServis ?? {}, refus: (nom) => refuses.get(nom) ?? null },
     apresEcriture: () => void relectures++,
     dire: (ligne) => lignes.push(ligne),
     // Le minuteur ne bat pas pendant un test : c'est lui qui bat la mesure.
@@ -714,4 +714,19 @@ test("le délai de l'ajout au premier ticket servi est publié, exact et figé :
   assert.deepEqual(station.suivi()?.[0]?.delai, fige);
   await servir(8, "2026-10-16T09:00:00.000Z");
   assert.deepEqual(station.suivi()?.[0]?.delai, fige);
+});
+
+test("la boîte du 2026-11-06 : une ligne écrite à la main, aucune station principale, 13 enregistrements dans le clone qu'elle sert — le suivi les porte (#2567)", async (t) => {
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  const enregistrements = Array.from({ length: 13 }, (_, i) => ({ ticket: 2535 + i, claimedAt: "2026-11-06T07:00:00.000Z", mergedAt: `2026-11-06T07:${String(10 + i).padStart(2, "0")}:00.000Z`, cuisson: 300, cuissonTests: 60, attentePasse: 60, revue: 120, ci: 90, merge: 30 }));
+  writeFileSync(join(clone, ".claude", "brigade", "temps-tickets.json"), JSON.stringify(enregistrements));
+  const station = uneStation(t, { clonesServis: { shop: clone } });
+  writeFileSync(join(station.racine, "projets"), "shop acme/shop main BRIGADE_REPO_DIR=" + clone + "\n");
+  station.demander({ ...SHOP, principale: false });
+  await station.projets.relire();
+
+  const temps = station.suivi()?.[0]?.temps;
+  assert.equal(temps?.enregistrements.length, 13);
+  assert.equal(temps?.tempsMaxTicketMin, 10);
 });

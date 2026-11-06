@@ -100,6 +100,8 @@ export type ServiParLaStation = {
   projets(): string[];
   // Le dépôt de chaque projet servi, par son nom — ce que la station sert sans que l'app le lui demande (une ligne écrite à la main) y est aussi.
   depots?(): Record<string, string>;
+  // Le clone que la cuisine de chaque projet servi lit — celui de sa ligne écrite à la main, s'il en pose un.
+  clones?(): Record<string, string>;
   // Pourquoi la station refuse ce projet, ou null.
   refus(nom: string): string | null;
   // La cause de ce refus (`refus.ts`) ; absente, « unexpected ».
@@ -658,8 +660,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const blocages = lireBlocages(etatDe(dit.nom));
       // Le temps de son ajout à son premier ticket servi (#1401).
       const delai = lireDelai(etatDe(dit.nom));
-      // Les temps des derniers tickets, lus dans le clone du projet (#2346) : seule la principale le tient.
-      const temps = projet.principale && !horsCuisine.has(projet.nom) ? lesTempsDesTickets(cloneDe(dit.nom)) : undefined;
+      // Les temps des derniers tickets, lus dans le clone que la station sert (#2346) : toute station qui sert le projet les publie,
+      // l'app fusionne ceux des stations (une ligne écrite à la main peut poser son propre clone).
+      const temps = !horsCuisine.has(projet.nom) ? lesTempsDesTickets(servis.clones?.()[projet.nom] ?? cloneDe(dit.nom)) : undefined;
       return { ...dit, ...(delai === null ? {} : { delai }), ...(temps === undefined ? {} : { temps }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Les stations que l'app appaire au projet en plus de celle-ci : déclarées

@@ -13,7 +13,7 @@ import { depotsDuChef } from "../../src/projets/github.ts";
 import { plafondDesCoeurs } from "../../../runtime/src/projections/stations.ts";
 import { projetDuClone } from "../../../runtime/src/projets/ajout-de-station.ts";
 import type { ProjetDemande } from "../../src/projets/demande.ts";
-import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, lireConfiance, lireSaisie, machineProposee, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type OptionsProjets, type VuDesProjets } from "../../src/projets/projets.ts";
+import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, fusionnerLesTemps, lireConfiance, lireSaisie, machineProposee, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type OptionsProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
@@ -479,4 +479,12 @@ test("l'app ne joint aucune station : ce module ne parle qu'au `gh` du poste", (
     const source = readFileSync(join(SOURCES, fichier), "utf8");
     assert.doesNotMatch(source, /node:(net|http|https|dgram|tls)|fetch\(|WebSocket/, fichier);
   }
+});
+
+test("les temps de deux stations d'un projet : un ticket n'est compté qu'une fois, le plus récent l'emporte (#2567)", () => {
+  const un = (ticket: number, mergedAt: string, cuisson = 60) => ({ ticket, mergedAt, cuisson });
+  const fusion = fusionnerLesTemps({ enregistrements: [un(1, "2026-11-06T07:00:00Z"), un(2, "2026-11-06T07:10:00Z")], tempsMaxTicketMin: 10 }, { enregistrements: [un(2, "2026-11-06T07:10:00Z"), un(3, "2026-11-06T07:20:00Z")], tempsMaxTicketMin: 12 });
+  assert.deepEqual(fusion.enregistrements.map((e) => (e as { ticket: number }).ticket).sort(), [1, 2, 3]);
+  assert.equal(fusion.tempsMaxTicketMin, 10);
+  assert.deepEqual(fusionnerLesTemps(undefined, { enregistrements: [], tempsMaxTicketMin: 10 }), { enregistrements: [], tempsMaxTicketMin: 10 });
 });
