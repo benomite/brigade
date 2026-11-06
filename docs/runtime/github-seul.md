@@ -71,6 +71,10 @@ base, the stale-branch pruning).
   (`breaker-resume-github.ts`).
 - **Stale branches.** The `cook/<n>-github` branches whose issue is closed are deleted, locally and on the origin, at
   each tick (`github-seul/elagage/`).
+- **The manager runs on every station** that serves the project, and its work on an issue (qualify, calibrate,
+  split, set aside, requalify) is claimed on GitHub like a ticket, one state of the issue at a time: the first claim
+  wins, the others leave the issue alone until it is said done or expires (#2568,
+  [manager](manager.md#several-stations-on-one-project)).
 - **The chef's TODO** is facts on GitHub only: an issue labelled `chef-todo` with its marked comment
   (`github-seul/carte-todo/`), a PR awaiting the chef. The app reads them from GitHub; no runtime writes a board.
 

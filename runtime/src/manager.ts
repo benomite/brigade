@@ -31,6 +31,7 @@ import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
+import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
@@ -113,6 +114,11 @@ export type OptionsManager = ConfigManager & {
   maintenant?: () => Date;
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
+  // La station qui le fait tourner, telle que le projet la déclare sur cette
+  // machine : son travail sur une issue se prend sur GitHub sous ce nom
+  // (`github-etat/prise-du-manager.ts`, #2568), et une autre station du projet
+  // n'y touche pas. Absente, rien ne se prend : il se croit seul.
+  station?: string | null;
   // Les décisions du chef : présentes, le calibrage des jugements y est relu
   // à chaque jugement, et le plafond à chaque réaction — le chef a pu les
   // changer sans redémarrer.
@@ -148,6 +154,10 @@ type Tri =
   | { quoi: "juger" }
   // Une épique : elle se découpe, elle ne se lance pas.
   | { quoi: "decouper" };
+
+// Une issue que le tour sert : l'état sous lequel son travail se prend, une
+// fois lu, et si une autre station en a déjà fait le travail.
+type Servie = { issue: IssueOuverte; etat?: string; cedee?: boolean };
 
 const dimension = (labels: string[], prefixe: string) => labels.filter((label) => label.startsWith(prefixe));
 const deCalibrage = (label: string) => label.startsWith("model:") || label.startsWith("effort:");
@@ -216,7 +226,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const lire = async (issue: IssueOuverte) => {
     const connus = lus.get(issue.number);
     if (connus?.updatedAt === issue.updatedAt) return connus;
-    const deConfiance = (await github.commentaires(issue.number)).filter((commentaire) => DE_CONFIANCE.includes(commentaire.association)).map((commentaire) => commentaire.body);
+    // Une prise du travail n'est pas un échange : la poster ne change pas l'état de l'issue.
+    const deConfiance = (await github.commentaires(issue.number))
+      .filter((commentaire) => DE_CONFIANCE.includes(commentaire.association) && !estUnePriseDuManager(commentaire.body))
+      .map((commentaire) => commentaire.body);
     const lu = {
       updatedAt: issue.updatedAt,
       corps: deConfiance.filter((corps) => !corps.includes(MARQUEUR_MANAGER)),
@@ -226,6 +239,74 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return lu;
   };
   const commentaires = async (issue: IssueOuverte): Promise<string[]> => (await lire(issue)).corps;
+
+  // Plusieurs stations servent le projet, chacune avec son manager (#2568) :
+  // avant de juger, découper, requalifier une issue ou d'y dire un écart, la
+  // station en prend le travail sur GitHub, pour l'état où elle la lit. La
+  // première prise l'emporte ; les autres la laissent tranquille jusqu'à ce
+  // que le travail soit dit fait, ou que la prise périme.
+  const station = options.station ?? null;
+  // Le travail que cette station tient, pas encore dit fait, par issue.
+  const tenues = new Map<number, TenantDuTravail>();
+  // Les états d'issue dont une autre station a fait le travail. Cache, pas
+  // état : le perdre coûte une lecture des commentaires.
+  const faitsAilleurs = new Set<string>();
+  // Les issues que le tour est en train de servir.
+  const servies = new Map<number, Servie>();
+
+  // L'état sous lequel le travail d'une issue se prend : l'empreinte de ses
+  // jugements. Rendue par le chef, elle est un travail neuf même inchangée.
+  const etatDe = async (servie: Servie): Promise<string> => {
+    if (servie.etat === undefined) {
+      const { corps } = await lire(servie.issue);
+      const remise = remiseDe(base, servie.issue.number);
+      servie.etat = empreinte(servie.issue, remise === null ? corps : [...corps, `handed back ${remise.at}`]);
+    }
+    return servie.etat;
+  };
+
+  // Rend vrai si cette station peut faire le travail de l'issue : elle le
+  // tient, ou il ne se prend pas (pas de nom de station, ou une issue que le
+  // tour ne sert pas). Faux s'il est à une autre, ou que GitHub ne répond pas.
+  const tenir = async (numero: number): Promise<boolean> => {
+    const servie = servies.get(numero);
+    if (station === null || servie === undefined) return true;
+    try {
+      const etat = await etatDe(servie);
+      if (faitsAilleurs.has(`${numero}@${etat}`)) {
+        servie.cedee = true;
+        return false;
+      }
+      const { prise, tenant } = await prendreLeTravail(numero, etat, { github, station, maintenant });
+      if (prise && tenant !== null) {
+        if (!tenant.fait) tenues.set(numero, tenant);
+        return true;
+      }
+      if (tenant?.fait) {
+        faitsAilleurs.add(`${numero}@${etat}`);
+        servie.cedee = true;
+      }
+      return false;
+    } catch (erreur) {
+      if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : travail du manager non pris sur l'issue #${numero} — ${message(erreur)}`);
+      return false;
+    }
+  };
+
+  // Dit fait le travail que la station tient sur l'issue, s'il y en a un. Rend
+  // faux si c'est à redire au tour suivant.
+  const finir = async (numero: number): Promise<boolean> => {
+    const tenant = tenues.get(numero);
+    if (tenant === undefined) return true;
+    try {
+      await finirLeTravail(numero, tenant, github);
+    } catch (erreur) {
+      if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : travail du manager non dit fait sur l'issue #${numero} — ${message(erreur)}`);
+      return false;
+    }
+    tenues.delete(numero);
+    return true;
+  };
 
   // Un jugement consomme le quota du compte : il n'a pas lieu si le chef a dit
   // « stop », si le disjoncteur est ouvert, ou si une station dit le compte
@@ -384,6 +465,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // `chef-changed` d'avant ce commentaire, que le journal note sans `lacking`.
     const aDire = connue.decision !== "aside" || connue.lacking !== null || (connue.fired && ECARTS_DITS.includes(connue.reason as Ecart));
     if (!aDire || connue.commented) return true;
+    // Un écart se décide par le code, sur chaque station : une seule le dit.
+    if (connue.decision === "aside" && !(await tenir(issue.number))) return false;
     try {
       await github.commenter(issue.number, dire(issue, connue));
     } catch (erreur) {
@@ -426,6 +509,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       return "valeur" in lue ? "neutral" : "failed";
     };
 
+    // Une autre station fait ce travail, ou l'a fait : rien ne part d'ici.
+    if (!(await tenir(sujet.numero)) || arrete) return null;
     const calibrage = options.decisions?.manager() ?? options.calibrage;
     let lance;
     try {
@@ -584,6 +669,54 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const ordre = (a: IssueOuverte, b: IssueOuverte) =>
     (priorite(a.labels) ?? 10) - (priorite(b.labels) ?? 10) || a.createdAt.localeCompare(b.createdAt) || a.number - b.number;
 
+  // Sert une issue du tour. `fait` : il n'y reste rien à faire ; `reste` :
+  // quelque chose y attend un réveil suivant ; `arret` : le tour s'arrête là.
+  const servir = async (sondee: IssueOuverte): Promise<"fait" | "reste" | "arret"> => {
+    let issue = sondee;
+    const remise = remiseDe(base, issue.number);
+    if (remise && remise.labels !== null) {
+      const labels = await reprendre(issue, { ...remise, labels: remise.labels });
+      if (labels === null) return "reste";
+      issue = { ...issue, labels };
+    }
+    const connue = issueDuManager(base, issue.number);
+    let tri = trier(issue, connue);
+    // Un ticket retenu sans dire ce qu'il attend : une carte, ou la cuisine le
+    // reprend. Une épique retenue est au chef, pas requalifiée.
+    if (tri.quoi === "ecart" && tri.raison === RETENUE && !issue.labels.includes(LABEL_EPIQUE) && decoupageDe(base, issue.number)?.state !== "split") {
+      const { corps } = await lire(issue);
+      const suite = await requalification.traiter(issue, corps);
+      if (suite === "attente") return "reste";
+      if (suite === "reprise") {
+        issue = { ...issue, labels: issue.labels.filter((label) => label !== RETENUE) };
+        tri = trier(issue, connue);
+      }
+    }
+    let epique = tri.quoi === "decouper";
+    if (tri.quoi === "fini") return "fait";
+    if (tri.quoi === "ecart") ecarter(issue, tri, connue);
+    else if (tri.quoi === "juger") {
+      const corps = await commentaires(issue);
+      const etat = empreinte(issue, corps);
+      if (connue?.fingerprint !== etat) {
+        if (!peutJuger() || !(await juger(issue, corps, etat))) return "reste";
+      }
+      // Le jugement y a reconnu une épique : elle ne se refuse pas, elle se
+      // découpe.
+      const jugee = issueDuManager(base, issue.number);
+      epique = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
+    }
+    if (epique) {
+      if (arrete || !managerAllume(base)) return "arret";
+      const { corps, echanges } = await lire(issue);
+      return (await decoupage.traiter(issue, corps, echanges)) ? "fait" : "reste";
+    }
+    // Éteint pendant le jugement : la décision est au journal, rien n'est
+    // posé. Elle le sera, sans rejuger, quand le chef rallumera.
+    if (arrete || !managerAllume(base)) return "arret";
+    return (await appliquer(issue)) ? "fait" : "reste";
+  };
+
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   const tour = async () => {
@@ -611,59 +744,18 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const remises = remisesEnAttente(base);
     for (const sondee of issues.filter(lisible).sort(ordre)) {
       if (arrete || !managerAllume(base)) return;
-      let issue = sondee;
-      const remise = remiseDe(base, issue.number);
-      if (remise && remise.labels !== null) {
-        const labels = await reprendre(issue, { ...remise, labels: remise.labels });
-        if (labels === null) {
-          complet = false;
-          continue;
-        }
-        issue = { ...issue, labels };
+      const servie = { issue: sondee } as Servie;
+      servies.set(sondee.number, servie);
+      try {
+        const suite = await servir(sondee);
+        if (suite === "arret") return;
+        // Le travail de cet état, une autre station l'a fait : il ne reste
+        // rien à faire ici, et rien à attendre d'elle.
+        if (suite === "reste" && !servie.cedee) complet = false;
+        if (suite === "fait" && !(await finir(sondee.number))) complet = false;
+      } finally {
+        servies.delete(sondee.number);
       }
-      const connue = issueDuManager(base, issue.number);
-      let tri = trier(issue, connue);
-      // Un ticket retenu sans dire ce qu'il attend : une carte, ou la cuisine le
-      // reprend. Une épique retenue est au chef, pas requalifiée.
-      if (tri.quoi === "ecart" && tri.raison === RETENUE && !issue.labels.includes(LABEL_EPIQUE) && decoupageDe(base, issue.number)?.state !== "split") {
-        const { corps } = await lire(issue);
-        const suite = await requalification.traiter(issue, corps);
-        if (suite === "attente") {
-          complet = false;
-          continue;
-        }
-        if (suite === "reprise") {
-          issue = { ...issue, labels: issue.labels.filter((label) => label !== RETENUE) };
-          tri = trier(issue, connue);
-        }
-      }
-      let epique = tri.quoi === "decouper";
-      if (tri.quoi === "fini") continue;
-      if (tri.quoi === "ecart") ecarter(issue, tri, connue);
-      else if (tri.quoi === "juger") {
-        const corps = await commentaires(issue);
-        const etat = empreinte(issue, corps);
-        if (connue?.fingerprint !== etat) {
-          if (!peutJuger() || !(await juger(issue, corps, etat))) {
-            complet = false;
-            continue;
-          }
-        }
-        // Le jugement y a reconnu une épique : elle ne se refuse pas, elle se
-        // découpe.
-        const jugee = issueDuManager(base, issue.number);
-        epique = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
-      }
-      if (epique) {
-        if (arrete || !managerAllume(base)) return;
-        const { corps, echanges } = await lire(issue);
-        if (!(await decoupage.traiter(issue, corps, echanges))) complet = false;
-        continue;
-      }
-      // Éteint pendant le jugement : la décision est au journal, rien n'est
-      // posé. Elle le sera, sans rejuger, quand le chef rallumera.
-      if (arrete || !managerAllume(base)) return;
-      if (!(await appliquer(issue))) complet = false;
     }
     if (arrete || !complet) return;
     // Ce qu'un tour complet laisse en attente n'a plus rien à attendre du

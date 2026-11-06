@@ -31,6 +31,33 @@ which 3 carry blocked-on-human — read just now on GitHub`, what turning on com
 what it will **look at**, not "what will go". Both are bare digits before their word: the app reads
 them (`docs/app.md`, "The Manager tab"). GitHub not reached, it exits with `1`.
 
+### Several stations on one project
+
+Every station that serves a project runs its manager (none is the main one), each with its own log. So that
+two stations never qualify, calibrate, split, requalify or set aside the same issue twice (#2568), the
+manager's work on an issue is **claimed on GitHub like a ticket** (`runtime/src/github-etat/prise-du-manager.ts`):
+
+- **Before acting** — launching a judgment, a split or a requalification, or commenting a set-aside the code
+  decided — the station posts `<!-- brigade:manager-prise station=<station> etat=<state> jeton=<nonce> -->`
+  on the issue, then reads it again. **The oldest live claim wins**: by GitHub's time, then by order when two
+  fall in the same second. The others leave the issue alone and write nothing.
+- **A claim is for one state of the issue**: the fingerprint of its judgments (title, body, trusted comments;
+  the manager's comments and the claims themselves do not count). An edited body or an answer is a new state,
+  claimed anew; an issue handed back (`manager -- return`) is new work even unchanged.
+- **Work done is said once and for all**: the station that held it rewrites its claim with ` fait` ("Manager
+  work on this issue done by station …"). No station redoes the work of that state, however long after.
+- **A claim not said done expires 90 minutes after it was posted** (`BAIL_DU_MANAGER_MS`, more than a launch,
+  capped at 60 minutes by default). A station that stops mid-work thus hands it over: the next station's claim
+  wins once the first has expired, and the manager keeps working while one station is down. A station that
+  restarts under the same name finds its own claim and resumes from its log.
+- What follows the decision (labels, comment, the split's tickets) is written by the station that decided, from
+  its log: the others know nothing of it. `run manager` and `manager -- upstream` on a station describe its own
+  log; GitHub, which the app reads, carries the result. The tickets of an epic are followed (`Tickets de
+  l'épique`, closing the served epic) by the station that split it.
+
+The claim is taken under the name the project declares on this machine (`box/claude`); a runtime with no
+station declared here claims nothing.
+
 ### Upstream of the rail
 
 **An empty rail does not mean a finished project.** `manager -- upstream` lists, for a program, the
