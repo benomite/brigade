@@ -32,6 +32,12 @@ base, the stale-branch pruning).
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
   cook is then told in its brief to bring the branch up to date (or start again from the base), and if it still adds
   nothing the ticket is given back with a comment, uncounted, since that is work left, not a failed cook.
+- **A delivery cut before its PR.** A branch the station pushed but that never had a PR (the station stopped between
+  the push and the PR, or GitHub refused the PR) goes to the pass as it is, with no cook: its PR opens and it takes
+  `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a
+  failure, until `hors-cuisine` (#2577: two cooks of 7 and 10 turns on a delivery whose PR never opened). The
+  branch must be what the origin carries: a head that was never pushed, or a branch that already had a PR (sent back,
+  closed), still gets a cook.
 - **What a red CI says, handed to the cook.** The cook has no access to GitHub: told only that the CI of its PR is red,
   at best with the names of the red jobs, it rebuilt the CI's selection of tests and played it again to find what
   failed (#2545: 16 cooks taken again on a red CI, 93 min of cooking). The station now reads the failure annotations
