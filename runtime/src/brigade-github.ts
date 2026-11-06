@@ -34,7 +34,7 @@ import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instanta
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { lacher, prendre, purger } from "./github-etat/prise.ts";
-import { ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
+import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
@@ -821,6 +821,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       if (enPass(tickets, renvoyes) >= PASS_MAX) break;
       if (enVol.has(ticket.number)) continue;
+      // Sa PR est déjà approuvée par son dernier verdict : elle n'a rien à
+      // reprendre, ses remarques sont closes. Le ticket retourne au pass, quels
+      // que soient ses labels, et le merge suit quand la CI est verte (#2622).
+      // Illisible, la PR ne se devine pas : le ticket ne part pas à un cook.
+      try {
+        const sienne = await github.prDuTicket(ticket.number);
+        // Sauf si la station l'a renvoyé sur cette tête même (CI rouge, conflit,
+        // second juge) : l'approbation tient, mais la tête reste à reprendre.
+        if (sienne !== null && sienne.state === "open" && !sienne.merged && approuvee(await github.commentaires(sienne.number)) && !(await github.commentaires(ticket.number)).some((c) => c.body.startsWith(MARQUE_DE_RENVOI) && c.body.includes(` sha=${sienne.sha} `))) {
+          await github.labelliser(ticket.number, [LABEL_IN_PASS]);
+          station.presser?.(true);
+          continue;
+        }
+      } catch (erreur) {
+        avertir(`brigade : PR de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+        continue;
+      }
       // Une capacité qui manque à la station : le ticket attend celle qui l'a.
       const manques = besoinsDuTicket(ticket.labels).filter((besoin) => !capacites.has(besoin));
       if (manques.length > 0) {

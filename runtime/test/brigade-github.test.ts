@@ -530,6 +530,26 @@ test("a delivery the review refuses goes back to a cook with the review's reason
   assert.equal(faux.mergee(32)?.mergeePar, "A");
 });
 
+test("replay of #2478: a PR approved after a request-changes, its ticket out of the pass, is merged and no cook is launched (#2622)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(2478);
+  const sha = faux.sha();
+  faux.prs.push({ number: 2499, issue: 2478, branche: brancheDuTicket(2478), sha, state: "open", merged: false, enRetard: false, mergeePar: null, fichiers: ["runtime/src/x.ts"] });
+  faux.poster(2499, "A", `<!-- brigade:verdict station=A verdict=request-changes sha=${sha} -->\nChanges requested by station \`A\`.\n\nfix it`);
+  faux.poster(2499, "A", `<!-- brigade:verdict station=A verdict=approve sha=${sha} -->\nApproved by station \`A\`.`);
+  const a = faux.station("A", {
+    juger: async () => {
+      throw new Error("the approved PR is not judged again");
+    },
+  });
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(2478)?.number, 2499);
+  assert.equal(faux.cuissons.length, 0);
+});
+
 const secondsDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?? []).filter((c) => c.body.startsWith("<!-- brigade:second-judge"));
 
 test("a delivery that changes what judges it goes, once the review approves, before a second judge: its approval and a green CI merge it like any other (#2555)", async () => {

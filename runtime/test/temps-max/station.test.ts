@@ -28,6 +28,7 @@ function faux() {
       if (issue) issue.state = "closed";
     },
     corpsDuTicket: async (numero: number) => issues.find((i) => i.number === numero)?.body ?? "",
+    prDuTicket: async () => null,
     commentaires: async () => [],
     dependancesOuvertes: async () => [],
     prsOuvertes: async () => [],
