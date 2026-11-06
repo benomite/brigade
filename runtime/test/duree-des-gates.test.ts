@@ -49,13 +49,15 @@ function releve(ligne: string): { processeur: number; utilisateur: number; syste
   return { processeur, utilisateur, systeme, horloge: Number(lu[7]) };
 }
 
-// Une suite qui calcule : quatre dixièmes de seconde de processeur.
-const CALCUL_S = 0.4;
+// Une suite qui calcule : une seconde de processeur. Sur un runner de la CI, le
+// témoin seul coûte jusqu'à 0,7 s, et deux passages de front diffèrent de 0,4 s
+// sans rien calculer de plus : quatre dixièmes s'y perdaient (#2621).
+const CALCUL_S = 1;
 const CALCULE = `node -e "while (process.cpuUsage().user < ${CALCUL_S * 1e6}) for (let i = 0; i < 1e6; i++);"`;
 type Passage = Awaited<ReturnType<typeof jouer>>;
 
 // Les tests lisent deux passages des gates, joués une fois chacun et de front
-// (#2464) : un passage coûte une demi-seconde de processeur. Le témoin a une
+// (#2464) : un passage coûte une demi-seconde de processeur, plus le calcul. Le témoin a une
 // suite qui ne fait rien ; l'autre une suite qui calcule, et un plafond déclaré.
 describe("la durée des gates", { concurrency: 8 }, () => {
   let racine = "";
