@@ -50,6 +50,8 @@ export type Station = {
   // Les tickets que les cooks GitHub seul de ses cuisines cuisinent : ce que
   // sa mise à jour attend avant de demander sa relance (#2189).
   enCuisine(): number[];
+  // Sauve le travail de ces cooks sur leur branche, avant une relance (#2586).
+  sauver(): Promise<number[]>;
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
   depots(): Record<string, string>;
   // Le clone que la cuisine de chaque projet servi lit (`BRIGADE_REPO_DIR` de sa ligne, ou celui de l'atelier).
@@ -193,6 +195,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     relire,
     projets: () => [...ouvertes.keys()],
     enCuisine: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enCuisine?.() ?? []),
+    sauver: async () => (await Promise.all([...ouvertes.values()].map(async ({ cuisine }) => (await cuisine.sauver?.()) ?? []))).flat(),
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
     clones: () => Object.fromEntries([...ouvertes].flatMap(([nom, { clone }]) => (clone === undefined ? [] : [[nom, clone]]))),
     rails: () => {

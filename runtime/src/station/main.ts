@@ -142,7 +142,9 @@ const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConne
 // ticket — et demande sa relance une fois ses cooks finis. Sur une box, ou sans
 // source de versions, elle n'a pas lieu (`configDeLaMiseAJour`) : sur la box,
 // c'est son unité root qui installe, et la station se vide à sa demande, lue
-// dans le répertoire de la mise à jour (`mise-a-jour/vidange.ts`, #2547).
+// dans le répertoire de la mise à jour (`mise-a-jour/vidange.ts`, #2547) — sans
+// cesser de prendre ses tickets : elle se relance au premier moment sans cook
+// en vol, ou à l'échéance, leur travail sauvé sur leur branche (#2586).
 let seVide = (): boolean => false;
 // Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
 let choisis: ServiceDeLOrdinateur | null = null;
@@ -150,7 +152,7 @@ const station = ouvrirStation({ racine, env: process.env, dire, connexion, porte
 const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
-const vidange = miseAJour !== null || dossierMiseAJour === null ? null : tenirLaVidange({ racine, dossier: dossierMiseAJour, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
+const vidange = miseAJour !== null || dossierMiseAJour === null ? null : tenirLaVidange({ racine, dossier: dossierMiseAJour, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });
 if (vidange !== null) seVide = () => vidange.retenue();
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses

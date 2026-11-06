@@ -358,10 +358,17 @@ with no `attente` marker; the restarted station, or another one, takes it at its
 restarts its station at each update, every 35 to 45 minutes while merges keep coming: with the
 30-minute wait, a ticket taken again had 5 to 15 minutes before the next restart killed its cook once
 more — #2502 four times, #2464 six. **And the box no longer kills its cooks to update** (#2547):
-before installing, its updater asks the station to drain (`vidange` in the update directory); the
-station takes no new ticket, writes its cooks in flight (`en-vol` in its directory), and the install
-waits for them to finish, 15 minutes at most (`BRIGADE_MISE_A_JOUR_VIDANGE_S`) — a longer cook is
-still cut. A killed cook's work was lost: the ticket came back on a new branch from `main`. After a send back, "added
+before installing, its updater posts its request (`vidange` in the update directory, with its
+deadline, `echeance`); the station writes its cooks in flight (`en-vol` in its directory) and **keeps
+taking tickets up to its places** (#2586 — it used to stop taking any, so the kitchen drained and
+refilled). The restart comes at the first moment with no cook in flight or, failing that, at the
+deadline (15 minutes by default, `BRIGADE_MISE_A_JOUR_VIDANGE_S`; the batching logic gives its own).
+At the deadline, the station first saves the work of each cook in flight on its branch — committed
+(`brigade: work in progress saved before the station restarts (#2586)`) and pushed — then says it is
+ready (`prete` in `en-vol`), and takes no ticket until the restart. The ticket is given back; the next
+cook resumes the saved branch, told so in its brief, and that head is never sent to the pass as a
+delivery cut before its PR (#2577). A station that never says it is ready has its cooks cut 30 s
+after the deadline, as before. After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
 stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does

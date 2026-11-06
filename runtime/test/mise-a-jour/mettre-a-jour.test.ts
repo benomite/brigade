@@ -288,31 +288,40 @@ function stationEnVol(t: TestContext, m: ReturnType<typeof machine>, cooks: numb
   return vidange;
 }
 
-test("une version prête attend que les cooks en vol de la station aient fini : la station ne prend plus de ticket, puis vidée, elle est installée (#2547)", async (t) => {
+test("une version prête attend un moment sans cook en vol de la station, qui prend encore ses tickets, puis elle est installée (#2547, #2586)", async (t) => {
   const m = machine(t, "1.0.0");
   const cooks = [2547, 2464];
   const station = stationEnVol(t, m, cooks);
   const dites: string[] = [];
   const enCours = passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 60_000 });
-  await jusqua(() => dites.some((ligne) => ligne.includes("attend la fin des cooks en vol de la station (#2464, #2547)")));
+  await jusqua(() => dites.some((ligne) => ligne.includes("attend un moment sans cook en vol de la station (#2464, #2547)")));
   assert.deepEqual(m.installations, []);
-  assert.equal(station.retenue(), true);
+  assert.equal(station.retenue(), false);
   cooks.splice(0);
   const { issue } = await enCours;
   assert.equal(issue?.quoi, "passee");
   assert.deepEqual(m.installations, ["1.1.0"]);
-  assert.ok(dites.includes("brigade : mise à jour — la station s'est vidée : 1.1.0 s'installe"), dites.join("\n"));
+  assert.ok(dites.includes("brigade : mise à jour — la station n'a plus de cook en vol : 1.1.0 s'installe"), dites.join("\n"));
   // La demande est retirée : la station relancée prend ses tickets.
   assert.equal(existsSync(join(m.dossier, VIDANGE)), false);
 });
 
-test("des cooks encore en vol au terme de la vidange sont coupés : la version s'installe quand même (#2547)", async (t) => {
+test("des cooks encore en vol à l'échéance sont sauvés par la station, puis la version s'installe (#2586)", async (t) => {
   const m = machine(t, "1.0.0");
   stationEnVol(t, m, [2464]);
   const dites: string[] = [];
   const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 50 });
   assert.equal(issue?.quoi, "passee");
-  assert.ok(dites.some((ligne) => ligne.includes("1 cook(s) encore en vol après") && ligne.includes("(#2464) : 1.1.0 s'installe, ils sont coupés")), dites.join("\n"));
+  assert.ok(dites.some((ligne) => ligne.includes("la station est prête, ses cooks en vol sauvés sur leur branche (#2464) : 1.1.0 s'installe")), dites.join("\n"));
+});
+
+test("une station qui ne se dit pas prête à l'échéance voit ses cooks coupés : la version s'installe quand même (#2547)", async (t) => {
+  const m = machine(t, "1.0.0");
+  writeFileSync(join(m.racine, EN_VOL), JSON.stringify({ pid: m.pid(), vidange: "1.1.0", cooks: [2464] }));
+  const dites: string[] = [];
+  const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 50, accuseMs: 20 });
+  assert.equal(issue?.quoi, "passee");
+  assert.ok(dites.some((ligne) => ligne.includes("1 cook(s) encore en vol à l'échéance") && ligne.includes("(#2464) : 1.1.0 s'installe, ils sont coupés")), dites.join("\n"));
 });
 
 test("une station qui ne dit pas avoir vu la demande, ou d'avant la vidange, est installée sans attendre ses cooks (#2547)", async (t) => {

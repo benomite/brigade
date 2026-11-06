@@ -33,8 +33,9 @@ export type Depot = {
   // commit, ou null s'il n'y avait rien. Lève si le worktree n'est plus sur sa
   // branche : le commit n'irait nulle part. Rien n'est poussé. `sujet` : le
   // message du commit, quand ce n'est pas une récolte — le renommage du code
-  // commite ainsi ce que son outil a écrit.
-  recolter(worktree: string, branche: string, sujet?: string): string | null;
+  // commite ainsi ce que son outil a écrit. `vide` : le commit se fait même
+  // sans rien à récolter — la sauvegarde d'un cook avant une relance (#2586).
+  recolter(worktree: string, branche: string, sujet?: string, vide?: boolean): string | null;
   // Vrai si le worktree est encore sur sa branche : ce que le cook y a commité
   // est alors sur elle. Faux en tête détachée, ou sur une autre branche.
   surSaBranche(worktree: string, branche: string): boolean;
@@ -68,6 +69,8 @@ export type Depot = {
   livree(branche: string): string;
   // Le commit de tête d'une branche, ou de ce qui en est livré.
   tete(branche: string): string;
+  // Le sujet du commit de tête d'une branche locale.
+  sujet?(branche: string): string;
   // Vrai si le worktree ne porte rien d'autre que ce qui est commité : ni
   // fichier suivi modifié, ni fichier neuf que le projet n'ignore pas. C'est
   // ce qui sépare un ticket sans diff d'un travail que le cook a oublié de
@@ -491,7 +494,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       return false;
     }
   };
-  const recolter = (worktree: string, branche: string, sujet = SUJET_DE_RECOLTE): string | null => {
+  const recolter = (worktree: string, branche: string, sujet = SUJET_DE_RECOLTE, vide = false): string | null => {
     if (!surSaBranche(worktree, branche)) throw new Error(`« ${worktree} » n'est plus sur sa branche \`${branche}\` : ce qui y traîne ne peut pas y être commité`);
     const dans = gitDans(worktree, { env: ENV_DE_RECOLTE, maxBuffer: Infinity });
     try {
@@ -503,8 +506,9 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         .map((entree) => `:(top,literal,exclude)${entree.slice(entree.indexOf("\t") + 1)}`);
       dans("add", "--all", "--", ":/", ...sousModules);
       // Ce que l'index porte de plus que le dernier commit.
-      if (dans("diff", "--cached", "--name-only", "--no-renames", "--ignore-submodules=none") === "") return null;
-      dans(...IDENTITE, "commit", "--quiet", "--no-verify", "-m", sujet);
+      const rien = dans("diff", "--cached", "--name-only", "--no-renames", "--ignore-submodules=none") === "";
+      if (rien && !vide) return null;
+      dans(...IDENTITE, "commit", "--quiet", "--no-verify", ...(rien ? ["--allow-empty"] : []), "-m", sujet);
     } catch (erreur) {
       throw motif("récolte du worktree", erreur);
     }
@@ -799,6 +803,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     livree,
     tete: (branche) => git("rev-parse", "--verify", `${branche}^{commit}`),
+    sujet: (branche) => git("log", "-1", "--format=%s", `refs/heads/${branche}`),
     intact: (worktree) => statutDe(worktree, "normal") === "",
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
