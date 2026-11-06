@@ -8419,11 +8419,7 @@ const gestesDuPremier = {
   ...(brigade.servirUnProjet === undefined ? {} : { servirIci: (depot) => servirIciLeDepot(depot) }),
   choisir: (id, depots) => choisirPourUneEnregistree(id, depots),
   stationChoisie: (nom) => {
-    const confie = ajoutDuParcours.projet === undefined ? undefined : projetDe(ajoutDuParcours.projet);
-    if (confie !== undefined) {
-      ajoutDuParcours = {};
-      return void ouvrir(confie);
-    }
+    // Confié, le parcours finit sur son récap (ticket 2478) : le projet, sa station et la suite — il n'ouvre plus la page du projet.
     ajoutDuParcours.station = nom;
     poserLePremier();
   },
@@ -8616,6 +8612,8 @@ function signaler(champ, raison = "") {
 // en viennent. Le formulaire ne demande aucune station : ajouté, le parcours au-dessus demande qui le
 // cuit (ticket 2477). Ce qui a été saisi reste, d'un passage à l'autre.
 function ouvrirAjout() {
+  // Le récap d'un projet déjà confié ne reste pas sur l'écran d'un nouvel ajout.
+  if (ajoutDuParcours.station !== undefined) ajoutDuParcours = {};
   courant = undefined;
   ajoute = true;
   stationOuverte = undefined;
