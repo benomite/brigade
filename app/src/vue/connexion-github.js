@@ -9,7 +9,7 @@
 // Ce module ne touche pas `document` et ne joint rien : il reçoit de quoi créer un élément (briques.js) et le pont, et
 // rend la carte qu'il tient.
 
-import { survol } from "./briques.js";
+import { boutonAction, lectureIndisponible, survol } from "./briques.js";
 import { connexionDite } from "./premier-lancement.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
@@ -100,4 +100,29 @@ export function poserConnecte(doc, compte) {
   }
   ligne.append(survol(doc, "This phone reads your projects on GitHub under this account."));
   return ligne;
+}
+
+// Connecté, « All projects » liste les projets lus sur GitHub (le ticket 2501). Au-dessus de leurs lignes, la section dit
+// en une phrase ce qui manque à la liste — rien quand elle vient d'être lue et en porte : sa première lecture en cours,
+// un compte dont aucune station ne sert de projet, ou ce qui l'empêche ; les projets déjà connus restent dessous. Une
+// connexion que GitHub refuse le dit, avec le geste qui la refait. `reconnecter` : ce geste.
+/** @param {Fabrique} doc @param {{ liste?: import("./pont.d.ts").ListeDuTelephone }} telephone @param {number} projets @param {() => void} reconnecter @returns {HTMLElement[]} */
+export function poserLaListeGitHub(doc, { liste }, projets, reconnecter) {
+  /** @param {string} texte */
+  const phrase = (texte) => {
+    const ligne = doc.createElement("p");
+    ligne.textContent = texte;
+    return ligne;
+  };
+  if (liste === undefined) return projets > 0 ? [] : [phrase("Your projects on GitHub: first read in progress…")];
+  if (liste.lue) return projets > 0 ? [] : [phrase("None of your stations serves a project yet: a project is added from a computer.")];
+  if (liste.reason === "oublie") {
+    const ligne = lectureIndisponible(doc, "GitHub no longer accepts this phone's sign-in.", `${liste.said} — the access was revoked on GitHub, or it expired.`);
+    ligne.dataset.etat = "oublie";
+    ligne.append(boutonAction(doc, "sign in again", reconnecter, { recommande: true }));
+    return [ligne];
+  }
+  const ligne = lectureIndisponible(doc, liste.reason === "injoignable" ? "This phone cannot reach GitHub." : "GitHub did not give your projects.", `${liste.said}. This phone tries again every 30 s.`);
+  ligne.dataset.etat = "injoignable";
+  return [ligne];
 }

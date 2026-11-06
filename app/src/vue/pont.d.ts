@@ -483,11 +483,12 @@ export type MessageDuSecond = { de: "chef" | "second"; a: string; blocs: import(
 export type Conversation = { messages: MessageDuSecond[]; repond?: true; echec?: { refus: string; detail: string } };
 // Une phrase, et ce que la station ou le pont en a dit, au survol.
 export type RefusDeConversation = { refus: string; detail?: string };
-// `liste` : la dernière lecture de la liste des projets au guichet de la station (le ticket 1414) — absente avant la
-// première. Lue, ou ce qui l'a empêchée : le motif d'un guichet qui ne se joint pas (`injoignable`, `sans-guichet`,
-// `inattendu`), ou `oublie`, la station qui ne connaît plus le jeton de ce téléphone.
+// `liste` : la dernière lecture de la liste des projets — sur GitHub, connecté (le ticket 2501), ou au guichet de la
+// station d'un appairage d'avant le ticket 2500 (le ticket 1414) —, absente avant la première. Lue, ou ce qui l'a
+// empêchée : ce qui ne se joint pas (`injoignable`, `sans-guichet`, `inattendu`), ou `oublie`, la session GitHub refusée
+// ou la station qui ne connaît plus le jeton de ce téléphone.
 export type ListeDuTelephone = { a: string; lue: true } | { a: string; lue: false; reason: "injoignable" | "sans-guichet" | "inattendu" | "oublie"; said: string };
 // Le téléphone, tel que le pont de l'app Android le garde : l'appairage à une station d'avant le ticket 2500 — aucun sur une
 // installation neuve, qui n'en tire plus —, et `github`, sa connexion à GitHub (le ticket 2500) — le compte sous lequel il lit, nul quand GitHub ne l'a pas
 // dit ; absente tant qu'il n'y est pas connecté, et la vue s'ouvre alors sur la connexion.
-export type Telephone = ({ appaire: false } | { appaire: true; station: string; adresse: string; liste?: ListeDuTelephone }) & { github?: { compte: string | null } };
+export type Telephone = ({ appaire: false; liste?: ListeDuTelephone } | { appaire: true; station: string; adresse: string; liste?: ListeDuTelephone }) & { github?: { compte: string | null } };

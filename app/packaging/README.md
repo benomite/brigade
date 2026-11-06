@@ -295,7 +295,8 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   la construction dans les modules d'`app/src/` (`demarrageDuPont`, dans `android.ts`), jamais
   recopiés —, une liste de projets vide, et `telephone` : `github`, le compte sous lequel le téléphone
   est connecté à GitHub (#2500) — aucun sur une installation neuve, et la vue s'ouvre sur l'écran de
-  connexion (`app/src/vue/connexion-github.js`) —, et l'appairage à une station d'avant #2500, s'il y en a un.
+  connexion (`app/src/vue/connexion-github.js`) ; connecté, les projets de la dernière liste lue sur GitHub
+  et l'état de sa lecture (`liste`).
 - `seConnecterAGitHub` mène le « device flow » de GitHub par le HTTP natif de Capacitor
   (`CapacitorHttp`) — github.com ne répond pas à une WebView (CORS) — : il demande un code à usage
   unique, ouvre la page où le taper dans le navigateur du téléphone (`Pont.java`, `ouvrir`), et rend
@@ -304,18 +305,24 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   chiffré par une clé du Keystore d'Android), le compte dans le stockage de l'app ; la vue ne voit jamais
   le jeton. L'App OAuth est celle de la GitHub CLI (`CLIENT_GITHUB`), que le desktop emploie déjà par
   `gh auth login`. `ouvrirLaPage` rouvre la page de GitHub, et nulle autre.
-- Un téléphone appairé à une station avant #2500 la lit encore à son guichet, par le même HTTP natif —
-  d'où `android:usesCleartextTraffic` dans le manifeste : le guichet parle http sur le réseau du chef.
-  Aucun appairage neuf ne se tire plus : ni code, ni lecteur de QR, ni lien `brigade://pair`.
+- Connecté, `faits`, `tous`, `regarder` et `relireBox` lisent les projets du chef, le rail et TODO de
+  chacun sur GitHub seul (#2501) : la lecture d'`app/src/lecture-github-telephone.ts`, celle du desktop,
+  avec le jeton du coffre, par le même HTTP natif, à `api.github.com` et nulle part ailleurs. Aucune
+  station n'est lue : pas connecté, le téléphone ne lit rien.
+- Un téléphone appairé à une station avant #2500 ne joint plus son guichet que pour les gestes de la
+  fiche et la conversation avec le second, par le même HTTP natif — d'où `android:usesCleartextTraffic`
+  dans le manifeste : le guichet parle http sur le réseau du chef. Aucun appairage neuf ne se tire plus :
+  ni code, ni lecteur de QR, ni lien `brigade://pair`.
 - `ajouter` refuse, en disant que ce téléphone ne lit encore aucun projet.
 - Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
 
-Le tableau de la cuisine d'un projet se lit de GitHub, sans station (`lireLeTableauDuTelephone`,
-`app/android/web/lecture.ts`) : le module du desktop (`app/src/tableau/`) et le lecteur du bloc
-machine que le runtime partage avec les apps (`runtime/src/tableau/rendu/bloc.ts`, posé à
-`www/runtime/src/`), la demande portée par `CapacitorHttp`, avec le jeton GitHub que garde le coffre
-du téléphone (`Coffre.java` : chiffré par une clé du Keystore d'Android, qui ne sort pas du
-téléphone).
+Le tableau de la cuisine d'un projet se lit de GitHub, sans station (`ouvrirLaLectureGitHub`,
+`app/src/lecture-github-telephone.ts`, posé à `www/src/lecture-github-telephone.js` par
+`poserLesModules`) : les projets dans les gists des stations du chef, puis le module du desktop
+(`app/src/tableau/`) et le lecteur du bloc machine que le runtime partage avec les apps
+(`runtime/src/tableau/rendu/bloc.ts`, posé à `www/runtime/src/`), la demande portée par `CapacitorHttp`,
+avec le jeton GitHub que garde le coffre du téléphone (`Coffre.java` : chiffré par une clé du Keystore
+d'Android, qui ne sort pas du téléphone).
 
 ## Éprouver
 

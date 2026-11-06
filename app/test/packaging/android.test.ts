@@ -312,14 +312,14 @@ test("le pont rouvre la page de GitHub où taper le code dans le navigateur du t
   assert.equal(appels.length, 1);
 });
 
-// Le pont appairé lit sa station (#1414) : joué depuis la vue posée pour Capacitor, comme dans la WebView — son script,
-// et le module de lecture qu'il charge à côté d'elle (www/android/lecture.js), sans ses types, avec ce qu'il importe
-// d'app/src/. Seul le HTTP natif est un faux, qui rend ce que le guichet rend.
-test("la lecture de la station est posée à côté de la vue, sans types ni modules de Node, et chaque import y tient", async (t) => {
+// Les modules que le pont charge à côté de la vue posée pour Capacitor — la lecture de GitHub (#2501,
+// www/src/lecture-github-telephone.js) et ce qui joint la station d'un appairage d'avant #2500 (#1414,
+// www/android/lecture.js) —, sans leurs types, avec ce qu'ils importent d'app/src/.
+test("les lectures du pont sont posées à côté de la vue, sans types ni modules de Node, et chaque import y tient", async (t) => {
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const poses = poserLesModules(www);
-  assert.ok(poses.includes("android/lecture.js"));
+  assert.ok(poses.includes("android/lecture.js") && poses.includes("src/lecture-github-telephone.js"));
   assert.ok(poses.includes("src/faits.js") && poses.includes("src/attend.js") && poses.includes("src/accueil.js"));
   for (const pose of poses.filter((chemin) => chemin.endsWith(".js"))) {
     const code = readFileSync(join(www, pose), "utf8");
@@ -333,62 +333,28 @@ test("la lecture de la station est posée à côté de la vue, sans types ni mod
   assert.match(readFileSync(join(www, "android", "node", "child_process.js"), "utf8"), /export const execFile = inerte;/);
 });
 
-test("le pont appairé lit les projets de sa station et leur file au guichet, avec son jeton, et les dit à la vue", async (t) => {
-  const www = join(dossier(t), "www");
-  poserLaVue(await demarrageDuPont(), www);
-  const facts = { etat: "ouverte", lu: "2026-10-23T08:04:11.000Z", dernierTick: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], stations: [] };
-  const projets = [
-    { name: "parade", repository: "chef/parade", state: "served" },
-    { name: "cantine", repository: "chef/cantine", state: "served" },
-  ];
+// Les projets, le rail et TODO se lisent sur GitHub (#2501, lecture-github-telephone.test.ts) : un téléphone appairé à
+// une station avant #2500, et pas connecté à GitHub, ne lit plus rien à son guichet — il s'ouvre sur la connexion.
+test("le pont appairé avant #2500 ne lit ni les projets ni leur file à sa station : sans GitHub, il ne lit rien", async () => {
   const stockage = new Map([
     ["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })],
-    ["brigade.telephone.projets", JSON.stringify([projets[0]])],
+    ["brigade.telephone.projets", JSON.stringify([{ name: "parade", repository: "chef/parade", state: "served" }])],
   ]);
-  const appels: Record<string, unknown>[] = [];
-  const window: Record<string, unknown> = {
-    location: { href: pathToFileURL(join(www, "src", "vue", "index.html")).href },
-    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
-    Capacitor: {
-      nativePromise: async (plugin: string, _methode: string, options: Record<string, unknown>) => {
-        // Le coffre, lu au lancement : ce téléphone n'est pas connecté à GitHub.
-        if (plugin === "Coffre") return {};
-        appels.push(JSON.parse(JSON.stringify(options)));
-        const chemin = String(options.url).replace("http://192.168.1.20:7010", "");
-        if (chemin === "/projects") return { status: 200, headers: {}, data: { projects: projets } };
-        return { status: 200, headers: {}, data: JSON.stringify({ project: "x", repository: "chef/x", facts, status: "état : cuisine ouverte\n" }) };
-      },
-    },
-  };
-  const script = readFileSync(join(www, "android", "pont.js"), "utf8");
-  vm.runInNewContext(script, { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
-  const pont = window.brigade as Record<string, (...args: unknown[]) => unknown>;
-  const recus: Record<string, unknown[][]> = {};
-  for (const canal of ["surConfiguration", "surFaits", "surTelephone", "surAccueil", "surAlertes"]) pont[canal]!((...args: unknown[]) => void (recus[canal] ??= []).push(JSON.parse(JSON.stringify(args))));
-  // Relancée, l'app s'ouvre sur les projets de la dernière liste lue, avant toute lecture.
-  const demarrage = JSON.parse(JSON.stringify(await pont.demarrage!()));
-  assert.deepEqual(demarrage.configuration.projets.map(({ nom }: { nom: string }) => nom), ["parade"]);
-  assert.deepEqual(demarrage.telephone, { appaire: true, station: "atelier", adresse: "http://192.168.1.20:7010" });
-  assert.deepEqual(appels, []);
-  pont.faits!(1);
-  pont.tous!(2);
-  // La lecture répond sans attendre d'horloge : on attend qu'elle ait dit les deux files.
-  for (let tour = 0; tour < 1000 && (recus.surFaits ?? []).filter(([recue]) => (recue as { demande: number }).demande === 1).length < 2; tour++) await new Promise((fait) => setImmediate(fait));
-  assert.deepEqual(recus.surConfiguration?.[0]?.[0] && (recus.surConfiguration[0][0] as { projets: { nom: string }[] }).projets.map(({ nom }) => nom), ["parade", "cantine"]);
-  assert.deepEqual(JSON.parse(stockage.get("brigade.telephone.projets") ?? "null"), projets);
-  assert.deepEqual(
-    appels.slice(0, 3).map(({ url, method, headers }) => ({ url, method, headers })),
-    ["/projects", "/projects/parade/queue", "/projects/cantine/queue"].map((chemin) => ({ url: `http://192.168.1.20:7010${chemin}`, method: "GET", headers: { Authorization: "Bearer brgt_secret" } })),
-  );
-  const dessines = (recus.surFaits ?? []).map(([recue]) => recue as { projet: string; demande: number; tableau?: unknown });
-  assert.deepEqual([...new Set(dessines.filter(({ demande }) => demande === 1).map(({ projet }) => projet))].sort(), ["cantine", "parade"]);
-  assert.ok(dessines.every((recue) => "tableau" in recue));
-  // Pour « tous », le `status` des projets est lu : la bande dit ce qu'elle en a lu.
-  assert.ok((recus.surAlertes ?? []).some(([bande]) => (bande as { alertes: { pourquoi?: string }[] }).alertes.some(({ pourquoi }) => /`status`/.test(pourquoi ?? ""))));
-  assert.equal((recus.surTelephone?.at(-1)?.[0] as { liste?: { lue: boolean } }).liste?.lue, true);
-  // Oublié, l'appairage s'efface — le jeton et la liste — et le lancement suivant ouvre l'écran qui relie le téléphone.
+  // Le coffre, lu au lancement : ce téléphone n'est pas connecté à GitHub. Rien d'autre ne doit être demandé.
+  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => (plugin === "Coffre" ? {} : assert.fail(`unexpected call to ${plugin}`)), stockage);
+  const demarrage = await json(pont.demarrage!());
+  assert.deepEqual(demarrage.configuration.projets, []);
+  assert.deepEqual(demarrage.telephone, { appaire: false });
+  void pont.faits!(1);
+  void pont.tous!(2);
+  void pont.regarder!("parade", 3);
+  void pont.relireBox!();
+  for (let tour = 0; tour < 50; tour++) await new Promise((fait) => setImmediate(fait));
+  assert.deepEqual(appels.filter(({ plugin }) => plugin !== "Coffre"), []);
+  // Oubliée, la connexion s'efface avec ce qui restait de l'appairage : le jeton du coffre, la station et ses projets.
   await pont.oublierLeTelephone!();
   assert.equal(stockage.size, 0);
+  assert.deepEqual(appels.at(-1), { plugin: "Coffre", methode: "oublier", options: { cle: "github" } });
 });
 
 // La WebView n'a rien de Node : ni `process`, ni ses modules. La lecture posée, et tout ce qu'elle importe d'app/src/,
