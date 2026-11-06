@@ -47,7 +47,7 @@ import { ceQueDitLaCiRouge } from "./github-seul/ci-rouge/ci-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
-import { CALIBRAGE_DU_SECOND_JUGE, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
+import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
@@ -500,6 +500,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // merge pas sans lui. \`sans-juge\` : la station n'en lance aucun, dit une
   // fois par tête.
   const sansSecondJuge = new Map<number, string>();
+  const sansConsigne = new Set<string>();
+  const MARQUE_SANS_CONSIGNE = "<!-- brigade:second-juge-sans-consigne";
   const passerLeSecondJuge = async (ticket: TicketLu, pr: PRAFusionner, juges: string[], sienne: { fichiers: string[] } | undefined): Promise<{ jugement: Jugement; lance: boolean } | "sans-juge" | null> => {
     const rendu = secondJugementDe(await github.commentaires(pr.number), pr.sha);
     if (rendu !== null) return { jugement: rendu, lance: false };
@@ -510,7 +512,22 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return "sans-juge";
     }
     chrono.marquer(ticket.number, "revue");
-    const jugement = await options.jugerEnSecond(ticket, pr, juges);
+    let jugement: Jugement;
+    try {
+      jugement = await options.jugerEnSecond(ticket, pr, juges);
+    } catch (erreur) {
+      if (!(erreur instanceof ConsigneIllisible)) throw erreur;
+      // Sans consigne, pas de second juge, donc pas de merge : dit une fois
+      // dans la file du projet, pas à chaque tour.
+      const marque = `${MARQUE_SANS_CONSIGNE} sha=${pr.sha} -->`;
+      if (!sansConsigne.has(pr.sha)) {
+        sansConsigne.add(pr.sha);
+        if (!(await github.commentaires(ticket.number)).some((c) => c.body.includes(marque))) {
+          await github.commenter(ticket.number, `${marque}\nStation \`${nom}\` cannot run the second judge of PR #${pr.number} on \`${pr.sha.slice(0, 7)}\`: its brief cannot be read at \`${erreur.chemin}\`. The delivery is not merged without it; it waits until the station is fixed.`);
+        }
+      }
+      return "sans-juge";
+    }
     chrono.marquer(ticket.number, "ci");
     await github.commenter(pr.number, corpsDuSecondJugement(nom, pr.sha, jugement));
     return { jugement, lance: true };
@@ -1321,13 +1338,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // verdict — le modèle le plus fort, un effort haut, la consigne du plugin de
   // ce runtime, et les mêmes outils de lecture que le reviewer.
   const jugerEnSecond: JugerEnSecond = async (ticket, pr, juges) => {
+    // Lue avant tout worktree : sans elle, rien à lancer.
+    const consigne = (options.consigneDuSecondJuge ?? lireLaConsigne)();
     const branche = brancheDuTicket(ticket.number);
     const run = `second-judge-${ticket.number}-github`;
     const worktree = await depot.reprendre(run, branche);
     try {
       const issue = await options.github.issue(ticket.number);
       const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
-      const texte = consigneDuSecondJuge((options.consigneDuSecondJuge ?? lireLaConsigne)(), { depot: depotGitHub, base, pr: pr.number, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, juges, diff });
+      const texte = consigneDuSecondJuge(consigne, { depot: depotGitHub, base, pr: pr.number, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, juges, diff });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, CALIBRAGE_DU_SECOND_JUGE), worktree) }, { cwd: worktree, depot: "lecture" });
       const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });

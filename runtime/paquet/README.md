@@ -33,7 +33,7 @@ Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essen
 
 | Chemin | Quoi |
 |---|---|
-| `/usr/lib/brigade-station/runtime/` | `src/` et `package.json` du runtime — ni tests ni dépendances de dev |
+| `/usr/lib/brigade-station/runtime/` | `src/`, `agents/second-juge.md` (la consigne du second juge, celle de ce commit — les archives macOS et Windows la portent aussi) et `package.json` du runtime — ni tests ni dépendances de dev |
 | `/usr/lib/brigade-station/node/bin/node` | le `node` de la station : celui de la machine n'y est pour rien |
 | `/usr/lib/brigade-station/renouvellement` | le renouvellement de la session Max (`runtime/deploy/brigade-renouvellement`, repris tel quel) |
 | `/usr/lib/systemd/system/brigade-station.service` | la station : un seul process, tous les projets de `/var/lib/brigade/projets` |

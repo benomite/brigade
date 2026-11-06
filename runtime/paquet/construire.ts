@@ -141,6 +141,10 @@ try {
   cpSync(join(RUNTIME, "src"), join(runtime, "src"), { recursive: true });
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")), version }, null, 2)}\n`);
   chmodSync(join(runtime, "package.json"), 0o644);
+  // La consigne du second juge, lue dans la version du runtime qui tourne
+  // (jamais dans la livraison jugée) : dans le dossier du runtime, que les
+  // archives macOS et Windows portent aussi.
+  poser(join(RACINE, "agents", "second-juge.md"), join(runtime, "agents", "second-juge.md"), 0o644);
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
   // Le renouvellement de la session Max.
   poser(join(RUNTIME, "deploy", "brigade-renouvellement"), dans(INSTALLATION.slice(1), "renouvellement"), 0o755);
@@ -162,7 +166,7 @@ try {
     for (const entree of readdirSync(repertoire, { withFileTypes: true })) {
       const chemin = join(repertoire, entree.name);
       if (entree.isDirectory()) normaliser(chemin);
-      else if (chemin.startsWith(join(runtime, "src"))) chmodSync(chemin, 0o644);
+      else if (chemin.startsWith(join(runtime, "src")) || chemin.startsWith(join(runtime, "agents"))) chmodSync(chemin, 0o644);
     }
   };
   normaliser(arbre);
