@@ -2,13 +2,14 @@
 // doivent porter pour qu'un cook puisse y être lancé, vérifié d'un coup et sans
 // rien lancer ; les labels créés ; le coût du setup mesuré ; la désinstallation.
 import assert from "node:assert/strict";
-import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
-import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
+import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier as verifierLaBox, jugerRenouvellement, type Constat } from "../src/installation.ts";
+import type { EtatDuRenouvellement, Systemd } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
 import { poserDecision, retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
@@ -64,57 +65,69 @@ type Porte = { bindings?: string | null; gates?: Fichier | null; setup?: Fichier
 
 // Le dépôt d'un projet tel qu'il est poussé sur son origine, fabriqué une fois
 // par fichier pour chaque chose qu'un test lui fait porter : chaque test en
-// reçoit une copie, et copier coûte bien moins que rejouer `git`.
+// reçoit une copie, et copier coûte bien moins que rejouer `git`. Le commit
+// est écrit d'un geste dans l'origine (`git fast-import`), chaque fichier avec
+// le mode que git lui donne : 100755 exécutable, 120000 un lien.
 const gabarits = new Map<string, string>();
+let cloneNeuf: string | undefined;
 function gabarit(porte: Porte): string {
   const cle = JSON.stringify(porte);
   const connu = gabarits.get(cle);
   if (connu !== undefined) return connu;
   const racine = repertoireDuFichier("brigade-test-installation-", () => gabarits.clear());
-  mkdirSync(join(racine, "clone"));
-  const [origine, travail] = [join(racine, "origine.git"), join(racine, "travail")];
+  const origine = join(racine, "origine.git");
   git(racine, "init", "-q", "--bare", `--initial-branch=${BASE}`, origine);
-  git(racine, "init", "-q", `--initial-branch=${BASE}`, travail);
   const fichiers: Record<string, Fichier | null> = {
+    LISEZMOI: { contenu: "le projet\n" },
     "CLAUDE.md": porte.bindings === null ? null : { contenu: porte.bindings ?? BINDINGS },
     [GATES]: porte.gates === undefined ? { contenu: "#!/usr/bin/env bash\nexit 0\n", executable: true } : porte.gates,
     [SETUP]: porte.setup === undefined ? { lien: FAUX_SETUP } : porte.setup,
     ".claude/brigade/secrets": porte.secrets === undefined ? null : { contenu: porte.secrets },
   };
-  writeFileSync(join(travail, "LISEZMOI"), "le projet\n");
+  const donnee = (texte: string) => `data ${Buffer.byteLength(texte)}\n${texte}\n`;
+  const flux = [`commit refs/heads/${BASE}\n`, `committer cook <cook@brigade.test> ${Math.floor(Date.now() / 1000)} +0000\n`, donnee("installe brigade")];
   for (const [chemin, fichier] of Object.entries(fichiers)) {
     if (fichier === null) continue;
-    const cible = join(travail, chemin);
-    mkdirSync(dirname(cible), { recursive: true });
-    if ("lien" in fichier) symlinkSync(fichier.lien, cible);
-    else {
-      writeFileSync(cible, fichier.contenu);
-      if (fichier.executable) chmodSync(cible, 0o755);
-    }
+    const [mode, contenu] = "lien" in fichier ? ["120000", fichier.lien] : [fichier.executable ? "100755" : "100644", fichier.contenu];
+    flux.push(`M ${mode} inline ${chemin}\n`, donnee(contenu));
   }
-  git(travail, "add", ".");
-  // Le droit d'exécution, tel que git le commite : sous Windows, git ne lit pas
-  // celui du disque (`core.fileMode` faux), et l'aurait commité en 100644.
-  for (const [chemin, fichier] of Object.entries(fichiers)) {
-    if (fichier !== null && "contenu" in fichier && fichier.executable) git(travail, "update-index", "--chmod=+x", chemin);
+  execFileSync("git", ["fast-import", "--quiet"], { cwd: origine, env: ENV_GIT, input: flux.join(""), stdio: ["pipe", "pipe", "pipe"] });
+  // Le clone réservé, posé avant l'installation, le même pour tous. Neuf, il ne
+  // connaît pas encore ce que l'origine porte : la vérification en rapporte les
+  // objets. À jour, la station en a déjà rapporté les objets — sans qu'aucune
+  // de ses références ne bouge, comme la vérification les laisse.
+  if (cloneNeuf === undefined) {
+    const neuf = repertoireDuFichier("brigade-test-installation-clone-", () => void (cloneNeuf = undefined));
+    git(neuf, "init", "-q", `--initial-branch=${BASE}`);
+    git(neuf, "remote", "add", "origin", ORIGINE);
+    cloneNeuf = neuf;
   }
-  git(travail, "commit", "-q", "-m", "installe brigade");
-  git(travail, "push", "-q", origine, BASE);
-  // Le clone réservé : posé avant l'installation, il ne connaît pas encore ce
-  // que l'origine porte.
-  git(join(racine, "clone"), "init", "-q", `--initial-branch=${BASE}`);
-  git(join(racine, "clone"), "remote", "add", "origin", ORIGINE);
-  rmSync(travail, { recursive: true });
+  cpSync(cloneNeuf, join(racine, "clone-neuf"), { recursive: true });
+  cpSync(cloneNeuf, join(racine, "clone"), { recursive: true });
+  git(join(racine, "clone"), "fetch", "-q", "--no-write-fetch-head", origine, `refs/heads/${BASE}`);
+  // Ce que le chef a décidé : au journal du projet, leur seul support — posé
+  // une fois pour toutes, et copié avec le reste.
+  mkdirSync(join(racine, "etat"));
+  const journal = ouvrirJournal(join(racine, "etat"));
+  try {
+    for (const [nom, valeur] of Object.entries(DECIDEES)) poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" });
+  } finally {
+    journal.fermer();
+  }
   gabarits.set(cle, racine);
   return racine;
 }
 
 // Un projet installé : son dépôt poussé sur l'origine, le clone réservé, le
 // répertoire d'état, et l'environnement du service — celui que la commande lit.
-function projet(t: TestContext, porte: Porte = {}) {
+// `clone` : neuf, ou à jour des objets de l'origine (voir `gabarit`).
+function projet(t: TestContext, porte: Porte = {}, { clone: tenu = "a-jour" }: { clone?: "neuf" | "a-jour" } = {}) {
   const racine = repertoireTemporaire(t);
-  cpSync(gabarit(porte), racine, { recursive: true });
+  const source = gabarit(porte);
+  const ecarte = join(source, tenu === "neuf" ? "clone" : "clone-neuf");
+  cpSync(source, racine, { recursive: true, filter: (chemin) => chemin !== ecarte });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  if (tenu === "neuf") renameSync(join(racine, "clone-neuf"), clone);
   // Écrite avec des barres obliques : dans la configuration de git, la
   // contre-oblique d'un chemin de Windows serait un échappement, et le fichier
   // illisible.
@@ -122,7 +135,6 @@ function projet(t: TestContext, porte: Porte = {}) {
   writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine.replaceAll("\\", "/")));
 
   const etat = join(racine, "etat");
-  mkdirSync(etat);
   // Le réglage du geste d'installation, et la racine qu'il déclare : ceux du
   // test, tenus par le compte qui joue — la box de test n'a pas de root.
   mkdirSync(join(racine, "sauvegardes"), { mode: 0o755 });
@@ -153,14 +165,6 @@ function projet(t: TestContext, porte: Porte = {}) {
     // Le répertoire temporaire de `claude` : celui du test, pas celui de la machine.
     CLAUDE_CODE_TMPDIR: racine,
   };
-  // Ce que le chef a décidé : au journal du projet, leur seul support — ouvert
-  // une fois pour toutes.
-  const journal = ouvrirJournal(etat);
-  try {
-    for (const [nom, valeur] of Object.entries(DECIDEES)) poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" });
-  } finally {
-    journal.fermer();
-  }
   return { origine, clone, etat, unites, racine, gh, env };
 }
 
@@ -193,6 +197,12 @@ function decisionBrute(etat: string, nom: string, valeur: string): void {
   }
 }
 
+// La vérification, sans le systemd de la box qui joue la suite : la ligne du
+// renouvellement n'est pas de celles que ces tests regardent (elle a ses propres
+// tests, qui injectent le leur), et la lire coûterait deux process à chaque fois.
+const MINUTEUR_INACTIF: Systemd = { minuteurActif: async () => false, passages: async () => [] };
+const verifier = (env: NodeJS.ProcessEnv, systemd: Systemd = MINUTEUR_INACTIF) => verifierLaBox(env, systemd);
+
 const manques = (constats: Constat[]) => constats.filter((constat) => constat.etat === "manque").map((constat) => constat.texte);
 // La ligne du renouvellement n'est pas de celles que ces tests regardent : elle a ses propres tests.
 const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note" && !constat.texte.startsWith("renewal")).map((constat) => constat.texte);
@@ -214,6 +224,40 @@ function sansReglageSousWindows(racine: string): void {
   if (SOUS_WINDOWS) rmSync(join(racine, "installateur.conf"));
 }
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
+
+// La commande du chef, dans son propre process.
+const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
+  const enfant = lancer(t, CLI, args, env);
+  return { code: await enfant.fin, sortie: enfant.sortie() };
+};
+// Le verdict pour l'app : le même, en JSON, sur une ligne — et la sortie
+// brute est celle que la commande écrit en texte, au caractère près.
+const juger = async (t: TestContext, env: Record<string, string>) => {
+  const { code, sortie } = await commande(t, env, "--json");
+  return { code, verdict: JSON.parse(sortie) as Verdict };
+};
+// Un projet prêt et un projet mal installé, chacun lu une fois en texte puis
+// en JSON : les tests du texte et celui du verdict regardent les mêmes sorties.
+// Le premier test qui en a besoin pose le projet et lance les deux lectures ;
+// chacun attend qu'elles soient dites toutes deux, car le projet part avec ce
+// premier test.
+const lectures = new Map<string, Promise<{ texte: { code: number | null; sortie: string }; json: Awaited<ReturnType<typeof juger>> }>>();
+const lu = (t: TestContext, cas: "pret" | "mal-installe") => {
+  const connue = lectures.get(cas);
+  if (connue !== undefined) return connue;
+  const lecture = (async () => {
+    const installe = cas === "pret" ? projet(t) : projet(t, { gates: null });
+    sansReglageSousWindows(installe.racine);
+    if (cas === "mal-installe") {
+      installe.gh.repondre(LABELS_DU_DEPOT, { corps: [] });
+      sansDecision(installe.etat, "BRIGADE_REVIEWER_MODEL");
+    }
+    const texte = await commande(t, installe.env);
+    return { texte, json: await juger(t, installe.env) };
+  })();
+  lectures.set(cas, lecture);
+  return lecture;
+};
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("les variables obligatoires", { concurrency: 8 }, () => {
@@ -362,8 +406,9 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("la vérification", { concurrency: 8 }, () => {
+  // Le clone neuf : la vérification rapporte les objets de la base qu'il ne connaît pas.
   test("un projet installé est prêt : rien ne manque", async (t) => {
-    const { env } = projet(t);
+    const { env } = projet(t, {}, { clone: "neuf" });
 
     const constats = await verifierHorsModes(env);
 
@@ -372,7 +417,8 @@ describe("la vérification", { concurrency: 8 }, () => {
   });
 
   test("elle ne lance ni cook ni setup, n'écrit rien sur GitHub et ne déplace rien dans le clone", async (t) => {
-    const { env, gh, etat, clone } = projet(t);
+    // Le clone neuf : les objets de la base y sont rapportés, et rien d'autre n'y bouge.
+    const { env, gh, etat, clone } = projet(t, {}, { clone: "neuf" });
     const refs = git(clone, "for-each-ref");
 
     await verifier(env);
@@ -416,9 +462,9 @@ describe("la vérification", { concurrency: 8 }, () => {
   });
 
   test("les stations déclarées par l'étape d'installation, la vérification ne dit plus « aucune station » : le projet est prêt", async (t) => {
+    // Sans station, la vérification la dit manquer : le test précédent le prouve.
     const { env, etat } = projet(t);
     sansDecision(etat, "BRIGADE_STATIONS");
-    assert.equal(manques(await verifierHorsModes(env)).length, 1);
 
     const declaration = appeler(declarerStations, ["box/claude:2:code+raisonnement"], env);
     assert.equal(await declaration.fin, 0, declaration.sortie());
@@ -815,10 +861,11 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     { quoi: "le calibrage du reviewer absent", etape: "decisions", casser: ({ etat }) => sansDecision(etat, "BRIGADE_REVIEWER_MODEL") },
   ];
 
+  // Le projet, avant d'être cassé, est prêt : « un projet installé est prêt »
+  // le prouve du même gabarit.
   for (const { quoi, etape, casser } of BLOCAGES) {
     test(`${quoi} : la vérification est rouge, d'un seul manque, qui nomme l'étape « ${etape} »`, async (t) => {
       const lu = projet(t);
-      assert.deepEqual(manques(await verifierHorsModes(lu.env)), []);
       casser(lu);
 
       const constats = await verifierHorsModes(lu.env);
@@ -852,15 +899,16 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
   });
 
   test("la commande la dit rouge, et nomme pour chaque manque l'étape à reprendre", async (t) => {
-    const { env, etat, racine } = projet(t);
-    sansReglageSousWindows(racine);
-    sansDecision(etat, "BRIGADE_STATIONS");
+    // Le projet mal installé de « la commande du chef » : trois manques, de trois étapes.
+    const { code, sortie } = (await lu(t, "mal-installe")).texte;
 
-    const commande = lancer(t, CLI, [], env);
-
-    assert.equal(await commande.fin, 1, commande.sortie());
-    assert.match(commande.sortie(), /→ step to resume: 4\. Déclarer les stations \(stations\)/);
-    assert.match(commande.sortie(), /project “calculus” : 1 missing : no cook must be launched while any is left — to resume: 4\. Déclarer les stations$/m);
+    assert.equal(code, 1, sortie);
+    assert.deepEqual(sortie.match(/→ step to resume: .*/g), [
+      "→ step to resume: 6. Poser les décisions que le démarrage réclame (decisions)",
+      "→ step to resume: 2. Amorcer le dépôt (init)",
+      "→ step to resume: 3. Vérifier la box (verification)",
+    ]);
+    assert.match(sortie, /project “calculus” : 3 missing : no cook must be launched while any is left — to resume: 2\. Amorcer le dépôt, 3\. Vérifier la box, 6\. Poser les décisions que le démarrage réclame$/m);
   });
 
   test("« installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire", async (t) => {
@@ -1360,16 +1408,8 @@ describe("la désinstallation", { concurrency: 8 }, () => {
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("la commande du chef", { concurrency: 8 }, () => {
-  const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
-    const enfant = lancer(t, CLI, args, env);
-    return { code: await enfant.fin, sortie: enfant.sortie() };
-  };
-
   test("un projet prêt : elle le dit et sort en 0", async (t) => {
-    const { env, racine } = projet(t);
-    sansReglageSousWindows(racine);
-
-    const { code, sortie } = await commande(t, env);
+    const { code, sortie } = (await lu(t, "pret")).texte;
 
     assert.match(sortie, new RegExp(`project “${PROJET}” : ready`));
     assert.doesNotMatch(sortie, /MANQUE/);
@@ -1389,12 +1429,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 
   test("un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1", async (t) => {
-    const { env, gh, etat, racine } = projet(t, { gates: null });
-    sansReglageSousWindows(racine);
-    gh.repondre(LABELS_DU_DEPOT, { corps: [] });
-    sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
-
-    const { code, sortie } = await commande(t, env);
+    const { code, sortie } = (await lu(t, "mal-installe")).texte;
 
     assert.match(sortie, /MISSING +BRIGADE_REVIEWER_MODEL n'est pas défini/);
     assert.match(sortie, /MISSING +`\.claude\/brigade\/gates\.sh`/);
@@ -1452,19 +1487,8 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  // Le verdict pour l'app : le même, en JSON, sur une ligne — et la sortie
-  // brute est celle que la commande écrit en texte, au caractère près.
-  const juger = async (t: TestContext, env: Record<string, string>) => {
-    const { code, sortie } = await commande(t, env, "--json");
-    return { code, verdict: JSON.parse(sortie) as Verdict };
-  };
-
   test("`--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe", async (t) => {
-    const { env, racine } = projet(t);
-    sansReglageSousWindows(racine);
-
-    const texte = await commande(t, env);
-    const { code, verdict } = await juger(t, env);
+    const { texte, json: { code, verdict } } = await lu(t, "pret");
 
     assert.equal(verdict.verdict, "pret");
     assert.deepEqual(verdict.manques, []);
@@ -1473,13 +1497,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 
   test("`--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment", async (t) => {
-    const { env, gh, etat, racine } = projet(t, { gates: null });
-    sansReglageSousWindows(racine);
-    gh.repondre(LABELS_DU_DEPOT, { corps: [] });
-    sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
-
-    const texte = await commande(t, env);
-    const { code, verdict } = await juger(t, env);
+    const { texte, json: { code, verdict } } = await lu(t, "mal-installe");
 
     assert.equal(verdict.verdict, "pas-pret");
     assert.equal(verdict.manques.length, 3);
