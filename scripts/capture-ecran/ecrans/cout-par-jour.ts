@@ -40,7 +40,7 @@ export const ecran: Ecran = {
   dit: "L'onglet Cost de « parade », la box communiquant ses jours : sous les trois chiffres, la courbe des tokens par jour, une ligne par projet",
   largeur: 1440,
   hauteur: 900,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

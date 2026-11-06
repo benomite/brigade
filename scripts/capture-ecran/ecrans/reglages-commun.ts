@@ -39,7 +39,7 @@ export type Poste = "mac" | "pc" | "telephone";
 export const LARGEURS: Record<Poste, { largeur: number; hauteur: number }> = { mac: { largeur: 1440, hauteur: 1100 }, pc: { largeur: 1920, hauteur: 1080 }, telephone: { largeur: 412, hauteur: 1700 } };
 
 // Un clic sur l'entrée de parade, puis sur Settings.
-export const OUVRIR: Etape[] = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }];
+export const OUVRIR: Etape[] = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }];
 
 export function donnees(poste: Poste): Donnees {
   const machine = poste === "pc" ? "pc" : "mac";

@@ -27,7 +27,7 @@
 // partie closer, qui écrit dans le second le réglage du closer sans l'envoyer (boutons.ts). La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
-// Settings (ticket 1700) ne tient que ce que le chef règle, en trois groupes — le projet, cette machine, toi —, une
+// Settings (tickets 1700, 2494) ne tient que les réglages du projet, dans un seul groupe, une
 // ligne par réglage : son nom, sa valeur en vigueur, un seul contrôle. Les grants y sont une ligne chacun, déjà lus par
 // le process principal (grants.ts) : son état, ce qu'il lui reste, et un interrupteur dont le clic ouvre la
 // confirmation qui dit ce que le grant change avant de partir.
@@ -40,7 +40,7 @@
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
 // recueille, signale le champ qu'on lui nomme, et pose ce qu'on lui rend.
 // L'installation guidée et la vérification de l'installation ne sont plus dans la vue (ticket 1700) : l'app n'a besoin
-// que d'une connexion GitHub. Le retrait du projet est une ligne de Settings, sous toi : le retirer de l'app, qui
+// que d'une connexion GitHub. Le retrait du projet est une ligne de Settings, dans le groupe du projet : le retirer de l'app, qui
 // n'envoie rien à sa station, après un « yes » — ce qui se refuse et ce qui s'en dit se décident dans retrait.ts.
 // La page d'un worktree servi n'est plus nulle part dans l'app (ticket 1846) : le chef suit ce que fait le cook, sur la
 // fiche de son ticket (activite-du-cook.js), et sa PR, et essaie l'app construite une fois mergée.
@@ -56,7 +56,7 @@
 // de l'espace, à droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du
 // rail est marquée à l'arrêt d'une ligne (ticket 906).
 // Arrêter la cuisine est une ligne de Settings, sous le projet.
-// Dans Settings, sous cette machine, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
+// Posé dans le conteneur caché de ce qui était sous cette machine, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
 // dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
@@ -267,11 +267,10 @@ let conversationDuTelephone;
 const message = element("message");
 const etat = element("etat");
 const journal = element("journal");
-// Settings (ticket 1700) : trois groupes, un par niveau — le projet, cette machine, toi. Chacun a son titre, le mot du
-// niveau ; un groupe sans réglage le dit en une ligne.
+// Settings (ticket 1700, 2494) : un seul groupe, le projet. Ce qui était à cette machine n'y est plus : ses lignes sont
+// toujours posées, dans un conteneur caché, jusqu'à ce que Stations les reprenne.
 const groupeMachine = element("reglages-machine");
 const videProjet = element("vide-project");
-const videMachine = element("vide-machine");
 const retrait = element("retrait");
 const couleurs = element("couleurs");
 const sigle = element("sigle");
@@ -423,7 +422,7 @@ const base = /** @type {HTMLInputElement} */ (element("base"));
 const envoi = /** @type {HTMLButtonElement} */ (element("ajouter"));
 const issueAjout = element("issue-ajout");
 const relecture = element("relecture");
-// Dans Settings, sous cette machine : le code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
+// Posé dans le conteneur caché de ce qui était sous cette machine : le code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
 const code = document.createElement("div");
 code.id = "code";
 code.ariaLive = "polite";
@@ -1565,7 +1564,7 @@ function montrer() {
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
   rail.inert = !contenu.hidden || !fiche.hidden;
-  // Settings est une seule page, sans sous-pages (ticket 1700) : ses trois groupes, et rien d'autre.
+  // Settings est une seule page, sans sous-pages (ticket 1700) : son seul groupe, celui du projet, et rien d'autre.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
   luOnglet.hidden = relaye === undefined;
   // Le journal : un geste, pas un onglet. Le recliquer le referme.
@@ -2716,12 +2715,10 @@ function refusDeReglage(texte) {
   return [dit];
 }
 
-// Les trois groupes de Settings : leur titre est le mot du niveau (niveaux.js), son survol dit où ses réglages sont
-// gardés. Un groupe sans réglage le dit en une ligne — celui de toi a toujours les couleurs.
+// Le groupe de Settings : son titre est le mot du niveau (niveaux.js), son survol dit où ses réglages sont gardés. Sans
+// réglage, il le dit en une ligne.
 for (const [niveau, aide] of /** @type {const} */ ([
   ["project", "the project's settings — those in its repository change by a pull request, held for you; its grants and its kitchen are set on the station that serves it"],
-  ["machine", NIVEAUX_DITS.machine.survol],
-  ["you", NIVEAUX_DITS.you.survol],
 ])) {
   const titre = element(`niveau-${niveau}`);
   titre.dataset.niveau = niveau;
@@ -2730,10 +2727,8 @@ for (const [niveau, aide] of /** @type {const} */ ([
 function poserLesGroupes() {
   videProjet.hidden = !reglagesDuProjet.hidden || !grants.hidden || !arreterCuisine.hidden;
   videProjet.textContent = videProjet.hidden ? "" : "nothing to set: no station reads this project";
-  videMachine.hidden = !ordinaires.hidden || !appsGithub.hidden || !projetsServis.hidden || !code.hidden;
-  videMachine.textContent = videMachine.hidden ? "" : `nothing to set on ${POSTE.nom} for this project`;
 }
-// Le projet dans ton app (ticket 1700) : une ligne du groupe de toi — il est dans la barre, et « Remove from the app »
+// Le projet dans ton app (ticket 1700) : une ligne du groupe du projet — il est dans la barre, et « Remove from the app »
 // l'en retire ; rien ne part vers sa station, ce que le survol du bouton dit. Le clic demande d'abord un « yes » : un
 // projet ne se retire pas d'un clic perdu. Refusé, la raison se lit sous la ligne.
 /** @param {Projet} projet @param {Retrait | undefined} pose */
@@ -2754,7 +2749,7 @@ function poserRetrait(projet, pose) {
     retraitDeLApp === projet.nom
       ? [bouton(`yes, remove “${projet.nom}” from the app`, () => void retirerDeLApp(projet)), bouton("no", () => ((retraitDeLApp = ""), poserRetrait(projet, pose)))]
       : [demande];
-  retrait.replaceChildren(rangeeDeReglage("in your app", [bloc("span", "in the bar")], controle, refusDeReglage(nonRetire.refus)));
+  retrait.replaceChildren(rangeeDeReglage("Remove this project from the app's sidebar", [], controle, refusDeReglage(nonRetire.refus)));
 }
 
 // L'accent de l'espace affiché : celui de son projet, à la place de celui de la peau — posé sur la
@@ -2765,7 +2760,7 @@ function teindre() {
   else document.documentElement.style.setProperty("--accent", accent);
 }
 
-// Les couleurs du projet, dans le groupe de toi de Settings : une ligne par rôle — la couleur qu'il porte, puis une
+// Les couleurs du projet, dans le groupe du projet de Settings : une ligne par rôle — la couleur qu'il porte, puis une
 // pastille par couleur de la palette, celle qu'il porte pressée, et le sélecteur d'une couleur libre. Une couleur libre
 // se montre aussi, pressée, au bout de la palette : la palette est ce que l'app propose, pas ce qu'elle exige. Trop
 // proche d'une couleur d'état ou de celle d'un autre projet, elle reste, et une ligne sous la sienne dit laquelle
@@ -2816,7 +2811,7 @@ function poserCouleurs(projet) {
   couleurs.replaceChildren(rangee("onglet", "tab, in the bar"), rangee("accent", "accent, in the space"), ...refusDeReglage(couleurRefusee.refus));
 }
 
-// Le sigle du projet, dans le groupe de toi de Settings (ticket 1983) : celui que sa case écrit — tiré de son nom, ou
+// Le sigle du projet, dans le groupe du projet de Settings (ticket 1983) : celui que sa case écrit — tiré de son nom, ou
 // le tien —, et le champ où l'écrire. Écrit, il part dès que le champ change ; vidé, ou par « back to its name », la
 // case reprend celui que l'app tire de son nom. Refusé, la raison se lit sous la ligne.
 /** @param {Projet} projet */

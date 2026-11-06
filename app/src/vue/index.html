@@ -99,7 +99,7 @@
            bouton, ou Échap —, elle rend le rail tel qu'il était. Une page ouverte se pose par-dessus elle aussi. -->
       <section id="fiche" role="dialog" aria-label="The ticket's sheet" tabindex="-1" hidden></section>
       <section id="contenu" hidden>
-        <!-- Settings (ticket 1700) : seulement ce que le chef règle, en trois groupes — le projet, cette machine, toi.
+        <!-- Settings (ticket 1700, 2494) : seulement les réglages du projet.
              Chaque réglage dit sa valeur et a un seul contrôle pour la changer ; ni statistique, ni historique, ni texte
              d'explication. -->
         <section id="etat" aria-label="Settings" hidden>
@@ -111,24 +111,19 @@
             <div id="reglages-du-projet" aria-live="polite" hidden></div>
             <div id="grants" aria-label="The grants" hidden></div>
             <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
-          </section>
-          <!-- Cette machine : ses tickets ordinaires, pour un projet dont elle joue une station ; les GitHub Apps de sa
-               station, une par rôle (ticket 2317) ; les projets que sert sa station (ticket 2359). -->
-          <section id="reglages-machine" class="groupe" aria-label="This machine">
-            <h2 id="niveau-machine" class="niveau-du-groupe"></h2>
-            <p id="vide-machine" class="vide" hidden></p>
-            <div id="ordinaires" aria-label="Ordinary tickets on this computer" hidden></div>
-            <div id="apps-github" aria-label="This station's GitHub Apps" hidden></div>
-            <div id="projets-servis" aria-label="The projects this computer serves" hidden></div>
-          </section>
-          <!-- Toi : le sigle du projet dans la barre, ses couleurs, et sa place dans ton app. -->
-          <section id="reglages-toi" class="groupe" aria-label="You">
-            <h2 id="niveau-you" class="niveau-du-groupe"></h2>
             <div id="sigle" aria-label="The project's label in the bar" hidden></div>
             <div id="couleurs" aria-label="The project colors" hidden></div>
-            <div id="retrait" aria-label="This project in your app" hidden></div>
+            <div id="retrait" aria-label="Remove this project from the app's sidebar" hidden></div>
           </section>
         </section>
+        <!-- Ce qui était sous « This machine » (ticket 2494) n'est plus dans Settings, qui ne tient que les réglages du
+             projet : ses lignes attendent ici, cachées, que le ticket qui les range dans Stations les y pose. -->
+        <div id="reglages-machine" hidden>
+          <p id="vide-machine" class="vide" hidden></p>
+          <div id="ordinaires" aria-label="Ordinary tickets on this computer" hidden></div>
+          <div id="apps-github" aria-label="This station's GitHub Apps" hidden></div>
+          <div id="projets-servis" aria-label="The projects this computer serves" hidden></div>
+        </div>
         <p id="lu-onglet" aria-live="polite"></p>
         <div id="lecture-onglet"></div>
       </section>

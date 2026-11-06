@@ -11,7 +11,7 @@ export const ecran: Ecran = {
   dit: "Les réglages de « parade » sur un PC sous Windows : le bloc « Ordinary tickets on this PC » et pourquoi ce poste n'en prend pas (#1154)",
   largeur: 1440,
   hauteur: 900,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets > button:first-child" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: {
