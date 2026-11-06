@@ -144,7 +144,7 @@ import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/Ajout
 import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
-import { poserBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
+import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
 import { poserBlocBloqueSansQuestion } from "./projet/cuisine/sante/BloqueSansQuestion.js";
 import { poserBlocPlafondsDuree } from "./projet/cuisine/sante/PlafondsDuree.js";
@@ -154,7 +154,7 @@ import { poserBlocCahier } from "./projet/cuisine/cuisiniers/Cahier.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
-import { casesDesVersions, poserVersionsDesStations } from "./station-version/station-version.js";
+import { casesDesVersions, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -678,7 +678,30 @@ ratiosDeLAccueil.append(ouvrirLesRatios);
 // ligne de santé. Leur page reste ouverte par les chemins qui y mènent encore — celle d'une station, par sa ligne dans
 // l'onglet Stations d'un projet.
 const blocDesProjets = poserBlocDesProjets(document, projetsDeLAccueil);
-const blocDeLaStation = poserBlocDeLaStation(document);
+// Les premiers réglages de la station qu'on vient d'installer : se connecter à GitHub (le geste que l'app a déjà), puis
+// choisir les projets qu'elle sert, sur sa page.
+const blocDeLaStation = tenirBlocDeLaStation(document, {
+  installer: async () => (brigade.installerLaStation === undefined ? { refus: "this app cannot install the station on this device" } : brigade.installerLaStation()),
+  etapes: [
+    {
+      nom: "GitHub",
+      dit: "the station reads and pushes your projects through your GitHub account",
+      ...(brigade.seConnecterAGitHub === undefined
+        ? {}
+        : {
+            geste: {
+              libelle: "Connect to GitHub",
+              faire: async () => {
+                const debut = await brigade.seConnecterAGitHub?.();
+                return debut !== undefined && "refus" in debut ? debut : undefined;
+              },
+            },
+          }),
+    },
+    { nom: "Projects", dit: "choose which projects this station serves, on its page — you can do it later" },
+  ],
+  ouvrir: (id) => ouvrirStation(id),
+});
 element("hors-de-l-accueil").append(stationsDeLAccueil, coutsDeLAccueil, ratiosDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
 const pageDesRatios = document.createElement("section");
 pageDesRatios.id = "ratios";
@@ -8332,7 +8355,8 @@ function ouvrirTous() {
   poserAccueil();
   poserCout();
   poserRatios();
-  tous.replaceChildren(blocDesProjets, blocDeLaStation);
+  poserBlocStation();
+  tous.replaceChildren(blocDesProjets, blocDeLaStation.racine);
   brigade.tous(++demande);
   void lireLesEnregistrees();
 }
@@ -8366,6 +8390,18 @@ function poserStationsDeLAccueil() {
   if (stationOuverte !== undefined) poserLesProjetsChoisis();
 }
 
+// Le bloc de la station de l'accueil (ticket 2640) : celle de cet ordinateur — installée quand les stations du chef la
+// nomment, ou que son statut se lit —, et les autres du chef. Rien n'est dit tant que les stations ne sont pas lues.
+function poserBlocStation() {
+  const locale = projetsVus?.locale ?? null;
+  const toutes = stationsVues?.stations ?? [];
+  const dite = (/** @type {import("../stations/stations.ts").StationVue} */ { id, nom, ligne }) => ({ id, nom, phrase: ligne });
+  const ici = locale === null ? undefined : toutes.find(({ id }) => id === locale);
+  if (stationsVues === undefined && statutLu(statutDeLaStationVu) === undefined) return blocDeLaStation.lire(undefined);
+  if (ici === undefined && statutLu(statutDeLaStationVu) === undefined) return blocDeLaStation.lire({ station: null });
+  const phrase = statutLu(statutDeLaStationVu) === undefined ? "installed" : `version ${statutLu(statutDeLaStationVu)?.stationVersion}`;
+  blocDeLaStation.lire({ station: ici === undefined ? { id: locale ?? "", nom: POSTE.nom, phrase } : dite(ici), autres: toutes.filter(({ id }) => id !== locale).map(dite) });
+}
 // Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
 // dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
 /** @type {unknown} */
@@ -9061,11 +9097,13 @@ void Promise.resolve(brigade.avisDeVersion()).then((avis) => bandeauDeVersion.re
 brigade.surStatutDeLaStation?.((statut) => {
   statutDeLaStationVu = statut;
   poserLesVersions();
+  poserBlocStation();
 });
 void Promise.resolve(brigade.statutDeLaStation?.()).then(
   (statut) => {
     statutDeLaStationVu = statut;
     poserLesVersions();
+    poserBlocStation();
   },
   () => undefined,
 );
@@ -9073,6 +9111,7 @@ void Promise.resolve(brigade.statutDeLaStation?.()).then(
 brigade.surStations((vu) => {
   stationsVues = vu;
   poserLesVersions();
+  poserBlocStation();
   if (stationOuverte !== undefined) poserPageDeStation();
   poserChoixDesStations();
   poserStationsDuProjet();

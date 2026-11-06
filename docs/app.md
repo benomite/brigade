@@ -1081,6 +1081,16 @@ A station's page is still opened from its row in a project's Stations tab, and a
 the new-version line at the top of the app; the rest of what follows about those rows describes the parked sections.
 Captures: `docs/captures/2638/`.
 
+**The station block (#2640, epic #2497).** Three states, in `BlocDeLaStation.js`. **No station on this computer**: one
+recommended button, **Install this computer's station**, and no other setting. A click runs `installerLaStation` of the
+bridge ("installing the station…", no button meanwhile), then walks the first settings one step at a time — "Step 1 of 2
+— GitHub" (**Connect to GitHub**, the gesture the app already has), "Step 2 of 2 — Projects" — each with **Next**, the
+last with **Done**, until "the station is ready". A refusal is one line, its detail on hover, and the button comes back.
+**Installed**: the station's name and its line, and **Open its page**; no install button. **Your other stations** are
+listed under it, each row opening its page. The bridge's `installerLaStation` is optional: the main process does not
+carry it yet, so on a build without it the button answers "this app cannot install the station on this device". Test:
+`app/test/accueil/bloc-de-la-station.test.ts`.
+
 *Ticket: #870.* The app opens on it, and the round **T** icon, at the head of the bar, brings you back to it. It is
 **the overview of brigade**: what is cross-cutting, and nothing else. What belongs to a project —
 a piece of information, a setting, an action — is in its space; what belongs to a station, on its page.
