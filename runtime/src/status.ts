@@ -21,6 +21,7 @@ import { direGitHubSeul, lireGitHubSeul } from "./github-seul-etat.ts";
 import { direLesAppelsParIdentite, lireAppelsParIdentite } from "./appels-par-identite.ts";
 import { lireDeriveGithub } from "./closer-github-passe/derive-github.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
+import { ligneDesRedemarrages } from "./redemarrages/journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
@@ -145,6 +146,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   // Le mode d'identité qu'a annoncé la cuisine, et les appels de chaque identité, jamais remis à zéro (#2316).
   lignes.push(...direLesAppelsParIdentite(lireAppelsParIdentite(env, etat.projet ?? env.BRIGADE_PROJECT ?? "")).map((texte, i) => `${(i === 0 ? "identity" : "").padEnd(11)}${texte}`));
   if (githubSeul !== null) lignes.push(direGitHubSeul(githubSeul));
+  // Les redémarrages de la station des dernières 24 heures (#2589).
+  lignes.push(ligneDesRedemarrages(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Les `blocked-on-human` demandés sans question sur la carte, jamais remis à zéro (#2556).
   lignes.push(`${"blocked w/o q".padEnd(11)} ${lireBlocagesSansQuestion(env.BRIGADE_STATE_DIR)}`);
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));

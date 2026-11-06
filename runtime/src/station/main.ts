@@ -18,7 +18,8 @@ import { lireLesStationsEtLeursGists } from "../appairage/stations-du-chef.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
 import { installerLimite, journaliserLaPause, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
-import { annoncerEnService } from "../mise-a-jour/en-service.ts";
+import { noterUnDemarrage } from "../redemarrages/journal.ts";
+import { annoncerEnService, versionDuRuntime } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirLaVidange } from "../mise-a-jour/vidange.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
@@ -93,6 +94,7 @@ mkdirSync(racine, { recursive: true });
 // Son nom, retenu à son premier démarrage — avant qu'aucun projet ne s'ouvre,
 // qui le relit (`cuisine.ts`) : la machine renommée par macOS reste la même
 // station (nom.ts).
+noterUnDemarrage(racine, versionDuRuntime());
 const nomRetenu = nomDeLaStation(racine, process.env);
 
 const dire = (ligne: string) => console.log(ligne);
