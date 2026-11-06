@@ -1435,7 +1435,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
 
 // Une station dont le cook reprend la branche que le clone porte déjà, conclut
 // « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
-async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date, poussee = false) {
+async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date, poussee: boolean | "locale" = false, pushes: string[] = [], refus?: Error) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   if (faux.tickets.size === 0) faux.feu(14);
@@ -1458,12 +1458,15 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
       reprendre: async (run) => join(repertoire, run),
       retirer: () => {},
       ranger: async () => null,
-      pousser: () => {},
+      pousser: (branche) => {
+        if (refus !== undefined) throw refus;
+        pushes.push(branche);
+      },
       commits: () => 1,
       changes: () => [],
       diff: () => "",
       tete: () => tete,
-      ...(poussee ? { livree: (branche: string) => `origin/${branche}` } : {}),
+      ...(poussee === "locale" ? { livree: (branche: string) => branche } : poussee ? { livree: (branche: string) => `origin/${branche}` } : {}),
     },
     prise: priseDeLaStation,
     claude: "claude",
@@ -1496,6 +1499,30 @@ test("a branch pushed without a PR is a delivery cut before its PR: it goes to t
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
   assert.ok(faux.prs.some((pr) => pr.branche === "cook/14-github" && pr.state === "open"));
   assert.doesNotMatch((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec/);
+});
+
+// #2610, 2026-11-06 : `cook/2594-github` n'existait que dans le clone ; la station la crut poussée, la PR fut refusée en 422, à chaque tour.
+test("a branch that exists only in the clone is pushed once, then its PR is opened: no loop (#2610)", async (t) => {
+  const pushes: string[] = [];
+  const faux = await repriseQui(t, false, false, 12, new FauxGitHub(), undefined, "locale", pushes);
+  assert.deepEqual(pushes, ["cook/14-github"]);
+  assert.equal(faux.prs.filter((pr) => pr.branche === "cook/14-github").length, 1);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
+  assert.doesNotMatch((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec/);
+});
+
+test("a branch only in the clone whose push fails goes back to a cook, not to the pass (#2610)", async (t) => {
+  const faux = await repriseQui(t, false, false, 12, new FauxGitHub(), undefined, "locale", [], new Error("git push : refused"));
+  assert.equal(faux.prs.length, 0);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+});
+
+test("a PR that GitHub refuses is not retried every turn: the ticket goes back to a cook with the reason, and counts as a failure (#2610)", async (t) => {
+  const faux = new FauxGitHub();
+  faux.refusDePR = new Error("gh api repos/faux/depot/pulls : HTTP 422");
+  await repriseQui(t, false, false, 12, faux, undefined, "locale");
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+  assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*GitHub refused the pull request[\s\S]*HTTP 422/);
 });
 
 test("a pushed branch that already had its PR is not delivered again: a cook that adds nothing to it still counts as failed (#2372, #2577)", async (t) => {

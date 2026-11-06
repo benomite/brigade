@@ -406,14 +406,28 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // Un renvoi pousse sur la branche d'une PR encore ouverte : elle porte
         // déjà la livraison, il n'en faut pas une seconde.
         const ouverte = await github.prDuTicket(issue);
-        if (ouverte === null || ouverte.state !== "open") await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
-        // `in-pass` avant le retrait de `taken` : entre les deux, aucune
-        // station ne lit le ticket libre.
-        await github.labelliser(issue, [LABEL_IN_PASS]);
-        await github.delabelliser(issue, LABEL_TAKEN);
-        // Livrée : sa relecture part tout de suite, pas au prochain tour (#2333).
-        station.presser?.(true);
-        return;
+        let refusee: string | null = null;
+        if (ouverte === null || ouverte.state !== "open") {
+          // Une PR que GitHub refuse (422, tête introuvable…) n'est pas rejouée à
+          // chaque tour : le ticket retourne à un cook avec le motif, et suit la
+          // voie des échecs (#2610).
+          try {
+            await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+          } catch (erreur) {
+            if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+            refusee = `GitHub refused the pull request of \`${fait.branche}\`: ${message(erreur)}`;
+          }
+        }
+        if (refusee === null) {
+          // `in-pass` avant le retrait de `taken` : entre les deux, aucune
+          // station ne lit le ticket libre.
+          await github.labelliser(issue, [LABEL_IN_PASS]);
+          await github.delabelliser(issue, LABEL_TAKEN);
+          // Livrée : sa relecture part tout de suite, pas au prochain tour (#2333).
+          station.presser?.(true);
+          return;
+        }
+        fait = { echec: refusee };
       }
       // Un cook qui s'arrête dans ses premiers tours après un renvoi, sans rien
       // ajouter, n'a pas travaillé sur les remarques : ce n'est pas un essai,
@@ -1327,10 +1341,26 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // une livraison : un cook la reprend (#2586).
     const sauvee = reprise && estUneSauvegarde(depot.sujet?.(branche));
     if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket was interrupted when its station restarted for an update. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
-    if (sansPR && !sauvee && avant !== null && depot.livree !== undefined && depot.tete?.(depot.livree(branche)) === avant) {
-      depot.retirer(worktree);
-      avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that never reached the pass (pushed, no PR): it goes to the pass as is, without a cook`);
-      return { branche };
+    if (sansPR && !sauvee && avant !== null && depot.livree !== undefined) {
+      const livree = depot.livree(branche);
+      // `livree` rend la branche locale quand l'origine n'a pas la sienne
+      // (`reprendre` vient de relire l'origine) : elle n'est alors pas poussée,
+      // quoi que dise le clone (#2610). Elle part d'abord sur GitHub ; si le push
+      // échoue, un cook la reprend.
+      let surGitHub = livree !== branche;
+      if (!surGitHub && depot.commits(branche) > 0) {
+        try {
+          depot.pousser(branche);
+          surGitHub = true;
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` is only in the clone and could not be pushed (${message(erreur)}): a cook resumes it`);
+        }
+      }
+      if (surGitHub && depot.tete?.(depot.livree(branche)) === avant) {
+        depot.retirer(worktree);
+        avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that never reached the pass (pushed, no PR): it goes to the pass as is, without a cook`);
+        return { branche };
+      }
     }
     if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;

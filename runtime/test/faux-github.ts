@@ -42,6 +42,8 @@ export class FauxGitHub {
   tickets = new Map<number, Ticket>();
   prs: PR[] = [];
   commentaires = new Map<number, Array<CommentaireDeVerdict & { station: string }>>();
+  // Le refus de GitHub à l'ouverture d'une PR (422…), s'il y en a un.
+  refusDePR: Error | null = null;
   appels: Array<{ station: string; quoi: string }> = [];
   // Les retraits de label, comme GitHub les date.
   retraits = new Map<number, Array<{ label: string; createdAt: string }>>();
@@ -202,6 +204,7 @@ export class FauxGitHub {
       },
       ouvrirPR: async ({ branche, corps }) => {
         await noter("ouvrirPR");
+        if (this.refusDePR !== null) throw this.refusDePR;
         const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
         const number = 1000 + this.prs.length;
         // En retard sur sa base dès l'ouverture : la mise à jour se joue.
