@@ -5,10 +5,10 @@ import assert from "node:assert/strict";
 import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { after, describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier as verifierLaBox, jugerRenouvellement, type Constat } from "../src/installation.ts";
+import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReglageDuGeste, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, REGLAGE_DU_GESTE, tenir, VARIABLES, verifier as verifierLaBox, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement, Systemd } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
 import { poserDecision, retirerDecision } from "../src/decisions.ts";
@@ -26,7 +26,8 @@ import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
+import { casEnProcess } from "./aides/cas-en-process.ts";
+import { appeler, BASE, DEPOT, ENV_ENFANT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
@@ -118,6 +119,14 @@ function gabarit(porte: Porte): string {
   return racine;
 }
 
+// Le réglage du geste d'installation, et la racine qu'il déclare : ceux du
+// test, tenus par le compte qui joue — la box de test n'a pas de root.
+function poserLeReglage(racine: string): void {
+  mkdirSync(join(racine, "sauvegardes"), { mode: 0o755 });
+  chmodSync(join(racine, "sauvegardes"), 0o755);
+  writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${join(racine, "sauvegardes")}\n`);
+}
+
 // Un projet installé : son dépôt poussé sur l'origine, le clone réservé, le
 // répertoire d'état, et l'environnement du service — celui que la commande lit.
 // `clone` : neuf, ou à jour des objets de l'origine (voir `gabarit`).
@@ -135,11 +144,7 @@ function projet(t: TestContext, porte: Porte = {}, { clone: tenu = "a-jour" }: {
   writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine.replaceAll("\\", "/")));
 
   const etat = join(racine, "etat");
-  // Le réglage du geste d'installation, et la racine qu'il déclare : ceux du
-  // test, tenus par le compte qui joue — la box de test n'a pas de root.
-  mkdirSync(join(racine, "sauvegardes"), { mode: 0o755 });
-  chmodSync(join(racine, "sauvegardes"), 0o755);
-  writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${join(racine, "sauvegardes")}\n`);
+  poserLeReglage(racine);
   // Ce que la box a posé : les unités du dépôt, copiées telles quelles.
   const unites = join(racine, "unites");
   mkdirSync(unites);
@@ -225,10 +230,27 @@ function sansReglageSousWindows(racine: string): void {
 }
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
-// La commande du chef, dans son propre process.
-const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
+// La commande du chef, dans son propre process : celle qui finit par son refus, le code de sortie de ce process.
+const lancee = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
   const enfant = lancer(t, CLI, args, env);
   return { code: await enfant.fin, sortie: enfant.sortie() };
+};
+// La commande du chef, réévaluée pour chaque cas dans un process d'essai (aides/cas-en-process.ts) au lieu d'un Node
+// chacun : ses modules ne s'y chargent qu'une fois. Chacun de ces cas a été comparé à son lancement — mêmes lignes,
+// même code. Deux process, pris par le moins occupé : un cas n'y attend pas le setup d'un autre test. Le refus d'une
+// commande inconnue, lui, est lancé : son `process.exit`, dans le `try` de la commande, serait pris par le process
+// d'essai pour une erreur.
+const PROCESS_D_ESSAI = Array.from({ length: 2 }, () => ({ cas: casEnProcess(ENV_ENFANT), enCours: 0 }));
+after(() => Promise.all(PROCESS_D_ESSAI.map(({ cas }) => cas.fermer())));
+const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
+  const pris = PROCESS_D_ESSAI.reduce((moins, autre) => (autre.enCours < moins.enCours ? autre : moins));
+  pris.enCours++;
+  try {
+    const rendu = await pris.cas.jouer({ module: CLI, args, env });
+    return { code: rendu.code, sortie: rendu.sortie };
+  } finally {
+    pris.enCours--;
+  }
 };
 // Le verdict pour l'app : le même, en JSON, sur une ligne — et la sortie
 // brute est celle que la commande écrit en texte, au caractère près.
@@ -295,6 +317,15 @@ describe("les variables obligatoires", { concurrency: 8 }, () => {
 describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   const sauvegardes = (racine: string) => join(racine, "sauvegardes");
   const du_geste = (constats: Constat[]) => constats.filter(duReglage);
+  // Le réglage seul, jugé comme la vérification le juge (`BRIGADE_INSTALLER_CONFIG`, tenu par le compte qui joue) :
+  // les deux premiers tests prouvent qu'elle le juge ainsi, et que ce jugement est sa ligne ; les autres ne regardent
+  // que ce jugement, sans dépôt ni vérification entière.
+  const reglage = (t: TestContext) => {
+    const racine = repertoireTemporaire(t);
+    poserLeReglage(racine);
+    return racine;
+  };
+  const juge = (racine: string) => [jugerReglageDuGeste({ ...REGLAGE_DU_GESTE, config: join(racine, "installateur.conf"), racine: process.getuid?.() ?? REGLAGE_DU_GESTE.racine, sol: racine })];
 
   test("une racine que root tient seul est constatée, avec ce qui a été lu", { skip: posixOnly("expects the gesture's settings file and backups root, held by the account that plays the test, to be judged root-only through their lstat owner and mode bits: Windows reports every file and directory as uid 0, mode 666, writable by others") }, async (t) => {
     const { env, racine } = projet(t);
@@ -320,10 +351,10 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   });
 
   test("une racine tenue par le compte de service manque : à qui elle appartient, et la commande qui la remet à root", { skip: process.getuid?.() !== 0 && "chown réclame root : la box de test n'a pas de root" }, async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     chownSync(sauvegardes(racine), 1001, 1001);
 
-    const [dit] = du_geste(await verifier(env));
+    const [dit] = juge(racine);
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} belongs to uid 1001 \\(mode 755\\)`));
@@ -332,10 +363,10 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   });
 
   test("une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme", { skip: posixOnly("opens the backups root to group write (chmod 775) and expects the refusal to name its owner uid and mode 775: Windows has no uid (process.getuid is undefined) and its chmod keeps no group bits") }, async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     chmodSync(sauvegardes(racine), 0o775);
 
-    const [dit] = du_geste(await verifier(env));
+    const [dit] = juge(racine);
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} belongs to uid ${process.getuid?.()} \\(mode 775\\)`));
@@ -344,25 +375,23 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   });
 
   test("un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé", { skip: posixOnly("points the setting at a subdirectory of a group-writable backups root (chmod 775) and expects that parent named with its mode 775: Windows keeps no group bits, and its lstat reports the settings file itself as mode 666") }, async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     const profonde = join(sauvegardes(racine), "sous");
     mkdirSync(profonde);
     chmodSync(sauvegardes(racine), 0o775);
     writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${profonde}\n`);
 
-    const constats = await verifier(env);
-
-    const [dit] = du_geste(constats);
+    const [dit] = juge(racine);
     assert.equal(dit?.etat, "manque");
     assert.ok(dit?.texte.includes(`${sauvegardes(racine)} belongs to uid`), dit?.texte);
     assert.ok(dit?.texte.includes("mode 775"));
   });
 
   test("une racine absente manque, avec la commande qui la crée", { skip: posixOnly("removes the backups root and expects the gesture to say it does not exist: on Windows the check stops before, at the settings file that lstat reports as mode 666, writable by others") }, async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     rmSync(sauvegardes(racine), { recursive: true });
 
-    const [dit] = du_geste(await verifier(env));
+    const [dit] = juge(racine);
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", /does not exist/);
@@ -370,34 +399,34 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   });
 
   test("une racine qui est un lien manque", { skip: posixOnly("replaces the backups root by a symbolic link and expects it refused as a link: on Windows the check stops before, at the settings file and test directory that lstat reports as mode 666") }, async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     rmSync(sauvegardes(racine), { recursive: true });
     mkdirSync(join(racine, "ailleurs"));
     symlinkSync(join(racine, "ailleurs"), sauvegardes(racine));
 
-    const [dit] = du_geste(await verifier(env));
+    const [dit] = juge(racine);
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", /est un lien/);
   });
 
   test("un réglage présent sans `sauvegardes=` ou qui ne se lit pas manque, avec les mots du geste", { skip: posixOnly("rewrites the settings file without `sauvegardes=`, then with a relative root, and expects each refused in the gesture's words: on Windows that file, mode 666 to lstat, is refused first as writable by others") }, async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     writeFileSync(join(racine, "installateur.conf"), "ports=3128-3227\n");
-    const [sans] = du_geste(await verifier(env));
+    const [sans] = juge(racine);
     assert.equal(sans?.etat, "manque");
     assert.match(sans?.texte ?? "", /ne dit pas `sauvegardes=`/);
 
     writeFileSync(join(racine, "installateur.conf"), "sauvegardes=relatif\n");
-    const [relatif] = du_geste(await verifier(env));
+    const [relatif] = juge(racine);
     assert.equal(relatif?.etat, "manque");
   });
 
   test("un réglage qu'un autre compte pourrait écrire manque", async (t) => {
-    const { env, racine } = projet(t);
+    const racine = reglage(t);
     chmodSync(join(racine, "installateur.conf"), 0o666);
 
-    const [dit] = du_geste(await verifier(env));
+    const [dit] = juge(racine);
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", /n'est pas à root seul/);
@@ -1541,7 +1570,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 
   test("une commande inconnue rappelle l'usage et sort en 2", async (t) => {
-    const { code, sortie } = await commande(t, {}, "installer");
+    const { code, sortie } = await lancee(t, {}, "installer");
 
     assert.match(sortie, /usage:/);
     assert.equal(code, 2);
