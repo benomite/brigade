@@ -8979,3 +8979,22 @@ button.recommande {
 .avis-depot .refus {
   color: var(--rouge-clair);
 }
+
+/* La section « Identity » de la page d'une station (ticket 2642) : une ligne par réglage — son nom, sa marque de niveau,
+   sa valeur, et « Update now » sur cet ordinateur quand la station est en retard. */
+#station .identite {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#station .identite .reglage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#station .identite .reglage > strong {
+  min-width: 72px;
+}
+#station .identite .reglage .valeur {
+  flex: 1;
+}
