@@ -2330,13 +2330,24 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
 - A project's second starts only at the first click on that project.
 - A project whose folder is not there has no second: its column says why, in its place.
 
-### `/brigade:dev` and `/brigade:ask` in every project the app opens (#2160)
+### `/brigade:dev`, `/brigade:ask` and `/brigade:init` in every project the app opens (#2160, #2595)
 
 Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
-second, a shell of the app, or a terminal of your own — `/brigade:dev <number>` and `/brigade:ask <number>`
-answer, with nothing to install by hand. These two commands, and only these: no V1 role (`/brigade:po`,
-`/brigade:manager`, `/brigade:designer`, `/brigade:sync`, `/brigade:init`) and no agent — the app and the
+second, a shell of the app, or a terminal of your own — `/brigade:dev <number>`, `/brigade:ask <number>` and
+`/brigade:init` answer, with nothing to install by hand. These three commands, and only these: no V1 role
+(`/brigade:po`, `/brigade:manager`, `/brigade:designer`, `/brigade:sync`) and no agent — the app and the
 stations replace them.
+
+- **`/brigade:init` is the app's own, not the V1 one** (`app/src/plugin/init.md`): it sets a repository up on
+  the GitHub-only path — no box, no ssh, no V1 plugin. The session deduces the test and install commands (and
+  asks only for what it cannot deduce), then a script the app writes into its marketplace
+  (`app/src/plugin/init.sh`, under `scripts/`) does the writing: the rail's labels on the repository at once,
+  then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
+  `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
+  **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+  A project's second whose `CLAUDE.md` has no bindings block says so in its first message, with this one
+  gesture: type `/brigade:init` in its tab, then merge the PR. It leaves the plugin once adding a project sets
+  the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
   `.claude/settings.local.json` of the project's folder. If git does not already ignore that file, the app adds
@@ -2347,7 +2358,7 @@ stations replace them.
   copied into the installed app under `plugin/commands/`. It is declared once in your Claude Code user settings.
   The V1 marketplace and plugin (`brigade@brigade`) are not touched.
 - **The version is the app's.** The installed app installs its own version; launched from the repository
-  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the two commands. At launch, each
+  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the commands and the init script. At launch, each
   project at another version is updated: after an app update, the installed version is the new app's. A
   project added while the app runs gets it at once.
 - **Removing a project from the app uninstalls `brigade-app`** from its folder's local scope, and nothing
@@ -2359,8 +2370,10 @@ stations replace them.
 - **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
   stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
 
-*Code: `app/src/plugin-app.ts`; test: `app/test/plugin-app.test.ts`, against the real `git` and a stand-in
-`claude` that keeps its registry like the real one (claude 2.1.300).*
+*Code: `app/src/plugin-app.ts`, `app/src/plugin/`; tests: `app/test/plugin-app.test.ts`, against the real `git`
+and a stand-in `claude` that keeps its registry like the real one (claude 2.1.300), and
+`app/test/plugin-init.test.ts`, a fresh repository opened by the app and set up against a bare `origin` and a
+stand-in `gh`.*
 
 ### A project's colors
 

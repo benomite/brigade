@@ -17,7 +17,7 @@
 //   runtime/        `src/` et package.json du runtime — il n'a pas d'autres dépendances
 //   node/bin/node   le `node` qui joue la station : celui de la machine n'y est pour rien
 //   plugin/commands/  `dev.md` et `ask.md` de `commands/`, ce que l'app installe dans les projets
-//                   qu'elle ouvre (src/plugin-app.ts)
+//                   qu'elle ouvre (src/plugin-app.ts) ; son `/brigade:init` est dans `app/src/plugin/`
 // Le reste est l'Electron officiel pour darwin-arm64, de la version que l'app déclare, renommé.
 //
 // Electron vient, sans `--electron`, du dépôt de ses versions sur GitHub, vérifié contre les
