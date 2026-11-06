@@ -139,6 +139,8 @@ export type EtatCuisine = {
   // La version où la station est passée par sa mise à jour, si elle date de
   // moins d'un jour à la lecture.
   passage: Passage | null;
+  // Les tickets mesurés au-delà de deux fois le max de temps, dits en une ligne chacun (`temps-max/affichage`) : posés par `status`, qui lit les temps.
+  tropLongs?: readonly string[];
   // La pause du renommage du code, acceptée par le chef, tant qu'elle tient.
   pause: PauseEnVigueur | null;
   // L'interrupteur du projet (interrupteur.ts) : nul ou absent tant qu'aucun
@@ -781,7 +783,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs, depuisEn),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause),
+    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, etat.tropLongs),
     ...decrireCoincees(etat, depuisEn),
     ligne("rail", decompte.length === 0 ? "empty" : toutEnWaiting ? `empty — ${decompte.join(" · ")}, normal: nothing on it for a cook` : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>

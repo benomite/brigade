@@ -760,9 +760,10 @@ export const nommerEn = (attente: Attente): string => (attente.ticket === null ?
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
 // `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null): string[] {
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null, tropLongs: readonly string[] = []): string[] {
   const [premiere] = attentes;
-  const passee = passage === null ? [] : [`  ${passage.ligne}`];
+  // Les tickets au-delà de deux fois le max de temps : de l'information, pas une décision.
+  const passee = [...tropLongs.map((ligne) => `  ${ligne}`), ...(passage === null ? [] : [`  ${passage.ligne}`])];
   // La pause acceptée n'est pas une décision : sa ligne vient sous la tête,
   // et ne compte pas.
   const enPause = pause === null ? [] : [`  ${direPauseEn(pause, depuis)}`];
