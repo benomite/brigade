@@ -43,7 +43,7 @@ describe("le geste de retrait d'un projet", () => {
     assert.equal(retirer.libelle, RETIRER);
     assert.ok(retirer.lignes.some((ligne) => ligne.includes(chemin)));
     assert.match(retirer.lignes.join("\n"), /Nothing is sent to its station: the project stays installed there.*with its log intact/);
-    assert.match(retirer.lignes.join("\n"), /uninstalls the app's plugin \(\/brigade:dev, \/brigade:ask\) from its folder's local Claude Code settings — nothing else/);
+    assert.match(retirer.lignes.join("\n"), /uninstalls the app's plugin \(\/brigade:dev, \/brigade:ask, \/brigade:init\) from its folder's local Claude Code settings — nothing else/);
     assert.match(retirer.lignes.join("\n"), /a brigade plugin you installed yourself stays/);
   });
 });
