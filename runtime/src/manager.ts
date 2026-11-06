@@ -185,6 +185,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const sansObjet = new Set<string>();
   const cle = (remise: Remise) => `${remise.ticket}@${remise.at}`;
 
+  // Les issues d'un inconnu qu'un membre de confiance a lancées ou priorisées :
+  // le manager lit qui a posé le label, pas qui a écrit l'issue (#2619).
+  const garanties = new Set<number>();
+  const garantir = async (issue: IssueOuverte) => {
+    garanties.delete(issue.number);
+    if (DE_CONFIANCE.includes(issue.association) || !github.labelsPosesParDeConfiance) return;
+    if (!issue.labels.some((label) => label === LABEL || priorite([label]) !== null)) return;
+    try {
+      const posees = await github.labelsPosesParDeConfiance(issue.number);
+      if (posees.some((label) => issue.labels.includes(label) && (label === LABEL || priorite([label]) !== null))) garanties.add(issue.number);
+    } catch (erreur) {
+      if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : auteur des labels non lu sur l'issue #${issue.number} — ${message(erreur)}`);
+    }
+  };
+
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
@@ -207,7 +222,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
-    if (!DE_CONFIANCE.includes(issue.association)) return { quoi: "ecart", raison: "untrusted-author", fired };
+    if (!DE_CONFIANCE.includes(issue.association) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
     if (issue.number === options.roadmap) return { quoi: "ecart", raison: "roadmap", fired };
     const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
     if (label) return { quoi: "ecart", raison: label, fired };
@@ -438,6 +453,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         // Fermée ou disparue : il n'y a plus rien à poser, ni à dire.
         if (!fraiche || fraiche.state !== "open") return true;
         issue = { ...issue, labels: fraiche.labels };
+        await garantir(issue);
         const tri = trier(issue, connue);
         if (tri.quoi === "ecart") ecarter(issue, tri, connue);
         // Devenue une épique depuis son jugement — le chef y a posé `epic` :
@@ -680,6 +696,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       issue = { ...issue, labels };
     }
     const connue = issueDuManager(base, issue.number);
+    await garantir(issue);
     let tri = trier(issue, connue);
     // Un ticket retenu sans dire ce qu'il attend : une carte, ou la cuisine le
     // reprend. Une épique retenue est au chef, pas requalifiée.

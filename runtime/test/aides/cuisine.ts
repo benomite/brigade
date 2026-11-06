@@ -75,6 +75,8 @@ export function fauxGitHub(...issues: Issue[]) {
   // Ce que le manager lit d'une issue en plus de ce que le rail en lit, et ce
   // qu'il y pose.
   const corps = new Map<number, { body?: string; association?: string }>();
+  // Les labels qu'un membre avec l'écriture a posés, par issue.
+  const garants = new Map<number, string[]>();
   const labellisations: Array<[number, string[]]> = [];
   const delabellisations: Array<[number, string]> = [];
   const sondages = { ouvertes: 0, inchanges: 0 };
@@ -150,6 +152,7 @@ export function fauxGitHub(...issues: Issue[]) {
       toucher(numero);
     },
     retraitsDeFire: async () => [],
+    labelsPosesParDeConfiance: async (numero) => garants.get(numero) ?? [],
     async delabelliser(numero, label) {
       if (pannes.label) throw new Error("gh api : HTTP 502");
       delabellisations.push([numero, label]);
@@ -241,6 +244,7 @@ export function fauxGitHub(...issues: Issue[]) {
     poser: (i: Issue) => void etat.set(i.number, i),
     lire: (numero: number) => etat.get(numero),
     // Le corps d'une issue, et le lien de son auteur avec le dépôt.
+    garantir: (numero: number, labels: string[]) => void garants.set(numero, labels),
     decrire: (numero: number, description: { body?: string; association?: string }) => void corps.set(numero, description),
     // Ce que le chef écrit sous une issue.
     repondre: (numero: number, body: string, association = "OWNER") =>

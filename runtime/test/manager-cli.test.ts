@@ -177,7 +177,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.equal(retenue.code, 1);
     assert.match(retenue.sortie, /#31 is not returned: it carries `blocked-on-human`\. What lifts this: remove `blocked-on-human`/);
     assert.equal(inconnu.code, 1);
-    assert.match(inconnu.sortie, /#33 is not returned: its author has no write access to the repository\. Nothing returns it to the manager\./);
+    assert.match(inconnu.sortie, /#33 is not returned: its author has no write access to the repository\. What lifts this: a member with write access puts `fire` or a `prio:` label on it/);
     assert.equal(refusee.code, 1);
     assert.match(refusee.sortie, /nothing to return: #34 is not set aside — refused \(an incomplete ticket\)/);
     assert.equal(jamaisVue.code, 1);
