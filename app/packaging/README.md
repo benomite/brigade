@@ -309,8 +309,12 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   chacun sur GitHub seul (#2501) : la lecture d'`app/src/lecture-github-telephone.ts`, celle du desktop,
   avec le jeton du coffre, par le même HTTP natif, à `api.github.com` et nulle part ailleurs. Aucune
   station n'est lue : pas connecté, le téléphone ne lit rien.
-- Un téléphone appairé à une station avant #2500 ne joint plus son guichet que pour les gestes de la
-  fiche et la conversation avec le second, par le même HTTP natif — d'où `android:usesCleartextTraffic`
+- Connecté, `gestesDeFiche`, `gesteDeFiche`, `attente` et `repondreCarte` écrivent les gestes du chef
+  sur GitHub seul (#2502) : répondre à une carte de TODO, reprendre, mettre en suspens, par le code
+  d'écriture du desktop (`app/src/gestes-github-telephone.ts`, posé à `www/src/gestes-github-telephone.js`),
+  avec le jeton du coffre, par le même HTTP natif. Aucune station n'est jointe pour un geste.
+- Un téléphone appairé à une station avant #2500 ne joint plus son guichet que pour la conversation
+  avec le second, par le même HTTP natif — d'où `android:usesCleartextTraffic`
   dans le manifeste : le guichet parle http sur le réseau du chef. Aucun appairage neuf ne se tire plus :
   ni code, ni lecteur de QR, ni lien `brigade://pair`.
 - `ajouter` refuse, en disant que ce téléphone ne lit encore aucun projet.

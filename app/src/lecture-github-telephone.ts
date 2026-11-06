@@ -21,6 +21,11 @@
 // refusée (`oublie`, se reconnecter), ou un autre refus (`inattendu`). Le rail d'un projet qui ne se lit pas est l'échec
 // que le desktop montre, sa raison en une phrase. Un projet sans rien — ni ticket, ni attente — est un rail vide lu, et
 // « nothing awaits the chef ».
+//
+// Et les gestes du chef (#2502) : ce que la vue écrit — répondre à une carte de TODO, reprendre, mettre en suspens —
+// s'écrit sur GitHub par les gestes du téléphone (gestes-github-telephone.ts, le code d'écriture du desktop), sur ce que
+// la dernière lecture de chaque projet a lu : son dépôt, son dernier rail lu, la carte du chef d'un ticket. Une écriture
+// que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire.
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes, type Bande } from "./alertes.ts";
 import { tenirAmont, type Vu as VuAmont } from "./amont.ts";
@@ -28,11 +33,13 @@ import { mettreAPart } from "./attend.ts";
 import { pourLaBarre, type Affichee } from "./barre.ts";
 import type { Projet } from "./config.ts";
 import { tenirFaits, type Dessinable } from "./faits.ts";
+import { ouvrirLesGestesGitHub } from "./gestes-github-telephone.ts";
+import type { EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
 import { nomDuProjet } from "./projets/projets.ts";
 import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
 import { clientGitHub, corpsLu, refusDe, type AppelGitHub, type Envoi, type ReponseGitHub } from "./tableau/client.ts";
-import { activitesPubliees, lireLeTableauDuDepot, type ActivitesPubliees, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { activitesPubliees, lireLeTableauDuDepot, type ActivitesPubliees, type LectureDuTableauDuDepot, type TableauLu } from "./tableau/lecture.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { AMONT, FAITS, lectureDuTableau, STATUS } from "./tableau/rail.ts";
 import { FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
@@ -61,6 +68,8 @@ export type Options = {
   jeton: () => Promise<string | null>;
   // Ce qui porte une demande à l'API de GitHub (`parCapacitor` sur le téléphone).
   envoyer: Envoi;
+  // Ce qui porte une écriture à l'API de GitHub (`ecritureParCapacitor` sur le téléphone) : sans lui, aucun geste ne part.
+  ecrire?: EnvoiGitHub;
   dire: Dire;
   // Le compte GitHub sous lequel le téléphone est connecté, quand il est su.
   compte?: string | null;
@@ -172,6 +181,9 @@ export function ouvrirLaLectureGitHub(options: Options) {
   const bandes = tenirBandes({ maintenant: () => maintenant().getTime() });
   const amonts = tenirAmont();
   let projets: ProjetDuCompte[] = [...(options.connus ?? [])];
+  // La dernière lecture réussie du rail de chaque projet, par son nom : c'est elle que visent les gestes du chef, comme
+  // ceux du desktop (tableau/rail.ts, `dernier`).
+  const derniers = new Map<string, TableauLu>();
   const accueil = tenirAccueil({ projets: () => projets.map(({ nom }) => ({ nom, servi: true })), maintenant: () => maintenant().getTime() });
   let liste: ListeLue | undefined;
   // Les demandes de la vue : celle des faits (la barre), celle de l'écran affiché, les projets dont il lit `status`, et
@@ -220,6 +232,7 @@ export function ouvrirLaLectureGitHub(options: Options) {
   // Ce que le desktop fait d'une lecture du rail : `facts` pour la barre et le rail, `status` pour l'écran affiché, et ce
   // qui est avant le rail pour l'espace ouvert.
   function recevoir(projet: string, lu: LectureDuTableauDuDepot): void {
+    if (lu.lu) derniers.set(projet, lu);
     if (demandeFaits !== undefined) {
       const lecture = lectureDuTableau(lu, projet, demandeFaits, [FAITS]);
       dire("surFaits", faits.recevoir(lecture));
@@ -273,9 +286,25 @@ export function ouvrirLaLectureGitHub(options: Options) {
     return lire();
   }
 
+  // Les gestes du chef, écrits sur GitHub avec le même jeton : rien ne part sans `ecrire`.
+  const sansEcriture: EnvoiGitHub = async () => {
+    throw new Error("this phone has nothing to write to GitHub with");
+  };
+  const gestes = ouvrirLesGestesGitHub({
+    jeton: options.jeton,
+    appeler,
+    envoyer: options.ecrire ?? sansEcriture,
+    depot: (projet) => projets.find(({ nom }) => nom === projet)?.depot,
+    dernier: (projet) => derniers.get(projet),
+    chef: (projet, ticket) => faits.chef(projet, ticket),
+    // La prochaine lecture va à GitHub tout de suite, et montre l'écriture.
+    ecrit: () => void lire(),
+  });
+
   return {
     configuration,
     telephone,
+    gestes,
     // La barre est posée : chaque projet a sa bande, et son rail est lu.
     faits(demande: number): Promise<void> {
       demandeFaits = demande;

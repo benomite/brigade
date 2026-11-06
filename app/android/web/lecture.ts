@@ -16,10 +16,7 @@
 // `sans-guichet`, `inattendu`) ou `oublie`, le jeton que la station ne connaît plus. La file d'un projet qui ne se lit pas
 // est un échec de lecture, comme une box que `ssh` ne joint pas : « the station did not answer ».
 //
-// Et les gestes de la fiche d'une carte (#1420) : ceux que le guichet porte — merger la livraison, retirer le ticket du
-// rail, le renvoyer en cuisine —, proposés par la table du desktop (gestes-fiche.ts) et joués par `POST
-// /projects/<nom>/gestures`. Ce que la station en a dit revient à la vue en une phrase, `fait` ou `refus`, et ce qu'elle
-// a lancé et écrit au survol ; la vue relit la station quand il est fait.
+// Les gestes de la fiche ne passent plus par ici : ils s'écrivent sur GitHub (#2502, app/src/gestes-github-telephone.ts).
 //
 // Et la conversation de chaque projet avec son second (#1426) : celle du second du desktop, que le guichet lit et écrit
 // (`GET` et `POST /projects/<nom>/second`, runtime/src/telephone/second.ts). Lue quand la vue la demande, son markdown
@@ -34,7 +31,6 @@ import { pourLaBarre, type Affichee } from "../../src/barre.ts";
 import type { Echec, Lecture } from "../../src/box.ts";
 import type { Projet } from "../../src/config.ts";
 import { tenirFaits, type Dessinable } from "../../src/faits.ts";
-import { ACTIONS, gestesDeCarte, type Actions, type IdDeFiche, type Propose } from "../../src/gestes-fiche.ts";
 import { rendre } from "../../src/markdown.ts";
 import type { Conversation, RefusDeConversation } from "../../src/vue/pont.d.ts";
 
@@ -126,16 +122,8 @@ function fileDe(adresse: string, reponse: Reponse): { sorties: { facts: string; 
   return { erreur: said ?? `${adresse} answered ${reponse.status}, not as a station's phone desk`, atteinte: true, cas: null };
 }
 
-// Les gestes de la fiche que le guichet de la station porte (runtime/src/telephone/gestes.ts), par le nom qu'il leur
-// donne : chacun y joue la commande que le desktop lance pour le même bouton (gestes-fiche.ts, `ACTIONS`). Les autres
-// gestes de la fiche — ouvrir l'issue ou la PR, demander au second, changer la priorité — ne se proposent pas sur le
-// téléphone : rien ne les y joue.
-export const GESTES_DU_GUICHET = { merger: "merge", retirer: "remove", cuisine: "back-to-kitchen" } as const satisfies Partial<Record<IdDeFiche, string>>;
-const ACTIONS_DU_TELEPHONE: Actions = Object.fromEntries(Object.entries(ACTIONS).filter(([id]) => Object.hasOwn(GESTES_DU_GUICHET, id)));
-// Ce qu'un geste a donné, tel que la vue le dit sur la fiche (app/src/vue/pont.d.ts, `gesteDeFiche`).
-export type RenduDuGeste = { fait: string; detail: string } | { refus: string; detail: string };
 // Ce que le réseau dit d'une demande qui n'a pas joint la station : rien n'est parti. Toute autre erreur — la réponse
-// qui n'arrive pas à temps — laisse ouvert si le geste a été fait.
+// qui n'arrive pas à temps — laisse ouvert si le message est parti.
 const PAS_JOINTE = /failed to connect|unable to resolve host|connection refused|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|network is unreachable|no route to host/i;
 
 // La conversation que le guichet rend (`{"messages": [{"from", "at", "text"}], "answering"?, "failed"?}`), telle que la
@@ -276,35 +264,6 @@ export function ouvrirLaLecture(options: Options) {
     return lire();
   }
 
-  // Un geste de la fiche, joué au guichet : la phrase de la station, ou ce qui l'a empêché. Une réponse qui n'est pas
-  // venue, ou une station qui n'a pas su dire si la commande l'a fait, ne dit pas que rien n'a changé : la station est
-  // relue, et la file dit ce qu'il en est.
-  async function geste(projet: string, id: unknown, ticket: unknown): Promise<RenduDuGeste> {
-    const nom = typeof id === "string" && Object.hasOwn(GESTES_DU_GUICHET, id) ? GESTES_DU_GUICHET[id as keyof typeof GESTES_DU_GUICHET] : undefined;
-    if (nom === undefined) return { refus: "nothing was sent: this phone does not carry this action to its station", detail: `“${String(id)}” is not a gesture of ${station}'s phone desk` };
-    if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing was sent: the action names no ticket", detail: "" };
-    if (options.envoyer === undefined) return { refus: "nothing was sent: this phone sends nothing to its station", detail: "" };
-    let rendue: Reponse;
-    try {
-      rendue = await options.envoyer(`/projects/${encodeURIComponent(projet)}/gestures`, { gesture: nom, ticket });
-    } catch (erreur) {
-      const said = ditDe(erreur);
-      if (PAS_JOINTE.test(said)) return { refus: `${station} could not be reached: nothing was changed`, detail: said };
-      void lire();
-      return { refus: `${station} did not answer: the next read shows whether it went through`, detail: said };
-    }
-    const corps = corpsDe(rendue.data);
-    const said = phraseDe(corps);
-    const detail = typeof corps?.detail === "string" ? corps.detail : "";
-    if (rendue.status === 200 && corps?.done === true) return { fait: said ?? `#${ticket}: done`, detail };
-    if (rendue.status === 401) return { refus: `${station} no longer knows this phone`, detail: said ?? `${adresse} answered 401` };
-    // 502 : la commande n'a pas rendu de verdict.
-    if (rendue.status === 502 && said !== undefined) void lire();
-    if (said !== undefined) return { refus: said, detail: detail === "" ? `${adresse} answered ${rendue.status}` : detail };
-    const motif = motifDe(adresse, rendue);
-    return { refus: motif.reason === "sans-guichet" ? `${station}'s phone desk does not answer: nothing was changed` : `what answers at ${adresse} is not ${station}'s phone desk: nothing was changed`, detail: motif.said };
-  }
-
   // Les conversations que la vue a lues, par projet, telles qu'elle les a reçues en dernier : chacune est relue avec la
   // station, et ce qui a bougé lui est poussé. Celles dont le second répond sont relues de près.
   const conversations = new Map<string, string>();
@@ -401,9 +360,6 @@ export function ouvrirLaLecture(options: Options) {
   return {
     configuration,
     telephone,
-    // Les gestes de la fiche de cette carte que le téléphone joue, dans l'ordre et avec le prix du desktop.
-    gestesDeFiche: (carte: unknown): Propose[] => gestesDeCarte(carte, ACTIONS_DU_TELEPHONE),
-    geste,
     // La barre est posée : chaque projet a sa bande, et ses faits sont lus.
     faits(demande: number): Promise<void> {
       demandeFaits = demande;

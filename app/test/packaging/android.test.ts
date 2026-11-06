@@ -319,7 +319,7 @@ test("les lectures du pont sont posées à côté de la vue, sans types ni modul
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const poses = poserLesModules(www);
-  assert.ok(poses.includes("android/lecture.js") && poses.includes("src/lecture-github-telephone.js"));
+  assert.ok(poses.includes("android/lecture.js") && poses.includes("src/lecture-github-telephone.js") && poses.includes("src/gestes-github-telephone.js"));
   assert.ok(poses.includes("src/faits.js") && poses.includes("src/attend.js") && poses.includes("src/accueil.js"));
   for (const pose of poses.filter((chemin) => chemin.endsWith(".js"))) {
     const code = readFileSync(join(www, pose), "utf8");
@@ -364,40 +364,21 @@ test("la lecture posée se charge sans rien de Node, comme dans la WebView", asy
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "android", "lecture.js")).href], { encoding: "utf8" });
-  assert.equal(charge.stdout.trim(), "GESTES_DU_GUICHET INTERVALLE_MS PAS_DE_LA_REPONSE_MS ouvrirLaLecture", charge.stderr);
+  assert.equal(charge.stdout.trim(), "INTERVALLE_MS PAS_DE_LA_REPONSE_MS ouvrirLaLecture", charge.stderr);
 });
 
-// Les gestes de la fiche, par le pont appairé (#1420) : un `POST` au guichet, avec le jeton, le geste et le ticket, et
-// le temps qu'un merge prend sur la station ; ce que la station en dit revient à la vue.
-test("le pont appairé joue les gestes de la fiche au guichet, avec son jeton, et rend ce que la station en a dit", async () => {
+// Les gestes de la fiche ne vont plus au guichet (#2502) : ils s'écrivent sur GitHub, par la lecture GitHub du téléphone
+// (gestes-github-telephone.test.ts). Pas connecté à GitHub, un téléphone appairé avant #2500 n'envoie rien à sa station.
+test("le pont appairé avant #2500, pas connecté à GitHub, n'envoie aucun geste à sa station : rien ne part, et il le dit", async () => {
   const stockage = new Map([["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })]]);
-  const reponses: unknown[] = [
-    { status: 200, headers: {}, data: { done: true, said: "#12: merged (PR #40)", detail: "$ brigade parade rail merge 12\n→ exit code 0" } },
-    { status: 409, headers: {}, data: JSON.stringify({ done: false, said: "#31 is not on the rail", detail: "$ brigade parade rail remove 31\n→ exit code 1" }) },
-  ];
-  const { pont, appels, json } = await pontDuTelephone(() => {
-    const reponse = reponses.shift();
-    if (reponse === undefined) throw new Error("failed to connect to /192.168.1.20 (port 7010) after 10000ms");
-    return reponse;
-  }, stockage);
-  const carte = { ticket: 12, etat: "en pass", ouvrable: true, attendu: true, decision: { quoi: "merge", motif: "no-grant", cause: null, pr: "https://github.com/chef/parade/pull/40" }, pr: true };
-  assert.deepEqual((await json(pont.gestesDeFiche!(carte))).map(({ id }: { id: string }) => id), ["merger"]);
-  assert.deepEqual(await json(pont.gesteDeFiche!("parade", "merger", 12)), { fait: "#12: merged (PR #40)", detail: "$ brigade parade rail merge 12\n→ exit code 0" });
-  assert.deepEqual(appels, [
-    {
-      plugin: "CapacitorHttp",
-      methode: "request",
-      options: { url: "http://192.168.1.20:7010/projects/parade/gestures", method: "POST", headers: { Authorization: "Bearer brgt_secret", "Content-Type": "application/json" }, data: { gesture: "merge", ticket: 12 }, connectTimeout: 10_000, readTimeout: 130_000 },
-    },
-  ]);
-  assert.deepEqual(await json(pont.gesteDeFiche!("parade", "retirer", 31)), { refus: "#31 is not on the rail", detail: "$ brigade parade rail remove 31\n→ exit code 1" });
-  assert.deepEqual((appels.at(-1)?.options as { data: unknown }).data, { gesture: "remove", ticket: 31 });
-  assert.deepEqual(await json(pont.gesteDeFiche!("parade", "cuisine", 44)), { refus: "atelier could not be reached: nothing was changed", detail: "failed to connect to /192.168.1.20 (port 7010) after 10000ms" });
-  assert.deepEqual((appels.at(-1)?.options as { data: unknown }).data, { gesture: "back-to-kitchen", ticket: 44 });
-  // Un geste que le guichet ne porte pas ne part pas.
-  const envoyes = appels.length;
-  assert.equal((await json(pont.gesteDeFiche!("parade", "priorite", 12, "1"))).refus, "nothing was sent: this phone does not carry this action to its station");
-  assert.equal(appels.length, envoyes);
+  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => (plugin === "Coffre" ? {} : assert.fail(`unexpected call to ${plugin}`)), stockage);
+  const carte = { ticket: 12, etat: "en attente", ouvrable: true, attendu: false };
+  assert.deepEqual(await json(pont.gestesDeFiche!(carte)), []);
+  const sansGitHub = { refus: "nothing was sent: this phone is not signed in to GitHub — sign in, then try again", detail: "" };
+  assert.deepEqual(await json(pont.gesteDeFiche!("parade", "retirer", 12)), sansGitHub);
+  assert.deepEqual(await json(pont.attente!("parade", "attente-arrivee", 12)), sansGitHub);
+  assert.deepEqual(await json(pont.repondreCarte!("parade", 12, { question: "Keep it?", choix: 1 })), sansGitHub);
+  assert.deepEqual(appels.filter(({ plugin }) => plugin !== "Coffre"), []);
 });
 
 // La conversation avec le second, par le pont appairé (#1426) : un `GET` puis un `POST` au guichet, avec le jeton, le
