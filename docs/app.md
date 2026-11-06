@@ -1860,6 +1860,12 @@ none.
   Then the number of **cooks** at a time and the **calibration** of the manager and the reviewer: nothing there is
   chosen in advance, these are your decisions. "add": what is missing is stated under the form, and nothing
   is written.
+- **The picked repository is checked first** (#2627, `app/src/vue/ajout-projet/`): as soon as you pick it, the app asks
+  the runtime whether it is set up for brigade (`checkRepoSetup`) and says it in one sentence. Set up, the path carries
+  on exactly as before. Not set up, the sentence names what is missing — its bindings, its labels, or both, their names
+  on hover — and **"set it up"** prepares it (`runRepoSetup`): "Setting up … for brigade…", then "… is now set up for
+  brigade." and the path carries on. A failed setup is one sentence, its reason on hover, and **"try again"**. You never
+  see or type the plugin's init command. Without those two calls on the bridge, the repository is added unchecked.
 - **Once confirmed**, the app writes the request in the gist of each chosen station (`app/src/projets/`); the
   main station reads it within half a minute, prepares it and adds it to its configuration
   ([docs/runtime/](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub

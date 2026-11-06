@@ -7,6 +7,7 @@
 // Tout est lu par le process principal : ce module reçoit `resoudre` et `ajouter`, ne touche pas
 // `document` — il reçoit de quoi créer un élément (briques.js) — et rend des éléments.
 
+import { poserInstallationDuDepot } from "../ajout-projet/installation-du-depot.js";
 import { boutonAction, lectureIndisponible } from "../briques.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -54,12 +55,21 @@ function cree(doc, balise, texte) {
 
 // L'étape. `depots` : ceux du compte et de ses organisations, ou `{ refus }` — la lecture a échoué, le
 // collage reste possible. `resoudre(depot)` lit un dépôt par son nom. `ajouter(depot)` l'ajoute, et
-// rend `{ refus }` s'il ne l'est pas. `suivante()` : le parcours passe à l'étape d'après.
+// rend `{ refus }` s'il ne l'est pas. `suivante()` : le parcours passe à l'étape d'après. `verifier(depot)` et
+// `installer(depot)` : le contrat du runtime (`checkRepoSetup`, `runRepoSetup`) — absents, le dépôt est ajouté sans
+// vérification, comme avant.
 /**
  * @param {Fabrique} doc
- * @param {{ depots: readonly Depot[] | { refus: string }, resoudre: (depot: string) => Promise<Resolu>, ajouter: (depot: Depot) => Promise<{ refus: string } | void>, suivante: () => void }} donnees
+ * @param {{
+ *   depots: readonly Depot[] | { refus: string },
+ *   resoudre: (depot: string) => Promise<Resolu>,
+ *   ajouter: (depot: Depot) => Promise<{ refus: string } | void>,
+ *   suivante: () => void,
+ *   verifier?: (depot: string) => Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
+ *   installer?: (depot: string) => Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
+ * }} donnees
  */
-export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante }) {
+export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante, verifier, installer }) {
   const racine = cree(doc, "section");
   racine.className = "etape-projet";
   racine.ariaLabel = "Pick the project";
@@ -73,9 +83,34 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante }) {
     erreur.textContent = ligne;
   };
 
-  // Un dépôt choisi ou résolu : ajouté, puis la suite ; refusé, la phrase, et rien ne bouge.
+  // Ce que la vérification du dépôt choisi dit, sous l'attendu : prêt, ce qui lui manque, sa préparation.
+  const installation = cree(doc, "div");
+  installation.className = "installation";
+
+  // Un dépôt choisi ou résolu : vérifié, puis ajouté et la suite — prêt d'emblée, sans geste de plus ; pas prêt, le
+  // bloc de la vérification attend le chef. Un autre dépôt choisi entre-temps prend sa place.
+  /** @type {Depot | undefined} */
+  let choisi;
   let enCours = false;
   const adopter = async (/** @type {Depot} */ depot) => {
+    if (enCours) return dire(`${depot.depot} is being added.`);
+    if (verifier === undefined || installer === undefined) return ajouterLeDepot(depot);
+    choisi = depot;
+    dire("");
+    installation.replaceChildren(
+      poserInstallationDuDepot(doc, {
+        depot: depot.depot,
+        verifier,
+        installer,
+        continuer: () => {
+          if (choisi === depot) void ajouterLeDepot(depot);
+        },
+      }),
+    );
+  };
+
+  // Le dépôt ajouté, puis la suite ; refusé, la phrase, et rien ne bouge.
+  const ajouterLeDepot = async (/** @type {Depot} */ depot) => {
     if (enCours) return dire(`${depot.depot} is being added.`);
     enCours = true;
     dire("");
@@ -144,6 +179,6 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante }) {
   const coller = cree(doc, "div");
   coller.className = "coller";
   coller.append(colle, boutonAction(doc, AJOUTER, () => void resoudreLeCollage(), { recommande: true }));
-  racine.append(coller, erreur);
+  racine.append(coller, installation, erreur);
   return racine;
 }

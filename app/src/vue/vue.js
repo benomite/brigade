@@ -6597,6 +6597,7 @@ async function ouvrirParcours() {
   const lus = await brigade.depotsDuChef();
   if (parcours !== vise) return;
   if (!("refus" in lus)) vise.depots = lus.depots;
+  const { checkRepoSetup: verifier, runRepoSetup: installer } = brigade;
   etapeDuProjet.replaceChildren(
     poserEtapeProjet(document, {
       depots: "refus" in lus ? lus : lus.depots,
@@ -6609,6 +6610,8 @@ async function ouvrirParcours() {
         return refus === undefined ? undefined : { refus };
       },
       suivante: () => {},
+      // Le dépôt choisi est vérifié, et préparé d'un bouton s'il ne l'est pas (ticket 2627) — si le pont le sait.
+      ...(verifier === undefined || installer === undefined ? {} : { verifier: (depot) => verifier(depot), installer: (depot) => installer(depot) }),
     }),
   );
 }

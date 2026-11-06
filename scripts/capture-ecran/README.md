@@ -117,6 +117,7 @@ compare que deux captures du même navigateur.
 | `file-ou-cuit` | La file de `parade` quand la box sature : dans Taken, #14 cuit sur la box et #15 sur le Mac — « cooks on » sous « taken by » |
 | `onglet-stations`, `onglet-stations-ajout` | L'onglet Stations de `parade` (#2487) : la liste de ses stations, celle de Cooks — la box cuit #14, le Mac arrêté y finit #15 —, et « Add a station » dessous ; puis le bouton cliqué : l'étape s'ouvre dans l'onglet, ce Mac d'abord, recommandé, puis atelier — parade-box, à qui parade est déjà choisi, n'y est pas —, et `cancel` |
 | `cooks-specialisations`, `cooks-specialisation-ajout`, `cooks-specialisation-ajoutee` | Kitchen > Cooks de `parade` (#2492) : en bas, ses spécialisations — `design` (modèle `per ticket`, effort `medium`, aucune capacité) et `security` (`opus`, `high`, `code`, `acces-prod`) — et « Add a specialization » ; puis le formulaire ouvert et rempli (`migrations`, `sonnet`, `medium`, `code, postgres`), « add » recommandé ; puis « add » cliqué : `migrations` entre dans la liste et une ligne le dit |
+| `ajout-projet-depot-pret`, `ajout-projet-depot-a-preparer`, `ajout-projet-depot-preparation`, `ajout-projet-depot-echec` | La page de nas, « + add a project » cliqué, `benomite/parade` choisi (#2627) : le dépôt vérifié prêt pour brigade — la phrase, et le parcours continue ; puis pas prêt — ce qui manque, ses bindings et ses labels, et « set it up » ; puis « set it up » cliqué, la préparation en cours ; puis la préparation refusée — une phrase, sa raison au survol, et « try again » |
 | `cooks-activite` | L'onglet Cooks de `parade` (#1272) : en tête, ses tickets servis, renvoyés et remontés au chef dans la dernière heure et le dernier jour — six nombres —, puis sa carte et ses deux stations |
 | `cooks-gates`, `cooks-gates-sans-passage` | L'onglet Cooks de `parade` (#1318) : sous ses tickets, ses gates de la dernière heure et des dernières 24 h — leurs passages, la moyenne d'un passage face au budget par défaut et la tendance de l'heure, leur temps et leur processeur au total ; puis sans passage : 0, « – », 0 s, 0 s |
 | `cooks-page`, `cooks-page-vide`, `cooks-page-roles-ouverts` | L'onglet Cooks de `parade` entier, dans l'ordre de sa revue (#1456) : sur un portable 1366×768, ses stations et leurs cooks d'abord (#14 `STUCK`), puis ses tickets et ses gates, et ses blocs repliés fermés ; puis sans rien à dire (tickets, gates et leçons en une ligne chacun) ; puis ses rôles ouverts d'un clic sur leur ligne |
@@ -246,7 +247,8 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
   pont (`pont.d.ts`) — `demarrage` toujours. Une réponse est la même quels que soient les arguments.
   Prends-la, autant que possible, à la fonction de l'app qui la calcule (comme `ajout.ts` prend
   `proposerCalibrage` à `proposition.ts`) : elle suivra le code. Une réponse `{ __enAttente: true }` ne vient jamais : l'écran
-  montre ce que la vue pose en l'attendant (`telephone-gestes-en-route`).
+  montre ce que la vue pose en l'attendant (`telephone-gestes-en-route`). Une réponse `{ __rejet: "…" }` rejette avec ce
+  message : l'écran montre ce que la vue pose d'un échec (`ajout-projet-depot-echec`).
 - **`envois`** : ce que le process principal pousse à la vue. `cuisine(RENDUS)` les rend pour la
   cuisine figée ; ajoutes-y un envoi (`{ sur: "surSortie", args: [id, texte] }` écrit dans un
   terminal, voir `espace-projet.ts`). `demande` sur un envoi : son premier argument reçoit le numéro

@@ -8909,3 +8909,29 @@ button.recommande {
 .etape-projet .erreur:empty {
   display: none;
 }
+/* La vérification du dépôt choisi dans le parcours d'ajout (ticket 2627, ajout-projet/installation-du-depot.js) : une
+   phrase — prêt, ce qui manque, en cours, échoué —, son détail au survol, et un seul bouton quand un geste est attendu. */
+.installation-du-depot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+.installation-du-depot .dit {
+  margin: 0;
+  color: var(--texte);
+}
+.installation-du-depot .dit .survol {
+  margin-left: 6px;
+}
+.installation-du-depot[data-etat="verification"] .dit,
+.installation-du-depot[data-etat="en-cours"] .dit {
+  color: var(--discret);
+}
+.installation-du-depot[data-etat="pret"] .dit {
+  color: var(--vert);
+}
+.installation-du-depot[data-etat="echec"] .dit {
+  color: var(--rouge-clair);
+}
