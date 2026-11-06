@@ -282,3 +282,13 @@ test("les consignes disent de ne jouer que les tests touchés en travaillant, et
     assert.match(texte, /Les gates, joue-les une seule fois, quand tu es prêt à livrer/);
   }
 });
+
+test("les consignes disent de lire en un seul tour ce qui ne dépend d'aucune autre lecture : c'est le tour du modèle qui coûte (#2573)", () => {
+  const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
+  const suite = consigneDeSuite({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", branche: "cook/15-abc" });
+
+  for (const texte of [premiere, suite]) {
+    assert.match(texte, /Chaque appel d'outil te coûte un tour du modèle/);
+    assert.match(texte, /lis-le dans le même tour — plusieurs appels dans un seul message, ou une seule commande qui lit plusieurs fichiers/);
+  }
+});
