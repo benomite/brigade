@@ -165,7 +165,7 @@ describe("les projets de la station sur le téléphone appairé", () => {
     const { vue } = await telephone({ requete });
     assert.equal(phrase(vue), undefined);
     assert.equal(lignes(vue).length, 2);
-    assert.match(lignes(vue)[0] ?? "", /^parade.*decision awaits you/);
+    assert.match(lignes(vue)[0] ?? "", /^parade.*waiting for the chef/);
     assert.match(lignes(vue)[1] ?? "", /^cantine.*nothing cooking, nothing waits for you/);
     // La barre porte chaque projet, à côté de « T ».
     assert.deepEqual(
@@ -257,7 +257,7 @@ describe("les projets de la station sur le téléphone appairé", () => {
     await calme();
     assert.ok(demandes.slice(avant).includes("/projects/parade/queue"));
     assert.equal(phrase(vue), undefined);
-    assert.match(lignes(vue)[0] ?? "", /^parade.*decision awaits you/);
+    assert.match(lignes(vue)[0] ?? "", /^parade.*waiting for the chef/);
     assert.equal(INTERVALLE_MS, 30_000);
   });
 });
