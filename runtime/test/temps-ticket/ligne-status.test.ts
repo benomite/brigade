@@ -20,7 +20,7 @@ test("the line gives median, slowest, split by phase and max", () => {
   const sans = lignes.map(({ claimedAt, mergedAt, ...r }) => r);
   assert.equal(
     direLesTempsDesTickets(sans),
-    "tickets: median 12m (slowest #2301 31m) | cook 8m (tests 3m) · pass 2m · review 1m · CI 1m · merge 0m | max 15m",
+    "tickets: median 12m (slowest #2301 31m) | cook 8m (tests 3m) · pass 2m · review 1m · CI 1m · merge 0m | max 10m — over the max",
   );
 });
 
@@ -46,7 +46,7 @@ test("reads both files; a missing file still gives a line", (tc) => {
 });
 
 test("the published times: valid records and the project's max, the default without files", (tc) => {
-  assert.deepEqual(lesTempsDesTickets(undefined), { enregistrements: [], tempsMaxTicketMin: 15 });
+  assert.deepEqual(lesTempsDesTickets(undefined), { enregistrements: [], tempsMaxTicketMin: 10 });
   const depot = repertoireTemporaire(tc);
   const dossier = join(depot, ".claude", "brigade");
   mkdirSync(dossier, { recursive: true });

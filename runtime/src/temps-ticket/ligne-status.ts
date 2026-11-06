@@ -4,9 +4,9 @@
 // file reads as "no measured ticket yet".
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { MAX_PAR_DEFAUT_MIN, maxDuProjet } from "../temps-max/mesure.ts";
 
 const DERNIERS = 10;
-const MAX_PAR_DEFAUT_MIN = 15;
 
 export type TempsTicket = {
   ticket: number;
@@ -79,9 +79,7 @@ export function lesTempsDesTickets(repertoireDepot: string | undefined): { enreg
   const enregistrements = liste.filter(
     (r): r is TempsTicket => typeof r === "object" && r !== null && Number.isInteger(r.ticket) && PHASES.every((p) => entier(r[p])) && entier(r.cuissonTests),
   );
-  const projet = lireJson(join(dossier, "projet.json")) as { tempsMaxTicketMin?: unknown } | null;
-  const max = projet?.tempsMaxTicketMin;
-  return { enregistrements, tempsMaxTicketMin: typeof max === "number" && max > 0 ? max : MAX_PAR_DEFAUT_MIN };
+  return { enregistrements, tempsMaxTicketMin: maxDuProjet(lireJson(join(dossier, "projet.json"))) };
 }
 
 export function ligneDesTempsDesTickets(repertoireDepot: string | undefined): string {

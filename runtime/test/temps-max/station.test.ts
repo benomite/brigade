@@ -1,0 +1,81 @@
+// Le tour d'une station GitHub seul ouvre le ticket de correction du temps des
+// tickets (#2515), lu dans le clone du projet, et un seul.
+import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test, type TestContext } from "node:test";
+import { stationGitHub, type GitHubDuTour, type TicketLu } from "../../src/brigade-github.ts";
+import { MARQUE_CORRECTION } from "../../src/temps-max/correction.ts";
+import { repertoireTemporaire } from "../outils.ts";
+
+type Issue = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed" };
+
+// Le GitHub d'un projet à la base verte, réduit à ce que le tour lit et écrit ;
+// la station ne prend rien (`prise` refuse), elle ne fait que tourner.
+function faux() {
+  const issues: Issue[] = [];
+  const github = {
+    checksDeLaBase: async () => [{ name: "tests", outcome: "green" as const }],
+    fires: async (): Promise<TicketLu[]> => issues.filter((i) => i.state === "open" && i.labels.includes("fire")).map(({ number, title, labels, state }) => ({ number, title, labels, state })),
+    issuesDepuis: async () => issues.map(({ number, body, state }) => ({ number, body, state, association: "OWNER" })),
+    creerIssue: async ({ titre, corps, labels }: { titre: string; corps: string; labels: string[] }) => {
+      const number = 3000 + issues.length;
+      issues.push({ number, title: titre, body: corps, labels, state: "open" });
+      return number;
+    },
+    fermerIssue: async (numero: number) => {
+      const issue = issues.find((i) => i.number === numero);
+      if (issue) issue.state = "closed";
+    },
+    corpsDuTicket: async (numero: number) => issues.find((i) => i.number === numero)?.body ?? "",
+    commentaires: async () => [],
+    dependancesOuvertes: async () => [],
+    prsOuvertes: async () => [],
+    retraitsDeLabels: async () => [],
+  };
+  return { issues, github: github as unknown as GitHubDuTour };
+}
+
+function clone(tc: TestContext, minutes: number[], projet: object = {}): string {
+  const depot = repertoireTemporaire(tc);
+  const dossier = join(depot, ".claude", "brigade");
+  mkdirSync(dossier, { recursive: true });
+  writeFileSync(join(dossier, "projet.json"), JSON.stringify(projet));
+  writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify(minutes.map((m, rang) => ({ ticket: rang + 1, cuisson: m * 60, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }))));
+  return depot;
+}
+
+const station = (github: GitHubDuTour, depot: string, avertis: string[]) =>
+  stationGitHub({
+    nom: "box/test",
+    places: 1,
+    base: "main",
+    github,
+    prise: { prendre: async () => ({ prise: false }), lacher: async () => true },
+    cuisiner: async () => ({ echec: "not here" }),
+    juger: async () => ({ verdict: "approve", motif: "" }),
+    clone: depot,
+    avertir: (texte) => avertis.push(texte),
+  });
+
+test("over the max, the station's turn opens one prio:0 correction ticket, and no second one while it is open", async (tc) => {
+  const { issues, github } = faux();
+  const avertis: string[] = [];
+  const s = station(github, clone(tc, [12, 18, 25]), avertis);
+  await s.tour();
+  await s.tour();
+  await station(github, clone(tc, [12, 18, 25]), avertis).tour();
+  assert.deepEqual(avertis, []);
+  assert.equal(issues.length, 1);
+  assert.ok(issues[0]?.labels.includes("prio:0"));
+  assert.ok(issues[0]?.body.startsWith(MARQUE_CORRECTION));
+  assert.match(issues[0]?.body ?? "", /is \*\*18 min\*\*: over the project's max of 10 min/);
+});
+
+test("the project's own max holds: under it, the turn opens nothing", async (tc) => {
+  const { issues, github } = faux();
+  const avertis: string[] = [];
+  await station(github, clone(tc, [12, 18, 25], { tempsMaxTicketMin: 20 }), avertis).tour();
+  assert.deepEqual(avertis, []);
+  assert.equal(issues.length, 0);
+});
