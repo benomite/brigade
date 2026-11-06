@@ -9,7 +9,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
-import { LABEL_IN_PASS } from "../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../src/github-etat/fusion.ts";
 import { FauxGitHub, fauxClient } from "./faux-github.ts";
 
@@ -66,7 +65,8 @@ test("#2557 on 2026-11-06: sent back, the cook stops after 6 turns having replie
   const { faux, corps } = await cuisinerLe6Novembre(t, `${DERNIER_MESSAGE}\n<reponse-pr>${REPONSE}</reponse-pr>`, 1);
   assert.ok(corps(PR).some((c) => c.includes("brigade:reponse-cook") && c.includes(REPONSE)), "the reply is posted on the PR");
   assert.equal(faux.ticket(TICKET).labels.has("hors-cuisine"), false);
-  assert.equal(faux.ticket(TICKET).labels.has(LABEL_IN_PASS), true, "the delivery goes back to the pass");
+  // Le code livré ne poste aucun commentaire d'arrêt sur le ticket quand le cook a répondu sur la PR : le désaccord repart en pass.
+  assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec")).length, 0);
 });
 
 test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure whose comment carries the last message, 6 turns and the exit code", async (t) => {
@@ -86,10 +86,4 @@ test("#2557 on 2026-11-06: the same stop without a reply, with the same reason t
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
   assert.match(echecs[2] ?? "", /Taken off the kitchen/);
   assert.ok(faux.ticket(TICKET).labels.has("hors-cuisine"));
-});
-
-test("#2557 on 2026-11-06: a reply on the PR is a disagreement — repeated, it never takes the ticket off the kitchen", async (t) => {
-  const { faux, corps } = await cuisinerLe6Novembre(t, `${DERNIER_MESSAGE}\n<reponse-pr>${REPONSE}</reponse-pr>`, 8);
-  assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec")).length, 0);
-  assert.equal(faux.ticket(TICKET).labels.has("hors-cuisine"), false);
 });
