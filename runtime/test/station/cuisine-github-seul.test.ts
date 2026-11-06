@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { brancheDuTicket } from "../../src/brigade-github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
@@ -29,6 +30,8 @@ function ouvrir(t: TestContext, githubOnlyState: boolean | undefined) {
   const gh = fauxGh(t);
   gh.issues([issueGitHub(7, { labels: ["fire", "model:sonnet", "effort:low"] })]);
   gh.repondre(`repos/${DEPOT}/issues/7/events?per_page=100`, { corps: [] });
+  // Sans PR : la station lit celle du ticket avant de le prendre (#2622).
+  gh.repondre(`repos/${DEPOT}/pulls?head=${DEPOT.split("/")[0]}:${brancheDuTicket(7)}&state=all&per_page=1`, { corps: [] });
   gh.repondre(`repos/${DEPOT}/commits/v2/check-runs?per_page=100`, { corps: { check_runs: [] } });
   gh.repondre(`repos/${DEPOT}/commits/v2/status?per_page=100`, { corps: { statuses: [] } });
   const env = environnementDuProjet(racine, projet, { HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: gh.bin });
