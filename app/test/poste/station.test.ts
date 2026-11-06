@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
+import { brancheDuTicket } from "../../../runtime/src/brigade-github.ts";
 import { accepterSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { roleDe } from "../../src/poste/role.ts";
@@ -140,6 +141,8 @@ test("ajouter un projet à cette station : elle le sert sur GitHub seul, et pren
   const gh = fauxGh(t);
   gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
   gh.repondre("repos/acme/brigade/issues/15/events?per_page=100", { corps: [] });
+  // Sans PR : la station lit celle du ticket avant de le prendre (#2622).
+  gh.repondre(`repos/acme/brigade/pulls?head=acme:${brancheDuTicket(15)}&state=all&per_page=1`, { corps: [] });
   gh.repondre(`repos/acme/brigade/commits/${BASE}/check-runs?per_page=100`, { corps: { check_runs: [] } });
   gh.repondre(`repos/acme/brigade/commits/${BASE}/status?per_page=100`, { corps: { statuses: [] } });
   const etat = join(racine, "etat", "brigade");
