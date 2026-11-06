@@ -38,6 +38,6 @@ test("un dépôt inconnu ou privé, et un nom qui n'en est pas un, se refusent e
   const { reglages, appels } = unGh(t, { "/repos/acme/secret": { erreur: "gh: Not Found (HTTP 404)" } });
   const lire = lireUnDepot(reglages);
   assert.deepEqual(await lire("acme/secret"), { refus: "acme/secret was not found on GitHub, or it is private" });
-  for (const faux of ["pas un depot", "a/b/c", "../x", 42, undefined]) assert.match(((await lire(faux)) as { refus: string }).refus, /not a repository name/);
+  for (const faux of ["pas un depot", "a/b/c", "../x", "a/..", "a/.", 42, undefined]) assert.match(((await lire(faux)) as { refus: string }).refus, /not a repository name/);
   assert.deepEqual(appels(), ["/repos/acme/secret"], "un nom mal formé ne part pas à GitHub");
 });

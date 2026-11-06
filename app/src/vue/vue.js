@@ -81,6 +81,7 @@ import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./conne
 import { tenirConversation } from "./telephone/conversation.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
+import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -540,6 +541,9 @@ const formulaireDAjout = document.createElement("form");
 formulaireDAjout.hidden = true;
 const depotChoisi = /** @type {HTMLSelectElement} */ (document.createElement("select"));
 depotChoisi.ariaLabel = "repository";
+// Le choix du dépôt se fait à l'étape « projet » (ticket 2476) ; la liste ne garde que le dépôt retenu, que le formulaire envoie.
+depotChoisi.hidden = true;
+const etapeDuProjet = document.createElement("div");
 const baseChoisie = document.createElement("input");
 baseChoisie.ariaLabel = "integration branch";
 baseChoisie.placeholder = "integration branch";
@@ -568,6 +572,7 @@ ajoutRefuse.ariaLive = "polite";
 const ajoutDit = document.createElement("p");
 ajoutDit.ariaLive = "polite";
 formulaireDAjout.append(
+  etapeDuProjet,
   depotChoisi,
   baseChoisie,
   choixDesStations,
@@ -6577,18 +6582,27 @@ async function ouvrirParcours() {
   baseChoisie.value = "";
   cooksChoisis.value = "";
   for (const [champ, liste] of Object.entries(calibrageDuProjet)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? `— ${champ.split("-")[0]} model —` : `— ${champ.split("-")[0]} effort —`);
-  depotChoisi.replaceChildren(new Option("reading your repositories on GitHub…", ""));
+  depotChoisi.replaceChildren(new Option("— repository —", ""));
+  etapeDuProjet.replaceChildren(bloc("p", "reading your repositories on GitHub…"));
   poserChoixDesStations();
   const vise = parcours;
   const lus = await brigade.depotsDuChef();
   if (parcours !== vise) return;
-  if ("refus" in lus) {
-    depotChoisi.replaceChildren(new Option("— repository —", ""));
-    ajoutRefuse.replaceChildren(bloc("p", lus.refus));
-    return;
-  }
-  vise.depots = lus.depots;
-  proposer(depotChoisi, lus.depots.map(({ depot }) => depot), "— repository —");
+  if (!("refus" in lus)) vise.depots = lus.depots;
+  etapeDuProjet.replaceChildren(
+    poserEtapeProjet(document, {
+      depots: "refus" in lus ? lus : lus.depots,
+      resoudre: (depot) => brigade.lireUnDepot(depot),
+      ajouter: async (choisi) => {
+        depotChoisi.replaceChildren(new Option(choisi.depot, choisi.depot));
+        depotChoisi.value = choisi.depot;
+        baseChoisie.value = choisi.base;
+        const refus = await ajouterProjet();
+        return refus === undefined ? undefined : { refus };
+      },
+      suivante: () => {},
+    }),
+  );
 }
 // Le dépôt choisi propose sa branche par défaut comme branche d'intégration.
 depotChoisi.addEventListener("change", () => {
@@ -6607,8 +6621,11 @@ formulaireDAjout.addEventListener("submit", (evenement) => {
   evenement.preventDefault();
   void ajouterProjet();
 });
+/** @returns {Promise<string | undefined>} ce qui a refusé l'ajout, ou rien s'il est fait */
 async function ajouterProjet() {
-  if (parcours === undefined) return;
+  if (parcours === undefined) return "no project is being added.";
+  /** @type {string | undefined} */
+  let refuse;
   validerAjout.disabled = true;
   ajoutRefuse.replaceChildren(bloc("p", "writing the request on your stations' gists…"));
   try {
@@ -6622,17 +6639,24 @@ async function ajouterProjet() {
       reviewer: { modele: calibrageDuProjet["reviewer-modele"].value, effort: calibrageDuProjet["reviewer-effort"].value },
       ouvertLe: parcours.ouvertLe,
     });
-    if ("signales" in rendu) ajoutRefuse.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
-    else if ("refus" in rendu) ajoutRefuse.replaceChildren(bloc("p", rendu.refus));
+    if ("signales" in rendu) {
+      ajoutRefuse.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
+      refuse = Object.values(rendu.signales).join(" ");
+    } else if ("refus" in rendu) {
+      ajoutRefuse.replaceChildren(bloc("p", rendu.refus));
+      refuse = rendu.refus;
+    }
     else {
       fermerParcours();
       ajoutRefuse.replaceChildren();
       ajoutDit.textContent = `${rendu.ajoute} is asked of its stations: its main station prepares it and adds it within a minute — if GitHub asks you to authorize brigade, its button is below the project`;
     }
   } catch (erreur) {
-    ajoutRefuse.replaceChildren(bloc("p", `nothing was added: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
+    refuse = `nothing was added: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    ajoutRefuse.replaceChildren(bloc("p", refuse));
   }
   validerAjout.disabled = false;
+  return refuse;
 }
 
 // Ce qu'une station dit du projet qu'on lui a confié, en quelques mots, et le ton de sa pastille. Une station

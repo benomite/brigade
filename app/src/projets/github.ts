@@ -51,7 +51,7 @@ const FORME_DU_DEPOT = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-
 // au chef — : sa branche par défaut, ou le refus en une phrase (inconnu, privé, illisible). Rien n'est écrit.
 export function lireUnDepot(reglages: Reglages): (depot: unknown) => Promise<DepotDuChef | { refus: string }> {
   return async (depot) => {
-    if (typeof depot !== "string" || !FORME_DU_DEPOT.test(depot)) return { refus: "that is not a repository name: owner/repo" };
+    if (typeof depot !== "string" || !FORME_DU_DEPOT.test(depot) || depot.endsWith("/.") || depot.endsWith("/..")) return { refus: "that is not a repository name: owner/repo" };
     try {
       const lu = JSON.parse(await appelerGh(reglages, `/repos/${depot}`)) as { full_name?: unknown; default_branch?: unknown };
       if (typeof lu.full_name !== "string") return { refus: `${depot} is not a repository GitHub knows` };
