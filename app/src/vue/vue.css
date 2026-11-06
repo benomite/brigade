@@ -8735,3 +8735,55 @@ button.recommande {
 .bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="perdue"] {
   color: var(--rouge-clair);
 }
+/* L'étape « projet » du parcours d'ajout (ticket 2476) : l'attendu en tête, le champ qui cherche parmi les dépôts du
+   compte et de ses organisations, une rangée par dépôt, puis le champ où coller un dépôt quelconque et « add ». */
+.etape-projet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 440px;
+}
+.etape-projet .attendu {
+  margin: 0;
+  color: var(--texte);
+}
+.etape-projet input {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.etape-projet input::placeholder {
+  color: var(--discret);
+}
+.etape-projet .depots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.etape-projet .aucun {
+  color: var(--discret);
+  font-size: 13px;
+}
+.etape-projet .coller {
+  display: flex;
+  gap: 6px;
+}
+.etape-projet .colle {
+  flex: 1;
+}
+.etape-projet .erreur {
+  margin: 0;
+  color: var(--rouge-clair);
+  font-size: 13px;
+}
+.etape-projet .erreur:empty {
+  display: none;
+}

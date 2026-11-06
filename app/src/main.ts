@@ -63,7 +63,7 @@ import { commandesDe, CUISINE, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
-import { depotsDuChef } from "./projets/github.ts";
+import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type DossiersDeLaStation, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
@@ -1003,6 +1003,9 @@ ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
 ipcMain.handle("appairer", (_, code: unknown) => stations.appairer(code));
 // « Add a project » : les dépôts du chef, lus par le `gh` du poste, entre lesquels il choisit.
 ipcMain.handle("depotsDuChef", () => projetsDesStations.depots());
+// Un dépôt quelconque, lu par son nom — public et pas au chef compris : sa branche par défaut, ou le refus.
+const lireLeDepot = lireUnDepot({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
+ipcMain.handle("lireUnDepot", (_, depot: unknown) => lireLeDepot(depot));
 // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie — ou chaque champ
 // qui manque est signalé, et rien n'est écrit (projets/projets.ts).
 ipcMain.handle("ajouterAUneStation", (_, saisie: unknown) => projetsDesStations.ajouter(saisie));
