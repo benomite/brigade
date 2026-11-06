@@ -29,7 +29,7 @@ export const ETATS = {
 export function etatDeLaLigne({ ton, dit }) {
   if (ton === "rouge") return "held";
   if (ton === "jaune") return "waiting";
-  return ton === "vert" && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
+  return ton === "vert" && !/^nothing cooking/.test(dit) && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
 }
 export const AUCUN_PROJET = "no project yet";
 export const SANS_STATION = "no station";

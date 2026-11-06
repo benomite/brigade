@@ -2,7 +2,7 @@
 // stations ; un clic ouvre le projet ; « Add a project » lance le parcours d'ajout. Joué devant un faux document.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { AJOUTER, AUCUN_PROJET, ETATS, SANS_STATION, poserLesProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
+import { AJOUTER, AUCUN_PROJET, ETATS, SANS_STATION, etatDeLaLigne, poserLesProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -53,4 +53,13 @@ describe("le bloc Projects de l'accueil", () => {
     assert.match(texte(bloc), new RegExp(AUCUN_PROJET));
     assert.match(texte(bloc), new RegExp(AJOUTER));
   });
+});
+
+test("l'état d'une ligne de l'accueil : retenu, attend le chef, cuit, au repos", () => {
+  const etat = (ton: string, dit: string) => etatDeLaLigne({ ton, dit });
+  assert.equal(etat("rouge", "kitchen held"), "held");
+  assert.equal(etat("jaune", "1 decision awaits you"), "waiting");
+  assert.equal(etat("vert", "#12 cooking"), "cooking");
+  assert.equal(etat("vert", "nothing cooking, nothing waits for you"), "idle");
+  assert.equal(etat("gris", "first read in progress…"), "idle");
 });
