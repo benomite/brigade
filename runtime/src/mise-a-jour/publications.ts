@@ -17,8 +17,12 @@ export const ETIQUETTE = "station-";
 export const paquetDe = (arch: string) => `brigade-station_${arch}.deb`;
 
 // `paquet` : son adresse, ou son chemin. `empreinte` : son sha256, quand la
-// publication le dit.
-export type Publication = { version: string; paquet: string; empreinte: string | null };
+// publication le dit. `urgente` : la version n'attend pas la fin de la fenêtre
+// entre deux relances (`lot/fenetre.ts`, #2585) — une release dont les notes
+// portent `[urgent]`, ou un répertoire qui contient un fichier `urgent`.
+export type Publication = { version: string; paquet: string; empreinte: string | null; urgente?: true };
+
+export const URGENTE = "[urgent]";
 
 export type Publications = {
   // Ce qui le dit en une ligne : où la station regarde.
@@ -31,7 +35,7 @@ export type Publications = {
 const DELAI_LISTE_MS = 60_000;
 const DELAI_PAQUET_MS = 10 * 60_000;
 
-type Release = { tag_name?: unknown; draft?: unknown; prerelease?: unknown; assets?: Array<{ name?: unknown; browser_download_url?: unknown; digest?: unknown }> };
+type Release = { tag_name?: unknown; draft?: unknown; prerelease?: unknown; body?: unknown; assets?: Array<{ name?: unknown; browser_download_url?: unknown; digest?: unknown }> };
 
 // Les versions que portent les releases d'un dépôt, telles que l'API de GitHub
 // les rend.
@@ -43,7 +47,7 @@ export function lirePublicationsGitHub(releases: unknown, arch: string): Publica
     const paquet = release.assets?.find((asset) => asset.name === paquetDe(arch));
     if (!VERSION.test(version) || typeof paquet?.browser_download_url !== "string") return [];
     const empreinte = typeof paquet.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(paquet.digest) ? paquet.digest.slice("sha256:".length) : null;
-    return [{ version, paquet: paquet.browser_download_url, empreinte }];
+    return [{ version, paquet: paquet.browser_download_url, empreinte, ...(typeof release.body === "string" && release.body.includes(URGENTE) ? { urgente: true as const } : {}) }];
   });
 }
 
@@ -75,7 +79,8 @@ function depuisRepertoire(repertoire: string, arch: string): Publications {
       if (!existsSync(repertoire)) throw new Error(`le répertoire des versions publiées (${repertoire}) n'existe pas`);
       return readdirSync(repertoire, { withFileTypes: true }).flatMap((entree) => {
         const paquet = join(repertoire, entree.name, paquetDe(arch));
-        return entree.isDirectory() && VERSION.test(entree.name) && existsSync(paquet) ? [{ version: entree.name, paquet, empreinte: null }] : [];
+        if (!entree.isDirectory() || !VERSION.test(entree.name) || !existsSync(paquet)) return [];
+        return [{ version: entree.name, paquet, empreinte: null, ...(existsSync(join(repertoire, entree.name, "urgent")) ? { urgente: true as const } : {}) }];
       });
     },
     async telecharger(publication, fichier) {

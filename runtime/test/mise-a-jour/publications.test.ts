@@ -28,6 +28,22 @@ test("des releases de GitHub, seules comptent celles de la station, publiées, q
   assert.throws(() => lirePublicationsGitHub({ message: "Not Found" }, "amd64"), /n'a pas rendu une liste de releases/);
 });
 
+test("une release dont les notes portent [urgent] est urgente, un répertoire qui contient un fichier urgent aussi (#2585)", async (t) => {
+  const releases = [
+    { tag_name: "station-1.2.0", body: "Station 1.2.0\n\n[urgent] repair of the station", assets: [asset("brigade-station_amd64.deb")] },
+    { tag_name: "station-1.1.0", body: "Station 1.1.0", assets: [asset("brigade-station_amd64.deb")] },
+  ];
+  assert.deepEqual(lirePublicationsGitHub(releases, "amd64").map((p) => [p.version, p.urgente ?? false]), [["1.2.0", true], ["1.1.0", false]]);
+  const repertoire = repertoireTemporaire(t);
+  for (const version of ["1.0.0", "1.1.0"]) {
+    mkdirSync(join(repertoire, version));
+    writeFileSync(join(repertoire, version, "brigade-station_amd64.deb"), version);
+  }
+  writeFileSync(join(repertoire, "1.1.0", "urgent"), "");
+  const lues = await publications(repertoire, "amd64").lister();
+  assert.deepEqual(lues.map((p) => [p.version, p.urgente ?? false]).sort(), [["1.0.0", false], ["1.1.0", true]]);
+});
+
 test("la source se nomme : les releases d'un dépôt GitHub (aucun par défaut), un répertoire pour une installation de test ; autre chose est refusé", () => {
   assert.throws(() => publications(undefined, "amd64"), /BRIGADE_MISE_A_JOUR_SOURCE is not set — say where the published versions are: github:<owner>\/<repo>/);
   assert.throws(() => publications("", "amd64"), /BRIGADE_MISE_A_JOUR_SOURCE is not set/);
