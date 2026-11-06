@@ -124,6 +124,8 @@ import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
+import { tenirLeCompte } from "./parcours-projet/compte.js";
+import { poserParcoursProjet } from "./parcours-projet/parcours.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
@@ -414,6 +416,7 @@ closer.ariaLabel = "Closer";
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const ajout = element("ajout");
+const parcoursDeLAjout = element("parcours-de-l-ajout");
 const formulaire = /** @type {HTMLFormElement} */ (element("formulaire"));
 const ou = element("ou");
 const choisi = element("choisi");
@@ -8338,17 +8341,25 @@ async function choisirPourUneEnregistree(id, depots) {
 // connexion à GitHub qui manque se fait d'un bouton ; faite, les stations sont relues — et une ouverture qu'elle
 // retenait repart d'elle-même.
 /** @type {import("./premier-lancement.js").EtatDuPremier} */
-const premier = { poste: POSTE.nom, saisie: { compte: "", projet: "" } };
+const premier = { poste: POSTE.nom, saisie: { projet: "" } };
 /** @type {any} */
 let ecranDuPremier;
 let lectureDuPremier = 0;
 // Le projet ouvert, que le fichier n'a peut-être pas encore rendu : son espace s'ouvre dès qu'il y est.
 /** @type {string | undefined} */
 let premierAOuvrir;
+// Le parcours d'ajout d'un projet (parcours-projet/, ticket 2475), monté par le premier lancement et par l'écran
+// d'ajout : le compte GitHub de cet ordinateur, lu une fois à l'ouverture de l'un ou l'autre, et relu au bout d'une
+// connexion — ou d'un changement de compte, qui en est une. Chaque lecture repose les deux.
+const compteDuParcours = tenirLeCompte({ pont: brigade, rendre: () => poserLePremier() });
+/** @returns {import("./parcours-projet/parcours.js").EtatDuParcours} */
+const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }) });
 /** @type {import("./premier-lancement.js").GestesDuPremier} */
 const gestesDuPremier = {
   ouvrir: (station, projet, depot) => void ouvrirDUneStation(station, projet, depot),
   seConnecter: () => void seConnecterAGitHub(),
+  changerDeCompte: () => void seConnecterAGitHub(),
+  relireLeCompte: () => void compteDuParcours.lire(),
   relire: () => void relireLePremier(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
   ajouterUnDossier: () => ouvrirAjout(),
@@ -8367,8 +8378,9 @@ function ouvrirPremier() {
   stationOuverte = undefined;
   pageDeLApp = undefined;
   marquer();
-  ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
+  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
+  compteDuParcours.lireUneFois();
   if (premier.stations === undefined && lectureDuPremier === 0) void relireLePremier();
 }
 
@@ -8379,8 +8391,10 @@ function poserLePremier() {
   if (premier.connexion === undefined) delete etatDesEnregistrees.connexion;
   else etatDesEnregistrees.connexion = premier.connexion;
   poserStationsDeLAccueil();
+  // L'écran d'ajout porte le même parcours : le compte lu, la connexion en route s'y disent aussi.
+  if (ajoute) poserLeParcoursDeLAjout();
   if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
-  ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
+  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
 }
 
@@ -8440,9 +8454,10 @@ async function seConnecterAGitHub() {
   poserLePremier();
 }
 
-// Connecté : les stations sont relues, et une ouverture que la connexion retenait repart.
+// Connecté : le compte et les stations sont relus, et une ouverture que la connexion retenait repart.
 function connecteAGitHub() {
   delete premier.connexion;
+  compteDuParcours.apresLaConnexion();
   // Et son rail sur GitHub : connecté, il se lit peut-être (ticket 2076).
   if (courant !== undefined && railsPublies.has(courant.nom)) relireLeRailPublie(courant);
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
@@ -8462,7 +8477,8 @@ brigade.surConnexionGitHub?.((fin) => {
   if (telephoneVu !== undefined) return;
   if ("connecte" in fin) return connecteAGitHub();
   premier.connexion = fin;
-  poserLePremier();
+  // Une connexion qui n'a pas abouti — un changement de compte abandonné : le compte est relu, tel qu'il est resté.
+  compteDuParcours.apresLaConnexion();
 });
 
 // La page des coûts de tous les projets, à la place de l'accueil : « T » reste l'entrée affichée, et un
@@ -8538,8 +8554,16 @@ function ouvrirAjout() {
   stationOuverte = undefined;
   pageDeLApp = undefined;
   marquer();
+  poserLeParcoursDeLAjout();
+  compteDuParcours.lireUneFois();
   ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
   choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
+}
+
+// Le parcours d'ajout, en tête de l'écran d'ajout : le même que le premier lancement, sans sa phrase d'accueil. Sous
+// lui, pour l'heure, l'ajout par un dossier.
+function poserLeParcoursDeLAjout() {
+  parcoursDeLAjout.replaceChildren(poserParcoursProjet(document, etatDuParcours(), gestesDuPremier));
 }
 
 // Ce que le clone a proposé pour un champ : le chef qui l'a changé garde ce qu'il a écrit.

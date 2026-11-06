@@ -114,6 +114,8 @@ const pont = {
   stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
   ouvrirDUneStation: (nom, depot) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
+  // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
+  compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
   // son gist.

@@ -33,7 +33,7 @@ import type { Ajout, Choisi, DefautsDeLaMachine, Demenagement, EFFORTS, MODELES,
 import type { IssueDuRemede } from "../projets/remede.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
-import type { DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
+import type { CompteGitHub, DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
 import type { Ouverture, Progres, StationsDuChef } from "../premier-lancement.ts";
 import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
 import type { AjoutCloud, CloudAjoute, VuDuCloud } from "../stations-cloud/stations-cloud.ts";
@@ -347,6 +347,9 @@ export type Pont = {
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<DebutDeConnexion>;
+  // Le compte GitHub que le `gh` de cet ordinateur tient (ticket 2475, connexion-github.ts) : son login, aucun, ou
+  // pourquoi il ne se lit pas. L'étape du compte du parcours d'ajout le dit, et le relit au bout d'une connexion.
+  compteGitHub?(): Promise<CompteGitHub>;
   // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
   // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
   ouvrirLaPage?(url: string): Promise<boolean>;

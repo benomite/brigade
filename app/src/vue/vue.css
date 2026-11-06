@@ -1614,8 +1614,10 @@ main > header,
   gap: 14px;
   max-width: 640px;
 }
-.premier-lancement > h2 {
-  font-size: 18px;
+/* La phrase des stations, sous le parcours : un titre de section, pas celui des sections de « Tous les projets ». */
+#tous .premier-lancement > .tete-des-stations {
+  margin-top: 6px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--texte);
 }
@@ -1663,8 +1665,95 @@ main > header,
 .premier-lancement > .gestes:last-child button {
   color: var(--discret);
 }
-.premier-lancement :is(h2, .refus) .survol {
+.premier-lancement :is(h3, .refus) .survol {
   margin-left: 6px;
+}
+/* Le parcours d'ajout d'un projet (ticket 2475) : le même au premier lancement et sur l'écran d'ajout, une carte. En
+   tête « Add a project » — précédé, au premier lancement, de sa phrase d'accueil —, puis ses étapes numérotées, chacune
+   avec son état ; la courante sous un trait de l'accent, comme le parcours d'un projet neuf, celles à venir discrètes. */
+.parcours-projet.carte {
+  gap: 12px;
+  max-width: 640px;
+  padding: 18px 22px;
+}
+.parcours-projet > .bienvenue {
+  font-size: 15px;
+  color: var(--texte-doux);
+}
+.parcours-projet h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--texte);
+}
+.parcours-projet .etapes-du-parcours {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.parcours-projet .etape-du-parcours {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: -12px;
+  padding-left: 8px;
+  border-left: 4px solid transparent;
+}
+.parcours-projet .etape-du-parcours.courante {
+  border-left-color: var(--accent);
+}
+.parcours-projet .titre-d-etape {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--texte);
+}
+.parcours-projet .titre-d-etape :is(.numero, .etat),
+.parcours-projet .etape-du-parcours[data-etat="a-venir"] .titre-d-etape {
+  color: var(--discret);
+}
+.parcours-projet .etape-du-parcours[data-etat="faite"] .titre-d-etape .etat {
+  color: var(--vert);
+}
+.parcours-projet .corps-d-etape {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.parcours-projet .corps-d-etape p {
+  margin: 0;
+}
+.parcours-projet :is(.dit, .code-de-connexion) {
+  color: var(--texte-doux);
+}
+.parcours-projet .compte-connecte,
+.parcours-projet .code-de-connexion strong {
+  color: var(--texte);
+}
+.parcours-projet .code-de-connexion strong {
+  font-size: 15px;
+}
+.parcours-projet .refus {
+  color: var(--rouge-clair);
+  overflow-wrap: anywhere;
+}
+.parcours-projet .refus .survol {
+  margin-left: 6px;
+}
+.parcours-projet .gestes {
+  gap: 8px;
+  padding: 0;
+}
+/* Sur l'écran d'ajout, le parcours d'abord ; l'ajout par un dossier dessous. */
+#parcours-de-l-ajout {
+  margin-bottom: 16px;
+}
+#parcours-de-l-ajout > .parcours-projet {
+  max-width: 604px;
 }
 /* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
 #accueil-stations .ajout-de-station {
@@ -1986,8 +2075,8 @@ main > header,
   max-width: 604px;
   padding: 20px 22px;
 }
-#formulaire h2 {
-  font-size: 18px;
+#formulaire h3 {
+  font-size: 15px;
   font-weight: 700;
 }
 #formulaire p {
