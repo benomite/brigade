@@ -13,8 +13,15 @@ export interface StatutDeCloture {
   blockedWithoutQuestion: number;
 }
 
-// La marque du défaut dans son corps : un défaut déjà ouvert n'est pas rouvert à chaque passe.
-export const MARQUE_DES_BLOCAGES = "<!-- brigade:blocages-sans-question -->";
+// La marque du défaut dans son corps, avec le décompte qu'il nomme : le décompte ne se remet jamais à zéro,
+// un défaut ouvert ou fermé pour ce décompte n'est pas rouvert à chaque passe.
+const MARQUE = /<!-- brigade:blocages-sans-question n=(\d+) -->/;
+
+// Le décompte nommé par la marque du corps d'une issue, ou `null` quand le corps n'en porte pas.
+export function decompteMarque(corps: string): number | null {
+  const trouve = MARQUE.exec(corps);
+  return trouve === null ? null : Number(trouve[1]);
+}
 
 // Le défaut à ouvrir, ou `null` quand le décompte est nul.
 export function defautDesBlocagesSansQuestion(statut: StatutDeCloture): DefautDeCloture | null {
@@ -25,7 +32,7 @@ export function defautDesBlocagesSansQuestion(statut: StatutDeCloture): DefautDe
   return {
     title: `${n} blocked-on-human without a question`,
     body:
-      `${MARQUE_DES_BLOCAGES}\n\nThe status counts ${n} blocked-on-human without a product or design question. ` +
+      `<!-- brigade:blocages-sans-question n=${n} -->\n\nThe status counts ${n} blocked-on-human without a product or design question. ` +
       "Each is a failure of autonomy: fix it like a bug instead of closing the project as clean.",
   };
 }

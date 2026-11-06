@@ -257,6 +257,23 @@ describe("the pass", () => {
     assert.equal(gh.creees.length, 1);
   });
 
+  test("a defect already fixed is not reopened for the same count, but is for a higher one", async (t) => {
+    const corrige: IssueDuFaux = { number: 90, title: "2 blocked-on-human without a question", body: "<!-- brigade:blocages-sans-question n=2 -->\n\nold", labels: ["fire"], association: "MEMBER", state: "closed", createdAt: "2026-10-01T00:00:00.000Z" };
+    const gh = fauxGitHub(corrige);
+    const { clone, appels } = fauxClone(merges(1));
+    let compte = 2;
+    const k = brancher(t, { github: gh.github, clone, statut: () => ({ blockedWithoutQuestion: compte }) });
+    k.reveiller();
+    await apresLesMerges(appels, 0);
+    assert.equal(gh.creees.length, 0);
+    compte = 3;
+    const avant = appels.merges;
+    k.reveiller();
+    await jusqua(() => gh.creees.length === 1);
+    assert.match(gh.creees[0]!.title, /\b3\b/);
+    assert.ok(avant >= 1);
+  });
+
   test("a clean status opens no defect, and a status that is not a count is said", async (t) => {
     const propre = fauxGitHub();
     const a = fauxClone(merges(1));

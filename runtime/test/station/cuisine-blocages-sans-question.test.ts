@@ -32,7 +32,7 @@ test("the station's kitchen opens a defect naming the blocked-without-question c
   const decisions = { BRIGADE_STATIONS: "box/claude:2:code", BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium", BRIGADE_CLOSING_MODEL: "sonnet", BRIGADE_CLOSING_EFFORT: "medium" };
   for (const [name, value] of Object.entries(decisions)) journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
   journal.fermer();
-  const cuisine = ouvrirCuisine(env, { dire: () => {}, intervalleTickMs: 20 });
+  const cuisine = ouvrirCuisine(env, { dire: () => {}, intervalleTickMs: 5 });
   const ouverts = () => gh.appels().filter((args) => args.includes("POST") && args.at(-1) === `repos/${DEPOT}/issues`);
   try {
     await jusqua(() => ouverts().length > 0);
