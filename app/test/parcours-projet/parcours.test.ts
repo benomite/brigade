@@ -19,6 +19,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { CHANGER_DE_COMPTE, connecteEnTantQue, etapeDuCompte, SE_CONNECTER } from "../../src/vue/parcours-projet/compte.js";
+import { etapeDuRecap } from "../../src/vue/parcours-projet/etape-recap.js";
 import { BIENVENUE, ETAPES, poserParcoursProjet, TITRE, type Etape } from "../../src/vue/parcours-projet/parcours.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
@@ -28,8 +29,9 @@ const SRC = join(import.meta.dirname, "../../src");
 
 describe("le squelette : des étapes ordonnées, une par fichier", () => {
   test("le compte est la première étape inscrite, la station suit (#2477) ; chaque étape est numérotée, sous « Add a project »", () => {
-    assert.deepEqual(ETAPES.map((etape) => etape.id), ["compte", "station"]);
+    assert.deepEqual(ETAPES.map((etape) => etape.id), ["compte", "station", "recap"]);
     assert.equal(ETAPES[0], etapeDuCompte);
+    assert.equal(ETAPES.at(-1), etapeDuRecap);
     const ecran = poserParcoursProjet(doc, { compte: { login: "octo-chef" } }, SANS_GESTE) as Faux;
     assert.equal(ecran.dessous("h2")[0]?.textContent, TITRE);
     assert.equal(TITRE, "Add a project");
@@ -38,10 +40,21 @@ describe("le squelette : des étapes ordonnées, une par fichier", () => {
       [
         ["compte", "1", "Your GitHub account"],
         ["station", "2", "The station that cooks it"],
+        ["recap", "3", "Ready"],
       ],
     );
     // Sans `bienvenue`, aucune phrase d'accueil.
     assert.equal(ecran.dessous("p").some((pose) => pose.textContent === BIENVENUE), false);
+  });
+
+  test("le parcours finit sur le récap : le projet, sa station et la suite `fire` — jamais un projet nu", () => {
+    const ecran = poserParcoursProjet(doc, { compte: { login: "octo-chef" }, depot: "chef/parade", station: "this Mac" }, SANS_GESTE) as Faux;
+    const fin = ecran.dessous("li").at(-1)!;
+    assert.deepEqual([fin.dataset.etape, fin.dataset.etat], ["recap", "courante"]);
+    const texte = [...fin.descendants()].map((element) => element.textContent).join(" ");
+    assert.match(texte, /chef\/parade/);
+    assert.match(texte, /this Mac/);
+    assert.equal(fin.dessous("code")[0]?.textContent, "fire");
   });
 
   test("les étapes suivantes s'inscrivent à la suite : la première qui n'est pas faite est la courante, les autres sont à venir et repliées", () => {

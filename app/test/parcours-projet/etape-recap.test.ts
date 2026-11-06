@@ -54,8 +54,9 @@ describe("le descripteur du registre", () => {
     assert.equal(etapeDuRecap.faite(), false);
   });
 
-  test("sans dépôt retenu il ne pose rien, et sans station il pose le chemin de retour", () => {
-    assert.deepEqual(etapeDuRecap.poser(doc, {}, { retour: () => {} }), []);
+  test("sans dépôt retenu il ne pose jamais rien : il le dit, et sans station il pose le chemin de retour", () => {
+    const [vide] = etapeDuRecap.poser(doc, {}, { retour: () => {} }) as Faux[];
+    assert.equal([...vide!.descendants()].some((element) => element.textContent === SANS_STATION), true);
     const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade" }, { retour: () => {} }) as Faux[];
     assert.equal([...racine!.descendants()].some((element) => element.textContent === SANS_STATION), true);
   });
