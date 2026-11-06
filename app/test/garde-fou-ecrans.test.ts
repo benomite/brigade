@@ -244,7 +244,7 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
   // ligne du projet, courte, rouge, et son survol le redit dans les mots de l'app.
   test("accueil : la box qui ne répond pas tient sur la ligne du projet, son survol dans les mots de l'app", async () => {
     const { vue, racine } = await accueil();
-    const [ligne, ...autres] = vue.element("accueil-projets").dessous("button");
+    const [ligne, ...autres] = vue.element("accueil-projets").dessous("button").filter(({ className }) => className === "ligne");
     assert.ok(ligne !== undefined && autres.length === 0, "une ligne par projet, et rien d'autre ne se clique");
     const dit = visible(ligne);
     assert.ok(dit !== "" && dit.length <= 80, `la ligne n'est pas courte — « ${dit} »`);
@@ -316,10 +316,11 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
   // attend — toute sa ligne est ce bouton, et elle ne porte aucun autre geste.
   test("accueil : la ligne du projet qui attend est le bouton qui l'ouvre, sans autre geste", async () => {
     const { vue } = await accueilEnAttente();
-    const [ligne, ...autres] = boutons(vue.element("accueil-projets"));
+    const [ligne, ...autres] = boutons(vue.element("accueil-projets")).filter(({ className }) => className === "ligne");
     assert.ok(ligne !== undefined && autres.length === 0, "la ligne du projet n'est pas un bouton, ou elle porte un geste");
     assert.equal(ligne.children[0]?.dataset.ton, "jaune");
-    assert.match(visible(ligne), /1 decision awaits you/);
+    assert.match(ligne.title, /1 decision awaits you/);
+    assert.match(visible(ligne), /waiting for the chef/);
     assert.ok(!visible(vue.element("tous")).includes(COMMANDE_DE_LA_BOX), "le geste de la box est écrit sur l'accueil");
     ligne.click();
     await repos();

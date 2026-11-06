@@ -52,6 +52,8 @@ const demarrage = (accueil: Accueil | undefined = ACCUEIL, code: VuDuCode | unde
   ...(stations === undefined ? {} : { stations }),
 });
 
+// L'état que la ligne dit des quatre (accueil/projets/), d'après la pastille que l'accueil lui donne.
+const ETAT_DIT: Record<string, string> = { jaune: "waiting for the chef", rouge: "held" };
 const lesLignes = (section: Faux) => section.children.filter(({ className }) => className === "ligne");
 // Ce qui se lit à l'écran : les textes posés, sans ce qui ne s'y voit qu'au survol.
 const visible = (pose: Faux) => pose.textContent.replace(/\s+/g, " ");
@@ -65,7 +67,7 @@ test("l'accueil montre une ligne par projet, dans l'ordre du fichier : sa pastil
   const { projets } = await lAccueil();
   assert.deepEqual(
     lesLignes(projets()).map((ligne) => ({ ton: ligne.children[0]?.dataset.ton, nom: ligne.children[1]?.textContent, dit: ligne.children[2]?.textContent, survol: ligne.title })),
-    ACCUEIL.projets.map(({ ton, nom, dit, survol }) => ({ ton, nom, dit, survol })),
+    ACCUEIL.projets.map(({ ton, nom, dit, survol }) => ({ ton, nom, dit: ETAT_DIT[ton], survol: `${dit} — ${survol}` })),
   );
   // La pastille a sa forme, pas sa seule couleur.
   assert.deepEqual(lesLignes(projets()).map((ligne) => ligne.children[0]?.dataset.forme), ["losange", "losange", "carre"]);
@@ -77,7 +79,7 @@ test("un clic n'importe où sur la ligne ouvre le projet ; la ligne ne porte auc
   assert.ok(espace);
   assert.equal(espace.balise, "button", "toute la ligne est ce qui se clique");
   assert.deepEqual(espace.dessous("button"), [], "rien d'autre ne se clique dans la ligne");
-  assert.deepEqual(projets().dessous("button"), lesLignes(projets()), "sous la liste des projets, rien ne se clique que ses lignes");
+  assert.deepEqual(projets().dessous("button").filter(({ className }) => className === "ligne"), lesLignes(projets()), "sous la liste des projets, les lignes sont les seuls boutons de ligne");
   espace.click();
   await repos();
   assert.equal(vue.element("espace").textContent, "espace");
@@ -92,8 +94,10 @@ test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni
   await repos();
   const [brigade, espace] = lesLignes(projets());
   assert.equal(brigade?.children[0]?.dataset.ton, "rouge");
-  assert.equal(brigade?.children[2]?.textContent, "station unreachable");
-  assert.equal(espace?.children[2]?.textContent, "first read in progress…");
+  assert.equal(brigade?.children[2]?.textContent, "held");
+  assert.match(brigade?.title ?? "", /station unreachable/);
+  assert.equal(espace?.children[2]?.textContent, "idle");
+  assert.match(espace?.title ?? "", /first read in progress/);
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /exit code|ENOENT|spawn/);
 });
 
@@ -133,4 +137,19 @@ test("la vue jouée ne retient pas le process : ses minuteries n'ajoutent rien d
   const avant = tenues();
   await lAccueil();
   assert.equal(tenues(), avant);
+});
+
+test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses stations ; « Add a project » ouvre le parcours d'ajout", async () => {
+  const stations = { stations: [{ id: "s1", nom: "parade-box", machine: "", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "", projets: ["brigade", "espace"], max: null }], projets: [] } as unknown as VuDesStations;
+  const vue = await jouerLaVue({ demarrage: () => demarrage(ACCUEIL, undefined, stations), espace: () => [] });
+  const bloc = vue.element("accueil-projets");
+  const [brigade] = lesLignes(bloc);
+  assert.deepEqual(brigade?.children.map((c) => c.textContent).filter((t) => t !== ""), ["brigade", "waiting for the chef", "parade-box", "›"]);
+  assert.deepEqual(brigade?.dessous("button"), [], "la ligne est un seul bouton");
+  const ajout = bloc.dessous("button").find(({ textContent }) => textContent === "Add a project");
+  assert.ok(ajout, "« Add a project » est sur l'accueil");
+  ajout.click();
+  await repos();
+  assert.equal(vue.element("ajout").hidden, false, "le parcours d'ajout s'ouvre");
+  assert.equal(vue.element("parcours-de-l-ajout").dessous("section").length > 0, true);
 });
