@@ -43,6 +43,8 @@ export const NIVEAUX = {
   "station-coeurs": "machine",
   "station-version": "machine",
   "station-mise-a-jour": "machine",
+  // Ce que la station donne à chaque projet qu'elle sert (ticket 2645) : sa part de cooks.
+  "station-part-de-cooks": "machine",
   // Toi : les couleurs de chaque projet, et le sigle de sa case dans la barre. L'app n'a aucune autre préférence
   // d'affichage (ni thème, ni densité, ni taille de police) : quand elle en aura une, sa ligne se posera ici, « you »,
   // avec son étiquette.
