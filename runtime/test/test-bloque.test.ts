@@ -11,9 +11,14 @@ const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../packag
 
 test("un test qui expire en tenant une poignée est rouge, nommé, et son fichier s'arrête", async (t) => {
   // Les options du lanceur telles que la suite les passe, au plafond près : le
-  // vrai vaut des minutes.
-  const options = (scripts.test.match(/--test\S*/g) ?? []).map((option) => option.replace(/^--test-timeout=\d+$/, "--test-timeout=500"));
-  assert.ok(options.includes("--test-timeout=500"), scripts.test);
+  // vrai vaut des minutes. Sans le reporter de durée, qui n'est pas le sujet :
+  // il lit toutes les sources des tests et y cherche ses titres, 2 s de plus
+  // pour un fichier qui en dure un demi (#2464).
+  const toutes = (scripts.test.match(/--test\S*/g) ?? []).map((option) => option.replace(/^--test-timeout=\d+$/, "--test-timeout=100"));
+  const duree = toutes.findIndex((option) => option.endsWith("garde-duree/reporteur.ts"));
+  assert.ok(duree >= 0 && toutes[duree + 1]?.startsWith("--test-reporter-destination="), scripts.test);
+  const options = toutes.filter((_, rang) => rang !== duree && rang !== duree + 1);
+  assert.ok(options.includes("--test-timeout=100"), scripts.test);
 
   const suite = spawn(process.execPath, [...options, join(import.meta.dirname, "aides/test-bloque.ts")], {
     env: ENV_ENFANT,
@@ -38,5 +43,5 @@ test("un test qui expire en tenant une poignée est rouge, nommé, et son fichie
   await jusqua(() => code !== undefined);
 
   assert.equal(code, 1);
-  assert.match(sortie, /✖ un test qui ne rend pas la main[^\n]*\n\s+'test timed out after 500ms'/);
+  assert.match(sortie, /✖ un test qui ne rend pas la main[^\n]*\n\s+'test timed out after 100ms'/);
 });

@@ -740,7 +740,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/telephone/projets.test.ts", test: "la file d'un projet servie au téléphone est celle que l'app de l'ordinateur lit au même instant, sur le même état — avant et après que le rail bouge" },
   { file: "test/telephone/second.test.ts", test: "le téléphone écrit au second d'un projet et lit sa réponse : elle s'ajoute à la conversation du desktop, que le desktop lit à sa source" },
   { file: "test/telephone/tailnet.test.ts", test: "un téléphone qui ne connaît que l'adresse du tailnet — celle du QR — s'y appaire et lit les stations, sans jamais joindre le guichet en direct" },
-  { file: "test/test-bloque.test.ts", test: "un test qui expire en tenant une poignée est rouge, nommé, et son fichier s'arrête" },
   { file: "test/tests-rejoues.test.ts", test: "`measures` montre les tests verts seulement au rejeu, après les ratages" },
   { file: "test/tests-touches.test.ts", test: "sans souche pour lire ce qu'il était — ni --souche, ni branche d'intégration —, ou une souche qui ne l'a pas, le doute joue tout" },
   { file: "test/tests-touches.test.ts", test: "à la station, le script qui joue la suite changé : sa zone joue ses tests proches, où qu'ils soient" },
