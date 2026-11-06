@@ -2,7 +2,7 @@
 // stations ; un clic ouvre le projet ; « Add a project » lance le parcours d'ajout. Joué devant un faux document.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { AJOUTER, AUCUN_PROJET, ETATS, SANS_STATION, etatDeLaLigne, poserLesProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
+import { AJOUTER, ETATS, SANS_STATION, etatDeLaLigne, boutonDAjout, lignesDeProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -10,6 +10,11 @@ const texte = (noeud: Faux): string => noeud.textContent.replace(/\s+/g, " ");
 const gestes = () => {
   const appels: string[] = [];
   return { appels, ouvrir: (nom: string) => appels.push(`ouvrir ${nom}`), ajouter: () => appels.push("ajouter") };
+};
+const poserLesProjets = (d: typeof doc, projets: ProjetDuBloc[], g: ReturnType<typeof gestes>) => {
+  const bloc = new Faux("section");
+  bloc.append(...lignesDeProjets(d, projets, g), boutonDAjout(d, g, projets.length === 0));
+  return bloc;
 };
 const lignes = (bloc: Faux) => bloc.children.filter(({ className }) => className === "ligne");
 const PROJETS: ProjetDuBloc[] = [
@@ -34,6 +39,7 @@ describe("le bloc Projects de l'accueil", () => {
   test("un clic sur une ligne ouvre ce projet, une seule fois", () => {
     const g = gestes();
     const bloc = poserLesProjets(doc, PROJETS, g);
+    assert.deepEqual(lignes(bloc)[1]?.dessous("button"), [], "la ligne est un seul bouton");
     lignes(bloc)[1]?.click();
     assert.deepEqual(g.appels, ["ouvrir espace"]);
   });
@@ -41,7 +47,7 @@ describe("le bloc Projects de l'accueil", () => {
   test("« Add a project » lance le parcours d'ajout", () => {
     const g = gestes();
     const bloc = poserLesProjets(doc, PROJETS, g);
-    const ajout = bloc.children.at(-1)?.children[0];
+    const ajout = bloc.dessous("button").find(({ className }) => className !== "ligne");
     assert.equal(ajout?.textContent, AJOUTER);
     ajout?.click();
     assert.deepEqual(g.appels, ["ajouter"]);
@@ -50,7 +56,6 @@ describe("le bloc Projects de l'accueil", () => {
   test("une liste vide se pose sans erreur, et garde le bouton d'ajout", () => {
     const bloc = poserLesProjets(doc, [], gestes());
     assert.equal(lignes(bloc).length, 0);
-    assert.match(texte(bloc), new RegExp(AUCUN_PROJET));
     assert.match(texte(bloc), new RegExp(AJOUTER));
   });
 });

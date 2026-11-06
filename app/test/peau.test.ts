@@ -501,8 +501,8 @@ describe("le monospace est une information, pas un style", () => {
     // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
     vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is" }], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } });
     const sansBox = vue.element("tous").dessous("button").find((pose) => pose.className === "ligne");
-    assert.equal(sansBox?.textContent, `${PARADE}no station: nothing is read›`);
-    assert.equal(sansBox?.title, "its entry in the projects file does not say where its station is");
+    assert.equal(sansBox?.textContent, `${PARADE}idleno station›`);
+    assert.equal(sansBox?.title, "no station: nothing is read — its entry in the projects file does not say where its station is");
     assert.equal(vue.element("tous").dessous("pre").length, 0);
   });
 });

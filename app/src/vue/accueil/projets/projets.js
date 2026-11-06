@@ -31,7 +31,6 @@ export function etatDeLaLigne({ ton, dit }) {
   if (ton === "jaune") return "waiting";
   return ton === "vert" && !/^nothing cooking/.test(dit) && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
 }
-export const AUCUN_PROJET = "no project yet";
 export const SANS_STATION = "no station";
 export const AJOUTER = "Add a project";
 
@@ -76,18 +75,3 @@ export const lignesDeProjets = (doc, projets, gestes) => projets.map((projet) =>
 // Le bouton d'ajout : il lance le parcours d'ajout unique (épique 2473).
 /** @param {Fabrique} doc @param {GestesDuBloc} gestes @param {boolean} aucun */
 export const boutonDAjout = (doc, gestes, aucun) => boutonAction(doc, AJOUTER, () => gestes.ajouter(), { recommande: aucun });
-
-// Le bloc entier : la liste (ou sa ligne vide) puis le bouton d'ajout.
-/** @param {Fabrique} doc @param {ProjetDuBloc[]} projets @param {GestesDuBloc} gestes */
-export function poserLesProjets(doc, projets, gestes) {
-  const racine = doc.createElement("section");
-  racine.className = "liste";
-  racine.ariaLabel = "Projects";
-  if (projets.length === 0) {
-    const vide = doc.createElement("p");
-    vide.textContent = AUCUN_PROJET;
-    racine.append(vide);
-  } else racine.append(...lignesDeProjets(doc, projets, gestes));
-  racine.append(boutonDAjout(doc, gestes, projets.length === 0));
-  return racine;
-}

@@ -6217,8 +6217,10 @@ function poserAccueil() {
       : telephoneVu?.github !== undefined
         ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
         : desProjets.length === 0
-          ? [bloc("p", telephoneVu === undefined ? "no project yet: “+” in the bar adds one" : "no project on this phone yet: a project is added from a computer")]
-          : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, desProjets.length === 0)] : [])]),
+          ? (telephoneVu === undefined
+            ? [bloc("p", "no project yet: “+” in the bar adds one"), boutonDAjout(document, gestesDuBloc, true)]
+            : [bloc("p", "no project on this phone yet: a project is added from a computer")])
+          : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, false)] : [])]),
   );
   poserStationsDeLAccueil();
   poserApp();
