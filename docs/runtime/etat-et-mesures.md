@@ -82,10 +82,17 @@ party or another ticket —, the runtime writes `kitchen.held` to the log and th
 count from the latest of: the last service, the kitchen's opening (runtime start, project switched back on), and the
 moment the waiting tickets started to wait. The cause is the first that holds of: the breaker (`to lift:` its `Resume`
 button), the GitHub limit or the box's reserve for your gestures, the GitHub write budget (both say `nothing to do: it
-lifts on its own around HH:MM`), the red base with its failing checks named (`to lift: fix the base by hand…`), on the
+lifts on its own around HH:MM`; the limit stays the cause **while the station's counter still records refused calls**
+in the last five minutes, even once the `backAt` GitHub announced has passed: `calls still refused at HH:MM, whatever
+the HH:MM announced`, #2429), the red base with its failing checks named (`to lift: fix the base by hand…`), on the
 GitHub-only state the deliveries in pass whose PR head has no concluded CI (#2456: `cause: 2 deliveries in pass wait for
 a CI on their PR head (#757, #759), and no check has started there — to lift: check that the project's CI runs on its
-PRs…`, or `still running: brigade/gates — nothing to do`), or `cause unknown`, with no gesture. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
+PRs…`, or `still running: brigade/gates — nothing to do`), the tickets' own reasons (#2429: `#2187 waits on #2186, set
+aside: <reason>`, on the old path's rail and on the GitHub-only turn, where the claim gate reads the card's `attend` and
+the set-aside ticket's last station comment; `#2383 is claimable but not claimed, the claim gate skipped it: zone held by
+#N`, `capability missing…` or `its calibration (model, effort) is incomplete`; the gate does not claim a ticket that
+waits on a set-aside one, `hors-cuisine` or `blocked-on-human`), or `cause unknown`, with no gesture — only when none of
+these applies. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
 its start. When the kitchen serves again — or nothing waits any more, or you stop the kitchen —, `kitchen.hold-lifted`
 is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
 GitHub-only state from what the station's round reads on GitHub (its tickets, the base's checks, its merges). The

@@ -12,14 +12,19 @@
 // écritures de l'heure ; `nextAt`, la prochaine. `breaker` : `since`, son
 // ouverture. `ci-wait` (#2456) : des livraisons en pass attendent un check sur
 // la tête de leur PR — `tickets`, lesquelles ; `running`, les checks qui y
-// tournent, vide quand aucun n'y a démarré. `unknown` : rien de ce que le
-// runtime lit ne l'explique.
+// tournent, vide quand aucun n'y a démarré. `tickets` (#2429) : ni limite, ni
+// budget, ni disjoncteur, ni base rouge, mais `lines`, ce qui retient les
+// tickets un à un — une attente sur un ticket mis de côté, un saut de la porte
+// de prise. `refusedAt` d'une limite : le dernier appel que GitHub a refusé
+// alors que `backAt` était passée. `unknown` : rien de ce que le runtime lit ne
+// l'explique.
 export type CauseDeRetenue =
   | { kind: "base-red"; sha: string | null; checks: string[] }
-  | { kind: "github-limit"; limit: string | null; backAt: string }
+  | { kind: "github-limit"; limit: string | null; backAt: string; refusedAt?: string }
   | { kind: "write-pacer"; writes: number; nextAt: string }
   | { kind: "breaker"; since: string }
   | { kind: "ci-wait"; tickets: number[]; running: string[] }
+  | { kind: "tickets"; lines: string[] }
   | { kind: "unknown" };
 
 export type FaitRetenue =

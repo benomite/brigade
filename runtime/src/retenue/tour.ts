@@ -38,6 +38,9 @@ export type SuiviDuTour = {
   envelopper(github: GitHubDuTour): GitHubDuTour;
   // Le client enveloppé, une fois le tour ouvert : null avant.
   client(): GitHubDuTour | null;
+  // La porte de prise n'a pas pris ce ticket prenable, et `ligne` dit pourquoi
+  // (#2429) : ce qu'elle a dit au dernier tour est ce que la retenue en lit.
+  sauter(ticket: number, ligne: string): void;
   vue(): VueDuTour;
 };
 
@@ -49,6 +52,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   // Les tickets qui attendent, et le tour qui a vu chacun commencer d'attendre.
   let attendent = new Map<number, string>();
   let enPass = new Set<number>();
+  let sauts = new Map<number, string>();
   let enveloppe: GitHubDuTour | null = null;
   // La tête de la PR de chaque ticket, et les checks lus sur chaque tête.
   const tetes = new Map<number, string>();
@@ -56,6 +60,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
 
   const noterTickets = (tickets: TicketLu[]) => {
     const instant = maintenant().toISOString();
+    sauts = new Map();
     const ouverts = new Set(tickets.map(({ number }) => number));
     if ([...enPass].some((ticket) => !ouverts.has(ticket))) dernierService = instant;
     const suivants = new Map<number, string>();
@@ -72,6 +77,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
 
   return {
     client: () => enveloppe,
+    sauter: (ticket, ligne) => void sauts.set(ticket, ligne),
     envelopper: (github) => (enveloppe = {
       ...github,
       fires: async () => {
@@ -120,7 +126,8 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         })
         .sort((a, b) => a - b);
       const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };
-      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI };
+      const explications = [...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne);
+      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications };
     },
   };
 }

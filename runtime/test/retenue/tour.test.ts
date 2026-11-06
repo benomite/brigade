@@ -34,6 +34,7 @@ function clientDicte() {
   const client = {
     fires: async () => dicte.tickets,
     dependancesOuvertes: async () => [],
+    commentaires: async () => [],
     checksDeLaBase: async () => dicte.checks,
     merger: async () => dicte.merge,
     prDuTicket: async (issue: number) => {
@@ -50,7 +51,7 @@ test("le tour vu par la retenue : attendent les tickets en pass et ceux qu'une s
   const suivi = suivreLeTour(() => new Date(instant));
   const { dicte, client } = clientDicte();
   const github = suivi.envelopper(client);
-  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null, attenteCI: null });
+  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null, attenteCI: null, explications: [] });
 
   instant = A("00:05:00");
   dicte.tickets = [
