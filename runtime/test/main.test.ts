@@ -80,7 +80,9 @@ function relire(repertoire: string) {
 // que ce relevé : aucun ne dépend de l'ordre où les autres se jouent. Les
 // lieux sont ceux du premier test, qui attend le relevé entier avant de finir.
 type Releve = {
-  // Au démarrage : la sortie, le journal, et l'empreinte du code en service.
+  // Au démarrage : le journal et l'empreinte du code en service ; la sortie,
+  // relue une fois le runtime arrêté — ses lignes d'erreur (stderr) arrivent par
+  // un autre tube que « démarré », et peuvent n'être pas encore lues quand il arrive.
   sortie: string;
   journal: ReturnType<typeof relire>;
   codeEnService: ReturnType<typeof lireCodeEnService>;
@@ -101,7 +103,6 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
     const depuis = Date.now();
     const runtime = lancer(t, MAIN, [], environnement(t, repertoire, gh));
     await runtime.attendre("démarré");
-    const sortie = runtime.sortie();
     const journal = relire(repertoire);
     const codeEnService = lireCodeEnService(repertoire);
     await jusqua(() => gh.jetons().length > 0);
@@ -112,7 +113,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
     if (process.platform === "win32") await signalerLArbre(runtime.process.pid ?? 0, "SIGKILL", { depuis });
     else runtime.process.kill("SIGTERM");
     const code = await runtime.fin;
-    return { sortie, journal, codeEnService, jetons, sansCompte, code, sortieFinale: runtime.sortie(), journalFinal: relire(repertoire) };
+    return { sortie: runtime.sortie(), journal, codeEnService, jetons, sansCompte, code, sortieFinale: runtime.sortie(), journalFinal: relire(repertoire) };
   })();
   return releve;
 }
@@ -161,10 +162,12 @@ function runtimeRegle(t: TestContext): Promise<ReleveRegle> {
     const depuis = Date.now();
     const runtime = lancer(t, MAIN, [], env);
     await runtime.attendre("démarré");
-    const releve = { sortie: runtime.sortie(), journal: relire(repertoire), racine, secrets, app: JSON.parse(readFileSync(app, "utf8")) as unknown };
+    const releve = { journal: relire(repertoire), racine, secrets, app: JSON.parse(readFileSync(app, "utf8")) as unknown };
     if (process.platform === "win32") await signalerLArbre(runtime.process.pid ?? 0, "SIGKILL", { depuis });
     else runtime.process.kill("SIGTERM");
-    return { ...releve, code: await runtime.fin };
+    // La sortie entière, comme celle du runtime par défaut : stderr compris.
+    const code = await runtime.fin;
+    return { ...releve, sortie: runtime.sortie(), code };
   })();
   return releveRegle;
 }
