@@ -18,7 +18,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
-import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, poserJournalVide, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
+import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, jusqua, lancementsDuFauxBwrap, lancementsDuFauxClaude, poserJournalVide, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
@@ -558,7 +558,16 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const lancements = () => lancementsDuFauxClaude(temoin);
   // Ce que chaque lancement cloisonné a demandé à `bwrap`.
   const cloisonnes = () => lancementsDuFauxBwrap(temoinDeCloison);
-  return { cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, lancements, avertissements };
+  // Les réveils du runtime, comptés après ceux du manager et de la garde, branchés avant : quand `reveils` passe,
+  // chacun a déjà fait la part synchrone de son tour. Attendre `n` réveils de plus, c'est attendre un fait — que
+  // la cuisine ait eu ses tours —, pas une durée (#2464).
+  let reveils = 0;
+  runtime.surReveil(() => void reveils++);
+  const laisserReveiller = async (n = 2) => {
+    const depart = reveils;
+    await jusqua(() => reveils >= depart + n);
+  };
+  return { cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, lancements, avertissements, laisserReveiller };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

@@ -286,7 +286,7 @@ export function poserJournalVide(repertoire: string): void {
 // Ce que le journal porte déjà n'est pas écrasé, et la variable reste alors à
 // l'environnement : le runtime l'ignore et le dit.
 // `BRIGADE_TEST_SANS_DECISIONS=1` laisse les variables où elles sont.
-function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
+export function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
   const { BRIGADE_TEST_SANS_DECISIONS: sans, ...reste } = env;
   const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
   const etat = reste.BRIGADE_STATE_DIR;
@@ -537,10 +537,13 @@ export function fauxGh(t: TestContext): FauxGh {
 // vain, chacun une fois, sur la base comme sur les PR (#2080), et le même commit repassait vert.
 // Sous Linux la CI joue les gates avec toute la suite à la fois (charge 8 sur 4 cœurs) : machine.test.ts
 // attendait 69 s pour 60 s permises. Le plafond par test est de 120 s : l'attente reste en dessous.
+// C'est l'attente d'un fait de la suite, pas une attente sur l'horloge (#2464) : le résultat d'un test ne dépend
+// jamais du temps qu'elle sonde. Ses 20 ms ne règlent que sa latence, son délai ne fait que finir un test cassé.
+// La condition peut être asynchrone : une réponse HTTP, un gist relu.
 const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 100_000;
-export async function jusqua(condition: () => boolean, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
+export async function jusqua(condition: () => boolean | Promise<boolean>, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
   const limite = Date.now() + delaiMs;
-  while (!condition()) {
+  while (!(await condition())) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
     await new Promise((resoudre) => setTimeout(resoudre, 20));
   }

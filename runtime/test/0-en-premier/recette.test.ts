@@ -1,21 +1,26 @@
 // gates: base
 // Ne tourne que sur la base, où les gates jouent tout (#1004), et pour un
-// changement qui le modifie : une vraie station, et l'attente réelle de sa cadence.
+// changement qui le modifie : une vraie station, et ses écritures réelles du gist.
 // La recette de l'ajout d'un projet depuis l'app, sur une installation de
 // test : une vraie station — un seul process, `station/main.ts` —, appairée,
 // dont GitHub est une doublure de `gh` (les gists du compte, et le dépôt à
 // cloner). Le test écrit dans le gist ce que l'app y écrit quand le chef
 // valide le parcours, et mesure le temps jusqu'à ce que la station publie le
-// projet dans sa liste — ce que la home de l'app lit (« 1 project »). Ce temps
-// comprend la cadence réelle de la station, trente secondes, à laquelle elle lit
-// la demande de l'app : elle n'est pas accélérée. La spec demande moins de dix
-// minutes, parcours compris ; la station en met moins d'une.
+// projet dans sa liste — ce que la home de l'app lit (« 1 project »). La
+// station lit la demande de l'app à sa cadence, trente secondes : le test ne
+// l'attend pas, un signal la fait relire tout de suite, et la mesure lui ajoute
+// la cadence entière (`CADENCE_MS` de projets/tenir.ts), le pire des cas. Que
+// la cadence relise d'elle-même, projets-station/servir.test.ts le joue sur une
+// horloge simulée (#2464). La spec demande moins de dix minutes, parcours
+// compris ; la station en met moins d'une.
 //
 // Deux minuteries de la station sont raccourcies, qui tenaient le fichier deux
 // minutes (#1658) — une minute chacune en service :
 //   - l'écart minimal entre deux écritures de son gist (`BRIGADE_STATION_ECART_S`,
 //     `ECART_MINIMAL_MS` d'appairage/presence.ts) : la recette lit trois de ces
-//     écritures — la liste vide, le projet ajouté, le projet retiré ;
+//     écritures — la liste vide, le projet ajouté, le projet retiré. Réglé à zéro,
+//     chacune part dès qu'elle est due : une seconde entre deux, c'était deux
+//     secondes réelles d'attente pour le test (#2464) ;
 //   - le tick du runtime du projet (`BRIGADE_STATION_TICK_S`), auquel sa
 //     cuisine relit la décision du chef de cuire sans bac à sable.
 // Ni l'un ni l'autre n'est une échéance : l'écart est un plancher entre deux
@@ -34,6 +39,7 @@ import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document
 import { ECART_MINIMAL_MS, FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
+import { CADENCE_MS } from "../../src/projets/tenir.ts";
 import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -47,10 +53,10 @@ const DIX_MINUTES = 10 * 60_000;
 // Le chef met ce temps à remplir le parcours : il compte dans la mesure.
 const PARCOURS_MS = 60_000;
 // L'écart minimal entre deux écritures du gist de la station, et son tick, en secondes.
-const ECART_S = 5;
-const TICK_S = 5;
+const ECART_S = 0;
+const TICK_S = 1;
 
-test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { skip: posixOnly("plays the app's add-a-project journey against a real station process and measures the time until the project is listed, then withdraws it by SIGHUP and stops the station by SIGTERM expecting exit 0; Windows has no SIGHUP to send, SIGTERM kills the station there before its handler runs, and the journey up to the served project does not fit the five-minute test timeout there"), timeout: 300_000 }, async (t) => {
+test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { skip: posixOnly("plays the app's add-a-project journey against a real station process and measures the time until the project is listed, then withdraws it by SIGHUP and stops the station by SIGTERM expecting exit 0; Windows has no SIGHUP to send, SIGTERM kills the station there before its handler runs, and the journey up to the served project does not fit the five-minute test timeout there") }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");
@@ -138,12 +144,13 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
       demandeLe: new Date().toISOString(),
     },
   ]);
+  station.process.kill("SIGHUP");
 
   await jusqua(tenue(() => projetsPublies()?.includes("shop") === true), DIX_MINUTES);
   const mesure = Date.now() - ouvert;
-  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours, l'écart entre deux écritures du gist réglé à ${ECART_S} s`);
-  // L'écart de service, une minute au lieu de ECART_S, n'en retiendrait au plus que la différence.
-  assert.ok(mesure + ECART_MINIMAL_MS - ECART_S * 1000 < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
+  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours, sans écart entre deux écritures du gist, sans la cadence de ${CADENCE_MS / 1000} s`);
+  // La cadence que le signal a sautée, et l'écart de service, une minute au lieu de ECART_S, n'en retiendraient au plus que leur somme.
+  assert.ok(mesure + CADENCE_MS + ECART_MINIMAL_MS - ECART_S * 1000 < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
 
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/shop/LISEZMOI")));

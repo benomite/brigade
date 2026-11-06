@@ -106,16 +106,17 @@ async function railLu(cuisine: Awaited<ReturnType<typeof station>>) {
   return (JSON.parse(lue.sortie) as { rail: Array<{ ticket: number; etat: string }> }).rail.map(({ ticket, etat }) => ({ ticket, etat }));
 }
 
-for (const { gesture, args, ticket, fait } of [
-  { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/ },
-  { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/ },
+// Le geste du téléphone et celui de l'ordinateur se jouent de front, chacun sur
+// sa station : chacun lance un process de geste.
+for (const { gesture, args, ticket, fait, puts } of [
+  { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/, puts: [] },
+  // Le merge de #14 a lieu sur GitHub, à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
+  { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/, puts: [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]] },
 ]) {
   test(`« ${gesture} » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase`, async (t) => {
-    const telephone = await station(t);
-    const ordinateur = await station(t);
+    const [telephone, ordinateur] = await Promise.all([station(t), station(t)]);
 
-    const reponse = await telephone.geste(gesture, ticket);
-    const lance = await ordinateur.commeLOrdinateur(...args);
+    const [reponse, lance] = await Promise.all([telephone.geste(gesture, ticket), ordinateur.commeLOrdinateur(...args)]);
 
     assert.equal(reponse.statut, 200, JSON.stringify(reponse.corps));
     assert.equal(lance.code, 0, lance.erreurs);
@@ -127,6 +128,7 @@ for (const { gesture, args, ticket, fait } of [
     assert.deepEqual(telephone.gh.appels(), ordinateur.gh.appels());
     // Le geste a bien changé quelque chose.
     assert.notDeepEqual([telephone.ecrits(), telephone.gh.appels()], [[], []]);
+    assert.deepEqual(telephone.gh.appels().filter((appel) => appel.includes("PUT")), puts);
   });
 }
 
@@ -150,8 +152,10 @@ test("« back-to-kitchen » du téléphone renvoie en cuisine sur le journal du 
 
 test("après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine", async (t) => {
   const cuisine = await station(t);
-  const avant = await railLu(cuisine);
-  assert.deepEqual(avant.find(({ ticket }) => ticket === 15)?.etat, "en attente");
+  // L'état d'avant se lit sur le rail du journal, dans ce process : la lecture de
+  // l'ordinateur coûte un process, et seule celle d'après dit ce qu'il voit (#2464).
+  assert.equal(ticketDuRail(cuisine.journal.base, 15)?.state, "waiting");
+  assert.equal(ticketDuRail(cuisine.journal.base, 15)?.waitingFor, null);
   assert.notEqual(ticketDuRail(cuisine.journal.base, 16)?.waitingFor ?? null, null);
 
   assert.equal((await cuisine.geste("remove", 15)).statut, 200);
@@ -160,21 +164,18 @@ test("après un geste du téléphone, la file que l'ordinateur lit a changé : #
   const apres = await railLu(cuisine);
   assert.equal(apres.find(({ ticket }) => ticket === 15), undefined);
   assert.equal(ticketDuRail(cuisine.journal.base, 16)?.waitingFor, null);
-  assert.notDeepEqual(apres.find(({ ticket }) => ticket === 16), avant.find(({ ticket }) => ticket === 16));
-  // Le merge de #14 a eu lieu sur GitHub, à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
-  assert.equal((await cuisine.geste("merge", 14)).statut, 200);
-  assert.deepEqual(
-    cuisine.gh.appels().filter((appel) => appel.includes("PUT")),
-    [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]],
-  );
+  // #16 n'est plus en WAITING pour l'ordinateur : il attend la cuisine.
+  assert.equal(apres.find(({ ticket }) => ticket === 16)?.etat, "en attente");
+  // Le merge du téléphone, et ses appels à GitHub, sont ceux de l'ordinateur : voir plus haut.
 });
 
 test("un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change", async (t) => {
   const cuisine = await station(t);
 
   for (const [gesture, ticket, phrase] of [
+    // Un refus de la commande (sortie 1) : un seul, chacun coûte un process, et la
+    // phrase de chaque refus de `rail` est celle de ses propres tests.
     ["merge", 15, "#15 is not touched: #15 has no delivery waiting for you to merge it — cost: none: nothing was changed"],
-    ["remove", 99, "#99 is not touched: #99 is not on the rail — cost: none: nothing was changed"],
     ["back-to-kitchen", 15, "ticket 15 is not waiting for a third party — it is queued"],
   ] as const) {
     const reponse = await cuisine.geste(gesture, ticket);

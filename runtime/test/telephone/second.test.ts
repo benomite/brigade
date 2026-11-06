@@ -20,7 +20,7 @@ import { CONFIGURATION } from "../../src/station/configuration.ts";
 import { ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
 import { secondsDeLaStation } from "../../src/telephone/second.ts";
-import { aArreter, DEPOT, ENV_ENFANT, repertoireTemporaire } from "../outils.ts";
+import { aArreter, DEPOT, ENV_ENFANT, jusqua, repertoireTemporaire } from "../outils.ts";
 
 const SESSION = "0b6c1c2e-4f5a-4b7c-9d8e-1f2a3b4c5d6e";
 
@@ -144,11 +144,12 @@ async function station(t: TestContext, options: Options = {}) {
     duDesktop: () => lireLaConversation({ claude, dossier: projet }),
     // La conversation, relue jusqu'à ce que le second ne réponde plus.
     async repondue(): Promise<Reponse> {
-      for (;;) {
-        const lue = await demander("GET", "/projects/brigade/second");
-        if (lue.corps.answering === undefined) return lue;
-        await new Promise((suite) => setTimeout(suite, 20));
-      }
+      const lue: { derniere?: Reponse } = {};
+      await jusqua(async () => {
+        lue.derniere = await demander("GET", "/projects/brigade/second");
+        return lue.derniere.corps.answering === undefined;
+      });
+      return lue.derniere!;
     },
     lancements: () =>
       readFileSync(temoin, "utf8")

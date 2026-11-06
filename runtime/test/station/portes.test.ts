@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirPorte } from "../../src/porte.ts";
-import { ecrirePortes, lirePortes, tenirPortes } from "../../src/station/portes.ts";
+import { attendrePorteDeLaStation, ecrirePortes, lirePortes, tenirPortes } from "../../src/station/portes.ts";
 import { jusqua, lancer, repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -173,4 +173,31 @@ describe("les portes de la station", { concurrency: 4 }, () => {
     assert.equal(await sans.fin, 2);
     assert.match(sans.sortie(), /les portes de la station refusent de démarrer — BRIGADE_STATION_PORTES n'est pas défini/);
   });
+});
+
+// Sur une horloge simulée : la patience de 3 s et le pas de 200 ms ne sont pas attendus (#2464). Le process de la
+// station, lui, est joué sous ses portes par station/main.test.ts.
+test("sans sa porte, la station le dit une fois, passé trois secondes, et rend son port dès que le fichier le porte", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const fichier = join(repertoireTemporaire(t), "portes.json");
+  const dits: string[] = [];
+  let port: number | undefined;
+  void attendrePorteDeLaStation(fichier, { dire: (ligne) => void dits.push(ligne) }).then((lu) => (port = lu));
+  const avancer = async (ms: number) => {
+    for (let fait = 0; fait < ms; fait += 200) {
+      t.mock.timers.tick(200);
+      await new Promise((suite) => setImmediate(suite));
+    }
+  };
+  await avancer(2800);
+  assert.deepEqual(dits, []);
+  await avancer(200);
+  assert.deepEqual(dits, [`brigade : la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier} (journalctl -u brigade-station-porte.service)`]);
+  await avancer(2000);
+  assert.equal(dits.length, 1);
+  assert.equal(port, undefined);
+
+  ecrirePortes(fichier, { station: 4242, projets: {} });
+  await avancer(200);
+  assert.equal(port, 4242);
 });

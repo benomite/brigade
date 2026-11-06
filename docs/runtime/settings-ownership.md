@@ -113,6 +113,7 @@ All station: what is installed on, or identifies, the machine.
 | `BRIGADE_STATION_VERSION` | Version the station announces |
 | `BRIGADE_STATION_PORTES` | The station's doors file |
 | `BRIGADE_STATION_TICK_S`, `BRIGADE_STATION_ECART_S` | The station's tick, and the gap tolerated between ticks, in seconds |
+| `BRIGADE_STATION_RELAIS_MS` | How often each project looks at what the station's update gave, in milliseconds (a test station's) |
 | `BRIGADE_PRESENCE_MINUTES` | How long a station counts as present after its last sign |
 | `BRIGADE_MISE_A_JOUR_DIR` | Directory of the station's own update |
 | `BRIGADE_MISE_A_JOUR_SOURCE` | Where the station finds new versions of brigade |

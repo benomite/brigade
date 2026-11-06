@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
@@ -199,8 +199,10 @@ test("une lecture seule attend qu'un journal tenu un instant par un autre proces
   const ecrivain = ouvrirJournal(repertoire);
   ecrivain.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...faitInconnu("ticket.arrived") });
   ecrivain.fermer();
-  await lancer(t, TIENT_JOURNAL, [repertoire]).attendre("tenu");
+  const libere = join(repertoireTemporaire(t), "libere");
+  await lancer(t, TIENT_JOURNAL, [repertoire, libere]).attendre("tenu");
 
+  writeFileSync(libere, "");
   const lecteur = ouvrirJournal(repertoire, { lectureSeule: true });
   t.after(() => lecteur.fermer());
 

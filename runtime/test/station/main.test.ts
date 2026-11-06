@@ -5,13 +5,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { after, describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
+import { casEnProcess } from "../aides/cas-en-process.ts";
 import { relecteur } from "../aides/opt-B-journal.ts";
-import { aArreter, BASE, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, vivant } from "../outils.ts";
+import { aArreter, BASE, ENV_ENFANT, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, vivant } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -19,7 +20,16 @@ const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const PORTES = join(import.meta.dirname, "../../src/station/tenir-portes.ts");
+// Le `gh` de la station quand ce qu'elle publie d'elle n'est pas le sujet : hors ligne, en shell — la doublure
+// des gists lance un Node à chaque écriture, cinq par station (#2464).
+const GH_HORS_LIGNE = join(import.meta.dirname, "../aides/gh-hors-ligne.sh");
 const REFUS = 2;
+
+// Les refus de démarrer de la station se jouent dans un seul process d'essai,
+// l'un après l'autre : un Node par refus coûtait les modules de la station à
+// chaque fois. Ils viennent tous avant qu'elle ne touche à rien.
+const refus = casEnProcess(ENV_ENFANT);
+const refuser = (env: Record<string, string>) => refus.jouer({ module: STATION, env });
 
 // Les décisions sans lesquelles un projet ne sert pas : le chef les a posées
 // au journal du projet, avant de lui écrire sa ligne.
@@ -32,8 +42,9 @@ const DECIDE = {
 };
 
 // Une station d'essai : son répertoire, et un compte à côté — tout ce qu'une
-// machine porte hors de la station.
-function uneStation(t: TestContext) {
+// machine porte hors de la station. `gists` : ce qu'elle publie d'elle sur
+// GitHub y arrive ; sans lui, son `gh` est hors ligne.
+function uneStation(t: TestContext, options: { gists?: boolean } = {}) {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");
@@ -45,7 +56,7 @@ function uneStation(t: TestContext) {
     ...ENV_GIT,
     // Ce que la station publie d'elle sur GitHub (appairage/presence.ts) va à
     // une doublure : aucun test ne joint GitHub.
-    BRIGADE_GH_BIN: FAUX_GH_GISTS,
+    BRIGADE_GH_BIN: options.gists ? FAUX_GH_GISTS : GH_HORS_LIGNE,
     FAUX_GISTS: gists,
     HOME: compte,
     BRIGADE_STATION_DIR: racine,
@@ -115,8 +126,30 @@ function photographier(racine: string, sauf: string[]): Record<string, string> {
   return photo;
 }
 
+// Les refus se jouent avant les stations, et seuls : partis avec elles, ils attendaient que cinq stations aient
+// chargé leurs modules, au-delà de 2 s sur un runner de la CI (#2464).
+describe("la station refuse de démarrer", () => {
+  test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
+    const { racine, env } = uneStation(t);
+    const refusee = await refuser({ ...env, BRIGADE_STATION_PORTES: join(racine, "portes.json"), BRIGADE_PROXY_PORT: "3128" });
+    assert.equal(refusee.code, REFUS);
+    assert.match(refusee.sortie, /BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES sont définis ensemble/);
+  });
+
+  test("un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658)", async (t) => {
+    const { env } = uneStation(t);
+    for (const [variable, valeur] of [["BRIGADE_STATION_ECART_S", "0.5"], ["BRIGADE_STATION_TICK_S", "0"]] as const) {
+      const refusee = await refuser({ ...env, [variable]: valeur });
+      assert.equal(refusee.code, REFUS);
+      assert.match(refusee.sortie, new RegExp(`refus de démarrer la station — ${variable}=${valeur.replace(".", "\\.")} — attendu un nombre entier de secondes`));
+    }
+  });
+});
+
 // Chaque test a sa station — racine, configuration, doublures — sur le port 0 : ils se jouent de front.
 describe("la station, son process", { concurrency: 8 }, () => {
+  after(() => refus.fermer());
+
   test("deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service", { skip: posixOnly("serves two projects from one station process and checks each one's log, sandbox and gh in its single output, then stops it with SIGTERM; the expected startup line is a RegExp built from a Windows path, whose backslashes it reads as escapes, and SIGTERM kills the station before its handler runs, so neither exit code 0 nor the SIGTERM stop facts can come") }, async (t) => {
     const { racine, compte, env, preparer, configurer, relire } = uneStation(t);
     const brigade = fauxGh(t);
@@ -167,7 +200,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
   });
 
   test("un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela", { skip: posixOnly("adds then withdraws a project by editing the station's configuration and checks nothing else on the machine was written, then stops the station with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
-    const { machine, racine, env, preparer, configurer, relire, faits } = uneStation(t);
+    const { machine, racine, env, preparer, configurer, relire, faits } = uneStation(t, { gists: true });
     const brigade = fauxGh(t);
     brigade.issues([]);
     const espace = fauxGh(t);
@@ -192,8 +225,11 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR)];
     const avant = photographier(machine, sauf);
 
+    // Chaque changement de la configuration est suivi d'un SIGHUP : la station la relit sans attendre sa relecture
+    // de 2 s, que station.test.ts joue sur une horloge simulée (#2464).
     // Ajouter : une ligne de plus, rien d'autre.
     appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.started").length === 1);
     assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, pid);
     await station.attendre("brigade [espace] : servi par la station");
@@ -201,6 +237,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
 
     // Retirer : la ligne s'en va ; le projet s'arrête, la station et l'autre projet restent.
     configurer(ligneBrigade);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.stopped").length === 1);
     assert.deepEqual(faits("espace", "runtime.stopped")[0]?.payload, { signal: "removed" });
     await station.attendre("brigade [espace] : retiré de la configuration : la station ne le sert plus");
@@ -210,10 +247,12 @@ describe("la station, son process", { concurrency: 8 }, () => {
 
     // Rajouté, il repart de son journal : son verrou a été rendu, rien n'est interrompu.
     appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.started").length === 2);
     assert.deepEqual(faits("espace", "runtime.interrupted"), []);
     await jusqua(() => espace.appels().length > sondes);
     configurer(ligneBrigade);
+    station.process.kill("SIGHUP");
     await jusqua(() => faits("espace", "runtime.stopped").length === 2);
 
     // Ni unité, ni drop-in, ni compte, ni clone : rien hors de l'état des projets n'a bougé.
@@ -256,8 +295,10 @@ describe("la station, son process", { concurrency: 8 }, () => {
     configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
     const fichier = join(racine, "portes.json");
 
+    // La station part sans portes : rien ne la fait joindre quoi que ce soit avant que le fichier porte leurs
+    // ports, et les ports que ses projets prennent, plus bas, sont ceux de ce fichier. Ce qu'elle dit en attendant
+    // est joué par portes.test.ts sur une horloge simulée : l'attendre ici coûtait sa patience, 3 s (#2464).
     const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
-    await station.attendre(`la station attend sa porte — brigade-station-porte.service n'a pas encore écrit son port dans ${fichier}`);
     assert.deepEqual(faits("brigade", "runtime.started"), []);
 
     const portes = lancer(t, PORTES, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
@@ -276,28 +317,12 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await portes.fin, 0);
   });
 
-  test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
-    const { racine, env } = uneStation(t);
-    const refusee = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: join(racine, "portes.json"), BRIGADE_PROXY_PORT: "3128" });
-    assert.equal(await refusee.fin, REFUS);
-    assert.match(refusee.sortie(), /BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES sont définis ensemble/);
-  });
-
-  test("un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658)", async (t) => {
-    const { env } = uneStation(t);
-    for (const [variable, valeur] of [["BRIGADE_STATION_ECART_S", "0.5"], ["BRIGADE_STATION_TICK_S", "0"]] as const) {
-      const refusee = lancer(t, STATION, [], { ...env, [variable]: valeur });
-      assert.equal(await refusee.fin, REFUS);
-      assert.match(refusee.sortie(), new RegExp(`refus de démarrer la station — ${variable}=${valeur.replace(".", "\\.")} — attendu un nombre entier de secondes`));
-    }
-  });
-
   test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet", { skip: posixOnly("expects the station refused without BRIGADE_STATION_DIR, then started without configuration and serving nothing, and stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { env } = uneStation(t);
     const { BRIGADE_STATION_DIR: _, ...sans } = env;
-    const refusee = lancer(t, STATION, [], sans);
-    assert.equal(await refusee.fin, REFUS);
-    assert.match(refusee.sortie(), /refus de démarrer la station — BRIGADE_STATION_DIR n'est pas défini/);
+    const refusee = await refuser(sans);
+    assert.equal(refusee.code, REFUS);
+    assert.match(refusee.sortie, /refus de démarrer la station — BRIGADE_STATION_DIR n'est pas défini/);
 
     const vide = lancer(t, STATION, [], env);
     await vide.attendre("station démarrée");

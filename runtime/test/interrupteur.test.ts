@@ -211,11 +211,11 @@ function enCuisine(t: TestContext, options: Parameters<typeof cuisine>[1] = {}) 
 
 describe("la cuisine sous l'interrupteur", () => {
   test("le manager suit l'interrupteur : éteint, allumé à l'ancienne, il ne juge rien ; le projet rallumé, il juge", async (t) => {
-    const { basculer, gh, lancements, repertoire, heure } = enCuisine(t, { manager: {}, issues: [issue(30, [])] });
+    const { basculer, gh, lancements, repertoire, heure, laisserReveiller } = enCuisine(t, { manager: {}, issues: [issue(30, [])] });
     basculer("off");
     chef(repertoire, "manager.enabled");
     heure.avancer(1);
-    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    await laisserReveiller();
     assert.equal(gh.sondages.ouvertes, 0);
     assert.equal(lancements().filter((lancement) => lancement.args.includes("--tools")).length, 0);
 

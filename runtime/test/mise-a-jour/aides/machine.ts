@@ -102,7 +102,9 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
     ...env,
     PATH: `${bin}:${env.PATH ?? process.env.PATH ?? ""}`,
     FAUSSE_RACINE: racine,
-    FAUX_SYSTEMD_ENV: JSON.stringify({ BRIGADE_MISE_A_JOUR_SOURCE: publiees, BRIGADE_MISE_A_JOUR_ESPACEMENT_S: "0", ...JSON.parse(env.FAUX_SYSTEMD_ENV ?? "{}") }),
+    // La station regarde ce que la mise à jour a donné toutes les 20 ms, pas toutes les deux secondes : son issue
+    // est au journal du projet sans que le test attende deux secondes réelles (#2464).
+    FAUX_SYSTEMD_ENV: JSON.stringify({ BRIGADE_MISE_A_JOUR_SOURCE: publiees, BRIGADE_MISE_A_JOUR_ESPACEMENT_S: "0", BRIGADE_STATION_RELAIS_MS: "20", ...JSON.parse(env.FAUX_SYSTEMD_ENV ?? "{}") }),
   };
   const systemctl = (...args: string[]) => spawnSync(join(bin, "systemctl"), args, { env: complet, encoding: "utf8" });
   const pidDe = (unite: string) => Number(lire(join(etat, `${unite}.pid`)) || 0);

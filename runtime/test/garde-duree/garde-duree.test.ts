@@ -84,6 +84,23 @@ test("le fichier d'un test se retrouve par son titre, même bâti", () => {
   assert.deepEqual(fichiersDuTitre("un titre que personne n'a écrit nulle part ici", sources), []);
 });
 
+test("un titre bâti est rendu au fichier de son plus long bout, en tête ou en queue, écrit en échappé ou non", () => {
+  const sources = new Map([
+    ["test/a.test.ts", "test(`un début de titre partagé par deux, puis ${x}`, () => {}); test('l\\'apostrophe d\\'un titre échappé, puis ${y}', () => {});"],
+    ["test/b.test.ts", "test(`${x} puis une queue un peu plus longue que la tête`, () => {});"],
+    ["test/c.test.ts", "test(`un début de titre partagé par deux, ${x}`, () => {});"],
+  ]);
+  assert.deepEqual(fichiersDuTitre("un début de titre partagé par deux, puis 3", sources), ["test/a.test.ts"]);
+  assert.deepEqual(fichiersDuTitre("un début de titre partagé par deux, et autre chose", sources), ["test/a.test.ts", "test/c.test.ts"]);
+  assert.deepEqual(fichiersDuTitre("un début de titre partagé par deux, puis 3 puis une queue un peu plus longue que la tête", sources), ["test/b.test.ts"]);
+  assert.deepEqual(fichiersDuTitre("l'apostrophe d'un titre échappé, puis 4", sources), ["test/a.test.ts"]);
+  // Moins de 20 caractères en commun : rien.
+  assert.deepEqual(fichiersDuTitre("un début de tit · autre chose", sources), []);
+  // Le même titre redemandé rend la même liste, que l'appelant peut changer sans toucher à la suivante.
+  fichiersDuTitre("un début de titre partagé par deux, et autre chose", sources).push("test/z.test.ts");
+  assert.deepEqual(fichiersDuTitre("un début de titre partagé par deux, et autre chose", sources), ["test/a.test.ts", "test/c.test.ts"]);
+});
+
 test("sur une PR, un test lent ajouté ou changé échoue, nommé et chiffré ; un test lent inchangé est seulement rapporté", () => {
   const source = ['test("ancien lent", () => {', "  a();", "});", 'test("neuf lent", () => {', "  b();", "});"].join("\n");
   const diff = ["+++ b/test/z.test.ts", "@@ -4,0 +4,3 @@"].join("\n");

@@ -184,16 +184,29 @@ test("une version qui ne démarre pas : le paquet d'avant est réinstallé, la s
   assert.deepEqual(m.installations, ["1.1.0", "1.0.0", "1.2.0"]);
 });
 
+// Un passage dont la station ne se dira jamais en service à temps : il n'a rien d'autre à attendre que la fin
+// de sa garde de 2 s, qui passe sur l'horloge du test, un pas de 5 ms après l'autre (#2464).
+async function passageJusquAuBoutDeLaGarde(t: TestContext, m: ReturnType<typeof machine>, publications: Publications) {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let fini = false;
+  const rendu = passage(m, publications).finally(() => void (fini = true));
+  while (!fini) {
+    await new Promise((resoudre) => setImmediate(resoudre));
+    t.mock.timers.tick(5);
+  }
+  return rendu;
+}
+
 test("une station qui tourne sans se dire en service dans la garde n'est pas gardée", async (t) => {
   const m = machine(t, "1.0.0", (version) => (version === "1.1.0" ? "muette" : { servis: [] }));
-  const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]));
+  const { issue } = await passageJusquAuBoutDeLaGarde(t, m, publiees(["1.0.0", "1.1.0"]));
   assert.equal(issue?.quoi === "revenue" && issue.motif, "la station ne s'est pas dite en service en 1.1.0 en 2 s (systemd : active)");
 });
 
 test("une version qui ne sert plus un projet que la précédente servait n'est pas gardée : le motif nomme le projet et son refus", async (t) => {
   const m = machine(t, "1.0.0", (version) => (version === "1.1.0" ? { servis: ["espace"], refuses: { brigade: "BRIGADE_X n'est pas défini" } } : { servis: ["brigade", "espace"] }));
   m.configurer("brigade acme/brigade v2\nespace acme/espace main\n");
-  const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]));
+  const { issue } = await passageJusquAuBoutDeLaGarde(t, m, publiees(["1.0.0", "1.1.0"]));
   assert.equal(issue?.quoi === "revenue" && issue.motif, "le projet brigade n'est plus servi en 1.1.0 : BRIGADE_X n'est pas défini en 2 s (systemd : active)");
   assert.equal(issue?.quoi === "revenue" && issue.retour, null);
 });

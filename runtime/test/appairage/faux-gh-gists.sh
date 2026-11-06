@@ -7,7 +7,9 @@
 # place avant d'avoir rien noté : chaque appel n'est noté qu'une fois.
 ICI="$(dirname "$0")"
 REPERTOIRE="${FAUX_GISTS:-}"
-ceder() { exec node "$ICI/faux-gh-gists.ts" "$@"; }
+# Le Node cédé garde le cache de compilation de la suite : l'environnement que
+# la station donne à `gh` ne le porte pas, et sans lui ce Node coûte 0,3 s.
+ceder() { NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" exec node "$ICI/faux-gh-gists.ts" "$@"; }
 
 [ "${1:-}" = api ] || ceder "$@"
 methode=GET

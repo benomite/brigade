@@ -62,7 +62,7 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false, 
     root: () => false,
     utilisateur: () => compte,
     afficher: (texte) => void (montre += texte),
-    delaiMuet: muet ? 300 : 60_000,
+    delaiMuet: 60_000,
   };
   const lire = (fichier: string) => (existsSync(fichier) ? readFileSync(fichier, "utf8").trim().split("\n") : []);
   return { racine, etc, machine, montre: () => montre, appels: () => lire(appels), environnements: () => lire(environnements) };
@@ -122,8 +122,18 @@ test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton
 });
 
 test("un `setup-token` muet est arrêté, et l'étape le dit en une ligne avec le geste pour réessayer", { skip: posixOnly("runs the Max-connection step against a fake `claude` whose setup-token stays silent, and expects it stopped with a one-line message saying to retry; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched instead of the silence") }, async (t) => {
-  const { machine, etc } = installation(t, { muet: true });
+  const { machine, etc, appels } = installation(t, { muet: true });
+  // Le délai du silence passe sur l'horloge du test : elle est simulée avant
+  // que l'étape ne lance `claude`, et avance d'un coup quand le faux `claude`
+  // s'est lancé — ce fait s'attend sur le `setTimeout` réel, pris avant.
+  const reel = globalThis.setTimeout;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const etape = appeler((appel) => principal(appel, machine));
+  let finie = false;
+  void etape.fin.finally(() => (finie = true));
+  while (!finie && !appels().includes("setup-token")) await new Promise((suite) => reel(suite, 5));
+  t.mock.timers.tick(machine.delaiMuet);
+  t.mock.timers.reset();
   assert.equal(await etape.fin, 1);
   assert.match(etape.sortie(), /connexion Max non faite — `claude setup-token` n'a rien affiché.*relance l'étape pour réessayer/);
   assert.equal(existsSync(etc), false);

@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync, type SpawnOptions } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
+import { after, describe, test, type TestContext } from "node:test";
+import { casEnProcess } from "./aides/cas-en-process.ts";
+import { ENV_ENFANT, repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const SOURCE = join(import.meta.dirname, "../deploy/brigade");
@@ -49,6 +50,8 @@ type Machine = {
   geste: string;
   runtime: string;
   station: string;
+  // Où la commande d'essai note ce qu'elle a reçu.
+  temoin: string;
   // Le `PATH` que l'unité donne.
   chemin: string;
   // Lance le geste, sous `qui` (le chef, sinon), sans terminal — comme par `ssh`.
@@ -87,9 +90,10 @@ function executer(commande: string, args: string[], options: SpawnOptions): Prom
 
 // Une machine : la station installée (compte `brigade`), son unité et
 // l'environnement qu'elle déclare — tel que `systemctl show -p Environment
-// --value` le rend —, et le projet `calculus` dans sa configuration.
-function machine(t: TestContext, options: { environnement?: (station: string, chemin: string, temoin: string) => string; ligne?: string } = {}): Machine {
-  const racine = repertoireTemporaire(t);
+// --value` le rend —, et le projet `calculus` dans sa configuration. Sans test,
+// celle que les tests du fichier se partagent.
+function machine(t: TestContext | null, options: { environnement?: (station: string, chemin: string, temoin: string) => string; ligne?: string } = {}): Machine {
+  const racine = t === null ? repertoireDuFichier("brigade-test-geste-") : repertoireTemporaire(t);
   const sous = (nom: string) => join(racine, nom);
   const [bin, binUnite, unites, temoin, paquet, station] = [sous("bin"), sous("bin-unite"), sous("unites"), sous("temoin"), sous("usr/lib/brigade-station"), sous("var/lib/brigade")];
   for (const repertoire of [bin, binUnite, unites, temoin, join(paquet, "node/bin"), join(paquet, "runtime/src"), station]) mkdirSync(repertoire, { recursive: true });
@@ -155,6 +159,7 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
     geste,
     runtime,
     station,
+    temoin,
     chemin,
     lancer: (args, qui = "chef") => executer(geste, args, lancement(qui)),
     lancerAuTerminal: async (args, entree) => {
@@ -178,12 +183,48 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
   };
 }
 
+// Un geste lancé par le chef sans terminal part une fois ; les tests qui n'éprouvent que lui le lisent chacun.
+type Lance = { m: Machine; fin: Awaited<ReturnType<Machine["lancer"]>> };
+const partages = new Map<string, Promise<Lance>>();
+const partage = (nom: string, args: string[], options?: Parameters<typeof machine>[1]): Promise<Lance> => {
+  let lance = partages.get(nom);
+  if (lance === undefined) {
+    const m = machine(null, options);
+    lance = m.lancer(args).then((fin) => ({ m, fin }));
+    partages.set(nom, lance);
+  }
+  return lance;
+};
+// Le plus courant : `brigade calculus status --suivre 12`, sur une machine telle qu'installée.
+const gesteCourant = () => partage("courant", ["calculus", "status", "--suivre", "12"]);
+// Sur une machine réglée autrement : un clone nommé par la ligne du projet, des
+// valeurs de l'unité à espaces, guillemets et dollar, une commande qui sort en 3.
+// Chaque réglage se lit à part dans ce que la commande reçoit ou rend.
+const gesteRegle = () =>
+  partage("réglé", ["calculus", "status"], {
+    ligne: "calculus acme/calculus main BRIGADE_REPO_DIR=/var/lib/brigade/calculus/depot",
+    environnement: (station, chemin, temoin) => [`BRIGADE_STATION_DIR=${station}`, String.raw`"BRIGADE_SANDBOX_PRIVATE=/srv/deux mots:/srv/\"cité\" \$HOME \\fin"`, `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`, `"VIDE="`, "FAUX_CODE=3"].join(" "),
+  });
+
+// Ce que le runtime de la station juge seul — le projet de sa configuration,
+// la commande parmi ses scripts (`src/station/geste.ts`) —, joué dans un même
+// process d'essai, sous l'environnement que le geste lui donne et depuis le
+// runtime du paquet : un geste entier par refus lançait chaque fois ses shells,
+// ses doublures et deux Node. Chaque refus est aussi joué une fois par le geste
+// entier, qui le rend tel quel.
+const GESTE_DU_RUNTIME = join(import.meta.dirname, "../src/station/geste.ts");
+const cas = casEnProcess(ENV_ENFANT);
+const juger = async (m: Machine, args: string[]) => {
+  const rendu = await cas.jouer({ module: GESTE_DU_RUNTIME, args, cwd: m.runtime, env: { BRIGADE_STATION_DIR: m.station, TEMOIN_DU_TEST: m.temoin } });
+  return { code: rendu.code, dit: rendu.sortie };
+};
+
 // Chaque test a sa machine — sa station, ses doublures, son témoin —, et ses process ne bloquent pas : ils se jouent de front.
 describe("le geste brigade", { concurrency: 8 }, () => {
-  test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` through the fake sudo and checks the account, unit environment and project variables the command receives; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t);
+  after(() => cas.fermer());
 
-    const fin = await m.lancer(["calculus", "status", "--suivre", "12"]);
+  test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` through the fake sudo and checks the account, unit environment and project variables the command receives; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await gesteCourant();
 
     assert.equal(fin.erreur, "");
     assert.equal(fin.code, 0);
@@ -210,28 +251,24 @@ describe("le geste brigade", { concurrency: 8 }, () => {
 
   const realpath = (chemin: string) => spawnSync("/bin/sh", ["-c", 'cd "$1" && pwd -P', "sh", chemin], { encoding: "utf8" }).stdout.trim();
 
-  test("le clone que la ligne du projet nomme est celui de la commande", { skip: posixOnly("Runs the gesture as `brigade calculus status` with a project line that sets BRIGADE_REPO_DIR and checks the command receives that clone path; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t, { ligne: "calculus acme/calculus main BRIGADE_REPO_DIR=/var/lib/brigade/calculus/depot" });
-
-    assert.equal((await m.lancer(["calculus", "status"])).code, 0);
+  test("le clone que la ligne du projet nomme est celui de la commande", { skip: posixOnly("Runs the gesture as `brigade calculus status` with a project line that sets BRIGADE_REPO_DIR and checks the command receives that clone path; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m } = await gesteRegle();
 
     assert.equal(m.commande()?.env.BRIGADE_REPO_DIR, "/var/lib/brigade/calculus/depot");
   });
 
-  test("rien de l'environnement de celui qui lance n'arrive à la commande", { skip: posixOnly("Runs the gesture as `brigade calculus status` from a caller environment holding SECRET_DU_CHEF and checks none of it reaches the command; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t);
+  test("rien de l'environnement de celui qui lance n'arrive à la commande", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` from a caller environment holding SECRET_DU_CHEF and checks none of it reaches the command; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await gesteCourant();
 
-    assert.equal((await m.lancer(["calculus", "status"])).code, 0);
+    assert.equal(fin.code, 0);
 
     const env = m.commande()?.env ?? {};
     assert.equal(env.SECRET_DU_CHEF, undefined);
     assert.equal(env.FAUX_QUI, undefined);
   });
 
-  test("une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière", { skip: posixOnly("Runs the gesture with a unit Environment whose values hold spaces, quotes, a dollar sign and an empty VIDE= and checks they reach the command whole; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t, { environnement: (station, chemin, temoin) => [`BRIGADE_STATION_DIR=${station}`, String.raw`"BRIGADE_SANDBOX_PRIVATE=/srv/deux mots:/srv/\"cité\" \$HOME \\fin"`, `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`, `"VIDE="`].join(" ") });
-
-    assert.equal((await m.lancer(["calculus", "status"])).code, 0);
+  test("une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière", { skip: posixOnly("Runs the gesture with a unit Environment whose values hold spaces, quotes, a dollar sign and an empty VIDE= and checks they reach the command whole; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m } = await gesteRegle();
 
     const env = m.commande()?.env ?? {};
     assert.equal(env.BRIGADE_SANDBOX_PRIVATE, String.raw`/srv/deux mots:/srv/"cité" $HOME \fin`);
@@ -264,10 +301,12 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.deepEqual(m.commande()?.args, []);
   });
 
-  test("le code de sortie de la commande est rendu tel quel", { skip: posixOnly("Runs the gesture as `brigade calculus status` with the witness command told to exit 3 and checks the gesture exits with that same code; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t, { environnement: (station, chemin, temoin) => [`BRIGADE_STATION_DIR=${station}`, `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`, "FAUX_CODE=3"].join(" ") });
+  test("le code de sortie de la commande est rendu tel quel", { skip: posixOnly("Runs the gesture as `brigade calculus status` with the witness command told to exit 3 and checks the gesture exits with that same code; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await gesteRegle();
 
-    assert.equal((await m.lancer(["calculus", "status"])).code, 3);
+    assert.equal(fin.code, 3);
+    assert.equal(fin.sortie, "sortie de la commande\n");
+    assert.deepEqual(m.commande()?.args, []);
   });
 
   test("un projet que cette station ne sert pas est refusé en le disant", { skip: posixOnly("Runs the gesture for the unknown project `calculs` and checks exit code 65 with the message naming the station's projets file, no command started; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
@@ -296,13 +335,13 @@ describe("le geste brigade", { concurrency: 8 }, () => {
   test("une commande qui n'est pas du runtime est refusée, en nommant celles de la station", { skip: posixOnly("Runs the gesture with commands outside the station runtime (`journal`, `--version`, `toString`, `ailleurs`) and checks exit 66 listing the station's commands; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
+    const refus = (commande: string) => `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n`;
     // `journal` est une commande du runtime de ce dépôt, pas de cette station.
-    for (const commande of ["journal", "status; true", "--version", "toString", "ailleurs"]) {
-      const fin = await m.lancer(["calculus", commande]);
-      assert.equal(fin.code, PAS_DU_RUNTIME, commande);
-      assert.equal(fin.erreur, `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n`);
-      assert.equal(fin.sortie, "");
-    }
+    const fin = await m.lancer(["calculus", "journal"]);
+    assert.equal(fin.code, PAS_DU_RUNTIME);
+    assert.equal(fin.erreur, refus("journal"));
+    assert.equal(fin.sortie, "");
+    for (const commande of ["status; true", "--version", "toString", "ailleurs"]) assert.deepEqual(await juger(m, ["calculus", commande]), { code: PAS_DU_RUNTIME, dit: refus(commande) }, commande);
     assert.equal(m.commande(), null);
   });
 
@@ -317,7 +356,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", { skip: posixOnly("Runs the gesture as `brigade --help` and `-h`, expecting the usage on stdout and exit 0, then as `brigade calculus help` to reach the runtime's help script; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
+  test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", { skip: posixOnly("Runs the gesture as `brigade --help` and `-h`, expecting the usage on stdout and exit 0, then as `brigade calculus --help` and `-h` to reach the runtime's help script; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
     for (const option of ["--help", "-h"]) {
@@ -328,7 +367,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     }
     assert.equal(m.commande(), null);
 
-    for (const option of ["--help", "-h", "help"]) {
+    for (const option of ["--help", "-h"]) {
       assert.equal((await m.lancer(["calculus", option])).code, 0, option);
       assert.equal(m.commande()?.env.npm_lifecycle_event, "help", option);
     }
@@ -341,18 +380,19 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.deepEqual(m.commande()?.args, ["--vite"]);
     assert.equal(m.commande()?.env.npm_lifecycle_event, "plat-d-hier");
 
-    const fin = await m.lancer(["calculus", "plat-davant"]);
-    assert.equal(fin.code, PAS_DU_RUNTIME);
-    assert.doesNotMatch(fin.erreur, /plat-d-hier/);
+    const refus = await juger(m, ["calculus", "plat-davant"]);
+    assert.equal(refus.code, PAS_DU_RUNTIME);
+    assert.match(refus.dit, /^brigade : « plat-davant » n'est pas une commande du runtime — /);
+    assert.doesNotMatch(refus.dit, /plat-d-hier/);
   });
 
   test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres", { skip: posixOnly("Runs the gesture as `brigade calculus test`, `typecheck` and `start` with a file argument and checks each is refused with exit 66; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
     for (const commande of ["test", "typecheck", "start"]) {
-      const fin = await m.lancer(["calculus", commande, "/tmp/nimporte.ts"]);
-      assert.equal(fin.code, PAS_DU_RUNTIME, commande);
-      assert.match(fin.erreur, /celles de cette station : status, grant, help, plat-du-jour\n$/);
+      const refus = await juger(m, ["calculus", commande, "/tmp/nimporte.ts"]);
+      assert.equal(refus.code, PAS_DU_RUNTIME, commande);
+      assert.match(refus.dit, /^brigade : « [a-z]+ » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n$/);
     }
     assert.equal(m.commande(), null);
   });
@@ -419,10 +459,8 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", { skip: posixOnly("Runs the gesture without a terminal and checks it probes the right with `sudo -n -u brigade -- <gesture>` while the probe leaves stdout and stderr clean; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t);
-
-    const fin = await m.lancer(["calculus", "status"]);
+  test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", { skip: posixOnly("Runs the gesture without a terminal and checks it probes the right with `sudo -n -u brigade -- <gesture>` while the probe leaves stdout and stderr clean; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await gesteCourant();
 
     assert.equal(fin.code, 0);
     assert.equal(fin.sortie, "sortie de la commande\n");

@@ -13,7 +13,7 @@ const rienNeReste = temporaireDuFichier();
 
 // Ce qui ne se joue que sous macOS et Linux, et pourquoi. L'arrêt d'un cook et
 // de tout ce qu'il a lancé se prouve sous Windows dans `arbre.test.ts`.
-const GROUPE = posixOnly("a node grandchild spawned detached leaves its cook's process group and holds both pipes open, and the test expects the supervisor's safety net to flush and mask the unfinished line while that grandchild lives; on Windows the supervisor kills the cook's whole tree by pid at its end, detached grandchild included, so nothing escapes (arbre.test.ts proves that)");
+const GROUPE = posixOnly("a node grandchild spawned detached leaves its cook's process group and holds both pipes open, and the test moves its clock past the supervisor's safety net, once the cook is dead, and expects that net to flush and mask the unfinished line while that grandchild lives; on Windows the supervisor kills the cook's whole tree by pid at its end, detached grandchild included, so nothing escapes (arbre.test.ts proves that)");
 
 // La fin d'un cook que le superviseur a arrêté par ce signal. Sous Windows il n'y a pas de signal : le
 // superviseur y tue l'arbre du cook par ses pids (arbre.ts), Windows termine chaque process avec le code
@@ -41,7 +41,16 @@ function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}
 // Résout dès que le cook a écrit dans son flux : il est lancé, et ce qu'il
 // fait avant de parler (poser un gestionnaire de signal) est fait.
 async function aParle(flux: string): Promise<void> {
-  while (!existsSync(flux) || readFileSync(flux, "utf8") === "") await new Promise((resoudre) => setTimeout(resoudre, 5));
+  await jusqua(() => existsSync(flux) && readFileSync(flux, "utf8") !== "");
+}
+
+// Une valeur coupée en deux écritures : le script écrit la première, une ligne entière en tête, puis attend que
+// le test pose `suite` pour écrire la seconde. La ligne de tête dans le flux dit que le superviseur a reçu la
+// première écriture seule — le tube ne peut plus les lui livrer ensemble, aussi chargée que soit la machine (#2464).
+const attendre = (suite: string) => `until [ -e '${suite}' ]; do sleep 0.01; done`;
+async function premierMorceauRecu(flux: string, suite: string): Promise<void> {
+  await jusqua(() => existsSync(flux) && readFileSync(flux, "utf8") === "avant\n");
+  writeFileSync(suite, "");
 }
 
 // Le délai au bout duquel un cook resté bloqué fait échouer son test au lieu
@@ -53,14 +62,20 @@ const FILET_MS = 10_000;
 // superviseur est tenue par le test.
 const vraiMinuteur = setTimeout;
 const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
+// `aParle`, pendant que l'horloge est tenue : `jusqua` dort sur le minuteur du test.
+async function aParleAuVraiMinuteur(flux: string): Promise<void> {
+  while (!existsSync(flux) || readFileSync(flux, "utf8") === "") await souffler();
+}
 
 // Chaque test attend un vrai process et de vrais délais : ils tournent de
 // front, pour que la suite reste de l'ordre de la seconde.
 describe("superviser", { concurrency: true }, () => {
   test("le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux", async (t) => {
-    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const suite = join(repertoire, "suite");
     // La valeur est coupée entre deux écritures, que le tube livre séparément.
-    const script = 'printf \'{"type":"result","result":"la clé est sk-de\'; sleep 0.2; printf \'v-12345678"}\\nfin sans saut de ligne sk-dev-12345678\'; printf "erreur : sk-dev-12345678\\n" >&2';
+    const script = `printf 'avant\\n{"type":"result","result":"la clé est sk-de'; ${attendre(suite)}; printf 'v-12345678"}\\nfin sans saut de ligne sk-dev-12345678'; printf "erreur : sk-dev-12345678\\n" >&2`;
     const supervise = superviser({
       commande: "bash",
       args: ["-c", script],
@@ -72,23 +87,27 @@ describe("superviser", { concurrency: true }, () => {
     });
     aArreter(t, () => supervise.abandonner());
 
+    await premierMorceauRecu(flux, suite);
     await supervise.fin;
 
-    assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"la clé est [secret:CLE]"}\nfin sans saut de ligne [secret:CLE]');
+    assert.equal(readFileSync(flux, "utf8"), 'avant\n{"type":"result","result":"la clé est [secret:CLE]"}\nfin sans saut de ligne [secret:CLE]');
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [secret:CLE]\n");
   });
 
   test("sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois", async (t) => {
-    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const suite = join(repertoire, "suite");
     // Fabriqué, et assemblé ici : la forme n'est écrite en clair nulle part.
     const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
-    const script = `printf '{"type":"result","result":"le jeton est ${jeton.slice(0, 30)}'; sleep 0.2; printf '${jeton.slice(30)}"}\\nfin sans saut de ligne ${jeton}'; printf "erreur : ${jeton}\\n" >&2`;
+    const script = `printf 'avant\\n{"type":"result","result":"le jeton est ${jeton.slice(0, 30)}'; ${attendre(suite)}; printf '${jeton.slice(30)}"}\\nfin sans saut de ligne ${jeton}'; printf "erreur : ${jeton}\\n" >&2`;
     const supervise = superviser({ commande: "bash", args: ["-c", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 2000, flux });
     aArreter(t, () => supervise.abandonner());
 
+    await premierMorceauRecu(flux, suite);
     const fin = await supervise.fin;
 
-    assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"le jeton est [jeton Claude masqué]"}\nfin sans saut de ligne [jeton Claude masqué]');
+    assert.equal(readFileSync(flux, "utf8"), 'avant\n{"type":"result","result":"le jeton est [jeton Claude masqué]"}\nfin sans saut de ligne [jeton Claude masqué]');
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [jeton Claude masqué]\n");
     assert.equal(fin.masques, 3);
   });
@@ -115,35 +134,6 @@ describe("superviser", { concurrency: true }, () => {
     const activite = supervise.activite?.();
     assert.deepEqual({ doing: activite?.doing, target: activite?.target }, { doing: "writing", target: "src/[secret:CLIENT].ts" });
     assert.ok(!JSON.stringify(activite).includes("CODE_DU_COOK"));
-  });
-
-  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", { skip: GROUPE }, async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const flux = join(repertoire, "run.jsonl");
-    const echappe = join(repertoire, "echappe.pid");
-    const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
-    // Le petit-enfant est chef de son propre groupe : le signal du superviseur
-    // ne l'atteint pas, et il tient les deux tubes dont il a hérité.
-    const script = `
-      const petit = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true, stdio: "inherit" });
-      require("node:fs").writeFileSync(${JSON.stringify(echappe)}, String(petit.pid));
-      petit.unref();
-      process.stdout.write("une ligne entière\\nun dernier mot ${jeton}");
-      process.stderr.write("fatal: ${jeton}");
-    `;
-    aArreter(t, () => {
-      if (existsSync(echappe)) process.kill(Number(readFileSync(echappe, "utf8")), "SIGKILL");
-    });
-    const supervise = superviser({ commande: process.execPath, args: ["-e", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 500, flux });
-    aArreter(t, () => supervise.abandonner());
-
-    const fin = await supervise.fin;
-
-    // Les tubes n'ont pas fini : c'est le filet qui a rendu la main.
-    assert.equal(vivant(Number(readFileSync(echappe, "utf8"))), true);
-    assert.equal(readFileSync(flux, "utf8"), "une ligne entière\nun dernier mot [jeton Claude masqué]");
-    assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "fatal: [jeton Claude masqué]");
-    assert.equal(fin.masques, 2);
   });
 
   test("une sortie sans saut de ligne n'attend pas la fin du cook en mémoire : passé la borne, elle est écrite, masquée", async (t) => {
@@ -183,7 +173,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(mesure(), { turns: 0, tokens: 0 });
 
     await aParle(flux);
-    while (mesure().turns === 0) await new Promise((resoudre) => setTimeout(resoudre, 5));
+    await jusqua(() => mesure().turns > 0);
 
     assert.deepEqual(mesure(), { turns: 1, tokens: 10 });
   });
@@ -231,24 +221,6 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual({ code: resultat.code, signal: resultat.signal }, tuePar("SIGTERM"));
   });
 
-  test("un cook qui dépasse son plafond de durée est arrêté, même s'il produit", async (t) => {
-    const resultat = await cook(t, "bavard", { durationMs: 150 }).fin;
-
-    assert.equal(resultat.arret?.reason, "duration");
-    assert.equal(resultat.arret?.limit, 150);
-    // Pas de borne sur `observed` : le minuteur de Node et `performance.now()`
-    // ne sont pas la même horloge, 149 pour un plafond de 150 est légitime.
-    assert.equal(typeof resultat.arret?.observed, "number");
-  });
-
-  test("un cook muet est détecté comme inactif et arrêté", async (t) => {
-    const resultat = await cook(t, "muet", { idleMs: 150 }).fin;
-
-    assert.equal(resultat.arret?.reason, "idle");
-    assert.equal(resultat.arret?.limit, 150);
-    assert.equal(resultat.turns, 0);
-  });
-
   test("la commande d'arrêt arrête le cook, une seule fois", async (t) => {
     const { fin, arreter, arrets } = cook(t, "bavard");
 
@@ -257,15 +229,6 @@ describe("superviser", { concurrency: true }, () => {
 
     assert.deepEqual((await fin).arret, { reason: "stop", limit: null, observed: null });
     assert.equal(arrets.length, 1);
-  });
-
-  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("stops the fake claude scenario sourd, whose bash trap ignores SIGTERM, and expects the supervisor to follow with SIGKILL after the grace delay; on Windows the supervisor terminates the cook's tree outright, which no trap can ignore, and Node reports no signal for it") }, async (t) => {
-    const { fin, arreter, flux } = cook(t, "sourd", {}, 100);
-    await aParle(flux);
-
-    arreter();
-
-    assert.equal((await fin).signal, "SIGKILL");
   });
 
   test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: posixOnly("stops the fake claude scenario petit-enfant-sourd and expects the cook ended by SIGTERM and its grandchild, deaf to SIGTERM, killed with the process group; Windows has neither process groups nor signals: the supervisor terminates the tree by pid and Node reports exit code 1 with no signal") }, async (t) => {
@@ -394,6 +357,14 @@ describe("superviser", { concurrency: true }, () => {
   });
 });
 
+const reveiller = (pid: number) => {
+  try {
+    process.kill(pid, "SIGUSR1");
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "ESRCH") throw erreur;
+  }
+};
+
 // L'inactivité se juge à l'horloge du test, pas à celle du mur : le temps que
 // met un cook à démarrer sur une machine chargée ne compte pas pour un silence.
 // Un seul test à la fois — l'horloge tenue est celle de tout le process.
@@ -424,10 +395,83 @@ describe("superviser, à l'horloge du test", () => {
     for (let tour = 1; tour <= 3; tour += 1) {
       while (!fini && mesure().turns < tour) await souffler();
       t.mock.timers.tick(999);
-      if (!fini) process.kill(pid, "SIGUSR1");
+      // Au dernier tour, le cook peut être mort à son plafond avant que `fin` ne le dise : rien à réveiller.
+      if (!fini) reveiller(pid);
     }
 
     assert.equal((await fin).arret?.reason, "tokens");
+  });
+
+  test("un cook qui dépasse son plafond de durée est arrêté, même s'il produit", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin, flux } = cook(t, "bavard", { durationMs: 150 });
+    await aParleAuVraiMinuteur(flux);
+    t.mock.timers.tick(150);
+    const resultat = await fin;
+
+    assert.equal(resultat.arret?.reason, "duration");
+    assert.equal(resultat.arret?.limit, 150);
+    // Pas de borne sur `observed` : le minuteur de Node et `performance.now()`
+    // ne sont pas la même horloge, 149 pour un plafond de 150 est légitime.
+    assert.equal(typeof resultat.arret?.observed, "number");
+  });
+
+
+  test("un cook muet est détecté comme inactif et arrêté", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin } = cook(t, "muet", { idleMs: 150 });
+    t.mock.timers.tick(150);
+    const resultat = await fin;
+
+    assert.equal(resultat.arret?.reason, "idle");
+    assert.equal(resultat.arret?.limit, 150);
+    assert.equal(resultat.turns, 0);
+  });
+
+
+  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("stops the fake claude scenario sourd, whose bash trap ignores SIGTERM, and expects the supervisor to follow with SIGKILL once the test's clock passes the grace delay; on Windows the supervisor terminates the cook's tree outright, which no trap can ignore, and Node reports no signal for it") }, async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin, arreter, flux } = cook(t, "sourd", {}, 100);
+    await aParleAuVraiMinuteur(flux);
+
+    arreter();
+    t.mock.timers.tick(100);
+
+    assert.equal((await fin).signal, "SIGKILL");
+  });
+
+
+  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", { skip: GROUPE }, async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const echappe = join(repertoire, "echappe.pid");
+    const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
+    // Le petit-enfant est chef de son propre groupe : le signal du superviseur
+    // ne l'atteint pas, et il tient les deux tubes dont il a hérité.
+    const script = `
+      const petit = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true, stdio: "inherit" });
+      require("node:fs").writeFileSync(${JSON.stringify(echappe)}, String(petit.pid));
+      petit.unref();
+      process.stdout.write("une ligne entière\\nun dernier mot ${jeton}");
+      process.stderr.write("fatal: ${jeton}");
+    `;
+    aArreter(t, () => {
+      if (existsSync(echappe)) process.kill(Number(readFileSync(echappe, "utf8")), "SIGKILL");
+    });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const supervise = superviser({ commande: process.execPath, args: ["-e", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 500, flux });
+    aArreter(t, () => supervise.abandonner());
+
+    // Le cook est mort, son petit-enfant tient les tubes : le filet tombe.
+    while (!existsSync(echappe) || vivant(supervise.pid)) await souffler();
+    t.mock.timers.tick(500);
+    const fin = await supervise.fin;
+
+    // Les tubes n'ont pas fini : c'est le filet qui a rendu la main.
+    assert.equal(vivant(Number(readFileSync(echappe, "utf8"))), true);
+    assert.equal(readFileSync(flux, "utf8"), "une ligne entière\nun dernier mot [jeton Claude masqué]");
+    assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "fatal: [jeton Claude masqué]");
+    assert.equal(fin.masques, 2);
   });
 });
 

@@ -134,18 +134,69 @@ export type Mesure = { fichiers: string[]; test: string; ms: number };
 const ecritures = (titre: string): string[] => [titre, titre.replaceAll("\\", "\\\\").replaceAll("'", "\\'"), titre.replaceAll('"', '\\"'), titre.replaceAll("`", "\\`")];
 
 // Les fichiers de test où ce titre est écrit. Un titre bâti (`${…}`) n'y est pas en entier : on cherche alors
-// son plus long bout continu, en tête ou en queue. Rien trouvé : liste vide.
+// son plus long bout continu, en tête ou en queue — à longueur égale, la queue —, d'au moins 20 caractères.
+// Rien trouvé : liste vide. Le reporter cherche des centaines de titres dans des centaines de sources (#2464) :
+// les sources sont lues d'un bloc, chaque titre n'y est cherché qu'une fois, et le plus long bout se trouve
+// par dichotomie — un bout écrit quelque part l'est aussi raccourci —, pas en essayant chaque coupe.
+type Index = { tout: string; debuts: number[]; noms: string[]; cherches: Map<string, string[]> };
+const INDEX = new WeakMap<Map<string, string>, Index>();
 export function fichiersDuTitre(titre: string, sources: Map<string, string>): string[] {
-  const contenant = (bout: string): string[] => [...sources].filter(([, texte]) => ecritures(bout).some((e) => texte.includes(e))).map(([f]) => f);
+  let index = INDEX.get(sources);
+  if (index === undefined) {
+    // Un titre ne porte pas de \0 : aucun ne se lit à cheval sur deux sources.
+    const noms = [...sources.keys()];
+    const debuts: number[] = [];
+    let longueur = 0;
+    for (const texte of sources.values()) {
+      debuts.push(longueur);
+      longueur += texte.length + 1;
+    }
+    index = { tout: [...sources.values()].join("\0"), debuts, noms, cherches: new Map() };
+    INDEX.set(sources, index);
+  }
+  const trouves = index.cherches.get(titre) ?? chercherLeTitre(titre, index);
+  index.cherches.set(titre, trouves);
+  return [...trouves];
+}
+
+function chercherLeTitre(titre: string, { tout, debuts, noms }: Index): string[] {
+  // Le rang de la source qui porte le caractère `position` du bloc.
+  const sourceDe = (position: number): number => {
+    let [bas, haut] = [0, debuts.length - 1];
+    while (bas < haut) {
+      const milieu = (bas + haut + 1) >> 1;
+      if (debuts[milieu]! <= position) bas = milieu;
+      else haut = milieu - 1;
+    }
+    return bas;
+  };
+  const contenant = (bout: string): string[] => {
+    const rangs = new Set<number>();
+    for (const forme of new Set(ecritures(bout))) {
+      for (let position = tout.indexOf(forme); position !== -1; ) {
+        const rang = sourceDe(position);
+        rangs.add(rang);
+        position = rang + 1 < debuts.length ? tout.indexOf(forme, debuts[rang + 1]) : -1;
+      }
+    }
+    return [...rangs].sort((a, b) => a - b).map((rang) => noms[rang]!);
+  };
   const entier = contenant(titre);
   if (entier.length > 0) return entier;
-  for (let coupe = 1; coupe < titre.length - 19; coupe++) {
-    const queue = contenant(titre.slice(coupe));
-    if (queue.length > 0) return queue;
-    const tete = contenant(titre.slice(0, titre.length - coupe));
-    if (tete.length > 0) return tete;
-  }
-  return [];
+  // La plus longue tête, ou queue, écrite quelque part : entre 20 caractères et le titre moins un, 19 si aucune.
+  const plusLong = (bout: (longueur: number) => string): number => {
+    let [ecrite, absente] = [19, titre.length];
+    while (absente - ecrite > 1) {
+      const milieu = (ecrite + absente) >> 1;
+      if (contenant(bout(milieu)).length > 0) ecrite = milieu;
+      else absente = milieu;
+    }
+    return ecrite;
+  };
+  const queue = plusLong((longueur) => titre.slice(titre.length - longueur));
+  const tete = plusLong((longueur) => titre.slice(0, longueur));
+  if (Math.max(queue, tete) < 20) return [];
+  return queue >= tete ? contenant(titre.slice(titre.length - queue)) : contenant(titre.slice(0, tete));
 }
 
 export function sourcesDesTests(racine = RACINE_RUNTIME): Map<string, string> {

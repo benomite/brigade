@@ -1,6 +1,7 @@
 // Les gestes git de la station, sur un vrai dépôt local : le worktree d'un
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
@@ -16,20 +17,29 @@ function projet(t: TestContext) {
   return { origine, clone, worktrees, depot: ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) };
 }
 
-// Ce qu'un humain pousse sur la branche d'un cook, depuis son propre clone :
-// une mise à jour de branche, un correctif à la main. Rend son commit.
-function pousserALaMain(t: TestContext, origine: string, branche: string, fichier: string): string {
-  const sien = join(repertoireTemporaire(t), "chef");
-  git(dirname(sien), "clone", "-q", "--branch", branche, origine, sien);
-  writeFileSync(join(sien, fichier), "du chef\n");
-  git(sien, "add", ".");
-  git(sien, "commit", "-q", "-m", `le chef écrit ${fichier}`);
-  git(sien, "push", "-q", "origin", branche);
-  return git(sien, "rev-parse", "HEAD");
+// Ce qu'un autre clone pousse sur l'origine — un humain, une autre station, un
+// merge : un commit parti de `depuis`, posé sur `branche` dans l'origine nue
+// d'un seul `git fast-import`. Cloner, commiter puis pousser coûteraient cinq
+// process ; l'origine, elle, porte le même commit. Rend son commit.
+function poserSurLOrigine(origine: string, branche: string, depuis: string, fichiers: Record<string, string>, message = `écrit ailleurs : ${Object.keys(fichiers).join(", ")}`): string {
+  const donnees = (texte: string) => `data ${Buffer.byteLength(texte)}\n${texte}\n`;
+  const flux = [`commit refs/heads/${branche}\n`, "mark :1\n", "committer cook <cook@brigade.test> now\n", donnees(message), `from ${depuis}^0\n`];
+  for (const [chemin, contenu] of Object.entries(fichiers)) flux.push(`M 100644 inline ${chemin}\n${donnees(contenu)}`);
+  flux.push("get-mark :1\n");
+  return execFileSync("git", ["fast-import", "--quiet", "--force", "--date-format=now"], { cwd: origine, env: ENV_GIT, input: flux.join(""), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
 }
 
-// Chaque test a son origine et son clone : ils se jouent de front.
-describe("le dépôt de la station", { concurrency: 8 }, () => {
+// Ce qu'un humain pousse sur la branche d'un cook : une mise à jour de
+// branche, un correctif à la main. Rend son commit.
+function pousserALaMain(origine: string, branche: string, fichier: string): string {
+  return poserSurLOrigine(origine, branche, `refs/heads/${branche}`, { [fichier]: "du chef\n" }, `le chef écrit ${fichier}`);
+}
+
+// Chaque test a son origine et son clone : ils se jouent de front, deux à la
+// fois. Presque tout `git` s'y lance sans rendre la main : au-delà, un test ne
+// va pas plus vite, il attend celui qui tient le fil, et chacun s'allonge
+// d'autant.
+describe("le dépôt de la station", { concurrency: 2 }, () => {
   test("un répertoire qui n'est pas un dépôt git est refusé à l'ouverture", (t) => {
     const pasUnDepot = repertoireTemporaire(t);
 
@@ -103,13 +113,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     // Un jeton fabriqué, assemblé ici : sa forme n'est écrite en clair nulle part.
     const jeton = ["sk", "ant", "oat01", "A".repeat(90)].join("-");
     // La base porte déjà un exemple de pleine longueur, et un `.credentials.json` à elle.
-    const semis = join(repertoireTemporaire(t), "semis");
-    git(join(semis, ".."), "clone", "-q", origine, semis);
-    writeFileSync(join(semis, "exemple.md"), `avant\nun exemple : ${jeton}\naprès\n`);
-    writeFileSync(join(semis, ".credentials.json"), '{"service":"du projet"}\n');
-    git(semis, "add", "-A");
-    git(semis, "commit", "-q", "-m", "un exemple et un fichier du projet");
-    git(semis, "push", "-q", "origin", BASE);
+    poserSurLOrigine(origine, BASE, BASE, { "exemple.md": `avant\nun exemple : ${jeton}\naprès\n`, ".credentials.json": '{"service":"du projet"}\n' });
     const { worktree, branche } = await depot.preparer("15-abc");
     const commit = (message: string) => (git(worktree, "add", "-A"), git(worktree, "commit", "-q", "-m", message));
     const signes = () => identifiantsLivres(depot.ajouts(branche));
@@ -203,14 +207,11 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 
   test("le worktree part de la base telle qu'elle est sur l'origine, pas telle que le clone l'a connue", async (t) => {
     const { origine, depot } = projet(t);
-    const ailleurs = join(repertoireTemporaire(t), "ailleurs");
-    git(repertoireTemporaire(t), "clone", "-q", origine, ailleurs);
-    commiter(ailleurs, "recent.txt");
-    git(ailleurs, "push", "-q", "origin", BASE);
+    const recent = poserSurLOrigine(origine, BASE, BASE, { "recent.txt": "recent.txt\n" });
 
     const { worktree } = await depot.preparer("15-abc");
 
-    assert.equal(git(worktree, "rev-parse", "HEAD"), git(ailleurs, "rev-parse", "HEAD"));
+    assert.equal(git(worktree, "rev-parse", "HEAD"), recent);
   });
 
   test("l'arbre principal du dépôt n'est jamais touché", async (t) => {
@@ -265,13 +266,9 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
   });
 
   test("un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin", async (t) => {
-    const { origine, clone, depot } = projet(t);
+    const { origine, depot } = projet(t);
     // La base porte un workflow et des gates.
-    for (const fichier of [".github/workflows/ci.yml", ".claude/brigade/gates.sh"]) {
-      mkdirSync(join(clone, fichier, ".."), { recursive: true });
-      commiter(clone, fichier);
-    }
-    git(clone, "push", "-q", origine, `HEAD:${BASE}`);
+    poserSurLOrigine(origine, BASE, BASE, { ".github/workflows/ci.yml": "ci\n", ".claude/brigade/gates.sh": "gates\n" });
     const { worktree, branche } = await depot.preparer("15-abc");
 
     git(worktree, "mv", ".github/workflows/ci.yml", "ci-off.yml");
@@ -325,7 +322,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     commiter(worktree);
     depot.pousser(branche);
     await depot.ranger(worktree, branche);
-    const duChef = pousserALaMain(t, origine, branche, "du-chef.txt");
+    const duChef = pousserALaMain(origine, branche, "du-chef.txt");
 
     const repris = await depot.reprendre("15-def", branche);
 
@@ -345,7 +342,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
     depot.pousser(branche);
-    const duChef = pousserALaMain(t, origine, branche, "du-chef.txt");
+    const duChef = pousserALaMain(origine, branche, "du-chef.txt");
     commiter(worktree, "correctif.txt");
     // Un cook qui rapatrie tout l'origine met à jour la branche de suivi : ce
     // n'est pas elle qui dit ce que la station a poussé.
@@ -371,7 +368,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     writeFileSync(join(worktree, "dispute.txt"), "du cook\n");
     await depot.ranger(worktree, branche);
     const duCook = depot.tete(branche);
-    const duChef = pousserALaMain(t, origine, branche, "dispute.txt");
+    const duChef = pousserALaMain(origine, branche, "dispute.txt");
 
     await assert.rejects(depot.reprendre("15-def", branche), /^Error: la branche `cook\/15-abc` a divergé de ce que l'origine en porte, en conflit .* à réconcilier à la main/);
 
@@ -388,13 +385,9 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     depot.pousser(branche);
     await depot.ranger(worktree, branche);
     const ancienne = depot.tete(branche);
-    // Le chef réécrit les deux commits en un, et force.
-    const sien = join(repertoireTemporaire(t), "chef");
-    git(dirname(sien), "clone", "-q", "--branch", branche, origine, sien);
-    git(sien, "reset", "-q", "--soft", "HEAD~2");
-    git(sien, "commit", "-q", "-m", "les deux commits du cook, en un");
-    git(sien, "push", "-q", "--force", "origin", branche);
-    const reecrite = git(sien, "rev-parse", "HEAD");
+    // Le chef réécrit les deux commits en un, et force : le même arbre, sur la base.
+    const reecrite = git(origine, "commit-tree", `${branche}^{tree}`, "-p", `${branche}~2`, "-m", "les deux commits du cook, en un");
+    git(origine, "update-ref", `refs/heads/${branche}`, reecrite);
 
     await depot.reprendre("15-def", branche);
 
@@ -560,14 +553,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     // Ce que la base rapatriée porte, lu au moment du signal.
     const lus: Array<string | null> = [];
     const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(racine, "worktrees"), env: ENV_GIT, apresRapatriement: () => void lus.push(lireALaBase({ clone, base: BASE }, "reseau", ENV_GIT)) });
-    const merger = (contenu: string) => {
-      const travail = join(racine, `travail-${lus.length}`);
-      git(racine, "clone", "-q", origine, travail);
-      writeFileSync(join(travail, "reseau"), contenu);
-      git(travail, "add", ".");
-      git(travail, "commit", "-q", "-m", "déclare un hôte");
-      git(travail, "push", "-q", "origin", `HEAD:${BASE}`);
-    };
+    const merger = (contenu: string) => void poserSurLOrigine(origine, BASE, BASE, { reseau: contenu }, "déclare un hôte");
 
     merger("un\n");
     const { worktree, branche } = await depot.preparer("15-abc");
@@ -853,7 +839,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 // Le runtime lance `git` dans le worktree d'un cook hors de toute cloison. Or
 // ce worktree désigne lui-même son dépôt, par des fichiers que le cook écrit :
 // rien de ce qu'ils désignent ne doit être lu comme une configuration.
-describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
+describe("un worktree que son cook a détourné", { concurrency: 2 }, () => {
   // Ce que le cook plante : une commande que `git` lancerait à chaque statut
   // (`core.fsmonitor`) et à chaque fichier relu (un filtre `clean`), et qui
   // laisse un témoin.
@@ -1033,7 +1019,7 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
 
 // Sous une identité de rôle, les deux gestes réseau de la station — rapatrier
 // et pousser — partent avec son jeton.
-describe("le dépôt sous une identité", { concurrency: 8 }, () => {
+describe("le dépôt sous une identité", { concurrency: 2 }, () => {
   const ENTETE = `Authorization: Basic ${Buffer.from("x-access-token:ghs_cook_secret").toString("base64")}`;
 
   test("le jeton n'atteint git que par son environnement : un en-tête pour github.com, et rien de la connexion du compte", () => {
@@ -1138,21 +1124,16 @@ describe("le dépôt sous une identité", { concurrency: 8 }, () => {
 
 // Le cook d'une station distante a tourné ailleurs, et c'est elle qui a poussé
 // sa branche : le clone ne la connaît que par l'origine.
-describe("la branche d'une station distante", { concurrency: 8 }, () => {
-  // Ce que fait la station, depuis son propre clone : une branche neuve partie
-  // de la base, un commit, un push. Rend son commit.
-  function pousserDeLaStation(t: TestContext, origine: string, branche: string, fichier = "travail.txt"): string {
-    const sien = join(repertoireTemporaire(t), "station");
-    if (!existsSync(sien)) git(dirname(sien), "clone", "-q", "--branch", BASE, origine, sien);
-    git(sien, "checkout", "-q", "-B", branche);
-    commiter(sien, fichier);
-    git(sien, "push", "-q", "--force", "origin", branche);
-    return git(sien, "rev-parse", "HEAD");
+describe("la branche d'une station distante", { concurrency: 2 }, () => {
+  // Ce que fait la station, depuis son propre clone : une branche partie de la
+  // base, un commit, un push forcé. Rend son commit.
+  function pousserDeLaStation(origine: string, branche: string, fichier = "travail.txt"): string {
+    return poserSurLOrigine(origine, branche, BASE, { [fichier]: `${fichier}\n` });
   }
 
   test("reçue, elle est dans le clone ce que l'origine en porte : ses commits se comptent, son diff se lit, et la pass jugera ce que l'origine a reçu — sans qu'aucun worktree soit créé", async (t) => {
     const { origine, clone, worktrees, depot } = projet(t);
-    const tete = pousserDeLaStation(t, origine, "cook/16-distant");
+    const tete = pousserDeLaStation(origine, "cook/16-distant");
 
     assert.equal(depot.connait("cook/16-distant"), false);
     assert.equal(await depot.recevoir("cook/16-distant"), true);
@@ -1172,10 +1153,10 @@ describe("la branche d'une station distante", { concurrency: 8 }, () => {
 
   test("reçue de nouveau après un renvoi, elle devient ce que la station a poussé depuis — réécrite ou non", async (t) => {
     const { origine, depot } = projet(t);
-    pousserDeLaStation(t, origine, "cook/16-distant");
+    pousserDeLaStation(origine, "cook/16-distant");
     await depot.recevoir("cook/16-distant");
 
-    const seconde = pousserDeLaStation(t, origine, "cook/16-distant", "correctif.txt");
+    const seconde = pousserDeLaStation(origine, "cook/16-distant", "correctif.txt");
     assert.equal(await depot.recevoir("cook/16-distant"), true);
     assert.equal(depot.tete("cook/16-distant"), seconde);
     assert.deepEqual(depot.changes("cook/16-distant"), ["correctif.txt"]);

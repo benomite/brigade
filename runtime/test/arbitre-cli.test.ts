@@ -3,15 +3,26 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { after, describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
+import { casEnProcess } from "./aides/cas-en-process.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
+import { ENV_ENFANT, horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
 const TENIR = join(import.meta.dirname, "../src/tenir-arbitre.ts");
+// Les commandes du chef et les refus de démarrer de l'arbitre se jouent dans un
+// seul process d'essai, l'un après l'autre : un Node par commande coûtait ses
+// modules à chaque fois. Lancées dans leur propre process : l'état lu par le
+// chef, l'arbitre injoignable (toute connexion y est refusée) et l'arbitre qui
+// tient son port.
+const cas = casEnProcess(ENV_ENFANT);
+const jouer = async (module: string, args: string[], env: Record<string, string>) => {
+  const { code, sortie } = await cas.jouer({ module, args, env });
+  return { code, sortie };
+};
 const mot = (cooks: number, autres: Partial<Mot> = {}): Mot => ({ cooks, demande: true, machine: false, nonArbitres: 0, consommation: { jour: 0, semaine: 0 }, ...autres });
 
 async function servi(t: TestContext, plafond = 10) {
@@ -22,21 +33,27 @@ async function servi(t: TestContext, plafond = 10) {
     await serveur.fermer();
     ouvert.fermer();
   });
-  const commande = async (...args: string[]) => {
+  const commande = (...args: string[]) => jouer(CLI, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
+  // La même, dans son propre process.
+  const enProcess = async (...args: string[]) => {
     const cli = lancer(t, CLI, args, { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire });
     return { code: await cli.fin, sortie: cli.sortie() };
   };
-  return { ouvert, repertoire, serveur, commande };
+  return { ouvert, repertoire, serveur, commande, enProcess };
 }
 
-// Chaque test a son arbitre, sur le port 0, et son état : ils se jouent de front.
-describe("la commande de l'arbitre", { concurrency: 8 }, () => {
+// Chaque test a son arbitre, sur le port 0, et son état. Ils se jouent l'un après l'autre : leurs commandes
+// font la queue au même process d'essai, et de front, chaque test comptait l'attente de tous les autres —
+// 2,7 s chacun sous la charge d'une suite entière, pour 3,5 s à tous (#2464).
+describe("la commande de l'arbitre", () => {
+  after(() => cas.fermer());
+
   test("le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore, et la consommation des cooks dite comme telle", async (t) => {
-    const { ouvert, serveur, commande } = await servi(t, 10);
+    const { ouvert, serveur, enProcess } = await servi(t, 10);
     ouvert.dire("compta", mot(5, { nonArbitres: 1, consommation: { jour: 1200, semaine: 9000 } }));
     ouvert.dire("brigade", mot(2, { demande: false, consommation: { jour: 300, semaine: 300 } }));
 
-    const { code, sortie } = await commande();
+    const { code, sortie } = await enProcess();
     assert.equal(code, 0);
     assert.match(sortie, new RegExp(String.raw`^arbiter\s+127\.0\.0\.1:${serveur.port} — started 2026-10-09T08:00:00\.000Z$`, "m"));
     assert.match(sortie, /^account cap\s+10 cooks — 7 running, all projects heard$/m);
@@ -63,9 +80,8 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     });
     revenu.dire("compta", mot(9));
     revenu.dire("brigade", mot(0, { machine: true }));
-    const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
-    assert.equal(await cli.fin, 0);
-    const sortie = cli.sortie();
+    const { code, sortie } = await jouer(CLI, [], { BRIGADE_ARBITER_PORT: String(reservi.port) });
+    assert.equal(code, 0);
     assert.match(sortie, /^machine\s+SATURATED according to brigade — the effective cap is what is running \(9\): only a project under its share launches again$/m);
     assert.match(sortie, /^  muet {2,}weight 1 · HAS NOT SPOKEN SINCE 2026-10-09T09:00:00\.000Z — share reserved: 3, which nobody borrows; `remove` frees it$/m);
     assert.match(sortie, /^  parti {2,}weight 1 · absent since 2026-10-09T08:00:0\d\.000Z — holds no share$/m);
@@ -122,10 +138,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     t.after(() => reglages.fermer());
     assert.deepEqual(reglages.projets(), []);
 
-    const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
-      return { code: await cli.fin, sortie: cli.sortie() };
-    };
+    const sans = (env: Record<string, string>, ...args: string[]) => jouer(CLI, args, env);
     assert.match((await sans({})).sortie, /BRIGADE_ARBITER_PORT is not set/);
     assert.match((await sans({}, "weight", "compta", "2")).sortie, /BRIGADE_ARBITER_STATE_DIR is not set/);
     const vide = repertoireTemporaire(t);
@@ -159,9 +172,14 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
       sansMotFrancais(lignes(refus.sortie));
     }
     // Sans port, avec un port illisible, sans répertoire, sans réglages, arbitre injoignable.
+    // Joint, l'arbitre du test répondrait : injoignable, la commande l'est dans son propre process, où toute connexion est refusée.
     const sans = async (env: Record<string, string>, ...args: string[]) => {
-      const cli = lancer(t, CLI, args, env);
-      return { code: await cli.fin, lignes: lignes(cli.sortie()) };
+      if (env.NODE_OPTIONS !== undefined) {
+        const cli = lancer(t, CLI, args, env);
+        return { code: await cli.fin, lignes: lignes(cli.sortie()) };
+      }
+      const { code, sortie } = await jouer(CLI, args, env);
+      return { code, lignes: lignes(sortie) };
     };
     for (const [env, args] of [
       [{}, []],
@@ -223,10 +241,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
 
   test("sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi", async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const sans = async (env: Record<string, string>) => {
-      const tenu = lancer(t, TENIR, [], env);
-      return { code: await tenu.fin, sortie: tenu.sortie() };
-    };
+    const sans = (env: Record<string, string>) => jouer(TENIR, [], env);
     assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : the arbiter refuses to start — BRIGADE_ARBITER_STATE_DIR is not set\n" });
     assert.match((await sans({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: "20900" })).sortie, /BRIGADE_ARBITER_MAX_COOKS is not set/);
 

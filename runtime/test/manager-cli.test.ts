@@ -47,7 +47,8 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { lancee, commandes, journal } = cuisine(t);
     const avant = journal.tout().length;
 
-    const [allumer, eteindre] = [await lancee("on"), await lancee("off")];
+    // Côte à côte : aucun des deux n'écrit, ni ne lit ce que l'autre écrirait.
+    const [allumer, eteindre] = await Promise.all([lancee("on"), lancee("off")]);
 
     assert.equal(allumer.code, 1);
     assert.match(allumer.sortie, /the manager has no switch of its own any more: it follows the project switch, which also takes the tickets and merges the green deliveries — `brigade <projet> switch on`\. Nothing is written/);

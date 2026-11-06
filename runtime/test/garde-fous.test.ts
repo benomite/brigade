@@ -8,7 +8,7 @@ import type { Plafonds } from "../src/events/guardrails.ts";
 import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/guardrails.ts";
-import { demarrer } from "../src/runtime.ts";
+import { demarrer, type CauseReveil, type Runtime } from "../src/runtime.ts";
 import { aArreter, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, jusqua, mort, repertoireTemporaire, tuerLesRelais, vivant } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
@@ -17,6 +17,19 @@ import { posixOnly } from "./support/plateforme.ts";
 // atteints pendant un test. Celui qui éprouve un plafond règle le sien.
 const PLAFONDS: Plafonds = { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
+
+// Les `n` réveils suivants du runtime pour cette cause. Écoutés après les garde-fous, branchés avant : chacun a
+// déjà été vu par eux. Attendre ces réveils, c'est attendre un fait, pas une durée (#2464).
+function reveils(runtime: Runtime, cause: CauseReveil, n = 1): Promise<void> {
+  return new Promise((resoudre) => {
+    let vus = 0;
+    const desabonner = runtime.surReveil((lue) => {
+      if (lue !== cause || ++vus < n) return;
+      desabonner();
+      resoudre();
+    });
+  });
+}
 
 function cuisine(t: TestContext, reglages: Partial<Reglages> = {}, repertoire = repertoireTemporaire(t)) {
   const runtime = brancherGardeFous(
@@ -184,8 +197,12 @@ test("un cook qui dépasse son plafond est arrêté, et le motif est au journal 
 
 test("un cook muet est arrêté pour inactivité, et le journal le dit", async (t) => {
   const { runtime, cook } = cuisine(t, { plafonds: { ...PLAFONDS, idleMs: 100 } });
+  // Le silence se compte à l'horloge du test (#2464).
+  t.mock.timers.enable({ apis: ["setTimeout"] });
 
-  await cook(7, "muet").fin;
+  const fin = cook(7, "muet").fin;
+  t.mock.timers.tick(100);
+  await fin;
 
   const motif = runtime.journal.duTicket(7).find((e) => e.type === "guard.tripped");
   assert.equal(motif?.payload.reason, "idle");
@@ -334,10 +351,11 @@ test("un « stop » d'avant le démarrage, repris depuis, n'arrête pas les cook
   const { runtime, cook } = cuisine(t, {}, repertoire);
   const lance = cook(7, "muet");
   // Une autre écriture réveille le runtime, qui relit alors son journal.
+  const reveille = reveils(runtime, "log");
   const cli = ouvrirJournal(repertoire);
   cli.ajouter({ project: "brigade", ticket: null, author: "chef", ...faitInconnu("autre.chose") });
   cli.fermer();
-  await new Promise((resoudre) => setTimeout(resoudre, 40));
+  await reveille;
 
   assert.deepEqual(runtime.journal.duTicket(7).map((e) => e.type), ["cook.launched"]);
   assert.equal(vivant(lance.pid), true);
@@ -532,7 +550,8 @@ test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il 
 
   const lance = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" } });
   await lance.fin;
-  await new Promise((resoudre) => setTimeout(resoudre, 20));
+  // Deux ticks passent après sa fin : il n'y laisse plus rien.
+  await reveils(runtime, "tick", 2);
 
   const faits = runtime.journal.duTicket(7);
   const releves = faits.flatMap((e) => (e.type === "cook.progressed" ? [e.payload] : []));

@@ -156,7 +156,7 @@ function environnement(t: TestContext, repertoire: string) {
   };
 }
 
-test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("reads the installation steps before, during and after three runs of the runtime and expects the same states each time, the first and last runs stopped with SIGTERM and a clean exit 0; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
+test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("reads the installation steps before, during and after two runs of the runtime and expects the same states each time, the first run killed, the last stopped with SIGTERM and a clean exit 0; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   // L'installation précède le premier démarrage : le journal naît de la première note.
   await noter(repertoire, "ajout", "faite");
@@ -170,16 +170,13 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   await premier.attendre("démarré");
   // Pendant qu'il tourne, la lecture est la même.
   assert.deepEqual(await lire(repertoire), avant);
-  premier.process.kill("SIGTERM");
-  assert.equal(await premier.fin, 0, premier.sortie());
 
-  // Arrêté net, puis relancé : rien de ce qui était noté ne s'est perdu.
+  // Arrêté net, puis relancé : rien de ce qui était noté ne s'est perdu. L'arrêt propre est celui du second, en fin
+  // de test : la lecture qui le suit vaut celle d'un redémarrage, qui ne lit rien de plus (#2464).
+  premier.process.kill("SIGKILL");
+  await premier.fin;
   const second = lancer(t, MAIN, [], env);
   await second.attendre("démarré");
-  second.process.kill("SIGKILL");
-  await second.fin;
-  const troisieme = lancer(t, MAIN, [], env);
-  await troisieme.attendre("démarré");
   assert.deepEqual(await lire(repertoire), avant);
 
   // Lue par la commande du chef, dans son propre process : `installation etapes`.
@@ -190,8 +187,8 @@ test("après le redémarrage du runtime, la même lecture rend les mêmes états
   // Le chef reprend où il en était : l'étape en attente faite, la courante avance.
   const reprise = lancer(t, INSTALLATION, ["etapes", "verification", "faite"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await reprise.fin, 0, reprise.sortie());
-  troisieme.process.kill("SIGTERM");
-  assert.equal(await troisieme.fin, 0, troisieme.sortie());
+  second.process.kill("SIGTERM");
+  assert.equal(await second.fin, 0, second.sortie());
   const apres = await lire(repertoire);
   assert.equal(apres.courante, "stations");
   assert.deepEqual(apres.etapes.map((etape) => etape.etat), ["faite", "faite", "faite", "à faire", "à faire", "à faire", "à faire"]);
