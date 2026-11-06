@@ -445,7 +445,9 @@ export type Options = {
   // roadmap du projet s'il en a une.
   // `plafond` : jusqu'où une montée de calibrage peut aller — celui d'un projet
   // où le chef ne l'a pas posé, par défaut.
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond> };
+  // `station` : le nom sous lequel il prend son travail sur GitHub (#2568) ;
+  // sans lui, il se croit seul.
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -543,6 +545,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
         maintenant: heure.maintenant,
         avertir: (message) => void avertissements.push(message),
+        station: options.manager.station ?? null,
       })
     : garde;
   aArreter = runtime;
