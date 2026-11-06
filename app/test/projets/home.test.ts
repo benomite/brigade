@@ -18,7 +18,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import type { Ajout, VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-15T12:00:00.000Z";
 const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
@@ -76,11 +76,10 @@ async function laHome(projets: VuDesProjets | undefined, ajouter: () => Ajout = 
     autoriserSurGitHub: () => true,
     espace: () => [],
   });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
+  await ouvrirToutesLesStations(jouee);
   // Le parcours n'est pas sur l'accueil : il est sur la page de la station.
   assert.equal(jouee.element("tous").dessous("button").some(({ textContent }) => textContent === "+ add a project"), false);
-  (jouee.element("accueil-stations").dessous("button").find(({ textContent }) => textContent.startsWith("box")) ?? assert.fail("pas de ligne « box »")).click();
+  (jouee.element("toutes-les-stations").dessous("button").find(({ textContent }) => textContent.startsWith("box")) ?? assert.fail("pas de ligne « box »")).click();
   await repos();
   const section = () => jouee.element("station");
   const bouton = (texte: string | RegExp) => section().dessous("button").find((candidat) => (typeof texte === "string" ? candidat.textContent === texte : texte.test(candidat.textContent))) ?? assert.fail(`pas de bouton « ${texte} »`);

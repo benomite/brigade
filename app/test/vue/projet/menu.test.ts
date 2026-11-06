@@ -133,11 +133,13 @@ describe("le menu de la page d'un projet (#2485)", () => {
     assert.deepEqual(vue.element("bloc-du-rail").children.map((pose) => pose.dataset.bloc), ["bande-rail"]);
 
     await ouvrirOnglet(vue, "Stations");
-    assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale"]);
+    // Puis, en bas, toutes les stations et « + station », qui ont quitté l'accueil (#2638).
+    assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale", "toutes-les-stations"]);
     assert.deepEqual(vue.element("bloc-du-rail").children, []);
 
     await ouvrirOnglet(vue, "Health");
-    assert.deepEqual(blocs(vue), ["temps-tickets", "bloque-sans-question", "plafonds-duree", "closer"]);
+    // Puis, en bas, les lignes « Cost » et « Closer » de tous les projets, qui ont quitté l'accueil (#2638).
+    assert.deepEqual(blocs(vue), ["temps-tickets", "bloque-sans-question", "plafonds-duree", "closer", "de-tous-les-projets"]);
 
     await ouvrirOnglet(vue, "Cooks");
     const poses = blocs(vue);

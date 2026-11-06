@@ -19,7 +19,7 @@ import { calibrageRecommande, EFFORTS, MODELES } from "../../src/projets/projets
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 // La box porte trois projets : « parade », ajouté depuis l'app ; « cantine » et « brigade », écrits à
@@ -82,9 +82,8 @@ async function laPage(nom: string, projets: VuDesProjets | undefined = PARADE) {
     retirerDUneStation: (projet) => ({ retire: projet }),
     espace: () => [],
   });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
-  (jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom)) ?? assert.fail(`pas de ligne « ${nom} »`)).click();
+  await ouvrirToutesLesStations(jouee);
+  (jouee.element("toutes-les-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom)) ?? assert.fail(`pas de ligne « ${nom} »`)).click();
   await repos();
   const page = jouee.element("station");
   return { jouee, page };

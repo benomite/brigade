@@ -17,7 +17,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 import { poserLesAppels } from "../../src/vue/appels-de-la-station.js";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const APPELS = { total: 42, topProject: { name: "parade", calls: 30 }, topKind: { name: "issues", calls: 25 } };
@@ -105,7 +105,8 @@ describe("sur la page de la station", () => {
       projetsDesStations: undefined,
     });
     const jouee = await jouerLaVue({ demarrage: demarrage as never, espace: () => [], autoriserSurGitHub: () => true });
-    (jouee.element("accueil-stations").dessous("button")[0] ?? assert.fail("pas de ligne de station")).click();
+    await ouvrirToutesLesStations(jouee);
+    (jouee.element("toutes-les-stations").dessous("button")[0] ?? assert.fail("pas de ligne de station")).click();
     await repos();
     return jouee.element("station");
   }

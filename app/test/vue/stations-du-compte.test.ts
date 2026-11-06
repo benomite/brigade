@@ -54,7 +54,7 @@ import {
   type EtatDuCompte,
   type GestesDuCompte,
 } from "../../src/vue/stations-du-compte.js";
-import { Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const VU = "2026-10-26T09:42:00.000Z";
@@ -462,13 +462,12 @@ function appairees(...stations: StationVue[]): { stations: VuDesStations; accuei
 }
 const presence = (id: string, nom: string, projets: string[]): StationVue => ({ id, nom, machine: "Debian 12", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "1.4.0", projets, max: null });
 
-const section = (vue: Jouee) => vue.element("accueil-stations");
+const section = (vue: Jouee) => vue.element("toutes-les-stations");
 // Les lignes de la liste des stations : chaque bouton `ligne`, par le nom qu'il porte.
 const lignesDe = (vue: Jouee) => section(vue).dessous("button").filter(({ className }) => className === "ligne");
 const nomsDe = (vue: Jouee) => lignesDe(vue).map((ligne) => ligne.dessous("strong")[0]?.textContent);
 async function accueil(vue: Jouee) {
-  vue.element("entree-tous").click();
-  await repos();
+  await ouvrirToutesLesStations(vue);
   return lecteurs(section(vue));
 }
 
@@ -484,9 +483,9 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     assert.match(lus.ligne("parade-box").textContent, /online · idle · brigade, espace/);
     assert.doesNotMatch(section(vue).textContent, /no project chosen yet|runs no kitchen/, "parade-box sert des projets : rien ne dit le contraire");
     assert.match(lus.ligne("nas").textContent, /online · acme\/shop/);
-    // Une seule liste : ni titre, ni section des stations du compte qui en porterait une seconde.
-    assert.deepEqual(section(vue).dessous("h3"), []);
-    assert.doesNotMatch(vue.element("tous").textContent, /Under your GitHub account/);
+    // Une seule liste : son titre seul (#2638), ni section des stations du compte qui en porterait une seconde.
+    assert.deepEqual(section(vue).dessous("h3").map(({ textContent }) => textContent), ["All stations"]);
+    assert.doesNotMatch(vue.element("rail").textContent, /Under your GitHub account/);
     assert.deepEqual(section(vue).dessous("ul"), []);
   });
 
@@ -536,8 +535,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
       ligne.click();
       await repos();
       assert.equal(vue.element("station").dessous("h2")[0]?.textContent, nom, `la page de ${nom}`);
-      vue.element("entree-tous").click();
-      await repos();
+      await ouvrirToutesLesStations(vue);
     }
   });
 
@@ -573,8 +571,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     assert.deepEqual(vue.dernier("choisirLesProjets"), [BOX.id, ["acme/site"]]);
     assert.deepEqual(ecrits, [[contrat.FICHIER_SELECTION]], "l'app écrit un autre fichier que la sélection");
     assert.equal(lecteurs(vue.element("station")).caseDe("acme/site").checked, true);
-    vue.element("entree-tous").click();
-    await repos();
+    await ouvrirToutesLesStations(vue);
     assert.match(lecteurs(section(vue)).ligne("box").textContent, /online · acme\/site/);
 
     // Relancée : la sélection est relue dans le gist, par le lecteur du runtime.
