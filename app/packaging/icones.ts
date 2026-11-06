@@ -28,10 +28,13 @@ const avantPlan = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"
 // Icône ronde : le fond de l'icône en disque, le glyphe à la même échelle.
 const ronde = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${degrade}<circle cx="32" cy="32" r="32" fill="url(#p)"/><g transform="translate(5.5 6.4) scale(.8)">${glyphe}</g></svg>`;
 
-// --- Mac : un .icns, des PNG rangés par type.
+// --- Mac : un .icns, des PNG rangés par type. La grille d'icônes d'Apple pose le corps (824 px sur 1024)
+// dans le canevas, avec une marge transparente : plein cadre, l'icône paraît plus grosse que ses voisines
+// dans le Dock. Le dessin est inchangé, seule sa taille dans le canevas change.
+const iconeMac = icone.replace(/(<\/defs>)(.*)<\/svg>\s*$/, `$1<g transform="translate(32 32) scale(${824 / 1024}) translate(-32 -32)">$2</g></svg>`);
 const types: Record<string, number> = { ic07: 128, ic08: 256, ic09: 512, ic10: 1024, ic11: 32, ic12: 64, ic13: 256, ic14: 512 };
 const morceaux = Object.entries(types).map(([type, taille]) => {
-  const donnees = png(icone, taille);
+  const donnees = png(iconeMac, taille);
   const tete = Buffer.alloc(8);
   tete.write(type, 0, "ascii");
   tete.writeUInt32BE(8 + donnees.length, 4);
@@ -65,6 +68,8 @@ const entrees = tailles.map((t, i) => {
 });
 writeFileSync(join(sortie, "Brigade.ico"), Buffer.concat([tete, ...entrees, ...images]));
 writeFileSync(join(sortie, "Brigade-1024.png"), png(icone, 1024));
+// L'icône du Dock sous `npm start`, avec la marge de la grille Mac.
+writeFileSync(join(sortie, "Brigade-dock-1024.png"), png(iconeMac, 1024));
 
 // --- Android : mipmaps par densité.
 const res = join(ici, "..", "android", "natif", "app", "src", "main", "res");

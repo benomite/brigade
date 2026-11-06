@@ -1572,9 +1572,10 @@ void app.whenReady().then(() => {
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.
   const icone = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-1024.png");
+  const iconeDock = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-dock-1024.png");
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
   // Sans garde sur `isPackaged` seul : le .dmg n'est pas reconnu empaqueté et ne livre pas ce fichier.
-  if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(icone, (chemin) => app.dock?.setIcon(chemin));
+  if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(iconeDock, (chemin) => app.dock?.setIcon(chemin));
   fenetre = new BrowserWindow({
     ...(plateforme === "win32" ? { icon: iconeWindows } : {}),
     width: 1280,
