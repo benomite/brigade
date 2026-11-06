@@ -2,6 +2,7 @@
 // tous les projets de sa configuration (`<BRIGADE_STATION_DIR>/projets`, une
 // ligne chacun). Ajouter ou retirer un projet n'écrit que cette ligne : la
 // station la relit seule, sans redémarrer.
+import { ouvrirCacheEtag } from "../cache-etag/cache-etag.ts";
 import { ouvrirLaMiseAJour } from "../station-update/mettre-a-jour.ts";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -114,6 +115,10 @@ if (portes !== null) {
 // Le budget d'appels à GitHub, partagé par la station et tous ses projets :
 // un compteur dans son répertoire (limite-github.ts), posé avant qu'aucun
 // projet ne s'ouvre. Une fois par heure, son compte va au journal de service.
+// Les ETags des lectures, gardés d'un démarrage à l'autre (cache-etag/).
+const cacheEtag = ouvrirCacheEtag({ fichier: join(racine, "cache-etag.json"), dire });
+cacheEtag.charger();
+cacheEtag.demarrer();
 const limite = installerLimite(limiteDeLaStation(racine));
 journaliserLesAppels(limite, { dire });
 journaliserLaRetenue(dire);
@@ -240,6 +245,7 @@ if (guichet !== null) {
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     void fermerLeGuichet();
+    cacheEtag.arreter();
     projetsDeLApp.arreter();
     void projetsChoisis.arreter();
     miseAJour?.arreter();
