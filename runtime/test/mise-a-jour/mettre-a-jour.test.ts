@@ -68,14 +68,14 @@ function machine(t: TestContext, version: string, demarrage: (version: string) =
 }
 
 // Des versions publiées, chacune avec son paquet : un fichier qui dit ce qu'il est.
-function publiees(versions: string[], options: { illisibles?: string; autrePaquet?: string } = {}): Publications & { telecharges: string[] } {
+function publiees(versions: string[], options: { illisibles?: string; autrePaquet?: string; urgentes?: string[] } = {}): Publications & { telecharges: string[] } {
   const telecharges: string[] = [];
   return {
     nom: "les publications d'essai",
     telecharges,
     async lister(): Promise<Publication[]> {
       if (options.illisibles) throw new Error(options.illisibles);
-      return versions.map((version) => ({ version, paquet: `essai:${version}`, empreinte: null }));
+      return versions.map((version) => ({ version, paquet: `essai:${version}`, empreinte: null, ...(options.urgentes?.includes(version) ? { urgente: true as const } : {}) }));
     },
     async telecharger(publication, fichier) {
       telecharges.push(publication.version);
@@ -105,6 +105,24 @@ test("une version passée il y a moins d'une demi-heure retient la suivante, et 
   heure = passee + 31 * 60_000;
   assert.equal((await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"]), [], { espacementMs: 30 * 60_000, maintenant })).issue?.quoi, "passee");
   assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
+});
+
+test("dans la fenêtre d'une heure, une version urgente s'installe sans attendre ; une non urgente publiée ensuite attend la fin de l'heure (#2585)", async (t) => {
+  const m = machine(t, "1.0.0");
+  let heure = Date.now();
+  const maintenant = () => new Date(heure);
+  const options = { espacementMs: 60 * 60_000, maintenant };
+  const passee = Date.parse((await passage(m, publiees(["1.0.0", "1.1.0"]), [], options)).issue?.le ?? "");
+  heure = passee + 5 * 60_000;
+  const dites: string[] = [];
+  assert.equal((await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"], { urgentes: ["1.2.0"] }), dites, options)).issue?.quoi, "passee");
+  assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
+  assert.ok(dites.includes("brigade : mise à jour — une version urgente est publiée : 1.2.0 s'installe sans attendre la fin de la fenêtre"), dites.join("\n"));
+  const urgente = Date.parse(lireEtatMiseAJour(m.dossier)?.derniere?.le ?? "");
+  heure = urgente + 20 * 60_000;
+  const { etat } = await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0", "1.3.0"], { urgentes: ["1.2.0"] }), [], options);
+  assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
+  assert.ok((etat.retenue ?? "").startsWith(`1.3.0 attend ${new Date(urgente + 60 * 60_000).toISOString()} : une version au plus toutes les 60 min`), etat.retenue ?? "");
 });
 
 test("une version plus récente publiée est installée, et gardée quand la station s'y dit en service ; le paquet d'avant reste de côté", async (t) => {

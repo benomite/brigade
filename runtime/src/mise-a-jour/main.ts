@@ -13,7 +13,8 @@
 //   BRIGADE_MISE_A_JOUR_SOURCE  où sont les versions publiées : github:<owner>/<repo>
 //                               ou un répertoire (obligatoire ; le paquet la pose)
 //   BRIGADE_MISE_A_JOUR_GARDE_S le temps laissé à la station pour démarrer (défaut 120)
-//   BRIGADE_MISE_A_JOUR_ESPACEMENT_S le temps minimal entre deux versions installées (défaut 1800)
+//   BRIGADE_MISE_A_JOUR_ESPACEMENT_S le temps minimal entre deux versions installées (défaut 3600) ;
+//                               une version urgente ne l'attend pas
 //   BRIGADE_MISE_A_JOUR_VIDANGE_S le plus long qu'une installation attend les cooks en vol (défaut 900)
 //
 // Codes de sortie : 0 le passage s'est fait — à jour, gelée, passée ou

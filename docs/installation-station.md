@@ -179,10 +179,14 @@ cooks it still has in flight —, and waits for them, 15 minutes at most
 (`BRIGADE_MISE_A_JOUR_VIDANGE_S` in the updater's unit); a cook still running then is cut, and its
 ticket is given back with no wait. The station that comes back up takes the tickets again.
 
-**At most one new version every 30 minutes** (#2374): every merge publishes a version, and every
-install restarts the station, cutting the work in flight. Within 30 minutes of the last version it
-moved to, the updater waits, and its state says until when; a version that was rolled back does
-not hold the next one.
+**Updates go out in batches: at most one restart per hour** (#2374, #2585,
+`runtime/src/mise-a-jour/lot/`): every merge publishes a version, and every install restarts the
+station, cutting the work in flight. Within an hour of the last version it moved to
+(`BRIGADE_MISE_A_JOUR_ESPACEMENT_S`, default 3600), the updater waits, and its state says until
+when; at the end of the window it installs the latest version, so everything published meanwhile
+costs one restart. A version that was rolled back does not hold the next one. **An urgent version
+goes out at once**, window or not — a release whose notes carry `[urgent]` (a directory source: a
+file `urgent` in the version's directory), for example a repair of the station itself.
 
 The new version is kept when the station says it has started on it and serves all the projects it
 served before. Otherwise, **it goes back on its own to the previous version**, whose package it

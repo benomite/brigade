@@ -28,6 +28,7 @@ import { lireReglages } from "./reglages.ts";
 import { PAQUET, type Systeme } from "./systeme.ts";
 import { retirerLaDemande, viderLaStation } from "./vidange.ts";
 import { comparerVersions } from "./versions.ts";
+import { deciderLaRelance, INTERVALLE_MS } from "./lot/fenetre.ts";
 
 export type OptionsMiseAJour = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : ses réglages, sa
@@ -43,7 +44,8 @@ export type OptionsMiseAJour = {
   gardeMs?: number;
   // Entre deux regards sur la station qui démarre.
   pasMs?: number;
-  // Le temps minimal entre deux passages réussis (#2374).
+  // Le temps minimal entre deux passages réussis (#2374) ; une heure par
+  // défaut, une version urgente ne l'attend pas (#2585).
   espacementMs?: number;
   // Le plus long qu'une installation attend les cooks en vol de la station,
   // et le temps qu'elle lui laisse pour dire qu'elle a vu la demande (#2547).
@@ -54,9 +56,9 @@ export type OptionsMiseAJour = {
 export const GARDE_MS = 120_000;
 // Chaque merge sur la branche d'intégration publie une version, et chaque
 // installation relance la station, coupant le travail en cours : le 4 nov.
-// 2026, onze relances en trois heures. Une nouvelle version s'installe donc au
-// plus une fois par demi-heure après la dernière passée (#2374).
-export const ESPACEMENT_MS = 30 * 60_000;
+// 2026, onze relances en trois heures (#2374). Les versions s'installent par
+// lots, au plus un par heure, sauf une urgente (`lot/fenetre.ts`, #2585).
+export const ESPACEMENT_MS = INTERVALLE_MS;
 const PAS_MS = 250;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -200,13 +202,17 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
     etat.retenue = `version gelée en ${installee} : ${visee} attend que le gel soit levé`;
     return conclure();
   }
-  // Passée il y a moins d'une demi-heure : la suivante attend. Une version
+  // Passée il y a moins d'un intervalle : la suivante attend la fin de la
+  // fenêtre, sauf si une version en attente est urgente (#2585). Une version
   // revenue en arrière, ou aucune encore, ne retient rien.
-  const derniere = etat.derniere?.quoi === "passee" ? Date.parse(etat.derniere.le) : Number.NaN;
-  if (Number.isFinite(derniere) && maintenant().getTime() - derniere < espacementMs) {
-    etat.retenue = `${visee} attend ${new Date(derniere + espacementMs).toISOString()} : une version au plus toutes les ${Math.round(espacementMs / 60_000)} min, chaque installation relançant la station et coupant son travail en cours — ${installee} reste en service`;
+  const derniere = etat.derniere?.quoi === "passee" ? new Date(etat.derniere.le) : null;
+  const urgente = liste.some((publication) => publication.urgente === true && comparerVersions(publication.version, installee) > 0);
+  const decision = deciderLaRelance({ derniereRelance: derniere, urgente, maintenant: maintenant(), intervalleMs: espacementMs });
+  if (decision.quoi === "attendre") {
+    etat.retenue = `${visee} attend ${decision.jusqua.toISOString()} : une version au plus toutes les ${Math.round(espacementMs / 60_000)} min, chaque installation relançant la station et coupant son travail en cours — ${installee} reste en service`;
     return conclure();
   }
+  if (decision.pourquoi === "urgente" && derniere !== null) dire(`brigade : mise à jour — une version urgente est publiée : ${visee} s'installe sans attendre la fin de la fenêtre`);
   if (ratees.has(visee)) {
     etat.retenue = `${visee} n'a pas démarré à son essai : elle n'est pas réessayée, la version publiée après elle le sera — ${installee} reste en service`;
     return conclure();
