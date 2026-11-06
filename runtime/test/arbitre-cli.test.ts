@@ -42,8 +42,10 @@ async function servi(t: TestContext, plafond = 10) {
   return { ouvert, repertoire, serveur, commande, enProcess };
 }
 
-// Chaque test a son arbitre, sur le port 0, et son état : ils se jouent de front.
-describe("la commande de l'arbitre", { concurrency: 8 }, () => {
+// Chaque test a son arbitre, sur le port 0, et son état. Ils se jouent l'un après l'autre : leurs commandes
+// font la queue au même process d'essai, et de front, chaque test comptait l'attente de tous les autres —
+// 2,7 s chacun sous la charge d'une suite entière, pour 3,5 s à tous (#2464).
+describe("la commande de l'arbitre", () => {
   after(() => cas.fermer());
 
   test("le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore, et la consommation des cooks dite comme telle", async (t) => {

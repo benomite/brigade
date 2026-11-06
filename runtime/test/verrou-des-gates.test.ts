@@ -59,7 +59,9 @@ describe("le tour des gates sur une box", () => {
     const a = projet(t, suiteRetenue(signalA, libere));
     const b = projet(t, `touch ${signalB}`);
 
-    const premier = jouer(t, a, verrou);
+    // Le premier aussi porte l'horloge : qu'il n'ait jamais attendu se lit à son `attendPremier` absent.
+    const attendPremier = join(repertoireTemporaire(t), "attend-premier");
+    const premier = jouer(t, a, verrou, horlogeDuTour(t, attendPremier));
     await jusqua(() => existsSync(signalA));
     const attend = join(repertoireTemporaire(t), "attend");
     const second = jouer(t, b, verrou, horlogeDuTour(t, attend));
@@ -71,7 +73,9 @@ describe("le tour des gates sur une box", () => {
     await Promise.all([premier.fin, second.fin]);
     assert.equal(existsSync(signalB), true);
     assert.match(second.sortie(), /ok {4}tour des tests : ([1-9][0-9]*) s à attendre son tour, [0-9]+ s d'exécution/);
-    assert.match(premier.sortie(), /ok {4}tour des tests : 0 s à attendre son tour/);
+    assert.equal(existsSync(attendPremier), false, "le premier a attendu un tour que personne ne tenait");
+    // Son attente se lit à la vraie horloge, en secondes entières : une seconde peut tomber pendant son `mkdir`.
+    assert.match(premier.sortie(), /ok {4}tour des tests : [01] s à attendre son tour/);
     assert.equal(existsSync(verrou), false, "le verrou n'est pas rendu");
   });
 
@@ -124,10 +128,10 @@ describe("le tour des gates sur une box", () => {
     aArreter(t, () => ailleurs.kill("SIGKILL"));
     await jusqua(() => existsSync(tenu));
 
-    const second = jouer(t, projet(t, `touch ${signalB}`), verrou);
-    // Le miroir jugé, le passage en est au tour : avant #2551, il le volait sur-le-champ.
-    await jusqua(() => /miroir invérifiable/.test(second.sortie()));
-    await new Promise((r) => setTimeout(r, 500));
+    const attend = join(repertoireTemporaire(t), "attend");
+    const second = jouer(t, projet(t, `touch ${signalB}`), verrou, horlogeDuTour(t, attend));
+    // Le passage attend son tour, au lieu de le voler sur-le-champ comme avant #2551.
+    await jusqua(() => existsSync(attend));
     assert.equal(existsSync(signalB), false, "le tour d'un passage vivant a été volé");
 
     writeFileSync(libere, "");
