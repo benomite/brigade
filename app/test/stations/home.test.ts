@@ -51,17 +51,18 @@ async function laHome(accueil: Accueil | undefined, appairer: (code: string) => 
   (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
   await repos();
   const section = () => jouee.element("accueil-stations");
-  const bouton = (texte: string) => jouee.element("tous").dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
+  // La liste des stations et « + station » ont quitté l'accueil (#2638) : elles attendent, cachées, d'être rangées ailleurs.
+  const bouton = (texte: string) =>
+    [...jouee.element("tous").dessous("button"), ...jouee.element("hors-de-l-accueil").dessous("button")].find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
   return { jouee, section, bouton };
 }
 
 test("l'accueil liste ses stations sous ses projets, une ligne chacune : sa pastille, son nom, son état, ce qu'elle fait et ses projets — sa machine et sa version au survol seulement", async () => {
   const { jouee, section } = await laHome(ACCUEIL);
   assert.deepEqual(
-    jouee.element("tous").children.map(({ balise, id, textContent }) => (balise === "h2" ? textContent : id)),
-    // Puis la ligne qui ouvre le coût de tous les projets (#1022), au niveau de l'app, celle qui ouvre leurs ratios ajouté /
-    // retiré (#1682), et la version qui tourne (#1014).
-    ["Projects", "accueil-projets", "Stations", "accueil-stations", "Cost", "accueil-couts", "Closer", "accueil-ratios", "App", "accueil-app", "sante"],
+    jouee.element("hors-de-l-accueil").children.map(({ id }) => id),
+    // L'accueil n'a plus que ses deux blocs (#2638) : la liste des stations attend, cachée, avec ce qui l'a quitté aussi.
+    ["accueil-stations", "accueil-couts", "accueil-ratios", "", "accueil-app", "sante"],
   );
   assert.deepEqual(lignes(section()), [
     { texte: "boxonline · 2 cooks · parade›", survol: "Linux 6.1.0 · version 1.4.0", ton: "vert" },
@@ -92,7 +93,7 @@ test("un clic sur une station ouvre sa page ; un geste visible ramène à l'accu
   assert.equal(jouee.element("projets").children[0]?.ariaCurrent, "true");
   bouton("‹ All projects").click();
   await repos();
-  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-stations"));
+  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-bloc-projets"));
 });
 
 test("« + station » ouvre le champ du code, nulle part ailleurs ; un refus se lit dessous, en une ligne ; appairée, le champ se referme sans rien laisser dire", async () => {

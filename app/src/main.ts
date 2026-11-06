@@ -86,6 +86,7 @@ import { type Propositions, type ReponseDuChef, tenirLesPropositions } from "./s
 import { tenirRetraits } from "./retrait.ts";
 import { DOSSIER as DOSSIER_DU_PLUGIN, lancerVraiment, sansPluginApp, tenirLePluginApp } from "./plugin-app.ts";
 import { tenirServices } from "./service.ts";
+import { installerLaStation } from "./poste/installer.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
 import { avecLeursAjouts, choixDesProjets, type StationsDuCompte } from "./stations-du-compte.ts";
@@ -1199,6 +1200,8 @@ ipcMain.handle("compteGitHub", async () => {
   if ("lien" in lu && lu.lien !== undefined) pagesDuPremier.add(lu.lien);
   return lu;
 });
+// Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (poste/installer.ts).
+ipcMain.handle("installerLaStation", () => installerLaStation(stationLocale, () => stations.relire()));
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();

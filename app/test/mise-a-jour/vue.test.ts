@@ -51,10 +51,13 @@ async function lApp(miseAJour?: EtatDeMiseAJour, reponses: { installerMiseAJour?
   return { vue, app, texte, boutons, gestes };
 }
 
-test("la version qui tourne est dite sur l'accueil, dans chacun des états", async () => {
+// La section « App » a quitté l'accueil (#2638) : elle attend, cachée, d'être rangée ailleurs ; une version plus haute se dit
+// toujours en tête de l'app (mise-a-jour/bandeau.js).
+test("la version qui tourne est dite dans la section App, hors de l'accueil, dans chacun des états", async () => {
   for (const [nom, etat] of Object.entries(ETATS)) {
     const { vue, texte } = await lApp(etat);
-    assert.ok(vue.element("tous").dessous("section").includes(vue.element("accueil-app")), nom);
+    assert.ok(!vue.element("tous").dessous("section").includes(vue.element("accueil-app")), nom);
+    assert.ok(vue.element("hors-de-l-accueil").dessous("section").includes(vue.element("accueil-app")), nom);
     assert.match(texte(), /^Brigade 1\.4\.0/, nom);
   }
 });

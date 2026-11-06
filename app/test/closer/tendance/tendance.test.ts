@@ -204,8 +204,9 @@ describe("la page des ratios, dans la vue jouée", () => {
     });
     vue.element("entree-tous").click();
     await repos();
-    const ligne = vue.element("tous").dessous("button").find(({ ariaLabel }) => ariaLabel === "the added / removed ratio of all projects");
-    assert.ok(ligne !== undefined, "pas de ligne des ratios sur l'accueil");
+    // La ligne « Closer » a quitté l'accueil (#2638) : elle attend, cachée, d'être rangée ailleurs — sa page reste la même.
+    const ligne = vue.element("hors-de-l-accueil").dessous("button").find(({ ariaLabel }) => ariaLabel === "the added / removed ratio of all projects");
+    assert.ok(ligne !== undefined, "pas de ligne des ratios hors de l'accueil");
     ligne.click();
     await repos();
 

@@ -1554,9 +1554,16 @@ main > header,
   overflow-y: auto;
   user-select: text;
 }
-/* L'accueil : deux listes, les projets puis les stations, une ligne chacun — et la santé en bas.
+/* L'accueil : ses blocs, chacun une liste d'une ligne par chose.
    Le titre d'une liste est discret : ce qui compte, ce sont les lignes. */
-#tous > h2 {
+/* L'accueil n'a que deux blocs (ticket 2638) : les projets, et la station de cet ordinateur, chacun son titre et sa carte. */
+.bloc-de-l-accueil {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#tous > h2,
+.bloc-de-l-accueil > h2 {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;

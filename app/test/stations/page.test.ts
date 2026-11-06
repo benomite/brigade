@@ -97,7 +97,7 @@ test("un geste visible, « ‹ All projects », ramène à l'accueil", async () 
   assert.equal(retour.hidden, false);
   retour.click();
   await repos();
-  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-stations"));
+  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-bloc-projets"));
   assert.ok(!jouee.element("tous").children.includes(page));
 });
 
@@ -160,7 +160,7 @@ test("confirmer retire la station et ramène à l'accueil", async () => {
   const { jouee, page } = await laPage("box", { retirerLaStation: (id) => (retirees.push(id), { retiree: "box" }) });
   await retirer(page);
   assert.deepEqual(retirees, ["g1"]);
-  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-stations"), "l'accueil est là");
+  assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-bloc-projets"), "l'accueil est là");
   assert.ok(!jouee.element("tous").children.includes(page));
   // La lecture suivante ne la contient plus : elle n'est plus dans la liste de l'accueil.
   jouee.dire("surStations", { a: A, stations: [HORS_LIGNE, SATUREE] });

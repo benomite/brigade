@@ -17,6 +17,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Vu as VuDuCode } from "../src/retard.ts";
+import type { VuDesProjets } from "../src/projets/projets.ts";
 import type { VuDesStations } from "../src/stations/stations.ts";
 import { type Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
@@ -101,10 +102,26 @@ test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /exit code|ENOENT|spawn/);
 });
 
-test("en bas, la ligne de santé : verte et discrète quand tout va, une phrase quand Max ou GitHub cloche", async () => {
+test("l'accueil n'a que deux blocs, les projets puis la station de cet ordinateur, et rien d'autre (#2638)", async () => {
+  const { vue, projets } = await lAccueil();
+  const tous = vue.element("tous");
+  assert.deepEqual(
+    tous.children.map(({ id, children }) => [id, children[0]?.textContent]),
+    [
+      ["accueil-bloc-projets", "Projects"],
+      ["accueil-bloc-station", "This computer's station"],
+    ],
+  );
+  assert.equal(projets().parentElement, tous.children[0], "les lignes des projets sont dans leur bloc");
+  // Ni stations, ni « + station », ni Cost, ni Closer, ni version de l'app, ni santé.
+  assert.doesNotMatch(visible(tous), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
+  for (const parti of ["accueil-stations", "accueil-couts", "accueil-ratios", "accueil-app", "sante"]) assert.ok(![...tous.descendants()].includes(vue.element(parti)), parti);
+});
+
+test("la ligne de santé, hors de l'accueil depuis #2638 : verte quand tout va, une phrase quand Max ou GitHub cloche", async () => {
   const { vue } = await lAccueil();
   const sante = vue.element("sante");
-  assert.equal(vue.element("tous").children.at(-1), sante, "la santé est en bas de page");
+  assert.equal(sante.parentElement, vue.element("hors-de-l-accueil"));
   assert.equal(sante.dataset.ok, "true");
   assert.equal(visible(sante), "Max ✓ · GitHub ✓");
   vue.dire("surAccueil", { ...ACCUEIL, sante: { ton: "rouge", dit: "Max ✓  ·  GitHub limits calls, back around 3:16 PM", survol: "" } });
@@ -152,4 +169,20 @@ test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses
   await repos();
   assert.equal(vue.element("ajout").hidden, false, "le parcours d'ajout s'ouvre");
   assert.equal(vue.element("parcours-de-l-ajout").dessous("section").length > 0, true);
+});
+
+test("le bloc de la station, dans la vue jouée : sans id local il n'est pas installé, avec lui il lie sa page et liste les autres (#2640)", async () => {
+  const { vue } = await lAccueil();
+  const bloc = () => vue.element("accueil-bloc-station");
+  const station = (id: string, nom: string) => ({ id, nom, machine: "m", etat: "en-ligne" as const, ligne: "online", pannes: [], dit: "", version: "1.4.0", projets: [], max: null });
+  const boutons = () => bloc().dessous("button").map(({ textContent }) => textContent);
+  vue.dire("surStations", { a: A, stations: [station("g1", "Mac"), station("g2", "box")] });
+  await repos();
+  assert.deepEqual(boutons(), ["Install this computer's station"], "locale inconnue : installer, jamais « Open its page » sur un id vide");
+  vue.dire("surProjetsDesStations", { a: A, locale: "g1", projets: [] } as unknown as VuDesProjets);
+  await repos();
+  assert.ok(boutons().includes("Open its page"));
+  assert.ok(!boutons().includes("Install this computer's station"));
+  assert.match(bloc().textContent, /Mac/);
+  assert.ok(boutons().includes("box online") || bloc().textContent.includes("box"));
 });

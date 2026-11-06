@@ -233,6 +233,9 @@ export type Pont = {
   // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
   // alors sa version inconnue (station-version/station-version.js).
   statutDeLaStation?(): Promise<unknown>;
+  // Installe la station de cet ordinateur (ticket 2640, accueil/station/) : rien quand elle est installée, ou pourquoi elle ne
+  // l'est pas, en une ligne et son détail. Absent, le bouton de l'accueil dit que cet appareil ne l'installe pas.
+  installerLaStation?(): Promise<{ refus: string; detail?: string } | undefined>;
   surStatutDeLaStation?(recevoir: (statut: unknown) => void): void;
   // L'app Android seule (le ticket 1414) : la liste des projets de la station appairée vient d'être lue à son guichet, ou
   // ne l'a pas été — `liste` dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.

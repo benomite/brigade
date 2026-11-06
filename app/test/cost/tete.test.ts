@@ -224,7 +224,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     (page.dessous("button").find(({ textContent }) => textContent === "‹ All projects") ?? assert.fail("pas de retour")).click();
     await repos();
     assert.ok(!vue.element("tous").children.includes(page));
-    assert.ok(vue.element("tous").children.some(({ id }) => id === "accueil-couts"));
+    assert.ok(vue.element("tous").children.some(({ id }) => id === "accueil-bloc-projets"));
     assert.deepEqual(vue.dernier("onglet").slice(0, 2), [undefined, undefined]);
     assert.equal(page.dessous("div").length, 1);
   });
