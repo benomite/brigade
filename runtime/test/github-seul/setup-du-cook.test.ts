@@ -107,20 +107,21 @@ function cuisine(t: TestContext, options: { setup?: string; reglage?: { delaiMs:
 }
 
 test("the station runs the worktree setup before the cook: the cook starts with its dependencies and the setup's exports", async (t) => {
-  const { servir, lances, dits, worktree } = cuisine(t, { setup: SETUP_VERT, reglage: { delaiMs: 60_000 } });
+  const { servir, lances, dits, worktree } = cuisine(t, { setup: SETUP_VERT, reglage: { delaiMs: 2_000 } });
   await servir();
 
   assert.equal(lances.length, 1, dits.join("\n"));
   const [cook] = lances;
   assert.ok(cook);
   assert.ok(cook.avecDependances, "le worktree est prêt quand le cook y entre");
-  assert.equal(cook.env.BRIGADE_STATE_DIR, join(worktree, ".brigade-state"));
+  // Ce que le setup exporte, tel quel : bash ajoute `/.brigade-state` au chemin du worktree, écrit avec des `\` sous Windows.
+  assert.equal(cook.env.BRIGADE_STATE_DIR, `${worktree}/.brigade-state`);
   assert.equal(cook.env.BRIGADE_PORT, String(20000 + NUMERO));
   assert.deepEqual(dits.filter((dit) => dit.includes(SCRIPT_SETUP)), []);
 });
 
 test("the setup gets neither the Claude key nor a GitHub token, and cannot hand one to the cook", async (t) => {
-  const { servir, lances, worktree } = cuisine(t, { setup: SETUP_VERT, reglage: { delaiMs: 60_000 } });
+  const { servir, lances, worktree } = cuisine(t, { setup: SETUP_VERT, reglage: { delaiMs: 2_000 } });
   await servir();
 
   assert.equal(readFileSync(join(worktree, "setup-a-recu"), "utf8"), "|");
@@ -131,7 +132,7 @@ test("the setup gets neither the Claude key nor a GitHub token, and cannot hand 
 });
 
 test("a failing setup does not hold the cook: it starts in its worktree as is, and the station says why", async (t) => {
-  const { servir, lances, dits } = cuisine(t, { setup: SETUP_ROUGE, reglage: { delaiMs: 60_000 } });
+  const { servir, lances, dits } = cuisine(t, { setup: SETUP_ROUGE, reglage: { delaiMs: 2_000 } });
   await servir();
 
   assert.equal(lances.length, 1);
