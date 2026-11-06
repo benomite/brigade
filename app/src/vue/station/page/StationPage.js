@@ -1,13 +1,17 @@
 // @ts-check
 // La page d'une station (ticket 2641, épique 2497) : la coque qui pose ses sections, dans cet ordre — son identité, ses
-// connexions, ses dossiers et son bac à sable, ses capacités, ses cooks —, chacune sous son titre. Chaque section est un
-// module de `sections/`, nommé dans SECTIONS, qui exporte `poserSection(doc, contexte)` et rend un élément (ou sa
-// promesse) ; tant que son fichier manque, la coque pose son titre et une ligne qui dit qu'elle n'est pas encore là.
+// connexions, ses dossiers et son bac à sable, ses capacités, ses cooks —, chacune sous son titre. vue.js la monte sur
+// la page d'une station, à son ouverture. Chaque section est un module de `sections/`, nommé dans SECTIONS, qui exporte
+// `poserSection(doc, contexte)` et rend un élément (ou sa promesse). Une section n'est chargée que lorsque son fichier
+// est déclaré dans LIVREES : tant qu'il ne l'est pas, la coque pose son titre et une ligne qui dit qu'elle n'est pas
+// encore là, sans demander de fichier absent. Une section livrée qui ne se charge pas, ou qui lève en se posant, dit en
+// une ligne qu'elle est indisponible, son détail au survol ; les autres sections se posent quand même.
 // La coque lit si la page est celle de cet ordinateur : pour une autre station, elle passe `lectureSeule` aux sections,
 // qui montrent alors ce qui ne se règle que sur la machine elle-même sans offrir de le changer.
 // Aucun réglage du projet n'y paraît (ils sont sur l'onglet Stations du projet, ticket 2484) : `contexte.niveau(cle)`
 // refuse une clé de niveau « project ». Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
+import { lectureIndisponible } from "../../briques.js";
 import { NIVEAUX } from "../../niveaux.js";
 import { niveauReglage } from "./NiveauReglage.js";
 
@@ -22,7 +26,7 @@ import { niveauReglage } from "./NiveauReglage.js";
  * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any }} Contexte
  */
 /** @typedef {{ poserSection(doc: Fabrique, contexte: Contexte): any }} Section */
-/** @typedef {(fichier: string) => Promise<Partial<Section>>} Charger */
+/** @typedef {(fichier: string) => Promise<Partial<Section>> | undefined} Charger */
 
 // Les sections, dans leur ordre sur la page : leur fichier sous `sections/` et leur titre.
 export const SECTIONS = /** @type {const} */ ([
@@ -33,7 +37,12 @@ export const SECTIONS = /** @type {const} */ ([
   { fichier: "cooks", titre: "Cooks" },
 ]);
 
+// Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
+/** @type {ReadonlySet<string>} */
+export const LIVREES = new Set([]);
+
 export const PAS_ENCORE = "not shown yet";
+export const INDISPONIBLE = "this section is unavailable";
 
 // La page est celle de cet ordinateur quand la station ouverte est la station locale que l'app connaît.
 /** @param {StationOuverte} station @param {string | null | undefined} locale */
@@ -42,7 +51,7 @@ export function estCetOrdinateur(station, locale) {
 }
 
 /** @type {Charger} */
-const depuisSections = (fichier) => import(`./sections/${fichier}.js`);
+const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(`./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
 /** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger }} ouverte */
@@ -75,20 +84,20 @@ async function poserUneSection(doc, { fichier, titre }, contexte, charger) {
   const tete = doc.createElement("h3");
   tete.textContent = titre;
   racine.append(tete);
-  /** @type {Partial<Section> | undefined} */
-  let module;
   try {
-    module = await charger(fichier);
-  } catch {
-    module = undefined;
+    const chargee = charger(fichier);
+    if (chargee === undefined) {
+      const vide = doc.createElement("p");
+      vide.className = "a-venir";
+      vide.textContent = PAS_ENCORE;
+      racine.append(vide);
+      return racine;
+    }
+    const module = await chargee;
+    if (typeof module?.poserSection !== "function") throw new Error(`sections/${fichier}.js exports no poserSection`);
+    racine.append(await module.poserSection(doc, contexte));
+  } catch (erreur) {
+    racine.append(lectureIndisponible(doc, INDISPONIBLE, erreur instanceof Error ? erreur.message : String(erreur)));
   }
-  if (typeof module?.poserSection !== "function") {
-    const vide = doc.createElement("p");
-    vide.className = "a-venir";
-    vide.textContent = PAS_ENCORE;
-    racine.append(vide);
-    return racine;
-  }
-  racine.append(await module.poserSection(doc, contexte));
   return racine;
 }

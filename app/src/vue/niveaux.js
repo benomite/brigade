@@ -5,15 +5,13 @@
 // pose l'étiquette par `niveauDe`, qui lève sur un réglage que la table ne connaît pas : un réglage montré sans
 // niveau ne se rend pas, et le test le voit. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-/** @typedef {import("./briques.js").Fabrique} Fabrique */
-/** @typedef {"project" | "machine" | "you"} Niveau */
+import { NIVEAUX_DITS, niveauReglage } from "./station/page/NiveauReglage.js";
 
-/** @type {Readonly<Record<Niveau, { libelle: string, survol: string }>>} */
-export const NIVEAUX_DITS = {
-  project: { libelle: "project", survol: "kept in the project's repository — shared with everyone who clones it, and changed by a pull request" },
-  machine: { libelle: "this machine", survol: "kept on this machine's station — private, never written to the repository" },
-  you: { libelle: "you", survol: "your preference in the app — it follows you, not the project" },
-};
+// Les mots de chaque niveau, et sa marque, sont ceux de la marque partagée (station/page/NiveauReglage.js).
+export { NIVEAUX_DITS };
+
+/** @typedef {import("./briques.js").Fabrique} Fabrique */
+/** @typedef {import("./station/page/NiveauReglage.js").Niveau} Niveau */
 
 // Chaque réglage montré, et son niveau.
 /** @type {Readonly<Record<string, Niveau>>} */
@@ -51,10 +49,5 @@ export const NIVEAUX = {
 export function niveauDe(doc, cle) {
   const niveau = NIVEAUX[cle];
   if (niveau === undefined) throw new Error(`setting "${cle}" has no level in niveaux.js`);
-  const pose = doc.createElement("span");
-  pose.className = "niveau";
-  pose.dataset.niveau = niveau;
-  pose.textContent = NIVEAUX_DITS[niveau].libelle;
-  pose.title = NIVEAUX_DITS[niveau].survol;
-  return pose;
+  return niveauReglage(doc, niveau);
 }

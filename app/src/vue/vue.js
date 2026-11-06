@@ -113,6 +113,7 @@ import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
+import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
 import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
@@ -617,7 +618,11 @@ const versionDeStation = document.createElement("p");
 versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
-pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, titreDesProjets, listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation, projetsChoisisDeStation);
+// Ses sections, sous ses pannes (ticket 2641, épique 2497) : identité, connexions, dossiers et bac à sable, capacités,
+// cooks — posées par la coque de station/page/StationPage.js.
+const sectionsDeStation = document.createElement("div");
+sectionsDeStation.className = "sections-de-station";
+pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, sectionsDeStation, titreDesProjets, listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation, projetsChoisisDeStation);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
 // un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
@@ -6285,12 +6290,14 @@ function poserPageDeStation() {
     const phraseDite = bloc("span", phrase);
     phraseDite.className = "phrase";
     enTeteDeStation.replaceChildren(titre, pastille(phrase, tonDe(enregistree)), phraseDite, survol(document, detailsDe(enregistree)));
+    poserLesSectionsDeStation({ id: enregistree.id, nom: enregistree.name });
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
     versionDeStation.replaceChildren();
     retraitDeStation.replaceChildren();
   } else if (station === undefined) {
     enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? "reading your stations on GitHub…" : "this station is no longer paired with this app"));
+    poserLesSectionsDeStation(undefined);
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
     versionDeStation.replaceChildren();
@@ -6309,6 +6316,7 @@ function poserPageDeStation() {
     poserPlafond(station.nom, ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station, panne)));
+    poserLesSectionsDeStation({ id: station.id, nom: station.nom });
     poserRetireLaStation(station);
   }
   // Une machine seulement enregistrée n'a ni projet de l'app, ni parcours d'ajout : ses projets sont ses cases.
@@ -6318,6 +6326,24 @@ function poserPageDeStation() {
   else if (parcours === undefined) ouvrirLeParcours.hidden = false;
   poserLesProjetsChoisis();
   poserProjets();
+}
+
+// Ce que les sections de la page posées disent : la station, son nom, et la station de ce poste. Elles ne se reposent
+// que lorsque l'un d'eux change — une relecture de l'accueil ne les redessine pas — ; la dernière demandée l'emporte.
+let sectionsDeStationPosees = "";
+/** @param {{ id: string, nom: string } | undefined} station */
+function poserLesSectionsDeStation(station) {
+  if (station === undefined) {
+    sectionsDeStationPosees = "";
+    return sectionsDeStation.replaceChildren();
+  }
+  const locale = projetsVus?.locale ?? null;
+  const posees = JSON.stringify([station.id, station.nom, locale]);
+  if (posees === sectionsDeStationPosees) return;
+  sectionsDeStationPosees = posees;
+  void poserLaCoqueDeStation(document, { station, locale }).then((page) => {
+    if (sectionsDeStationPosees === posees) sectionsDeStation.replaceChildren(page);
+  });
 }
 
 // L'enregistrement de la station dont la page est ouverte : celui de la machine que la ligne de la liste a fondue avec sa
@@ -8642,6 +8668,8 @@ function ouvrirStation(id) {
   pageDeLApp = undefined;
   retraitDeStationDemande = undefined;
   retraitDeStationRefuse = "";
+  sectionsDeStationPosees = "";
+  sectionsDeStation.replaceChildren();
   marquer();
   if (parcours !== undefined) fermerParcours();
   ajoutDit.textContent = "";
@@ -9046,6 +9074,8 @@ brigade.surProjetsDesStations((vu) => {
   poserProjets();
   poserChoixDesStations();
   poserStationsDuProjet();
+  // La station de ce poste se connaît par cette lecture : la page d'une station ouverte sait si elle est la sienne.
+  if (stationOuverte !== undefined && courant === undefined && !ajoute) poserPageDeStation();
   // L'accès au dépôt et le refus de la station : la ligne d'alerte de Rail les dit (ticket 1185). Apparue ou partie,
   // le rail se repose : elle n'y est que quand elle dit quelque chose.
   if (courant !== undefined) {
