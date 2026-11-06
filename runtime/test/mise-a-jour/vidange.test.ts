@@ -1,5 +1,6 @@
 // Ce que la station de la box fait d'une demande de vidange de sa mise à
-// jour : elle ne prend plus de ticket, et dit ses cooks en vol (#2547).
+// jour : elle dit ses cooks en vol (#2547), prend encore ses tickets tant qu'ils
+// sont en vol, et se dit prête — retenue — quand il n'y en a plus (#2586).
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -7,9 +8,9 @@ import { test } from "node:test";
 import { lireEnVol, retirerLaDemande, tenirLaVidange, VIDANGE } from "../../src/mise-a-jour/vidange.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
-const demander = (dossier: string, version: string, jusquaMs: number) => writeFileSync(join(dossier, VIDANGE), JSON.stringify({ version, jusqua: new Date(jusquaMs).toISOString() }));
+const demander = (dossier: string, version: string, jusquaMs: number) => writeFileSync(join(dossier, VIDANGE), JSON.stringify({ version, echeance: new Date(jusquaMs).toISOString(), jusqua: new Date(jusquaMs).toISOString() }));
 
-test("sans demande, la station prend ses tickets et dit ses cooks en vol ; demandée vers une autre version, elle se retient et le dit (#2547)", async (t) => {
+test("sans demande, la station prend ses tickets et dit ses cooks en vol ; demandée vers une autre version, elle les prend encore, puis se retient et se dit prête sans cook en vol (#2547, #2586)", async (t) => {
   const racine = repertoireTemporaire(t);
   const dossier = repertoireTemporaire(t);
   const cooks = [12, 3];
@@ -19,11 +20,13 @@ test("sans demande, la station prend ses tickets et dit ses cooks en vol ; deman
   assert.equal(vidange.retenue(), false);
   assert.deepEqual(lireEnVol(racine), { pid: 42, vidange: null, cooks: [3, 12] });
   demander(dossier, "1.1.0", Date.now() + 60_000);
-  assert.equal(vidange.retenue(), true);
   await jusqua(() => lireEnVol(racine)?.vidange === "1.1.0");
-  assert.ok(dites.some((ligne) => ligne.includes("sa mise à jour vers 1.1.0 attend : elle ne prend plus de ticket")), dites.join("\n"));
+  assert.equal(vidange.retenue(), false);
+  assert.ok(dites.some((ligne) => ligne.includes("sa mise à jour vers 1.1.0 attend : elle prend encore ses tickets")), dites.join("\n"));
   cooks.splice(0);
-  await jusqua(() => lireEnVol(racine)?.cooks.length === 0);
+  await jusqua(() => lireEnVol(racine)?.prete === true);
+  assert.deepEqual(lireEnVol(racine)?.cooks, []);
+  assert.equal(vidange.retenue(), true);
   retirerLaDemande(dossier);
   assert.equal(vidange.retenue(), false);
 });

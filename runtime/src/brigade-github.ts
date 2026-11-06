@@ -49,6 +49,7 @@ import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
+import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
@@ -209,6 +210,10 @@ export type StationGitHub = {
   // La station s'arrête, avant que ses cooks ne meurent avec elle : leurs
   // tickets sont rendus sans attente (#2543).
   arreter?(): void;
+  // Sa mise à jour se relance à son échéance : le travail de ses cooks en vol
+  // est sauvé sur leur branche, commité et poussé, pour que le cook suivant en
+  // reparte (#2586). Rend les tickets sauvés.
+  sauver?(): Promise<number[]>;
   // Posé par la boucle : le pass a bougé (#2333). Les `TOURS_PRESSES` tours
   // suivants viennent à `ATTENTE_PRESSEE_MS` au plus l'un de l'autre, le premier
   // tout de suite si `maintenant` (une livraison à relire).
@@ -876,7 +881,7 @@ export type OptionsDuProjet = {
 
 // Un projet ouvert : ses cooks, et son arrêt. `refus` : la station ne peut pas
 // le servir, et ne cuisine rien pour lui.
-export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; refus?: string };
+export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; sauver?(): Promise<number[]>; refus?: string };
 
 // Ouvre le projet : un tour de la station, puis un autre l'intervalle passé,
 // jusqu'à l'arrêt.
@@ -942,6 +947,7 @@ export function brancherBrigadeGithub(options: OptionsDuProjet): ProjetOuvert {
   return {
     // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
     enCuisine: () => station.enCuisine(),
+    sauver: async () => (await station.sauver?.()) ?? [],
     arreter: async () => {
       arrete = true;
       // Avant que le runtime ne tue les cooks : leur fin se lit comme celle de la station.
@@ -1059,7 +1065,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -1212,7 +1218,35 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     };
   };
 
+  // Le worktree de chaque cook en vol, et ceux dont le travail est sauvé avant
+  // une relance : leur branche reste, même neuve, quand le cook meurt (#2586).
+  const lieuxEnVol = new Map<number, { worktree: string; branche: string }>();
+  const sauves = new Set<number>();
+  const sauver = async (): Promise<number[]> => {
+    if (depot.recolter === undefined) return [];
+    const faits: number[] = [];
+    for (const [numero, { worktree, branche }] of lieuxEnVol) {
+      try {
+        depot.recolter(worktree, branche, SUJET_DE_SAUVEGARDE, true);
+        depot.pousser(branche);
+        sauves.add(numero);
+        faits.push(numero);
+        avertir(`brigade : #${numero} sur ${nom} — the cook's work is saved on \`${branche}\` before the station restarts: the next cook starts from it`);
+      } catch (erreur) {
+        avertir(`brigade : #${numero} sur ${nom} — the cook's work could not be saved on \`${branche}\` before the station restarts: ${message(erreur)}`);
+      }
+    }
+    return faits;
+  };
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
+    try {
+      return await cuisinerLeTicket(ticket, calibrage);
+    } finally {
+      lieuxEnVol.delete(ticket.number);
+      sauves.delete(ticket.number);
+    }
+  };
+  const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
     // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
     // identifiant, et `gh issue view` lui serait refusé.
@@ -1237,6 +1271,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }
     const { worktree, branche } = lieu;
+    lieuxEnVol.set(ticket.number, lieu);
     // La tête que le cook reprend : s'il n'y ajoute rien, il n'a rien livré
     // (#2372) — sans quoi la pass ressort une tête déjà renvoyée, et le ticket
     // boucle entre elle et les cooks sans qu'aucun échec ne compte.
@@ -1270,7 +1305,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // — la station arrêtée là, GitHub qui refuse la PR. Elle part en pass telle
     // quelle : un cook relancé dessus la trouvait finie, n'y ajoutait rien, et
     // son essai comptait pour un échec, trois fois jusqu'à `hors-cuisine` (#2577).
-    if (sansPR && avant !== null && depot.livree !== undefined && depot.tete?.(depot.livree(branche)) === avant) {
+    // Une tête qui sauve le travail d'un cook coupé par une relance n'est pas
+    // une livraison : un cook la reprend (#2586).
+    const sauvee = reprise && estUneSauvegarde(depot.sujet?.(branche));
+    if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket was interrupted when its station restarted for an update. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
+    if (sansPR && !sauvee && avant !== null && depot.livree !== undefined && depot.tete?.(depot.livree(branche)) === avant) {
       depot.retirer(worktree);
       avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that never reached the pass (pushed, no PR): it goes to the pass as is, without a cook`);
       return { branche };
@@ -1289,7 +1328,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (options.setup !== undefined) {
       const setup = await jouerSetup({ worktree, ticket: ticket.number, env: envDuCook, delaiMs: options.setup.delaiMs, interdites: interditesAuSetup, cloison, signal: abandon.signal });
       if (abandon.signal.aborted) {
-        depot.retirer(worktree, reprise ? undefined : branche);
+        depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
         return { subi: "the station stopped during the worktree setup" };
       }
       if (setup.pret) envDuCook = setup.env;
@@ -1302,7 +1341,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
-      depot.retirer(worktree, reprise ? undefined : branche);
+      depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
       return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
     }
@@ -1372,6 +1411,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   };
 
   const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
     abandon.abort();

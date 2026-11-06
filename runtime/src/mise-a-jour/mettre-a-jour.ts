@@ -4,9 +4,11 @@
 // déjà raté. Installer, c'est remettre le paquet à apt : dpkg pose le nouveau
 // code et les unités qu'il porte, puis son postinst recharge systemd et relance
 // la station. Seul le process de la station est relancé (`KillMode=process`),
-// mais l'arrêt du runtime tue les cooks de l'état GitHub seul : la station se
-// vide d'abord — elle ne prend plus de ticket, et l'installation attend que ses
-// cooks en vol aient fini, au plus un quart d'heure (`vidange.ts`, #2547).
+// mais l'arrêt du runtime tue les cooks de l'état GitHub seul : l'installation
+// attend un moment où la station n'a plus de cook en vol, au plus jusqu'à
+// l'échéance (un quart d'heure à défaut), et la station prend ses tickets
+// pendant ce temps ; à l'échéance, elle sauve d'abord le travail de ses cooks
+// sur leur branche (`vidange.ts`, #2547 ; `attente/attente.ts`, #2586).
 //
 // Une version est gardée quand la station relancée sur elle s'est dite en
 // service — sa version, sous le pid que systemd lui donne — et sert au moins
@@ -248,7 +250,8 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   const enServiceAvant = lireEnService(racine);
   const servis = enServiceAvant !== null && comparerVersions(enServiceAvant.version, installee) === 0 ? enServiceAvant.servis : [];
 
-  // Ses cooks en vol finissent avant que l'installation ne la relance (#2547).
+  // Ses cooks en vol finissent, ou sont sauvés à l'échéance, avant que
+  // l'installation ne la relance (#2547, #2586).
   await viderLaStation({ racine, dossier, visee, pid: () => systeme.service().pid, dire, pasMs, ...(options.vidangeMs === undefined ? {} : { maxMs: options.vidangeMs }), ...(options.accuseMs === undefined ? {} : { accuseMs: options.accuseMs }), maintenant });
 
   // L'essai est noté avant de partir : interrompu, le passage suivant le conclut.

@@ -66,6 +66,8 @@ export type Cuisine = {
   arretee?(): Promise<void>;
   // Les tickets que ses cooks GitHub seul cuisinent en ce moment.
   enCuisine?(): number[];
+  // Sauve leur travail sur leur branche avant une relance (#2586).
+  sauver?(): Promise<number[]>;
 };
 
 export type OptionsCuisine = {
@@ -319,5 +321,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     arretee: () => finDuTour,
     // Ses cooks en vol, pour la mise à jour de la station (#2189).
     enCuisine: () => servieSurGitHub.enCuisine(),
+    sauver: async () => (await servieSurGitHub.sauver?.()) ?? [],
   };
 }
