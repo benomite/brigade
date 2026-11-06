@@ -1,7 +1,6 @@
-# Les gates entières, sur GitHub Actions (#1004) : la station qui cuisine ne joue que les tests
-# proches d'un changement (`tests-touches.mjs --proches`) ; ici, sur une PR, se jouent tous ceux
-# qu'il touche, et sur `main` après un merge, la suite entière (le diff y est vide). La pass attend ces
-# checks avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
+# Les gates entières, sur GitHub Actions (#1004) : sur une PR se jouent tous les tests que le
+# changement touche — ceux que la station qui cuisine a joués avant de livrer (#2565) —, et sur `main`
+# après un merge, la suite entière (le diff y est vide). La pass attend ces checks avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
 #
 # Chaque check rend son verdict en moins de 60 s après le démarrage de son job (#2086) : la suite est
 # coupée en parts qui courent en parallèle, une part rouge arrête les autres (`fail-fast`), les

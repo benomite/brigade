@@ -10,10 +10,11 @@
 // pas suivi. Ce qui casse de loin se voit sur la base, où tout se joue. Un fichier
 // modifié qui n'est ni du code ni un test (une page de doc, un script, un
 // manifest) touche les fichiers qui citent son nom.
-// `--proches` (les gates d'une station) : seuls les tests que le changement
-// modifie, et ceux qui portent le nom d'un fichier modifié (`src/rail.ts` →
-// `test/rail.test.ts`) — quelques secondes, sur la machine qui cuisine. La CI
-// joue la fermeture entière sur la PR, et tout sur la base.
+// `--proches` (`BRIGADE_GATES_TESTS=proches`, au poste du dev) : seuls les
+// tests que le changement modifie, et ceux qui portent le nom d'un fichier
+// modifié (`src/rail.ts` → `test/rail.test.ts`) — quelques secondes. Les gates
+// d'une station jouent la fermeture entière, comme la CI sur la PR (#2565) ; la
+// base joue tout.
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
 // elle-même), un fichier qui règle toute une suite (package.json, tsconfig, le
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
