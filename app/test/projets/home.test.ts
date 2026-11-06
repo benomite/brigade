@@ -69,6 +69,8 @@ async function laHome(projets: VuDesProjets | undefined, ajouter: () => Ajout = 
   const jouee = await jouerLaVue({
     demarrage: () => demarrage(projets),
     depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }, { depot: "benomite/brigade", base: "v2" }] }),
+    // Le dépôt choisi est prêt pour brigade (#2627) : le parcours l'ajoute sans geste de plus.
+    checkRepoSetup: () => ({ ready: true, missingBindings: [], missingLabels: [] }),
     ajouterAUneStation: ajouter,
     retirerDUneStation: (nom) => ({ retire: nom }),
     autoriserSurGitHub: () => true,

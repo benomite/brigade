@@ -260,6 +260,11 @@ export type Pont = {
   depotsDuChef(): Promise<{ depots: DepotDuChef[] } | { refus: string }>;
   // Un dépôt quelconque lu par son nom `owner/repo` (public et pas au chef compris) : sa branche par défaut, ou le refus en une phrase.
   lireUnDepot(depot: string): Promise<DepotDuChef | { refus: string }>;
+  // Le dépôt choisi dans le parcours d'ajout est-il prêt pour brigade — ses bindings, ses labels (ticket 2627, contrat
+  // du runtime, ticket 2626, joué sur la copie locale du dépôt) ; puis sa préparation, qui rend la même forme ou rejette avec
+  // sa raison en une phrase.
+  checkRepoSetup(repo: string): Promise<import("./ajout-projet/installation-du-depot.js").EtatDuDepot>;
+  runRepoSetup(repo: string): Promise<import("./ajout-projet/installation-du-depot.js").EtatDuDepot>;
   // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie, et rend le nom
   // du projet — ou chaque champ qui manque, avec sa raison, ou le refus de GitHub. Rien n'est écrit alors.
   ajouterAUneStation(saisie: { depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;

@@ -64,6 +64,7 @@ import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
+import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
 import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type DossiersDeLaStation, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
@@ -1165,6 +1166,18 @@ const ouvrirUnProjetDUneStation = ouvrirDUneStation({
   ajouter: (projet) => suivi.ajouter(projet),
   progres: (depot, etape) => dire("ouverture", depot, etape),
 });
+// Le dépôt choisi dans « Add a project » (#2627) : est-il prêt pour brigade — ses bindings, ses labels —, et le
+// geste qui l'y prépare, par le contrat du runtime (#2626) joué sur sa copie locale (projets/preparation-du-depot.ts).
+const preparation = preparationDuDepot({
+  ouvrirLaCopie: async (repository) => {
+    const { ouvrirLaCopieLocale } = await duRuntime<typeof import("../../runtime/src/projets/copie-locale.ts")>("projets", "copie-locale.ts");
+    return ouvrirLaCopieLocale({ repository, gh: ghIci, git: process.env.BRIGADE_GIT_BIN || "git", env: process.env });
+  },
+  lireLaBase: async (dossier) => (await lireClone(process.env.BRIGADE_GIT_BIN || "git", dossier)).base,
+  contrat: () => duRuntime<typeof import("../../runtime/src/depot-prepare/preparation.ts")>("depot-prepare", "preparation.ts"),
+});
+ipcMain.handle("checkRepoSetup", (_, depot: unknown) => preparation.verifier(depot));
+ipcMain.handle("runRepoSetup", (_, depot: unknown) => preparation.installer(depot));
 ipcMain.handle("ouvrirDUneStation", async (_, nom: unknown, depot: unknown) => {
   const ouverture = await ouvrirUnProjetDUneStation(nom, depot);
   return ouverture.state === "failed" && "link" in ouverture ? retenirLaPage(ouverture) : ouverture;

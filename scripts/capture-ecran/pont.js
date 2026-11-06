@@ -86,6 +86,8 @@
           // Une réponse `{ __enAttente: true }` ne vient jamais : la capture montre ce que la vue pose en l'attendant.
           const reponse = donnees.reponses[nom];
           if (reponse !== null && typeof reponse === "object" && "__enAttente" in reponse) return new Promise(() => undefined);
+          // Une réponse `{ __rejet: "…" }` rejette, avec ce message : la capture montre ce que la vue pose d'un échec.
+          if (reponse !== null && typeof reponse === "object" && "__rejet" in reponse) return new Promise((_, rejeter) => plusTard(() => rejeter(new Error(String(reponse.__rejet)))));
           return new Promise((rendre) => plusTard(() => rendre(structuredClone(reponse))));
         };
       },

@@ -21,6 +21,9 @@ function monter(options: { depots?: typeof DEPOTS | { refus: string }; resoudre?
     resoudre: options.resoudre ?? (async (depot) => ({ depot, base: "main" })),
     ajouter: async (depot) => void ajoutes.push(depot),
     suivante: () => void suites++,
+    // Le dépôt choisi est prêt pour brigade (#2627) : il s'ajoute sans geste de plus.
+    verifier: async () => ({ ready: true, missingBindings: false, missingLabels: [] }),
+    installer: async () => ({ ready: true, missingBindings: false, missingLabels: [] }),
   }) as Faux;
   const un = (classe: string) => [...racine.descendants()].find((element) => element.className.split(" ").includes(classe))!;
   const lignes = () => [...racine.descendants()].filter((element) => element.className === "depot").map((ligne) => ligne.dataset.depot);

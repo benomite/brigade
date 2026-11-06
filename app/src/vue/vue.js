@@ -6665,6 +6665,9 @@ async function ouvrirParcours() {
         return refus === undefined ? undefined : { refus };
       },
       suivante: () => {},
+      // Le dépôt choisi est vérifié, et préparé d'un bouton s'il ne l'est pas (ticket 2627).
+      verifier: (depot) => brigade.checkRepoSetup(depot),
+      installer: (depot) => brigade.runRepoSetup(depot),
     }),
   );
 }

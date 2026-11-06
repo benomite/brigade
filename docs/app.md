@@ -1860,6 +1860,15 @@ none.
   Then the number of **cooks** at a time and the **calibration** of the manager and the reviewer: nothing there is
   chosen in advance, these are your decisions. "add": what is missing is stated under the form, and nothing
   is written.
+- **The picked repository is checked first** (#2627, `app/src/vue/ajout-projet/`, `app/src/projets/preparation-du-depot.ts`):
+  as soon as you pick it, the app asks the runtime whether it is set up for brigade (`checkRepoSetup`, #2626), on the
+  repository's local copy on this computer — the one the app keeps for it, reused or cloned — and says it in one sentence. Set up, the path carries
+  on exactly as before. Not set up, the sentence names what is missing — its bindings, its labels, or both, their names
+  on hover — and **"set it up"** prepares it (`runRepoSetup`): "Setting up … for brigade…", then "… is now set up for
+  brigade." and the path carries on. A failed setup is one sentence, its reason on hover, and **"try again"**. You never
+  see or type the plugin's init command. The labels are created on GitHub; the bindings section is written to the
+  `CLAUDE.md` of that local copy, as the init command does, for you to commit. While a setup runs, picking another
+  repository waits, and a sentence says so.
 - **Once confirmed**, the app writes the request in the gist of each chosen station (`app/src/projets/`); the
   main station reads it within half a minute, prepares it and adds it to its configuration
   ([docs/runtime/](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub

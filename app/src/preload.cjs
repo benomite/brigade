@@ -2,6 +2,14 @@
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
+// Le constat d'un dépôt, ou son refus (`{ refus }`) changé en rejet : sa phrase en est le message, sans le préfixe
+// qu'Electron met à une erreur levée de l'autre côté.
+/**
+ * @param {import("./vue/ajout-projet/installation-du-depot.js").EtatDuDepot | { refus: string }} rendu
+ * @returns {Promise<import("./vue/ajout-projet/installation-du-depot.js").EtatDuDepot>}
+ */
+const constatOuRejet = (rendu) => ("refus" in rendu ? Promise.reject(new Error(String(rendu.refus))) : Promise.resolve(rendu));
+
 /** @type {import("./vue/pont.d.ts").Pont} */
 const pont = {
   demarrage: () => ipcRenderer.invoke("demarrage"),
@@ -73,6 +81,10 @@ const pont = {
   appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
   lireUnDepot: (depot) => ipcRenderer.invoke("lireUnDepot", depot),
+  // Le dépôt choisi dans « Add a project » est-il prêt pour brigade, puis sa préparation (#2627) : le constat
+  // `{ ready, missingBindings, missingLabels }`, ou un rejet dont le message est la phrase du refus.
+  checkRepoSetup: (repo) => ipcRenderer.invoke("checkRepoSetup", repo).then(constatOuRejet),
+  runRepoSetup: (repo) => ipcRenderer.invoke("runRepoSetup", repo).then(constatOuRejet),
   ajouterAUneStation: (saisie) => ipcRenderer.invoke("ajouterAUneStation", saisie),
   confierAUneStation: (saisie) => ipcRenderer.invoke("confierAUneStation", saisie),
   defautsDeStation: (nom) => ipcRenderer.invoke("defautsDeStation", nom),
