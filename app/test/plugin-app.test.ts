@@ -104,10 +104,11 @@ test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiée
   assert.equal(manifeste.agents, undefined);
   assert.deepEqual(readdirSync(join(marketplace, "commands")).sort(), ["ask.md", "dev.md", "init.md"]);
   for (const nom of COMMANDES) assert.equal(readFileSync(join(marketplace, "commands", nom), "utf8"), readFileSync(join(COMMANDES_DU_DEPOT, nom), "utf8"));
-  // `/brigade:init` est celui de l'app, pas le V1 de commands/ : il nomme le script posé à côté, par son chemin.
+  // `/brigade:init` est celui de l'app, pas le V1 de commands/ : il nomme le script posé à côté, par son chemin, en
+  // barres obliques — sous Windows aussi, où `bash` est celui de Git (#2608).
   const script = join(marketplace, "scripts", SCRIPT_INIT);
   assert.equal(readFileSync(script, "utf8"), readFileSync(join(PROPRES, SCRIPT_INIT), "utf8"));
-  assert.equal(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(PROPRES, "init.md"), "utf8").replaceAll("@SCRIPT@", script));
+  assert.equal(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(PROPRES, "init.md"), "utf8").replaceAll("@SCRIPT@", script.replaceAll("\\", "/")));
   assert.notEqual(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(COMMANDES_DU_DEPOT, "init.md"), "utf8"));
   const catalogue = JSON.parse(readFileSync(join(marketplace, ".claude-plugin", "marketplace.json"), "utf8"));
   assert.equal(catalogue.name, MARKETPLACE);
