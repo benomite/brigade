@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
-import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "./claude.ts";
+import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
@@ -36,7 +36,7 @@ import { ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, ty
 import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Gates } from "./events/pass.ts";
-import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
+import { aDesGates, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
@@ -976,6 +976,10 @@ export type OptionsDuDepot = {
   // et si la station agit sous une identité par rôle — ses gates ne reçoivent
   // alors aucun jeton GitHub. Absentes, la station ne les joue pas.
   gates?: { delaiMs: number; secrets?: string | null; sansIdentite?: boolean };
+  // Le setup du worktree de chaque cook, joué par la station avant de le
+  // lancer, sous la cloison, et son plafond de durée (#2535). Absent, le cook
+  // part dans un worktree tel que git l'a posé, sans dépendances.
+  setup?: { delaiMs: number };
 };
 
 // Le plafond de durée des gates d'une tête, en millisecondes (#2456) : 30 min
@@ -1029,12 +1033,17 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
   if (options.github.prsOuvertes === undefined) return { refus: "the GitHub client cannot list the files of the open PRs" };
   const { nom, base, depot, depotGitHub, cloison } = options;
+  const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
-  const env = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
+  const sansJeton = () => environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) });
+  const env = (depart: NodeJS.ProcessEnv = sansJeton()) => environnementClaude(depart, options.env);
+  // Ce qu'un setup ne fait pas entrer dans l'environnement du cook : ni le
+  // jeton de Claude, ni de quoi parler à GitHub.
+  const interditesAuSetup = [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB, "GH_CONFIG_DIR"];
   const github = (options.observer ?? ((client: GitHubDuTour) => client))(
     clientDuTour(options.github, base, options.graphql === false ? undefined : depotGitHub),
   );
@@ -1129,10 +1138,25 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
     }
+    // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
+    // dépendances, ses premières gates sortaient rouges — contrôle de types
+    // injouable —, et il les rejouait après le setup. Le setup part sans le
+    // jeton de Claude, comme les gates ; ce qu'il exporte vaut pour le cook.
+    // En échec, le cook part comme avant, dans le worktree tel quel.
+    let envDuCook = sansJeton();
+    if (options.setup !== undefined) {
+      const setup = await jouerSetup({ worktree, ticket: ticket.number, env: envDuCook, delaiMs: options.setup.delaiMs, interdites: interditesAuSetup, cloison, signal: abandon.signal });
+      if (abandon.signal.aborted) {
+        depot.retirer(worktree, reprise ? undefined : branche);
+        return { subi: "the station stopped during the worktree setup" };
+      }
+      if (setup.pret) envDuCook = setup.env;
+      else avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed (${setup.depasse ? `stopped after ${Math.round(options.setup.delaiMs / 1000)} s` : `exit code ${setup.code ?? "none"}`}): the cook starts in its worktree as is`);
+    }
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+    const lance = lancer({ ...lancement, cwd: worktree, env: env(envDuCook), flux });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {

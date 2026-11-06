@@ -190,6 +190,8 @@ try {
             clone: station.clone,
             // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
             gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
+            // Le setup du worktree de chaque cook, joué avant lui (#2535).
+            setup: { delaiMs: delaiGatesMs },
             // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
           }),
