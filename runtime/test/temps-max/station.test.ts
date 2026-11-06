@@ -79,3 +79,21 @@ test("the project's own max holds: under it, the turn opens nothing", async (tc)
   assert.deepEqual(avertis, []);
   assert.equal(issues.length, 0);
 });
+
+// #2580 : rouverte deux minutes après le merge de #2577 (12 h 10 UTC), par une
+// station qui tournait encore le code d'avant lui — sa mise à jour vient bien
+// plus tard. Le même tour, au code d'aujourd'hui, n'ouvre rien : les 61
+// tickets récents ont tous été pris avant ce merge.
+test("#2580: the turn right after a correction is served opens nothing while the recent tickets were all claimed before its merge", async (tc) => {
+  const { issues, github } = faux();
+  issues.push({ number: 2577, title: "Tickets take too long", body: `${MARQUE_CORRECTION}\n`, labels: ["fire", "prio:0"], state: "closed" });
+  const servie = Date.parse("2026-11-06T12:10:34Z");
+  const ticket = (numero: number, prise: number, minutes: number) => ({ ticket: numero, claimedAt: new Date(prise).toISOString(), mergedAt: new Date(prise + minutes * 60_000).toISOString(), cuisson: minutes * 60, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 });
+  const avant = Array.from({ length: 60 }, (_, rang) => ticket(2500 + rang, servie - (24 - rang * 0.38) * 60 * 60_000, 11));
+  const depot = clone(tc, []);
+  writeFileSync(join(depot, ".claude", "brigade", "temps-tickets.json"), JSON.stringify([...avant, ticket(2577, servie - 50 * 60_000, 50)]));
+  const avertis: string[] = [];
+  await station(github, depot, avertis).tour();
+  assert.deepEqual(avertis, []);
+  assert.deepEqual(issues.map((i) => i.number), [2577]);
+});

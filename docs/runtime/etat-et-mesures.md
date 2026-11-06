@@ -478,7 +478,11 @@ the tickets before it and says nothing of it, so nothing opens (`a-l-essai`; the
 again only once the window has turned). Reopened two minutes after each merge on the same 24 h window, the
 correction was opened twelve times in 9 h 30 (#2535 to #2577): eleven of the 60 recent tickets, each `prio:0`
 ahead of the whole rail, looking for a cause the previous one had just fixed. A correction closed without a
-merge holds nothing back. The measure is unchanged: the median, its window and its max are the same, and
+merge holds nothing back. The rule holds only once the station runs it: #2580 opened two minutes after #2577
+merged, from a station still on the code before it, whose update comes much later; the same turn on the
+code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
+and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that
+of the tickets cooked before them. The measure is unchanged: the median, its window and its max are the same, and
 `status` and the rail still say it over the max. At or under the max, nothing is opened and GitHub is not read.
 
 ## The daily report of the decisions brigade told about
