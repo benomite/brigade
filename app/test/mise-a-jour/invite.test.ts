@@ -74,5 +74,5 @@ test("« Not now » ferme l'invite, l'app reste utilisable, et une offre répét
   assert.ok(!vue.appels.some(({ geste }) => geste === "installerApk"));
   vue.dire("surOffreApk", OFFRE);
   assert.equal(invite().hidden, true);
-  assert.equal(vue.element("tous").dessous("section").includes(vue.element("accueil-app")), true);
+  assert.equal(vue.element("tous").dessous("section").includes(vue.element("accueil-bloc-projets")), true);
 });

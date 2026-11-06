@@ -520,8 +520,9 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
 export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
   vue.element("entree-tous").click();
   await repos();
-  const ligne = vue.element("tous").dessous("button").find(({ ariaLabel }) => ariaLabel === "the cost of all projects");
-  if (ligne === undefined) throw new Error("pas de ligne « Cost » sur l'accueil");
+  // La ligne « Cost » a quitté l'accueil (#2638) : elle attend, cachée, d'être rangée ailleurs — sa page reste la même.
+  const ligne = vue.element("hors-de-l-accueil").dessous("button").find(({ ariaLabel }) => ariaLabel === "the cost of all projects");
+  if (ligne === undefined) throw new Error("pas de ligne « Cost » hors de l'accueil");
   ligne.click();
   await repos();
   return vue.element("cout");

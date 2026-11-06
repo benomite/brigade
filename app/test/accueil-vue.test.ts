@@ -101,10 +101,26 @@ test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /exit code|ENOENT|spawn/);
 });
 
-test("en bas, la ligne de santé : verte et discrète quand tout va, une phrase quand Max ou GitHub cloche", async () => {
+test("l'accueil n'a que deux blocs, les projets puis la station de cet ordinateur, et rien d'autre (#2638)", async () => {
+  const { vue, projets } = await lAccueil();
+  const tous = vue.element("tous");
+  assert.deepEqual(
+    tous.children.map(({ id, children }) => [id, children[0]?.textContent]),
+    [
+      ["accueil-bloc-projets", "Projects"],
+      ["accueil-bloc-station", "This computer's station"],
+    ],
+  );
+  assert.equal(projets().parentElement, tous.children[0], "les lignes des projets sont dans leur bloc");
+  // Ni stations, ni « + station », ni Cost, ni Closer, ni version de l'app, ni santé.
+  assert.doesNotMatch(visible(tous), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
+  for (const parti of ["accueil-stations", "accueil-couts", "accueil-ratios", "accueil-app", "sante"]) assert.ok(![...tous.descendants()].includes(vue.element(parti)), parti);
+});
+
+test("la ligne de santé, hors de l'accueil depuis #2638 : verte quand tout va, une phrase quand Max ou GitHub cloche", async () => {
   const { vue } = await lAccueil();
   const sante = vue.element("sante");
-  assert.equal(vue.element("tous").children.at(-1), sante, "la santé est en bas de page");
+  assert.equal(sante.parentElement, vue.element("hors-de-l-accueil"));
   assert.equal(sante.dataset.ok, "true");
   assert.equal(visible(sante), "Max ✓ · GitHub ✓");
   vue.dire("surAccueil", { ...ACCUEIL, sante: { ton: "rouge", dit: "Max ✓  ·  GitHub limits calls, back around 3:16 PM", survol: "" } });

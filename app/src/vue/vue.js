@@ -143,6 +143,8 @@ import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
 import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
 import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
+import { poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
+import { poserBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
 import { poserBlocBloqueSansQuestion } from "./projet/cuisine/sante/BloqueSansQuestion.js";
 import { poserBlocPlafondsDuree } from "./projet/cuisine/sante/PlafondsDuree.js";
@@ -670,6 +672,14 @@ ouvrirLesRatios.ariaLabel = "the added / removed ratio of all projects";
   ouvrirLesRatios.append(bloc("strong", "all projects"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
 }
 ratiosDeLAccueil.append(ouvrirLesRatios);
+// L'accueil n'a que deux blocs (ticket 2638, épique 2497) : les projets, et la station de cet ordinateur — chacun son
+// composant, sous accueil/. Ce qu'il montrait d'autre attend ici, caché, que les tickets de l'épique le rangent ailleurs
+// ou le retirent : la liste des stations et « + station », les lignes « Cost » et « Closer », la version de l'app, la
+// ligne de santé. Leur page reste ouverte par les chemins qui y mènent encore — celle d'une station, par sa ligne dans
+// l'onglet Stations d'un projet.
+const blocDesProjets = poserBlocDesProjets(document, projetsDeLAccueil);
+const blocDeLaStation = poserBlocDeLaStation(document);
+element("hors-de-l-accueil").append(stationsDeLAccueil, coutsDeLAccueil, ratiosDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
 const pageDesRatios = document.createElement("section");
 pageDesRatios.id = "ratios";
 pageDesRatios.ariaLabel = TITRE_DES_RATIOS;
@@ -8310,8 +8320,8 @@ function marquer() {
   lireOnglet();
 }
 
-// Tous les projets, dans l'ordre du fichier, puis les stations : l'écran se regarde, et un clic
-// ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
+// Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638) : l'écran se regarde, et
+// un clic ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
 function ouvrirTous() {
   courant = undefined;
   ajoute = false;
@@ -8322,7 +8332,7 @@ function ouvrirTous() {
   poserAccueil();
   poserCout();
   poserRatios();
-  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, bloc("h2", "Cost"), coutsDeLAccueil, bloc("h2", "Closer"), ratiosDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
+  tous.replaceChildren(blocDesProjets, blocDeLaStation);
   brigade.tous(++demande);
   void lireLesEnregistrees();
 }
