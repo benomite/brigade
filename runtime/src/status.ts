@@ -23,7 +23,8 @@ import { lireDeriveGithub } from "./closer-github-passe/derive-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
-import { ligneDesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
+import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
+import { ligneMedianeContreMax, lignesDeTicketsTropLongs } from "./temps-max/affichage/affichage.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -58,7 +59,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   try {
     const ageMaxSauvegardeMs = ageMaxDeLaSauvegarde(env);
     journal = ouvrirEnLecture(env.BRIGADE_STATE_DIR);
-    photo = photographier(journal, env, jours, ageMaxSauvegardeMs, new Date());
+    photo = photographier(journal, env, jours, ageMaxSauvegardeMs, new Date(), env.NO_COLOR === undefined);
   } catch (erreur) {
     journal?.fermer();
     if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
@@ -118,7 +119,7 @@ function ouvrirEnLecture(repertoireEtat: string): Journal {
   }
 }
 
-function photographier(journal: Journal, env: Record<string, string | undefined>, jours: number, ageMaxSauvegardeMs: number, maintenant: Date): { lignes: string[]; dernierSeq: number } {
+function photographier(journal: Journal, env: Record<string, string | undefined>, jours: number, ageMaxSauvegardeMs: number, maintenant: Date, rouge = false): { lignes: string[]; dernierSeq: number } {
   let etat;
   try {
     etat = lireEtat(journal, maintenant);
@@ -134,6 +135,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
   const derive = githubSeul?.etat === "accepted" ? lireDeriveGithub(env.BRIGADE_STATE_DIR) : null;
   if (derive !== null) etat = { ...etat, derive: derive.franchis };
+  const temps = lesTempsDesTickets(env.BRIGADE_REPO_DIR);
+  etat = { ...etat, tropLongs: lignesDeTicketsTropLongs(temps.enregistrements, temps.tempsMaxTicketMin) };
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
@@ -144,6 +147,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
+  const contreMax = ligneMedianeContreMax(temps.enregistrements, temps.tempsMaxTicketMin, rouge);
+  if (contreMax !== null) lignes.push(`${"ticket time".padEnd(11)} ${contreMax}`);
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;
   const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;
