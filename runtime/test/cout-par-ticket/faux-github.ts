@@ -158,6 +158,13 @@ export class FauxGitHub {
         return { statut: 200, corps: "[]" };
       }
     }
+    if (segments[0] === "issues" && segments.length === 2 && methode === "PATCH") {
+      const issue = this.issues.get(Number(segments[1]));
+      if (issue === undefined) return { statut: 404, corps: "{}" };
+      if (champ("state") === "closed") issue.state = "closed";
+      this.toucher(issue.number);
+      return lu(this.issueBrute(issue));
+    }
     if (route === "pulls" && methode === "POST") {
       const pr = this.livrer(Number(/^cook\/(\d+)-github$/.exec(champ("head"))?.[1]));
       Object.assign(pr, { head: champ("head"), base: champ("base"), title: champ("title"), body: champ("body") });

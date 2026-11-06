@@ -327,6 +327,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
   const corrigerLeTemps = clone === undefined ? null : correctionDuTemps({ github, lire: () => lesTempsDesTickets(clone), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
+  // `in-pass`. GitHub ne ferme pas toujours l'issue par le `Closes #N` de la PR
+  // (#2467) ; la fermeture passe d'abord, pour qu'un retrait réussi sur une
+  // fermeture ratée ne rende pas le ticket libre. Un échec attend le tour suivant.
+  const cloreLeServi = async (ticket: TicketLu) => {
+    try {
+      await github.fermerIssue(ticket.number);
+      if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
+    } catch (erreur) {
+      avertir(`brigade : closing the served #${ticket.number} on ${nom} — ${message(erreur)}; retried next turn`);
+    }
+  };
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
   // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
@@ -540,6 +552,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // La base ne gèle pas tout le pass : elle ne retient une livraison que
       // rouge sur un check que cette livraison doit elle-même passer (#2279).
       const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, null);
+      // `in-pass` sur une issue ouverte dont la PR est mergée : la clôture a été
+      // perdue (limite GitHub en plein tour, `Closes` sans effet) — n'importe
+      // quelle station la reprend (#2467).
+      if (enPass && ticket.state === "open" && pr !== null && pr.merged) {
+        await cloreLeServi(ticket);
+        continue;
+      }
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null && pr.enConflit === true) {
@@ -648,7 +667,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             );
             const attendue = fusion.issue === "ci-attendue" || fusion.issue === "gates-a-jouer";
             if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
-            if (fusion.issue === "mergee") servir(ticket.number);
+            if (fusion.issue === "mergee") {
+              servir(ticket.number);
+              await cloreLeServi(ticket);
+            }
             // Hors de la série des merges : des gates de plusieurs minutes ne retiennent pas les autres.
             if (fusion.issue === "gates-a-jouer" && (await jouerLesGates(ticket, pr))) bouge = true;
             if (attendue) {
