@@ -234,7 +234,7 @@ describe("l'étape dans le parcours d'ajout partagé (parcours.js)", () => {
   const ligne = (racine: Faux) => racine.dessous("li").find((une) => une.dataset.etape === "station")!;
 
   test("elle est inscrite après le compte", () => {
-    assert.deepEqual(ETAPES.map((etape) => etape.id).slice(-1), ["station"]);
+    assert.deepEqual(ETAPES.map((etape) => etape.id).slice(-2), ["station", "recap"]);
     assert.ok(ETAPES.findIndex((etape) => etape.id === "compte") < ETAPES.indexOf(etapeDeLaStation));
   });
   test("le projet ajouté, le parcours demande « Who cooks this project? » à l'étape courante, sans quitter l'écran", () => {
