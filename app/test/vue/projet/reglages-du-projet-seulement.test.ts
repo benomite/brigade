@@ -21,7 +21,7 @@ const PROJET_JSON = ".claude/brigade/projet.json";
 const STATION = "the station that serves the project";
 const FICHIER_DES_PROJETS = "the app's projects file";
 // Les blocs que la page pose dans Settings, lus dans index.html — pas une liste à part — : chaque `id` d'un bloc de réglage.
-const BLOCS = [...settings.matchAll(/<div id="([\w-]+)"/g)].map((trouve) => trouve[1]);
+const BLOCS = [...settings.matchAll(/<div id="([\w-]+)"/g)].map((trouve) => trouve[1] as string);
 // Où chaque bloc garde ce qu'il règle. Un bloc posé dans Settings sans ligne ici fait échouer le test, et une ligne sans
 // bloc aussi. `reglages-du-projet` porte une ligne par clé de `setting` (CLES) : toutes dans projet.json.
 const STOCKAGE: Record<string, string> = {
@@ -52,7 +52,7 @@ describe("Settings : les réglages du projet seulement", () => {
     assert.deepEqual([...BLOCS].sort(), Object.keys(STOCKAGE).sort(), "la table suit les blocs posés dans Settings");
     for (const cle of CLES) assert.equal(STOCKAGE["reglages-du-projet"], PROJET_JSON, cle);
     // Rien de ce qui est à la machine ne reste listé.
-    for (const id of BLOCS) assert.notEqual(NIVEAUX[id], "machine", id);
+    for (const id of BLOCS) assert.notEqual((NIVEAUX as Record<string, string>)[id as string], "machine", id);
   });
 
   // Le critère « tout est dans projet.json » ne tient pas encore : le sigle, les couleurs et le retrait sont gardés par
