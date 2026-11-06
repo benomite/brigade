@@ -129,6 +129,7 @@ import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from ".
 import { poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { poserParcoursProjet } from "./parcours-projet/parcours.js";
+import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
@@ -6194,7 +6195,20 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
 // process principal les a dits (accueil.ts). Un projet qu'il ne dit pas encore attend sa première lecture.
 function poserAccueil() {
   const lignes = new Map((accueilVu?.projets ?? []).map((ligne) => [ligne.nom, ligne]));
-  const desProjets = configuration.projets.map((projet) => ligneDAccueil(projet.nom, lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" }, () => void ouvrir(projet)));
+  // Une ligne par projet (accueil/projets/) : son état parmi les quatre, ses stations, et toute la ligne l'ouvre.
+  const gestesDuBloc = { ouvrir: (/** @type {string} */ nom) => {
+      const projet = configuration.projets.find((un) => un.nom === nom);
+      if (projet !== undefined) void ouvrir(projet);
+    }, ajouter: ouvrirAjout, pastille };
+  const desProjets = lignesDeProjets(
+    document,
+    configuration.projets.map((projet) => {
+      const ligne = lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" };
+      const stations = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom)).map(({ nom }) => nom);
+      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
+    }),
+    gestesDuBloc,
+  );
   // Sur le téléphone, les projets sont ceux qu'il lit — sur GitHub, connecté (connexion-github.js), ou à la station d'un
   // appairage d'avant le ticket 2500 (telephone/appairage.js) : la section dit ce qui manque à leur liste.
   projetsDeLAccueil.replaceChildren(
@@ -6204,7 +6218,7 @@ function poserAccueil() {
         ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
         : desProjets.length === 0
           ? [bloc("p", telephoneVu === undefined ? "no project yet: “+” in the bar adds one" : "no project on this phone yet: a project is added from a computer")]
-          : desProjets),
+          : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, desProjets.length === 0)] : [])]),
   );
   poserStationsDeLAccueil();
   poserApp();

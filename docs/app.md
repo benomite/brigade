@@ -1136,6 +1136,11 @@ CLOSER
   a row leaves out — the time of the reading, why a box did not answer —, its hover says
   in the app's own words, and the project's space shows it in full.
 
+**The Projects block** (`app/src/vue/accueil/projets/`). One line per project: its state among *cooking*,
+*waiting for the chef*, *held* and *idle* (read from the line `accueil.ts` already says), then the stations that
+serve it (or "no station"); one click on the line opens the project. Under the list, "Add a project" opens the
+single guided path (`parcours-projet/`), the same as the "+" in the bar. An empty list says "no project yet".
+
 **Where it comes from** (`app/src/accueil.ts`). The home asks nothing new of anyone: it is drawn
 from what the app already reads. `facts` of each project, every thirty seconds and whatever the
 screen, gives the state of its kitchen, its pending decisions and its cooks; `status`, read for each
