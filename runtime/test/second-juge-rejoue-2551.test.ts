@@ -1,90 +1,71 @@
 // Rejoue #2551 (PR #2552, le verrou des gates sous le bac à sable) : un
 // changement technique des gates, CI verte, qui a fini en carte « merge by
-// hand ». Avec le second juge, il se merge dès que celui-ci l'approuve, sans
-// carte de TODO ni `blocked-on-human` ; s'il refuse, la livraison repart chez
-// un cook avec ses raisons, et rien n'est mergé.
+// hand ». Le rejeu passe par le vrai tour de la station (`stationGitHub`) sur le
+// faux GitHub : le second juge approuve, la livraison se merge sans carte de
+// TODO ni `blocked-on-human` ; s'il refuse, elle repart chez un cook avec ses
+// raisons, et rien n'est mergé.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHEF_TODO } from "../src/github-seul/carte-todo/carte-todo.ts";
-import { corpsDApprobation, verifierLeSecondJuge, type CommentaireDePR } from "../src/github-seul/second-juge/second-juge.ts";
-import { renvoyerLaLivraison, type CommentaireLu } from "../src/github-seul/renvois/renvois.ts";
-import { corpsDeVerdict, fusionner, type GitHubDeLaFusion, type PRAFusionner } from "../src/github-etat/fusion.ts";
+import { LABEL_IN_PASS } from "../src/github-etat/etats.ts";
+import { FauxGitHub, type PR } from "./faux-github.ts";
 
 const TICKET = 2551;
-const PR_NUMERO = 2552;
-const TETE = "abc1234def";
 const FICHIERS = [".claude/brigade/gates.sh", ".github/workflows/tests.yml", "runtime/src/gates-verrou.ts"];
+const GATES = [".claude/brigade/gates.sh", ".github/workflows/tests.yml"];
 
-// Une cuisine d'un seul ticket : l'issue #2551, sa PR, leurs commentaires et
-// labels, la CI verte de la tête, et tout ce qui s'écrit ou se merge.
-function cuisine() {
-  const commentairesPR: CommentaireDePR[] = [{ body: corpsDeVerdict("s1", TETE, { verdict: "approve", motif: "" }), association: "OWNER", createdAt: "2026-11-04T00:00:00Z" }];
-  const commentairesIssue: CommentaireLu[] = [];
-  const labels = new Set<string>(["in-pass"]);
-  const issuesCreees: unknown[] = [];
-  const merges: string[] = [];
-  const pr: PRAFusionner = { number: PR_NUMERO, sha: TETE, state: "open", merged: false, enRetard: false, enConflit: false };
-  const lus = () => commentairesPR.map((c, i) => ({ id: i + 1, ...c }));
-  const github: GitHubDeLaFusion = {
-    commentaires: async () => lus(),
-    commenter: async (_, corps) => void commentairesPR.push({ body: corps, association: "OWNER", createdAt: "2026-11-04T00:00:01Z" }),
-    mettreAJour: async () => {},
-    merger: async (_, sha) => (merges.push(sha), { fait: true }) as never,
-    ci: async () => [{ name: "tests", outcome: "green" }],
-  };
-  const secondJuge = {
-    fichiers: async () => FICHIERS,
-    commentaires: async () => [...commentairesPR],
-    commenter: github.commenter as (pr: number, corps: string) => Promise<void>,
-  };
-  const renvois = {
-    commentaires: async (n: number) => (n === TICKET ? [...commentairesIssue] : lus()),
-    commenter: async (n: number, corps: string) => void (n === TICKET ? commentairesIssue.push({ id: commentairesIssue.length + 1, body: corps, association: "OWNER", createdAt: "2026-11-04T00:00:02Z" }) : commentairesPR.push({ body: corps, association: "OWNER", createdAt: "2026-11-04T00:00:02Z" })),
-    labelliser: async (_: number, ls: string[]) => ls.forEach((l) => labels.add(l)),
-    delabelliser: async (_: number, l: string) => void labels.delete(l),
-    ci: github.ci,
-    corpsDuTicket: async () => "Gates lock under the sandbox.",
-  };
-  const manager = { creerIssue: async (i: unknown) => (issuesCreees.push(i), 9999) };
+const commentairesDe = (faux: FauxGitHub) => [...faux.commentaires.values()].flat();
+const secondsDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?? []).filter((c) => c.body.startsWith("<!-- brigade:second-judge"));
 
-  // L'étape de merge de la station : le second juge d'abord, puis la fusion.
-  async function passer() {
-    const decision = await verifierLeSecondJuge(PR_NUMERO, secondJuge);
-    if (!decision.bloque) return { decision, fusion: await fusionner(pr, github) };
-    // Refusée par le second juge : le motif se lit comme celui d'une relecture qui demande des changements.
-    await github.commenter(PR_NUMERO, corpsDeVerdict("s1", TETE, { verdict: "request-changes", motif: `Second judge: ${decision.raison}.` }));
-    const coup = await renvoyerLaLivraison({ number: TICKET, title: "Lock the gates under the sandbox", labels: [...labels] }, { genre: "relecture", pr: PR_NUMERO, sha: TETE }, { github: renvois, manager, station: "s1" });
-    return { decision, fusion: null, coup };
-  }
-  return { passer, commentairesPR, commentairesIssue, labels, merges, issuesCreees };
+// Le ticket #2551 cuisiné, sa PR changeant les gates, CI verte (celle du faux).
+async function livraison(faux: FauxGitHub, station: ReturnType<FauxGitHub["station"]>): Promise<PR> {
+  faux.feu(TICKET);
+  await station.tour();
+  await station.calme();
+  const pr = faux.prs.find((p) => p.issue === TICKET);
+  assert.ok(pr, "the cook delivered a PR");
+  pr.fichiers = FICHIERS;
+  return pr;
 }
 
-test("#2551 rejoué : un changement des gates, CI verte, approuvé par le second juge, est mergé — sans carte de TODO ni blocked-on-human", async () => {
-  const k = cuisine();
-  k.commentairesPR.push({ body: corpsDApprobation("not-weakened"), association: "OWNER", createdAt: "2026-11-04T00:00:00Z" });
-  const { decision, fusion } = await k.passer();
-  assert.deepEqual(decision, { bloque: false });
-  assert.deepEqual(fusion, { issue: "mergee" });
-  assert.deepEqual(k.merges, [TETE]);
-  // Ni carte (label ni commentaire de carte), ni blocage, sur l'issue comme sur la PR.
-  assert.ok(!k.labels.has(CHEF_TODO) && !k.labels.has("blocked-on-human"));
-  assert.ok([...k.commentairesPR, ...k.commentairesIssue].every(({ body }) => !body.includes("brigade:todo")));
-  assert.deepEqual(k.issuesCreees, []);
+test("replay of #2551: a gates change with green CI is merged once the second judge approves, with no TODO card and no blocked-on-human label", async () => {
+  const faux = new FauxGitHub();
+  const a = faux.station("A");
+  const pr = await livraison(faux, a);
+  for (let i = 0; i < 5 && faux.mergee(TICKET) === undefined; i += 1) await a.tour();
+  assert.equal(faux.mergee(TICKET)?.mergeePar, "A");
+  assert.equal(faux.ticket(TICKET).state, "closed");
+  // Le second juge a bien été sollicité, sur la tête mergée et sur les gates seules.
+  assert.deepEqual(faux.secondsJugements, [{ station: "A", pr: pr.number, sha: pr.sha, juges: GATES }]);
+  assert.match(secondsDe(faux, pr.number)[0]?.body ?? "", /verdict=approve/);
+  // Ni carte de TODO, ni attente du chef, ni issue créée.
+  assert.ok(!faux.ticket(TICKET).labels.has("blocked-on-human"));
+  assert.ok(![...faux.tickets.values()].some((t) => t.labels.has("blocked-on-human")));
+  assert.ok(!commentairesDe(faux).some((c) => /by hand|TODO/i.test(c.body)));
+  assert.deepEqual(faux.creations, []);
 });
 
-test("#2551 rejoué, second juge qui refuse : la livraison repart chez un cook avec les raisons, n'est pas mergée, et ne devient pas une carte", async () => {
-  const k = cuisine();
-  k.commentairesPR.push({ body: corpsDApprobation("weakened"), association: "OWNER", createdAt: "2026-11-04T00:00:00Z" });
-  const { decision, fusion, coup } = (await k.passer()) as Awaited<ReturnType<typeof k.passer>> & { coup?: Awaited<ReturnType<typeof renvoyerLaLivraison>> };
-  assert.equal(decision.bloque, true);
-  assert.equal(fusion, null);
-  assert.deepEqual(k.merges, []);
-  assert.equal(coup?.coup, "renvoi");
-  // Le cook lit les raisons sur l'issue, et le ticket est libre.
-  const renvoi = k.commentairesIssue.find(({ body }) => body.includes("brigade:renvoi"));
-  assert.match(renvoi?.body ?? "", /sent back to a cook/);
-  assert.match(renvoi?.body ?? "", /the second judge said: weakened/);
-  assert.ok(!k.labels.has("in-pass"));
-  assert.ok(!k.labels.has(CHEF_TODO) && !k.labels.has("blocked-on-human"));
-  assert.ok([...k.commentairesPR, ...k.commentairesIssue].every(({ body }) => !body.includes("brigade:todo")));
+test("replay of #2551: without the second judge's approval the same delivery is not merged — the approval is what merges it", async () => {
+  const faux = new FauxGitHub();
+  const a = faux.station("A", { jugerEnSecond: async () => ({ verdict: "request-changes", motif: "no" }) });
+  await livraison(faux, a);
+  for (let i = 0; i < 3; i += 1) await a.tour();
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("replay of #2551: when the second judge refuses, the delivery goes back to a cook with its reasons and is not merged", async () => {
+  const faux = new FauxGitHub();
+  const motif = "`gates.sh` no longer fails on a red check, and the ticket does not ask for it.";
+  const a = faux.station("A", { jugerEnSecond: async () => ({ verdict: "request-changes", motif }) });
+  const pr = await livraison(faux, a);
+  for (let i = 0; i < 3 && secondsDe(faux, pr.number).length === 0; i += 1) await a.tour();
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(pr.merged, false);
+  const renvoi = (faux.commentaires.get(TICKET) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /sent back to a cook \(1\/2\) — the second judge requested changes: `gates\.sh` no longer fails on a red check, and the ticket does not ask for it\./);
+  assert.match(secondsDe(faux, pr.number)[0]?.body ?? "", /verdict=request-changes/);
+  assert.ok(!faux.ticket(TICKET).labels.has(LABEL_IN_PASS), "it leaves the pass");
+  // Renvoyé à un cook, pas au chef.
+  assert.ok(!faux.ticket(TICKET).labels.has("blocked-on-human"));
+  assert.ok(!commentairesDe(faux).some((c) => /by hand/.test(c.body)));
+  assert.deepEqual(faux.creations, []);
 });
