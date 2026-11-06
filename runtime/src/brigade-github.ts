@@ -749,7 +749,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       // Il attend un ticket que la cuisine a mis de côté : il ne part pas, et le dit.
-      const misDeCote = await attenduMisDeCote(ticket);
+      // Sans lecture de GitHub, la remise du ticket au cook dira pourquoi il ne part pas.
+      const misDeCote = await attenduMisDeCote(ticket).catch(() => null);
       if (misDeCote !== null) {
         options.sauter?.(ticket.number, direAttenteSurMisDeCote(ticket.number, misDeCote.attendu, misDeCote.raison));
         continue;
