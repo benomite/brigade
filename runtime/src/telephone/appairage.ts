@@ -133,7 +133,7 @@ export class CodeRefuse extends Error {
 const hacher = (texte: string) => createHash("sha256").update(texte).digest("hex");
 
 // Le QR d'un appairage — sa forme ne s'écrit qu'ici. La station le rend tel
-// quel (`qr` de `appairage-cli.ts code`, et de `brigade <projet> phones code`) ;
+// quel (`qr` de `appairage-cli.ts code`) ;
 // l'app de l'ordinateur le dessine sans le relire, l'app du téléphone le lit en
 // le scannant (`app/src/vue/telephone/appairage.js`, `lireLeQr`) :
 //

@@ -1430,7 +1430,7 @@ Screens: `telephone-projets-second*` of `scripts/capture-ecran` (`docs/captures/
 
 The "pair a phone" button of a station's line and its screen — a code, its QR drawn by the app, the station's address,
 the paired phones and "revoke" (#1598) — are gone with the phone's pairing: the phone signs in to GitHub instead (see
-"Signing the phone in to GitHub" above). The app no longer runs the station's `phones …` command; the runtime keeps it.
+"Signing the phone in to GitHub" above). The station no longer has a `phones` command (#2503).
 
 ### Reaching a station from any network: your tailnet (#1408)
 
@@ -1482,8 +1482,7 @@ its own (`runtime/src/telephone/tailnet.ts`) and puts it in the QR.
 signed in with the same account. The Android app no longer pairs (#2500, "Signing the phone in to GitHub" above): a
 fresh install signs in to GitHub instead, and nothing of the tailnet is asked of it.
 
-**A lost phone is revoked** on its station, by the runtime's `phones revoke <phone>` (`runtime/src/telephones.ts`): the
-app's "pair a phone" screen is gone (#2500). Its token opens nothing any more, from any network, and it leaves the
+**A lost phone** can no longer be revoked by a command: the `phones` command and the app's "pair a phone" screen are gone (#2500, #2503). Its token opens nothing any more, from any network, and it leaves the
 stations list. The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
 no test mounts a real tailnet.
 

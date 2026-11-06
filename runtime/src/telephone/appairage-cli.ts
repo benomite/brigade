@@ -26,10 +26,7 @@
 //       "station"} ; un nom qui n'est pas celui d'un téléphone appairé est
 //       refusé, et rien ne change.
 //
-// L'app du chef les lance sans terminal, par le geste de la station :
-// `brigade <projet> phones …` (`telephones.ts`), par `ssh` — sa règle sudoers
-// est ce qui authentifie l'ordinateur du chef, et celui qu'elle ne nomme pas
-// est refusé avant que rien ne parte (`deploy/brigade`, code 68). Le téléphone
+// Le chef la lance sous `sudo`, selon sa règle sudoers. Le téléphone
 // envoie le code au guichet de la station (`guichet.ts`), qui lit la même base
 // — et qui, lui, ne tire, ne liste ni ne révoque rien.
 //
