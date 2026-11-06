@@ -7210,11 +7210,23 @@ const plafondsEnLecture = new Set();
 const etatsDesPlafonds = new Map();
 /** @type {Set<string>} */
 const autresPlafondsOuverts = new Set();
+// Le closer de Health (ticket 2491), plus bas : sa lecture, ses états.
+/** @type {Map<string, import("../closer-sante.ts").LectureDuCloser>} */
+const closerDeSanteLu = new Map();
+/** @type {Map<string, number>} */
+const closerDeSanteLuLe = new Map();
+const closerEnLecture = new Set();
+/** @type {Map<string, Map<string, import("./projet/cuisine/sante/PlafondsDuree.js").Etat>>} */
+const etatsDuCloser = new Map();
+/** @type {Map<string, import("./projet/cuisine/sante/Closer.js").EtatDesVerifications>} */
+const verificationsDuCloser = new Map();
+/** @type {Set<string>} */
+const candidatsOuverts = new Set();
 // `garder` : la relecture du rail ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLaSante(projet, garder = true) {
   const tape = /** @type {HTMLElement | null} */ (document.activeElement);
-  if (garder && tape?.tagName === "INPUT" && tape.closest?.('[data-bloc="plafonds-duree"]') && rail.contains(tape)) return;
+  if (garder && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"]') && rail.contains(tape)) return;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
   etatsDesPlafonds.set(projet.nom, etats);
@@ -7230,9 +7242,10 @@ function poserLaSante(projet, garder = true) {
       choisir: (cle, choisi) => void etats.set(cle, { ...etats.get(cle), choisi }),
       changer: (cle, saisie) => void changerUnPlafond(projet, cle, saisie),
     }),
-    poserBlocCloser(document),
+    poserLeCloserDeSante(projet),
   );
   if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);
+  if (Date.now() - (closerDeSanteLuLe.get(projet.nom) ?? 0) > 60_000) void lireLeCloserDeSante(projet);
 }
 /** @param {Projet} projet @param {boolean} [garder] */
 function reposerLaSante(projet, garder = false) {
@@ -7276,6 +7289,95 @@ async function changerUnPlafond(projet, cle, saisie) {
     const lue = plafondsLus.get(projet.nom);
     if (lue !== undefined && "plafonds" in lue) plafondsLus.set(projet.nom, { ...lue, plafonds: lue.plafonds.map((plafond) => (plafond.cle === rendu.cle ? { ...plafond, valeur: rendu.valeur } : plafond)) });
   } else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
+  reposerLaSante(projet);
+}
+
+// Le closer de Health (ticket 2491) : ses passes, ce qu'il vérifie en premier et en plus, ses réglages — lus sur GitHub
+// par le process principal (closer-sante.ts), à l'ouverture de Health puis au plus une fois la minute, comme les
+// plafonds. Un geste du chef écrit dans le dépôt ; ce qu'il rend se dit sous sa ligne, et la valeur écrite est reprise.
+/** @param {Projet} projet */
+function poserLeCloserDeSante(projet) {
+  const etats = etatsDuCloser.get(projet.nom) ?? new Map();
+  etatsDuCloser.set(projet.nom, etats);
+  const verifications = verificationsDuCloser.get(projet.nom) ?? {};
+  verificationsDuCloser.set(projet.nom, verifications);
+  const lecture = closerDeSanteLu.get(projet.nom);
+  return poserBlocCloser(document, {
+    ...(lecture === undefined ? {} : { lecture }),
+    etats,
+    verifications,
+    valeurs: CALIBRAGE_DU_PROJET,
+    candidatsOuverts: candidatsOuverts.has(projet.nom),
+    basculerCandidats: (ouvert) => void (ouvert ? candidatsOuverts.add(projet.nom) : candidatsOuverts.delete(projet.nom)),
+    ouvrir: (url) => void brigade.ouvrirBilan(projet.nom, url),
+    choisir: (cle, choisi) => void etats.set(cle, { ...etats.get(cle), choisi }),
+    changer: (cle, saisie) => void changerUnReglageDuCloser(projet, cle, saisie),
+    taper: (saisie) => void (verifications.saisie = saisie),
+    changerVerification: (geste, saisie) => void changerUneVerificationDuCloser(projet, geste, saisie),
+  });
+}
+/** @param {Projet} projet */
+async function lireLeCloserDeSante(projet) {
+  if (closerEnLecture.has(projet.nom)) return;
+  closerEnLecture.add(projet.nom);
+  closerDeSanteLuLe.set(projet.nom, Date.now());
+  /** @type {import("../closer-sante.ts").LectureDuCloser} */
+  let lue;
+  try {
+    const sans = { sans: "the closer unavailable", detail: SANS_PONT };
+    lue = (await brigade.closerDeSante?.(projet.nom)) ?? { reglages: sans, verifications: sans, passes: sans };
+  } catch (erreur) {
+    const sans = { sans: "the closer unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    lue = { reglages: sans, verifications: sans, passes: sans };
+  } finally {
+    closerEnLecture.delete(projet.nom);
+  }
+  closerDeSanteLu.set(projet.nom, lue);
+  reposerLaSante(projet, true);
+}
+/** @param {Projet} projet @param {string} cle @param {string | { model: string, effort: string }} saisie */
+async function changerUnReglageDuCloser(projet, cle, saisie) {
+  const etats = etatsDuCloser.get(projet.nom) ?? new Map();
+  etatsDuCloser.set(projet.nom, etats);
+  if (etats.get(cle)?.enCours === true) return;
+  etats.set(cle, { ...etats.get(cle), enCours: true, dit: undefined });
+  reposerLaSante(projet);
+  /** @type {import("../closer-sante.ts").RenduDuReglage} */
+  let rendu;
+  try {
+    rendu = (await brigade.changerReglageDuCloser?.(projet.nom, cle, saisie)) ?? { refus: "nothing was changed: nothing was sent", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "nothing was changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("fait" in rendu) {
+    etats.set(cle, { dit: { fait: rendu.fait } });
+    const lue = closerDeSanteLu.get(projet.nom);
+    if (lue !== undefined && "liste" in lue.reglages) {
+      const liste = lue.reglages.liste.map((reglage) => (reglage.cle === rendu.cle ? { ...reglage, valeur: rendu.valeur } : reglage));
+      closerDeSanteLu.set(projet.nom, { ...lue, reglages: { liste } });
+    }
+  } else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
+  reposerLaSante(projet);
+}
+/** @param {Projet} projet @param {"ajouter" | "retirer"} geste @param {string} saisie */
+async function changerUneVerificationDuCloser(projet, geste, saisie) {
+  const etat = verificationsDuCloser.get(projet.nom) ?? {};
+  if (etat.enCours !== undefined) return;
+  verificationsDuCloser.set(projet.nom, { ...etat, enCours: geste === "ajouter" ? "ajouter" : `retirer:${saisie}`, dit: undefined });
+  reposerLaSante(projet);
+  /** @type {import("../closer-sante.ts").RenduDesVerifications} */
+  let rendu;
+  try {
+    rendu = (await brigade.changerVerificationDuCloser?.(projet.nom, geste, saisie)) ?? { refus: "nothing was changed: nothing was sent", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "nothing was changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("fait" in rendu) {
+    // Ajoutée, le champ se vide ; retirée, ce qui y était tapé reste.
+    verificationsDuCloser.set(projet.nom, { ...(geste === "ajouter" ? {} : { saisie: etat.saisie }), dit: { fait: rendu.fait } });
+    const lue = closerDeSanteLu.get(projet.nom);
+    if (lue !== undefined) closerDeSanteLu.set(projet.nom, { ...lue, verifications: { liste: rendu.liste } });
+  } else verificationsDuCloser.set(projet.nom, { ...etat, enCours: undefined, dit: rendu });
   reposerLaSante(projet);
 }
 

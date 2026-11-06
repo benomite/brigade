@@ -56,10 +56,11 @@ export function valeurProposee(cle: ClePlafond, saisie: unknown): { valeur: numb
   return bon ? { valeur: nombre } : { refus: `${plafond.nom.toLowerCase()} must be ${plafond.entier ? "a whole number" : "a number"} greater than zero` };
 }
 
-// Le fichier tel que GitHub le rend : son contenu lu, et son `sha` — null quand la branche ne l'a pas.
-type FichierLu = { contenu: Record<string, unknown>; sha: string } | { contenu: null; sha: null };
+// Le fichier tel que GitHub le rend : son contenu lu, et son `sha` — null quand la branche ne l'a pas. Le closer de
+// Health (closer-sante.ts) le relit de même.
+export type FichierLu = { contenu: Record<string, unknown>; sha: string } | { contenu: null; sha: null };
 
-async function lireLeFichier(client: ClientDeLaPriorite, depot: string, branche: string | null): Promise<FichierLu> {
+export async function lireLeFichier(client: ClientDeLaPriorite, depot: string, branche: string | null): Promise<FichierLu> {
   const chemin = `/repos/${depot}/contents/${FICHIER}${branche === null ? "" : `?ref=${encodeURIComponent(branche)}`}`;
   const lu = await client.lire(chemin);
   if (lu.status === 404) return { contenu: null, sha: null };
@@ -74,6 +75,17 @@ async function lireLeFichier(client: ClientDeLaPriorite, depot: string, branche:
   }
   if (!estObjet(contenu)) throw new Error(`${FICHIER} is not a JSON object`);
   return { contenu, sha };
+}
+
+// Écrit le fichier sur la branche d'intégration, le `sha` lu à la main — GitHub refuse un fichier changé entre-temps.
+export async function ecrireLeFichier(client: ClientDeLaPriorite, depot: string, branche: string | null, { contenu, sha, dit }: { contenu: Record<string, unknown>; sha: string | null; dit: string }): Promise<void> {
+  const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${FICHIER}`, {
+    message: `brigade: ${dit} (from the app, Kitchen > Health)`,
+    content: Buffer.from(`${JSON.stringify(contenu, null, 2)}\n`, "utf8").toString("base64"),
+    ...(sha === null ? {} : { sha }),
+    ...(branche === null ? {} : { branch: branche }),
+  });
+  if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${FICHIER}`, ecrit);
 }
 
 const valeursDe = (contenu: Record<string, unknown> | null): PlafondLu[] => {
@@ -120,13 +132,7 @@ export async function changerLePlafond({ depot, branche, cle, saisie, client }: 
   else contenu.drift = drift;
   const dit = propose.valeur === null ? `remove drift.${plafond.cle}` : `set drift.${plafond.cle} to ${propose.valeur}`;
   try {
-    const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${FICHIER}`, {
-      message: `brigade: ${dit} (from the app, Kitchen > Health)`,
-      content: Buffer.from(`${JSON.stringify(contenu, null, 2)}\n`, "utf8").toString("base64"),
-      ...(lu.sha === null ? {} : { sha: lu.sha }),
-      ...(branche === null ? {} : { branch: branche }),
-    });
-    if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${FICHIER}`, ecrit);
+    await ecrireLeFichier(client, depot, branche, { contenu, sha: lu.sha, dit });
   } catch (erreur) {
     return { refus: `nothing was changed: GitHub did not write ${FICHIER}`, detail: message(erreur) };
   }
