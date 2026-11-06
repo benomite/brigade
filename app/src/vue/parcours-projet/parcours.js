@@ -9,6 +9,7 @@
 import { ETATS_D_ETAPE } from "../onboarding/parcours.js";
 import { etapeDuCompte } from "./compte.js";
 import { etapeDeLaStation } from "./etape-station.js";
+import { etapeDuRecap } from "./etape-recap.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /**
@@ -25,6 +26,7 @@ import { etapeDeLaStation } from "./etape-station.js";
  *   changerDeCompte: () => void,
  *   relireLeCompte: () => void,
  *   ouvrirLaPage: (url: string) => void,
+ *   retour?: () => void,
  * } & import("./etape-station.js").GestesPourLaStation} GestesDuParcours
  */
 /**
@@ -39,10 +41,10 @@ import { etapeDeLaStation } from "./etape-station.js";
 
 // Les étapes du parcours, dans leur ordre. Chacune vit dans son fichier, sous parcours-projet/ ; les suivantes
 // s'inscrivent ici quand elles arrivent (épique 2473) — le projet à choisir entre le compte et la station, le
-// récapitulatif à la fin. La station qui cuit le projet (ticket 2477) suit le compte : d'ici là, le projet s'ajoute
-// sous le parcours, par son dossier.
+// récapitulatif à la fin. La station qui cuit le projet (ticket 2477) suit le compte ; le récap (ticket 2478) est
+// toujours la dernière : le parcours finit sur le projet, sa station et la suite, jamais sur une page vide.
 /** @type {readonly Etape[]} */
-export const ETAPES = [etapeDuCompte, etapeDeLaStation];
+export const ETAPES = [etapeDuCompte, etapeDeLaStation, etapeDuRecap];
 
 export const TITRE = "Add a project";
 export const BIENVENUE = "Welcome to brigade. Add the first project its kitchen will cook.";
