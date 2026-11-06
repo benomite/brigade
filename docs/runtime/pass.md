@@ -365,7 +365,7 @@ with no commit (`base.recheck-requested`, written by `pass`): a passing red (a f
 exceeded delay) falls with nothing opened. **If the red holds**, it **opens a repair ticket**
 (`base.repair-opening` then `base.repair-opened`) naming the base, the commit and what
 fails. It carries `fire`, `model:opus`,
-`effort:high` and **`prio:0`, which goes ahead of the whole rail**. **It is the only ticket that
+`effort:medium` (like the manager's table, #2575) and **`prio:0`, which goes ahead of the whole rail**. **It is the only ticket that
 leaves from a red base**: the pass judges it merged with the red base and merges it under grant, its
 green gates saying it repairs it. Merged, the base's gates are replayed, and at green everything
 restarts by itself.

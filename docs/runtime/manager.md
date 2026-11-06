@@ -116,7 +116,16 @@ with a hand on the repository (owner, members, collaborators) and answers one of
 | doc, rename, fix whose test is already written | `haiku` / `low` |
 | mechanical `fix`/`tech` on a known module | `sonnet` / `low` |
 | non-mechanical `fix`/`tech`, or any issue with precise acceptance criteria | `sonnet` / `medium` |
-| `feature`, cross-cutting refactor, core of the product | `opus` / `high` |
+| `feature`, cross-cutting refactor, core of the product | `opus` / `medium` |
+
+**`high` is never set by default**, not even on `opus` (#2575): it makes the model think more at every
+turn, and that thinking is the largest part of cooking. Read in the cook sessions of #2442 to #2573: the 37
+tickets cooked `opus` / `high` had a median cooking of 14.6 min, the 24 cooked `sonnet` / `medium` 6.1 min;
+of the 1,065 min of the `opus` / `high` cooks, 653 were the model, and two thirds of what it wrote (2.26 of
+3.43 million tokens) was its thinking, which no transcript shows: ~430 min, ahead of the reads (140 min,
+#2573) and the tests (92 min). A ticket that does not pass at `medium` goes up by itself when its delivery
+is sent back (`calibrageAuDessus`); the manager sets `high` from the start only if it can say what an
+`opus` / `medium` cook could not do on that ticket.
 
 **A written form criterion is worth one notch more**: when an acceptance criterion imposes a form ("five
 lines", "no preamble"), the ticket goes out at `sonnet` / `low` at least — **write it in the criteria**,

@@ -50,6 +50,18 @@ export const COMMENTAIRES_MAX = 12_000;
 export const couper = (texte: string, max: number) => (texte.length <= max ? texte : `${texte.slice(0, max)}\n[coupé]`);
 
 /**
+ * Pourquoi la table s'arrête à `opus` / `medium` (#2575). Lu dans les sessions des cooks de #2442 à
+ * #2573 : les 37 tickets cuisinés en `opus` / `high` ont une cuisson médiane de 14,6 min, les 24 en
+ * `sonnet` / `medium` de 6,1 min. Des 1 065 min des cooks `opus` / `high`, 653 sont le modèle, et les
+ * deux tiers de ce qu'il écrit (2,26 des 3,43 millions de tokens) sont sa réflexion, que l'effort règle
+ * et qu'aucune transcription ne montre : ~430 min, le premier poste de la cuisson, devant les lectures
+ * (140 min, #2573) et les tests (92 min). `high` reste le cran que la cuisine monte d'elle-même quand
+ * une livraison ne passe pas (`calibrageAuDessus`). Dite une fois, pour le jugement et le découpage.
+ */
+export const EFFORT_HIGH_AU_RENVOI =
+  "L'effort `high` ne se pose pas d'office, même sur un `opus` : il fait réfléchir le modèle davantage à chaque tour, et cette réflexion est la plus grande part de la cuisson. Un ticket qui ne passe pas en `medium` y monte de lui-même au renvoi ; ne le pose d'emblée que si tu peux dire ce qu'un cook `opus` / `medium` ne saurait pas faire sur ce ticket.";
+
+/**
  * Ce que le premier cran de la table ne tient pas : un petit modèle comprend la tâche, il ne tient pas
  * une contrainte de forme (#129). Dite une fois, pour le jugement et pour le découpage : la table
  * vit dans les deux consignes, et la règle les suit.
@@ -100,9 +112,9 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
     "| doc, renommage, correctif dont le test est déjà écrit | `haiku` / `low` |",
     "| `fix`/`tech` mécanique sur un module connu | `sonnet` / `low` |",
     "| `fix`/`tech` non mécanique, ou toute issue à critères d'acceptation précis | `sonnet` / `medium` |",
-    "| `feature`, refactor transverse, cœur du produit | `opus` / `high` |",
+    "| `feature`, refactor transverse, cœur du produit | `opus` / `medium` |",
     "",
-    "Le calibrage le plus bas qui suffit : c'est le quota du chef, et il doit pouvoir contester ton choix. Au-dessus de `sonnet` / `medium`, dis ce qui l'exige. Tu ne poses jamais `xhigh` ni `max`.",
+    `Le calibrage le plus bas qui suffit : c'est le quota du chef, et il doit pouvoir contester ton choix. Au-dessus de \`sonnet\` / \`medium\`, dis ce qui l'exige. ${EFFORT_HIGH_AU_RENVOI} Tu ne poses jamais \`xhigh\` ni \`max\`.`,
     "",
     CRITERE_DE_FORME,
     "",

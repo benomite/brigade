@@ -21,7 +21,11 @@ import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { dureeDuTicket, medianeDesRecents, phaseLaPlusLenteDesTickets, phaseLaPlusLenteDuTicket, ticketsLesPlusLents, ticketsRecents, totauxParPhase } from "./mesure.ts";
 
 export const PRIO_CORRECTION = "prio:0";
-export const LABELS_CORRECTION = [LABEL, PRIO_CORRECTION, "model:opus", "effort:high"];
+// Son calibrage : `opus` / `medium`, comme la table du manager (#2575). En
+// `high`, les dix corrections de #2535 à #2573 ont cuit 10,9 min en médiane :
+// chacune ajoutait aux tickets récents un ticket au-dessus du max qu'elle
+// devait ramener. Une correction qui ne passe pas monte au renvoi.
+export const LABELS_CORRECTION = [LABEL, PRIO_CORRECTION, "model:opus", "effort:medium"];
 export const MARQUE_CORRECTION = "<!-- brigade:temps-max -->";
 // Combien de tickets lents le corps nomme.
 export const LENTS_NOMMES = 5;

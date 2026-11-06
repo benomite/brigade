@@ -2,7 +2,7 @@
 // qu'il lit de sa réponse. Aucun appel ici — du texte, et sa lecture.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { argumentsJuge, consigneDeJugement, CRITERE_DE_FORME, empreinte, lireDecision, MARQUEUR_MANAGER } from "../src/juger.ts";
+import { argumentsJuge, consigneDeJugement, CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI, empreinte, lireDecision, MARQUEUR_MANAGER } from "../src/juger.ts";
 
 const CALIBRAGE = { model: "sonnet", effort: "medium" };
 const ISSUE = { number: 30, title: "Le rail perd un ticket", body: "Quand le bail tombe, le ticket disparaît.", labels: ["fix", "prio:1"] };
@@ -35,8 +35,18 @@ test("la consigne porte la table de calibrage, et interdit `xhigh` et `max`", ()
   assert.match(texte, /`haiku` \/ `low`/);
   assert.match(texte, /`sonnet` \/ `low`/);
   assert.match(texte, /`sonnet` \/ `medium`/);
-  assert.match(texte, /`opus` \/ `high`/);
+  assert.match(texte, /`opus` \/ `medium` \|/);
   assert.match(texte, /jamais `xhigh` ni `max`/);
+});
+
+// #2575 : en `high`, un cook opus réfléchit davantage à chaque tour, et cette
+// réflexion fait la plus grande part de la cuisson. La table s'arrête à
+// `opus` / `medium` ; `high` est le cran du renvoi.
+test("aucune ligne de la table ne pose `high` : l'effort `high` se justifie, ou s'atteint au renvoi", () => {
+  const texte = consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: [] });
+
+  assert.doesNotMatch(texte, /^\|.*`high` \|$/m);
+  assert.ok(texte.includes(EFFORT_HIGH_AU_RENVOI));
 });
 
 test("la consigne dit qu'un critère de forme écrit ne se sert pas au premier cran, et nomme le calibrage d'arrivée", () => {
