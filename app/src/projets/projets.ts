@@ -174,6 +174,24 @@ export function nomDuProjet(depot: string): string {
 export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macOS|Windows)\b/.test(station.machine);
 
 // La principale que l'app recommande : une station serveur, en ligne d'abord.
+// Les temps de deux stations d'un même projet : un ticket n'est compté qu'une fois (le plus récent des deux enregistrements),
+// le plafond est celui de la première station qui en publie un.
+export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): TempsPublie {
+  if (a === undefined) return b;
+  const parTicket = new Map<unknown, unknown>();
+  const fusion: unknown[] = [];
+  for (const e of [...a.enregistrements, ...b.enregistrements]) {
+    const ticket = (e as { ticket?: unknown } | null)?.ticket;
+    if (typeof ticket !== "number") {
+      fusion.push(e);
+      continue;
+    }
+    const deja = parTicket.get(ticket) as { mergedAt?: unknown } | undefined;
+    if (deja === undefined || Date.parse(String((e as { mergedAt?: unknown }).mergedAt)) > Date.parse(String(deja.mergedAt))) parTicket.set(ticket, e);
+  }
+  return { enregistrements: [...parTicket.values(), ...fusion], tempsMaxTicketMin: a.tempsMaxTicketMin };
+}
+
 export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {
   const serveurs = stations.filter((station) => station.etat !== "illisible" && station.cuisine !== false && !estUnOrdinateur(station));
   return (serveurs.find((station) => station.etat === "en-ligne") ?? serveurs[0])?.id;
@@ -491,13 +509,13 @@ export function tenirProjets(options: OptionsProjets): Projets {
             else delete vu.blocages;
             if (dit?.delai !== undefined) vu.delai = dit.delai;
             else delete vu.delai;
-            if (dit?.temps !== undefined) vu.temps = dit.temps;
-            else delete vu.temps;
             if (dit?.choix !== undefined) vu.choix = dit.choix;
             else delete vu.choix;
             if (projet.choix !== undefined) vu.choisis = projet.choix;
             else delete vu.choisis;
           }
+          // Les temps, toute station qui sert le projet les publie : l'app fusionne leurs enregistrements.
+          if (dit?.temps !== undefined) vu.temps = fusionnerLesTemps(vu.temps, dit.temps);
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
           if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
             const depuis = projet.ouvertLe ?? projet.demandeLe;
