@@ -535,7 +535,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "retenues", "cuisineOisive", "stations", "agents", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "coutDesGates"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "retenues", "cuisineOisive", "stations", "agents", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "coutDesGates"]);
   // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
   assert.deepEqual(forme.coutDesGates, {
     budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },
