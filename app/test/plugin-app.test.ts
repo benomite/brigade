@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Projet } from "../src/config.ts";
-import { COMMANDES, ESPACE, ID, lancerVraiment, MARKETPLACE, poserLeMarketplace, REGLAGES_LOCAUX, sansPluginApp, tenirLePluginApp, versionDuPlugin, type Lancer } from "../src/plugin-app.ts";
+import { COMMANDES, ESPACE, PROPRES, SCRIPT_INIT, ID, lancerVraiment, MARKETPLACE, poserLeMarketplace, REGLAGES_LOCAUX, sansPluginApp, tenirLePluginApp, versionDuPlugin, type Lancer } from "../src/plugin-app.ts";
 
 const COMMANDES_DU_DEPOT = join(import.meta.dirname, "..", "..", "commands");
 const CLAUDE = "claude-doublure";
@@ -91,7 +91,7 @@ test("ouvrir un projet y installe brigade-app en scope local, et git status n'en
   assert.match(readFileSync(join(calculus.dossier, ".git", "info", "exclude"), "utf8"), /^\/\.claude\/settings\.local\.json$/m);
 });
 
-test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiées de commands/ — aucun rôle V1", async (t) => {
+test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiées de commands/, et son propre /brigade:init — aucun rôle V1", async (t) => {
   const { clone, plugin, marketplace } = essai(t);
 
   await plugin("1.2.3").suivre([clone("calculus")]);
@@ -100,10 +100,15 @@ test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiée
   assert.equal(manifeste.name, "brigade");
   assert.equal(manifeste.name, ESPACE);
   assert.equal(manifeste.version, "1.2.3");
-  assert.deepEqual(manifeste.commands, ["./commands/dev.md", "./commands/ask.md"]);
+  assert.deepEqual(manifeste.commands, ["./commands/dev.md", "./commands/ask.md", "./commands/init.md"]);
   assert.equal(manifeste.agents, undefined);
-  assert.deepEqual(readdirSync(join(marketplace, "commands")).sort(), ["ask.md", "dev.md"]);
+  assert.deepEqual(readdirSync(join(marketplace, "commands")).sort(), ["ask.md", "dev.md", "init.md"]);
   for (const nom of COMMANDES) assert.equal(readFileSync(join(marketplace, "commands", nom), "utf8"), readFileSync(join(COMMANDES_DU_DEPOT, nom), "utf8"));
+  // `/brigade:init` est celui de l'app, pas le V1 de commands/ : il nomme le script posé à côté, par son chemin.
+  const script = join(marketplace, "scripts", SCRIPT_INIT);
+  assert.equal(readFileSync(script, "utf8"), readFileSync(join(PROPRES, SCRIPT_INIT), "utf8"));
+  assert.equal(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(PROPRES, "init.md"), "utf8").replaceAll("@SCRIPT@", script));
+  assert.notEqual(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(COMMANDES_DU_DEPOT, "init.md"), "utf8"));
   const catalogue = JSON.parse(readFileSync(join(marketplace, ".claude-plugin", "marketplace.json"), "utf8"));
   assert.equal(catalogue.name, MARKETPLACE);
   assert.deepEqual(catalogue.plugins.map(({ name, source, version }: { name: string; source: string; version: string }) => ({ name, source, version })), [{ name: "brigade-app", source: "./", version: "1.2.3" }]);
@@ -243,5 +248,5 @@ test("lancée avec un `claude` de remplacement, l'app ne pose ni ne retire le pl
 
   assert.equal(existsSync(join(calculus.dossier, REGLAGES_LOCAUX)), false);
   assert.equal(statut(calculus), "");
-  assert.deepEqual(dits, ["brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask) is installed in no project"]);
+  assert.deepEqual(dits, ["brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) is installed in no project"]);
 });

@@ -36,7 +36,7 @@ export function tenirRetraits(options: {
       return {
         projet: nom,
         titre: "Remove this project from the app",
-        retirer: { libelle: RETIRER, lignes: [`“${RETIRER}” takes “${nom}” off the bar and out of ${options.chemin}, and uninstalls the app's plugin (/brigade:dev, /brigade:ask) from its folder's local Claude Code settings — nothing else.`, `Nothing is sent to its station: the project stays installed there, with its log intact. Uninstalling it is done on the station itself (${DOC}).`, RESTE] },
+        retirer: { libelle: RETIRER, lignes: [`“${RETIRER}” takes “${nom}” off the bar and out of ${options.chemin}, and uninstalls the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) from its folder's local Claude Code settings — nothing else.`, `Nothing is sent to its station: the project stays installed there, with its log intact. Uninstalling it is done on the station itself (${DOC}).`, RESTE] },
       };
     },
 
