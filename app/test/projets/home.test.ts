@@ -126,19 +126,19 @@ test("le parcours propose d'office la station serveur pour principale ; choisir 
   assert.equal(principaleBox?.checked, true);
   assert.equal(cocheMac?.checked, false);
   assert.match(formulaire().textContent, /box — Linux 6\.1\.0 · {2}main \(recommended: always on\)/);
-  assert.equal(formulaire().children[3]?.textContent, "");
+  assert.equal(formulaire().children[4]?.textContent, "");
 
   principaleMac?.declencher("change");
   await repos();
   const [, cocheMacApres] = choix(formulaire(), "checkbox");
   assert.equal(cocheMacApres?.checked, true);
-  assert.equal(formulaire().children[3]?.textContent, AVERTI);
+  assert.equal(formulaire().children[4]?.textContent, AVERTI);
   // Une relecture des stations ne perd pas le choix du chef.
   jouee.dire("surStations", STATIONS);
   jouee.dire("surProjetsDesStations", SANS_PROJET);
   await repos();
   assert.equal(choix(formulaire(), "radio")[1]?.checked, true);
-  assert.equal(formulaire().children[3]?.textContent, AVERTI);
+  assert.equal(formulaire().children[4]?.textContent, AVERTI);
 });
 
 test("valider envoie le dépôt, sa branche, les stations, la principale, les décisions et l'heure d'ouverture ; ce qui manque se lit dessous", async () => {
@@ -149,14 +149,10 @@ test("valider envoie le dépôt, sa branche, les stations, la principale, les d�
   await repos();
   const [depot] = formulaire().dessous("select");
   assert.ok(depot);
-  assert.deepEqual(
-    depot.children.map(({ value }) => value),
-    ["", "benomite/parade", "benomite/brigade"],
-  );
-  depot.value = "benomite/brigade";
-  depot.declencher("change");
-  const [base, cooks] = formulaire().dessous("input").filter((champ) => champ.type !== "checkbox" && champ.type !== "radio");
-  assert.equal(base?.value, "v2");
+  // Le dépôt se choisit à l'étape « projet » : la liste du formulaire ne garde que celui qu'on retient.
+  assert.deepEqual(depot.children.map(({ value }) => value), [""]);
+  assert.deepEqual(formulaire().dessous("li").map(({ dataset }) => dataset.depot), ["benomite/parade", "benomite/brigade"]);
+  const [base, cooks] = formulaire().dessous("input").filter((champ) => champ.type !== "checkbox" && champ.type !== "radio" && champ.type !== "search" && champ.ariaLabel !== "paste a GitHub URL or owner/repo");
   const [, managerModele, managerEffort, reviewerModele, reviewerEffort] = formulaire().dessous("select");
   for (const [liste, valeur] of [
     [managerModele, "sonnet"],
@@ -170,9 +166,10 @@ test("valider envoie le dépôt, sa branche, les stations, la principale, les d�
     liste.value = valeur;
   }
 
-  formulaire().declencher("submit");
+  bouton("benomite/brigade").click();
   await repos();
   await repos();
+  assert.equal(base?.value, "v2");
   const [envoye] = jouee.dernier("ajouterAUneStation") as [Record<string, unknown>];
   assert.deepEqual({ ...envoye, ouvertLe: typeof envoye.ouvertLe }, {
     depot: "benomite/brigade",
@@ -184,13 +181,13 @@ test("valider envoie le dépôt, sa branche, les stations, la principale, les d�
     reviewer: { modele: "sonnet", effort: "high" },
     ouvertLe: "string",
   });
-  assert.equal(formulaire().children.at(-1)?.textContent, "How many cooks may the main station run at once for this project?");
+  assert.match(formulaire().textContent, /How many cooks may the main station run at once for this project\?/);
   assert.equal(formulaire().hidden, false);
 
   assert.ok(cooks);
   cooks.value = "2";
   rendu = { ajoute: "brigade" };
-  formulaire().declencher("submit");
+  bouton("benomite/brigade").click();
   await repos();
   await repos();
   assert.equal(formulaire().hidden, true);
