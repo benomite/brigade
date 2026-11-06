@@ -9,7 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -21,6 +21,7 @@ import { LimiteGitHubAtteinte, limiteDeLaStation } from "../src/limite-github.ts
 import { lireLaCuisine } from "../src/retenue/brancher.ts";
 import { direCause, diagnostiquer } from "../src/retenue/retenue.ts";
 import { suivreLeTour } from "../src/retenue/tour.ts";
+import { lireLaConsigne } from "../src/second-juge.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
@@ -32,6 +33,8 @@ type OptionsDuFaux = {
   capacites?: string[];
   cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>;
   juger?: Juger;
+  // Le second juge (#2555) ; null : la station n'en lance aucun.
+  jugerEnSecond?: JugerEnSecond | null;
   avertir?: (texte: string) => void;
   ciDesPR?: (fichiers: string[]) => boolean;
   gates?: (ticket: { number: number }, pr: { number: number; sha: string }) => Promise<LieuDesGates>;
@@ -50,6 +53,7 @@ class FauxGitHub {
   retraits = new Map<number, Array<{ label: string; createdAt: string }>>();
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
+  secondsJugements: Array<{ station: string; pr: number; sha: string; juges: string[] }> = [];
   base: "green" | "red" = "green";
   // Le dernier commit de la base, et les issues de réparation que le faux a vu créer.
   teteDeLaBase = "b".repeat(40);
@@ -296,6 +300,16 @@ class FauxGitHub {
           this.relectures.push({ station: nom, pr: pr.number });
           return { verdict: "approve", motif: "" };
         }),
+      ...(options.jugerEnSecond === null
+        ? {}
+        : {
+            jugerEnSecond:
+              options.jugerEnSecond ??
+              (async (_ticket, pr, juges) => {
+                this.secondsJugements.push({ station: nom, pr: pr.number, sha: pr.sha, juges });
+                return { verdict: "approve", motif: "Adds a check, weakens none." };
+              }),
+          }),
       avertir: options.avertir ?? ((texte) => assert.fail(texte)),
     });
   }
@@ -816,7 +830,9 @@ test("a delivery the review refuses goes back to a cook with the review's reason
   assert.equal(faux.mergee(32)?.mergeePar, "A");
 });
 
-test("a delivery that changes what judges it is never merged on the review alone: it waits for the chef, said once (#2209)", async () => {
+const secondsDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?? []).filter((c) => c.body.startsWith("<!-- brigade:second-judge"));
+
+test("a delivery that changes what judges it goes, once the review approves, before a second judge: its approval and a green CI merge it like any other (#2555)", async () => {
   const faux = new FauxGitHub();
   faux.feu(33);
   const a = faux.station("A");
@@ -825,14 +841,53 @@ test("a delivery that changes what judges it is never merged on the review alone
   const pr = faux.prs.find((p) => p.issue === 33);
   assert.ok(pr);
   pr.fichiers = [".github/workflows/tests.yml", "runtime/src/x.ts"];
-  for (let i = 0; i < 5; i += 1) await a.tour();
-  assert.equal(faux.mergee(33), undefined);
-  assert.ok(faux.ticket(33).labels.has("blocked-on-human"));
-  const dits = (faux.commentaires.get(33) ?? []).filter((c) => /changes what judges it \(`\.github\/workflows\/tests\.yml`\)/.test(c.body));
-  assert.equal(dits.length, 1);
+  for (let i = 0; i < 5 && faux.mergee(33) === undefined; i += 1) await a.tour();
+  assert.equal(faux.mergee(33)?.mergeePar, "A");
+  assert.equal(faux.ticket(33).state, "closed");
+  // Jugée une fois, après la relecture, sur la tête mergée — à jour de sa base.
+  assert.deepEqual(faux.relectures, [{ station: "A", pr: pr.number }]);
+  assert.deepEqual(faux.secondsJugements, [{ station: "A", pr: pr.number, sha: pr.sha, juges: [".github/workflows/tests.yml"] }]);
+  assert.match(secondsDe(faux, pr.number)[0]?.body ?? "", /^<!-- brigade:second-judge station=A verdict=approve sha=[0-9a-f]{40} -->\nApproved by the second judge[\s\S]*Adds a check, weakens none\./);
+  // Rien n'attend le chef.
+  assert.ok(!faux.ticket(33).labels.has("blocked-on-human"));
+  assert.ok(![...faux.commentaires.values()].flat().some((c) => /by hand/.test(c.body)));
 });
 
-test("a delivery that changes what judges it asks the chef only once its CI is green: red goes back to a cook, running waits, green raises the card by itself (#2442)", async () => {
+test("a delivery the second judge refuses goes back to a cook with its reasons, like a review that requests changes; its next head is judged again and merges (#2555)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(39);
+  let refus = true;
+  const juges: string[] = [];
+  const a = faux.station("A", {
+    jugerEnSecond: async (_ticket, pr) => {
+      juges.push(pr.sha);
+      return refus ? { verdict: "request-changes", motif: "`tests.yml` skips the runtime tests (`if: false`), and the ticket does not ask for it." } : { verdict: "approve", motif: "Adds a check." };
+    },
+  });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 39);
+  assert.ok(pr);
+  pr.fichiers = [".github/workflows/tests.yml"];
+  for (let i = 0; i < 4 && juges.length === 0; i += 1) await a.tour();
+  assert.equal(juges.length, 1);
+  assert.equal(faux.mergee(39), undefined);
+  const renvoi = (faux.commentaires.get(39) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvoi?.body ?? "", /sent back to a cook \(1\/2\) — the second judge requested changes: `tests\.yml` skips the runtime tests \(`if: false`\), and the ticket does not ask for it\./);
+  assert.ok(!faux.ticket(39).labels.has(LABEL_IN_PASS), "it leaves the pass");
+  assert.match(secondsDe(faux, pr.number)[0]?.body ?? "", /verdict=request-changes/);
+  // Le cook reprend la branche : une tête neuve, que le second juge relit.
+  refus = false;
+  for (let i = 0; i < 8 && faux.mergee(39) === undefined; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(39)?.mergeePar, "A");
+  assert.equal(juges.length, 2);
+  assert.notEqual(juges[0], juges[1]);
+});
+
+test("the second judge is launched only on a head that can merge: running CI waits, red goes back to a cook without it, green launches it (#2555)", async () => {
   const faux = new FauxGitHub();
   faux.feu(37);
   const a = faux.station("A");
@@ -843,19 +898,21 @@ test("a delivery that changes what judges it asks the chef only once its CI is g
   pr.fichiers = [".github/workflows/tests.yml", "runtime/src/x.ts"];
   faux.ciEnCours.add(pr.number);
   for (let i = 0; i < 4; i += 1) await a.tour();
-  assert.ok(!faux.ticket(37).labels.has("blocked-on-human"), "running CI: no card");
+  assert.equal(faux.secondsJugements.length, 0, "running CI: not judged yet");
+  assert.equal(faux.mergee(37), undefined);
   faux.ciEnCours.delete(pr.number);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 4; i += 1) await a.tour();
-  assert.ok(!faux.ticket(37).labels.has("blocked-on-human"), "red CI: no card");
-  assert.equal(faux.mergee(37), undefined);
+  for (let i = 0; i < 2; i += 1) await a.tour();
+  assert.equal(faux.secondsJugements.length, 0, "red CI: not judged");
+  assert.match((faux.commentaires.get(37) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "", /the CI is red/);
   faux.ciRouge.delete(pr.number);
   faux.ticket(37).labels.add(LABEL_IN_PASS);
-  for (let i = 0; i < 4; i += 1) await a.tour();
-  assert.ok(faux.ticket(37).labels.has("blocked-on-human"), "green CI: the card shows");
+  for (let i = 0; i < 4 && faux.mergee(37) === undefined; i += 1) await a.tour();
+  assert.equal(faux.secondsJugements.length, 1, "green CI: judged");
+  assert.equal(faux.mergee(37)?.mergeePar, "A");
 });
 
-test("with no CI on its PRs, a delivery that changes what judges it has its gates run on its head, and asks the chef once they are green (#2456)", async () => {
+test("with no CI on its PRs, a delivery that changes what judges it has its gates run on its head, then goes before the second judge, and merges (#2456, #2555)", async () => {
   const faux = new FauxGitHub();
   faux.feu(38);
   const gates = gatesDites({ vert: true, resume: "", detail: "" });
@@ -866,13 +923,43 @@ test("with no CI on its PRs, a delivery that changes what judges it has its gate
   assert.ok(pr);
   pr.fichiers = [".claude/brigade/gates.sh"];
   faux.sansCI.add(pr.number);
-  for (let i = 0; i < 4 && !faux.ticket(38).labels.has("blocked-on-human"); i += 1) {
+  for (let i = 0; i < 6 && faux.mergee(38) === undefined; i += 1) {
     await a.tour();
     await a.calme();
   }
   assert.equal(gates.jouees.length, 1);
-  assert.ok(faux.ticket(38).labels.has("blocked-on-human"), "green gates: the card shows");
-  assert.equal(faux.mergee(38), undefined);
+  assert.deepEqual(faux.secondsJugements.map(({ juges }) => juges), [[".claude/brigade/gates.sh"]]);
+  assert.equal(faux.mergee(38)?.mergeePar, "box/claude");
+});
+
+test("a station that launches no second judge never merges a delivery that changes what judges it, and says so once per head (#2555)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(40);
+  const dits: string[] = [];
+  const a = faux.station("A", { jugerEnSecond: null, avertir: (texte) => dits.push(texte) });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 40);
+  assert.ok(pr);
+  pr.fichiers = ["agents/second-juge.md"];
+  for (let i = 0; i < 5; i += 1) await a.tour();
+  assert.equal(faux.mergee(40), undefined);
+  assert.deepEqual(dits, [`brigade : PR #${pr.number} (#40) changes what judges it and waits for a second judge, which station A does not launch`]);
+});
+
+test("the card a station posted before #2555 on a delivery that changes what judges it is lifted, and the second judge decides (#2555)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(41);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 41);
+  assert.ok(pr);
+  pr.fichiers = [".github/workflows/tests.yml"];
+  faux.ticket(41).labels.add("blocked-on-human");
+  for (let i = 0; i < 5 && faux.mergee(41) === undefined; i += 1) await a.tour();
+  assert.ok(!faux.ticket(41).labels.has("blocked-on-human"));
+  assert.equal(faux.mergee(41)?.mergeePar, "A");
 });
 
 test("a head already sent back is not sent back again, even if a stale list still shows it in pass (#2189)", async () => {
@@ -1445,6 +1532,86 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
     ],
   );
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Remark \(`a\.ts`\): a nit/);
+});
+
+test("the station of this runtime: a delivery that changes what judges it is reviewed, then judged by a second, separate launch under opus / high with the brief of agents/second-juge.md, and merged on its approval (#2555)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(12, ["fire", "model:sonnet", "effort:low"]);
+  const fait: string[] = [];
+  const lancements: Array<{ args: string[]; cwd: string; flux: string }> = [];
+  const lancer: Lancer = ({ args, cwd, flux }) => {
+    lancements.push({ args, cwd, flux });
+    const texte = args[args.indexOf("-p") + 1] ?? "";
+    const reponse = texte.startsWith("Tu es le **second juge**")
+      ? JSON.stringify({ verdict: "approuve", motif: "Runs one more check; weakens none." })
+      : args.includes("--tools")
+        ? JSON.stringify({ verdict: "vert", resume: "Looks right.", constats: [] })
+        : "done";
+    writeFileSync(flux, fluxQuiConclut(reponse));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
+      reprendre: async (run, branche) => {
+        fait.push(`reprendre ${run} ${branche}`);
+        return join(repertoire, run);
+      },
+      retirer: (worktree) => void fait.push(`retirer ${worktree.slice(repertoire.length + 1)}`),
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => [".github/workflows/tests.yml"],
+      diff: () => "diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml\n+      - run: npm run lint\n",
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: (texte) => assert.fail(texte),
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  const pr = faux.prs.find((p) => p.issue === 12);
+  assert.ok(pr);
+  pr.fichiers = [".github/workflows/tests.yml"];
+  for (let tour = 0; tour < 4 && faux.mergee(12) === undefined; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  assert.equal(faux.mergee(12)?.mergeePar, "box");
+  // Trois lancements : le cook, le reviewer, puis le second juge — à part, dans son worktree et sous son flux.
+  assert.equal(lancements.length, 3);
+  const [, relecture, second] = lancements;
+  assert.ok(relecture && second);
+  const calibrageDe = (args: string[]) => args.slice(args.indexOf("--model"), args.indexOf("--model") + 4);
+  assert.deepEqual(calibrageDe(relecture.args), ["--model", "sonnet", "--effort", "medium"]);
+  assert.deepEqual(calibrageDe(second.args), ["--model", "opus", "--effort", "high"]);
+  assert.deepEqual(second.args.slice(second.args.indexOf("--tools"), second.args.indexOf("--tools") + 2), ["--tools", "Read,Grep,Glob"]);
+  assert.equal(second.cwd, join(repertoire, "second-judge-12-github"));
+  assert.notEqual(second.flux, relecture.flux);
+  assert.deepEqual(fait, ["reprendre review-12-github cook/12-github", "retirer review-12-github", "reprendre second-judge-12-github cook/12-github", "retirer second-judge-12-github"]);
+  const texte = second.args[second.args.indexOf("-p") + 1] ?? "";
+  assert.ok(texte.startsWith(lireLaConsigne()), "the brief of agents/second-juge.md, read from the runtime");
+  assert.match(texte, /## La livraison\n\nDépôt faux\/depot, PR #\d+[\s\S]*- \.github\/workflows\/tests\.yml\n[\s\S]*\+ {6}- run: npm run lint/);
+  // Rien de la relecture ne lui est donné.
+  assert.doesNotMatch(texte, /Looks right/);
+  assert.match((faux.commentaires.get(pr.number) ?? []).find((c) => c.body.startsWith("<!-- brigade:second-judge"))?.body ?? "", /station=box verdict=approve[\s\S]*`opus` \/ `high`[\s\S]*Runs one more check; weakens none\./);
 });
 
 // espace, le 2026-11-05, sur la station de la box (#2456) : son `ci.yml` ne part

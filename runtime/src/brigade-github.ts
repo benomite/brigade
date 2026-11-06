@@ -47,11 +47,11 @@ import { ceQueDitLaCiRouge } from "./github-seul/ci-rouge/ci-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
+import { CALIBRAGE_DU_SECOND_JUGE, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
-import { poserALaMain } from "./blocages-sans-question.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
@@ -134,6 +134,10 @@ export const secoupent = (a: string, b: string): boolean => {
 export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
+// Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
+// la relecture d'accord : un autre lancement, qui reçoit les fichiers de ses
+// juges qu'elle change.
+export type JugerEnSecond = (ticket: TicketLu, pr: PRAFusionner, juges: string[]) => Promise<Jugement>;
 
 // La branche du cook d'un ticket : la même sur toutes les stations, pour que
 // chacune retrouve sa PR.
@@ -151,6 +155,9 @@ export type OptionsDeStation = {
   prise: Prise;
   cuisiner: Cuisiner;
   juger: Juger;
+  // Le second juge (#2555). Absent, une livraison qui touche à ce qui la juge
+  // n'est jamais mergée.
+  jugerEnSecond?: JugerEnSecond;
   // Ce que la station fournit (#2187) : un ticket qui demande une capacité
   // qu'elle n'a pas, par un label `needs:<capacité>`, n'est jamais pris ici.
   capacites?: readonly string[];
@@ -227,8 +234,9 @@ export const ATTENTE_PRESSEE_MS = 30_000;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Ce qui juge une livraison : une PR qui y touche attend le chef (`pass.ts`).
-const JUGES = [".claude/brigade/", ".github/workflows/"];
+// Ce qui juge une livraison : une PR qui y touche ne se merge qu'approuvée
+// aussi par le second juge (#2555) — sa consigne comprise.
+const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md"];
 // Le label d'un ticket qui attend un geste du chef.
 export const A_LA_MAIN = "blocked-on-human";
 
@@ -484,6 +492,30 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "cuisson");
   };
 
+  // Le second juge de la tête d'une livraison qui touche à ce qui la juge
+  // (#2555) : son verdict s'il l'a déjà rendu sur cette tête, sinon il est
+  // lancé — une fois la branche à jour de sa base et la CI verte sur sa tête,
+  // pour ne juger qu'une tête qui peut se merger. Null tant qu'elle ne l'est
+  // pas : \`fusionner\` la met à jour, attend sa CI ou la renvoie, et ne la
+  // merge pas sans lui. \`sans-juge\` : la station n'en lance aucun, dit une
+  // fois par tête.
+  const sansSecondJuge = new Map<number, string>();
+  const passerLeSecondJuge = async (ticket: TicketLu, pr: PRAFusionner, juges: string[], sienne: { fichiers: string[] } | undefined): Promise<{ jugement: Jugement; lance: boolean } | "sans-juge" | null> => {
+    const rendu = secondJugementDe(await github.commentaires(pr.number), pr.sha);
+    if (rendu !== null) return { jugement: rendu, lance: false };
+    if (pr.enRetard || ciDeLaTete(await github.ci(pr.sha), ciDesPR(sienne)) !== "green") return null;
+    if (options.jugerEnSecond === undefined) {
+      if (sansSecondJuge.get(pr.number) !== pr.sha) avertir(`brigade : PR #${pr.number} (#${ticket.number}) changes what judges it and waits for a second judge, which station ${nom} does not launch`);
+      sansSecondJuge.set(pr.number, pr.sha);
+      return "sans-juge";
+    }
+    chrono.marquer(ticket.number, "revue");
+    const jugement = await options.jugerEnSecond(ticket, pr, juges);
+    chrono.marquer(ticket.number, "ci");
+    await github.commenter(pr.number, corpsDuSecondJugement(nom, pr.sha, jugement));
+    return { jugement, lance: true };
+  };
+
   // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
   const relancerLaBase = relanceDeLaBase(github, avertir, nom);
 
@@ -577,54 +609,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       if (etat === "pass" && pr !== null) {
-        // Une livraison qui touche à ce qui la juge (gates, CI, réglages) ne se
-        // merge pas sur le seul verdict du reviewer : un cook pourrait s'y rendre
-        // vert seul. Elle attend le chef (#2209).
+        // Une livraison qui touche à ce qui la juge (gates, CI) ne se merge pas
+        // sur le seul verdict du reviewer : un cook pourrait s'y rendre vert
+        // seul. Le second juge la relit une fois la relecture d'accord, et
+        // c'est son approbation, avec une CI verte, qui la merge (#2555).
         ouvertes ??= await github.prsOuvertes();
         const sienne = ouvertes.find((ouverte) => ouverte.branche === brancheDuTicket(ticket.number));
         const juges = sienne?.fichiers.filter((fichier) => JUGES.some((juge) => fichier.startsWith(juge))) ?? [];
-        if (juges.length > 0) {
-          // Le chef n'a à répondre que d'une livraison qu'il peut merger : CI
-          // verte sur sa tête, et mergeable (le conflit est renvoyé plus haut).
-          // Rouge, elle repart à un cook ; en cours, elle reste à la cuisine ;
-          // la carte se lève si elle était posée, et revient d'elle-même au vert.
-          const ci = ciDeLaTete(await github.ci(pr.sha), ciDesPR(sienne));
-          if (ci !== "green") {
-            if (ticket.labels.includes(A_LA_MAIN)) await github.delabelliser(ticket.number, A_LA_MAIN);
-            // Sans CI sur ses PR, le projet la juge sur ses gates, jouées hors du tour.
-            if (ci === "gates-a-jouer" && !enRelecture.has(ticket.number) && enRelecture.size < PASS_MAX) {
-              const numero = ticket.number;
-              enRelecture.set(
-                numero,
-                (async () => {
-                  let bouge = false;
-                  try {
-                    bouge = await jouerLesGates(ticket, pr);
-                  } catch (erreur) {
-                    avertir(`brigade : gates de #${numero} sur ${nom} — ${message(erreur)}`);
-                  } finally {
-                    enRelecture.delete(numero);
-                    if (bouge) station.presser?.();
-                  }
-                })(),
-              );
-            }
-            if (ci === "red") {
-              try {
-                await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
-              } catch (erreur) {
-                avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
-              }
-            }
-            continue;
-          }
-          if (!ticket.labels.includes(A_LA_MAIN)) {
-            // La question au chef est écrite sur la carte avant le label (#2556).
-            const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, ticket.number, `Station \`${nom}\`: this delivery changes what judges it (${juges.map((f) => `\`${f}\``).join(", ")}), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr.number}.`);
-            if (!pose.pose) avertir(`brigade : ${pose.echec}`);
-          }
-          continue;
-        }
+        // Le `blocked-on-human` qu'un tour d'avant #2555 y posait n'a plus
+        // d'objet : le second juge en décide.
+        if (juges.length > 0 && ticket.labels.includes(A_LA_MAIN)) await github.delabelliser(ticket.number, A_LA_MAIN);
         // Un workflow qui ne tourne que sur la base (les tests Windows) n'a pas
         // de check sur la PR : rouge, il ne la retient pas.
         // La seule exception est la réparation de la base elle-même : elle doit la
@@ -651,6 +645,19 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               return jugement;
             },
           });
+          // Approuvée, une livraison qui touche à ce qui la juge passe devant
+          // le second juge ; refusée par lui, elle repart à un cook avec ses
+          // raisons, comme une relecture qui demande des changements (#2555).
+          if (juges.length > 0 && rendu?.verdict === "approve") {
+            const second = await passerLeSecondJuge(ticket, pr, juges, sienne);
+            if (second === "sans-juge") return;
+            if (second?.lance) bouge = true;
+            if (second?.jugement.verdict === "request-changes") {
+              await renvoyer(ticket, pr.sha, `the second judge requested changes: ${second.jugement.motif}`);
+              bouge = true;
+              return;
+            }
+          }
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           if (tentees.get(pr.number) !== tentee) {
             // Le merge demandé à GitHub ouvre sa phase ; mergée, le temps du ticket s'écrit.
@@ -662,7 +669,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                   commenter: (numero, corps) => github.commenter(numero, corps),
                   mettreAJour: (numero, sha) => github.mettreAJour(numero, sha),
                   ci: (sha) => github.ci(sha),
-                  merger: (numero, sha) => {
+                  merger: async (numero, sha) => {
+                    // Rien de ce qui touche ses juges ne se merge sur une tête
+                    // que le second juge n'a pas approuvée (#2555).
+                    if (juges.length > 0 && secondJugementDe(await github.commentaires(numero), sha)?.verdict !== "approve") return { fait: false, motif: `the second judge has not approved \`${sha.slice(0, 7)}\`` };
                     chrono.marquer(ticket.number, "merge");
                     return github.merger(numero, sha);
                   },
@@ -1043,6 +1053,9 @@ export type OptionsDuDepot = {
   plafonds: Plafonds;
   graceMs: number;
   reviewer: Calibrage;
+  // La consigne du second juge (#2555). Par défaut, \`agents/second-juge.md\`
+  // du plugin de ce runtime.
+  consigneDuSecondJuge?: () => string;
   // Où s'écrit le flux de chaque lancement.
   flux: string;
   // Ce que la station fournit, tel que le projet le déclare.
@@ -1303,7 +1316,31 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  // Le second juge (#2555) : un lancement à part de la relecture, dans son
+  // propre worktree et sous son propre flux, qui ne lit ni la relecture ni son
+  // verdict — le modèle le plus fort, un effort haut, la consigne du plugin de
+  // ce runtime, et les mêmes outils de lecture que le reviewer.
+  const jugerEnSecond: JugerEnSecond = async (ticket, pr, juges) => {
+    const branche = brancheDuTicket(ticket.number);
+    const run = `second-judge-${ticket.number}-github`;
+    const worktree = await depot.reprendre(run, branche);
+    try {
+      const issue = await options.github.issue(ticket.number);
+      const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
+      const texte = consigneDuSecondJuge((options.consigneDuSecondJuge ?? lireLaConsigne)(), { depot: depotGitHub, base, pr: pr.number, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, juges, diff });
+      const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
+      const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, CALIBRAGE_DU_SECOND_JUGE), worktree) }, { cwd: worktree, depot: "lecture" });
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      await lance.fin;
+      const lu = lireSecondJugement(lireLeFlux(lance.flux ?? flux).message);
+      if ("illisible" in lu) throw new Error(`the second judge of PR #${pr.number} is unreadable: ${lu.illisible}`);
+      return lu;
+    } finally {
+      depot.retirer(worktree);
+    }
+  };
+
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
   const quitter = station.quitter;
   station.quitter = async () => {
     abandon.abort();
