@@ -110,6 +110,14 @@ export function ticketRemis(ticket: { number: number; title: string; body: strin
 // Comment un cook joue ses tests pendant qu'il travaille, et ses gates à la fin.
 export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière, qui prend des minutes sur une station chargée. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
 
+// Comment un cook lit le dépôt. Lu dans les sessions des cooks de #2486 à
+// #2571 (#2573) : 73 % de la cuisson est le modèle entre deux appels, 27 % ce
+// que les outils ont tourné. Les cooks opus — 405 des 497 min — font 65 % de
+// leurs appels pour lire (1 716 : `cat`, `grep`, `sed -n`, Read), un appel par
+// tour dans 95 % des tours, et 82 % de ces lectures par séries de 3 à 42 de
+// suite : 140 min, le premier poste de la cuisson, devant les tests (92 min).
+export const CONSIGNE_DES_LECTURES = "Chaque appel d'outil te coûte un tour du modèle, quelques secondes chacun : ce sont ces tours, plus que les tests, qui font la durée d'une cuisson. Ce que tu lis sans attendre le résultat d'une autre lecture, lis-le dans le même tour — plusieurs appels dans un seul message, ou une seule commande qui lit plusieurs fichiers ou cherche plusieurs motifs —, plutôt qu'un fichier ou une recherche par tour.";
+
 // Le lanceur des gates que la station a posé pour le cook
 // (`gates-du-cook.ts`) : nommé, la consigne lui dit de jouer les gates par lui.
 // Absent — le projet n'a pas de gates, ou une station distante —, rien.
@@ -154,7 +162,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     ...blocDuSetup(mission.setup),
     ...(mission.joint === undefined ? [] : [mission.joint, ""]),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
-    `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
+    `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le. ${CONSIGNE_DES_LECTURES}`,
     `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
@@ -180,7 +188,7 @@ export function consigneDeSuite(mission: { ticket: number; titre: string; depot:
     ...blocDesGates(mission.gates),
     ...blocDuSetup(mission.setup),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)} ; puis ce qui est déjà fait : \`git log origin/${base}..HEAD\` et \`git diff origin/${base}...HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
-    "2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs.",
+    `2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs. ${CONSIGNE_DES_LECTURES}`,
     `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",

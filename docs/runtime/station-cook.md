@@ -113,6 +113,14 @@ On the tickets of #2541, cooks wrote their report over a test left in the backgr
 to 8 min for the tool to kill it; and their answer to its end notification became their last
 message, in place of the deliverable.
 
+**The cook reads in as few turns as it can.** Its instructions (`CONSIGNE_DES_LECTURES`, both the
+first cook's and the resuming cook's) tell it that every tool call costs a model turn, and to read in
+one turn what depends on no other read: several calls in one message, or one command that reads
+several files. In the cook sessions of #2486 to #2571 (#2573), 73 % of cooking was the model between
+two calls and 27 % the tools; the opus cooks — 405 of the 497 min — spent 65 % of their calls reading
+the repo, one call per turn in 95 % of turns, 82 % of them in runs of 3 to 42 reads: 140 min, the
+first item of cooking, ahead of the tests (92 min).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
