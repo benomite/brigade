@@ -159,33 +159,69 @@ fi
 # pour cause de charge (#1004). Le verrou est un répertoire (`mkdir` est
 # atomique, sur Linux comme sur macOS), partagé entre tous les worktrees de la
 # box ; il porte le pid de ce script. Un passage tué ou planté ne le libère pas
-# lui-même : le suivant voit que ce pid est mort et reprend la main.
+# lui-même : le suivant voit qu'il est mort et reprend la main.
+# Sa vie se lit au `flock` qu'il tient sur son fichier `pid` (#2551), pas à son
+# pid : chaque cook joue ses gates dans sa cloison (`bwrap --unshare-pid`), où
+# les pids sont les siens et `/tmp` celui de tous. Le `kill -0` d'un pid d'une
+# autre cloison y échoue — chaque passage volait son tour au passage vivant
+# d'un autre cook, et leurs suites couraient ensemble ; et le pid 2 y est le
+# `claude` du cook lui-même — le verrou d'un passage tué dans sa cloison, où
+# il était le pid 2, ne se reprenait jamais. Le noyau, lui, lâche le `flock` à
+# la mort de son passage, quelle que soit sa cloison. Sans `flock` (macOS, où
+# rien n'est cloisonné), le pid se juge par `kill -0`. Les suites et le
+# contrôle de types ne reçoivent pas ce descripteur (`9>&-`) : une suite qui
+# survit à son passage tué ne tient pas le tour.
 # L'attente n'est PAS de la durée d'exécution : la garde d'horloge ne court
 # qu'une fois le tour obtenu (elle est armée dans `suite`).
 VERROU="${BRIGADE_GATES_VERROU:-${TMPDIR:-/tmp}/brigade-gates-$(id -u).verrou}"
 VERROU="${VERROU%/}"
 TOUR=0
+FLOCK=0
+command -v flock >/dev/null 2>&1 && FLOCK=1
+# Ce passage tient le tour : le fichier `pid` du verrou est celui qu'il a
+# verrouillé, ou porte son pid sans `flock`. Deux cloisons peuvent avoir le
+# même pid : le fichier départage, pas le nombre.
+a_le_tour() {
+  if [ "$FLOCK" -eq 1 ]; then [ "$VERROU/pid" -ef /dev/fd/9 ]; else [ "$(cat "$VERROU/pid" 2>/dev/null)" = "$$" ]; fi
+}
 rendre_le_tour() {
-  if [ "$TOUR" -eq 1 ] && [ "$(cat "$VERROU/pid" 2>/dev/null)" = "$$" ]; then
+  if [ "$TOUR" -eq 1 ] && a_le_tour; then
     rm -rf "$VERROU"
   fi
+  if [ "$TOUR" -eq 1 ] && [ "$FLOCK" -eq 1 ]; then flock -u 9; exec 9>&-; fi
   TOUR=0
 }
+# Le passage qui a signé le verrou est vivant. Signé, le fichier est déjà
+# verrouillé (`flock` avant l'écriture du pid) : s'il se verrouille ici, son
+# passage est mort. Disparu entre-temps, il ne se crée pas : la boucle relit.
+signataire_vivant() {
+  if [ "$FLOCK" -eq 1 ]; then
+    ! ( exec 8<"$VERROU/pid" && flock -n 8 ) 2>/dev/null
+  else
+    kill -0 "$1" 2>/dev/null
+  fi
+}
 prendre_le_tour() {
-  local PROPRIETAIRE MORT
+  local PROPRIETAIRE MORT MORTE
   # `BRIGADE_GATES_VERROU=aucun` : pas de tour. Pour les tests des gates, qui
   # en jouent des dizaines de front et ne doivent pas faire la queue.
   [ "$VERROU" = aucun ] && return 0
   while :; do
     if mkdir "$VERROU" 2>/dev/null; then
-      echo "$$" >"$VERROU/pid"
+      if [ "$FLOCK" -eq 1 ]; then
+        exec 9>"$VERROU/pid"
+        flock 9
+        echo "$$" >&9
+      else
+        echo "$$" >"$VERROU/pid"
+      fi
       TOUR=1
       return 0
     fi
     PROPRIETAIRE="$(cat "$VERROU/pid" 2>/dev/null)"
     MORT=0
     if [ -n "$PROPRIETAIRE" ]; then
-      kill -0 "$PROPRIETAIRE" 2>/dev/null || MORT=1
+      signataire_vivant "$PROPRIETAIRE" || MORT=1
     elif [ ! -d "$VERROU" ]; then
       continue   # rendu entre-temps
     elif [ -n "$(find "$VERROU" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
@@ -194,12 +230,14 @@ prendre_le_tour() {
     if [ "$MORT" -eq 1 ]; then
       # Reprise : renommer est atomique, un seul des passages en attente
       # emporte le verrou mort. Si ce qu'on a emporté est le verrou vivant d'un
-      # autre (repris entre-temps), on le remet.
-      if mv "$VERROU" "$VERROU.mort.$$" 2>/dev/null; then
-        if [ "$(cat "$VERROU.mort.$$/pid" 2>/dev/null)" = "$PROPRIETAIRE" ]; then
-          rm -rf "$VERROU.mort.$$"
+      # autre (repris entre-temps), on le remet. Le nom porte un hasard : deux
+      # cloisons peuvent avoir le même pid.
+      MORTE="$VERROU.mort.$$.$RANDOM"
+      if mv "$VERROU" "$MORTE" 2>/dev/null; then
+        if [ "$(cat "$MORTE/pid" 2>/dev/null)" = "$PROPRIETAIRE" ]; then
+          rm -rf "$MORTE"
         else
-          mv "$VERROU.mort.$$" "$VERROU" 2>/dev/null || rm -rf "$VERROU.mort.$$"
+          mv "$MORTE" "$VERROU" 2>/dev/null || rm -rf "$MORTE"
         fi
       fi
       continue
@@ -292,7 +330,7 @@ types_partir() {
   node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null || return 0
   if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
     SORTIE="$(mktemp)"
-    GOMAXPROCS=2 GOGC=200 npm --prefix "$ZONE" run typecheck >"$SORTIE" 2>&1 &
+    GOMAXPROCS=2 GOGC=200 npm --prefix "$ZONE" run typecheck >"$SORTIE" 2>&1 9>&- &
     printf -v "PID_TYPES_$ZONE" '%s' "$!"
     printf -v "TYPES_$ZONE" '%s' "$SORTIE"
   else
@@ -363,9 +401,9 @@ suite() {
       set -m
       if [ -n "$FICHIERS" ]; then
         # Le script `test` de la zone, ses fichiers à la place de son motif.
-        ( cd "$ZONE" && exec env "${ENV_TESTS[@]}" sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 &
+        ( cd "$ZONE" && exec env "${ENV_TESTS[@]}" sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 9>&- &
       else
-        env "${ENV_TESTS[@]}" npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
+        env "${ENV_TESTS[@]}" npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 9>&- &
       fi
       PID_TESTS=$!
       set +m
@@ -384,7 +422,7 @@ suite() {
           wait "$dort"
         done
         sleep "$DELAI" & dort=$!
-        wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID_TESTS" ) >/dev/null 2>&1 &
+        wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID_TESTS" ) >/dev/null 2>&1 9>&- &
       PID_GARDE=$!
       # Interrompues, les gates n'abandonnent pas une suite qui n'est plus dans
       # leur groupe.

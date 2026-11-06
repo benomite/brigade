@@ -2,12 +2,12 @@
 // des projets d'essai qui partagent un verrou — comme deux worktrees d'une box.
 // Seule l'étape des tests est regardée ; les autres y sont rouges, sans dépôt.
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
+import { linuxOnly, posixOnly } from "./support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 
@@ -85,5 +85,53 @@ describe("le tour des gates sur une box", () => {
     const second = jouer(t, b, verrou);
     assert.equal(await second.fin, 1, "rouge faute de dépôt, mais les tests ont couru");
     assert.equal(existsSync(signalB), true, "le tour n'a pas été rendu");
+  });
+
+  // Chaque cook joue ses gates dans sa cloison (`bwrap --unshare-pid`), `/tmp`
+  // partagé : le pid qui signe le verrou est celui d'une autre cloison. Sa vie
+  // se lit au `flock` que son passage tient sur le fichier `pid` (#2551).
+  const sansFlock = linuxOnly("the turn lock reads its holder's life from a flock(1) on its pid file, which macOS does not ship") || (spawnSync("flock", ["--version"]).error ? "flock(1) is not installed" : false);
+  // Un pid qu'aucun process n'a ici : celui d'un passage vivant, vu d'une autre cloison.
+  const PID_D_AILLEURS = "99999999";
+  const signerLeVerrou = (verrou: string, pid: string) => {
+    mkdirSync(verrou);
+    writeFileSync(join(verrou, "pid"), `${pid}\n`);
+  };
+
+  test("le passage vivant d'une autre cloison garde son tour, même si son pid n'existe pas ici", { skip: sansFlock }, async (t) => {
+    const verrou = join(repertoireTemporaire(t), "verrou");
+    const tenu = join(repertoireTemporaire(t), "tenu");
+    const libere = join(repertoireTemporaire(t), "libere");
+    const signalB = join(repertoireTemporaire(t), "b");
+    signerLeVerrou(verrou, PID_D_AILLEURS);
+    // Le passage de l'autre cloison : il tient le fichier `pid` de son verrou.
+    const ailleurs = spawn("flock", [join(verrou, "pid"), "sh", "-c", `touch ${tenu}; while [ ! -e ${libere} ]; do sleep 0.1; done`], { stdio: "ignore" });
+    aArreter(t, () => ailleurs.kill("SIGKILL"));
+    await jusqua(() => existsSync(tenu));
+
+    const second = jouer(t, projet(t, `touch ${signalB}`), verrou);
+    // Le miroir jugé, le passage en est au tour : avant #2551, il le volait sur-le-champ.
+    await jusqua(() => /miroir invérifiable/.test(second.sortie()));
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(existsSync(signalB), false, "le tour d'un passage vivant a été volé");
+
+    writeFileSync(libere, "");
+    // Son passage fini sans rendre le tour, le verrou ne tient plus : il se reprend.
+    await new Promise((r) => ailleurs.on("close", r));
+    assert.equal(await second.fin, 1, "rouge faute de dépôt, mais les tests ont couru");
+    assert.equal(existsSync(signalB), true);
+  });
+
+  test("un verrou que personne ne tient se reprend, même signé d'un pid vivant ici", { skip: sansFlock }, async (t) => {
+    const verrou = join(repertoireTemporaire(t), "verrou");
+    const signalB = join(repertoireTemporaire(t), "b");
+    // Le pid 2 d'une cloison est le `claude` du cook : le passage tué qui l'y
+    // portait a laissé un verrou signé d'un pid toujours vivant, vu de là.
+    signerLeVerrou(verrou, String(process.pid));
+
+    const second = jouer(t, projet(t, `touch ${signalB}`), verrou);
+    await jusqua(() => existsSync(signalB));
+    assert.equal(await second.fin, 1, "rouge faute de dépôt, mais les tests ont couru");
+    assert.equal(existsSync(verrou), false, "le verrou n'est pas rendu");
   });
 });
