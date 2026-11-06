@@ -9,8 +9,8 @@
 //     sur sa page, ticket 1780 — stations-du-compte.js).
 // Confié, le parcours passe à la suite. Refusé, une ligne le dit, son détail au survol, et rien ne bouge. Sans station
 // appairée, seul cet ordinateur est proposé.
-// Le parcours l'inscrit à la suite de l'étape du projet par `etapeDeLaStation`, à la forme de ses autres étapes
-// (parcours.js, ticket 2475) : faite quand une machine a reçu le projet.
+// Le parcours l'inscrit à la suite par `etapeDeLaStation`, à la forme de ses autres étapes (parcours.js, ticket 2475) :
+// faite quand une machine a reçu le projet.
 // Tout est écrit par le process principal : ce module reçoit `servirIci` et `choisir`, ne touche pas `document` — il
 // reçoit de quoi créer un élément (briques.js) — et rend des éléments.
 
@@ -34,6 +34,8 @@ export const EN_COURS = "saving…";
 export const ILLISIBLES = "your stations could not be read";
 export const LECTURE = "Reading your stations…";
 export const INJOIGNABLE = (/** @type {string} */ nom) => `${nom} could not be given the project.`;
+export const EN_ATTENTE = "Once the project is added, pick here who cooks it.";
+export const CUIT_PAR = (/** @type {string} */ nom, /** @type {string} */ depot) => `${nom} cooks ${depot}.`;
 
 // La sélection d'une station une fois le dépôt confié : la sienne, le dépôt ajouté à la fin — s'il n'y est pas déjà, sans
 // égard à la casse, comme GitHub.
@@ -45,11 +47,14 @@ export function selectionAvec(selection, depot) {
 }
 
 // Les stations proposées après cet ordinateur : une par machine, dans l'ordre des noms (`uneLigneParMachine`), sans
-// cet ordinateur lui-même — sa station est enregistrée sous le compte comme les autres, et il est déjà proposé en tête.
-/** @param {readonly Station[]} stations @param {string} [nomIci] @returns {Station[]} */
-export function stationsProposees(stations, nomIci) {
-  const ici = nomIci?.toLowerCase();
-  return uneLigneParMachine([], stations).flatMap((ligne) => ("enregistree" in ligne && ligne.enregistree !== undefined && ligne.enregistree.name.toLowerCase() !== ici ? [ligne.enregistree] : []));
+// cet ordinateur lui-même — sa station (`locale`, l'id que GitHub publie pour elle) est enregistrée sous le compte comme
+// les autres, et il est déjà proposé en tête ; un vieil enregistrement de la même machine, sous son nom, non plus.
+/** @param {readonly Station[]} stations @param {string} [locale] @returns {Station[]} */
+export function stationsProposees(stations, locale) {
+  const ici = stations.find(({ id }) => id === locale)?.name.toLowerCase();
+  return uneLigneParMachine([], stations).flatMap((ligne) =>
+    "enregistree" in ligne && ligne.enregistree !== undefined && ligne.enregistree.id !== locale && ligne.enregistree.name.toLowerCase() !== ici ? [ligne.enregistree] : [],
+  );
 }
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -60,7 +65,7 @@ function cree(doc, balise, texte) {
 }
 
 // L'étape. `depot` : le dépôt que l'étape d'avant vient d'ajouter. `ici` : le nom que l'app donne à cet ordinateur
-// (« this Mac », « this PC ») ; `nomIci`, celui de sa station, qui ne se propose pas deux fois. `stations` : celles du
+// (« this Mac », « this PC ») ; `locale`, l'id de sa station, qui ne se propose pas deux fois. `stations` : celles du
 // compte, ou `{ refus }` — la lecture a échoué, cet ordinateur reste proposé —, ou rien : la lecture est en route, cet
 // ordinateur est déjà proposé. `servirIci(depot)` : la station de cet
 // ordinateur le sert ; absent, cet appareil n'a pas de station (un téléphone). `choisir(id, depots)` écrit la sélection
@@ -70,14 +75,14 @@ function cree(doc, balise, texte) {
  * @param {{
  *   depot: string,
  *   ici: string,
- *   nomIci?: string,
+ *   locale?: string,
  *   stations?: readonly Station[] | { refus: string },
  *   servirIci?: (depot: string) => Promise<LectureDesProjetsServis>,
  *   choisir: (id: string, depots: string[]) => Promise<Choix>,
  *   suivante: (nom: string) => void,
  * }} donnees
  */
-export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci, choisir, suivante }) {
+export function poserEtapeStation(doc, { depot, ici, locale, stations, servirIci, choisir, suivante }) {
   const racine = cree(doc, "section");
   racine.className = "etape-station";
   racine.ariaLabel = "Pick the station";
@@ -134,7 +139,7 @@ export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci
   }
   else if (!Array.isArray(stations)) racine.append(lectureIndisponible(doc, ILLISIBLES, /** @type {{ refus: string }} */ (stations).refus));
   else {
-    const proposees = stationsProposees(/** @type {readonly Station[]} */ (stations), nomIci);
+    const proposees = stationsProposees(/** @type {readonly Station[]} */ (stations), locale);
     if (proposees.length > 0) {
       const autres = cree(doc, "p", AUTRES);
       autres.className = "autres";
@@ -165,16 +170,17 @@ export function poserEtapeStation(doc, { depot, ici, nomIci, stations, servirIci
   return racine;
 }
 
-// L'étape telle que le parcours l'inscrit, après celle du projet. Elle lit dans l'état du parcours le dépôt ajouté
-// (`depot` — absent, l'étape d'avant n'est pas faite, rien ne se pose), cet ordinateur (`ici`, `nomIci`), les stations
-// du compte (`stations`) et la machine qui a reçu le projet (`station`) ; ses gestes : `servirIci`, `choisir`, et
-// `stationChoisie(nom)`, qui tient `station` et passe à la suite.
+// L'étape telle que le parcours l'inscrit (parcours.js), à la suite. Elle lit dans l'état du parcours le dépôt ajouté
+// (`depot` — absent, aucun projet n'est encore ajouté, une ligne le dit), cet ordinateur (`ici`, `locale`), les
+// stations appairées du compte (`appairees`, à la forme de `stations` ci-dessus) et la machine qui a reçu le projet
+// (`station` — tenue, l'étape est faite et le dit) ; ses gestes : `servirIci`, `choisir`, et `stationChoisie(nom)`, qui
+// tient `station` et passe à la suite. Un parcours monté sans eux n'a pas de dépôt à confier : l'étape y attend.
 /**
- * @typedef {{ depot?: string, ici?: string, nomIci?: string, stations?: readonly Station[] | { refus: string }, station?: string }} EtatPourLaStation
+ * @typedef {{ depot?: string, ici?: string, locale?: string, appairees?: readonly Station[] | { refus: string }, station?: string }} EtatPourLaStation
  * @typedef {{
  *   servirIci?: (depot: string) => Promise<LectureDesProjetsServis>,
- *   choisir: (id: string, depots: string[]) => Promise<Choix>,
- *   stationChoisie: (nom: string) => void,
+ *   choisir?: (id: string, depots: string[]) => Promise<Choix>,
+ *   stationChoisie?: (nom: string) => void,
  * }} GestesPourLaStation
  */
 export const etapeDeLaStation = {
@@ -183,13 +189,23 @@ export const etapeDeLaStation = {
   faite: (/** @type {EtatPourLaStation} */ etat) => etat.station !== undefined,
   /** @param {Fabrique} doc @param {EtatPourLaStation} etat @param {GestesPourLaStation} geste */
   poser: (doc, etat, geste) => {
-    if (etat.depot === undefined) return [];
+    const { depot, station } = etat;
+    if (depot === undefined || geste.choisir === undefined || geste.stationChoisie === undefined) {
+      const attente = cree(doc, "p", EN_ATTENTE);
+      attente.className = "dit";
+      return [attente];
+    }
+    if (station !== undefined) {
+      const fait = cree(doc, "p", CUIT_PAR(station, depot));
+      fait.className = "dit";
+      return [fait];
+    }
     return [
       poserEtapeStation(doc, {
-        depot: etat.depot,
+        depot,
         ici: etat.ici ?? "this computer",
-        ...(etat.nomIci === undefined ? {} : { nomIci: etat.nomIci }),
-        ...(etat.stations === undefined ? {} : { stations: etat.stations }),
+        ...(etat.locale === undefined ? {} : { locale: etat.locale }),
+        ...(etat.appairees === undefined ? {} : { stations: etat.appairees }),
         ...(geste.servirIci === undefined ? {} : { servirIci: geste.servirIci }),
         choisir: geste.choisir,
         suivante: geste.stationChoisie,

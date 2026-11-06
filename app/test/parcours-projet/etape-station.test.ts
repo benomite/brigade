@@ -4,7 +4,8 @@
 // un refus se dit en une ligne, et rien ne bouge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ATTENDU, etapeDeLaStation, HORS_LIGNE, ILLISIBLES, LECTURE, poserEtapeStation, selectionAvec, stationsProposees, TITRE } from "../../src/vue/parcours-projet/etape-station.js";
+import { ATTENDU, CUIT_PAR, EN_ATTENTE, etapeDeLaStation, HORS_LIGNE, ILLISIBLES, LECTURE, poserEtapeStation, selectionAvec, stationsProposees, TITRE } from "../../src/vue/parcours-projet/etape-station.js";
+import { ETAPES, poserParcoursProjet } from "../../src/vue/parcours-projet/parcours.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -40,7 +41,7 @@ function monter(options: Options = {}) {
   const racine = poserEtapeStation(doc, {
     depot: DEPOT,
     ici: "this Mac",
-    nomIci: "macbook",
+    locale: "gistmacbook",
     ...(options.stations === null ? {} : { stations: options.stations ?? STATIONS }),
     ...(servirIci === undefined ? {} : { servirIci }),
     choisir: options.choisir ?? (async (id, depots) => (choisis.push({ id, depots }), { selection: depots })),
@@ -108,7 +109,7 @@ describe("sans aucune station appairée", () => {
     assert.equal(etape.suites(), 1);
   });
   test("cet ordinateur seul enregistré sous le compte : il ne se propose pas deux fois", () => {
-    assert.deepEqual(monter({ stations: [station("MacBook")] }).machines(), ["ici"]);
+    assert.deepEqual(monter({ stations: [station("macbook")] }).machines(), ["ici"]);
   });
   test("les stations illisibles : cet ordinateur reste proposé, la lecture se dit en une ligne", async () => {
     const etape = monter({ stations: { refus: "gh: HTTP 502" } });
@@ -170,7 +171,14 @@ describe("la logique de station reprise", () => {
   test("stationsProposees : deux enregistrements d'un même nom n'en font qu'un, celui qui est en ligne", () => {
     const vieille = station("nas", { id: "vieux", available: false, lastSeen: "2026-10-01T00:00:00Z" });
     const vive = station("NAS", { id: "vif" });
-    assert.deepEqual(stationsProposees([vieille, vive], "macbook").map(({ id }) => id), ["vif"]);
+    assert.deepEqual(stationsProposees([vieille, vive], "gistmacbook").map(({ id }) => id), ["vif"]);
+  });
+  test("stationsProposees : cet ordinateur ne se propose pas, ni sous son id, ni sous un vieil enregistrement de son nom", () => {
+    const ici = station("MacBook", { id: "gistmacbook" });
+    const ancien = station("macbook", { id: "ancien", available: false, lastSeen: "2026-09-01T00:00:00Z" });
+    assert.deepEqual(stationsProposees([ici, ancien, station("nas")], "gistmacbook").map(({ name }) => name), ["nas"]);
+    // Sa station pas encore lue : les stations du compte se proposent toutes.
+    assert.deepEqual(stationsProposees([station("nas")], undefined).map(({ name }) => name), ["nas"]);
   });
 });
 
@@ -186,17 +194,69 @@ describe("l'étape inscrite au parcours, après celle du projet", () => {
     assert.equal(etapeDeLaStation.faite({ depot: DEPOT }), false);
     assert.equal(etapeDeLaStation.faite({ depot: DEPOT, station: "this Mac" }), true);
   });
-  test("sans dépôt ajouté, elle ne pose rien", () => {
-    assert.deepEqual(etapeDeLaStation.poser(doc, {}, gestes([])), []);
+  test("sans dépôt ajouté, elle attend le projet en une ligne, sans bouton", () => {
+    const poses = etapeDeLaStation.poser(doc, {}, gestes([])) as Faux[];
+    assert.deepEqual(poses.map((pose) => pose.textContent), [EN_ATTENTE]);
+    assert.equal(poses[0]!.dessous("button").length, 0);
+  });
+  test("sans ses gestes (un écran qui n'ajoute pas de projet), elle attend aussi", () => {
+    const poses = etapeDeLaStation.poser(doc, { depot: DEPOT }, {}) as Faux[];
+    assert.deepEqual(poses.map((pose) => pose.textContent), [EN_ATTENTE]);
+  });
+  test("faite, elle dit quelle machine cuit le projet, sans reproposer les machines", () => {
+    const poses = etapeDeLaStation.poser(doc, { depot: DEPOT, station: "parade-box", appairees: STATIONS }, gestes([])) as Faux[];
+    assert.deepEqual(poses.map((pose) => pose.textContent), [CUIT_PAR("parade-box", DEPOT)]);
+    assert.equal(CUIT_PAR("parade-box", DEPOT), "parade-box cooks chef/parade.");
   });
   test("le dépôt ajouté, elle pose la question ; un clic tient la machine choisie", async () => {
     const tenues: string[] = [];
-    const [racine] = etapeDeLaStation.poser(doc, { depot: DEPOT, ici: "this Mac", nomIci: "macbook", stations: STATIONS }, gestes(tenues)) as Faux[];
+    const [racine] = etapeDeLaStation.poser(doc, { depot: DEPOT, ici: "this Mac", locale: "gistmacbook", appairees: STATIONS }, gestes(tenues)) as Faux[];
     assert.equal(racine!.children[0]?.textContent, ATTENDU);
     const lignes = [...racine!.descendants()].filter((element) => element.dataset.station !== undefined);
     assert.deepEqual(lignes.map((element) => element.dataset.station), ["ici", "nas", "parade-box"]);
     lignes[2]!.dessous("button")[0]!.click();
     await new Promise((resoudre) => setImmediate(resoudre));
     assert.deepEqual(tenues, ["parade-box"]);
+  });
+});
+
+describe("l'étape dans le parcours d'ajout partagé (parcours.js)", () => {
+  const gestes = (tenues: string[]) => ({
+    seConnecter: () => {},
+    changerDeCompte: () => {},
+    relireLeCompte: () => {},
+    ouvrirLaPage: () => {},
+    servirIci: async (depot: string) => ({ depots: [depot] }),
+    choisir: async (_id: string, depots: string[]) => ({ selection: depots }),
+    stationChoisie: (nom: string) => void tenues.push(nom),
+  });
+  const ecran = (etat: Parameters<typeof poserParcoursProjet>[1], tenues: string[] = []) => poserParcoursProjet(doc, etat, gestes(tenues)) as Faux;
+  const ligne = (racine: Faux) => racine.dessous("li").find((une) => une.dataset.etape === "station")!;
+
+  test("elle est inscrite après le compte", () => {
+    assert.deepEqual(ETAPES.map((etape) => etape.id).slice(-1), ["station"]);
+    assert.ok(ETAPES.findIndex((etape) => etape.id === "compte") < ETAPES.indexOf(etapeDeLaStation));
+  });
+  test("le projet ajouté, le parcours demande « Who cooks this project? » à l'étape courante, sans quitter l'écran", () => {
+    const racine = ecran({ compte: { login: "chef" }, depot: DEPOT, ici: "this Mac", locale: "gistmacbook", appairees: STATIONS });
+    const station = ligne(racine);
+    assert.equal(station.dataset.etat, "courante");
+    assert.ok([...station.descendants()].some((element) => element.textContent === ATTENDU && element.className === "attendu"));
+    assert.deepEqual(
+      [...station.descendants()].filter((element) => element.dataset.station !== undefined).map((element) => element.dataset.station),
+      ["ici", "nas", "parade-box"],
+    );
+  });
+  test("sans station appairée, cet ordinateur seul ; un clic le confie, et le parcours tient la machine", async () => {
+    const tenues: string[] = [];
+    const station = ligne(ecran({ compte: { login: "chef" }, depot: DEPOT, ici: "this Mac", appairees: [] }, tenues));
+    const machines = [...station.descendants()].filter((element) => element.dataset.station !== undefined);
+    assert.deepEqual(machines.map((element) => element.dataset.station), ["ici"]);
+    machines[0]!.dessous("button")[0]!.click();
+    await new Promise((resoudre) => setImmediate(resoudre));
+    assert.deepEqual(tenues, ["this Mac"]);
+  });
+  test("la machine tenue, l'étape est faite", () => {
+    assert.equal(ligne(ecran({ compte: { login: "chef" }, depot: DEPOT, station: "this Mac" })).dataset.etat, "faite");
   });
 });

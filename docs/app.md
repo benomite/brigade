@@ -410,14 +410,33 @@ Add a project
   stations' gestures then do not offer the same page a second time.
 - **The steps** are numbered, each with its state — `done`, `now` (under the accent line), `to come` — like
   the commissioning path of a new project. One file per step, under `app/src/vue/parcours-projet/`; the next
-  steps (the project to pick, the station that cooks it, the recap) are registered in `ETAPES`
-  (`parcours.js`), after the account. For now the path ends after the account step: under it, first launch
-  keeps its stations and its project field, and **Add a project** keeps its folder form, `Add a project from
-  a folder`.
+  steps (the project to pick, the recap) are registered in `ETAPES` (`parcours.js`). For now the project
+  is added under the path: first launch keeps its stations and its project field, and **Add a project**
+  keeps its folder form, `Add a project from a folder`.
+- **The station step** (#2477), after the account: `The station that cooks it`. Until a project is added it
+  says one line, `Once the project is added, pick here who cooks it.` Once **Add to the app** has added
+  one, the screen stays on the path and asks **`Who cooks this project?`**: **this computer first**, as
+  the recommended button (its hover: it stops when you close the app), then `or one of your stations:` —
+  the stations paired with your account, one per machine, by name, each `online` or `offline` (an
+  offline one takes the project once it is back, on hover). With no paired station, only this computer
+  is offered; when the stations cannot be read, one line says so and this computer is still offered.
+  One click gives the project to the machine, by the gestures the app already makes — this computer's
+  station serves it as its Settings box does (`servirUnProjet`), a paired station gets it in its
+  selection as its box on the home screen does (`choisirLesProjets`) —, then the project's page opens. A
+  refusal stays in the step, in one line, its detail on hover, and nothing moves.
+
+```
+2  The station that cooks it   now
+   Who cooks this project?
+   [this Mac] ?
+   or one of your stations:
+   [atelier] offline ?
+   [parade-box] online
+```
 
 *Code: `app/src/vue/parcours-projet/` (the path, its steps, the sign-in brick shared with the published rail
 and the account's stations), `app/src/connexion-github.ts` (`lireLeCompteGitHub`). Captures:
-`docs/captures/2475/`.*
+`docs/captures/2475/`, `docs/captures/2477/`.*
 
 ### The age of the rail is always on screen (#2054)
 

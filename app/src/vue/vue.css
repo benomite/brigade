@@ -5723,6 +5723,9 @@ button.recommande {
 .etape-station > p {
   margin: 0;
 }
+.etape-station > p:empty {
+  display: none;
+}
 .etape-station .attendu {
   font-size: 15px;
   font-weight: 600;

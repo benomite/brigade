@@ -27,15 +27,18 @@ const SANS_GESTE = { seConnecter: () => {}, changerDeCompte: () => {}, relireLeC
 const SRC = join(import.meta.dirname, "../../src");
 
 describe("le squelette : des étapes ordonnées, une par fichier", () => {
-  test("le compte est la première étape inscrite ; chaque étape est numérotée, sous « Add a project »", () => {
-    assert.deepEqual(ETAPES.map((etape) => etape.id), ["compte"]);
+  test("le compte est la première étape inscrite, la station suit (#2477) ; chaque étape est numérotée, sous « Add a project »", () => {
+    assert.deepEqual(ETAPES.map((etape) => etape.id), ["compte", "station"]);
     assert.equal(ETAPES[0], etapeDuCompte);
     const ecran = poserParcoursProjet(doc, { compte: { login: "octo-chef" } }, SANS_GESTE) as Faux;
     assert.equal(ecran.dessous("h2")[0]?.textContent, TITRE);
     assert.equal(TITRE, "Add a project");
     assert.deepEqual(
       ecran.dessous("li").map((ligne) => [ligne.dataset.etape, ligne.dessous("span")[0]?.textContent, ligne.dessous("strong")[0]?.textContent]),
-      [["compte", "1", "Your GitHub account"]],
+      [
+        ["compte", "1", "Your GitHub account"],
+        ["station", "2", "The station that cooks it"],
+      ],
     );
     // Sans `bienvenue`, aucune phrase d'accueil.
     assert.equal(ecran.dessous("p").some((pose) => pose.textContent === BIENVENUE), false);
