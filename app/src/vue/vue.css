@@ -8988,5 +8988,5 @@ button.recommande {
 .connexions .reglage { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.25rem 0; }
 .connexions .reglage .nom { min-width: 11rem; }
 .connexions .reglage .valeur { display: inline-flex; align-items: center; gap: 0.4rem; }
-.connexions .reglage .refus { flex-basis: 100%; margin: 0; }
+.connexions .reglage .geste-dit { flex-basis: 100%; margin: 0; }
 .connexions .ailleurs { margin: 0.4rem 0 0; opacity: 0.7; }

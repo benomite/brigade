@@ -56,7 +56,8 @@ function rangee(doc, { cle, nom, niveau, valeur, geste }) {
   const racine = doc.createElement("div");
   racine.className = "reglage";
   racine.dataset.reglage = cle;
-  const dit = avec(doc, "p", "", "refus");
+  const dit = avec(doc, "p", "");
+  dit.className = "geste-dit";
   dit.hidden = true;
   const controle = [];
   if (geste !== undefined) {
@@ -124,6 +125,10 @@ export function poserSection(doc, contexte) {
   const racine = doc.createElement("div");
   racine.className = "connexions";
   racine.append(github(doc, contexte, lues), claude(doc, contexte, lues));
-  if (contexte.lectureSeule) racine.append(avec(doc, "p", AILLEURS(contexte.station.nom), "ailleurs"));
+  if (contexte.lectureSeule) {
+    const ailleurs = avec(doc, "p", AILLEURS(contexte.station.nom));
+    ailleurs.className = "ailleurs";
+    racine.append(ailleurs);
+  }
   return racine;
 }
