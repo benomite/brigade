@@ -14,6 +14,7 @@
 //                               ou un répertoire (obligatoire ; le paquet la pose)
 //   BRIGADE_MISE_A_JOUR_GARDE_S le temps laissé à la station pour démarrer (défaut 120)
 //   BRIGADE_MISE_A_JOUR_ESPACEMENT_S le temps minimal entre deux versions installées (défaut 1800)
+//   BRIGADE_MISE_A_JOUR_VIDANGE_S le plus long qu'une installation attend les cooks en vol (défaut 900)
 //
 // Codes de sortie : 0 le passage s'est fait — à jour, gelée, passée ou
 // revenue, l'état le dit ; 1 le retour à la version d'avant a échoué lui
@@ -23,6 +24,7 @@ import { lireEtatMiseAJour } from "./etat.ts";
 import { decrireEtatMiseAJour } from "./dire.ts";
 import { ESPACEMENT_MS, GARDE_MS, passer } from "./mettre-a-jour.ts";
 import { publications } from "./publications.ts";
+import { VIDANGE_MAX_MS } from "./vidange.ts";
 import { systemeDeLaMachine } from "./systeme.ts";
 
 const REFUS = 2;
@@ -48,6 +50,8 @@ const garde = process.env.BRIGADE_MISE_A_JOUR_GARDE_S;
 if (garde !== undefined && !/^[1-9]\d*$/.test(garde)) refuser(`BRIGADE_MISE_A_JOUR_GARDE_S=${garde} — attendu un nombre entier de secondes`);
 const espacement = process.env.BRIGADE_MISE_A_JOUR_ESPACEMENT_S;
 if (espacement !== undefined && !/^\d+$/.test(espacement)) refuser(`BRIGADE_MISE_A_JOUR_ESPACEMENT_S=${espacement} — attendu un nombre entier de secondes`);
+const vidange = process.env.BRIGADE_MISE_A_JOUR_VIDANGE_S;
+if (vidange !== undefined && !/^\d+$/.test(vidange)) refuser(`BRIGADE_MISE_A_JOUR_VIDANGE_S=${vidange} — attendu un nombre entier de secondes`);
 
 let source;
 try {
@@ -64,5 +68,6 @@ const { issue } = await passer({
   dire: (ligne) => console.log(ligne),
   gardeMs: garde === undefined ? GARDE_MS : Number(garde) * 1000,
   espacementMs: espacement === undefined ? ESPACEMENT_MS : Number(espacement) * 1000,
+  vidangeMs: vidange === undefined ? VIDANGE_MAX_MS : Number(vidange) * 1000,
 });
 process.exit(issue?.quoi === "revenue" && issue.retour !== null ? 1 : 0);

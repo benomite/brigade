@@ -2,7 +2,7 @@
 // installe, ce qu'elle garde, ce qui la retient, et ce qu'elle dit. La machine
 // d'essai complète — vrais paquets, vrai postinst — est dans machine.test.ts.
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { annoncerEnService } from "../../src/mise-a-jour/en-service.ts";
@@ -10,7 +10,8 @@ import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mi
 import { passer } from "../../src/mise-a-jour/mettre-a-jour.ts";
 import type { Publication, Publications } from "../../src/mise-a-jour/publications.ts";
 import type { Systeme } from "../../src/mise-a-jour/systeme.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { EN_VOL, tenirLaVidange, VIDANGE } from "../../src/mise-a-jour/vidange.ts";
+import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 // Ce que fait la station relancée sur une version : elle se dit en service en
 // servant ces projets — ou elle tombe.
@@ -53,6 +54,7 @@ function machine(t: TestContext, version: string, demarrage: (version: string) =
     service: () => ({ actif, pid: actif === "active" ? pid : 0, redemarrages: 0 }),
   };
   return {
+    pid: () => pid,
     racine,
     dossier,
     systeme,
@@ -83,7 +85,7 @@ function publiees(versions: string[], options: { illisibles?: string; autrePaque
 }
 
 // Sans espacement entre deux passages : celui de #2374 a son test.
-function passage(m: ReturnType<typeof machine>, publications: Publications, dites: string[] = [], options: { espacementMs?: number; maintenant?: () => Date } = {}) {
+function passage(m: ReturnType<typeof machine>, publications: Publications, dites: string[] = [], options: { espacementMs?: number; maintenant?: () => Date; vidangeMs?: number; accuseMs?: number } = {}) {
   return passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: 2000, pasMs: 5, espacementMs: 0, ...options });
 }
 
@@ -258,4 +260,51 @@ test("un essai noté sans que rien ait été installé est oublié : le passage 
   essaiNote(m.dossier, { visee: "1.1.0", depuis: "1.0.0", servis: [] });
   const { etat, issue } = await passage(m, publiees(["1.0.0", "1.1.0"]));
   assert.deepEqual([m.installations, issue?.quoi, etat.essai, etat.ratees], [["1.1.0"], "passee", null, []]);
+});
+
+// La station de la box, avec ses cooks en vol : elle lit la demande de vidange
+// et dit ses cooks, comme celle de station/main.ts (#2547).
+function stationEnVol(t: TestContext, m: ReturnType<typeof machine>, cooks: number[]) {
+  const vidange = tenirLaVidange({ racine: m.racine, dossier: m.dossier, enVol: () => cooks, version: "1.0.0", pid: m.pid(), intervalleMs: 5 });
+  t.after(() => vidange.arreter());
+  return vidange;
+}
+
+test("une version prête attend que les cooks en vol de la station aient fini : la station ne prend plus de ticket, puis vidée, elle est installée (#2547)", async (t) => {
+  const m = machine(t, "1.0.0");
+  const cooks = [2547, 2464];
+  const station = stationEnVol(t, m, cooks);
+  const dites: string[] = [];
+  const enCours = passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 60_000 });
+  await jusqua(() => dites.some((ligne) => ligne.includes("attend la fin des cooks en vol de la station (#2464, #2547)")));
+  assert.deepEqual(m.installations, []);
+  assert.equal(station.retenue(), true);
+  cooks.splice(0);
+  const { issue } = await enCours;
+  assert.equal(issue?.quoi, "passee");
+  assert.deepEqual(m.installations, ["1.1.0"]);
+  assert.ok(dites.includes("brigade : mise à jour — la station s'est vidée : 1.1.0 s'installe"), dites.join("\n"));
+  // La demande est retirée : la station relancée prend ses tickets.
+  assert.equal(existsSync(join(m.dossier, VIDANGE)), false);
+});
+
+test("des cooks encore en vol au terme de la vidange sont coupés : la version s'installe quand même (#2547)", async (t) => {
+  const m = machine(t, "1.0.0");
+  stationEnVol(t, m, [2464]);
+  const dites: string[] = [];
+  const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 50 });
+  assert.equal(issue?.quoi, "passee");
+  assert.ok(dites.some((ligne) => ligne.includes("1 cook(s) encore en vol après") && ligne.includes("(#2464) : 1.1.0 s'installe, ils sont coupés")), dites.join("\n"));
+});
+
+test("une station qui ne dit pas avoir vu la demande, ou d'avant la vidange, est installée sans attendre ses cooks (#2547)", async (t) => {
+  const muette = machine(t, "1.0.0");
+  writeFileSync(join(muette.racine, EN_VOL), JSON.stringify({ pid: muette.pid(), vidange: null, cooks: [2464] }));
+  const dites: string[] = [];
+  assert.equal((await passage(muette, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 60_000, accuseMs: 20 })).issue?.quoi, "passee");
+  assert.ok(dites.some((ligne) => ligne.includes("la station n'a pas vu la demande de vidange")), dites.join("\n"));
+  // Ses cooks dits sous un autre pid : ce n'est pas la station en service.
+  const ancienne = machine(t, "1.0.0");
+  writeFileSync(join(ancienne.racine, EN_VOL), JSON.stringify({ pid: ancienne.pid() + 1, vidange: "1.1.0", cooks: [2464] }));
+  assert.equal((await passage(ancienne, publiees(["1.0.0", "1.1.0"]), [], { vidangeMs: 60_000, accuseMs: 60_000 })).issue?.quoi, "passee");
 });
