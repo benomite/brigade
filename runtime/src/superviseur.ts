@@ -194,8 +194,11 @@ export function superviser(options: OptionsSupervision): Supervise {
     plafonds.durationMs,
   );
   let inactivite: NodeJS.Timeout | undefined;
+  // Une ligne lue après la mort du cook ne repose pas le minuteur d'inactivité :
+  // plus rien ne l'effacerait, et il tiendrait le process une minute (#2537).
   const veiller = () => {
     clearTimeout(inactivite);
+    if (mort) return;
     const depuis = performance.now();
     inactivite = setTimeout(
       () => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(performance.now() - depuis) }),

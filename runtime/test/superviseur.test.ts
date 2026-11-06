@@ -431,4 +431,36 @@ describe("superviser, à l'horloge du test", () => {
   });
 });
 
+// Seul, hors des tests qui tournent de front : il compte ce qui tient le process.
+describe("superviser, seul", () => {
+  test("une ligne lue après la mort du cook ne laisse aucun minuteur qui tienne le process (#2537)", { skip: posixOnly("a node grandchild spawned detached leaves its cook's process group and holds its stdout, and writes its line only once the cook is dead; on Windows the supervisor kills the cook's whole tree by pid at its end, detached grandchild included, so no line comes after the cook's death") }, async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const feu = join(repertoire, "feu");
+    const echappe = join(repertoire, "echappe.pid");
+    // Le petit-enfant tient la sortie du cook, et n'y écrit qu'une fois le cook mort et vu mort.
+    const petit = `const fs = require("node:fs"); const attendre = () => (fs.existsSync(${JSON.stringify(feu)}) ? process.stdout.write("une ligne après la mort\\n") : setTimeout(attendre, 5)); attendre();`;
+    const script = `
+      const petit = require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(petit)}], { detached: true, stdio: "inherit" });
+      require("node:fs").writeFileSync(${JSON.stringify(echappe)}, String(petit.pid));
+      petit.unref();
+    `;
+    aArreter(t, () => {
+      if (existsSync(echappe) && vivant(Number(readFileSync(echappe, "utf8")))) process.kill(Number(readFileSync(echappe, "utf8")), "SIGKILL");
+    });
+    const tenus = () => process.getActiveResourcesInfo().filter((type) => type === "Timeout").length;
+    const avant = tenus();
+    const supervise = superviser({ commande: process.execPath, args: ["-e", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: FILET_MS, flux });
+    aArreter(t, () => supervise.abandonner());
+
+    // Un pid qui ne répond plus est un process que le superviseur a déjà recueilli : sa fin est vue.
+    await jusqua(() => existsSync(echappe) && !vivant(supervise.pid));
+    writeFileSync(feu, "");
+    await supervise.fin;
+
+    assert.equal(readFileSync(flux, "utf8"), "une ligne après la mort\n");
+    assert.equal(tenus(), avant);
+  });
+});
+
 test("superviseur.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

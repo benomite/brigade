@@ -124,3 +124,13 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   assert.equal(vue.element("code").parentElement, vue.element("reglages-machine"));
   assert.match(vue.element("projets").children[0]?.title ?? "", /^All projects — this app's code is 3 commits behind$/);
 });
+
+// Une page vit tant que sa fenêtre est ouverte, ses minuteries avec elle ; une vue jouée ne se ferme
+// jamais. Si les siennes retenaient le process, un `node --test` à la main sur ce fichier — ou sur
+// n'importe lequel qui joue la vue — ne rendrait jamais la main (#2537).
+test("la vue jouée ne retient pas le process : ses minuteries n'ajoutent rien de ce qui le tient en vie", async () => {
+  const tenues = () => process.getActiveResourcesInfo().filter((type) => type === "Timeout").length;
+  const avant = tenues();
+  await lAccueil();
+  assert.equal(tenues(), avant);
+});

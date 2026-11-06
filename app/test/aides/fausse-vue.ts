@@ -322,6 +322,16 @@ export class FauxEcran {
 // un module, `await` compris : chaque vue est jouée de zéro, mais sur le même texte, que V8
 // n'analyse et ne compile qu'une fois par process. Importée comme un module, la vue devait avoir
 // une adresse neuve à chaque fois, et ses 400 Ko étaient relus, décodés et recompilés à chaque vue.
+// Ses minuteries (`setInterval`, `setTimeout`) sont celles du process, mais ne le retiennent pas (#2537) :
+// une page vit tant que sa fenêtre est ouverte, une vue jouée ne se ferme jamais, et ses minuteries
+// tenaient le fichier de tests ouvert pour toujours — sans `--test-force-exit`, un `node --test` à la
+// main ne rendait jamais la main. Elles se lisent sur `globalThis` à chaque appel : les minuteries
+// simulées d'un test (`t.mock.timers`) les remplacent comme avant. Elles tiennent sur la première
+// ligne : celles de vue.js ne bougent pas.
+const MINUTERIES_SANS_RETENUE = [
+  "const setInterval = (...args) => { const minuterie = globalThis.setInterval(...args); minuterie?.unref?.(); return minuterie; };",
+  "const setTimeout = (...args) => { const minuterie = globalThis.setTimeout(...args); minuterie?.unref?.(); return minuterie; };",
+].join(" ");
 let jouable: { texte: string; modules: string[] } | undefined;
 function laVueJouable(): { texte: string; modules: string[] } {
   if (jouable !== undefined) return jouable;
@@ -334,7 +344,7 @@ function laVueJouable(): { texte: string; modules: string[] } {
     modules.push(module);
     return `const ${noms.replace(/\b([A-Za-z_$][\w$]*) as ([A-Za-z_$][\w$]*)\b/g, "$1: $2")} = globalThis.modulesDeLaVue[${JSON.stringify(module)}];`;
   });
-  jouable = { texte: `(async function () { "use strict"; ${corps}\n})`, modules };
+  jouable = { texte: `(async function () { "use strict"; ${MINUTERIES_SANS_RETENUE} ${corps}\n})`, modules };
   return jouable;
 }
 
