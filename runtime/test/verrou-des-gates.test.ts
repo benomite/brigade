@@ -22,12 +22,18 @@ function projet(t: TestContext, suite: string): string {
 type Passage = { process: ChildProcess; sortie: () => string; fin: Promise<number | null> };
 
 function jouer(t: TestContext, racine: string, verrou: string, env: Record<string, string> = {}): Passage {
-  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+  // Son propre groupe de process : la garde d'horloge des gates (un `sleep` de 300 s dans un sous-shell) survit
+  // à un SIGKILL du passage, et la fin du test l'arrête avec lui au lieu de la laisser cinq minutes (#2464).
+  const gates = spawn("bash", [GATES, racine], { env: { ...ENV_ENFANT, BRIGADE_GATES_VERROU: verrou, ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true });
   let sortie = "";
   gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
   const fin = new Promise<number | null>((resoudre) => gates.on("close", (code) => resoudre(code)));
-  aArreter(t, () => gates.kill("SIGKILL"));
+  aArreter(t, () => {
+    try {
+      process.kill(-gates.pid!, "SIGKILL");
+    } catch {}
+  });
   return { process: gates, sortie: () => sortie, fin };
 }
 
