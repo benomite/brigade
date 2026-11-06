@@ -89,7 +89,9 @@ function gabarit(porte: Porte): string {
   const flux = [`commit refs/heads/${BASE}\n`, `committer cook <cook@brigade.test> ${Math.floor(Date.now() / 1000)} +0000\n`, donnee("installe brigade")];
   for (const [chemin, fichier] of Object.entries(fichiers)) {
     if (fichier === null) continue;
-    const [mode, contenu] = "lien" in fichier ? ["120000", fichier.lien] : [fichier.executable ? "100755" : "100644", fichier.contenu];
+    // La cible d'un lien, écrite avec des barres obliques, comme `git add` l'écrit : Git for Windows relit
+    // celle du lien extrait en `/`, et une cible en `\` y paraîtrait changée dans chaque clone (#2614).
+    const [mode, contenu] = "lien" in fichier ? ["120000", fichier.lien.replaceAll("\\", "/")] : [fichier.executable ? "100755" : "100644", fichier.contenu];
     flux.push(`M ${mode} inline ${chemin}\n`, donnee(contenu));
   }
   execFileSync("git", ["fast-import", "--quiet"], { cwd: origine, env: ENV_GIT, input: flux.join(""), stdio: ["pipe", "pipe", "pipe"] });
