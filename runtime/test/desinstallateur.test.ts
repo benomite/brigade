@@ -9,6 +9,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, ut
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Sortie } from "../src/appel.ts";
+import type { Evenement } from "../src/evenements.ts";
 import { lireRetrait, type Plan } from "../src/desinstallateur.ts";
 import { principal as sousLeCompte } from "../src/desinstaller-sous-le-compte.ts";
 import { CODES, Refus } from "../src/installateur.ts";
@@ -21,8 +22,9 @@ import { posixOnly } from "./support/plateforme.ts";
 const TIENT_VERROU = join(import.meta.dirname, "aides/tient-verrou.ts");
 const HISTOIRE = "l'histoire de la cuisine\n";
 
-// Une box où ces projets viennent d'être installés par le geste.
-async function installee(t: TestContext, ...projets: string[]): Promise<Boite> {
+// Une box où ces projets viennent d'être installés par le geste. Sans test,
+// une box que plusieurs tests se partagent.
+async function installee(t: TestContext | null, ...projets: string[]): Promise<Boite> {
   const b = boite(t);
   for (const projet of projets.length === 0 ? ["calculus"] : projets) {
     b.pousser(`acme/${projet}`);
@@ -61,14 +63,102 @@ const gestes = (b: Boite, rang = 0) => b.appels().slice(rang).filter((appel) => 
 // La photo d'une box, sans ce qui vit sous ces chemins.
 const sans = (photo: Record<string, string>, chemins: string[]) => Object.fromEntries(Object.entries(photo).filter(([chemin]) => !chemins.some((retire) => chemin === retire || chemin.startsWith(`${retire}/`))));
 
+// Une désinstallation jouée une fois pour les tests qui ne font que la lire :
+// calculus servi à côté de boutique, son plan avec et sans le journal, sa
+// désinstallation confirmée, l'installation d'atelier sur le port libéré, puis
+// calculus désinstallé à nouveau, réinstallé, et désinstallé journal compris.
+// Ce que chaque pas laisse sur la box est relevé avant le suivant, et chaque
+// test n'attend que les pas qu'il lit : le plan et la désinstallation, que
+// plusieurs tests lisent, partent avec le premier ; l'installation d'atelier
+// et ce qui la suit, seulement quand un test les demande. Une box et ses
+// installations par test, et deux inventaires sous le compte par
+// désinstallation, coûtaient chacun leurs process (#2464).
+type Photo = Record<string, string>;
+type Partagee = {
+  plans: Promise<{ b: Boite; avant: Photo; defaut: Rendu; explicite: Rendu; apres: Photo; gestes: string[] }>;
+  confirmee: Promise<{ rendu: Rendu; avant: Photo; apres: Photo; gestes: string[]; actives: string[]; journal: string }>;
+  suivant: () => Promise<Rendu>;
+  reinstallee: () => Promise<{ rejouee: Rendu; avant: Photo; apres: Photo; gestes: string[]; reinstalle: Rendu; journal: string; sansJournal: Rendu; inconnu: Rendu }>;
+};
+let partagee: Partagee | undefined;
+function desinstallationPartagee(): Partagee {
+  if (partagee !== undefined) return partagee;
+  const plans = (async () => {
+    const b = await installee(null, "calculus", "boutique");
+    servir(b);
+    b.pousser("acme/atelier");
+    const [avant, rang] = [b.photo(), b.appels().length];
+    const defaut = await b.geste(["uninstall", "calculus", "--plan"]);
+    const explicite = await b.geste(["uninstall", "calculus", "--plan", "--supprimer-le-journal"]);
+    return { b, avant, defaut, explicite, apres: b.photo(), gestes: gestes(b, rang) };
+  })();
+  const confirmee = plans.then(async ({ b }) => {
+    const [avant, rang] = [b.photo(), b.appels().length];
+    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
+    return { rendu, avant, apres: b.photo(), gestes: gestes(b, rang), actives: b.actives(), journal: readFileSync(join(b.etats, "calculus/log.db"), "utf8") };
+  });
+  const une = <T>(etape: () => Promise<T>) => {
+    let lancee: Promise<T> | undefined;
+    return () => (lancee ??= etape());
+  };
+  const suivant = une(async () => {
+    await confirmee;
+    const { b } = await plans;
+    return b.geste(b.demande("atelier"));
+  });
+  const reinstallee = une(async () => {
+    await suivant();
+    const { b } = await plans;
+    const [avant, rang] = [b.photo(), b.appels().length];
+    const rejouee = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
+    const [apres, recus] = [b.photo(), gestes(b, rang)];
+    const reinstalle = await b.geste(b.demande());
+    const journal = readFileSync(join(b.etats, "calculus/log.db"), "utf8");
+    const sansJournal = await b.geste(["uninstall", "calculus", "--confirmer", "calculus", "--supprimer-le-journal"]);
+    const inconnu = await b.geste(["uninstall", "calculus", "--plan"]);
+    return { rejouee, avant, apres, gestes: recus, reinstalle, journal, sansJournal, inconnu };
+  });
+  // Un pas qui échoue fait échouer les tests qui l'attendent, pas le fichier.
+  for (const etape of [plans, confirmee]) etape.catch(() => {});
+  return (partagee = { plans, confirmee, suivant, reinstallee });
+}
+
+// Une désinstallation qui s'arrête en chemin, puis se rejoue, jouée une fois :
+// le test de ce qu'elle rend et celui du journal du geste la lisent tous deux.
+// Avant elle, un plan et trois refus, qui ne font que s'inscrire au journal.
+let arretee: Promise<{ b: Boite; debut: Date; fin: Date; journal: Evenement[]; codes: number[]; avant: Photo; rendu: Rendu; apres: Photo; gestes: string[]; actives: string[]; rejouee: Rendu; cloneRetire: boolean }> | undefined;
+function desinstallationArretee(): NonNullable<typeof arretee> {
+  arretee ??= (async () => {
+    const b = await installee(null);
+    servir(b);
+    b.demarrer("brigade@calculus.service");
+    const brouillon = join(b.etats, "calculus/depot/brouillon.txt");
+    writeFileSync(brouillon, "en cours\n");
+    const deja = b.journal().length;
+    const debut = new Date();
+    const codes = [
+      (await b.geste(["uninstall", "calculus", "--plan"], { qui: "alice" })).code,
+      (await b.geste(["uninstall", "calculus"], { qui: "associe" })).code,
+      (await b.geste(["uninstall", "fantome", "--confirmer", "fantome"], { qui: "associe" })).code,
+      (await b.geste(["uninstall", "calculus", "--exec", "/bin/sh"], { qui: "associe" })).code,
+    ];
+    const [avant, rang] = [b.photo(), b.appels().length];
+    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "alice" });
+    const [apres, recus, actives] = [b.photo(), gestes(b, rang), b.actives()];
+    rmSync(brouillon);
+    const rejouee = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "alice" });
+    const fin = new Date();
+    return { b, debut, fin, journal: b.journal().slice(deja), codes, avant, rendu, apres, gestes: recus, actives, rejouee, cloneRetire: !existsSync(join(b.etats, "calculus/depot")) };
+  })();
+  arretee.catch(() => {});
+  return arretee;
+}
+
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
-  test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", { skip: posixOnly("Installs calculus and boutique, serves calculus, and checks `uninstall --plan` lists its units, drop-ins, clone, worktree, versions and port without changing the box; Windows has no process.getuid, so the setup install is refused with sans-droit (77).") }, async (t) => {
-    const b = await installee(t, "calculus", "boutique");
-    servir(b);
-    const [etat, avant, rang] = [join(b.etats, "calculus"), b.photo(), b.appels().length];
-
-    const rendu = await b.geste(["uninstall", "calculus", "--plan"]);
+  test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", { skip: posixOnly("Installs calculus and boutique, serves calculus, and checks `uninstall --plan` lists its units, drop-ins, clone, worktree, versions and port without changing the box; Windows has no process.getuid, so the setup install is refused with sans-droit (77).") }, async () => {
+    const { b, avant, defaut: rendu, apres, gestes: recus } = await desinstallationPartagee().plans;
+    const etat = join(b.etats, "calculus");
 
     assert.equal(rendu.code, 0, rendu.erreur);
     assert.deepEqual(rendu.json, {
@@ -94,8 +184,8 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
       aSavoir: [],
     });
     // La box est, à l'octet près, celle d'avant — et systemd n'a rien reçu qu'une lecture.
-    assert.deepEqual(b.photo(), avant);
-    assert.deepEqual(gestes(b, rang), []);
+    assert.deepEqual(apres, avant);
+    assert.deepEqual(recus, []);
 
     // Ce qu'un humain en lit : la liste, ce qui est gardé, et comment le faire.
     const lignes = rendu.erreur.split("\n");
@@ -114,12 +204,9 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
     assert.equal(lignes.at(-1), "Rien n'a changé sur la box. Pour le faire : `sudo brigade-installer uninstall calculus --confirmer calculus`");
   });
 
-  test("le journal du projet : gardé par défaut, retiré par `--supprimer-le-journal` — le plan le dit dans les deux cas, et ne change rien", { skip: posixOnly("Plans the uninstall of a served calculus with and without `--supprimer-le-journal` and checks only the state directory moves from kept to removed; the gesture refuses its setup install with sans-droit (77), Windows having no process.getuid.") }, async (t) => {
-    const b = await installee(t);
-    servir(b);
-    const [etat, avant] = [join(b.etats, "calculus"), b.photo()];
-
-    const [defaut, explicite] = [await b.geste(["uninstall", "calculus", "--plan"]), await b.geste(["uninstall", "calculus", "--plan", "--supprimer-le-journal"])];
+  test("le journal du projet : gardé par défaut, retiré par `--supprimer-le-journal` — le plan le dit dans les deux cas, et ne change rien", { skip: posixOnly("Plans the uninstall of a served calculus with and without `--supprimer-le-journal` and checks only the state directory moves from kept to removed; the gesture refuses its setup install with sans-droit (77), Windows having no process.getuid.") }, async () => {
+    const { b, avant, defaut, explicite, apres } = await desinstallationPartagee().plans;
+    const etat = join(b.etats, "calculus");
 
     assert.deepEqual([defaut.code, explicite.code], [0, 0], `${defaut.erreur}\n${explicite.erreur}`);
     assert.deepEqual({ retire: retire(defaut).journal, garde: garde(defaut).journal }, { retire: null, garde: etat });
@@ -129,7 +216,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
     assert.match(explicite.erreur, /Pour le faire : `sudo brigade-installer uninstall calculus --confirmer calculus --supprimer-le-journal`$/);
     // Hors le journal, les deux plans disent la même chose.
     assert.deepEqual({ ...retire(explicite), journal: null }, retire(defaut));
-    assert.deepEqual(b.photo(), avant);
+    assert.deepEqual(apres, avant);
   });
 
   test("ce que le clone porte et que l'origine n'a pas est nommé, et le plan dit que la désinstallation refusera", { skip: posixOnly("Leaves an uncommitted brouillon.txt in the reserved clone and checks `--plan` names it as lost and warns the uninstall will refuse; brigade-installer refuses the setup install with sans-droit (77) because Windows has no uid to match root.") }, async (t) => {
@@ -201,14 +288,10 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.deepEqual(gestes(b, rang), []);
   });
 
-  test("confirmée par le nom du projet : elle retire ce que le plan listait, et rien d'autre — le journal reste, les autres projets aussi", { skip: posixOnly("Confirms the uninstall of calculus beside boutique and checks exactly what the plan listed is gone while its journal, runs and boutique survive; the setup install is refused with sans-droit (77), there being no process.getuid on Windows.") }, async (t) => {
-    const b = await installee(t, "calculus", "boutique");
-    servir(b);
+  test("confirmée par le nom du projet : elle retire ce que le plan listait, et rien d'autre — le journal reste, les autres projets aussi", { skip: posixOnly("Confirms the uninstall of calculus beside boutique and checks exactly what the plan listed is gone while its journal, runs and boutique survive; the setup install is refused with sans-droit (77), there being no process.getuid on Windows.") }, async () => {
+    const { b, defaut: plan } = await desinstallationPartagee().plans;
+    const { rendu, avant, apres, gestes: recus, actives: enMarche, journal } = await desinstallationPartagee().confirmee;
     const etat = join(b.etats, "calculus");
-    const plan = await b.geste(["uninstall", "calculus", "--plan"]);
-    const [avant, rang] = [b.photo(), b.appels().length];
-
-    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
 
     assert.equal(rendu.code, 0, rendu.erreur);
     assert.deepEqual({ ok: rendu.json.ok, action: rendu.json.action, fait: rendu.json.fait, projet: rendu.json.projet }, { ok: true, action: "uninstall", fait: "desinstalle", projet: "calculus" });
@@ -218,17 +301,18 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
 
     // Chaque chose que le plan listait n'y est plus…
     const retires = [...retire(plan).dropIns, retire(plan).clone as string, join(etat, "worktrees"), retire(plan).versions as string];
-    for (const chemin of retires) assert.equal(lstatSync(chemin, { throwIfNoEntry: false }), undefined, chemin);
-    assert.deepEqual(gestes(b, rang), ["disable --now brigade-sauvegarde@calculus.timer", "disable --now brigade-porte@calculus.service", "daemon-reload"]);
-    assert.deepEqual(b.actives(), ["brigade-sauvegarde@boutique.timer", "brigade-porte@boutique.service"]);
+    // (La photo nomme tout ce qui est sous les racines de la box.)
+    for (const chemin of retires) assert.equal(apres[chemin], undefined, chemin);
+    assert.deepEqual(recus, ["disable --now brigade-sauvegarde@calculus.timer", "disable --now brigade-porte@calculus.service", "daemon-reload"]);
+    assert.deepEqual(enMarche, ["brigade-sauvegarde@boutique.timer", "brigade-porte@boutique.service"]);
     // … et tout le reste de la box est tel qu'il était : le journal du projet,
     // ses flux, ses sauvegardes, et l'autre projet en entier.
     const actives = join(b.racine, "temoin/actives");
-    assert.deepEqual(b.photo(), { ...sans(avant, retires), [actives]: b.photo()[actives] });
-    assert.equal(readFileSync(join(etat, "log.db"), "utf8"), HISTOIRE);
-    assert.ok(existsSync(join(etat, "runs/12/flux.jsonl")));
-    assert.ok(lstatSync(join(b.sauvegardes, "calculus")).isDirectory());
-    assert.ok(existsSync(join(b.etats, "boutique/depot/.git")));
+    assert.deepEqual(apres, { ...sans(avant, retires), [actives]: apres[actives] });
+    assert.equal(journal, HISTOIRE);
+    assert.notEqual(apres[join(etat, "runs/12/flux.jsonl")], undefined);
+    assert.equal(apres[join(b.sauvegardes, "calculus")], "répertoire");
+    assert.equal(apres[join(b.etats, "boutique/depot/.git")], "répertoire");
   });
 
   test("le journal n'est supprimé qu'avec `--supprimer-le-journal` : l'état part alors avec le projet, pas ses sauvegardes", { skip: posixOnly("Confirms the uninstall with `--supprimer-le-journal` and checks the state directory goes while backups stay; on Windows the setup install is refused with sans-droit (77), and the state is emptied by `rm -rf` run under the service account's uid.") }, async (t) => {
@@ -248,12 +332,9 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.equal((b.journal().at(-1)?.payload as { journal: string }).journal, "removed");
   });
 
-  test("les ports du projet désinstallé redeviennent attribuables : le projet suivant reçoit le sien", { skip: posixOnly("Uninstalls calculus, then installs atelier and checks it receives the freed first port while boutique keeps the second; on Windows the very first install is refused with sans-droit (77), as there is no process.getuid to compare with root.") }, async (t) => {
-    const b = await installee(t, "calculus", "boutique");
-    b.pousser("acme/atelier");
-
-    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
-    const suivant = await b.geste(b.demande("atelier"));
+  test("les ports du projet désinstallé redeviennent attribuables : le projet suivant reçoit le sien", { skip: posixOnly("Uninstalls calculus, then installs atelier and checks it receives the freed first port while boutique keeps the second; on Windows the very first install is refused with sans-droit (77), as there is no process.getuid to compare with root.") }, async () => {
+    const { rendu } = await desinstallationPartagee().confirmee;
+    const suivant = await desinstallationPartagee().suivant();
 
     assert.equal(rendu.code, 0, rendu.erreur);
     assert.deepEqual(retire(rendu).ports, [PREMIER_PORT]);
@@ -262,26 +343,23 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.deepEqual(suivant.json.ports, { porte: PREMIER_PORT, arbitre: null });
   });
 
-  test("un projet désinstallé se réinstalle sur son journal, et une désinstallation rejouée ne trouve plus rien", { skip: posixOnly("Uninstalls a served calculus, replays it to find nothing left, reinstalls over the kept journal, then removes it with its journal until unknown; each of these gestures is refused with sans-droit (77) on Windows, which has no process.getuid.") }, async (t) => {
-    const b = await installee(t);
-    servir(b);
-    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"])).code, 0);
-    const [avant, rang] = [b.photo(), b.appels().length];
+  test("un projet désinstallé se réinstalle sur son journal, et une désinstallation rejouée ne trouve plus rien", { skip: posixOnly("Uninstalls a served calculus, replays it to find nothing left, reinstalls over the kept journal, then removes it with its journal until unknown; each of these gestures is refused with sans-droit (77) on Windows, which has no process.getuid.") }, async () => {
+    const { rendu } = await desinstallationPartagee().confirmee;
+    const { rejouee, avant, apres, gestes: recus, reinstalle, journal, sansJournal, inconnu } = await desinstallationPartagee().reinstallee();
+    assert.equal(rendu.code, 0, rendu.erreur);
 
     // Son état est encore là : la box le connaît, et n'a plus rien à en retirer.
-    const rejouee = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
     assert.equal(rejouee.code, 0, rejouee.erreur);
     assert.match(rejouee.erreur, /^brigade-installer : il ne reste rien de « calculus » à retirer de cette box\nGardé :\n {2}journal /);
-    assert.deepEqual(b.photo(), avant);
-    assert.deepEqual(gestes(b, rang), []);
+    assert.deepEqual(apres, avant);
+    assert.deepEqual(recus, []);
 
-    const reinstalle = await b.geste(b.demande());
     assert.equal(reinstalle.code, 0, reinstalle.erreur);
-    assert.equal(readFileSync(join(b.etats, "calculus/log.db"), "utf8"), HISTOIRE);
+    assert.equal(journal, HISTOIRE);
 
     // Son journal retiré avec lui, la box ne le connaît plus.
-    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus", "--supprimer-le-journal"])).code, 0);
-    assert.equal((await b.geste(["uninstall", "calculus", "--plan"])).code, CODES.inconnu);
+    assert.equal(sansJournal.code, 0, sansJournal.erreur);
+    assert.equal(inconnu.code, CODES.inconnu);
   });
 
   test("un runtime qui tourne est arrêté d'abord, puis son clone retiré", { skip: posixOnly("Starts brigade@calculus.service in the systemctl fake and checks the confirmed uninstall disables it before the timer and porte units, then removes the clone; Windows refuses the setup install with sans-droit (77), lacking process.getuid.") }, async (t) => {
@@ -330,17 +408,25 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     const b = await installee(t);
     servir(b);
     const appel = (...options: string[]) => ["uninstall", "calculus", ...options];
+    // Chaque motif est refusé par le geste entier. Ses autres formes, par la
+    // lecture des arguments seule : le geste rend tout refus de la lecture de
+    // la même façon — un geste par forme ouvrait et écrivait chaque fois le
+    // journal du geste, sans rien prouver de plus (#2464).
+    const lu = (args: string[], motif: string, message: RegExp) =>
+      assert.throws(() => lireRetrait(args), (refus: unknown) => refus instanceof Refus && refus.motif === motif && refus.code === CODES.usage && message.test(refus.message), args.join(" "));
     await refuse(b, appel("--plan", "--confirmer", "calculus"), "plan-et-confirmation", /--plan ne retire rien, il ne se confirme pas/);
     await refuse(b, appel("--confirmer"), "valeur-manquante", /--confirmer attend le nom du projet : `--confirmer calculus`/);
-    await refuse(b, appel("--confirmer", "--supprimer-le-journal"), "valeur-manquante", /--confirmer attend le nom du projet/);
+    lu(appel("--confirmer", "--supprimer-le-journal"), "valeur-manquante", /--confirmer attend le nom du projet/);
     await refuse(b, appel("--plan", "--plan"), "option-en-double", /--plan est donnée deux fois/);
     await refuse(b, appel("--confirmer", "calculus", "calculus"), "argument-en-trop", /argument en trop : « calculus »/);
+    await refuse(b, appel("--confirmer", "calculus", "--exec"), "option-inconnue", /option inconnue : « --exec » — celles de la désinstallation : --plan, --confirmer, --supprimer-le-journal$/);
     for (const option of ["--exec", "--force", "--etat", "--clone", "--depot", "--sauvegardes", "--supprimer-les-sauvegardes", "--journal", "-y", "--confirmer=calculus"]) {
-      await refuse(b, appel("--confirmer", "calculus", option), "option-inconnue", /option inconnue : « .* » — celles de la désinstallation : --plan, --confirmer, --supprimer-le-journal$/);
-      await refuse(b, appel(option, "/var/lib/brigade", "--confirmer", "calculus"), "option-inconnue", /option inconnue/);
+      lu(appel("--confirmer", "calculus", option), "option-inconnue", /option inconnue : « .* » — celles de la désinstallation : --plan, --confirmer, --supprimer-le-journal$/);
+      lu(appel(option, "/var/lib/brigade", "--confirmer", "calculus"), "option-inconnue", /option inconnue/);
     }
-    for (const projet of ["../calculus", "calculus/depot", "/var/lib/brigade/calculus", "Calculus", "calculus.service", "*"]) {
-      await refuse(b, ["uninstall", projet, "--confirmer", projet], "projet-hors-motif", /nom de projet hors motif/);
+    await refuse(b, ["uninstall", "../calculus", "--confirmer", "../calculus"], "projet-hors-motif", /nom de projet hors motif/);
+    for (const projet of ["calculus/depot", "/var/lib/brigade/calculus", "Calculus", "calculus.service", "*"]) {
+      lu(["uninstall", projet, "--confirmer", projet], "projet-hors-motif", /nom de projet hors motif/);
     }
     await refuse(b, ["uninstall"], "projet-manquant", /il manque le projet\nusage : sudo brigade-installer uninstall <projet> --plan/);
     assert.throws(() => lireRetrait(b.demande()), Refus);
@@ -364,7 +450,11 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     rmSync(join(etat, "depot"), { recursive: true });
     git(etat, "init", "-q");
     symlinkSync(".", join(etat, "depot"));
-    for (const forme of [["--plan"], ["--confirmer", "calculus"], ["--confirmer", "calculus", "--supprimer-le-journal"]]) {
+    // Plan et désinstallation confirmée butent sur le même inventaire, joué
+    // sous le compte avant que `--supprimer-le-journal` compte : le refus d'une
+    // désinstallation qui retire aussi le journal est celui du clone qui porte
+    // ce que l'origine n'a pas, plus haut.
+    for (const forme of [["--plan"], ["--confirmer", "calculus"]]) {
       await refuse(b, ["uninstall", "calculus", ...forme], "retenu-par-le-runtime", /la désinstallation du runtime refuse — the state directory .* is inside the clone .*: removing it would take the log with it — nothing is removed$/, CODES.retenu);
     }
     assert.equal(readFileSync(join(etat, "log.db"), "utf8"), HISTOIRE);
@@ -448,15 +538,8 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () => {
-  test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", { skip: posixOnly("Starts the runtime unit and leaves brouillon.txt in the clone, checks the confirmed uninstall stops only the runtime, reports what is done and left, then succeeds replayed; Windows refuses the setup install with sans-droit (77), lacking process.getuid.") }, async (t) => {
-    const b = await installee(t);
-    servir(b);
-    b.demarrer("brigade@calculus.service");
-    const brouillon = join(b.etats, "calculus/depot/brouillon.txt");
-    writeFileSync(brouillon, "en cours\n");
-    const [avant, rang] = [b.photo(), b.appels().length];
-
-    const rendu = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
+  test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", { skip: posixOnly("Starts the runtime unit and leaves brouillon.txt in the clone, checks the confirmed uninstall stops only the runtime, reports what is done and left, then succeeds replayed; Windows refuses the setup install with sans-droit (77), lacking process.getuid.") }, async () => {
+    const { b, avant, rendu, apres, gestes: recus, actives: enMarche, rejouee, cloneRetire } = await desinstallationArretee();
 
     assert.equal(rendu.code, CODES.echec);
     assert.deepEqual({ ok: rendu.json.ok, motif: rendu.json.motif, retires: rendu.json.retires }, { ok: false, motif: "echec", retires: ["brigade@calculus.service (arrêtée, désactivée)"] });
@@ -464,15 +547,14 @@ describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () 
     assert.equal((rendu.json.restes as string[]).at(-1), "systemctl daemon-reload");
     assert.match(rendu.erreur, /brouillon\.txt — la désinstallation s'est arrêtée là, et se rejoue\. Fait : brigade@calculus\.service \(arrêtée, désactivée\)\. Reste : /);
     // Seul le runtime a été arrêté : tout le reste est là.
-    assert.deepEqual(gestes(b, rang), ["disable --now brigade@calculus.service"]);
+    assert.deepEqual(recus, ["disable --now brigade@calculus.service"]);
     const actives = join(b.racine, "temoin/actives");
-    assert.deepEqual(b.photo(), { ...avant, [actives]: b.photo()[actives] });
-    assert.deepEqual(b.actives(), ["brigade-sauvegarde@calculus.timer", "brigade-porte@calculus.service"]);
+    assert.deepEqual(apres, { ...avant, [actives]: apres[actives] });
+    assert.deepEqual(enMarche, ["brigade-sauvegarde@calculus.timer", "brigade-porte@calculus.service"]);
 
-    rmSync(brouillon);
-    const rejouee = await b.geste(["uninstall", "calculus", "--confirmer", "calculus"]);
+    // Le brouillon retiré, elle se rejoue.
     assert.equal(rejouee.code, 0, rejouee.erreur);
-    assert.ok(!existsSync(join(b.etats, "calculus/depot")));
+    assert.ok(cloneRetire);
   });
 
   test("coupée avant son premier geste : rien n'est retiré", { skip: posixOnly("Passes an already-aborted signal to the confirmed uninstall of a served project and checks it stops before its first step with nothing removed; the setup install is refused with sans-droit (77) under Windows, where process.getuid does not exist.") }, async (t) => {
@@ -493,24 +575,10 @@ describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () 
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, () => {
-  test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", { skip: posixOnly("Plays a plan, three refusals, a failed and a successful uninstall as alice and associe, and checks the gesture journal records author, project, type and payload of each; Windows has no process.getuid, so every gesture there ends in sans-droit (77).") }, async (t) => {
-    const b = await installee(t);
-    servir(b);
-    b.demarrer("brigade@calculus.service");
-    writeFileSync(join(b.etats, "calculus/depot/brouillon.txt"), "en cours\n");
-    const deja = b.journal().length;
-    const debut = new Date();
+  test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", { skip: posixOnly("Plays a plan, three refusals, a failed and a successful uninstall as alice and associe, and checks the gesture journal records author, project, type and payload of each; Windows has no process.getuid, so every gesture there ends in sans-droit (77).") }, async () => {
+    const { b, debut, fin, journal, codes, rendu, rejouee } = await desinstallationArretee();
 
-    assert.equal((await b.geste(["uninstall", "calculus", "--plan"], { qui: "alice" })).code, 0);
-    assert.equal((await b.geste(["uninstall", "calculus"], { qui: "associe" })).code, CODES.sansConfirmation);
-    assert.equal((await b.geste(["uninstall", "fantome", "--confirmer", "fantome"], { qui: "associe" })).code, CODES.inconnu);
-    assert.equal((await b.geste(["uninstall", "calculus", "--exec", "/bin/sh"], { qui: "associe" })).code, CODES.usage);
-    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "alice" })).code, CODES.echec);
-    rmSync(join(b.etats, "calculus/depot/brouillon.txt"));
-    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "alice" })).code, 0);
-
-    const fin = new Date();
-    const journal = b.journal().slice(deja);
+    assert.deepEqual([...codes, rendu.code, rejouee.code], [0, CODES.sansConfirmation, CODES.inconnu, CODES.usage, CODES.echec, 0]);
     for (const evenement of journal) assert.ok(debut.toISOString() <= evenement.at && evenement.at <= fin.toISOString(), evenement.at);
     const confirmee = { action: "uninstall", args: ["calculus", "--confirmer", "calculus"] };
     const echec = journal[5]?.payload as { reason: string; left: string[] };

@@ -76,9 +76,10 @@ export type Boite = {
 };
 
 // Une box préparée : les unités posées, le compte du service, le réglage du
-// geste et la racine des sauvegardes — et aucun projet.
-export function boite(t: TestContext): Boite {
-  const racine = realpathSync(repertoireTemporaire(t));
+// geste et la racine des sauvegardes — et aucun projet. Sans test, une box que
+// plusieurs tests du fichier se partagent : elle part avec son process.
+export function boite(t: TestContext | null): Boite {
+  const racine = realpathSync(t === null ? repertoireDuFichier("brigade-test-box-") : repertoireTemporaire(t));
   const sous = (...noms: string[]) => join(racine, ...noms);
   const [unites, etats, sauvegardes, versions, home, temoin, github, deploiement, bin] = [sous("unites"), sous("etats"), sous("sauvegardes"), sous("versions"), sous("home"), sous("temoin"), sous("github"), sous("deploy"), sous("bin")];
   for (const repertoire of [unites, sauvegardes, versions, home, temoin, github, deploiement, bin]) mkdirSync(repertoire, { recursive: true });
