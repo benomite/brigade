@@ -59,7 +59,7 @@ function ligne(doc, etiquette, valeur, cle) {
 // ne l'a reçu ; `retour()` : revenir à l'étape de la station.
 /**
  * @param {Fabrique} doc
- * @param {{ projet: string, station?: string, retour: () => void }} donnees
+ * @param {{ projet?: string, station?: string, retour?: () => void }} donnees
  */
 export function poserEtapeRecap(doc, { projet, station, retour }) {
   const racine = cree(doc, "section");
@@ -67,28 +67,32 @@ export function poserEtapeRecap(doc, { projet, station, retour }) {
   racine.ariaLabel = TITRE;
   const attendu = cree(doc, "p", ATTENDU);
   attendu.className = "attendu";
-  racine.append(attendu, ligne(doc, PROJET, projet, "projet"));
-  if (station === undefined || station.trim() === "") {
+  racine.append(attendu);
+  if (projet !== undefined) racine.append(ligne(doc, PROJET, projet, "projet"));
+  if (projet === undefined || station === undefined || station.trim() === "") {
     const manque = cree(doc, "p", SANS_STATION);
     manque.className = "erreur";
-    racine.append(manque, boutonAction(doc, CHOISIR_UNE_STATION, retour, { recommande: true }));
+    racine.append(manque, ...(retour === undefined ? [] : [boutonAction(doc, CHOISIR_UNE_STATION, retour, { recommande: true })]));
     return racine;
   }
   racine.append(ligne(doc, STATION, station, "station"), phrase(doc, ENSUITE));
   return racine;
 }
 
-// Le descripteur que le registre du parcours (ETAPES, ticket 2475) prend, comme celui de la station : `id`, `titre`, `faite`,
-// `poser`. La dernière étape n'est jamais « faite » : le parcours finit dessus. Elle lit le dépôt retenu (`depot`) et la
-// machine qui l'a reçu (`station`) ; son geste : `retour()`, revenir à l'étape de la station.
-/** @typedef {{ depot?: string, station?: string }} EtatPourLeRecap */
+// Le descripteur inscrit dans le registre du parcours (ETAPES, parcours.js) : `id`, `titre`, `faite`, `poser`. La dernière
+// étape n'est jamais « faite » : le parcours finit dessus. Elle lit le dépôt retenu (`depot`) et la machine qui l'a reçu
+// (`station`) dans l'état du parcours ; son geste : `retour()`, revenir à l'étape de la station. Sans dépôt ou sans station,
+// elle le dit — jamais un écran vide.
 export const etapeDuRecap = {
   id: "recap",
   titre: TITRE,
   faite: () => false,
-  /** @param {Fabrique} doc @param {EtatPourLeRecap} etat @param {{ retour: () => void }} geste */
-  poser: (doc, etat, geste) => {
-    if (etat.depot === undefined) return [];
-    return [poserEtapeRecap(doc, { projet: etat.depot, ...(etat.station === undefined ? {} : { station: etat.station }), retour: geste.retour })];
-  },
+  /** @param {Fabrique} doc @param {{ depot?: string, station?: string }} etat @param {{ retour?: () => void }} geste */
+  poser: (doc, etat, geste) => [
+    poserEtapeRecap(doc, {
+      ...(etat.depot === undefined ? {} : { projet: etat.depot }),
+      ...(etat.station === undefined ? {} : { station: etat.station }),
+      ...(geste.retour === undefined ? {} : { retour: geste.retour }),
+    }),
+  ],
 };
