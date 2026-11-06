@@ -39,6 +39,18 @@ base, the stale-branch pruning).
   by the API where a job's log is not readable from the box — and adds them to the brief, under "What the CI says is
   red", check by check (`runtime/src/github-seul/ci-rouge/`). A check with no annotation is named with its address.
   Bounded: 12 checks read, 3,000 characters per message, 24,000 in all; the rest only named.
+- **A delivery that changes what judges it** (`.claude/brigade/`, `.github/workflows/`, or the second judge's own
+  brief, `JUGES` in `runtime/src/brigade-github.ts`) is not merged on the reviewer's approval alone: a cook must not
+  turn itself green by weakening its own judge (#2555). Once the reviewer approves, and once its branch is up to date
+  and its CI (or gates) green on its head, a **second judge** reads it: a launch separate from the review, in its own
+  worktree, that reads neither the review nor its verdict, under `opus` / `high` whatever the reviewer's calibration,
+  with the reviewer's read-only tools and the brief `agents/second-juge.md` — read from the running runtime, never
+  from the delivery. It checks that no test is removed or skipped, no guard loosened, no gate bypassed, and that its
+  ticket justifies the change (`runtime/src/second-juge.ts`). Its verdict is a PR comment
+  (`<!-- brigade:second-judge … sha=… -->`) that holds for the head it read only. Approved, the delivery merges
+  through the ordinary merge path; refused, it goes back to a cook with the judge's reasons, like a review that
+  requests changes, and its next head is judged again. Nothing waits for the chef: no `blocked-on-human`, no
+  "merge it by hand".
 - **A red base** holds a delivery's merge only if that delivery runs the same check: a workflow that runs only on the
   base, like the Windows tests, never freezes the pass (#2279).
 - **A project with no CI on its PRs** (espace since 2026-10-22, #2456) is judged by its own gates: when none of its

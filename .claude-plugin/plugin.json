@@ -24,6 +24,7 @@
     "./agents/cook-design.md",
     "./agents/triage.md",
     "./agents/manager.md",
-    "./agents/product.md"
+    "./agents/product.md",
+    "./agents/second-juge.md"
   ]
 }
