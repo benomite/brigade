@@ -232,5 +232,6 @@ test("an approved PR waiting on its required CI costs one refused merge, then no
   await tourSuivant();
   assert.equal(faux.prDe(9)?.merged, true);
   assert.equal(faux.issue(9).state, "closed");
-  assert.ok(faux.comptes(avant).length <= 3, dire(faux.comptes(avant)));
+  // La fiche de la PR, le merge, puis la fermeture explicite et le retrait de `in-pass` (#2467).
+  assert.ok(faux.comptes(avant).length <= 4, dire(faux.comptes(avant)));
 });
