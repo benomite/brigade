@@ -1640,6 +1640,15 @@ and "set the cap" to set it, "back to the default" to remove it. Since #2061 the
 a field and "set the cap", which answers the same. When the station is saturated, one sentence says what holds it (`Saturated on CPU —
 load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
 "‹ All projects" takes you back to the home screen, like the **T** square.
+Under its faults, its sections (#2641, epic #2497), in this order, each under its heading: Identity, Connections,
+Folders and sandbox, Capabilities, Cooks. The shell is `app/src/vue/station/page/StationPage.js`; each section is a
+module of `app/src/vue/station/page/sections/` that exports `poserSection(doc, context)`, loaded once its file name is in
+`LIVREES` — until then its heading says `not shown yet`. A section that fails to load or to render says `this section is
+unavailable`, its detail on hover; the others render. The page knows whether it is this computer's station (the local
+station the app reads); on another station's page, every section gets `lectureSeule` and shows, without editing, what
+only changes on that machine. Each setting carries its level mark (`NiveauReglage.js`, the one `niveauDe` uses: this
+machine, project, you); no project-level setting appears here — they live in the project's Stations tab (#2484).
+Screens: `docs/captures/2641/`.
 
 ```
 box      ●  online · 2 cooks running   ?

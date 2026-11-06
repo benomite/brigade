@@ -1854,6 +1854,27 @@ main > header,
   flex-wrap: wrap;
   gap: 8px;
 }
+/* Ses sections (ticket 2641) : identité, connexions, dossiers et bac à sable, capacités, cooks — chacune sous son
+   titre, séparée de la précédente par un filet ; une section pas encore livrée le dit en une ligne discrète. */
+#station .page-de-station {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#station .section-de-station {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#station .section-de-station > h3 {
+  margin: 0;
+}
+#station .section-de-station .a-venir {
+  font-size: 13px;
+  color: var(--discret);
+}
 /* Les projets que la station porte : une ligne chacun, comme sur l'accueil, et sa marque — « main »
    en accent, « secondary » discret. Sous un projet ajouté depuis l'app, ses gestes, alignés sur son nom. */
 #station .ligne span.pilule {

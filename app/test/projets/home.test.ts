@@ -92,8 +92,8 @@ const choix = (formulaire: Faux, type: string) => formulaire.dessous("input").fi
 
 test("sur la page d'une station, un projet que l'app lui a ajouté : sa ligne dit qu'elle en est la principale et ce qu'elle en dit, puis le bouton qui autorise brigade sur GitHub, et celui qui retire", async () => {
   const { jouee, section, bouton } = await laHome(PARADE);
-  assert.equal(section().children[5]?.textContent, "Projects");
-  const ligne = section().children[6]?.dessous("button").find(({ dataset }) => dataset.projet === "parade") ?? assert.fail("pas de ligne « parade »");
+  assert.equal(section().children[6]?.textContent, "Projects");
+  const ligne = section().children[7]?.dessous("button").find(({ dataset }) => dataset.projet === "parade") ?? assert.fail("pas de ligne « parade »");
   assert.equal(ligne.ariaLabel, "parade — main — waiting for your authorization on GitHub");
   // Son dépôt et ce que la station en dit sont au survol.
   assert.match(ligne.title, /benomite\/parade · main/);
@@ -111,7 +111,7 @@ test("sur la page d'une station, un projet que l'app lui a ajouté : sa ligne di
   await repos();
   await repos();
   assert.deepEqual(jouee.dernier("retirerDUneStation"), ["parade"]);
-  assert.equal(section().children[9]?.textContent, "parade is removed: each of its stations takes it out of its configuration within a minute");
+  assert.equal(section().children[10]?.textContent, "parade is removed: each of its stations takes it out of its configuration within a minute");
 });
 
 test("le parcours propose d'office la station serveur pour principale ; choisir un ordinateur affiche l'avertissement", async () => {
@@ -193,5 +193,5 @@ test("valider envoie le dépôt, sa branche, les stations, la principale, les d�
   await repos();
   await repos();
   assert.equal(formulaire().hidden, true);
-  assert.match(section().children[9]?.textContent ?? "", /^brigade is asked of its stations: its main station prepares it and adds it within a minute/);
+  assert.match(section().children[10]?.textContent ?? "", /^brigade is asked of its stations: its main station prepares it and adds it within a minute/);
 });
