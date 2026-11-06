@@ -4,11 +4,12 @@
 // pose). Tout cela vit sur la machine : le niveau de chaque ligne est « this machine ».
 // - Cet ordinateur : la mise à jour se fait d'ici — « Update now » quand la station est en retard et que la coque
 //   donne le geste (`identite.mettreAJour`) ; à jour, la ligne le dit.
-// - Une autre station : la section se montre sans se régler (`contexte.lectureSeule`) — jamais de bouton.
+// - Une autre station : la section se montre sans se régler (`contexte.lectureSeule`) — jamais de bouton, la note
+//   « only on this station » (NoteSurPlace.js) à la place de la mise à jour, qui ne se fait que sur la machine.
 // - Ce que la station n'a pas dit (cœurs, version) se dit « unknown », en une ligne, jamais une case vide.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, et rend un élément.
 
-import { boutonAction } from "../../../briques.js";
+import { gesteOuNote } from "../NoteSurPlace.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /**
@@ -44,14 +45,14 @@ export function poserSection(doc, contexte) {
     ligne(doc, contexte.niveau("station-machine"), "machine", dit(identite.machine)),
     ligne(doc, contexte.niveau("station-coeurs"), "cores", coeurs),
     ligne(doc, contexte.niveau("station-version"), "version", dit(identite.version)),
-    ligne(doc, contexte.niveau("station-mise-a-jour"), "updates", etatDeLaMiseAJour(identite), !contexte.lectureSeule && identite.enRetard === true ? identite.mettreAJour : undefined),
+    ligne(doc, contexte.niveau("station-mise-a-jour"), "updates", etatDeLaMiseAJour(identite), identite.enRetard === true ? gesteOuNote(doc, contexte, { libelle: METTRE_A_JOUR, geste: identite.mettreAJour, recommande: true }) : undefined),
   ];
   racine.append(...lignes);
   return racine;
 }
 
 // Une ligne : son nom, la marque de son niveau (posée par la coque), sa valeur, et son geste s'il y en a un.
-/** @param {Fabrique} doc @param {any} marque @param {string} nom @param {string} valeur @param {(() => void) | undefined} [geste] */
+/** @param {Fabrique} doc @param {any} marque @param {string} nom @param {string} valeur @param {any} [geste] */
 function ligne(doc, marque, nom, valeur, geste) {
   const racine = doc.createElement("div");
   racine.className = "reglage";
@@ -62,6 +63,6 @@ function ligne(doc, marque, nom, valeur, geste) {
   texte.className = "valeur";
   texte.textContent = valeur;
   racine.append(titre, marque, texte);
-  if (geste !== undefined) racine.append(boutonAction(doc, METTRE_A_JOUR, geste, { recommande: true }));
+  if (geste !== undefined) racine.append(geste);
   return racine;
 }
