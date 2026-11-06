@@ -122,6 +122,8 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/exploitation-en-anglais.test.ts", test: "`switch` : ses sorties et ses refus ne portent aucun mot français du glossaire" },
   { file: "test/exploitation-en-anglais.test.ts", test: "`waiting` : ses sorties et ses refus ne portent aucun mot français du glossaire" },
   { file: "test/fermeture-action/action.test.ts", test: "le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison" },
+  { file: "test/garde-des-gates.test.ts", test: "un test en échec avant la coupure garde la ligne d'un rouge" },
+  { file: "test/garde-des-gates.test.ts", test: "une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué" },
   { file: "test/garde-fous-cli.test.ts", test: "« stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate" },
   { file: "test/geste.test.ts", test: "`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime" },
   { file: "test/geste.test.ts", test: "dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord" },

@@ -126,6 +126,26 @@ function photographier(racine: string, sauf: string[]): Record<string, string> {
   return photo;
 }
 
+// Les refus se jouent avant les stations, et seuls : partis avec elles, ils attendaient que cinq stations aient
+// chargé leurs modules, au-delà de 2 s sur un runner de la CI (#2464).
+describe("la station refuse de démarrer", () => {
+  test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
+    const { racine, env } = uneStation(t);
+    const refusee = await refuser({ ...env, BRIGADE_STATION_PORTES: join(racine, "portes.json"), BRIGADE_PROXY_PORT: "3128" });
+    assert.equal(refusee.code, REFUS);
+    assert.match(refusee.sortie, /BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES sont définis ensemble/);
+  });
+
+  test("un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658)", async (t) => {
+    const { env } = uneStation(t);
+    for (const [variable, valeur] of [["BRIGADE_STATION_ECART_S", "0.5"], ["BRIGADE_STATION_TICK_S", "0"]] as const) {
+      const refusee = await refuser({ ...env, [variable]: valeur });
+      assert.equal(refusee.code, REFUS);
+      assert.match(refusee.sortie, new RegExp(`refus de démarrer la station — ${variable}=${valeur.replace(".", "\\.")} — attendu un nombre entier de secondes`));
+    }
+  });
+});
+
 // Chaque test a sa station — racine, configuration, doublures — sur le port 0 : ils se jouent de front.
 describe("la station, son process", { concurrency: 8 }, () => {
   after(() => refus.fermer());
@@ -295,22 +315,6 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await station.fin, 0);
     portes.process.kill("SIGTERM");
     assert.equal(await portes.fin, 0);
-  });
-
-  test("BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES ensemble : la station refuse de démarrer — sous ses portes, la sienne est celle qu'elles ouvrent", async (t) => {
-    const { racine, env } = uneStation(t);
-    const refusee = await refuser({ ...env, BRIGADE_STATION_PORTES: join(racine, "portes.json"), BRIGADE_PROXY_PORT: "3128" });
-    assert.equal(refusee.code, REFUS);
-    assert.match(refusee.sortie, /BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES sont définis ensemble/);
-  });
-
-  test("un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658)", async (t) => {
-    const { env } = uneStation(t);
-    for (const [variable, valeur] of [["BRIGADE_STATION_ECART_S", "0.5"], ["BRIGADE_STATION_TICK_S", "0"]] as const) {
-      const refusee = await refuser({ ...env, [variable]: valeur });
-      assert.equal(refusee.code, REFUS);
-      assert.match(refusee.sortie, new RegExp(`refus de démarrer la station — ${variable}=${valeur.replace(".", "\\.")} — attendu un nombre entier de secondes`));
-    }
   });
 
   test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet", { skip: posixOnly("expects the station refused without BRIGADE_STATION_DIR, then started without configuration and serving nothing, and stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {

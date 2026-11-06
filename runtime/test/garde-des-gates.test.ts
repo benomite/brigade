@@ -74,11 +74,9 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
   });
 
   test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays the real gates.sh on a suite that runs a failing test file then a frozen one, and expects the guard's cut line saying tests failed before the cut; on Windows npm runs that suite through cmd.exe, where `;` does not chain two commands, so the two files do not run one after the other") }, async (t) => {
-    // Le fichier en échec rend son verdict avant que l'autre ne se fige.
-    const racine = projet(
-      t,
-      `node --test --test-force-exit ${JSON.stringify(TEST_EN_ECHEC)}; node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`,
-    );
+    // Le fichier en échec rend son verdict avant que l'autre ne se fige : un seul lanceur les joue l'un après
+    // l'autre — deux lanceurs coûtaient un Node de plus, au-delà de 2 s sur un runner de la CI (#2464).
+    const racine = projet(t, `node --test --test-force-exit --test-concurrency=1 --test-timeout=500 ${JSON.stringify(TEST_EN_ECHEC)} ${JSON.stringify(TEST_FIGE)}`);
     const temoin = join(racine, "pid-du-fichier");
     aArreter(t, () => {
       try {
