@@ -12,7 +12,7 @@
 // Ce module porte sa consigne, son calibrage, ce qu'on lit de sa réponse et le
 // commentaire de la PR où son verdict s'écrit. Sans E/S, hors la lecture de sa
 // consigne : ce qui ne se lit pas devient un motif dit, jamais un verdict deviné.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DE_CONFIANCE } from "./alimenter.ts";
 import type { Calibrage } from "./calibrage.ts";
@@ -33,13 +33,31 @@ export const CALIBRAGE_DU_SECOND_JUGE: Calibrage = { model: "opus", effort: "hig
 
 // Sa consigne, dans le plugin. Elle se lit dans la version du runtime qui
 // tourne, jamais dans la livraison jugée : une PR qui l'assouplirait ne
-// s'en juge pas.
+// s'en juge pas. Dans le dépôt, elle est à la racine (`agents/`) ; dans la
+// station installée, le paquet la pose dans le dossier du runtime
+// (`runtime/agents/`), les archives macOS et Windows ne portant que `runtime`.
 export const CONSIGNE_DU_SECOND_JUGE = "agents/second-juge.md";
-const CHEMIN_DE_LA_CONSIGNE = join(import.meta.dirname, "../..", CONSIGNE_DU_SECOND_JUGE);
+export const CHEMINS_DE_LA_CONSIGNE = [join(import.meta.dirname, "..", CONSIGNE_DU_SECOND_JUGE), join(import.meta.dirname, "../..", CONSIGNE_DU_SECOND_JUGE)];
+
+// La consigne est introuvable : le chemin attendu, pour le dire une fois.
+export class ConsigneIllisible extends Error {
+  readonly chemin: string;
+  constructor(chemin: string, cause: unknown) {
+    super(`the second judge's brief cannot be read at ${chemin} — ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.chemin = chemin;
+  }
+}
 
 // Le corps de la consigne, sans son frontmatter.
 export const corpsDeLaConsigne = (texte: string) => texte.replace(/^---\n[\s\S]*?\n---\n/, "").trim();
-export const lireLaConsigne = (chemin = CHEMIN_DE_LA_CONSIGNE) => corpsDeLaConsigne(readFileSync(chemin, "utf8"));
+export function lireLaConsigne(chemins: string[] = CHEMINS_DE_LA_CONSIGNE): string {
+  const chemin = chemins.find((c) => existsSync(c)) ?? chemins[0] ?? CONSIGNE_DU_SECOND_JUGE;
+  try {
+    return corpsDeLaConsigne(readFileSync(chemin, "utf8"));
+  } catch (erreur) {
+    throw new ConsigneIllisible(chemin, erreur);
+  }
+}
 
 // Une consigne part en un seul argument de commande : chaque morceau a son
 // plafond, en octets, au-delà duquel il est coupé et le dit.

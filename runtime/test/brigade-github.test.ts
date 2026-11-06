@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ConsigneIllisible } from "../src/second-juge.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -644,6 +645,26 @@ test("a station that launches no second judge never merges a delivery that chang
   for (let i = 0; i < 5; i += 1) await a.tour();
   assert.equal(faux.mergee(40), undefined);
   assert.deepEqual(dits, [`brigade : PR #${pr.number} (#40) changes what judges it and waits for a second judge, which station A does not launch`]);
+});
+
+test("a station whose second judge's brief cannot be read says so once per head in the project's queue, with the path, and never merges (#2571)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(42);
+  const a = faux.station("A", {
+    jugerEnSecond: async () => {
+      throw new ConsigneIllisible("/usr/lib/brigade-station/agents/second-juge.md", new Error("ENOENT"));
+    },
+  });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 42);
+  assert.ok(pr);
+  pr.fichiers = ["agents/second-juge.md"];
+  for (let i = 0; i < 5; i += 1) await a.tour();
+  assert.equal(faux.mergee(42), undefined);
+  const dits = (faux.commentaires.get(42) ?? []).filter((c) => c.body.includes("second-juge-sans-consigne"));
+  assert.equal(dits.length, 1);
+  assert.match(dits[0]?.body ?? "", /\/usr\/lib\/brigade-station\/agents\/second-juge\.md/);
 });
 
 test("the card a station posted before #2555 on a delivery that changes what judges it is lifted, and the second judge decides (#2555)", async () => {

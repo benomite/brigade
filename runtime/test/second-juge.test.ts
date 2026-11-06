@@ -3,10 +3,11 @@
 // de sa réponse et le verdict qu'il laisse sur la PR. Ce que la station en fait
 // (merger, renvoyer) est dans `brigade-github.test.ts`.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { CALIBRAGE_DU_SECOND_JUGE, CONSIGNE_DU_SECOND_JUGE, consigneDuSecondJuge, corpsDeLaConsigne, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "../src/second-juge.ts";
+import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, CONSIGNE_DU_SECOND_JUGE, consigneDuSecondJuge, corpsDeLaConsigne, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "../src/second-juge.ts";
 
 const FICHIER = join(import.meta.dirname, "../..", CONSIGNE_DU_SECOND_JUGE);
 
@@ -76,4 +77,17 @@ test("its verdict on the PR holds for the head it judged only, the latest wins, 
   assert.equal(secondJugementDe([commentaire(1, accord, "NONE")], sha), null, "written by the PR's author, it does not count");
   // Le verdict du reviewer n'est pas le sien.
   assert.equal(secondJugementDe([commentaire(1, `<!-- brigade:verdict station=box verdict=approve sha=${sha} -->\nApproved.`)], sha), null);
+});
+
+test("a brief that cannot be read is an error naming the path it looked for, and the installed layout (runtime/agents) is read before the repository's", () => {
+  const dossier = mkdtempSync(join(tmpdir(), "consigne-"));
+  try {
+    const absent = join(dossier, "absent", "second-juge.md");
+    assert.throws(() => lireLaConsigne([absent]), (erreur: unknown) => erreur instanceof ConsigneIllisible && erreur.chemin === absent && erreur.message.includes(absent));
+    const installe = join(dossier, "second-juge.md");
+    writeFileSync(installe, "---\nmodel: opus\n---\nINSTALLEE\n");
+    assert.equal(lireLaConsigne([installe, absent]), "INSTALLEE");
+  } finally {
+    rmSync(dossier, { recursive: true, force: true });
+  }
 });
