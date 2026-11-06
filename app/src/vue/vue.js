@@ -101,6 +101,8 @@ import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
+import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
+import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
@@ -1135,6 +1137,8 @@ const bandes = new Map();
 const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ appel }) => appel !== undefined && "reprise" in appel);
 // « Resume » en route d'ici, par projet (todo-breaker-line.js) : en cours, demandé, ou refusé. Il tient tant que la bande
 // dit le disjoncteur ouvert, et part avec elle.
+/** @type {Map<string, import("./page-projet/depot-non-prepare.js").Etat>} */
+const depots = new Map();
 /** @type {Map<string, import("./todo-breaker-line.js").Etat>} */
 const reprises = new Map();
 // Les projets dont le dernier rail posé porte la ligne du disjoncteur en tête de TODO : la bande ne la redit pas.
@@ -5341,6 +5345,9 @@ function poserLeRail(projet) {
         colonne.dataset.actif = "";
         colonne.append(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, () => void reprendreLeDisjoncteur(projet)));
       }
+      // Le projet pas préparé pour Brigade le dit en tête de TODO, avec le même bouton que sa page (ticket 2628).
+      const avisDeDepot = nom === COLONNE_QUI_T_ATTEND ? avisDuDepot(projet, "todo") : undefined;
+      if (avisDeDepot !== undefined) colonne.append(avisDeDepot);
       // Les réponses que le chef tapait sur une carte partie de TODO entre-temps restent dans TODO, résolues (ticket 2151).
       const resolues = nom === COLONNE_QUI_T_ATTEND && muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
       // Sous la ligne du disjoncteur, une colonne sans carte ne dit pas que rien ne t'attend.
@@ -5635,6 +5642,55 @@ async function repondreALaCarte(projet, ticket, reponse) {
   if (suite.etape === "postee") brouillonsDeCartes.delete(cle);
   poser(suite);
   if (suite.etape === "postee") lireLesFaits();
+}
+
+// Le projet pas préparé pour Brigade (ticket 2628, épique 2584) : `checkRepoSetup` le lit une fois, à la première pose ;
+// `runRepoSetup` le prépare, le même geste que l'ajout d'un projet. Préparé, l'avis s'en va sans recharger.
+/** @param {Projet} projet @param {"page" | "todo"} lieu */
+function avisDuDepot(projet, lieu) {
+  if (!seLit(projet) || projet.depot === undefined) return undefined;
+  const etat = depots.get(projet.nom);
+  if (etat === undefined) {
+    depots.set(projet.nom, DEPOT_INCONNU);
+    void lireLeDepot(projet);
+    return undefined;
+  }
+  const preparer = () => void preparerLeDepot(projet);
+  return lieu === "page" ? poserAvisDeDepot(document, "page", etat, preparer) : poserAvisDuTodo(document, etat, preparer);
+}
+
+/** @param {Projet} projet @param {import("./page-projet/depot-non-prepare.js").Etat} etat */
+function poserLeDepot(projet, etat) {
+  depots.set(projet.nom, etat);
+  if (courant?.nom !== projet.nom) return;
+  poserAlertes(projet);
+  poserRail(projet);
+}
+
+/** @param {Projet} projet */
+async function lireLeDepot(projet) {
+  const lire = /** @type {any} */ (brigade).checkRepoSetup;
+  if (typeof lire !== "function" || projet.depot === undefined) return;
+  try {
+    poserLeDepot(projet, apresLaLectureDuDepot(await lire(projet.depot)));
+  } catch {
+    // Une lecture qui échoue ne dit rien de plus : le projet est tenu pour préparé, la prochaine ouverture relit.
+    depots.delete(projet.nom);
+  }
+}
+
+/** @param {Projet} projet */
+async function preparerLeDepot(projet) {
+  const etat = depots.get(projet.nom);
+  const preparer = /** @type {any} */ (brigade).runRepoSetup;
+  if (etat === undefined || (etat.etape !== "manque" && etat.etape !== "refus") || typeof preparer !== "function" || projet.depot === undefined) return;
+  const { verif } = etat;
+  poserLeDepot(projet, { etape: "en-route", verif });
+  try {
+    poserLeDepot(projet, apresLaLectureDuDepot(await preparer(projet.depot)));
+  } catch (erreur) {
+    poserLeDepot(projet, { etape: "refus", verif, dit: phraseDuRefus(erreur) });
+  }
 }
 
 // « Resume », sur la ligne du disjoncteur (ticket 2140) : le process principal poste `/resume` sur l'issue du disjoncteur, sur
@@ -8002,8 +8058,9 @@ function poserAlertes(projet) {
   // La ligne du disjoncteur non plus quand TODO la porte, sur Rail : elle y a son bouton (ticket 2140).
   const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && (("geste" in appel && appel.geste === "projet-allumer") || ("reprise" in appel && disjoncteursEnTodo.has(projet.nom)))));
   gesteDeLUrgence = undefined;
-  bande.hidden = alertes.length === 0;
-  bande.replaceChildren(...alertes.map((alerte) => poserAlerte(projet, alerte)));
+  const avis = avisDuDepot(projet, "page");
+  bande.hidden = alertes.length === 0 && avis === undefined;
+  bande.replaceChildren(...(avis === undefined ? [] : [avis]), ...alertes.map((alerte) => poserAlerte(projet, alerte)));
 }
 
 // L'endroit d'une ligne de la bande : son sujet, et ce qu'elle dit — l'urgence par son seul sujet,

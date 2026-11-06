@@ -2332,6 +2332,17 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
 - A project's second starts only at the first click on that project.
 - A project whose folder is not there has no second: its column says why, in its place.
 
+### A project not set up for Brigade says so, with one button (#2628, epic #2584)
+
+A project added before the setup check, or whose setup was skipped, shows a notice on its page (the alerts strip) and
+at the head of its TODO: one sentence saying what is missing (`Not set up for Brigade: 2 bindings and 3 labels
+missing.`, the names on hover) and one recommended button, `Set up for Brigade` — the same single gesture as adding a
+project (`runRepoSetup`). While it runs the button waits and the notice says so; on failure the notice gives one
+sentence and `Retry`; once done it leaves on both views without a reload. The state is read once per project with
+`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. Modules:
+`app/src/vue/page-projet/depot-non-prepare.js`, `app/src/vue/todo/avis-todo.js`. Captures:
+`docs/captures/2628/`.
+
 ### `/brigade:dev`, `/brigade:ask` and `/brigade:init` in every project the app opens (#2160, #2595)
 
 Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
