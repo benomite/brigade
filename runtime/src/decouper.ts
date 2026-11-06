@@ -9,7 +9,7 @@ import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
 import { recouvrement, segments } from "./zones.ts";
-import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
+import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
 // Au-delà, ce n'est plus un découpage qu'un humain relit d'un coup d'œil :
 // l'épique est trop grosse, et c'est une question pour le chef.
@@ -106,9 +106,9 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "| doc, renommage, correctif dont le test est déjà écrit | `haiku` / `low` |",
     "| `fix`/`tech` mécanique sur un module connu | `sonnet` / `low` |",
     "| `fix`/`tech` non mécanique, ou tout ticket à critères d'acceptation précis | `sonnet` / `medium` |",
-    "| `feature`, refactor transverse, cœur du produit | `opus` / `high` |",
+    "| `feature`, refactor transverse, cœur du produit | `opus` / `medium` |",
     "",
-    "Le calibrage le plus bas qui suffit : c'est le quota du chef. Tu ne poses jamais `xhigh` ni `max`.",
+    `Le calibrage le plus bas qui suffit : c'est le quota du chef. ${EFFORT_HIGH_AU_RENVOI} Tu ne poses jamais \`xhigh\` ni \`max\`.`,
     "",
     CRITERE_DE_FORME,
     "",

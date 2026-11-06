@@ -65,6 +65,8 @@ test("a base still red after its re-run opens exactly one repair ticket, prio:0 
   assert.deepEqual(ouverte, { sha: depot.tete, reparation: ticket.number });
   assert.ok(ticket.labels.includes("prio:0"));
   assert.ok(ticket.labels.includes("fire"));
+  // `opus` / `medium`, comme la table du manager (#2575) : la base attend la réparation, et l'effort `high` l'allonge.
+  assert.ok(ticket.labels.includes("model:opus") && ticket.labels.includes("effort:medium"));
   assert.match(ticket.titre, /`main`/);
   assert.match(ticket.titre, /aaaaaaa/);
   assert.ok(ticket.corps.includes(`<!-- brigade:base-rouge sha=${"a".repeat(40)} -->`));

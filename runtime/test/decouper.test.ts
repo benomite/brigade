@@ -2,7 +2,7 @@
 // réponse du LLM relue par du code, et ce qui s'écrit des tickets.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CRITERE_DE_FORME } from "../src/juger.ts";
+import { CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI } from "../src/juger.ts";
 import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, neDUnDecoupage, plan, separer, TICKETS_MAX } from "../src/decouper.ts";
 import { epiqueDe, rendreListe } from "../src/epique.ts";
 import { fiche } from "../src/fiche.ts";
@@ -241,8 +241,11 @@ test("la consigne propose le cook design dans un dépôt qui le définit, et nul
   assert.match(avec, /cuisiné par le cook design \(`agents\/cook-design\.md`\)/);
   assert.match(avec, /runtime, doc, scripts, logique sans effet à l'écran — est `general`/);
   assert.match(avec, /"capacites": \[\], "cook": "general", "modele"/);
-  // Le calibrage reste celui de la table : ni `xhigh` ni `max`.
+  // Le calibrage reste celui de la table : ni `xhigh` ni `max`, et `high` ne se pose pas d'office (#2575).
   assert.match(avec, /Tu ne poses jamais `xhigh` ni `max`\./);
+  assert.match(avec, /\| `feature`, refactor transverse, cœur du produit \| `opus` \/ `medium` \|/);
+  assert.doesNotMatch(avec, /^\|.*`high` \|$/m);
+  assert.ok(avec.includes(EFFORT_HIGH_AU_RENVOI));
   const sans = consigneDeDecoupage({ ...mission, fichiers: ["app/src/vue/carte.js", "runtime/src/rail.ts"] });
   assert.doesNotMatch(sans, /cook design|"cook"/);
 });

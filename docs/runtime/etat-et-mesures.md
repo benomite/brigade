@@ -463,7 +463,9 @@ claim it did not see starts the record at the first phase it saw.
 `tempsMaxTicketMin` in `.claude/brigade/projet.json`, in minutes, **10 by default**. At each turn, the
 GitHub-only station reads these records in its clone and takes the median of the recent tickets — the last
 10 merged, and every one merged in the 24 h before the last —, claim to merge. Over the max, it opens one
-issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:high`, with the
+issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:medium` (`high` until
+#2575: the ten corrections #2535 to #2573 cooked a median 10.9 min each, so each one added to the recent
+tickets a ticket over the max it was there to bring down), with the
 median, the five slowest tickets with their slowest phase, and the slowest phase (cooking, pass wait, review,
 CI or merge: the one these tickets spent the most time in) with its total, its share and its median per
 ticket. **One open at a time**, whatever the turns or the stations: before opening, the station looks on

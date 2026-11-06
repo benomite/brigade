@@ -80,6 +80,8 @@ test("brigade's 13 tickets of 2026-11-05: median 18 min against a max of 10, and
   const [ouverte] = depot.issues;
   assert.ok(ouverte);
   assert.deepEqual(ouverte.labels, LABELS_CORRECTION);
+  // `opus` / `medium`, comme la table du manager (#2575) : en `high`, chaque correction ajoutait un ticket lent.
+  assert.ok(ouverte.labels.includes("model:opus") && ouverte.labels.includes("effort:medium"));
   assert.ok(ouverte.labels.includes("prio:0") && ouverte.labels.includes("fire"));
   assert.equal(ouverte.titre, "Tickets take too long: median 18 min over the max of 10 min — cooking is the slowest phase");
   assert.ok(ouverte.corps.startsWith(MARQUE_CORRECTION));

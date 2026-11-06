@@ -8,8 +8,10 @@ import { LABEL } from "./github.ts";
 
 // La priorité qui passe devant toutes les autres : celle de la réparation.
 export const PRIO_REPARATION = "prio:0";
-// Le calibrage d'une réparation : la base retient toute la cuisine.
-export const CALIBRAGE_REPARATION = { model: "opus", effort: "high" } as const;
+// Le calibrage d'une réparation : la base retient toute la cuisine, `opus`
+// donc, mais en `medium` comme la table du manager (#2575) : l'effort `high`
+// fait réfléchir le modèle davantage à chaque tour, et la base attend d'autant.
+export const CALIBRAGE_REPARATION = { model: "opus", effort: "medium" } as const;
 export const LABELS_REPARATION = [LABEL, PRIO_REPARATION, `model:${CALIBRAGE_REPARATION.model}`, `effort:${CALIBRAGE_REPARATION.effort}`];
 
 // La marque d'une issue de réparation, avec le commit du rouge qu'elle répare :
