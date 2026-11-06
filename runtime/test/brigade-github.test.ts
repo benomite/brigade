@@ -1787,6 +1787,52 @@ test("a cook that takes a ticket whose PR conflicts with main is told to bring t
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
 });
 
+// #2545, 2026-11-06 : sans accès à GitHub, le cook repris sur une CI rouge ne savait que le nom
+// des jobs, et rejouait la sélection de la CI pour trouver le test en échec — 16 cooks, 93 min.
+test("a cook that takes a ticket whose PR's CI is red is given what the red checks say: their failure annotations, check by check (#2545)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(14);
+  faux.prs.push({ number: 99, issue: 14, branche: "cook/14-github", sha: "c".repeat(40), state: "open", merged: false, enRetard: false, enConflit: false, mergeePar: null, fichiers: [] });
+  const job = "https://github.com/faux/depot/actions/runs/7/job/";
+  const lus: string[] = [];
+  let consigne = "";
+  const lancer: Lancer = ({ args, flux }) => {
+    consigne = args[args.indexOf("-p") + 1] ?? "";
+    writeFileSync(flux, fluxQuiConclut("done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 12, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box", places: 1, base: "main", depotGitHub: "faux/depot",
+    github: {
+      ...fauxClient(faux),
+      ci: async () => [
+        { name: "tests app (3/3)", conclusion: "failure", outcome: "red", url: `${job}31` },
+        { name: "types (app)", conclusion: "failure", outcome: "red", url: `${job}32` },
+        { name: "tests runtime (1/16)", conclusion: "success", outcome: "green", url: `${job}33` },
+      ],
+      annotationsDuCheck: async (check) => {
+        lus.push(check.name);
+        return check.name === "tests app (3/3)" ? [{ chemin: null, ligne: null, titre: "tests app (3/3)", message: "✖ failing tests:\n\ntest at test/peau.test.ts:57:1\n✖ the skin has no hard-coded colour" }] : [];
+      },
+    },
+    depot: { connait: (branche) => branche === "cook/14-github", preparer: async () => assert.fail("the branch is resumed"), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 1, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
+    prise: priseDeLaStation, claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+
+  // Les checks rouges seuls sont lus.
+  assert.deepEqual(lus, ["tests app (3/3)", "types (app)"]);
+  assert.match(consigne, /## Work left on the delivery\n\nthe CI of PR #99 is red\./);
+  assert.match(consigne, /### What the CI says is red[\s\S]*#### `tests app \(3\/3\)`\n\n```\ntests app \(3\/3\)\n✖ failing tests:\n\ntest at test\/peau\.test\.ts:57:1\n✖ the skin has no hard-coded colour\n```/);
+  assert.match(consigne, /#### `types \(app\)`\n\n_GitHub gives no failure annotation for this check: https:\/\/github\.com\/faux\/depot\/actions\/runs\/7\/job\/32_/);
+  assert.doesNotMatch(consigne, /tests runtime \(1\/16\)/);
+});
+
 test("a cook that resumes a branch and moves its head delivers as before (#2372)", async (t) => {
   const faux = await repriseQui(t, true);
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);

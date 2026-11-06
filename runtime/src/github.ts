@@ -135,6 +135,12 @@ export type GitHub = {
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
   // est pas un, ou que GitHub ne le rend plus.
   journalDuCheck(check: Check): Promise<string | null>;
+  // Les annotations d'échec d'un check de GitHub Actions — les tests en échec,
+  // par leur nom et leur erreur, que la CI y écrit (`.github/workflows/tests.yml`).
+  // Elles se lisent par l'API, quand le journal du job ne se lit pas de la box
+  // (#2545). Aucune si le check n'est pas un job, ou que GitHub ne les rend pas.
+  // Facultatif : seul le client réel le porte.
+  annotationsDuCheck?(check: Check): Promise<AnnotationDeCheck[]>;
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
   // La tentative en cours d'un run de GitHub Actions (1 tant qu'il n'a pas été
@@ -292,6 +298,10 @@ type PRBrute = {
 };
 
 type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
+// Une annotation d'échec d'un check : où — `chemin` et `ligne`, nuls quand la
+// CI n'en nomme pas —, son titre et son message.
+export type AnnotationDeCheck = { chemin: string | null; ligne: number | null; titre: string; message: string };
+type AnnotationBrute = { path?: string; start_line?: number; annotation_level?: string; title?: string | null; message?: string };
 type Statut = { context: string; state: string; target_url: string | null };
 
 // Les conclusions d'un job qui ne sont pas un échec.
@@ -646,6 +656,17 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       if (job === undefined) return null;
       const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]);
       return reponse.statut === 200 ? reponse.corps : null;
+    },
+    async annotationsDuCheck(check) {
+      const job = jobDuCheck(check)?.job;
+      if (job === undefined) return [];
+      const reponse = await appeler([`repos/${depot}/check-runs/${job}/annotations?per_page=100`]);
+      if (reponse.statut !== 200) return [];
+      const lues = JSON.parse(reponse.corps) as AnnotationBrute[];
+      // Une annotation sans fichier est posée par GitHub sur `.github` : elle n'en nomme aucun.
+      return lues
+        .filter((lue) => lue.annotation_level === "failure")
+        .map((lue) => ({ chemin: lue.path === undefined || lue.path === ".github" ? null : lue.path, ligne: lue.path === ".github" ? null : (lue.start_line ?? null), titre: lue.title ?? "", message: lue.message ?? "" }));
     },
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
