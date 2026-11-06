@@ -137,7 +137,7 @@ describe("le menu de la page d'un projet (#2485)", () => {
     assert.deepEqual(vue.element("bloc-du-rail").children, []);
 
     await ouvrirOnglet(vue, "Health");
-    assert.deepEqual(blocs(vue), ["temps-tickets", "plafonds-duree", "closer"]);
+    assert.deepEqual(blocs(vue), ["temps-tickets", "bloque-sans-question", "plafonds-duree", "closer"]);
 
     await ouvrirOnglet(vue, "Cooks");
     const poses = blocs(vue);

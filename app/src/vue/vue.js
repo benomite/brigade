@@ -140,6 +140,7 @@ import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/Ajout
 import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
+import { poserBlocBloqueSansQuestion } from "./projet/cuisine/sante/BloqueSansQuestion.js";
 import { poserBlocPlafondsDuree } from "./projet/cuisine/sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/cuisine/sante/Closer.js";
 import { etatFerme as ajoutDeSpecialisationFerme, poserBlocSpecialisations } from "./projet/cuisine/cuisiniers/Specialisations.js";
@@ -7223,6 +7224,7 @@ function poserLaSante(projet, garder = true) {
   const lecture = plafondsLus.get(projet.nom);
   rail.replaceChildren(
     poserBlocTempsTickets(document, vu?.temps),
+    poserBlocBloqueSansQuestion(document, /** @type {{ blockedWithoutQuestion?: unknown } | undefined} */ (vu)?.blockedWithoutQuestion),
     poserBlocPlafondsDuree(document, {
       ...(lecture === undefined ? {} : { lecture }),
       ...(vu?.temps === undefined ? {} : { tempsMaxTicketMin: vu.temps.tempsMaxTicketMin }),
