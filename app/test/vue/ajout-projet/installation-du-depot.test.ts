@@ -164,20 +164,21 @@ describe("l'étape « projet » vérifie le dépôt choisi avant de l'ajouter", 
     let suites = 0;
     const verifies: string[] = [];
     const racine = poserEtapeProjet(doc, {
-      depots: [{ depot: "chef/site", base: "trunk" }],
+      depots: [{ depot: "chef/site", base: "trunk" }, { depot: "chef/autre", base: "main" }],
       resoudre: async (depot) => ({ depot, base: "main" }),
       ajouter: async ({ depot }) => void ajoutes.push(depot),
       suivante: () => void suites++,
       verifier: (depot) => (verifies.push(depot), verifier(depot)),
       installer,
     }) as Faux;
-    const choisir = async () => {
-      const ligne = [...racine.descendants()].find((element) => element.dataset.depot === "chef/site")!;
+    const erreur = () => [...racine.descendants()].find((element) => element.className === "erreur")?.textContent ?? "";
+    const choisir = async (nom = "chef/site") => {
+      const ligne = [...racine.descendants()].find((element) => element.dataset.depot === nom)!;
       await Promise.all(ligne.dessous("button")[0]!.declencher("click"));
       await repos();
     };
     const bloc = () => [...racine.descendants()].find((element) => element.className === "installation-du-depot");
-    return { racine, choisir, bloc, ajoutes, verifies, suites: () => suites };
+    return { racine, choisir, bloc, erreur, ajoutes, verifies, suites: () => suites };
   }
 
   test("un dépôt prêt : vérifié, dit prêt, ajouté et la suite, comme avant", async () => {
@@ -203,5 +204,34 @@ describe("l'étape « projet » vérifie le dépôt choisi avant de l'ajouter", 
     assert.equal(vue.bloc()?.dataset.etat, "pret");
     assert.deepEqual(vue.ajoutes, ["chef/site"]);
     assert.equal(vue.suites(), 1);
+  });
+
+  test("un autre dépôt choisi pendant la vérification prend sa place", async () => {
+    const lecture = enAttente<EtatDuDepot>();
+    const vue = etape((depot) => (depot === "chef/site" ? lecture.promesse : Promise.resolve(PRET_ETAT)));
+    await vue.choisir();
+    await vue.choisir("chef/autre");
+    await repos();
+    lecture.tenir(PRET_ETAT);
+    await repos();
+    assert.deepEqual(vue.verifies, ["chef/site", "chef/autre"]);
+    assert.deepEqual(vue.ajoutes, ["chef/autre"]);
+  });
+
+  test("pendant une préparation, un autre dépôt choisi attend : une phrase le dit, rien n'est vérifié", async () => {
+    const preparation = enAttente<EtatDuDepot>();
+    const vue = etape(async () => ({ ready: false, missingBindings: true, missingLabels: false }), () => preparation.promesse);
+    await vue.choisir();
+    const bouton = vue.bloc()!.dessous("button").find((un) => un.textContent === PREPARER)!;
+    void Promise.all(bouton.declencher("click"));
+    await repos();
+    assert.equal(vue.bloc()?.dataset.etat, "en-cours");
+    await vue.choisir("chef/autre");
+    assert.equal(vue.erreur(), "chef/site is being set up.");
+    assert.deepEqual(vue.verifies, ["chef/site"]);
+    preparation.tenir(PRET_ETAT);
+    await repos();
+    await repos();
+    assert.deepEqual(vue.ajoutes, ["chef/site"]);
   });
 });

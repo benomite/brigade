@@ -45,7 +45,7 @@ export function depotsDuChef(reglages: Reglages): () => Promise<DepotDuChef[]> {
   };
 }
 
-const FORME_DU_DEPOT = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
+export const FORME_DU_DEPOT = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
 
 // Un dépôt lu par son nom, `owner/repo` — le sien, celui d'une organisation, ou un dépôt public qui n'est pas
 // au chef — : sa branche par défaut, ou le refus en une phrase (inconnu, privé, illisible). Rien n'est écrit.

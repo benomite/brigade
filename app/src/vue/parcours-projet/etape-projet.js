@@ -56,8 +56,7 @@ function cree(doc, balise, texte) {
 // L'étape. `depots` : ceux du compte et de ses organisations, ou `{ refus }` — la lecture a échoué, le
 // collage reste possible. `resoudre(depot)` lit un dépôt par son nom. `ajouter(depot)` l'ajoute, et
 // rend `{ refus }` s'il ne l'est pas. `suivante()` : le parcours passe à l'étape d'après. `verifier(depot)` et
-// `installer(depot)` : le contrat du runtime (`checkRepoSetup`, `runRepoSetup`) — absents, le dépôt est ajouté sans
-// vérification, comme avant.
+// `installer(depot)` : le contrat du runtime (`checkRepoSetup`, `runRepoSetup`).
 /**
  * @param {Fabrique} doc
  * @param {{
@@ -65,8 +64,8 @@ function cree(doc, balise, texte) {
  *   resoudre: (depot: string) => Promise<Resolu>,
  *   ajouter: (depot: Depot) => Promise<{ refus: string } | void>,
  *   suivante: () => void,
- *   verifier?: (depot: string) => Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
- *   installer?: (depot: string) => Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
+ *   verifier: (depot: string) => Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
+ *   installer: (depot: string) => Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
  * }} donnees
  */
 export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante, verifier, installer }) {
@@ -88,30 +87,36 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante, ver
   installation.className = "installation";
 
   // Un dépôt choisi ou résolu : vérifié, puis ajouté et la suite — prêt d'emblée, sans geste de plus ; pas prêt, le
-  // bloc de la vérification attend le chef. Un autre dépôt choisi entre-temps prend sa place.
+  // bloc de la vérification attend le chef. Un autre dépôt choisi pendant une vérification prend sa place ; pendant
+  // une préparation ou un ajout, il attend : la phrase le dit.
   /** @type {Depot | undefined} */
   let choisi;
+  /** @type {HTMLElement | undefined} */
+  let bloc;
   let enCours = false;
-  const adopter = async (/** @type {Depot} */ depot) => {
-    if (enCours) return dire(`${depot.depot} is being added.`);
-    if (verifier === undefined || installer === undefined) return ajouterLeDepot(depot);
+  const occupe = () => {
+    if (enCours && choisi !== undefined) return `${choisi.depot} is being added.`;
+    if (choisi !== undefined && bloc?.dataset.etat === "en-cours") return `${choisi.depot} is being set up.`;
+    return undefined;
+  };
+  const adopter = (/** @type {Depot} */ depot) => {
+    const attente = occupe();
+    if (attente !== undefined) return dire(attente);
     choisi = depot;
     dire("");
-    installation.replaceChildren(
-      poserInstallationDuDepot(doc, {
-        depot: depot.depot,
-        verifier,
-        installer,
-        continuer: () => {
-          if (choisi === depot) void ajouterLeDepot(depot);
-        },
-      }),
-    );
+    bloc = poserInstallationDuDepot(doc, {
+      depot: depot.depot,
+      verifier,
+      installer,
+      continuer: () => {
+        if (choisi === depot) void ajouterLeDepot(depot);
+      },
+    });
+    installation.replaceChildren(bloc);
   };
 
   // Le dépôt ajouté, puis la suite ; refusé, la phrase, et rien ne bouge.
   const ajouterLeDepot = async (/** @type {Depot} */ depot) => {
-    if (enCours) return dire(`${depot.depot} is being added.`);
     enCours = true;
     dire("");
     try {
