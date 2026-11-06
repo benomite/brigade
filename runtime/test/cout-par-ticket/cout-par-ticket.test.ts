@@ -187,7 +187,7 @@ test("an empty kitchen left an hour on a fake clock costs no counted GitHub call
 });
 
 // Un ticket refusé à la relecture n'attend pas : il repart à un cook (#2209).
-test("waiting tickets left an hour on a fake clock cost no counted GitHub call: waiting, not calibrated, taken by another station, its zone held by an open PR, its delivery waiting for the chef", async (t) => {
+test("waiting tickets left an hour on a fake clock cost no counted GitHub call: waiting, not calibrated, taken by another station, its zone held by an open PR", async (t) => {
   const faux = new FauxGitHub(DEPOT);
   // Il attend : le label `waiting`.
   faux.feu(5, [...CALIBRE, "waiting"]);
@@ -199,16 +199,13 @@ test("waiting tickets left an hour on a fake clock cost no counted GitHub call: 
   // Sa zone est tenue par une PR ouverte d'un autre ticket.
   faux.feu(8, CALIBRE, "ticket 8", "## Zone\n\n- `runtime/src`\n");
   faux.livrer(99, ["runtime/src/a.ts"]);
-  // Approuvée, mais elle change ce qui la juge : elle attend le chef.
-  faux.feu(10, [...CALIBRE, "in-pass", "blocked-on-human"]);
-  const pr = faux.livrer(10, [".claude/brigade/gates.sh"]);
-  faux.commenterCommeLeDepot(pr.number, corpsDeVerdict("mac/claude", pr.sha, { verdict: "approve", motif: "" }));
+  // Une livraison qui change ce qui la juge n'attend plus le chef : le second
+  // juge en décide (#2555), elle n'a plus sa place ici.
   const { comptes, tours, lus } = await uneHeure(t, faux);
   assert.equal(tours, 1 + HEURE_MS / TOUR_MS);
   assert.ok(lus >= HEURE_MS / TOUR_MS);
   assert.deepEqual(comptes, [], dire(comptes));
   // Rien n'a bougé sur eux.
-  assert.equal(faux.prDe(10)?.merged, false);
   assert.deepEqual(faux.issue(7).labels, [...CALIBRE, "taken"]);
   assert.deepEqual(faux.issue(8).labels, CALIBRE);
 });
