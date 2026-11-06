@@ -49,6 +49,7 @@ import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
+import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
@@ -472,7 +473,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
   // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
   const renvoyes = new Set<number>();
-  const renvoyer = async (ticket: TicketLu, sha: string, raison: string) => {
+  // `fois` : les renvois que cette tête peut porter — plus d'un quand la pass a
+  // refusé la réponse du cook sur la même tête (#2592).
+  const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1) => {
     const tous = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
     const renvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
@@ -480,7 +483,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
     // Mais il doit quitter le pass : si le retrait de \`in-pass\` avait échoué
     // (GitHub qui limite ses appels), il se refait, sans second commentaire (#2319).
-    if (tous.some((c) => c.body.includes(` sha=${sha} `))) {
+    if (tous.filter((c) => c.body.includes(` sha=${sha} `)).length >= fois) {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
       return;
     }
@@ -725,7 +728,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
           }
           // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
-          if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
+          if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) {
+            const commentaires = await github.commentaires(pr.number);
+            await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(commentaires, rendu.commentaire)}`, renvoisDeLaTete(commentaires, pr.sha));
+          }
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         } finally {
@@ -1286,11 +1292,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let sansPR = false;
     // Ce que la livraison renvoyée laisse au cook : remarques, checks rouges, diff (#2590).
     let renvoi: Renvoi | null = null;
+    // La PR ouverte que le cook reprend : il peut y répondre aux remarques (#2592).
+    let prOuverte: number | null = null;
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
         sansPR = ouverte === null;
         if (ouverte !== null && ouverte.state === "open") {
+          prOuverte = ouverte.number;
           if (ouverte.enConflit === true) resteAFaire = `PR #${ouverte.number} conflicts with \`${base}\``;
           else {
             const checks = await options.github.ci(ouverte.sha);
@@ -1320,7 +1329,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
-    }
+    } else if (prOuverte !== null) joint += `\n\n${consigneDuDesaccord(prOuverte)}`;
     const brief = briefDuRenvoi(renvoi, base);
     if (brief !== "") joint += `\n\n${brief}`;
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
@@ -1352,8 +1361,17 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
     await depot.ranger(worktree, branche);
     if (depot.commits(branche) === 0) return { echec: motifArretCook("the cook committed nothing", arretDuCook()) };
-    if (avant !== null && depot.tete?.(branche) === avant) {
+    // Sa réponse aux remarques, que la station poste pour lui sur la PR (#2592).
+    const reponse = prOuverte === null ? null : reponseDuMessage(lireLeFlux(lance.flux ?? flux).message ?? null);
+    const tete = depot.tete?.(branche);
+    if (prOuverte !== null && reponse !== null && tete !== undefined) {
+      await options.github.commenter(prOuverte, corpsDeLaReponse(tete, reponse)).catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the cook's reply could not be posted on PR #${prOuverte}: ${message(erreur)}`));
+    }
+    if (avant !== null && tete === avant) {
       if (resteAFaire !== null) return { reste: resteAFaire };
+      // Il a répondu sur la PR depuis le renvoi : un désaccord, pas un échec —
+      // la livraison repart en pass, qui juge sa réponse (#2592).
+      if (prOuverte !== null && "desaccord" in classerArret(await options.github.commentaires(prOuverte).catch(() => []), avant, "")) return { branche };
       // Un cook qui s'arrête dans ses premiers tours n'a pas travaillé sur les
       // remarques de la relecture : ce n'est pas un essai (#2508).
       if (fin.turns <= TOURS_POUR_TRAVAILLER) return { court: true, subi: `the cook stopped after ${fin.turns} turn${fin.turns === 1 ? "" : "s"}, before it could work on the review's remarks, and added nothing since its last delivery` };
@@ -1374,7 +1392,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     try {
       const issue = await options.github.issue(ticket.number);
       const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
-      const texte = consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff });
+      // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
+      const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
+      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff }), reponse);
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
       const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
