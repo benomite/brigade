@@ -6325,10 +6325,35 @@ function poserLesSectionsDeStation(station) {
     return sectionsDeStation.replaceChildren();
   }
   const locale = projetsVus?.locale ?? null;
-  const posees = JSON.stringify([station.id, station.nom, locale]);
+  const vue = stationsVues?.stations.find(({ id }) => id === station.id);
+  const max = vue?.max ?? null;
+  const posees = JSON.stringify([station.id, station.nom, locale, max, vue?.maxDepuis ?? null]);
   if (posees === sectionsDeStationPosees) return;
   sectionsDeStationPosees = posees;
-  void poserLaCoqueDeStation(document, { station, locale, reglages: brigade.lireReglagesDeLaStation === undefined ? undefined : { lire: async () => (await brigade.lireReglagesDeLaStation?.()) ?? { refus: "folders and sandbox unavailable" }, ecrire: async (/** @type {any} */ c) => (await brigade.ecrireReglagesDeLaStation?.(c)) ?? { refus: "nothing was changed" } } }).then((page) => {
+  const repose = () => {
+    sectionsDeStationPosees = "";
+    poserLesSectionsDeStation(station);
+  };
+  // Le compte GitHub ne se lit que pour la station de cet ordinateur : c'est son `gh`.
+  const compte = station.id === locale ? (brigade.compteGitHub?.() ?? Promise.resolve(undefined)).catch(() => undefined) : Promise.resolve(undefined);
+  const connexions = {
+    claude: max === null ? null : { etat: max, depuis: vue?.maxDepuis ?? null },
+    gestes: {
+      changerGitHub: async () => {
+        const debut = (await brigade.seConnecterAGitHub?.()) ?? { refus: "GitHub sign-in could not be started: the app gave no answer." };
+        if ("refus" in debut) return debut.refus;
+        repose();
+      },
+      renouveler: async () => {
+        const panne = vue?.pannes.find(({ sujet }) => sujet === "connexion-max");
+        if (panne === undefined) return "Claude Code is signed in: there is nothing to renew yet.";
+        const rendu = await brigade.panne(station.id, panne.cle);
+        return "refus" in rendu ? rendu.refus : rendu.fait;
+      },
+    },
+  };
+  const reglages = brigade.lireReglagesDeLaStation === undefined ? undefined : { lire: async () => (await brigade.lireReglagesDeLaStation?.()) ?? { refus: "folders and sandbox unavailable" }, ecrire: async (/** @type {any} */ c) => (await brigade.ecrireReglagesDeLaStation?.(c)) ?? { refus: "nothing was changed" } };
+  void compte.then((github) => poserLaCoqueDeStation(document, { station, locale, reglages, connexions: { ...connexions, github } })).then((page) => {
     if (sectionsDeStationPosees === posees) sectionsDeStation.replaceChildren(page);
   });
 }

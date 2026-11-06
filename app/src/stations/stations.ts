@@ -24,7 +24,7 @@ export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
 // mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire. `fournit` : ce que son appairage
 // dit qu'elle fournit (document.ts, #1757) — absent quand il n'en dit rien.
-export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
+export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; maxDepuis?: string | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
@@ -138,6 +138,7 @@ export function tenirStations(options: OptionsStations): Stations {
             projets: document.projets,
             // Une station qui se tait ne dit plus sa connexion : ce qu'elle en a publié avant n'est plus sûr.
             max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
+            maxDepuis: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.depuis ?? null) : null,
             versionDit: ligneDeVersion(document, instant, versions.vue(id, document.version, instant)),
           },
     );
