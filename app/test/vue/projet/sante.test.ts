@@ -12,9 +12,11 @@ import { BANNIERE } from "../../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
+import type { LectureDuCloser, RenduDesVerifications, RenduDuReglage } from "../../../src/closer-sante.ts";
 import { PLAFONDS, type LectureDesPlafonds, type RenduDuPlafond } from "../../../src/plafonds-duree.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { CLES as CLES_DES_REGLAGES } from "../../../src/reglages-du-projet.ts";
+import { poserBlocCloser } from "../../../src/vue/projet/cuisine/sante/Closer.js";
 import { poserBlocPlafondsDuree } from "../../../src/vue/projet/cuisine/sante/PlafondsDuree.js";
 import { lireLesTemps, poserBlocTempsTickets } from "../../../src/vue/projet/cuisine/sante/TempsTickets.js";
 import { Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee } from "../../aides/fausse-vue.ts";
@@ -134,6 +136,151 @@ describe("les plafonds de durée, sur Health", () => {
   });
 });
 
+// Le closer (#2491) : trois passes — une en cours, une mergée, une fermée sans merge —, deux vérifications en plus, et ses
+// réglages, le calibrage et le plafond de tokens posés dans le dépôt.
+const passe = (numero: number, autres: Partial<Extract<LectureDuCloser["passes"], { liste: unknown }>["liste"][number]>) => ({
+  numero,
+  url: `https://github.com/chef/parade/issues/${numero}`,
+  ouverteLe: "2026-10-10T08:00:00.000Z",
+  ouverte: false,
+  sha: "9f3c2a17b4e0",
+  candidats: [],
+  restants: 0,
+  derive: [],
+  temps: [],
+  pr: null,
+  ...autres,
+});
+const CLOSER: LectureDuCloser = {
+  passes: {
+    liste: [
+      passe(2531, {
+        ouverte: true,
+        candidats: [
+          { id: "D1", quoi: "24 identical lines of code: `a.js:1-24` = `b.js:40-63`" },
+          { id: "M1", quoi: "export `vieux` of `c.ts:12` — referenced nowhere" },
+          { id: "M2", quoi: "export `ancien` of `d.ts:3` — referenced only by tests (`d.test.ts`)" },
+        ],
+        derive: ["last 20 merges: +3,120 / −840 (3.7:1)", "last 100 merges: +18,340 / −7,336 (2.5:1)"],
+        temps: ["Times stable: 4 tickets measured since the last pass, and no drift. No correction ticket is opened or changed."],
+        pr: { numero: 2533, url: "https://github.com/chef/parade/pull/2533", mergee: false, retirees: 0, ajoutees: 0 },
+      }),
+      passe(2477, { ouverteLe: "2026-10-08T08:00:00.000Z", candidats: [{ id: "M1", quoi: "x" }], pr: { numero: 2480, url: "https://github.com/chef/parade/pull/2480", mergee: true, retirees: 1234, ajoutees: 56 } }),
+      passe(2410, { ouverteLe: "2026-10-06T08:00:00.000Z", pr: { numero: 2412, url: "https://github.com/chef/parade/pull/2412", mergee: false, retirees: 0, ajoutees: 0 } }),
+    ],
+  },
+  verifications: { liste: ["Unused CSS classes"] },
+  reglages: {
+    liste: [
+      { cle: "calibration", nom: "Calibration", unite: "", defaut: null, surGithub: true, valeur: { model: "sonnet", effort: "medium" } },
+      { cle: "cooksBelow", nom: "Start condition", unite: "cooks in flight", defaut: 1, surGithub: false, valeur: null },
+      { cle: "maxTokens", nom: "Tokens cap", unite: "tokens", defaut: 500_000, surGithub: false, valeur: 300_000 },
+      { cle: "maxRemovedLines", nom: "Removed lines cap", unite: "lines", defaut: 500, surGithub: true, valeur: null },
+    ],
+  },
+};
+const VALEURS = { modeles: MODELES, efforts: EFFORTS };
+const partieDe = (racine: Faux, partie: string) => [...racine.descendants()].find(({ dataset }) => dataset.partie === partie) ?? assert.fail(`pas de partie ${partie}`);
+const boutonNomme = (racine: Faux, libelle: string) => racine.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton ${libelle}`);
+
+describe("le closer, sur Health", () => {
+  test("ses passes, chacune avec ce qu'elle a retiré — ou pourquoi rien —, et sa PR", () => {
+    const ouverts: string[] = [];
+    const bloc = poserBlocCloser(doc, { lecture: CLOSER, ouvrir: (url) => ouverts.push(url) });
+    assert.equal(bloc.dataset.bloc, "closer");
+    const passes = partieDe(bloc, "passes").children.filter(({ className }) => className === "passe");
+    assert.deepEqual(passes.map(texte), [
+      "#2531Oct 10in progress — its PR is in the pass3 candidatesPR #2533",
+      "#2477Oct 8−1,234 lines+56 added1 candidatePR #2480",
+      "#2410Oct 6nothing removedits PR was closed without a mergeno candidatePR #2412",
+    ]);
+    boutonNomme(bloc, "PR #2480").click();
+    boutonNomme(bloc, "#2531").click();
+    assert.deepEqual(ouverts, ["https://github.com/chef/parade/pull/2480", "https://github.com/chef/parade/issues/2531"]);
+  });
+
+  test("ce qu'il vérifie en premier : ce que la dernière passe lui a remis sur ce projet, ses candidats repliés", () => {
+    const en = partieDe(poserBlocCloser(doc, { lecture: CLOSER }), "en-premier");
+    assert.deepEqual(en.children.filter(({ className }) => className === "verification").map(texte), [
+      "Dead code2 exports referenced nowhere, or by tests only",
+      "Duplicates1 passage of identical lines",
+      "Driftlast 100 merges: +18,340 / −7,336 (2.5:1)?",
+      "Ticket timesstable since the previous pass?",
+    ]);
+    const replie = en.dessous("details")[0] ?? assert.fail("pas de candidats");
+    assert.match(texte(replie), /^Candidates3 handed to pass #2531 on 9f3c2a1/);
+    assert.match(texte(replie), /M1export vieux of c\.ts:12 — referenced nowhere/);
+    // Sans passe, il dit ce qu'il vérifiera.
+    const sans = poserBlocCloser(doc, { lecture: { ...CLOSER, passes: { liste: [] } } });
+    assert.match(texte(partieDe(sans, "passes")), /No closing pass yet on this project/);
+    assert.match(texte(partieDe(sans, "en-premier")), /its own checks — dead code, duplicates, drift, ticket times — once a pass is opened/);
+  });
+
+  test("une vérification en plus s'ajoute d'ici : « add » n'agit qu'avec un texte, et donne ce qui est tapé", () => {
+    const gestes: [string, string][] = [];
+    const bloc = poserBlocCloser(doc, { lecture: CLOSER, changerVerification: (geste, saisie) => gestes.push([geste, saisie]) });
+    const en = partieDe(bloc, "en-plus");
+    assert.match(texte(en), /Unused CSS classesremove/);
+    const ajout = boutonNomme(en, "add");
+    assert.equal(ajout.disabled, true);
+    assert.equal(ajout.className, "recommande");
+    const champ = en.dessous("input")[0] ?? assert.fail("pas de champ");
+    champ.value = " Doc sentences naming removed code ";
+    champ.declencher("input");
+    assert.equal(ajout.disabled, false);
+    ajout.click();
+    boutonNomme(en, "remove").click();
+    assert.deepEqual(gestes, [
+      ["ajouter", "Doc sentences naming removed code"],
+      ["retirer", "Unused CSS classes"],
+    ]);
+  });
+
+  test("ses réglages : le calibrage, la condition de départ, les plafonds — chacun sa valeur, d'où elle vient, et « save »", () => {
+    const changes: [string, unknown][] = [];
+    const bloc = poserBlocCloser(doc, { lecture: CLOSER, valeurs: VALEURS, changer: (cle, saisie) => changes.push([cle, saisie]) });
+    assert.match(texte(ligneDe(bloc, "calibration")), /^Calibrationsonnet \/ mediumin the repository/);
+    assert.match(texte(ligneDe(bloc, "cooksBelow")), /^Start condition\?not setthe station's, or none in flightnot read on GitHub yet/);
+    assert.match(texte(ligneDe(bloc, "maxTokens")), /^Tokens cap300,000 tokensin the repositorynot read on GitHub yet/);
+    assert.match(texte(ligneDe(bloc, "maxRemovedLines")), /^Removed lines capnot setthe station's, or 500 lines/);
+    assert.doesNotMatch(texte(ligneDe(bloc, "maxRemovedLines")), /not read on GitHub/);
+
+    const lignes = ligneDe(bloc, "maxRemovedLines");
+    const champ = champDe(lignes);
+    champ.value = "800";
+    champ.declencher("input");
+    boutonDe(lignes).click();
+
+    const calibrage = ligneDe(bloc, "calibration");
+    const [modele = assert.fail("pas de modèle"), effort = assert.fail("pas d'effort")] = calibrage.dessous("select");
+    assert.equal(boutonDe(calibrage).disabled, true, "rien n'a changé");
+    modele.value = "opus";
+    modele.declencher("change");
+    effort.value = "high";
+    effort.declencher("change");
+    assert.equal(boutonDe(calibrage).disabled, false);
+    boutonDe(calibrage).click();
+    // L'un sans l'autre ne s'enregistre pas.
+    effort.value = "";
+    effort.declencher("change");
+    assert.equal(boutonDe(calibrage).disabled, true);
+
+    assert.deepEqual(changes, [
+      ["maxRemovedLines", "800"],
+      ["calibration", { model: "opus", effort: "high" }],
+    ]);
+  });
+
+  test("tant que rien n'est lu, chaque partie le dit ; une lecture ratée tient en une ligne, le détail au survol", () => {
+    assert.match(texte(poserBlocCloser(doc)), /reading the closer's passes…/);
+    const sans = { sans: "the closer's settings unavailable", detail: "GitHub refused (HTTP 401)" };
+    const rate = poserBlocCloser(doc, { lecture: { ...CLOSER, reglages: sans } });
+    assert.match(texte(partieDe(rate, "reglages")), /the closer's settings unavailable/);
+    assert.doesNotMatch(texte(rate), /HTTP 401/);
+    assert.match(texte(partieDe(rate, "passes")), /#2531/, "les autres parties restent");
+  });
+});
+
 // La vue entière : parade, ouvert sur Kitchen > Health, devant un GitHub qui garde ce qu'on lui écrit.
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
@@ -147,9 +294,10 @@ const demarrage = () => ({
   code: undefined,
 });
 
-async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][] }> {
+async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]; closer: unknown[][] }> {
   let lecture = LECTURE;
   const ecrits: [string, string, string][] = [];
+  const closer: unknown[][] = [];
   const vue = await jouerLaVue({
     demarrage,
     espace: () => [],
@@ -160,10 +308,19 @@ async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]
       if ("plafonds" in lecture) lecture = { ...lecture, plafonds: lecture.plafonds.map((plafond) => (plafond.cle === cle ? { ...plafond, valeur: Number(saisie) } : plafond)) };
       return { fait: "saved in the repository — the station applies it at its next fetch", cle: cle as "gatesSeconds", valeur: Number(saisie) };
     },
+    closerDeSante: async () => CLOSER,
+    changerReglageDuCloser: async (projet, cle, saisie): Promise<RenduDuReglage> => {
+      closer.push([projet, cle, saisie]);
+      return { fait: "saved in the repository — the station applies it at its next fetch", cle: cle as "maxRemovedLines", valeur: Number(saisie) };
+    },
+    changerVerificationDuCloser: async (projet, geste, saisie): Promise<RenduDesVerifications> => {
+      closer.push([projet, geste, saisie]);
+      return { fait: "added in the repository", liste: ["Unused CSS classes", saisie] };
+    },
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
-  return { vue, ecrits };
+  return { vue, ecrits, closer };
 }
 const bloc = (vue: Jouee) => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "plafonds-duree") ?? assert.fail("pas de plafonds");
 
@@ -185,6 +342,39 @@ describe("Health, dans la vue", () => {
     const apres = ligneDe(bloc(vue), "gatesSeconds");
     assert.match(texte(apres), /^Gates duration150 sin the repository/);
     assert.match(texte(apres), /saved in the repository — the station applies it at its next fetch/);
+  });
+
+  test("le closer sur Health : une vérification ajoutée et un réglage enregistré partent au process principal, et la page les reprend", async () => {
+    const { vue, closer } = await jouer();
+    await ouvrirOnglet(vue, "Health");
+    await repos();
+    assert.deepEqual(vue.dernier("closerDeSante"), ["parade"]);
+    const duCloser = () => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "closer") ?? assert.fail("pas de closer");
+    assert.match(texte(partieDe(duCloser(), "passes")), /−1,234 lines/);
+
+    const champ = partieDe(duCloser(), "en-plus").dessous("input")[0] ?? assert.fail("pas de champ");
+    champ.value = "Doc sentences naming removed code";
+    champ.declencher("input");
+    boutonNomme(partieDe(duCloser(), "en-plus"), "add").click();
+    await repos();
+    await repos();
+    assert.match(texte(partieDe(duCloser(), "en-plus")), /Unused CSS classesremoveDoc sentences naming removed coderemove/);
+    assert.match(texte(partieDe(duCloser(), "en-plus")), /added in the repository/);
+    assert.equal((partieDe(duCloser(), "en-plus").dessous("input")[0] ?? assert.fail("pas de champ")).value, "", "ajoutée, le champ se vide");
+
+    const ligne = ligneDe(duCloser(), "maxRemovedLines");
+    const nombre = champDe(ligne);
+    nombre.value = "800";
+    nombre.declencher("input");
+    boutonDe(ligne).click();
+    await repos();
+    await repos();
+    assert.match(texte(ligneDe(duCloser(), "maxRemovedLines")), /^Removed lines cap800 linesin the repository/);
+    assert.match(texte(ligneDe(duCloser(), "maxRemovedLines")), /saved in the repository/);
+    assert.deepEqual(closer, [
+      ["parade", "ajouter", "Doc sentences naming removed code"],
+      ["parade", "maxRemovedLines", "800"],
+    ]);
   });
 
   test("les plafonds ne se règlent nulle part ailleurs dans la page du projet", async () => {

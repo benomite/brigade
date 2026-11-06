@@ -7,7 +7,7 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 tab opened by default**. Kitchen has two sub-tabs, **Health** and **Cooks**, shown under it, each one click away. Settings opens over
 the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `cuisine/sante/`, `cuisine/cuisiniers/`, `rail/BandeRail.js`) and its own ticket fills it; **Health** shows
-the ticket time in detail and the duration caps (#2490, see "Kitchen > Health" below). **Stations lists the project's stations** (#2487) — the very list Cooks shows, the same lines, kept up to date by
+the ticket time in detail, the duration caps (#2490) and the closer (#2491) — see "Kitchen > Health" below. **Stations lists the project's stations** (#2487) — the very list Cooks shows, the same lines, kept up to date by
 the same readings — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
 to a station.* **This computer comes first**, as the recommended button, when its station does not serve the project yet;
 then the stations paired with your account that the project is not chosen for — an offline one says so. Each choice is a
@@ -1936,6 +1936,34 @@ threshold) writes nothing and says so under the field; GitHub's refusal (a prote
 key check refuses it) and reads it only from its clone's working tree — its row says so, the reason on hover. The caps
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
 `app/src/vue/projet/cuisine/sante/PlafondsDuree.js`.
+
+**Kitchen > Health: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
+read on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/closer-sante.ts`) — when Health
+opens, then at most once a minute while it stays open; each part that fails to read is one line, its detail on hover, and
+does not take the others along.
+**What it did**: its last 5 passes, newest first. A pass is a closing issue the runtime opened (`fire`, titled `Closing
+pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/fermeture.md`,
+"On GitHub, the only path"); what it removed is the PR of its cook's branch (`cook/<n>-github`), merged: `−1,234 lines`,
+`+56 added`. Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
+the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
+browser. No pass yet: `No closing pass yet on this project`, when one is opened on hover.
+**What it checks first**: what the latest pass handed it, on this project — the dead code (`3 exports referenced nowhere,
+or by tests only`), the duplicates, the drift of the latest merges (its longest window; the others on hover) and the
+ticket times (`stable since the previous pass`, or the drift found and its correction ticket) — then, folded behind one
+line (`Candidates · 5 handed to pass #2531 on 9f3c2a1`), each candidate under its pass name.
+**Extra checks**: what the chef asks the closer to check in addition, one per line, each with **remove**; a field and
+**add** (recommended, enabled once something is typed; Enter adds too) write it into **`.claude/brigade/closer-checks.md`**
+on the integration branch — created when missing, a check already there is not doubled —, and the check joins the list,
+`added in the repository` under the field. **The runtime does not copy these checks into a pass's issue yet**: they wait in
+the repository until it does (the `?` says so).
+**Settings**: the closer's four settings of `closer.*` in `.claude/brigade/projet.json` — its **calibration** (a model and an
+effort, saved together; both emptied, the repository no longer sets it), its **start condition** (`cooksBelow`, `none in
+flight` for 1), its **tokens cap** and its **removed lines cap** —, each with its value, where it comes from (`in the
+repository`, `the station's, or 500 lines`) and **save**, as a duration cap: only `closer.<key>` changes, the runtime reads
+it at its next fetch, a value it would refuse writes nothing and says so. The closer on GitHub reads only the calibration and
+the removed lines cap: the two others say `not read on GitHub yet`, the reason on hover. Settings still carries its
+closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
+`app/src/vue/projet/cuisine/sante/Closer.js`.
 
 **Kitchen > Cooks: the cooks' specializations, and adding one** (#2492, epic #2484). A **specialization** is a cook for
 one kind of ticket: the model and the effort it runs with, and the capabilities a station needs to run it. Each one is a

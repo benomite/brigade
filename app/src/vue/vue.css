@@ -8040,7 +8040,8 @@ button.recommande {
   padding: 0;
 }
 .bloc-du-projet[data-bloc="temps-tickets"],
-.bloc-du-projet[data-bloc="plafonds-duree"] {
+.bloc-du-projet[data-bloc="plafonds-duree"],
+.bloc-du-projet[data-bloc="closer"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -8158,7 +8159,7 @@ button.recommande {
 [data-bloc="temps-tickets"] .temps-par-ticket tr[data-depasse="oui"] .temps-total {
   color: var(--rouge-clair);
 }
-[data-bloc="plafonds-duree"] .plafond {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond {
   display: grid;
   grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
@@ -8166,26 +8167,26 @@ button.recommande {
   padding: 6px 0;
   border-top: 1px solid var(--trait-doux);
 }
-[data-bloc="plafonds-duree"] .plafond > .nom {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .nom {
   color: var(--discret);
 }
-[data-bloc="plafonds-duree"] .plafond > p {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
 }
-[data-bloc="plafonds-duree"] .plafond > .valeur strong {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .valeur strong {
   font-weight: 600;
 }
-[data-bloc="plafonds-duree"] .plafond > .valeur small,
-[data-bloc="plafonds-duree"] .plafond > .champ :is(.unite),
-[data-bloc="plafonds-duree"] .plafond > .champ.fige,
-[data-bloc="plafonds-duree"] .plafonds-lecture {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .valeur small,
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .champ :is(.unite),
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .champ.fige,
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
   font-size: 12px;
   color: var(--discret);
 }
-[data-bloc="plafonds-duree"] .plafond input[type="text"] {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond input[type="text"] {
   width: 10ch;
   padding: 4px 8px;
   font: inherit;
@@ -8194,7 +8195,7 @@ button.recommande {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-[data-bloc="plafonds-duree"] .plafond .action > button {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond .action > button {
   padding: 4px 14px;
   font-size: 12px;
   font-weight: 600;
@@ -8202,20 +8203,20 @@ button.recommande {
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-[data-bloc="plafonds-duree"] .plafond .action > button:disabled {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond .action > button:disabled {
   color: var(--discret);
   border-style: dashed;
   cursor: default;
 }
-[data-bloc="plafonds-duree"] .plafond > p.dit {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p.dit {
   grid-column: 2 / -1;
   font-size: 12px;
   color: var(--discret);
 }
-[data-bloc="plafonds-duree"] .plafond > p.dit.refus {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p.dit.refus {
   color: var(--jaune);
 }
-#rail [data-bloc="plafonds-duree"] .replie {
+#rail :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie {
   margin: 0;
   padding: 6px 0 0;
   background: none;
@@ -8223,7 +8224,7 @@ button.recommande {
   border-top: 1px solid var(--trait-doux);
   border-radius: 0;
 }
-[data-bloc="plafonds-duree"] .replie > summary {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary {
   display: flex;
   align-items: center;
   gap: 4px 10px;
@@ -8231,21 +8232,179 @@ button.recommande {
   cursor: pointer;
   font-size: 12px;
 }
-[data-bloc="plafonds-duree"] .replie > summary::before {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary::before {
   content: "";
   border-left: 6px solid var(--discret);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
 }
-[data-bloc="plafonds-duree"] .replie[open] > summary::before {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie[open] > summary::before {
   transform: rotate(90deg);
 }
-[data-bloc="plafonds-duree"] .replie > summary strong {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary strong {
   font-weight: 600;
   color: var(--discret);
 }
-[data-bloc="plafonds-duree"] .replie > summary .resume {
+:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary .resume {
   color: var(--texte-doux);
+}
+/* Le closer, sur Kitchen > Health (ticket 2491) : quatre parties sous son titre — ce qu'il a fait, ce qu'il vérifie en
+   premier, ce qu'il vérifie en plus, ses réglages. Une passe est une ligne : son issue et sa date, ce qu'elle a retiré, sa
+   PR ; un réglage chiffré est la ligne d'un plafond de durée, le calibrage ses deux listes. */
+.closer-partie {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+}
+.closer-partie > h4,
+#rail .closer-partie > h4 {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+/* Son aide n'est ni la pastille ni le monospace d'un titre de colonne du rail. */
+#rail .closer-partie > h4 span:first-child::before {
+  content: none;
+}
+#rail .closer-partie > h4 span:last-child {
+  font-family: var(--police-interface);
+}
+[data-bloc="closer"] :is(.sans, small, .closer-partie > p) {
+  color: var(--texte-doux);
+}
+[data-bloc="closer"] small {
+  font-size: 12px;
+}
+[data-bloc="closer"] button.lien {
+  padding: 0;
+  font: inherit;
+  color: var(--texte);
+  text-decoration: underline;
+  text-decoration-color: var(--trait-fort);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+[data-bloc="closer"] .passe {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+[data-bloc="closer"] .passe > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+[data-bloc="closer"] .passe > .retire strong {
+  font-weight: 600;
+  color: var(--texte);
+}
+[data-bloc="closer"] .passe > .retire.sans strong {
+  font-weight: 400;
+  color: var(--texte-doux);
+}
+[data-bloc="closer"] p.verification {
+  display: grid;
+  grid-template-columns: 220px auto 1fr;
+  align-items: center;
+  justify-items: start;
+  gap: 0 12px;
+  padding: 4px 0;
+  color: var(--texte);
+  border-top: 1px solid var(--trait-doux);
+}
+[data-bloc="closer"] p.verification > .nom {
+  color: var(--discret);
+}
+[data-bloc="closer"] ol.candidats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+[data-bloc="closer"] ol.candidats li {
+  display: grid;
+  grid-template-columns: 4ch 1fr;
+  gap: 8px;
+  color: var(--texte-doux);
+  overflow-wrap: anywhere;
+}
+[data-bloc="closer"] ul.en-plus {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-bloc="closer"] ul.en-plus li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 640px;
+  padding: 4px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+[data-bloc="closer"] .champ.ajouter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 640px;
+  padding-top: 4px;
+}
+[data-bloc="closer"] :is(.champ.ajouter input[type="text"], .plafond select) {
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="closer"] .champ.ajouter input[type="text"] {
+  flex: 1;
+}
+[data-bloc="closer"] .plafond select {
+  background: var(--bouton);
+}
+[data-bloc="closer"] :is(.en-plus, .champ.ajouter) .action > button {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="closer"] :is(.en-plus, .champ.ajouter) .action > button:disabled,
+[data-bloc="closer"] .champ.ajouter .action > button.recommande:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+[data-bloc="closer"] .closer-partie > p.dit {
+  font-size: 12px;
+  color: var(--discret);
+}
+[data-bloc="closer"] .closer-partie > p.dit.refus {
+  color: var(--jaune);
+}
+[data-bloc="closer"] .pas-sur-github {
+  color: var(--jaune);
 }
 /* La liste des stations, dans l'onglet Stations (ticket 2487) : celle de Cooks, telle quelle, sous le titre ; dessous,
    « Add a station », et l'étape qu'il ouvre sur place — ce qu'on attend du chef en tête, cet ordinateur d'abord. Alignés

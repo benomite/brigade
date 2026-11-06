@@ -46,6 +46,7 @@ import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
+import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
 import { ajouterUneSpecialisation, lireLesSpecialisations } from "./specialisations.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
@@ -1221,6 +1222,27 @@ ipcMain.handle("changerPlafondDuree", async (_, nom: unknown, cle: unknown, sais
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   return changerLePlafond({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+});
+// Le closer du projet, sur Kitchen > Health (#2491, closer-sante.ts) : ses passes et leurs PR, ses vérifications en plus
+// (`.claude/brigade/closer-checks.md`) et ses réglages (`closer.*` de `projet.json`), lus et écrits sur sa branche
+// d'intégration par le jeton du `gh` de ce poste — ni box.
+ipcMain.handle("closerDeSante", async (_, nom: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) {
+    const sans = { sans: `${String(nom)} is no longer in the projects file` };
+    return { reglages: sans, verifications: sans, passes: sans };
+  }
+  return lireLeCloser({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), client: clientDesLabels });
+});
+ipcMain.handle("changerReglageDuCloser", async (_, nom: unknown, cle: unknown, saisie: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return changerLeReglage({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+});
+ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unknown, saisie: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
 });
 // Les spécialisations des cooks du projet, sur Kitchen > Cooks (#2492, specialisations.ts) : les `agents/cook-<nom>.md` de
 // son dépôt, lus et ajoutés sur sa branche d'intégration par le jeton du `gh` de ce poste — ni box.

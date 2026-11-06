@@ -92,6 +92,10 @@ const pont = {
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
   plafondsDuree: (projet) => ipcRenderer.invoke("plafondsDuree", projet),
   changerPlafondDuree: (projet, cle, saisie) => ipcRenderer.invoke("changerPlafondDuree", projet, cle, saisie),
+  // Le closer du projet, sur Kitchen > Health (ticket 2491) : ses passes, ses vérifications en plus et ses réglages, sur GitHub.
+  closerDeSante: (projet) => ipcRenderer.invoke("closerDeSante", projet),
+  changerReglageDuCloser: (projet, cle, saisie) => ipcRenderer.invoke("changerReglageDuCloser", projet, cle, saisie),
+  changerVerificationDuCloser: (projet, geste, saisie) => ipcRenderer.invoke("changerVerificationDuCloser", projet, geste, saisie),
   // Les spécialisations des cooks du projet, sur Kitchen > Cooks (ticket 2492) : lues et ajoutées dans son dépôt, sur GitHub.
   specialisations: (projet) => ipcRenderer.invoke("specialisations", projet),
   ajouterSpecialisation: (projet, demande) => ipcRenderer.invoke("ajouterSpecialisation", projet, demande),
