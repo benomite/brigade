@@ -37,6 +37,7 @@ import { promisify } from "node:util";
 import { writeCorrection, type CorrectionResult, type GithubClient } from "../closer-github-correction/correction.ts";
 import { readDrift, type ProjectReading, type TicketTime } from "../closer-github-durees/derive.ts";
 import { DE_CONFIANCE } from "../alimenter.ts";
+import { decompteMarque, defautDesBlocagesSansQuestion, type StatutDeCloture } from "../cloture-blocages.ts";
 import { candidats, proposer, type Candidat } from "../closing/candidates.ts";
 import { direRatio, mesurerRatio } from "../closing/ratio.ts";
 import { lireDepot, type Depot } from "../closing/reading.ts";
@@ -90,6 +91,9 @@ export type OptionsCloserGithub = {
   // The tickets' times the station recorded at each merge (`temps-ticket/mesure.ts`), read at each
   // pass. Absent, the times are not read.
   temps?: () => TempsTicket[];
+  // The status the closer reads: a `blockedWithoutQuestion` above zero is a defect to fix, not a clean close.
+  // Absent, or `null`, nothing is read.
+  statut?: () => StatutDeCloture | null | Promise<StatutDeCloture | null>;
   derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
 };
 
@@ -257,6 +261,23 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     }
   };
 
+  // A project with blocked-on-human tickets that ask no question is not closed clean: one defect names the
+  // count, opened once per count, whether the last one is still open or already fixed. A status that cannot be read stops neither the pass nor the issue.
+  const blocages = async (lire: NonNullable<OptionsCloserGithub["statut"]>, calibration: { model: string; effort: string }) => {
+    try {
+      const statut = await lire();
+      const defaut = statut === null ? null : defautDesBlocagesSansQuestion(statut);
+      if (statut === null || defaut === null) return;
+      // The count never goes back to zero: a defect, open or closed, that names this count or a higher one is enough.
+      const dejaNommes = (await github.issuesDepuis(EPOCH)).filter((issue) => DE_CONFIANCE.includes(issue.association)).map((issue) => decompteMarque(issue.body));
+      if (dejaNommes.some((nomme) => nomme !== null && nomme >= statut.blockedWithoutQuestion) || arrete) return;
+      const creee = await github.creerIssue({ titre: defaut.title, corps: defaut.body, labels: [LABEL, `model:${calibration.model}`, `effort:${calibration.effort}`] });
+      avertir(`brigade : defect opened on GitHub — #${creee}, ${defaut.title}`);
+    } catch (erreur) {
+      avertir(`brigade : blocked-without-question count not handled — ${message(erreur)}`);
+    }
+  };
+
   const passer = async () => {
     const { calibration, removedLines } = options.reglages();
     if (calibration === null && options.derive === undefined) return;
@@ -264,6 +285,7 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     const merges = await clone.merges();
     if (options.derive !== undefined && !arrete) relever(options.derive, derniere, merges);
     if (calibration === null) return;
+    if (options.statut !== undefined && !arrete) await blocages(options.statut, calibration);
     const due = aOuvrir(derniere, merges, maintenant());
     if (due === null || arrete) return;
     const observation = await clone.observer();

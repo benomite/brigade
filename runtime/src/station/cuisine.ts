@@ -30,6 +30,7 @@ import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
 import { brancherDerive, lireSeuils } from "../derive.ts";
 import { brancherElagageGithub, elagageDuClone } from "../github-seul/elagage/elagage.ts";
 import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/closer-github-passe.ts";
+import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
@@ -234,7 +235,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
     // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
-    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
+    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);

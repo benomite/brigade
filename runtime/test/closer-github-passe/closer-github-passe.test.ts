@@ -240,6 +240,55 @@ describe("the pass", () => {
     assert.match(k.avertissements.join("\n"), /closing pass opened on GitHub — #501, 20 merges since the last one, 1 candidate/);
   });
 
+  test("a status with blocked-on-human tickets that ask no question opens one defect naming the count, once", async (t) => {
+    const gh = fauxGitHub();
+    const { clone, appels } = fauxClone(merges(1));
+    const k = brancher(t, { github: gh.github, clone, statut: () => ({ blockedWithoutQuestion: 2 }) });
+    k.reveiller();
+    await jusqua(() => gh.creees.length === 1);
+    const [defaut] = gh.creees;
+    assert.ok(defaut);
+    assert.match(defaut.title, /\b2\b/);
+    assert.deepEqual(defaut.labels, ["fire", "model:sonnet", "effort:low"]);
+    // The next tick finds it open: no second defect.
+    const avant = appels.merges;
+    k.reveiller();
+    await apresLesMerges(appels, avant);
+    assert.equal(gh.creees.length, 1);
+  });
+
+  test("a defect already fixed is not reopened for the same count, but is for a higher one", async (t) => {
+    const corrige: IssueDuFaux = { number: 90, title: "2 blocked-on-human without a question", body: "<!-- brigade:blocages-sans-question n=2 -->\n\nold", labels: ["fire"], association: "MEMBER", state: "closed", createdAt: "2026-10-01T00:00:00.000Z" };
+    const gh = fauxGitHub(corrige);
+    const { clone, appels } = fauxClone(merges(1));
+    let compte = 2;
+    const k = brancher(t, { github: gh.github, clone, statut: () => ({ blockedWithoutQuestion: compte }) });
+    k.reveiller();
+    await apresLesMerges(appels, 0);
+    assert.equal(gh.creees.length, 0);
+    compte = 3;
+    const avant = appels.merges;
+    k.reveiller();
+    await jusqua(() => gh.creees.length === 1);
+    assert.match(gh.creees[0]!.title, /\b3\b/);
+    assert.ok(avant >= 1);
+  });
+
+  test("a clean status opens no defect, and a status that is not a count is said", async (t) => {
+    const propre = fauxGitHub();
+    const a = fauxClone(merges(1));
+    const k = brancher(t, { github: propre.github, clone: a.clone, statut: () => ({ blockedWithoutQuestion: 0 }) });
+    k.reveiller();
+    await apresLesMerges(a.appels, 0);
+    assert.equal(propre.creees.length, 0);
+    const malforme = fauxGitHub();
+    const b = fauxClone(merges(1));
+    const m = brancher(t, { github: malforme.github, clone: b.clone, statut: () => ({}) as never });
+    m.reveiller();
+    await jusqua(() => m.avertissements.some((texte) => /not handled — .*not a count/.test(texte)));
+    assert.equal(malforme.creees.length, 0);
+  });
+
   test("a wake from the log is not its cadence", async (t) => {
     const gh = fauxGitHub();
     const f = fauxClone();
