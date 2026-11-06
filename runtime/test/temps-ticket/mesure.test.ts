@@ -167,6 +167,9 @@ test("after the station merges a ticket, the project's file holds its record, ph
       return "https://github.com/faux/depot/pull/70";
     },
     mettreAJour: async () => assert.fail("the branch is up to date"),
+    fermerIssue: async () => {
+      labels.delete(LABEL_IN_PASS);
+    },
     merger: async () => {
       avancer(5);
       if (faux.pr !== null) Object.assign(faux.pr, { merged: true, state: "closed" });
