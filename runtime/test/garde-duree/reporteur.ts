@@ -30,6 +30,11 @@ export async function* juge(source: AsyncIterable<{ type: string; data: any }>, 
   const releve = charge ? undefined : new Releve();
   releve?.demarre();
   const facteurSur = charge ? (ms: number) => charge.facteurSur(ms) : (ms: number) => releve!.facteurSur(ms);
+  // Les titres de la liste sont cherchés dans les sources pendant que la suite tourne, un par tour de boucle :
+  // après le dernier test, leur recherche tenait seule la fin de la suite (2,7 s pour ses 833 lignes).
+  const sources = sourcesDesTests();
+  const listes = new Set(EXCEPTIONS.flatMap((e) => ("test" in e ? [e.test] : [])));
+  const cherches = charge ? Promise.resolve() : chercherEnFond([...listes], sources);
   for await (const { type, data } of source) {
     if (type !== "test:pass" && type !== "test:fail") continue;
     const { file, name, details, nesting } = data;
@@ -39,9 +44,8 @@ export async function* juge(source: AsyncIterable<{ type: string; data: any }>, 
     else mesures.push({ test: name, ms: dureeSansCharge(details.duration_ms, facteurSur(details.duration_ms)) });
   }
   releve?.arrete();
+  await cherches;
   // Seuls les titres qui comptent sont cherchés dans les sources : ceux de plus de 2 s et ceux de la liste.
-  const sources = sourcesDesTests();
-  const listes = new Set(EXCEPTIONS.flatMap((e) => ("test" in e ? [e.test] : [])));
   const pertinentes: Mesure[] = mesures
     .filter((m) => m.ms > LIMITE_MS || listes.has(m.test))
     .map((m) => ({ ...m, fichiers: fichiersDuTitre(m.test, sources) }));
@@ -54,6 +58,14 @@ export async function* juge(source: AsyncIterable<{ type: string; data: any }>, 
     sortie.push("", "✖ garde de durée (#2129) : aucun test ne dure plus de 2 s", ...echecs.map((f) => `  - ${f}`));
   }
   if (sortie.length > 0) yield [...sortie, ""].join("\n");
+}
+
+// Cherche chaque titre une fois, en rendant la main entre deux : `fichiersDuTitre` garde ce qu'il a trouvé pour ces sources.
+async function chercherEnFond(titres: string[], sources: Map<string, string>): Promise<void> {
+  for (const titre of titres) {
+    fichiersDuTitre(titre, sources);
+    await new Promise((suite) => setImmediate(suite));
+  }
 }
 
 // Le lanceur appelle le reporter avec ses propres options en second argument : la sonde injectable passe par `juge`.
