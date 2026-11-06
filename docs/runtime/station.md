@@ -203,6 +203,18 @@ If the project has a `.claude/brigade/worktree-setup.sh` on the cook's branch, t
 before the cook — `worktree-setup.sh <ticket number> <worktree>` — and **what it exports enters the
 cook's environment**. The pass does the same before the gates.
 
+**On the GitHub-only station, the only path since #2061** (*ticket #2535*, `runtime/src/brigade-github.ts`):
+the station of the box plays the setup in the cook's fresh worktree, under the partition, before it
+launches the cook — capped like the gates of a head (`BRIGADE_GATES_TIMEOUT_SECONDS`, 30 min by
+default). The setup gets neither Claude's token nor a GitHub credential, and cannot hand one to the
+cook; what else it exports enters the cook's environment. **A failing setup does not hold the cook**:
+it leaves in its worktree as git laid it, and journald says which ticket and why. Until #2535 this
+station launched every cook in a worktree with no dependencies: its first gates came out red
+(`contrôle de types injouable`, `dépendances absentes`), and the cook played the setup, then the gates
+again, in cooking time. The chef's workstation (`station-ordinateur`) does not play it: its cooks run
+in Claude Code's sandbox, not under the partition. The table and the paragraphs below describe the old
+path's station.
+
 | Case | What the station does |
 |---|---|
 | The project has no setup | nothing: the cook leaves |

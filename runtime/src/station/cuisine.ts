@@ -215,6 +215,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               clone: station.clone,
               // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
               gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
+              // Le setup du worktree de chaque cook, joué avant lui (#2535).
+              setup: { delaiMs: delaiGatesMs },
             }),
       avertir: dire,
     });
