@@ -357,6 +357,14 @@ describe("superviser", { concurrency: true }, () => {
   });
 });
 
+const reveiller = (pid: number) => {
+  try {
+    process.kill(pid, "SIGUSR1");
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "ESRCH") throw erreur;
+  }
+};
+
 // L'inactivité se juge à l'horloge du test, pas à celle du mur : le temps que
 // met un cook à démarrer sur une machine chargée ne compte pas pour un silence.
 // Un seul test à la fois — l'horloge tenue est celle de tout le process.
@@ -387,7 +395,8 @@ describe("superviser, à l'horloge du test", () => {
     for (let tour = 1; tour <= 3; tour += 1) {
       while (!fini && mesure().turns < tour) await souffler();
       t.mock.timers.tick(999);
-      if (!fini) process.kill(pid, "SIGUSR1");
+      // Au dernier tour, le cook peut être mort à son plafond avant que `fin` ne le dise : rien à réveiller.
+      if (!fini) reveiller(pid);
     }
 
     assert.equal((await fin).arret?.reason, "tokens");
