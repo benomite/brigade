@@ -51,6 +51,7 @@ import { superviser, type Supervise } from "./superviseur.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
+import { poserALaMain } from "./blocages-sans-question.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
@@ -166,6 +167,9 @@ export type OptionsDeStation = {
   // s'ajoute à son `.claude/brigade/temps-tickets.json` (#2342). Absent, rien
   // ne s'écrit.
   clone?: string;
+  // Le répertoire d'état du projet, où se compte un `blocked-on-human` sans
+  // question (#2556). Absent, le cas est refusé mais pas compté.
+  repertoireEtat?: string;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
@@ -615,8 +619,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             continue;
           }
           if (!ticket.labels.includes(A_LA_MAIN)) {
-            await github.commenter(ticket.number, `Station \`${nom}\`: this delivery changes what judges it (${juges.map((f) => `\`${f}\``).join(", ")}), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr.number}.`);
-            await github.labelliser(ticket.number, [A_LA_MAIN]);
+            // La question au chef est écrite sur la carte avant le label (#2556).
+            const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, ticket.number, `Station \`${nom}\`: this delivery changes what judges it (${juges.map((f) => `\`${f}\``).join(", ")}), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr.number}.`);
+            if (!pose.pose) avertir(`brigade : ${pose.echec}`);
           }
           continue;
         }
@@ -1052,6 +1057,8 @@ export type OptionsDuDepot = {
   observer?: (github: GitHubDuTour) => GitHubDuTour;
   // Le clone du projet, où s'écrit le temps des tickets mergés (#2342).
   clone?: string;
+  // Le répertoire d'état du projet (#2556).
+  repertoireEtat?: string;
   // Les gates d'un projet sans CI sur ses PR, que la station joue sur leur
   // tête (#2456) : leur plafond de durée, le fichier des secrets de la machine,
   // et si la station agit sous une identité par rôle — ses gates ne reçoivent
@@ -1296,7 +1303,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
   const quitter = station.quitter;
   station.quitter = async () => {
     abandon.abort();

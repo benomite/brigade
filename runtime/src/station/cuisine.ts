@@ -214,6 +214,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               sauter: suiviDuTour.sauter,
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
+              repertoireEtat,
               // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
               gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
               // Le setup du worktree de chaque cook, joué avant lui (#2535).

@@ -26,6 +26,7 @@ import { plafondDuProjet } from "./reagir.ts";
 import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
 import { coutDuProjet, lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { ticketDuBudget } from "./budget-des-gates.ts";
+import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -107,7 +108,7 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
     // L'interrupteur GitHub seul, quand il est allumé : accepté, ou refusé et pourquoi (`github-seul-etat.ts`).
     const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
-    return { ...forme, ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
+    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

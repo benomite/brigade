@@ -15,6 +15,11 @@ base, the stale-branch pruning).
   `status` then has a `GitHub-only state REFUSED` line with the reason (`GitHub-only state` alone when accepted),
   `facts` carries it as `githubSeul`, and the app puts the refusal at the top of the project
   (`runtime/src/github-seul-etat.ts`).
+- **`blocked-on-human` needs a question.** The label is only set with a question written on the card
+  (`poserALaMain`, `runtime/src/blocages-sans-question.ts`): the question is commented first, then the label set.
+  Without one the label is not applied, the station warns, and the case is counted — a failure, not a step. The count is
+  never reset; `status` shows it (`blocked w/o q`) and `facts` carries it as the integer `blockedWithoutQuestion`
+  (#2556).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
 - **At most 5 deliveries in pass** (`PASS_MAX`, #2300): while the project has 5 or more tickets `in-pass`, no station
