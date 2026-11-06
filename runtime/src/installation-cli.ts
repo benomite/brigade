@@ -7,6 +7,7 @@
 //   npm --prefix runtime run installation -- etapes [...]               les étapes de l'installation, leur état, l'étape courante (`etapes-cli.ts`)
 //   npm --prefix runtime run installation -- stations [...]             les stations que la machine fournit ; déclare celles que le chef choisit (`declarer-stations.ts`)
 //   npm --prefix runtime run installation -- protection [...]           la branche d'intégration sur GitHub ; la protège (`proteger-branche.ts`)
+//   npm --prefix runtime run installation -- repo [setup] [--json]       le dépôt est-il prêt pour brigade (bindings, labels des rôles) ; l'y prépare (`depot-prepare/preparation.ts`)
 //   npm --prefix runtime run installation -- decisions [...]            les décisions que l'installation pose, chacune avec son choix expliqué ; pose les réponses (`poser-decisions.ts`)
 // Elle lit l'environnement du service, comme le runtime : aucune ne lance de
 // cook, aucune ne consomme de quota, et seules `etapes`, `stations`,
@@ -19,6 +20,7 @@ import { configRail } from "./alimenter.ts";
 import { geste } from "./geste.ts";
 import { Sortie } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
+import { principal as preparerDepot } from "./depot-prepare/preparation.ts";
 import { principal as declarerStations } from "./declarer-stations.ts";
 import { nommerEtape, principal as etapes } from "./etapes-cli.ts";
 import { desinstaller, etapesAReprendre, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
@@ -29,7 +31,7 @@ import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
 import { verdictDeVerification } from "./verdict.ts";
 
-const USAGE = "usage: <service environment> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <step> <state>] | stations [--json | <declaration> | set <station> <cap> <capabilities> | remote <station> | remove <station>] | protection [--json | poser] | decisions [--json | <decision> <value>…] | --json]";
+const USAGE = "usage: <service environment> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <step> <state>] | stations [--json | <declaration> | set <station> <cap> <capabilities> | remote <station> | remove <station>] | protection [--json | poser] | repo [setup] [--json] | decisions [--json | <decision> <value>…] | --json]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
@@ -171,10 +173,11 @@ try {
   else if (commande === "etapes") await etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "stations") declarerStations({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "protection") await protegerBranche({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
+  else if (commande === "repo") await preparerDepot({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "decisions") poserDecisions({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else echouer(REFUS, USAGE);
 } catch (erreur) {
-  // `etapes`, `stations`, `protection` et `decisions` ont dit elles-mêmes ce qui les arrête : reste leur code.
+  // `etapes`, `stations`, `protection`, `repo` et `decisions` ont dit elles-mêmes ce qui les arrête : reste leur code.
   if (erreur instanceof Sortie) process.exitCode = erreur.code;
   else if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
   else if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);
