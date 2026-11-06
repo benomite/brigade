@@ -5087,11 +5087,11 @@ function poserOngletStations(projet) {
 }
 
 // La station de cet ordinateur, sur l'onglet Stations (ticket 2489, projet/stations/StationLocale.js) : ses dossiers, son
-// bac à sable, sa connexion à Claude, ses téléphones appairés. Lus à l'ouverture de l'onglet, puis toutes les trente
-// secondes tant qu'il se repose ; ses gestes sont ceux que l'app avait déjà — le réglage des tickets ordinaires de
-// Settings, le login de la panne de connexion, l'écran « Pair a phone ». Elle seule a ce bloc.
+// bac à sable, sa connexion à Claude. Lus à l'ouverture de l'onglet, puis toutes les trente secondes tant qu'il se
+// repose ; ses gestes sont ceux que l'app avait déjà — le réglage des tickets ordinaires de Settings, le login de la
+// panne de connexion. Elle seule a ce bloc.
 const RELECTURE_DE_LA_STATION_LOCALE_MS = 30_000;
-/** @typedef {Omit<import("./projet/stations/StationLocale.js").EtatDeLaStationLocale, "poste" | "projet" | "station"> & { projet: string, a: number, telephonesDe?: string }} LuDeLaStationLocale */
+/** @typedef {Omit<import("./projet/stations/StationLocale.js").EtatDeLaStationLocale, "poste" | "projet" | "station"> & { projet: string, a: number }} LuDeLaStationLocale */
 /** @type {LuDeLaStationLocale} */
 let stationLocaleLue = { projet: "", a: 0 };
 /** @type {HTMLElement | undefined} */
@@ -5137,23 +5137,11 @@ async function lireLesOrdinairesLocaux(lu) {
   }
   reposerLaStationLocale(lu);
 }
-// Les téléphones appairés, une fois la station connue : par son gist, comme l'écran « Pair a phone ».
-/** @param {LuDeLaStationLocale} lu @param {string} id */
-async function lireLesTelephonesLocaux(lu, id) {
-  lu.telephonesDe = id;
-  try {
-    lu.telephones = (await brigade.telephonesDeLaStation?.(id)) ?? { refus: "the paired phones could not be read", detail: "this app does not read them" };
-  } catch (erreur) {
-    lu.telephones = { refus: "the paired phones could not be read", detail: rateDit(erreur) };
-  }
-  reposerLaStationLocale(lu);
-}
 /** @param {Projet} projet @returns {HTMLElement} */
 function blocDeLaStationLocale(projet) {
   if (stationLocaleLue.projet !== projet.nom || Date.now() - stationLocaleLue.a > RELECTURE_DE_LA_STATION_LOCALE_MS) lireLaStationLocale(projet);
   const lu = stationLocaleLue;
   const station = laStationLocale();
-  if (station != null && lu.telephonesDe !== station.id) void lireLesTelephonesLocaux(lu, station.id);
   /** @type {import("./projet/stations/StationLocale.js").EtatDeLaStationLocale} */
   const etat = {
     poste: POSTE.nom,
@@ -5161,7 +5149,6 @@ function blocDeLaStationLocale(projet) {
     station: station == null ? station : { id: station.id, nom: station.nom, max: station.max, pannes: station.pannes },
     ...(lu.dossiers === undefined ? {} : { dossiers: lu.dossiers }),
     ...(lu.ordinaires === undefined ? {} : { ordinaires: lu.ordinaires }),
-    ...(lu.telephones === undefined ? {} : { telephones: lu.telephones }),
     ...(lu.refusOrdinaires === undefined ? {} : { refusOrdinaires: lu.refusOrdinaires }),
     ...(lu.connexionDite === undefined ? {} : { connexionDite: lu.connexionDite }),
   };
@@ -5192,9 +5179,6 @@ function blocDeLaStationLocale(projet) {
       const enCours = stationLocaleLue;
       enCours.connexionDite = dite;
       reposerLaStationLocale(enCours);
-    },
-    appairer: () => {
-      if (station != null) ouvrirLesTelephones({ id: station.id, nom: station.nom });
     },
   });
   blocStationLocale = cree;

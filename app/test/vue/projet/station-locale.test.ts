@@ -1,8 +1,8 @@
 // La station locale sur l'onglet Stations (#2489, épique #2484) : ses dossiers — le clone du projet et les worktrees de
-// ses cooks —, son bac à sable, sa connexion à Claude et ses téléphones appairés, chacun avec son niveau. Les autres
-// stations n'ont rien de cela. Chaque geste a l'effet qu'il avait ailleurs dans l'app : le bac à sable se règle par le
-// même appel que la ligne des tickets ordinaires de Settings (« this machine »), la connexion se refait par le login de
-// la panne de la station, « pair a phone » ouvre l'écran qui appaire un téléphone. Le module est joué devant une
+// ses cooks —, son bac à sable et sa connexion à Claude, chacun avec son niveau. Les autres stations n'ont rien de cela.
+// Chaque geste a l'effet qu'il avait ailleurs dans l'app : le bac à sable se règle par le même appel que la ligne des
+// tickets ordinaires de Settings (« this machine »), la connexion se refait par le login de la panne de la station. Les
+// téléphones appairés n'y sont plus (#2500) : aucune station n'appaire de téléphone. Le module est joué devant une
 // fabrique de faux éléments ; la vue entière, contre le faux pont (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -21,7 +21,7 @@ import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../../
 import type { StationVue, VuDesStations } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
 import { NIVEAUX_DITS } from "../../../src/vue/niveaux.js";
-import { APPAIRER, AUCUN_TELEPHONE, type EtatDeLaStationLocale, poserBlocStationLocale, SANS_STATION } from "../../../src/vue/projet/stations/StationLocale.js";
+import { type EtatDeLaStationLocale, poserBlocStationLocale, SANS_STATION } from "../../../src/vue/projet/stations/StationLocale.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -30,7 +30,6 @@ const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", ordinaires: true
 const DOSSIERS = { clone: "/Users/chef/brigade-atelier/clones/parade", worktrees: "/Users/chef/brigade-atelier/worktrees/parade" };
 const PERDUE: Panne = { cle: "connexion-max:2026-11-05T20:40:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 20 min ago", survol: "nothing cooks on macbook until you log in", bouton: { libelle: "log in", geste: "login" } };
 const station = (id: string, max: StationVue["max"], pannes: Panne[] = []): StationVue => ({ id, nom: id, machine: "", etat: "en-ligne", ligne: "online", pannes, dit: "online", version: "", projets: ["parade"], max });
-const TELEPHONES = { telephones: [{ nom: "pixel-8", machine: "Android 15", appaireLe: "2026-10-02T08:12:00.000Z" }] };
 
 // Les lignes du bloc : le nom de chaque réglage (son étiquette de niveau comprise), et sa valeur.
 const lignes = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage");
@@ -45,12 +44,11 @@ const etat = (plus: Partial<EtatDeLaStationLocale> = {}): EtatDeLaStationLocale 
   station: station("macbook", "connectee"),
   dossiers: DOSSIERS,
   ordinaires: blocDesOrdinaires(PARADE, "darwin", undefined, true) ?? null,
-  telephones: TELEPHONES,
   ...plus,
 });
 
 describe("le bloc de la station locale", () => {
-  test("ses dossiers, son bac à sable, sa connexion à Claude et ses téléphones appairés, chacun avec son niveau", () => {
+  test("ses dossiers, son bac à sable et sa connexion à Claude, chacun avec son niveau — aucun téléphone à appairer", () => {
     const bloc = poserBlocStationLocale(doc, etat()) as unknown as Faux;
     assert.equal(bloc.dessous("h3")[0]?.textContent, "Local stationmacbook · this Mac");
     const poses = lignes(bloc);
@@ -62,15 +60,14 @@ describe("le bloc de la station locale", () => {
         ["sandbox · ordinary tickets", "taken"],
         ["cooks at once", "2"],
         ["Claude connection", "connected"],
-        ["paired phones", "pixel-8"],
       ],
     );
     // Chaque réglage dit son niveau : tous vivent sur cette machine.
     for (const ligne of poses) assert.deepEqual(niveauDe(ligne), [NIVEAUX_DITS.machine.libelle], String(nomDe(ligne)));
-    assert.deepEqual(poses.map(({ dataset }) => dataset.cle), ["dossier", "dossier", "ordinaires", "ordinaires", "claude", "telephones"]);
-    // Connectée, rien à refaire : pas de « log in ».
+    assert.deepEqual(poses.map(({ dataset }) => dataset.cle), ["dossier", "dossier", "ordinaires", "ordinaires", "claude"]);
+    // Connectée, rien à refaire : pas de « log in ». Et rien n'appaire un téléphone.
     assert.deepEqual(boutons(bloc, "log in"), []);
-    assert.equal(boutons(bloc, APPAIRER).length, 1);
+    assert.doesNotMatch(bloc.textContent, /phone/i);
   });
 
   test("un appareil sans station le dit en une ligne, sans aucun réglage", () => {
@@ -85,13 +82,11 @@ describe("le bloc de la station locale", () => {
       ["folders", "reading…"],
       ["sandbox", "reading…"],
       ["Claude connection", "reading…"],
-      ["paired phones", "reading…"],
     ]);
-    const rates = poserBlocStationLocale(doc, etat({ dossiers: { refus: "its folders could not be read", detail: "ENOENT" }, telephones: { refus: "The app could not ask this station.", detail: "timeout" } })) as unknown as Faux;
+    const rates = poserBlocStationLocale(doc, etat({ dossiers: { refus: "its folders could not be read", detail: "ENOENT" } })) as unknown as Faux;
     const [dossiers] = lignes(rates);
     assert.equal(dossiers?.children[1]?.children[0]?.children[0]?.textContent, "folders unavailable");
     assert.ok(rates.dessous("button").some(({ ariaLabel }) => ariaLabel === "its folders could not be read — ENOENT"));
-    assert.ok(rates.dessous("button").some(({ ariaLabel }) => ariaLabel === "The app could not ask this station. — timeout"));
   });
 
   test("le bac à sable : hors d'un Mac il n'y en a pas, et un projet qui ne cuit pas ici n'en a pas", () => {
@@ -103,15 +98,13 @@ describe("le bloc de la station locale", () => {
     assert.equal(valeurDe(lignes(ailleurs).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de ligne")), "parade does not cook on this Mac");
   });
 
-  test("chaque geste appelle le sien : le bac à sable, le login de la panne, l'écran « Pair a phone »", () => {
+  test("chaque geste appelle le sien : le bac à sable, le login de la panne", () => {
     const faits: unknown[][] = [];
-    const bloc = poserBlocStationLocale(doc, etat({ station: station("macbook", "perdue", [PERDUE]), telephones: { telephones: [] } }), {
+    const bloc = poserBlocStationLocale(doc, etat({ station: station("macbook", "perdue", [PERDUE]) }), {
       regler: (actif, limite) => void faits.push(["regler", actif, limite]),
       seConnecter: (cle) => void faits.push(["seConnecter", cle]),
-      appairer: () => void faits.push(["appairer"]),
     }) as unknown as Faux;
     assert.equal(valeurDe(lignes(bloc).find(({ dataset }) => dataset.cle === "claude") ?? assert.fail("pas de ligne")), "lost");
-    assert.equal(valeurDe(lignes(bloc).find(({ dataset }) => dataset.cle === "telephones") ?? assert.fail("pas de ligne")), AUCUN_TELEPHONE);
     const [option, limite] = bloc.dessous("input");
     if (option === undefined || limite === undefined) return assert.fail("pas de champs");
     option.checked = false;
@@ -121,8 +114,7 @@ describe("le bloc de la station locale", () => {
     const [login] = boutons(bloc, "log in");
     assert.equal(login?.className, "recommande");
     login?.click();
-    boutons(bloc, APPAIRER)[0]?.click();
-    assert.deepEqual(faits, [["regler", false, 2], ["regler", false, null], ["seConnecter", PERDUE.cle], ["appairer"]]);
+    assert.deepEqual(faits, [["regler", false, 2], ["regler", false, null], ["seConnecter", PERDUE.cle]]);
   });
 });
 
@@ -152,9 +144,7 @@ describe("la station locale dans l'onglet Stations", () => {
       ordinaires: () => blocDesOrdinaires(PARADE, "darwin", undefined, true),
       reglerOrdinaires: regler,
       dossiersDeLaStation: () => DOSSIERS,
-      telephonesDeLaStation: () => TELEPHONES,
       panne: () => ({ fait: "the login page opens in your browser" }),
-      tirerUnCodeDeTelephone: () => ({ refus: "unreachable", detail: "" }),
     });
   const ouvrirLeProjet = async (vue: Jouee) => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case")).click();
@@ -162,7 +152,7 @@ describe("la station locale dans l'onglet Stations", () => {
   };
   const leBloc = (vue: Jouee) => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "station-locale") ?? assert.fail("pas de bloc de la station locale");
 
-  test("sur Stations, la station de ce Mac montre ses quatre réglages, lus pour elle seule — la box n'y est pas", async () => {
+  test("sur Stations, la station de ce Mac montre ses trois réglages, lus pour elle seule — la box n'y est pas", async () => {
     const vue = await jouer(station("macbook", "connectee"));
     await ouvrirLeProjet(vue);
     await ouvrirOnglet(vue, "Stations");
@@ -174,11 +164,9 @@ describe("la station locale dans l'onglet Stations", () => {
       ["sandbox · ordinary tickets", "taken"],
       ["cooks at once", "2"],
       ["Claude connection", "connected"],
-      ["paired phones", "pixel-8"],
     ]);
     assert.deepEqual(vue.dernier("dossiersDeLaStation"), ["parade"]);
-    // Ses téléphones à elle, et à elle seule ; la connexion perdue de la box ne s'y lit pas.
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "telephonesDeLaStation").map(({ args }) => args), [["macbook"]]);
+    // La connexion perdue de la box ne s'y lit pas.
     assert.deepEqual(boutons(bloc, "log in"), []);
     assert.doesNotMatch(bloc.textContent, /\bbox\b/);
     // Un seul bloc de ces réglages sur l'onglet.
@@ -241,15 +229,5 @@ describe("la station locale dans l'onglet Stations", () => {
     await repos();
     assert.deepEqual(vue.dernier("panne"), ["macbook", PERDUE.cle]);
     assert.ok(leBloc(vue).dessous("p").some(({ className, textContent }) => className === "dit" && textContent === "the login page opens in your browser"));
-  });
-
-  test("« pair a phone » ouvre l'écran qui appaire un téléphone à la station de ce Mac", async () => {
-    const vue = await jouer(station("macbook", "connectee"));
-    await ouvrirLeProjet(vue);
-    await ouvrirOnglet(vue, "Stations");
-    await repos();
-    boutons(leBloc(vue), APPAIRER)[0]?.click();
-    await repos();
-    assert.deepEqual(vue.dernier("tirerUnCodeDeTelephone"), ["macbook"]);
   });
 });

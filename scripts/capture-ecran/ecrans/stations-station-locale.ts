@@ -1,14 +1,13 @@
 // L'onglet Stations de « parade », qui cuit sur ce Mac (#2489, épique #2484) : sous la liste et les réglages des
 // stations, le bloc de la station de cet ordinateur — ses dossiers (le clone du projet, les worktrees de ses cooks), son
-// bac à sable et ses tickets ordinaires, sa connexion à Claude, ses téléphones appairés —, chaque réglage avec son
-// niveau. La box, l'autre station, n'y a rien.
+// bac à sable et ses tickets ordinaires, sa connexion à Claude —, chaque réglage avec son niveau. Plus de téléphones
+// appairés (#2500). La box, l'autre station, n'y a rien.
 import type { Faits } from "../../../app/src/faits.ts";
 import type { Bloc, StationDesFaits } from "../../../app/src/ordinaires.ts";
 import type { Panne } from "../../../app/src/pannes/pannes.ts";
 import type { VuDesProjets } from "../../../app/src/projets/projets.ts";
 import type { StationsLues } from "../../../app/src/service.ts";
 import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
-import type { RenduDeLaListe } from "../../../app/src/telephones-de-station.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { guide } from "./cooks-stations-declarees.ts";
@@ -25,7 +24,7 @@ const EXPLICATION = "Cooks on this Mac run in Claude Code's sandbox: they write 
 
 // L'écran, selon ce que la station de ce Mac publie et ce que ses lectures rendent. La box, l'autre station, a perdu sa
 // connexion : rien d'elle ne se lit dans le bloc.
-export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires, telephones }: { dit: string; max: StationVue["max"]; pannes: Panne[]; ordinaires: Bloc; telephones: RenduDeLaListe }): Ecran {
+export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires }: { dit: string; max: StationVue["max"]; pannes: Panne[]; ordinaires: Bloc }): Ecran {
   const stations: VuDesStations = {
     a: MAINTENANT,
     stations: [
@@ -46,7 +45,6 @@ export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires, telephone
         service: guide(DECLAREES),
         ordinaires,
         dossiersDeLaStation: { clone: "/Users/chef/brigade-atelier/clones/parade", worktrees: "/Users/chef/brigade-atelier/worktrees/parade" },
-        telephonesDeLaStation: telephones,
       },
       envois: cuisine({ ...RENDUS, parade: { ...RENDU, facts: { ...RENDU.facts, stations: FAITS_DES_STATIONS } as Faits } }),
     }),
@@ -54,9 +52,8 @@ export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires, telephone
 }
 
 export const ecran = ecranDeLaStationLocale({
-  dit: "L'onglet Stations de « parade », qui cuit sur ce Mac (#2489) : le bloc de la station de cet ordinateur — ses dossiers, son bac à sable, sa connexion à Claude, ses téléphones appairés",
+  dit: "L'onglet Stations de « parade », qui cuit sur ce Mac (#2489) : le bloc de la station de cet ordinateur — ses dossiers, son bac à sable, sa connexion à Claude",
   max: "connectee",
   pannes: [],
   ordinaires: { reglable: true, actif: true, limite: 2, explication: EXPLICATION },
-  telephones: { telephones: [{ nom: "pixel-8", machine: "Android 15", appaireLe: "2026-10-02T08:12:00.000Z" }] },
 });

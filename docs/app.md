@@ -457,12 +457,12 @@ hover, its one control, and under it what the control returned:
 | `clone folder`, `worktrees folder` | where the station keeps the project's clone and puts its cooks' worktrees (the runtime's `lieuxDuProjet`, read through `dossiersDeLaStation`) | none: the station chooses them |
 | `sandbox · ordinary tickets`, `cooks at once` | `taken` / `not taken`, the cap or `no limit`; the sandbox unavailable, and why, under it | the checkbox and the number of Settings' **this machine** group — the same call, `reglerOrdinaires`, written to the projects file. Off a Mac, `none on this PC`; a project that does not cook here, one line that says so |
 | `Claude connection` | `connected`, `lost`, `unknown` — as the station publishes it on GitHub | lost: `log in`, the button of the station's Max-connection breakdown (the same login as on the station's page) |
-| `paired phones` | their names, machine and pairing day on hover; `no phone paired yet` | `pair a phone`, which opens the "Pair a phone" screen, where each phone is revoked too |
 
 The sandbox's `ordinary tickets` is the same option as the `ordinary tickets` line of this computer's card in **Station
 settings**: ticked in one, the other reads it at once. They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
 detail on hover. A device with no station (a phone, a workstation) says so in one line. The block is
-`app/src/vue/projet/stations/StationLocale.js`. Settings still shows its own **this machine** lines until a separate ticket
+`app/src/vue/projet/stations/StationLocale.js`. It has no `paired phones` line any more: the phone signs in to GitHub, no
+station pairs it (#2500). Settings still shows its own **this machine** lines until a separate ticket
 removes them.
 
 ### Cards never vanish while GitHub holds them (#2151)
