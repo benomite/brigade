@@ -138,14 +138,20 @@ fi
 # se joue, et c'est là que se rattrape un test touché sans que rien ne le dise.
 # Un commit vide au-delà de la base, lui, ne touche rien (#1889).
 # `BRIGADE_GATES_TOUT=1` joue tout ; une sélection qui n'aboutit pas aussi.
-# Hors CI — la station qui cuisine, le poste du dev —, seuls les tests proches
-# du changement se jouent (`--proches`) : la suite touchée tourne sur GitHub
-# Actions (`.github/workflows/tests.yml`), que la pass attend avant de merger.
-# `BRIGADE_GATES_TESTS=touches` joue la fermeture ici aussi.
+# La station qui cuisine joue la même fermeture que la CI (#2565) : les tests
+# que le changement touche, pas seulement ceux qui lui sont proches. Sous
+# `--proches` (#1004), une livraison partait verte de la station et rouge de la
+# CI sur un test touché sans être proche — le faux GitHub d'un test qui ne
+# répondait pas au nouvel appel —, et le ticket était recuit. Sur les 64
+# tickets d'une journée, dix recuits ont réparé un test de leur fermeture que
+# leurs gates n'avaient pas joué (#2467, #2508, #2443, #2477…) ; la jouer prend
+# de 40 s à une minute à la station, une recuisson tout un cook de plus.
+# `BRIGADE_GATES_TESTS=proches` ne joue que les tests proches, hors CI : au
+# poste du dev, pendant le travail.
 SELECTION_runtime=tout
 SELECTION_app=tout
-PORTEE=--proches
-[ "${CI:-}" = true ] || [ "${BRIGADE_GATES_TESTS:-}" = touches ] && PORTEE=
+PORTEE=
+[ "${CI:-}" != true ] && [ "${BRIGADE_GATES_TESTS:-}" = proches ] && PORTEE=--proches
 if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
   if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs $PORTEE 2>/dev/null)"; then
     while read -r ZONE_SEL REGLE; do
