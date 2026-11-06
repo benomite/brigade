@@ -534,6 +534,28 @@ test("le diff d'une PR se demande à GitHub sous sa forme diff", async (t) => {
   await assert.rejects(github.diff(41), /HTTP 404/);
 });
 
+test("les annotations d'échec d'un check se lisent par son job, par l'API ; celles sans fichier n'en nomment aucun, et un check qui n'est pas un job n'en a pas (#2545)", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/check-runs/456/annotations?per_page=100`;
+  gh.repondre(chemin, {
+    corps: [
+      { path: ".github", start_line: 3, annotation_level: "failure", title: "tests app (3/3)", message: "✖ failing tests:" },
+      { path: "runtime/test/a.test.ts", start_line: 12, annotation_level: "failure", title: null, message: "Error: raté" },
+      { path: ".github", start_line: 1, annotation_level: "notice", title: "counts", message: "tests 2, pass 1" },
+    ],
+  });
+  const check = { name: "tests", outcome: "red" as const, conclusion: "failure" };
+
+  assert.deepEqual(await github.annotationsDuCheck?.({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/456` }), [
+    { chemin: null, ligne: null, titre: "tests app (3/3)", message: "✖ failing tests:" },
+    { chemin: "runtime/test/a.test.ts", ligne: 12, titre: "", message: "Error: raté" },
+  ]);
+  assert.deepEqual(gh.appels(), [["api", "-i", chemin]]);
+  assert.deepEqual(await github.annotationsDuCheck?.({ ...check, url: null }), []);
+  assert.equal(gh.appels().length, 1);
+  assert.deepEqual(await github.annotationsDuCheck?.({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/789` }), []);
+});
+
 test("le journal d'un check se lit par son job, quand c'en est un de GitHub Actions ; sinon, aucun", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/actions/jobs/456/logs`;

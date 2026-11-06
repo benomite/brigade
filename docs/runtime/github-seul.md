@@ -27,6 +27,13 @@ base, the stale-branch pruning).
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
   cook is then told in its brief to bring the branch up to date (or start again from the base), and if it still adds
   nothing the ticket is given back with a comment, uncounted, since that is work left, not a failed cook.
+- **What a red CI says, handed to the cook.** The cook has no access to GitHub: told only that the CI of its PR is red,
+  at best with the names of the red jobs, it rebuilt the CI's selection of tests and played it again to find what
+  failed (#2545: 16 cooks taken again on a red CI, 93 min of cooking). The station now reads the failure annotations
+  of each red check — the failing tests with their errors, which `.github/workflows/tests.yml` writes there, readable
+  by the API where a job's log is not readable from the box — and adds them to the brief, under "What the CI says is
+  red", check by check (`runtime/src/github-seul/ci-rouge/`). A check with no annotation is named with its address.
+  Bounded: 12 checks read, 3,000 characters per message, 24,000 in all; the rest only named.
 - **A red base** holds a delivery's merge only if that delivery runs the same check: a workflow that runs only on the
   base, like the Windows tests, never freezes the pass (#2279).
 - **A project with no CI on its PRs** (espace since 2026-10-22, #2456) is judged by its own gates: when none of its

@@ -35,12 +35,13 @@ import { lacher, prendre, purger } from "./github-etat/prise.ts";
 import { ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { declencheSurPr } from "./declencheurs.ts";
-import type { Gates } from "./events/pass.ts";
+import type { Check, Gates } from "./events/pass.ts";
 import { aDesGates, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
+import { ceQueDitLaCiRouge } from "./github-seul/ci-rouge/ci-rouge.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -1142,12 +1143,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // La PR de cette branche, si elle est encore ouverte et qu'elle ne se merge
     // pas : en conflit avec la base, ou rouge. Le cook doit la remettre à jour (#2454).
     let resteAFaire: string | null = null;
+    // Ses checks rouges : ce qu'ils disent est remis au cook (#2545).
+    let rouges: Check[] = [];
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
         if (ouverte !== null && ouverte.state === "open") {
           if (ouverte.enConflit === true) resteAFaire = `PR #${ouverte.number} conflicts with \`${base}\``;
-          else if (etatDeLaBase(await options.github.ci(ouverte.sha)) === "red") resteAFaire = `the CI of PR #${ouverte.number} is red`;
+          else {
+            const checks = await options.github.ci(ouverte.sha);
+            if (etatDeLaBase(checks) === "red") {
+              resteAFaire = `the CI of PR #${ouverte.number} is red`;
+              rouges = checks.filter((check) => check.outcome === "red");
+            }
+          }
         }
       } catch {
         // Illisible, la PR ne retient pas le cook : il part comme avant.
@@ -1155,6 +1164,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
+      const dit = await ceQueDitLaCiRouge(options.github, rouges);
+      if (dit !== "") joint += `\n\n${dit}`;
     }
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
