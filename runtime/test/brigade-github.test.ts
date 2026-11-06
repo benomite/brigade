@@ -1435,7 +1435,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
 
 // Une station dont le cook reprend la branche que le clone porte déjà, conclut
 // « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
-async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date) {
+async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date, poussee = false) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   if (faux.tickets.size === 0) faux.feu(14);
@@ -1463,6 +1463,7 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
       changes: () => [],
       diff: () => "",
       tete: () => tete,
+      ...(poussee ? { livree: (branche: string) => `origin/${branche}` } : {}),
     },
     prise: priseDeLaStation,
     claude: "claude",
@@ -1485,6 +1486,23 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
 
 test("a cook that resumes a branch and adds nothing to it delivers nothing: it counts as a failed cook, and the ticket is not put back in pass (#2372)", async (t) => {
   const faux = await repriseQui(t, false);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+  assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
+});
+
+// #2577, 2026-11-06 : la livraison poussée sans PR, deux cooks relancés dessus sans rien y ajouter.
+test("a branch pushed without a PR is a delivery cut before its PR: it goes to the pass as is, without a cook, and no failure counts (#2577)", async (t) => {
+  const faux = await repriseQui(t, false, false, 12, new FauxGitHub(), undefined, true);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
+  assert.ok(faux.prs.some((pr) => pr.branche === "cook/14-github" && pr.state === "open"));
+  assert.doesNotMatch((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec/);
+});
+
+test("a pushed branch that already had its PR is not delivered again: a cook that adds nothing to it still counts as failed (#2372, #2577)", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(14);
+  faux.prs.push({ number: 99, issue: 14, branche: "cook/14-github", sha: "a".repeat(40), state: "open", merged: false, enRetard: false, mergeePar: null, fichiers: [] });
+  await repriseQui(t, false, false, 12, faux, undefined, true);
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
   assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
 });

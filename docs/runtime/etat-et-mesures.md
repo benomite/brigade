@@ -471,8 +471,15 @@ CI or merge: the one these tickets spent the most time in) with its total, its s
 ticket. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
 GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
 the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
-and close the other. Once it is closed, a median still over the max opens a new one. At or under the max,
-nothing is opened and GitHub is not read.
+and close the other. Once it is closed, a median still over the max opens a new one — **but not before the
+last served correction has recent tickets of its own** (#2577): while one recent ticket at least was claimed
+before the merge of the last correction closed and recorded in these times, the median is still that of
+the tickets before it and says nothing of it, so nothing opens (`a-l-essai`; the station then reads GitHub
+again only once the window has turned). Reopened two minutes after each merge on the same 24 h window, the
+correction was opened twelve times in 9 h 30 (#2535 to #2577): eleven of the 60 recent tickets, each `prio:0`
+ahead of the whole rail, looking for a cause the previous one had just fixed. A correction closed without a
+merge holds nothing back. The measure is unchanged: the median, its window and its max are the same, and
+`status` and the rail still say it over the max. At or under the max, nothing is opened and GitHub is not read.
 
 ## The daily report of the decisions brigade told about
 

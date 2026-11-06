@@ -1059,7 +1059,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "vue" | "fichiers" | "lire">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -1246,9 +1246,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let resteAFaire: string | null = null;
     // Ses checks rouges : ce qu'ils disent est remis au cook (#2545).
     let rouges: Check[] = [];
+    // La branche n'a jamais eu de PR : sa livraison n'est jamais arrivée en pass (#2577).
+    let sansPR = false;
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
+        sansPR = ouverte === null;
         if (ouverte !== null && ouverte.state === "open") {
           if (ouverte.enConflit === true) resteAFaire = `PR #${ouverte.number} conflicts with \`${base}\``;
           else {
@@ -1262,6 +1265,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       } catch {
         // Illisible, la PR ne retient pas le cook : il part comme avant.
       }
+    }
+    // Une tête poussée sans PR est une livraison coupée entre son push et sa PR
+    // — la station arrêtée là, GitHub qui refuse la PR. Elle part en pass telle
+    // quelle : un cook relancé dessus la trouvait finie, n'y ajoutait rien, et
+    // son essai comptait pour un échec, trois fois jusqu'à `hors-cuisine` (#2577).
+    if (sansPR && avant !== null && depot.livree !== undefined && depot.tete?.(depot.livree(branche)) === avant) {
+      depot.retirer(worktree);
+      avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that never reached the pass (pushed, no PR): it goes to the pass as is, without a cook`);
+      return { branche };
     }
     if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;

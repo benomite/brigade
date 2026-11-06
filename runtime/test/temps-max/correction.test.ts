@@ -1,6 +1,7 @@
 // Le ticket de correction du temps des tickets (#2515) : un ticket `prio:0`
 // sur le rail quand la médiane des tickets récents dépasse le max du projet,
-// et jamais un second tant qu'il est ouvert.
+// et jamais un second tant qu'il est ouvert, ni avant que la dernière
+// correction servie ait des tickets récents à elle (#2577).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { correctionDuTemps, LABELS_CORRECTION, MARQUE_CORRECTION, ticketDeCorrection, type GitHubDeLaCorrection } from "../../src/temps-max/correction.ts";
@@ -167,4 +168,50 @@ test("two stations that open it at the same time keep the oldest and close the o
   const decision = await correctionDuTemps({ github: course, lire: () => ({ enregistrements: tickets(20), tempsMaxTicketMin: 10 }), maintenant: MAINTENANT })();
   assert.deepEqual(decision, { issue: "deja-ouverte", numero: 2600, mediane: m(20), maxMin: 10 });
   assert.deepEqual(depot.ouvertes().map((i) => i.number), [2600]);
+});
+
+// Des tickets de 20 min, pris à `debut` puis toutes les heures, mergés 20 min après leur prise.
+const lents = (premier: number, combien: number, debut: number): TempsTicket[] =>
+  Array.from({ length: combien }, (_, rang) => {
+    const prise = debut + rang * 60 * 60_000;
+    return { ticket: premier + rang, claimedAt: new Date(prise).toISOString(), mergedAt: new Date(prise + 20 * 60_000).toISOString(), cuisson: m(20), cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 };
+  });
+
+test("#2577: a served correction is tried on the tickets claimed after its merge — no new one while a recent ticket was claimed before it, one once they all were", async () => {
+  const depot = new FauxDepot();
+  const avant = lents(1, 12, Date.UTC(2026, 10, 5, 0));
+  let enregistrements = avant;
+  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10 }), maintenant: MAINTENANT });
+  assert.equal((await corriger()).issue, "ouverte");
+  // Servie : mergée à 12 h 30, fermée.
+  const servie = "2026-11-05T12:30:00.000Z";
+  enregistrements = [...avant, { ticket: 2600, claimedAt: "2026-11-05T12:20:00.000Z", mergedAt: servie, cuisson: m(10), cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }];
+  await depot.github().fermerIssue(2600);
+
+  // Deux minutes après, la médiane est toujours celle des tickets d'avant elle : rien ne s'ouvre.
+  assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 2600, servie, mediane: m(20), maxMin: 10 });
+  // Tant qu'elle est à l'essai, un tour ne relit pas GitHub, et une autre station ne rouvre rien non plus.
+  const lues = depot.lectures;
+  assert.equal((await corriger([])).issue, "a-l-essai");
+  assert.equal(depot.lectures, lues);
+  assert.equal((await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10 }), maintenant: MAINTENANT })()).issue, "a-l-essai");
+  // Des tickets pris après son merge, mais la fenêtre de 24 h en garde d'avant : encore à l'essai.
+  enregistrements = [...enregistrements, ...lents(30, 10, Date.parse(servie) + 60_000)];
+  assert.equal((await corriger([])).issue, "a-l-essai");
+  assert.equal(depot.ouvertes().length, 0);
+
+  // Les tickets récents sont tous pris après elle, et toujours au-dessus du max : la suivante s'ouvre.
+  enregistrements = [...enregistrements, ...lents(50, 10, Date.UTC(2026, 10, 7, 0))];
+  assert.ok(Math.min(...ticketsRecents(enregistrements).map((t) => Date.parse(t.claimedAt ?? ""))) > Date.parse(servie));
+  assert.deepEqual(await corriger([]), { issue: "ouverte", numero: 2601, mediane: m(20), maxMin: 10 });
+  assert.equal(depot.ouvertes().length, 1);
+});
+
+test("#2577: a correction closed without a merge is no correction on trial — a median still over the max opens the next one", async () => {
+  const depot = new FauxDepot();
+  const enregistrements = lents(1, 12, Date.UTC(2026, 10, 5, 0));
+  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10 }), maintenant: MAINTENANT });
+  await corriger();
+  await depot.github().fermerIssue(2600);
+  assert.deepEqual(await corriger([]), { issue: "ouverte", numero: 2601, mediane: m(20), maxMin: 10 });
 });
