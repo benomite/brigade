@@ -1,5 +1,5 @@
 // Les gestes de l'appairage, tels que l'app de l'ordinateur les lance chez la
-// station (`appairage-cli.ts`, et `brigade <projet> phones` qui le joue) : un
+// station (`appairage-cli.ts`) : un
 // code neuf avec son heure et son QR, l'état d'un code — valable, expiré ou
 // servi —, la liste des téléphones appairés, et la révocation de l'un d'eux,
 // après laquelle il n'est plus dans la liste et le guichet ne l'écoute plus.
@@ -11,7 +11,6 @@ import { ouvrirRegistre } from "../../src/stations-globales/registre.ts";
 import { principal, usage } from "../../src/telephone/appairage-cli.ts";
 import { lireContenuDuQr, ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
-import { LANCE } from "../../src/telephones.ts";
 import { aArreter, repertoireTemporaire } from "../outils.ts";
 
 const DEPART = "2026-10-24T09:00:00.000Z";
@@ -123,7 +122,7 @@ test("`list` rend les téléphones appairés à la station, pas ses ordinateurs 
   await refus(["list", "pixel-8"], 2);
 });
 
-test("l'usage nomme chaque geste sous la forme où il se lance : la commande de la station, ou celle de la box", () => {
+test("l'usage nomme chaque geste sous la forme où il se lance", () => {
   assert.equal(
     usage(),
     [
@@ -133,5 +132,4 @@ test("l'usage nomme chaque geste sous la forme où il se lance : la commande de 
       "       node runtime/src/telephone/appairage-cli.ts revoke <phone> [--registry <directory>]",
     ].join("\n"),
   );
-  assert.match(usage(LANCE), /^usage: brigade <project> phones code /);
 });
