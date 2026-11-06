@@ -10,12 +10,14 @@ import { ConfigInvalide, DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
 import type { CodeDeRefus } from "../projets/refus.ts";
 import { demenagerVersLAtelier } from "./atelier.ts";
+import { departDuProjet, FENETRE_PAR_DEFAUT_MS } from "../lecture-initiale/etalement.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
 import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
 
 export type OptionsStation = {
-  // Entre les premiers tours de deux projets ; par défaut `ECART_DES_PROJETS_MS`.
-  ecartDesProjetsMs?: number;
+  // La fenêtre sur laquelle s'étalent les premières lectures GitHub des
+  // projets (#2587) ; par défaut `FENETRE_PAR_DEFAUT_MS`, 0 pour tous à la fois.
+  fenetreDeDepartMs?: number;
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa configuration,
   // l'état et les clones de ses projets.
   racine: string;
@@ -93,10 +95,6 @@ const causeDe = (erreur: unknown): CodeDeRefus => {
 export const nommer = (projet: string, ligne: string) => `brigade [${projet}] : ${ligne.replace(/^brigade : /, "")}`;
 const auNomDe = (dire: (ligne: string) => void, projet: string) => (ligne: string) => dire(nommer(projet, ligne));
 
-// Entre les premiers tours GitHub seul de deux projets de la station (#2436) :
-// ouverts ensemble, ils ne lisent pas GitHub tous à la fois.
-export const ECART_DES_PROJETS_MS = 20_000;
-
 export function ouvrirStation(options: OptionsStation): Station {
   const { racine, env, dire } = options;
   const ouvrir = options.ouvrir ?? ouvrirCuisine;
@@ -137,7 +135,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     return { ...sien, BRIGADE_PROXY_PORT: String(port) };
   };
 
-  const tenter = (projet: ProjetConfigure, lus: Portes | null) => {
+  const tenter = (projet: ProjetConfigure, lus: Portes | null, total: number) => {
     const dit = auNomDe(dire, projet.nom);
     const cle = cleDe(projet, lus);
     try {
@@ -150,7 +148,7 @@ export function ouvrirStation(options: OptionsStation): Station {
         for (const ligne of demenagement.deplaces) dit(`déménagé dans l'atelier de la station — ${ligne}`);
         for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
       }
-      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.retenue === undefined ? {} : { retenue: options.retenue }), departMs: ouvertes.size * (options.ecartDesProjetsMs ?? ECART_DES_PROJETS_MS) }));
+      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.retenue === undefined ? {} : { retenue: options.retenue }), departMs: departDuProjet(ouvertes.size, total, options.fenetreDeDepartMs ?? FENETRE_PAR_DEFAUT_MS) }));
       ouvertes.set(projet.nom, { cle, depot: projet.depot, clone, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);
@@ -184,7 +182,7 @@ export function ouvrirStation(options: OptionsStation): Station {
       if (ouvertes.has(projet.nom)) continue;
       const refus = refuses.get(projet.nom);
       if (refus && refus.cle === cleDe(projet, lus) && !refus.reessayer) continue;
-      tenter(projet, lus);
+      tenter(projet, lus, projets.length);
     }
   };
 

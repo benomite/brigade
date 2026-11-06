@@ -6,6 +6,7 @@ import { ouvrirLaMiseAJour } from "../station-update/mettre-a-jour.ts";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { fenetreDe } from "../lecture-initiale/etalement.ts";
 import { canalGitHub } from "../appairage/canal.ts";
 import { lireSeuilCommun } from "../commun/etage.ts";
 import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
@@ -84,6 +85,9 @@ const ecartS = process.env.BRIGADE_STATION_ECART_S;
 if (ecartS !== undefined && !/^[1-9]\d*$/.test(ecartS)) refuser(`BRIGADE_STATION_ECART_S=${ecartS} — attendu un nombre entier de secondes`);
 const tickS = process.env.BRIGADE_STATION_TICK_S;
 if (tickS !== undefined && !/^[1-9]\d*$/.test(tickS)) refuser(`BRIGADE_STATION_TICK_S=${tickS} — attendu un nombre entier de secondes`);
+const fenetreS = process.env.BRIGADE_STATION_FENETRE_S;
+const fenetreDeDepartMs = fenetreDe(fenetreS);
+if (fenetreDeDepartMs === null) refuser(`BRIGADE_STATION_FENETRE_S=${fenetreS} — attendu un nombre entier de secondes (0 : tous les projets lisent GitHub à la fois)`);
 mkdirSync(racine, { recursive: true });
 // Son nom, retenu à son premier démarrage — avant qu'aucun projet ne s'ouvre,
 // qui le relit (`cuisine.ts`) : la machine renommée par macOS reste la même
@@ -135,7 +139,7 @@ const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConne
 let seVide = (): boolean => false;
 // Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
 let choisis: ServiceDeLOrdinateur | null = null;
-const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
+const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(fenetreDeDepartMs === null ? {} : { fenetreDeDepartMs }), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
 const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;

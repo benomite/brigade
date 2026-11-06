@@ -10,7 +10,8 @@ import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { ConfigInvalide, DejaEnCours } from "../../src/runtime.ts";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
 import { ecrirePortes } from "../../src/station/portes.ts";
-import { ECART_DES_PROJETS_MS, ouvrirStation } from "../../src/station/station.ts";
+import { FENETRE_PAR_DEFAUT_MS } from "../../src/lecture-initiale/etalement.ts";
+import { ouvrirStation } from "../../src/station/station.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -202,7 +203,7 @@ test("la retenue de la mise à jour atteint chaque cuisine, et la station dit le
   assert.deepEqual(servie.enCuisine().sort((a, b) => a - b), [12, 13, 40]);
 });
 
-test("ouverts ensemble, les projets de la station ne lisent pas GitHub tous à la fois : chacun part un écart après le précédent (#2436)", (t) => {
+test("ouverts ensemble, les projets de la station ne lisent pas GitHub tous à la fois : chacun part à sa part de la fenêtre (#2436, #2587)", (t) => {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, "projets"), "brigade acme/brigade main\nespace acme/espace main\nmirrorlab acme/mirrorlab main\n");
   const departs: Array<number | undefined> = [];
@@ -218,7 +219,7 @@ test("ouverts ensemble, les projets de la station ne lisent pas GitHub tous à l
     },
   });
   aArreter(t, () => servie.arreter("fin du test"));
-  assert.deepEqual(departs, [0, ECART_DES_PROJETS_MS, 2 * ECART_DES_PROJETS_MS]);
+  assert.deepEqual(departs, [0, FENETRE_PAR_DEFAUT_MS / 3, (2 * FENETRE_PAR_DEFAUT_MS) / 3]);
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

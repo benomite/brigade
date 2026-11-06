@@ -131,7 +131,9 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   and keeps its projects attached to it; listeners hear the pause through `surLaPauseDeGitHub`. The
   presence gist (`appairage/`) still goes quiet, and the app says it offline after 2 × `cadenceMs` + 30 s.
 - **No burst at start (#2436).** The station opens its projects together, but their first GitHub-only
-  turns are spaced `ECART_DES_PROJETS_MS` (20 s) apart (`runtime/src/station/station.ts`). The stale
+  turns are spread evenly over a window (`BRIGADE_STATION_FENETRE_S`, 300 s by default, 0 = all at once, #2587):
+  project *i* of *n* starts at *i*/*n* of it (`runtime/src/lecture-initiale/etalement.ts`); after that first turn the usual
+  rhythm applies. The stale
   `cook/<n>-github` branches are cleaned a few at a time: each pass reads the issues of at most
   `BRANCHES_PAR_TOUR` (3) branches, and the next pass goes on from there
   (`runtime/src/github-seul/elagage/elagage.ts`) — before, every tick read the issue of
