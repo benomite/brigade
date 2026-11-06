@@ -2732,13 +2732,14 @@ main > header,
 #rail .bande-rail .bande-doux {
   color: var(--texte-doux);
 }
-/* Passé le plafond, le temps d'un ticket vire au rouge et le dit en toutes lettres — pas seulement par la couleur. */
+/* Passé le plafond, la médiane et le plafond virent au rouge ; un ticket au-delà du double du plafond est cerclé de rouge avec sa phase la plus longue. */
 #rail .bande-rail .bande-temps[data-temps="depasse"] .bande-valeur,
 #rail .bande-rail .bande-depasse {
   color: var(--rouge-clair);
 }
-#rail .bande-rail .bande-depasse {
+#rail .bande-rail .bande-lent {
   padding: 0 6px;
+  color: var(--rouge-clair);
   border: 1px solid var(--rouge);
   border-radius: var(--rayon-bouton);
 }

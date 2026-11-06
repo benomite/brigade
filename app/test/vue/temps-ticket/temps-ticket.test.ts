@@ -22,12 +22,12 @@ const ticket = (n: number, total: number, mergedAt = `2026-10-${String(10 + n).p
 });
 
 describe("la synthèse", () => {
-  test("la médiane et le plus lent des 10 derniers par date de merge, le plafond par défaut à 15 min", () => {
+  test("la médiane et le plus lent des 10 derniers par date de merge, le plafond par défaut à 10 min", () => {
     const lu = synthese({ enregistrements: [ticket(1, 100 * MIN), ...Array.from({ length: 10 }, (_, i) => ticket(20 + i, (5 + i) * MIN, `2026-11-${String(i + 1).padStart(2, "0")}T10:00:00.000Z`))] }) ?? assert.fail("pas de synthèse");
     assert.equal(lu.nombre, 10, "le plus ancien (100 min) sort de la fenêtre");
-    assert.equal(lu.max, 15);
+    assert.equal(lu.max, 10);
     assert.equal(lu.mediane, 9.5 * MIN);
-    assert.deepEqual(lu.plusLent, { ticket: 29, total: 14 * MIN });
+    assert.deepEqual(lu.plusLent, { ticket: 29, total: 14 * MIN, phase: "Cooking", double: false });
     assert.equal(lu.depasse, false);
   });
 
@@ -37,9 +37,9 @@ describe("la synthèse", () => {
     assert.equal(lu.phases[0]?.duree, 5 * MIN);
   });
 
-  test("le plafond du projet remplace le défaut ; un plafond absurde retombe sur 15", () => {
+  test("le plafond du projet remplace le défaut ; un plafond absurde retombe sur 10", () => {
     assert.equal(synthese({ enregistrements: [ticket(1, MIN)], tempsMaxTicketMin: 30 })?.max, 30);
-    assert.equal(synthese({ enregistrements: [ticket(1, MIN)], tempsMaxTicketMin: -3 })?.max, 15);
+    assert.equal(synthese({ enregistrements: [ticket(1, MIN)], tempsMaxTicketMin: -3 })?.max, 10);
   });
 
   test("les entrées illisibles sont écartées ; rien de lisible, pas de synthèse", () => {
@@ -56,7 +56,7 @@ describe("la synthèse", () => {
 
 describe("le bloc", () => {
   test("normal : la médiane, le plus lent, le plafond, cinq phases, pas d'alerte", () => {
-    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 10 * MIN), ticket(8, 12 * MIN), ticket(9, 20 * MIN)] });
+    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 10 * MIN), ticket(8, 12 * MIN), ticket(9, 20 * MIN)], tempsMaxTicketMin: 15 });
     assert.equal(bloc.dataset.temps, "normal");
     const texte = bloc.dessous("span").map((s: { textContent?: string }) => s.textContent ?? "").join("|");
     assert.match(texte, /12 min/);
@@ -104,7 +104,7 @@ describe("ce que l'app relit du suivi de la station", () => {
   test("les temps publiés arrivent tels quels, avec le plafond", () => {
     const lignes = [ticket(7, 20 * MIN)];
     assert.deepEqual(relu({ enregistrements: lignes, tempsMaxTicketMin: 30 }), { enregistrements: lignes, tempsMaxTicketMin: 30 });
-    assert.equal(relu({ enregistrements: [], tempsMaxTicketMin: -1 })?.tempsMaxTicketMin, 15);
+    assert.equal(relu({ enregistrements: [], tempsMaxTicketMin: -1 })?.tempsMaxTicketMin, 10);
   });
 
   test("absents ou illisibles : rien", () => {

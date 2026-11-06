@@ -36,8 +36,8 @@ function part(doc, pose, titre, dit, detail) {
   return survol(doc, detail, pose);
 }
 
-// Le temps d'un ticket : la médiane en clair et le plafond ; passé le plafond, il le dit en toutes lettres, pas
-// seulement par la couleur. Le plus lent et les cinq phases sont au survol. Jamais un blanc ni un zéro : une station qui
+// Le temps d'un ticket : la médiane contre le plafond (« 18 min / 10 min »), en rouge quand elle le passe ; le plus lent
+// des derniers tickets, s'il passe le double du plafond, est signalé avec sa phase la plus longue. Le plus lent et les cinq phases sont au survol. Jamais un blanc ni un zéro : une station qui
 // ne publie pas ses temps le dit, comme un projet sans ticket mesuré.
 /** @param {Fabrique} doc @param {TempsDuProjet | undefined} temps */
 export function tempsDeLaBande(doc, temps) {
@@ -56,7 +56,8 @@ export function tempsDeLaBande(doc, temps) {
     );
   }
   const valeur = noeud(doc, "strong", "bande-valeur", dureeEnClair(lu.mediane));
-  const plafond = lu.depasse ? noeud(doc, "span", "bande-depasse", `over the max of ${lu.max} min`) : noeud(doc, "span", "bande-doux", `median · max ${lu.max} min`);
+  const plafond = lu.depasse ? noeud(doc, "span", "bande-depasse", `/ ${lu.max} min`) : noeud(doc, "span", "bande-doux", `/ ${lu.max} min`);
+  const lent = lu.plusLent.double ? noeud(doc, "span", "bande-lent", `#${lu.plusLent.ticket} over twice the max — slowest phase: ${lu.plusLent.phase}`) : undefined;
   const detail = [
     lu.nombre === 1 ? "The only measured ticket, from claim to merge." : `Median of the last ${lu.nombre} tickets, from claim to merge.`,
     `Slowest: #${lu.plusLent.ticket} — ${dureeEnClair(lu.plusLent.total)}.`,
@@ -64,7 +65,7 @@ export function tempsDeLaBande(doc, temps) {
   ].join(" ");
   const pose = noeud(doc, "span", "bande-part bande-temps");
   pose.dataset.temps = lu.depasse ? "depasse" : "normal";
-  return part(doc, pose, "Ticket time", [valeur, plafond], detail);
+  return part(doc, pose, "Ticket time", lent === undefined ? [valeur, plafond] : [valeur, plafond, lent], detail);
 }
 
 // Les cooks en cours : leur nombre ; leurs tickets au survol, quand la lecture les nomme.

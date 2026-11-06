@@ -258,7 +258,7 @@ function lireDelai(lu: unknown): Delai | null {
 function lireTemps(lu: unknown): TempsPublie | null {
   const { enregistrements, tempsMaxTicketMin } = (lu ?? {}) as Record<string, unknown>;
   if (!Array.isArray(enregistrements)) return null;
-  return { enregistrements, tempsMaxTicketMin: typeof tempsMaxTicketMin === "number" && Number.isFinite(tempsMaxTicketMin) && tempsMaxTicketMin > 0 ? tempsMaxTicketMin : 15 };
+  return { enregistrements, tempsMaxTicketMin: typeof tempsMaxTicketMin === "number" && Number.isFinite(tempsMaxTicketMin) && tempsMaxTicketMin > 0 ? tempsMaxTicketMin : 10 };
 }
 
 // Ce que la station a écrit de ses projets demandés. Absent ou illisible : rien encore.
