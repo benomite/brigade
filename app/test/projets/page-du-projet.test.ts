@@ -167,12 +167,13 @@ test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n
   assert.equal(etape.dataset.etat, "courante");
   assert.ok([...etape.descendants()].some((pose) => pose.textContent === "Who cooks this project?"));
   const ici = [...etape.descendants()].find((pose) => pose.dataset.station === "ici") ?? assert.fail("cet ordinateur n'est pas proposé");
-  // Un clic : la station de cet ordinateur sert le dépôt, par le geste de Settings, et la page du projet s'ouvre.
+  // Un clic : la station de cet ordinateur sert le dépôt, par le geste de Settings, et le parcours finit sur son récap (#2478).
   ici.dessous("button")[0]!.click();
   await repos();
   await repos();
   assert.deepEqual(jouee.dernier("servirUnProjet"), ["benomite/parade", true]);
-  assert.equal(jouee.element("espace").textContent, "parade", "sa page s'ouvre");
+  const recap = jouee.element("parcours-de-l-ajout").dessous("li").find((ligne) => ligne.dataset.etape === "recap") ?? assert.fail("pas d'étape « recap »");
+  assert.equal(recap.dataset.etat, "courante", "le récap clôt le parcours");
 });
 
 test("sans station, la page le dit en une phrase et offre le geste qui la lui confie, parmi les stations appairées", async () => {
