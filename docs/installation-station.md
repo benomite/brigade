@@ -173,8 +173,11 @@ When a station version is published, the station moves to it on its own, like a 
 have nothing to do. Every ten minutes, its updater (`brigade-station-mise-a-jour`, delivered
 by the package, the only part of the station that runs as root) looks at the published versions;
 if there is a newer one, it hands it to `apt`. The package puts in the new code and its units,
-then restarts the station — its only process: **the cooks in flight finish their work**, and the
-station that comes back up takes them over.
+then restarts the station. **The cooks in flight finish their work first** (#2547): before handing
+the version to `apt`, the updater asks the station to drain — it takes no new ticket, and says which
+cooks it still has in flight —, and waits for them, 15 minutes at most
+(`BRIGADE_MISE_A_JOUR_VIDANGE_S` in the updater's unit); a cook still running then is cut, and its
+ticket is given back with no wait. The station that comes back up takes the tickets again.
 
 **At most one new version every 30 minutes** (#2374): every merge publishes a version, and every
 install restarts the station, cutting the work in flight. Within 30 minutes of the last version it

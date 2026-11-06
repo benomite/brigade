@@ -357,7 +357,11 @@ kills its cooks, says so on the issue ("the cook stopped with its station"), and
 with no `attente` marker; the restarted station, or another one, takes it at its next round. The box
 restarts its station at each update, every 35 to 45 minutes while merges keep coming: with the
 30-minute wait, a ticket taken again had 5 to 15 minutes before the next restart killed its cook once
-more — #2502 four times, #2464 six. After a send back, "added
+more — #2502 four times, #2464 six. **And the box no longer kills its cooks to update** (#2547):
+before installing, its updater asks the station to drain (`vidange` in the update directory); the
+station takes no new ticket, writes its cooks in flight (`en-vol` in its directory), and the install
+waits for them to finish, 15 minutes at most (`BRIGADE_MISE_A_JOUR_VIDANGE_S`) — a longer cook is
+still cut. A killed cook's work was lost: the ticket came back on a new branch from `main`. After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
 stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does

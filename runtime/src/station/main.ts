@@ -18,6 +18,7 @@ import { masquerLaConsole } from "../jeton-claude.ts";
 import { installerLimite, journaliserLaPause, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
+import { tenirLaVidange } from "../mise-a-jour/vidange.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { sourceDesProjets } from "../projets-station/source.ts";
 import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-ordinateur/servir.ts";
@@ -128,20 +129,24 @@ const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConne
 // Sa mise à jour, sur un ordinateur (#2189) : elle regarde les releases de la
 // station, télécharge la nouvelle, se vide — ses cuisines ne prennent plus de
 // ticket — et demande sa relance une fois ses cooks finis. Sur une box, ou sans
-// source de versions, elle n'a pas lieu (`configDeLaMiseAJour`).
+// source de versions, elle n'a pas lieu (`configDeLaMiseAJour`) : sur la box,
+// c'est son unité root qui installe, et la station se vide à sa demande, lue
+// dans le répertoire de la mise à jour (`mise-a-jour/vidange.ts`, #2547).
 let seVide = (): boolean => false;
 // Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
 let choisis: ServiceDeLOrdinateur | null = null;
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
 const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
+const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
+const vidange = miseAJour !== null || dossierMiseAJour === null ? null : tenirLaVidange({ racine, dossier: dossierMiseAJour, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
+if (vidange !== null) seVide = () => vidange.retenue();
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
 // (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomRetenu });
-const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
 const presence = tenirPresence({
   racine,
   canal,
@@ -234,6 +239,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     projetsDeLApp.arreter();
     void projetsChoisis.arreter();
     miseAJour?.arreter();
+    vidange?.arreter();
     station.arreter(signal);
     connexion.arreter();
     console.log(`brigade : station arrêtée (${signal})`);

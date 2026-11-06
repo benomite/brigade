@@ -3,9 +3,10 @@
 // installée, elle l'installe — sauf si la version est gelée, ou si celle-ci a
 // déjà raté. Installer, c'est remettre le paquet à apt : dpkg pose le nouveau
 // code et les unités qu'il porte, puis son postinst recharge systemd et relance
-// la station. Seul le process de la station est relancé (`KillMode=process`) :
-// les cooks en cours finissent leur travail, la station suivante les reprend
-// (#704).
+// la station. Seul le process de la station est relancé (`KillMode=process`),
+// mais l'arrêt du runtime tue les cooks de l'état GitHub seul : la station se
+// vide d'abord — elle ne prend plus de ticket, et l'installation attend que ses
+// cooks en vol aient fini, au plus un quart d'heure (`vidange.ts`, #2547).
 //
 // Une version est gardée quand la station relancée sur elle s'est dite en
 // service — sa version, sous le pid que systemd lui donne — et sert au moins
@@ -25,6 +26,7 @@ import { ecrireEtatMiseAJour, lireEtatMiseAJour, noterIssue, PAQUETS, type EtatM
 import type { Publication, Publications } from "./publications.ts";
 import { lireReglages } from "./reglages.ts";
 import { PAQUET, type Systeme } from "./systeme.ts";
+import { retirerLaDemande, viderLaStation } from "./vidange.ts";
 import { comparerVersions } from "./versions.ts";
 
 export type OptionsMiseAJour = {
@@ -43,6 +45,10 @@ export type OptionsMiseAJour = {
   pasMs?: number;
   // Le temps minimal entre deux passages réussis (#2374).
   espacementMs?: number;
+  // Le plus long qu'une installation attend les cooks en vol de la station,
+  // et le temps qu'elle lui laisse pour dire qu'elle a vu la demande (#2547).
+  vidangeMs?: number;
+  accuseMs?: number;
 };
 
 export const GARDE_MS = 120_000;
@@ -242,9 +248,14 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   const enServiceAvant = lireEnService(racine);
   const servis = enServiceAvant !== null && comparerVersions(enServiceAvant.version, installee) === 0 ? enServiceAvant.servis : [];
 
+  // Ses cooks en vol finissent avant que l'installation ne la relance (#2547).
+  await viderLaStation({ racine, dossier, visee, pid: () => systeme.service().pid, dire, pasMs, ...(options.vidangeMs === undefined ? {} : { maxMs: options.vidangeMs }), ...(options.accuseMs === undefined ? {} : { accuseMs: options.accuseMs }), maintenant });
+
   // L'essai est noté avant de partir : interrompu, le passage suivant le conclut.
   etat.essai = { visee, depuis: installee, servis };
   ecrire();
   dire(`brigade : mise à jour — ${installee} → ${visee}`);
-  return conclure(await conclureEssai(visee, installee, servis, await installer(nouveau, visee, servis)));
+  const essai = await installer(nouveau, visee, servis);
+  retirerLaDemande(dossier);
+  return conclure(await conclureEssai(visee, installee, servis, essai));
 }
