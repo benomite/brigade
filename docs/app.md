@@ -399,8 +399,10 @@ The Rail tab opens on **one thin band**, a single line, then the columns, which 
 each column runs down to the bottom of the tab, and no block above them pushes them into an inner scroll. The band
 says, from left to right, each part split from the next by a faint rule:
 
-- **Ticket time** — the median of the last 10 measured tickets and the project's max: `Ticket time 11 min median · max
-  15 min`. Over the max, the value turns red and says it in words: `over the max of 15 min`. On hover (or on the
+- **Ticket time** — the median of the last 10 measured tickets against the project's max (`tempsMaxTicketMin`, 10
+  minutes by default): `Ticket time 18 min / 10 min`. Over the max, the median and the max turn red. The slowest of
+  those tickets, when it is over twice the max, is flagged with its slowest phase: `#2336 over twice the max — slowest
+  phase: Cooking`; at twice the max or under, nothing is flagged. On hover (or on the
   keyboard), the rest of the Ticket times card (#2346, below): the slowest ticket and the median of each of the five
   phases. A station that does not publish its times says `not available yet`; a project with no measured ticket, `no
   ticket measured yet` — never a blank or a zero.
@@ -1889,7 +1891,7 @@ line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is
 **Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project, on the **Cooks** tab — on Rail,
 the band at the top says the median and the max, the rest on hover (#2486): the median total of the last 10
 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
-waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 15 minutes by default). Three states,
+waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 10 minutes by default). Three states,
 `data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
 `vide` ("No ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone,
 so their sum can differ from the median total. The principal station reads the project's clone

@@ -2,7 +2,7 @@
 // Les temps des derniers tickets d'un projet, sur sa page (ticket 2346, épique 2336) : la médiane et le plus lent des
 // 10 derniers tickets mesurés, avec le partage en cinq phases (cuisson avec ses tests, attente de la passe, revue, CI,
 // merge) et le plafond du projet. Les enregistrements sont ceux de `.claude/brigade/temps-tickets.json` (secondes
-// entières), le plafond est `tempsMaxTicketMin` de `.claude/brigade/projet.json` (15 minutes par défaut). Ce module ne
+// entières), le plafond est `tempsMaxTicketMin` de `.claude/brigade/projet.json` (10 minutes par défaut). Ce module ne
 // touche pas `document` : il reçoit de quoi créer un élément (briques.js) et rend le bloc.
 
 import { survol } from "../briques.js";
@@ -11,7 +11,7 @@ import { survol } from "../briques.js";
 /** @typedef {{ ticket: number, claimedAt: string, mergedAt: string, cuisson: number, cuissonTests: number, attentePasse: number, revue: number, ci: number, merge: number }} Enregistrement */
 /** @typedef {{ enregistrements: unknown[] | undefined, tempsMaxTicketMin?: number | undefined }} TempsDuProjet */
 
-export const MAX_PAR_DEFAUT_MIN = 15;
+export const MAX_PAR_DEFAUT_MIN = 10;
 export const NOMBRE_DE_TICKETS = 10;
 
 // Les cinq phases montrées : chacune est la médiane de cette phase seule (leur somme peut donc différer de la médiane du total) ; la cuisson compte ses tests, qui se disent au survol.
@@ -68,13 +68,15 @@ export function synthese(temps) {
   if (premier === undefined) return null;
   let lent = premier;
   for (const e of recents) if (total(e) > total(lent)) lent = e;
+  // La phase la plus longue du ticket le plus lent (la cuisson compte ses tests) ; à égalité, la première dans l'ordre du ticket.
+  const phaseLente = PHASES.reduce((a, b) => ((b.cle === "cuisson" ? cuisson(lent) : lent[b.cle]) > (a.cle === "cuisson" ? cuisson(lent) : lent[a.cle]) ? b : a));
   const mediane_ = mediane(recents.map(total));
   return {
     max,
     nombre: recents.length,
     mediane: mediane_,
     depasse: mediane_ > max * 60,
-    plusLent: { ticket: lent.ticket, total: total(lent) },
+    plusLent: { ticket: lent.ticket, total: total(lent), phase: phaseLente.libelle, double: total(lent) > 2 * max * 60 },
     phases: PHASES.map(({ cle, libelle }) => ({ cle, libelle, duree: mediane(recents.map((e) => (cle === "cuisson" ? cuisson(e) : e[cle]))) })),
     testsMedians: mediane(recents.map((e) => e.cuissonTests)),
   };
