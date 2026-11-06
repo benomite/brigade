@@ -315,7 +315,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/miroir-des-gates.test.ts", test: "un rôle et son miroir modifiés ensemble ne sont pas jugés périmés" },
   { file: "test/miroir-des-gates.test.ts", test: "un rôle modifié sans son miroir n'est pas sauté : il rougit, et lui seul" },
   { file: "test/mise-a-jour/machine.test.ts", test: "la version gelée, une version publiée n'est pas installée ; le gel levé, elle l'est" },
-  { file: "test/mise-a-jour/machine.test.ts", test: "trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage" },
+  { file: "test/mise-a-jour/machine.test.ts", test: "deux versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage" },
   { file: "test/mise-a-jour/machine.test.ts", test: "une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée" },
   { file: "test/outils.test.ts", test: "lancerSurPortPose : l'arbitre sur un port repris à chaque essai, le compte d'essais s'épuise et le dit" },
   { file: "test/paquet/paquet.test.ts", test: "la première installation crée le compte, puis active et démarre la station et son renouvellement" },

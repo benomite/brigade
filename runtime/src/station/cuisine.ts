@@ -83,6 +83,8 @@ export type OptionsCuisine = {
   // Entre deux ticks de son runtime — ce qui relit, entre autres, la décision
   // du chef de cuire sans bac à sable : une minute, à défaut.
   intervalleTickMs?: number;
+  // Entre deux regards sur ce que la mise à jour de la station a donné : deux secondes, à défaut.
+  intervalleRelaisMs?: number;
   // Vrai tant que la station se vide pour sa mise à jour (#2189) : sa cuisine
   // GitHub seul ne prend plus aucun ticket (`retenirLaPrise`).
   retenue?: () => boolean;
@@ -238,7 +240,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     const roles = identites;
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};

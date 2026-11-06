@@ -99,25 +99,29 @@ async function enService(machine: Machine, version: string): Promise<number> {
 
 describe("la mise à jour de la station, sur une installation de test", { skip: sansDpkgDeb }, () => {
   let dossier = "";
-  // Le paquet construit depuis ce dépôt, et ce qu'on en tire pour chaque version.
+  // Le paquet construit depuis ce dépôt, et ce qu'on en tire, faits une fois
+  // pour le fichier : chaque test en publie une copie. 1.1.0 est le premier
+  // porté à sa version, sans autre changement ; 1.2.0 change l'unité de la
+  // station ; la 1.1.0 cassée refuse de démarrer.
   let premier = "";
-  // Le premier paquet porté à `version`, sans autre changement : refait une
-  // fois pour le fichier, chaque test en publie une copie.
-  const telQuel = new Map<string, string>();
-  const porteA = (version: string) => {
-    const connu = telQuel.get(version);
-    if (connu !== undefined) return connu;
-    const refait = deriverPaquet(dossier, premier, version);
-    telQuel.set(version, refait);
-    return refait;
-  };
+  let suivante = "";
+  let uniteChangee = "";
+  let cassee = "";
   before(() => {
     dossier = mkdtempSync(join(tmpdir(), "brigade-mise-a-jour-test-"));
     premier = construirePaquet(dossier, "1.0.0");
+    suivante = deriverPaquet(dossier, premier, "1.1.0");
+    uniteChangee = deriverPaquet(dossier, premier, "1.2.0", (arbre) => {
+      const unite = join(arbre, UNITE);
+      writeFileSync(unite, readFileSync(unite, "utf8").replace("[Service]\n", "[Service]\nEnvironment=BRIGADE_ESSAI_UNITE=1.2.0\n"));
+    });
+    cassee = deriverPaquet(dossier, premier, "1.1.0", (arbre) => {
+      writeFileSync(join(arbre, MAIN), 'console.error("brigade : refus de démarrer la station — essai");\nprocess.exit(1);\n');
+    });
   });
   after(() => rmSync(dossier, { recursive: true, force: true }));
 
-  test("trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage", async (t) => {
+  test("deux versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage", async (t) => {
     const machine = machineAvecUnProjet(t);
     machine.installer(premier);
     assert.equal(machine.installee(), "1.0.0");
@@ -131,7 +135,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get")), ["apt-get install brigade-station 1.0.0"]);
 
     // 1.1.0 : la même station, une autre version.
-    machine.publier("1.1.0", porteA("1.1.0"));
+    machine.publier("1.1.0", suivante);
     assert.equal(machine.declencher(), 0);
     assert.equal(machine.installee(), "1.1.0");
     const pid2 = await enService(machine, "1.1.0");
@@ -143,13 +147,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
 
     // 1.2.0 change l'unité de la station : elle tourne sous la nouvelle.
     assert.equal(machine.envDeLaStation().BRIGADE_ESSAI_UNITE, undefined);
-    machine.publier(
-      "1.2.0",
-      deriverPaquet(dossier, premier, "1.2.0", (arbre) => {
-        const unite = join(arbre, UNITE);
-        writeFileSync(unite, readFileSync(unite, "utf8").replace("[Service]\n", "[Service]\nEnvironment=BRIGADE_ESSAI_UNITE=1.2.0\n"));
-      }),
-    );
+    machine.publier("1.2.0", uniteChangee);
     assert.equal(machine.declencher(), 0);
     assert.equal(machine.installee(), "1.2.0");
     await enService(machine, "1.2.0");
@@ -161,26 +159,21 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
       appels.slice(installation).filter((a) => /daemon-reload|restart brigade-station\.service/.test(a)),
       ["systemctl daemon-reload", "systemctl restart brigade-station.service"],
     );
-
-    // 1.3.0 : la troisième.
-    machine.publier("1.3.0", porteA("1.3.0"));
-    assert.equal(machine.declencher(), 0);
-    assert.equal(machine.installee(), "1.3.0");
-    await enService(machine, "1.3.0");
-    await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 3);
+    // Une troisième version simple ne disait rien de plus que 1.1.0 (#2464) : la file dit la dernière des deux.
+    await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 2);
     assert.deepEqual(
       faits(machine.etatDuProjet, "update.installed").map((p) => p.version),
-      ["1.1.0", "1.2.0", "1.3.0"],
+      ["1.1.0", "1.2.0"],
     );
     const dernier = faits(machine.etatDuProjet, "update.installed").at(-1);
-    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.3.0 at ${heure(String(dernier?.at))}`]);
+    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.2.0 at ${heure(String(dernier?.at))}`]);
     // Le projet n'a jamais cessé d'être servi, et seule la station a été relancée.
     assert.deepEqual(lireEnService(machine.station)?.servis, ["brigade"]);
     assert.deepEqual(
       machine.appels().filter((a) => /^systemctl (stop|restart|start) brigade-station\.service/.test(a)),
-      ["systemctl restart brigade-station.service", "systemctl restart brigade-station.service", "systemctl restart brigade-station.service"],
+      ["systemctl restart brigade-station.service", "systemctl restart brigade-station.service"],
     );
-    assert.equal(lireEtatMiseAJour(machine.miseAJour)?.installee, "1.3.0");
+    assert.equal(lireEtatMiseAJour(machine.miseAJour)?.installee, "1.2.0");
   });
 
   test("une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée", async (t) => {
@@ -190,12 +183,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     await enService(machine, "1.0.0");
     await jusqua(() => lireEnService(machine.station)?.servis.includes("brigade") === true);
 
-    machine.publier(
-      "1.1.0",
-      deriverPaquet(dossier, premier, "1.1.0", (arbre) => {
-        writeFileSync(join(arbre, MAIN), 'console.error("brigade : refus de démarrer la station — essai");\nprocess.exit(1);\n');
-      }),
-    );
+    machine.publier("1.1.0", cassee);
     // Rouge, ce que la mise à jour et la station ont dit nomme la cause.
     const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
     assert.equal(machine.declencher(), 0, dit());
@@ -230,7 +218,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     const pid = await enService(machine, "1.0.0");
     writeFileSync(join(machine.station, "reglages"), "# la box ne bouge pas pendant la refonte\ngel=oui\n");
 
-    machine.publier("1.1.0", porteA("1.1.0"));
+    machine.publier("1.1.0", suivante);
     assert.equal(machine.declencher(), 0);
     assert.equal(machine.installee(), "1.0.0");
     assert.equal(machine.service().pid, pid);

@@ -44,7 +44,8 @@ Optional settings (names French until translated): `BRIGADE_GH_BIN` (the machine
 `BRIGADE_STATION_NOM` (its name on the home), `BRIGADE_STATION_VERSION` (the version announced; set by
 its package, by default the fingerprint of its code). For a test station only, in whole seconds:
 `BRIGADE_STATION_ECART_S` (minimum gap between two gist writes, 60; 0 writes each one as soon as it is due) and `BRIGADE_STATION_TICK_S` (the tick
-of each project's runtime, 60). Anything else refuses to start the station.
+of each project's runtime, 60); in milliseconds, `BRIGADE_STATION_RELAIS_MS` (how often each project looks at what the
+station's update gave, 2000). Anything else refuses to start the station.
 
 ## The chef's stations, read from a fresh computer
 
