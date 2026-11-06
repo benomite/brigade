@@ -1673,6 +1673,14 @@ station the app reads); on another station's page, every section gets `lectureSe
 only changes on that machine. Each setting carries its level mark (`NiveauReglage.js`, the one `niveauDe` uses: this
 machine, project, you); no project-level setting appears here — they live in the project's Stations tab (#2484).
 Screens: `docs/captures/2641/`.
+Folders and sandbox (#2644, `sections/dossiers-et-bac-a-sable.js`): the clones folder, the worktrees folder, the sandbox
+state (on / off) and the network door — the hosts a cook may reach, each with what opens it on hover — each with the
+`this machine` mark. On this computer's station a folder and the network door change from a field and a button (`save`,
+`open`, `remove`); the change is kept in `station-reglages.json` beside the app file (`app/src/reglages-de-la-station.ts`)
+and read back at every load. On another station the section shows the same, with nothing to change. The station does not
+read that file yet: it is the app's side of the setting (each setting's hover says so). The sandbox state is read from
+the projects' onboarding: off once a project cooked here continued without it. On another station the section shows
+"not available for this station" — the app reads nothing of a station it does not run. Screens: `docs/captures/2644/`.
 
 ```
 box      ●  online · 2 cooks running   ?

@@ -281,6 +281,9 @@ export type Pont = {
   // Les dossiers de la station de cet ordinateur pour un projet (ticket 2489) : son clone, les worktrees de ses cooks —
   // ou pourquoi ils ne se lisent pas. Absent d'un pont qui n'en a pas (le téléphone).
   dossiersDeLaStation?(nom: string): Promise<import("../projets/projets.ts").DossiersDeLaStation>;
+  // Les dossiers et la porte réseau de la station de cet ordinateur (ticket 2644) : lus, et changés depuis sa page.
+  lireReglagesDeLaStation?(): Promise<import("../reglages-de-la-station.ts").Reglages | import("../reglages-de-la-station.ts").Refus>;
+  ecrireReglagesDeLaStation?(changement: import("../reglages-de-la-station.ts").Changement): Promise<{ fait: string } | import("../reglages-de-la-station.ts").Refus>;
   // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projets/demenagement.ts).
