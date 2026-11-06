@@ -65,6 +65,7 @@ import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
+import { ecrireReglagesDeLaStation, lireReglagesDeLaStation as lireLesReglagesDeStation, type Changement } from "./reglages-de-la-station.ts";
 import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type DossiersDeLaStation, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
@@ -1041,6 +1042,21 @@ ipcMain.handle("dossiersDeLaStation", async (_, nom: unknown): Promise<DossiersD
     return { refus: "its folders could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
 });
+// Les dossiers et la porte réseau de la station de cet ordinateur, changés depuis sa page (#2644) : lus et écrits dans un
+// fichier de cette machine (reglages-de-la-station.ts). Un téléphone n'a pas de station.
+const fichierDesReglagesDeLaStation = join(dirname(cheminConfiguration()), "station-reglages.json");
+ipcMain.handle("reglagesDeLaStation:lire", async () => {
+  if (role.role !== "station") return { refus: "this device runs no station" };
+  try {
+    const { lieuxDuProjet, worktreesDeLaStation } = (await import(pathToFileURL(join(emplacements.runtime, "src", "station", "configuration.ts")).href)) as typeof import("../../runtime/src/station/configuration.ts");
+    return lireLesReglagesDeStation(fichierDesReglagesDeLaStation, { clone: dirname(lieuxDuProjet(racineDeLaStation, "x", process.env.HOME).clone), worktrees: worktreesDeLaStation(racineDeLaStation, process.env.HOME) });
+  } catch (erreur) {
+    return { refus: "its folders could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+});
+ipcMain.handle("reglagesDeLaStation:ecrire", (_, changement: unknown) =>
+  role.role !== "station" ? { refus: "this device runs no station" } : ecrireReglagesDeLaStation(fichierDesReglagesDeLaStation, typeof changement === "object" && changement !== null ? (changement as Changement) : {}),
+);
 // Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
 ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet

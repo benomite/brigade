@@ -35,6 +35,7 @@ export const NIVEAUX = {
   dossier: "machine",
   capacites: "machine",
   ordinaires: "machine",
+  porte: "machine",
   sert: "machine",
   claude: "machine",
   // La page d'une station (ticket 2642) : son nom, sa machine, ses cœurs, sa version et sa mise à jour.

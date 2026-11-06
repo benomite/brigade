@@ -1878,6 +1878,24 @@ main > header,
 #station .section-de-station > h3 {
   margin: 0;
 }
+/* Dossiers et bac à sable (ticket 2644) : une ligne par réglage — son nom et son niveau, sa valeur, son champ. */
+#station .dossiers-et-bac-a-sable .reglage {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+  margin: 0;
+  padding: 3px 0;
+}
+#station .dossiers-et-bac-a-sable .reglage p {
+  margin: 0;
+}
+#station .dossiers-et-bac-a-sable .reglage .dit {
+  grid-column: 2 / 4;
+}
+#station .dossiers-et-bac-a-sable .hote {
+  margin-right: 12px;
+}
 #station .section-de-station .a-venir {
   font-size: 13px;
   color: var(--discret);

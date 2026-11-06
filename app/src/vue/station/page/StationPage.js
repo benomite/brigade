@@ -23,7 +23,7 @@ import { niveauReglage } from "./NiveauReglage.js";
 /**
  * Ce que chaque section reçoit : la station, si elle est celle de cet ordinateur, si elle se montre sans se régler, et
  * la marque du niveau d'un réglage, par sa clé de niveaux.js.
- * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any }} Contexte
+ * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: any }} Contexte
  */
 /** @typedef {{ poserSection(doc: Fabrique, contexte: Contexte): any }} Section */
 /** @typedef {(fichier: string) => Promise<Partial<Section>> | undefined} Charger */
@@ -39,7 +39,7 @@ export const SECTIONS = /** @type {const} */ ([
 
 // Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
 /** @type {ReadonlySet<string>} */
-export const LIVREES = new Set([]);
+export const LIVREES = new Set(["dossiers-et-bac-a-sable"]);
 
 export const PAS_ENCORE = "not shown yet";
 export const INDISPONIBLE = "this section is unavailable";
@@ -54,14 +54,15 @@ export function estCetOrdinateur(station, locale) {
 const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(`./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
-/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger }} ouverte */
-export async function poserPageDeStation(doc, { station, locale, charger = depuisSections }) {
+/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: any }} ouverte */
+export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages }) {
   const ici = estCetOrdinateur(station, locale);
   /** @type {Contexte} */
   const contexte = {
     station,
     ici,
     lectureSeule: !ici,
+    reglages,
     niveau(cle) {
       const niveau = NIVEAUX[cle];
       if (niveau === undefined) throw new Error(`setting "${cle}" has no level in niveaux.js`);

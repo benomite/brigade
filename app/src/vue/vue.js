@@ -6390,7 +6390,7 @@ function poserLesSectionsDeStation(station) {
   const posees = JSON.stringify([station.id, station.nom, locale]);
   if (posees === sectionsDeStationPosees) return;
   sectionsDeStationPosees = posees;
-  void poserLaCoqueDeStation(document, { station, locale }).then((page) => {
+  void poserLaCoqueDeStation(document, { station, locale, reglages: brigade.lireReglagesDeLaStation && { lire: () => brigade.lireReglagesDeLaStation?.(), ecrire: (/** @type {any} */ c) => brigade.ecrireReglagesDeLaStation?.(c) } }).then((page) => {
     if (sectionsDeStationPosees === posees) sectionsDeStation.replaceChildren(page);
   });
 }
