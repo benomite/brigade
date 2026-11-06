@@ -34,6 +34,7 @@ function clientDicte() {
   const client = {
     fires: async () => dicte.tickets,
     dependancesOuvertes: async () => [],
+    commentaires: async () => [],
     checksDeLaBase: async () => dicte.checks,
     merger: async () => dicte.merge,
     prDuTicket: async (issue: number) => {
