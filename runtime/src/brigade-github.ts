@@ -43,7 +43,7 @@ import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
-import { ceQueDitLaCiRouge } from "./github-seul/ci-rouge/ci-rouge.ts";
+import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -1284,6 +1284,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let rouges: Check[] = [];
     // La branche n'a jamais eu de PR : sa livraison n'est jamais arrivée en pass (#2577).
     let sansPR = false;
+    // Ce que la livraison renvoyée laisse au cook : remarques, checks rouges, diff (#2590).
+    let renvoi: Renvoi | null = null;
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
@@ -1297,6 +1299,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
               rouges = checks.filter((check) => check.outcome === "red");
             }
           }
+          renvoi = await lireLeRenvoi(options.github, ouverte, rouges, depot.diff(branche));
         }
       } catch {
         // Illisible, la PR ne retient pas le cook : il part comme avant.
@@ -1317,9 +1320,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
-      const dit = await ceQueDitLaCiRouge(options.github, rouges);
-      if (dit !== "") joint += `\n\n${dit}`;
     }
+    const brief = briefDuRenvoi(renvoi, base);
+    if (brief !== "") joint += `\n\n${brief}`;
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
     // injouable —, et il les rejouait après le setup. Le setup part sans le
