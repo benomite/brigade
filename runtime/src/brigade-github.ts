@@ -45,6 +45,8 @@ import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
+import { correctionDuTemps } from "./temps-max/correction.ts";
+import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
@@ -311,6 +313,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
   };
   const fermerLaReparation = fermeReparation({ github, base });
+  // La médiane des tickets récents au-dessus du max du projet ouvre son ticket
+  // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
+  const { clone } = options;
+  const corrigerLeTemps = clone === undefined ? null : correctionDuTemps({ github, lire: () => lesTempsDesTickets(clone), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
   // Les tickets que la station tient sans cook (#2179) : celui d'un cook qui a
   // levé — GitHub qui limite ses appels, par exemple —, ou la prise qu'un
   // runtime arrêté a laissée. Chacun garde sa place jusqu'à ce qu'un tour le
@@ -501,6 +507,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     const lus = await github.fires();
+    await corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median ticket time is over the max but its correction ticket could not be opened on ${nom} — ${message(echec)}`));
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
     const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE));

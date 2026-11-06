@@ -452,6 +452,19 @@ GitHub, a branch update included; `merge` until GitHub merged it. The station ke
 phase it did not see — another station reviewed it, or the runtime restarted — is 0, never estimated, and a
 claim it did not see starts the record at the first phase it saw.
 
+**Over the max, a correction ticket** (`runtime/src/temps-max/`, #2515). The project's max is
+`tempsMaxTicketMin` in `.claude/brigade/projet.json`, in minutes, **10 by default**. At each turn, the
+GitHub-only station reads these records in its clone and takes the median of the recent tickets — the last
+10 merged, and every one merged in the 24 h before the last —, claim to merge. Over the max, it opens one
+issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:high`, with the
+median, the five slowest tickets with their slowest phase, and the slowest phase (cooking, pass wait, review,
+CI or merge: the one these tickets spent the most time in) with its total, its share and its median per
+ticket. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
+GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
+the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
+and close the other. Once it is closed, a median still over the max opens a new one. At or under the max,
+nothing is opened and GitHub is not read.
+
 ## The daily report of the decisions brigade told about
 
 Every decision taken under `brigade decides and tells me` writes an entry (`autonomy.reported`).
