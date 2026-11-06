@@ -292,6 +292,20 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "untrusted-author"]]);
   });
 
+  test("l'issue d'un inconnu que le chef a lancée ou priorisée est jugée ; sans label d'un membre, elle reste écartée", async (t) => {
+    const { gh, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["prio:2"]), issue(31, ["prio:2"])] });
+    gh.decrire(30, { association: "CONTRIBUTOR" });
+    gh.decrire(31, { association: "CONTRIBUTOR" });
+    gh.garantir(30, ["prio:2"]);
+
+    await jusqua(() => jugements().length === 1);
+    await laisserTourner();
+
+    assert.equal(jugements().length, 1);
+    assert.equal(faits(30).some((e) => e.type === "manager.set-aside"), false);
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "untrusted-author"]]);
+  });
+
   test("le chef pose `fire` sur ce que le code écarte : le manager ne le retire pas, ne calibre pas, et le dit une fois", async (t) => {
     const { gh, labels, dits, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "question"])] });
     await jusqua(() => dits(30).length === 1);

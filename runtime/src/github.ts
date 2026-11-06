@@ -94,6 +94,10 @@ export type GitHub = {
   // Les retraits de label de l'issue, tous labels confondus, du plus ancien au
   // plus récent : ce que la prise lit pour savoir si le chef a lâché le ticket.
   retraitsDeLabels?(numero: number): Promise<{ label: string; createdAt: string }[]>;
+  // Les labels que l'issue porte, posés par un compte qui a l'écriture sur le
+  // dépôt (le chef, ou le second sous son compte) : ce que GitHub dit de qui a
+  // posé le label, pas de qui a écrit l'issue (#2619).
+  labelsPosesParDeConfiance?(numero: number): Promise<string[]>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
   // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
@@ -291,7 +295,7 @@ type IssueBrute = {
 
 type CommentaireBrut = { id?: number; body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
 
-type EvenementBrut = { event?: string; created_at?: string; commit_id?: string | null; label?: { name?: string } | null };
+type EvenementBrut = { event?: string; created_at?: string; commit_id?: string | null; label?: { name?: string } | null; actor?: { login?: string } | null };
 
 type PRBrute = {
   number: number;
@@ -525,6 +529,25 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
         .filter((brut) => brut.event === "unlabeled" && typeof brut.label?.name === "string" && typeof brut.created_at === "string")
         .map((brut) => ({ label: brut.label?.name as string, createdAt: brut.created_at as string }));
+    },
+    async labelsPosesParDeConfiance(numero) {
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);
+      const posees = pages
+        .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
+        .filter((brut) => brut.event === "labeled" && typeof brut.label?.name === "string" && typeof brut.actor?.login === "string");
+      const ecrivains = new Map<string, boolean>();
+      const labels = new Set<string>();
+      for (const brut of posees) {
+        const login = brut.actor?.login as string;
+        if (!ecrivains.has(login)) {
+          const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
+          const reponse = await lireSousCondition([chemin]);
+          const permission = reponse.statut === 200 ? (JSON.parse(reponse.corps) as { permission?: string }).permission : undefined;
+          ecrivains.set(login, permission === "admin" || permission === "maintain" || permission === "write");
+        }
+        if (ecrivains.get(login)) labels.add(brut.label?.name as string);
+      }
+      return [...labels];
     },
     async prQuiFerme(numero) {
       // La fermeture par un merge porte le commit du merge ; la dernière
