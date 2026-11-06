@@ -191,7 +191,7 @@ export function tenirBlocDeLaStation(doc, gestes) {
       corps.replaceChildren(dit);
     } else if (phase === "reglages") corps.replaceChildren(etapeCourante());
     else if (lecture === undefined) corps.replaceChildren(avec(doc, "p", LECTURE, "dit"));
-    else if (lecture.station === null) corps.replaceChildren(...(prete ? [avec(doc, "p", `${PRETE} — reading it…`, "dit")] : sansStation()));
+    else if (lecture.station === null) corps.replaceChildren(...(prete ? [avec(doc, "p", `${PRETE} — it shows here once it has paired`, "dit")] : sansStation()));
     else corps.replaceChildren(...installee(lecture.station, lecture.autres ?? []));
   }
 

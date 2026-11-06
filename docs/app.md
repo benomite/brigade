@@ -1072,7 +1072,7 @@ projects are not affected.
 ## All projects at a glance
 
 **Two blocks, and nothing else (#2638, epic #2497).** The home now shows exactly two blocks: **Projects** — the project
-rows described below — and **This computer's station**, an empty slot that the next tickets of the epic fill. Each block
+rows described below — and **This computer's station** (filled by #2640, below). Each block
 is its own component: `app/src/vue/accueil/projets/BlocDesProjets.js` and `app/src/vue/accueil/station/BlocDeLaStation.js`.
 Everything else the home used to show left it, and waits hidden (`#hors-de-l-accueil` in `index.html`) until a ticket of
 the epic places it elsewhere or removes it: the **Stations** list with "+ station" and the stations under your GitHub
@@ -1087,9 +1087,11 @@ bridge ("installing the station…", no button meanwhile), then walks the first 
 — GitHub" (**Connect to GitHub**, the gesture the app already has), "Step 2 of 2 — Projects" — each with **Next**, the
 last with **Done**, until "the station is ready". A refusal is one line, its detail on hover, and the button comes back.
 **Installed**: the station's name and its line, and **Open its page**; no install button. **Your other stations** are
-listed under it, each row opening its page. The bridge's `installerLaStation` is optional: the main process does not
-carry it yet, so on a build without it the button answers "this app cannot install the station on this device". Test:
-`app/test/accueil/bloc-de-la-station.test.ts`.
+listed under it, each row opening its page. The bridge's `installerLaStation` (preload and main, `app/src/poste/installer.ts`)
+makes sure this app's station is running — on a computer, installing the app installs the station — and refuses in one line
+when it is not a station here or refused to start; on Android the bridge has none, and the button says so. The "GitHub" step
+may be passed without connecting: the page of the station is where the rest is settled. Tests:
+`app/test/accueil/bloc-de-la-station.test.ts`, `app/test/poste/installer.test.ts`.
 
 *Ticket: #870.* The app opens on it, and the round **T** icon, at the head of the bar, brings you back to it. It is
 **the overview of brigade**: what is cross-cutting, and nothing else. What belongs to a project —

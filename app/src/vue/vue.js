@@ -8398,9 +8398,10 @@ function poserBlocStation() {
   const dite = (/** @type {import("../stations/stations.ts").StationVue} */ { id, nom, ligne }) => ({ id, nom, phrase: ligne });
   const ici = locale === null ? undefined : toutes.find(({ id }) => id === locale);
   if (stationsVues === undefined && statutLu(statutDeLaStationVu) === undefined) return blocDeLaStation.lire(undefined);
-  if (ici === undefined && statutLu(statutDeLaStationVu) === undefined) return blocDeLaStation.lire({ station: null });
+  // Sans id local, la page de sa station ne s'ouvrirait nulle part : elle n'est pas dite installée.
+  if (locale === null || (ici === undefined && statutLu(statutDeLaStationVu) === undefined)) return blocDeLaStation.lire({ station: null });
   const phrase = statutLu(statutDeLaStationVu) === undefined ? "installed" : `version ${statutLu(statutDeLaStationVu)?.stationVersion}`;
-  blocDeLaStation.lire({ station: ici === undefined ? { id: locale ?? "", nom: POSTE.nom, phrase } : dite(ici), autres: toutes.filter(({ id }) => id !== locale).map(dite) });
+  blocDeLaStation.lire({ station: ici === undefined ? { id: locale, nom: POSTE.nom, phrase } : dite(ici), autres: toutes.filter(({ id }) => id !== locale).map(dite) });
 }
 // Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
 // dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
@@ -9131,6 +9132,7 @@ brigade.surAccueil((vu) => {
 // Les projets des stations relus : leurs blocs remplacent ceux d'avant ; le parcours ouvert garde ses choix.
 brigade.surProjetsDesStations((vu) => {
   projetsVus = vu;
+  poserBlocStation();
   // Le refus levé se relit : s'il est encore publié, il revient. Une phrase sur un refus qui n'est plus publié s'en va.
   for (const [nom, etat] of remedesDesRefus) {
     const refus = vu.projets.find((projet) => projet.nom === nom)?.refus ?? null;
