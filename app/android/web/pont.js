@@ -27,12 +27,16 @@
 // sont gardés : relancée, l'app les montre avant de relire. Aucune station n'est lue : pas connecté, le téléphone ne lit
 // rien — un téléphone appairé à une station avant le ticket 2500 se connecte à GitHub comme une installation neuve.
 // `oublierLeTelephone` oublie sa connexion à GitHub — celle que GitHub refuse — et ce qui reste d'un appairage.
-// Ce qui reste d'un appairage d'avant le ticket 2500 ne sert plus qu'aux gestes et à la conversation ci-dessous, au
-// guichet de sa station (app/android/web/lecture.ts, posé dans www/android/lecture.js) ; ce qu'il en lirait n'arrive
-// jamais à la vue, hors la conversation.
-// Et les gestes de la fiche d'une carte (le ticket 1420) : `gestesDeFiche` rend ceux que le guichet porte — merger la PR,
-// retirer du rail, renvoyer en cuisine —, et `gesteDeFiche` les joue par `POST /projects/<nom>/gestures`, avec le jeton
-// gardé ; la lecture rend ce que la station en a dit, que la vue montre sur la fiche avant de relire la file.
+// Et, connecté, les gestes du chef, écrits sur GitHub seul (le ticket 2502) : `gestesDeFiche`, `gesteDeFiche`, `attente` et
+// `repondreCarte` passent par les gestes de la même lecture (app/src/gestes-github-telephone.ts) — le code d'écriture du
+// desktop, sur le dernier rail lu, avec le jeton du coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part
+// ailleurs. Répondre à une carte de TODO poste sa réponse sur l'issue et joue son geste ; reprendre (« back to the
+// kitchen », « it arrived ») retire `waiting` ; mettre en suspens (« remove from the rail ») retire `fire`. Ce que GitHub
+// refuse, ou un GitHub qui ne répond pas, revient à la vue en une phrase, et rien n'est montré fait. Aucune station n'est
+// jointe pour un geste : pas connecté, rien ne part.
+// Ce qui reste d'un appairage d'avant le ticket 2500 ne sert plus qu'à la conversation ci-dessous, au guichet de sa station
+// (app/android/web/lecture.ts, posé dans www/android/lecture.js) ; ce qu'il en lirait n'arrive jamais à la vue, hors la
+// conversation.
 // Et la conversation de chaque projet avec son second (le ticket 1426) : `conversation` la lit au guichet
 // (`GET /projects/<nom>/second`), `envoyerAuSecond` y écrit un message du chef (`POST`), avec le jeton gardé ; la réponse
 // du second, et ce que le chef tape au desktop, arrivent à la vue par `surConversation`. Un lien d'un message du second
@@ -50,11 +54,15 @@ const CLE = "brigade.telephone";
 const CLE_DES_PROJETS = "brigade.telephone.projets";
 // Les projets de la dernière liste lue sur GitHub.
 const CLE_DES_PROJETS_GITHUB = "brigade.github.projets";
-// Le temps de joindre le guichet, puis celui qu'il réponde : au-delà, la station ne répond pas.
+// Le temps de joindre GitHub ou le guichet, puis celui qu'il réponde : au-delà, il ne répond pas.
 const DELAI_MS = 10_000;
-// Le temps qu'un geste a pour répondre, une fois le guichet joint : celui que la station laisse à sa commande — un merge
-// attend GitHub (runtime/src/telephone/gestes.ts, `DELAI_DU_GESTE_MS`, deux minutes) —, et de quoi en rendre le verdict.
-const DELAI_DU_GESTE_MS = 130_000;
+// Le temps qu'une écriture a pour répondre, une fois GitHub joint : un merge attend que GitHub l'ait fait.
+const DELAI_D_ECRITURE_MS = 60_000;
+// Ce que dit un geste quand le téléphone n'est pas connecté à GitHub : rien n'est parti.
+const SANS_GITHUB = "nothing was sent: this phone is not signed in to GitHub — sign in, then try again";
+// Le temps qu'un message au second a pour répondre, une fois le guichet joint : celui que la station laisse à sa commande,
+// et de quoi en rendre le verdict.
+const DELAI_DU_GUICHET_MS = 130_000;
 // La connexion à GitHub (le ticket 2500) : l'App OAuth au nom de laquelle le téléphone demande son code — celle de la
 // GitHub CLI, que le desktop emploie déjà par `gh auth login` (connexion-github.ts) : le chef y a déjà donné son accord
 // et n'en donne aucun à un tiers de plus. Son « device flow » ne demande aucun secret. Une App OAuth de brigade, son
@@ -238,11 +246,12 @@ async function laLectureGitHub() {
   const connexion = await connexionGardee();
   if (connexion === undefined) return undefined;
   lectureGitHub ??= Promise.resolve()
-    .then(() => import(new URL("../lecture-github-telephone.js", window.location.href).href))
-    .then(({ ouvrirLaLectureGitHub, parCapacitor }) => {
+    .then(() => Promise.all([import(new URL("../lecture-github-telephone.js", window.location.href).href), import(new URL("../gestes-github-telephone.js", window.location.href).href)]))
+    .then(([{ ouvrirLaLectureGitHub, parCapacitor }, { ecritureParCapacitor }]) => {
       const ouverte = ouvrirLaLectureGitHub({
         jeton: jetonDuCoffre,
         envoyer: parCapacitor((/** @type {Record<string, unknown>} */ demande) => natif("CapacitorHttp", "request", { ...demande, connectTimeout: DELAI_MS, readTimeout: DELAI_MS })),
+        ecrire: ecritureParCapacitor((/** @type {Record<string, unknown>} */ demande) => natif("CapacitorHttp", "request", { ...demande, connectTimeout: DELAI_MS, readTimeout: DELAI_D_ECRITURE_MS })),
         dire,
         compte: connexion.compte,
         connus: projetsGardes(CLE_DES_PROJETS_GITHUB),
@@ -262,10 +271,17 @@ async function laLectureGitHub() {
 // Une lecture que la vue demande, quand le téléphone est connecté et sa lecture ouverte.
 /** @param {(ouverte: any) => unknown} faire */
 const avecLaLectureGitHub = (faire) => void laLectureGitHub().then((ouverte) => (ouverte === undefined ? undefined : faire(ouverte)), () => undefined);
-// Ce qui joint la station d'un appairage d'avant le ticket 2500 (app/android/web/lecture.ts), ouvert une fois, pour ses
-// gestes et sa conversation : son module, posé par la construction à côté de la vue (www/android/lecture.js), est chargé
-// au premier geste. Rien sans appairage. Ce qu'il lirait de la station n'arrive pas à la vue — les projets, le rail et
-// TODO se lisent sur GitHub —, hors la conversation.
+// Un geste du chef, quand le téléphone est connecté : les gestes de sa lecture GitHub. Une lecture qui ne s'ouvre pas
+// lève : la fiche dit que ses gestes ne se lisent pas, ou que rien n'est parti.
+/** @param {(gestes: any) => unknown} faire @param {unknown} sans */
+const avecLesGestes = async (faire, sans) => {
+  const ouverte = await laLectureGitHub();
+  return ouverte === undefined ? sans : faire(ouverte.gestes);
+};
+// Ce qui joint la station d'un appairage d'avant le ticket 2500 (app/android/web/lecture.ts), ouvert une fois, pour sa
+// conversation : son module, posé par la construction à côté de la vue (www/android/lecture.js), est chargé au premier
+// message. Rien sans appairage. Ce qu'il lirait de la station n'arrive pas à la vue — les projets, le rail et TODO se
+// lisent sur GitHub —, hors la conversation.
 /** @type {Promise<any> | undefined} */
 let lecture;
 function laLecture() {
@@ -281,7 +297,7 @@ function laLecture() {
       /** @param {string} chemin */
       requete: (chemin) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "GET", headers: { Authorization: `Bearer ${lu.jeton}` }, connectTimeout: DELAI_MS, readTimeout: DELAI_MS }),
       /** @param {string} chemin @param {unknown} corps */
-      envoyer: (chemin, corps) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "POST", headers: { Authorization: `Bearer ${lu.jeton}`, "Content-Type": "application/json" }, data: corps, connectTimeout: DELAI_MS, readTimeout: DELAI_DU_GESTE_MS }),
+      envoyer: (chemin, corps) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "POST", headers: { Authorization: `Bearer ${lu.jeton}`, "Content-Type": "application/json" }, data: corps, connectTimeout: DELAI_MS, readTimeout: DELAI_DU_GUICHET_MS }),
       connus: projetsGardes(),
       /** @param {unknown[]} projets */
       garder: (projets) => window.localStorage.setItem(CLE_DES_PROJETS, JSON.stringify(projets)),
@@ -335,9 +351,10 @@ const connus = {
   tous: (/** @type {number} */ demande) => avecLaLectureGitHub((ouverte) => ouverte.tous(demande)),
   regarder: (/** @type {string} */ projet, /** @type {number} */ demande) => avecLaLectureGitHub((ouverte) => ouverte.regarder(projet, demande)),
   relireBox: () => avecLaLectureGitHub((ouverte) => ouverte.relire()),
-  // Une lecture qui ne s'ouvre pas lève : la fiche dit que ses gestes ne se lisent pas, ou que rien n'est parti.
-  gestesDeFiche: async (/** @type {unknown} */ carte) => (await laLecture())?.gestesDeFiche(carte) ?? [],
-  gesteDeFiche: async (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => (await laLecture())?.geste(projet, id, ticket) ?? { refus: `nothing was sent: ${AUCUNE_STATION}` },
+  gestesDeFiche: (/** @type {unknown} */ carte) => avecLesGestes((gestes) => gestes.gestesDeFiche(carte), []),
+  gesteDeFiche: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.geste(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
+  attente: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.attente(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
+  repondreCarte: (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ reponse) => avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }),
   // Sans appairage, rien : la vue dit que la conversation ne se lit pas.
   conversation: async (/** @type {string} */ projet) => {
     try {

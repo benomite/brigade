@@ -1302,7 +1302,8 @@ and keeps asking through a lost network until the code expires. On the desktop, 
 **Phones paired with a station before #2500.** The pairing screen — the station's address, its code, its QR, the
 `brigade://pair` link — is gone, and no new pairing is drawn. A phone that was paired before no longer reads its
 projects at its station (#2501): it opens on the sign-in screen like a fresh install. What remains of its pairing only
-carries the sheet's gestures and the conversation with the second, at its station's phone desk (below).
+carries the conversation with the second, at its station's phone desk (below); the sheet's gestures are written to
+GitHub (#2502).
 
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
@@ -1335,6 +1336,31 @@ types (`www/src/lecture-github-telephone.js`, `poserLesModules` in `app/packagin
 its first reading. Its tests, against a mocked GitHub with no station reachable — the module alone, then the laid bridge
 and the real view on a phone screen — are `app/test/lecture-github-telephone.test.ts`.
 
+### Writing the chef's gestures to GitHub from the phone (#2502, epic #2498)
+
+Signed in, **the phone writes the chef's gestures to GitHub with the chef's session**, the way the desktop does and by
+the desktop's own writing code — no station is reached for them. `app/src/gestes-github-telephone.ts`
+(`ouvrirLesGestesGitHub`) calls what `app/src/main.ts` calls for the same gesture, with the client it builds
+(`clientDeLaPriorite`); only the carrier differs: Capacitor's native HTTP (`ecritureParCapacitor`), with the vault's
+token, to `api.github.com`. The GitHub reading of the phone opens them (`gestes` of `ouvrirLaLectureGitHub`) on what it
+last read of each project — its repository, its last rail read, the chef's card of a ticket —, and the bridge
+(`app/android/web/pont.js`) answers the view's `gestesDeFiche`, `gesteDeFiche`, `attente` and `repondreCarte` with them:
+
+- **answering a TODO card** (a chef's card read from GitHub): the answer posted on the issue as the marked comment, then
+  its gesture played (`resume`, `merge`, `drop`, `close`) — `repondreSurGithub`, as on the desktop;
+- **resuming** — *back to the kitchen* on the sheet, *it arrived, back to the kitchen* on a WAITING card: the `waiting`
+  label removed from the issue;
+- **putting on hold** — *remove from the rail* on the sheet: the `fire` label removed; no station takes the ticket.
+
+A sheet on the phone offers those gestures only, ordered and priced by the desktop's table. Merging a delivery says what
+the desktop says (merge its PR on GitHub), and the other WAITING gestures are station commands the phone does not reach:
+nothing is sent, and one sentence says so. A write GitHub refuses, or a GitHub that does not answer, comes back as one
+sentence with what GitHub or the network said on hover, and nothing is shown done; only a write GitHub took reads GitHub
+again, which shows it. Not signed in, nothing is sent: *nothing was sent: this phone is not signed in to GitHub*. The APK
+build lays the module next to the view (`www/src/gestes-github-telephone.js`). Its tests — each gesture played by the
+desktop's chain and by the phone on two copies of a mocked GitHub, comparing every request, then through the laid
+bridge with no station reachable — are `app/test/gestes-github-telephone.test.ts`.
+
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
@@ -1347,7 +1373,7 @@ reads for that project, read the same way at the same moment (`runtime/src/telep
 station does not have, `503` a log it cannot read, with what the command would say.
 
 **The paired phone read them** (#1414; since #2501 the bridge no longer calls this reading for projects, rail and
-TODO — what follows describes `app/android/web/lecture.ts`, which still carries the gestures and the conversation). The Android bridge reads `GET /projects` and each project's `queue` with its
+TODO — what follows describes `app/android/web/lecture.ts`, which still carries the conversation). The Android bridge reads `GET /projects` and each project's `queue` with its
 token, every 30 s and whenever the view asks (opening a project, "All projects", *try again now*). It does with them
 what the desktop's main process does with its readings: the same modules of `app/src/` — `facts` through `tenirFaits`,
 `status` through `mettreAPart` and `attendre`, the alert band and the lines of "All projects" — so a queue on the phone
@@ -1384,23 +1410,9 @@ hover), does not read the box again: the queue stays as it was, and the gesture 
 narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
 is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` (`docs/captures/1164/`).
 
-**The paired phone plays them at its station** (#1420). The station's phone desk takes `POST
-/projects/<name>/gestures` (#1412), behind the phone's token — `{"gesture": "merge" | "remove" | "back-to-kitchen",
-"ticket"}`: `merge` and `remove` run the box command for the same button (`rail merge`, `rail remove`), and
-`back-to-kitchen` plays `renvoyerEnCuisine` (`runtime/src/attente.ts`) on the project's log — on the desktop, the same
-gesture removes the `waiting` label from the issue (#2061). On the phone, a card's sheet offers the gestures that desk carries,
-and only those — `merge the PR`, `remove from the rail`, `back to the kitchen`, chosen and ordered by the desktop's table
-(`gestes-fiche.ts`); opening the issue or the PR, asking the second and changing the priority are not offered there.
-The Android bridge's reading (`app/android/web/lecture.ts`) sends the gesture with the token, waits up to 130 s for the
-answer (a merge waits for GitHub; the station gives the command 120 s), and answers the view with one sentence: what the
-command said, `{ fait }` — and the view reads the station again, the card moving with that reading — or why it was not
-done, `{ refus }`: the command's own sentence when it refused (`409`); *atelier could not be reached: nothing was
-changed*; *atelier's phone desk does not answer: nothing was changed* (a `502` from `tailscale serve`); *atelier no
-longer knows this phone* (`401`); and, when the answer never came, *atelier did not answer: the next
-read shows whether it went through* — the station is read again at once, as it is when the station says its command
-gave no verdict (`502`). What ran and
-what it wrote, or what the network said, is on hover; a refused card stays where it was. Screens:
-`telephone-projets-gestes*` of `scripts/capture-ecran` (`docs/captures/1420/`).
+**The paired phone played them at its station** (#1420), through `POST /projects/<name>/gestures` of its phone desk.
+Since #2502 the phone no longer sends them there: it writes them to GitHub (above), and its sheet no longer offers
+`merge the PR`.
 
 **Talking to a project's second from the phone** (#1165): on a phone, the Second tab has no terminal and no shell —
 no pty runs there —, it holds **the conversation with the second, as messages**: what you wrote to it, from the phone
