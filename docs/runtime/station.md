@@ -351,7 +351,13 @@ The comment on the issue and the station journal both say why: the exit code and
 count as one of the 3 tries: Claude quota or usage limit, a lost Claude session, a GitHub limit, a
 station stopped or a process killed. The ticket is given back with an `attente` marker on its issue
 and is not taken again before it ends: 30 minutes, or the time the quota comes back when the stream
-says it (6 hours at most). It is then retried, never set aside for it. After a send back, "added
+says it (6 hours at most). It is then retried, never set aside for it. **A cook that dies because
+its own station stops waits for nothing** (#2543): the station is told it stops before the runtime
+kills its cooks, says so on the issue ("the cook stopped with its station"), and gives the ticket back
+with no `attente` marker; the restarted station, or another one, takes it at its next round. The box
+restarts its station at each update, every 35 to 45 minutes while merges keep coming: with the
+30-minute wait, a ticket taken again had 5 to 15 minutes before the next restart killed its cook once
+more — #2502 four times, #2464 six. After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
 stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does

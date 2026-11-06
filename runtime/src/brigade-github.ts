@@ -188,6 +188,9 @@ export type StationGitHub = {
   relu(): Promise<void>;
   // Le tour ne reprendra pas : ce qu'il tient chez l'arbitre est rendu.
   quitter?(): Promise<void>;
+  // La station s'arrête, avant que ses cooks ne meurent avec elle : leurs
+  // tickets sont rendus sans attente (#2543).
+  arreter?(): void;
   // Posé par la boucle : le pass a bougé (#2333). Les `TOURS_PRESSES` tours
   // suivants viennent à `ATTENTE_PRESSEE_MS` au plus l'un de l'autre, le premier
   // tout de suite si `maintenant` (une livraison à relire).
@@ -323,6 +326,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // rende sur l'issue : un échec ne libère jamais une place pour un autre.
   const aRendre = new Map<number, TicketLu>();
   let premierTour = true;
+  // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
+  let arretee = false;
   // Les PR dont la fusion n'a pas abouti — GitHub a refusé le merge, ou la
   // mise à jour de la branche est demandée —, et ce qu'elles étaient alors :
   // leur tête, leur version et la base. Elle ne se retente qu'une fois l'une
@@ -385,7 +390,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // relancée, process tué — n'est pas un de ses essais non plus : le ticket
       // attend, puis repart, sans `hors-cuisine` (#2508).
       if ("reste" in fait || "subi" in fait) {
-        if ("subi" in fait) {
+        // Sa station s'arrête — une mise à jour la relance — et le cook meurt
+        // avec elle. Rien n'est à attendre : la station relancée, ou une autre,
+        // le reprend à son tour suivant. L'attente d'un arrêt subi l'en tenait
+        // 30 min à l'écart ; relancée toutes les 35 à 45 min, la station tuait
+        // le cook repris avant qu'il ne finisse, #2502 quatre fois (#2543).
+        if ("subi" in fait && arretee) {
+          avertir(`brigade : #${issue} sur ${nom} — the cook stopped with its station: ${fait.subi}`);
+          await github.commenter(issue, `Station \`${nom}\`: the cook stopped with its station — ${fait.subi}\n\nThe station is stopping: the ticket is given back with no wait, for the next round of a station; this stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
+        } else if ("subi" in fait) {
           const demain = instant() + ATTENTE_MAX_MS;
           const reprise = Math.min(demain, Math.max(instant() + ATTENTE_MS, fait.retour?.getTime() ?? 0));
           avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery, through no fault of its own: ${fait.subi}`);
@@ -736,6 +749,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const station: StationGitHub = {
     tour,
+    arreter: () => {
+      arretee = true;
+    },
     enCuisine: () => [...enVol.keys()],
     relu: async () => {
       while (enRelecture.size > 0) await Promise.all(enRelecture.values());
@@ -833,6 +849,8 @@ export function brancherBrigadeGithub(options: OptionsDuProjet): ProjetOuvert {
     enCuisine: () => station.enCuisine(),
     arreter: async () => {
       arrete = true;
+      // Avant que le runtime ne tue les cooks : leur fin se lit comme celle de la station.
+      station.arreter?.();
       clearTimeout(minuterie);
       await enCours;
       await station.quitter?.();
