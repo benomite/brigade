@@ -234,23 +234,11 @@ export type Pont = {
   // alors sa version inconnue (station-version/station-version.js).
   statutDeLaStation?(): Promise<unknown>;
   surStatutDeLaStation?(recevoir: (statut: unknown) => void): void;
-  // L'app Android seule (le ticket 1161) : le téléphone s'appaire au guichet d'une station qui tourne
-  // (runtime/src/telephone/guichet.ts) avec le code qu'elle montre — `POST /pairing`. Appairé, le pont
-  // garde son jeton, que la vue ne voit jamais, et `telephone` le dit au lancement suivant. Refusé ou
-  // injoignable, rien n'est gardé. Sur le desktop, qui n'a rien à appairer ainsi, `demarrage` ne rend
-  // aucun `telephone` : la vue ne pose pas l'écran, et ces deux gestes n'y font rien.
-  appairerLeTelephone(demande: DemandeDuTelephone): Promise<ReponseDuGuichet>;
-  // Le QR que la station montre, lu par l'appareil photo du téléphone : son texte, tel quel.
-  scannerLeQr(): Promise<LectureDuQr>;
-  // L'app Android seule (le ticket 1597) : le texte du lien qui a ouvert l'app — le même QR, scanné par l'appareil photo
-  // du téléphone plutôt que par l'app, `brigade://pair?…` —, celui qui l'a lancée dès l'abonnement, puis chacun de ceux
-  // qui la rouvrent, une fois.
-  surLienDAppairage?(recevoir: (texte: string) => void): void;
   // L'app Android seule (le ticket 1414) : la liste des projets de la station appairée vient d'être lue à son guichet, ou
   // ne l'a pas été — `liste` dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(recevoir: (telephone: Telephone) => void): void;
-  // L'appairage oublié — la station ne connaît plus ce téléphone : le pont efface son jeton, et la vue revient à
-  // l'écran qui le relie à ses projets.
+  // La station ne connaît plus ce téléphone : le pont efface son jeton, et la vue revient à ses projets — ou à la
+  // connexion à GitHub, s'il n'y est pas connecté.
   oublierLeTelephone?(): Promise<void>;
   // L'app Android seule (le ticket 1165) : la conversation avec le second d'un projet, là où il n'y a pas de terminal
   // où la lire. C'est celle du second du desktop — ce que le chef y a écrit, d'ici ou de son ordinateur, et ce que le
@@ -339,14 +327,6 @@ export type Pont = {
   ajouterSpecialisation(projet: string, demande: import("../specialisations.ts").DemandeDeSpecialisation): Promise<import("../specialisations.ts").RenduDeLaSpecialisation>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
-  // « Pair a phone », sur la ligne d'une station de l'accueil (ticket 1598), la station nommée par son gist : un code neuf
-  // et ce que son QR porte ; où en est ce code — valable, expiré, servi ; les téléphones appairés ; la révocation de l'un
-  // d'eux. Chacun rend ce qu'il a obtenu, ou pourquoi rien, en une ligne et son survol — jamais la commande lancée
-  // (telephones-de-station.ts). Absents du téléphone : il n'appaire pas de téléphone.
-  tirerUnCodeDeTelephone?(id: string): Promise<import("../telephones-de-station.ts").RenduDuCode>;
-  etatDuCodeDeTelephone?(id: string, code: string): Promise<import("../telephones-de-station.ts").RenduDeLEtat>;
-  telephonesDeLaStation?(id: string): Promise<import("../telephones-de-station.ts").RenduDeLaListe>;
-  revoquerUnTelephone?(id: string, nom: string): Promise<import("../telephones-de-station.ts").RenduDeLaRevocation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —
   // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une, la clé passée au runtime qui la range
   // (runtime/src/identites-stations.ts). Absents, ou rien de rendu : cet appareil n'a pas de station.
@@ -364,7 +344,8 @@ export type Pont = {
   // le projet ajouté au fichier des projets — il arrive par `surConfiguration` —, ou pourquoi il ne l'est pas.
   ouvrirDUneStation?(nom: string, depot: string): Promise<Ouverture>;
   // Lance la connexion à GitHub que le runtime nomme : rend le code à taper et sa page, déjà ouverte — ou pourquoi
-  // rien n'est parti. Sa fin arrive par `surConnexionGitHub`.
+  // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
+  // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<DebutDeConnexion>;
   // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
   // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
@@ -494,7 +475,6 @@ declare global {
   }
 }
 
-// L'appairage du téléphone, tel que le pont de l'app Android le garde : aucun, sur une installation neuve.
 // Un message de la conversation avec le second (le ticket 1165) : qui l'a écrit — le chef, d'où qu'il l'ait envoyé, ou
 // le second —, quand, et son texte, le markdown rendu (markdown.ts), comme une discussion d'issue.
 export type MessageDuSecond = { de: "chef" | "second"; a: string; blocs: import("../markdown.ts").Bloc[] };
@@ -505,17 +485,9 @@ export type Conversation = { messages: MessageDuSecond[]; repond?: true; echec?:
 export type RefusDeConversation = { refus: string; detail?: string };
 // `liste` : la dernière lecture de la liste des projets au guichet de la station (le ticket 1414) — absente avant la
 // première. Lue, ou ce qui l'a empêchée : le motif d'un guichet qui ne se joint pas (`injoignable`, `sans-guichet`,
-// `inattendu`, comme pour l'appairage), ou `oublie`, la station qui ne connaît plus le jeton de ce téléphone.
+// `inattendu`), ou `oublie`, la station qui ne connaît plus le jeton de ce téléphone.
 export type ListeDuTelephone = { a: string; lue: true } | { a: string; lue: false; reason: "injoignable" | "sans-guichet" | "inattendu" | "oublie"; said: string };
-export type Telephone = { appaire: false } | { appaire: true; station: string; adresse: string; liste?: ListeDuTelephone };
-// Ce que le téléphone envoie au guichet : son adresse (`http://<hôte>:<port>`, ou `https://<machine>.ts.net` sur
-// le tailnet du chef), le code tapé ou scanné,
-// et ce qu'il dit de lui — son nom de station et sa machine.
-export type DemandeDuTelephone = { adresse: string; code: string; nom: string; machine: string };
-// Ce que le guichet a répondu : appairé, et à quelle station ; ou refusé, avec son motif (`inconnu`,
-// `expire`, `utilise`, `nom-pris`, `essais`, `invalide`) et sa phrase. `injoignable` : la demande
-// n'est jamais arrivée — `said` dit ce que le réseau en a dit ; `sans-guichet` : l'adresse répond, mais
-// rien derrière elle (le 502 de `tailscale serve`) ; `inattendu` : ce qui répond n'est pas un guichet.
-export type ReponseDuGuichet = { paired: true; station: string } | { paired: false; reason: string; said: string };
-// Le QR lu, renoncé, ou impossible à lire — l'appareil photo refusé, le lecteur absent.
-export type LectureDuQr = { lu: string } | { annule: true } | { refus: string };
+// Le téléphone, tel que le pont de l'app Android le garde : l'appairage à une station d'avant le ticket 2500 — aucun sur une
+// installation neuve, qui n'en tire plus —, et `github`, sa connexion à GitHub (le ticket 2500) — le compte sous lequel il lit, nul quand GitHub ne l'a pas
+// dit ; absente tant qu'il n'y est pas connecté, et la vue s'ouvre alors sur la connexion.
+export type Telephone = ({ appaire: false } | { appaire: true; station: string; adresse: string; liste?: ListeDuTelephone }) & { github?: { compte: string | null } };

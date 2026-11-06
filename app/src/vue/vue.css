@@ -57,7 +57,6 @@ code,
 .carte dd,
 #rail h4 span:last-child,
 #rail .bon p,
-#appairage input,
 .premier-lancement .formulaire-du-premier input {
   font-family: var(--police-mono);
 }
@@ -1851,10 +1850,9 @@ main > header,
   padding-top: 8px;
   border-top: 1px solid var(--trait);
 }
-/* « pair a phone », au bout de la ligne d'une station sur l'accueil (ticket 1598) : discret, comme « + station ». Ses
-   gestes sont posés par-dessus la ligne, à droite, côte à côte : elle garde toute sa largeur — sa flèche reste alignée
-   sur les autres —, et son clic. À gauche de « pair a phone », le bouton de la raison d'une station qui ne cuit pas
-   encore (ticket 1758). */
+/* Au bout de la ligne d'une station sur l'accueil, le bouton de la raison d'une station qui ne cuit pas encore
+   (ticket 1758) : discret, comme « + station ». Ses gestes sont posés par-dessus la ligne, à droite, côte à côte : elle
+   garde toute sa largeur — sa flèche reste alignée sur les autres —, et son clic. */
 #accueil-stations .ligne-et-geste {
   position: relative;
 }
@@ -1866,123 +1864,11 @@ main > header,
   gap: 8px;
   transform: translateY(-50%);
 }
-#accueil-stations .appairer-un-telephone,
 #accueil-stations .remede-de-station {
   padding: 3px 10px;
   color: var(--discret);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
-}
-/* L'écran « Pair a phone » : comme la page d'une station — le retour, le titre et son aide, ce qu'on attend du chef —,
-   puis le QR à gauche, le code, ce qu'il vaut encore et l'adresse de la station à droite ; dessous, les téléphones
-   appairés, une ligne chacun et « revoke » à la suite. Le fond clair du QR est posé ici : son image n'a que ses modules. */
-#telephones-de-station {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
-}
-#telephones-de-station .retour {
-  align-self: flex-start;
-  color: var(--discret);
-}
-#telephones-de-station h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 700;
-}
-#telephones-de-station h3 {
-  margin: 6px 0 0;
-}
-#telephones-de-station p {
-  margin: 0;
-}
-#telephones-de-station .attendu {
-  font-size: 14px;
-  color: var(--texte-doux);
-}
-#telephones-de-station .code-de-telephone {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  min-height: 48px;
-  margin: 8px 0;
-}
-#telephones-de-station .qr {
-  flex: none;
-  background: var(--texte);
-  border-radius: var(--rayon-bouton);
-}
-#telephones-de-station .lu {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-#telephones-de-station .code {
-  font-size: 28px;
-  letter-spacing: 0.08em;
-}
-#telephones-de-station .reste {
-  font-size: 14px;
-  color: var(--texte-doux);
-}
-#telephones-de-station .adresse {
-  color: var(--discret);
-}
-#telephones-de-station .adresse .mono {
-  color: var(--texte-doux);
-}
-#telephones-de-station .fin-du-code,
-#telephones-de-station .indisponible {
-  color: var(--jaune);
-}
-#telephones-de-station .telephones-appaires {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--trait);
-}
-#telephones-de-station .telephones-appaires ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#telephones-de-station .telephone-appaire {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-}
-#telephones-de-station .telephone-appaire > span:not(.action):not(.survol) {
-  color: var(--texte-doux);
-}
-#telephones-de-station .telephone-appaire > .action button,
-#telephones-de-station .telephone-appaire .confirmation > button {
-  padding: 2px 10px;
-  font-size: 12px;
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
-}
-/* La confirmation d'une révocation, sous la ligne du téléphone : sa question, son prix en alerte, puis « revoke » et
-   « cancel » à la suite — pas sur toute la largeur. */
-#telephones-de-station .telephone-appaire .confirmation {
-  flex-flow: row wrap;
-  align-items: center;
-  gap: 6px 8px;
-}
-#telephones-de-station .telephone-appaire .confirmation > p {
-  flex: 1 1 100%;
-}
-#telephones-de-station .telephone-appaire .confirmation > p.prix {
-  color: var(--jaune);
-}
-#telephones-de-station .telephone-appaire .confirmation > button.recommande {
-  border-color: var(--accent);
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
@@ -6828,22 +6714,23 @@ button.recommande {
 #nouvelle-version .action {
   flex: none;
 }
-/* L'appairage du téléphone (l'app Android) : sur une installation neuve, tout l'écran — une carte, comme le
-   formulaire d'ajout, ce qu'on attend du chef en tête, les deux champs, « pair » (recommandé) et « scan the QR ».
-   Appairé, il ne garde qu'une ligne, en bandeau, en tête des projets. */
-#appairage {
+/* La connexion du téléphone à GitHub (l'app Android, ticket 2500) : sur une installation neuve, tout l'écran — une
+   carte, comme le formulaire d'ajout, ce qu'on attend du chef en tête, puis « sign in with GitHub » (recommandé) ;
+   lancée, le code à taper et « open the GitHub page again » ; ratée, la ligne qui dit pourquoi, en rouge.
+   Connecté, il ne garde qu'une ligne, en bandeau, en tête des projets. */
+#connexion-github {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 24px 16px;
 }
-#appairage.fait {
+#connexion-github.fait {
   flex: none;
   padding: 8px 12px;
   background: var(--bandeau);
   border-bottom: 1px solid var(--trait);
 }
-#appairage .appairage {
+#connexion-github .connexion-github {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -6854,47 +6741,32 @@ button.recommande {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
-#appairage h2 {
+#connexion-github h2 {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 18px;
   font-weight: 700;
 }
-#appairage p {
+#connexion-github p {
   margin: 0;
 }
-#appairage .attendu {
+#connexion-github .attendu {
   color: var(--texte-doux);
 }
-#appairage label {
-  margin-top: 12px;
-  font-weight: 600;
-}
-#appairage input {
-  padding: 9px 10px;
-  font-size: 15px;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#appairage input[aria-invalid="true"] {
-  border-color: var(--rouge);
-}
-#appairage .refus-champ {
-  color: var(--rouge-clair);
-}
-#appairage .refus-champ:empty {
-  display: none;
-}
-#appairage .gestes-appairage {
+#connexion-github .suite-de-connexion {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
   margin-top: 12px;
 }
-#appairage .gestes-appairage button {
+#connexion-github .gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0;
+}
+#connexion-github .gestes button {
   padding: 8px 16px;
   font-size: 14px;
   font-weight: 600;
@@ -6903,24 +6775,29 @@ button.recommande {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#appairage .gestes-appairage button.recommande {
+#connexion-github .gestes button.recommande {
   color: var(--fond);
   background: var(--accent);
   border-color: var(--accent);
 }
-#appairage .gestes-appairage button:disabled {
+#connexion-github .gestes button:disabled {
   color: var(--discret);
   background: none;
   border-style: dashed;
 }
-#appairage .attente {
+#connexion-github .code-de-connexion {
   color: var(--texte-doux);
 }
-#appairage .issue-appairage .indisponible {
+#connexion-github .code-de-connexion strong {
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  color: var(--texte);
+}
+#connexion-github .refus {
   color: var(--rouge-clair);
 }
-#appairage .issue-appairage .survol,
-#appairage .appaire .survol {
+#connexion-github .refus .survol,
+#connexion-github .connecte .survol {
   margin-left: 6px;
   vertical-align: middle;
 }
@@ -7789,7 +7666,6 @@ button.recommande {
   padding-right: 8px;
   transform: none;
 }
-#accueil-stations .appairer-un-telephone:hover,
 #accueil-stations .remede-de-station:hover,
 #accueil-stations .ajout-de-station:hover {
   color: var(--texte);

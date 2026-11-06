@@ -32,14 +32,13 @@ export const NIVEAUX = {
   "closer-lines": "project",
   // Cette machine : ses cooks, le dossier de ses espaces de travail, ce qu'elle sait faire, ses tickets ordinaires — et,
   // sur l'onglet Stations (ticket 2488), si une station sert le projet : la déclaration que sa station principale tient ;
-  // pour la station de cet ordinateur (ticket 2489), sa connexion à Claude et les téléphones qui lui sont appairés.
+  // pour la station de cet ordinateur (ticket 2489), sa connexion à Claude.
   cooks: "machine",
   dossier: "machine",
   capacites: "machine",
   ordinaires: "machine",
   sert: "machine",
   claude: "machine",
-  telephones: "machine",
   // Toi : les couleurs de chaque projet, et le sigle de sa case dans la barre. L'app n'a aucune autre préférence
   // d'affichage (ni thème, ni densité, ni taille de police) : quand elle en aura une, sa ligne se posera ici, « you »,
   // avec son étiquette.

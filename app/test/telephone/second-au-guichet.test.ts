@@ -266,7 +266,7 @@ describe("sur le téléphone, une conversation qui ne se lit pas se dit en une p
       "this station does not hold the second of parade: its line names no folder where the second runs (BRIGADE_SECOND_DIR)",
     ],
     ["le guichet derrière `tailscale serve` qui ne répond pas (502 sans corps)", { status: 502, data: "" }, "atelier's phone desk does not answer", `${ADRESSE} answered 502: nothing answers behind it`],
-    ["un téléphone que la station ne connaît plus (401)", { status: 401, data: { said: "unknown token" } }, "atelier no longer knows this phone: pair it again", "unknown token"],
+    ["un téléphone que la station ne connaît plus (401)", { status: 401, data: { said: "unknown token" } }, "atelier no longer knows this phone", "unknown token"],
   ] as const) {
     test(`${cas} : « ${dit} », sans champ ; relue, la conversation revient`, async () => {
       let panne = true;

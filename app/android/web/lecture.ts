@@ -297,7 +297,7 @@ export function ouvrirLaLecture(options: Options) {
     const said = phraseDe(corps);
     const detail = typeof corps?.detail === "string" ? corps.detail : "";
     if (rendue.status === 200 && corps?.done === true) return { fait: said ?? `#${ticket}: done`, detail };
-    if (rendue.status === 401) return { refus: `${station} no longer knows this phone: pair it again`, detail: said ?? `${adresse} answered 401` };
+    if (rendue.status === 401) return { refus: `${station} no longer knows this phone`, detail: said ?? `${adresse} answered 401` };
     // 502 : la commande n'a pas rendu de verdict.
     if (rendue.status === 502 && said !== undefined) void lire();
     if (said !== undefined) return { refus: said, detail: detail === "" ? `${adresse} answered ${rendue.status}` : detail };
@@ -334,7 +334,7 @@ export function ouvrirLaLecture(options: Options) {
     }
     const corps = corpsDe(rendue.data);
     const said = phraseDe(corps);
-    if (rendue.status === 401) return { refus: `${station} no longer knows this phone: pair it again`, detail: said ?? `${adresse} answered 401` };
+    if (rendue.status === 401) return { refus: `${station} no longer knows this phone`, detail: said ?? `${adresse} answered 401` };
     if (rendue.status === 404 && said !== undefined) return { refus: `${station} has no project named ${projet}`, detail: said };
     if (rendue.status === 503 && said !== undefined) return { refus: `${station} cannot reach ${projet}'s second`, detail: said };
     if (said !== undefined) return { refus: said, detail: `${adresse} answered ${rendue.status}` };
@@ -388,7 +388,7 @@ export function ouvrirLaLecture(options: Options) {
       return conversation;
     }
     const said = phraseDe(corps);
-    if (rendue.status === 401) return { refus: `${station} no longer knows this phone: pair it again`, detail: said ?? `${adresse} answered 401` };
+    if (rendue.status === 401) return { refus: `${station} no longer knows this phone`, detail: said ?? `${adresse} answered 401` };
     if (rendue.status === 503 && said !== undefined) return { refus: `${station} cannot reach ${projet}'s second: your message was not sent`, detail: said };
     if (said !== undefined) return { refus: said, detail: typeof corps?.detail === "string" && corps.detail !== "" ? corps.detail : `${adresse} answered ${rendue.status}` };
     const motif: Motif = rendue.status === 202 ? { reason: "inattendu", said: `${adresse} answered 202 without the conversation` } : motifDe(adresse, rendue);

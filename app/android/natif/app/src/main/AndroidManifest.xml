@@ -10,12 +10,9 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true">
 
-        <!-- Le guichet d'une station, où le téléphone s'appaire, parle http, à une adresse du réseau du chef
-             qu'on ne connaît pas d'avance (runtime/src/telephone/guichet.ts) : d'où le http en clair, ci-dessus.
-             Le lecteur de QR de Google Play est posé avec l'app, pas à son premier usage. -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode_ui" />
+        <!-- Le guichet d'une station, que lit un téléphone appairé avant le ticket 2500, parle http, à une adresse du
+             réseau du chef qu'on ne connaît pas d'avance (runtime/src/telephone/guichet.ts) : d'où le http en clair,
+             ci-dessus. -->
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
@@ -28,16 +25,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!-- Le QR d'une station, scanné par l'appareil photo du téléphone plutôt que par l'app : son lien
-                 (`brigade://pair?code=…&url=…`, runtime/src/telephone/appairage.ts) ouvre l'app, qui s'appaire
-                 comme d'un QR scanné d'ici (Pont.java, `lien`). -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="brigade" android:host="pair" />
             </intent-filter>
 
         </activity>

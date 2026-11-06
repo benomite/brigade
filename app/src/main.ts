@@ -12,7 +12,6 @@ import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
-import { cibleDeLaStation, DELAI_S, etatDuCode, revoquerUnTelephone, telephonesAppaires, tirerUnCode } from "./telephones-de-station.ts";
 import { pourLaBarre } from "./barre.ts";
 import { ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
@@ -1061,21 +1060,6 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
 });
 // « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
 ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
-// « Pair a phone », sur la ligne d'une station de l'accueil (#1598) : tirer un code et ce que son QR porte, dire où en
-// est ce code, lister les téléphones appairés à la station, en révoquer un — `phones …` sur la station, sur la
-// station de cet ordinateur (telephones-de-station.ts). La vue nomme la station par son
-// gist ; la commande se compose ici, et ce qui revient à l'écran n'en dit rien.
-const cibleDuTelephone = (id: unknown) =>
-  cibleDeLaStation(
-    stations.vu()?.stations.find((station) => station.id === id),
-    { gist: stationLocale === undefined ? null : gistLocal(racineDeLaStation), locale: role.role === "station" ? { node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env } : undefined },
-  );
-const nomDeLaStation = (id: unknown) => stations.vu()?.stations.find((station) => station.id === id)?.nom ?? "this station";
-const lancerLesTelephones = (lu: Lu, commande: string) => lancerLa({ delaiMs: DELAI_S * 1000 }, lu, commande);
-ipcMain.handle("tirerUnCodeDeTelephone", (_, id: unknown) => tirerUnCode(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id)));
-ipcMain.handle("etatDuCodeDeTelephone", (_, id: unknown, code: unknown) => etatDuCode(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id), code));
-ipcMain.handle("telephonesDeLaStation", (_, id: unknown) => telephonesAppaires(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id)));
-ipcMain.handle("revoquerUnTelephone", (_, id: unknown, nom: unknown) => revoquerUnTelephone(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id), nom));
 // Le premier lancement, sur un ordinateur neuf (premier-lancement.ts, #1434) : les stations du chef et leurs
 // projets, lus par l'opération du runtime (#1428) ; un projet ouvert d'un clic, sa copie reprise ou clonée par
 // celle du runtime (#1429) — chaque étape part à la vue —, puis ajouté au fichier des projets ; la connexion à

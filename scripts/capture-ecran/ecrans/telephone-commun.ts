@@ -1,20 +1,19 @@
 // Ce que les écrans du téléphone partagent (#1161) : le démarrage de la vue tel que le pont de l'app
 // Android le rend (app/android/web/pont.js) — les constantes de l'app, aucun projet, ni code, ni
-// stations, ni accueil lus —, et l'état de son appairage. En largeur de téléphone.
+// stations, ni accueil lus —, et ce que le pont garde du téléphone : sa connexion à GitHub (#2500), ou
+// l'appairage à une station d'avant elle. En largeur de téléphone.
 import { configuration, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 
 export const LARGEUR = 412;
 export const HAUTEUR = 915;
 
-// Le guichet de la station du chef, et le code qu'elle montre : ce que porte son QR.
+// Le guichet de la station d'un téléphone appairé avant #2500.
 export const ADRESSE = "http://192.168.1.20:7010";
-export const QR = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponent(ADRESSE)}`;
-// Le guichet d'une box louée ailleurs, publié sur le tailnet du chef (#1408) : ce que porte son QR.
-export const ADRESSE_TAILNET = "https://box.tail1234.ts.net";
-export const QR_TAILNET = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponent(ADRESSE_TAILNET)}`;
 
-// `telephone` : l'appairage que le pont lit au lancement — aucun, sur une installation neuve.
-export function demarrageDuTelephone(telephone: { appaire: false } | { appaire: true; station: string; adresse: string } = { appaire: false }) {
+type Telephone = ({ appaire: false } | { appaire: true; station: string; adresse: string }) & { github?: { compte: string | null } };
+
+// `telephone` : ce que le pont lit au lancement — ni connexion ni appairage, sur une installation neuve.
+export function demarrageDuTelephone(telephone: Telephone = { appaire: false }) {
   const tout = demarrage(configuration([]));
   return {
     ...tout,
@@ -26,15 +25,14 @@ export function demarrageDuTelephone(telephone: { appaire: false } | { appaire: 
   };
 }
 
-// Le QR de la station scanné, d'un clic sur « scan the QR » : il remplit l'adresse et le code, et part
-// aussitôt au guichet, qui répond `reponse` — ou ne répond pas encore (`{ __enAttente: true }`). `qr` :
-// celui de la station du réseau local, par défaut.
-export function apresLeQr(dit: string, reponse: unknown, qr = QR): Ecran {
+// « sign in with GitHub » cliqué sur l'écran de connexion d'une installation neuve : le pont rend `debut` — le code à
+// taper, ou pourquoi le login n'est pas parti —, ou ne répond pas encore (`{ __enAttente: true }`).
+export function apresLaConnexion(dit: string, debut: unknown): Ecran {
   return {
     dit,
     largeur: LARGEUR,
     hauteur: HAUTEUR,
-    etapes: [{ cliquer: "#appairage .gestes-appairage .action:nth-child(2) > button" }],
-    donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrageDuTelephone(), scannerLeQr: { lu: qr }, appairerLeTelephone: reponse }, envois: {} }),
+    etapes: [{ cliquer: "#connexion-github .suite-de-connexion .gestes button.recommande" }],
+    donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrageDuTelephone(), seConnecterAGitHub: debut }, envois: {} }),
   };
 }
