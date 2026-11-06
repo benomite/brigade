@@ -1264,51 +1264,43 @@ The suite follows the state of the installed app's update (`miseAJour`, "Launchi
 
 The check is `app/src/mise-a-jour/avis.ts` (#1527), run by the main process at launch and every fifteen minutes, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no line. Its notice carries the latest version, the running one (`courante`) and the package link. Together with the update's own check, it reads GitHub's API at most three times every fifteen minutes. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, the gesture `telechargerVersion` (opens the link of the current notice, and only it), and the update's `surMiseAJour` and `installerMiseAJour`. The view is `app/src/vue/mise-a-jour/bandeau.js`; its tests, against a mocked release list and the update's states, are in `app/test/bandeau-mise-a-jour/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`, taken before #2431). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the line is built and tested for Android but nothing sends it a notice there.
 
-### Pairing the phone with your projects (#1161)
+### Signing the phone in to GitHub (#2500, epic #2498)
 
-On a fresh install, **the Android app opens on one screen: "Link this phone to your projects"** — the rest of
-the app stays behind it until the phone is paired. Under the title, one sentence: *Type the code your station
-shows, or scan its QR.* Two fields, **your station's address** — on your tailnet `box.tail1234.ts.net`, the field's
-example, reached in `https` without typing it (#1409); on the station's own network `192.168.1.20:7010`, with or
-without `http://` — and the **pairing code** (`7KQ2-M9XD`, lowercase, spaces and dashes make no difference), then two buttons:
-**pair** (recommended) and **scan the QR**. What a code is — fifteen minutes, one phone, once — and which address
-reaches the station from where, are on hover over the "?" next to the title. A running station issues the code and its QR (`runtime/src/telephone/appairage-cli.ts`),
-and listens for the phone on its phone desk (`BRIGADE_GUICHET_TELEPHONES`, `runtime/src/telephone/guichet.ts`) —
-on the local network, or from any network through your tailnet (see "Reaching a station from any network" below).
+On a fresh install, **the Android app opens on one screen: "Sign in to GitHub"** — the rest of the app stays behind it
+until the phone is signed in. Under the title, one sentence: *Sign in with your GitHub account to see your projects.*,
+then one button, **sign in with GitHub** (recommended). There is no pairing code to type, no QR to scan and no station
+address: the phone reads your projects on GitHub under your own account, and no station is involved. What signing in
+does — a one-time code typed on GitHub, the access kept in the phone's vault, forgotten with the app — is on hover over
+the "?" next to the title.
 
-- **Scanning** reads the station's QR with Google Play's code scanner — the app does not ask for the camera
-  itself. The QR carries the code and the desk's address (`brigade://pair?code=…&url=…`): both fields fill in and
-  the pairing leaves at once. Cancelled, nothing changes; unreadable, or not a station's QR, one line says so.
-- **"pair"** sends the code to the desk (`POST /pairing`). The phone introduces itself under its model's name
-  (`pixel-8`, its machine `Android 14 · Pixel 8`); if a station that cooks already has that name, it tries once
-  more as `pixel-8-phone`. While it waits, the line under the buttons says *Waiting for your station at
-  192.168.1.20:7010…* and both buttons are inactive.
-- **Paired**: the app goes to "All projects", with one line at the top — *This phone is paired with
-  `atelier`.* The phone keeps its token in the app's storage, the view never sees it; at the next launch it opens
-  straight on "All projects". Uninstalling the app forgets the pairing.
-- **Refused**, one line under the buttons, what the station answered on hover, the fields kept as typed:
-  *Wrong code: check it on your station, then type it again.* — *This code has expired: ask your station for a new
-  one.* — *This code was already used: ask your station for a new one.* — *Too many wrong codes: wait a few
-  minutes, then try again.* Nothing is paired, and the chef types again.
-- **Unreachable** — the line names what the phone cannot reach, in one sentence; what the network said, and what to
-  check, on hover. The fields stay as typed, both buttons work again, and the screen never stays blank (#1409):
-  - nothing answers at a tailnet address (`.ts.net`, or `100.64.0.0/10`) — on mobile data, most often the Tailscale
-    app is off on the phone: *This phone cannot reach box.tail1234.ts.net on your tailnet.* — on hover, to check that
-    Tailscale is on and signed in on the phone, and that the station's machine is on;
-  - nothing answers at another address: *This phone cannot reach your station at 192.168.1.20:7010.* — on hover, to
-    check that the station is running when on its network, and that from any other network its QR must carry its
-    tailnet address;
-  - the address answers, but no phone desk behind it — `tailscale serve` answers `502` when the station is stopped or
-    has no desk (the bridge reads `502`, `503` and `504` as `sans-guichet`): *box.tail1234.ts.net answers, but the
-    station's phone desk behind it does not.*;
-  - something else answers there (a `404`, a web page): *What answers at 192.168.1.20:7010 is not a station's phone
-    desk.*
+- **sign in with GitHub** starts GitHub's device flow from the phone itself (`seConnecterAGitHub`, the same bridge action
+  as the desktop's first launch): GitHub gives a one-time code, the bridge opens `https://github.com/login/device` in
+  the phone's browser, and the screen shows *Type the code A1B2-C3D4 on the GitHub page that opened in your browser.*,
+  with **open the GitHub page again**. While it waits, the button says `signing in…` and is inactive: nothing starts
+  twice. The code is the same brick as the desktop's first launch (`connexionDite`, `premier-lancement.js`).
+- **Signed in**: the app goes to "All projects", with one line at the top — *Signed in to GitHub as `benomite`.*
+  (*This phone is signed in to GitHub.* when GitHub did not say the account). The token stays in the phone's vault
+  (`Coffre.java`, encrypted by a key of Android's Keystore); the view never sees it, and only the account name is kept in
+  the app's storage. At the next launch the app opens straight on "All projects", with the same line. Uninstalling the
+  app forgets the sign-in. Until the phone reads projects from GitHub, "All projects" says *no project on this phone
+  yet: a project is added from a computer*.
+- **Not signed in**, one line under the button, in red, the detail on hover, and the button starts again: *The sign-in
+  was cancelled on GitHub: this phone is not signed in.* (denied on the GitHub page) — *The code expired before it was
+  typed on GitHub: sign in again.* — *GitHub refused the sign-in: sign in again.* — *This phone could not reach GitHub:
+  check its connection, then try again.* — *GitHub did not start the sign-in: try again.* — *This phone could not keep
+  its GitHub sign-in: sign in again.* (the vault refused to write).
 
-On the desktop, nothing of this is shown. The screen is `app/src/vue/telephone/appairage.js`; the Android bridge
-that reaches the desk and keeps the token is `app/android/web/pont.js` (with `Pont.java` for the scanner); the
-captures are the `telephone-*` screens of `scripts/capture-ecran` (`docs/captures/1161/`; the tailnet's,
-`telephone-tailnet-injoignable` and `telephone-tailnet-sans-guichet`, in `docs/captures/1409/`). What the paired phone
-then reads — every project of its station and each one's queue — is below (#1414).
+The bridge asks GitHub in the name of the GitHub CLI's OAuth App — the one the desktop already signs in through
+(`gh auth login`), with `gh`'s scopes (`repo read:org gist`); a brigade OAuth App with its device flow enabled would
+replace it in one line (`CLIENT_GITHUB`, `app/android/web/pont.js`). It reaches github.com through Capacitor's native
+HTTP — github.com does not answer a WebView (CORS) —, asks again at the pace GitHub gives (`interval`, `slow_down`),
+and keeps asking through a lost network until the code expires. On the desktop, nothing of this is shown. The screen is
+`app/src/vue/connexion-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
+`telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
+
+**Phones paired with a station before #2500.** The pairing screen — the station's address, its code, its QR, the
+`brigade://pair` link — is gone, and no new pairing is drawn. A phone that was paired before keeps reading its station's
+phone desk, as below (#1414), without going through the sign-in screen.
 
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
@@ -1340,8 +1332,8 @@ said on hover, with *This phone tries again every 30 s.* The projects already kn
 unreachable`, and an opened queue says *the rail is not drawn — tried at …* and, under it, *the station did not answer*,
 what the network said on hover — no GitHub list, which the phone does not read, and no panel on the right, which it
 does not have. A station that no longer knows the phone (`401`:
-revoked, or paired again elsewhere) says *atelier no longer knows this phone: pair it again.*, with a **pair again**
-button that forgets the pairing and reopens the pairing screen. Screens: `telephone-projets*` of `scripts/capture-ecran`
+revoked, or paired again elsewhere) says *atelier no longer knows this phone.*, with a **forget the station**
+button that forgets the pairing and reopens the app — on its projects, or on the sign-in screen. Screens: `telephone-projets*` of `scripts/capture-ecran`
 (`docs/captures/1414/`), whose readings are those `lecture.ts` sends for a fixed phone desk.
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
@@ -1370,7 +1362,7 @@ answer (a merge waits for GitHub; the station gives the command 120 s), and answ
 command said, `{ fait }` — and the view reads the station again, the card moving with that reading — or why it was not
 done, `{ refus }`: the command's own sentence when it refused (`409`); *atelier could not be reached: nothing was
 changed*; *atelier's phone desk does not answer: nothing was changed* (a `502` from `tailscale serve`); *atelier no
-longer knows this phone: pair it again* (`401`); and, when the answer never came, *atelier did not answer: the next
+longer knows this phone* (`401`); and, when the answer never came, *atelier did not answer: the next
 read shows whether it went through* — the station is read again at once, as it is when the station says its command
 gave no verdict (`502`). What ran and
 what it wrote, or what the network said, is on hover; a refused card stays where it was. Screens:
@@ -1427,42 +1419,18 @@ carries it. While the second answers (`answering`), the conversation is read aga
 also read again with the station, every thirty seconds, so what the chef types on the desktop reaches the phone. The
 reading is `app/android/web/lecture.ts`; a link in the second's message opens in the phone's browser (`Pont.java`,
 `ouvrir`). What does not go through is said in one sentence, the detail on hover: *atelier could not be reached*,
-*atelier did not answer*, *atelier's phone desk does not answer*, *atelier no longer knows this phone: pair it again*,
+*atelier did not answer*, *atelier's phone desk does not answer*, *atelier no longer knows this phone*,
 *atelier cannot reach parade's second* (`503`: the station does not hold that second, or cannot read it); for a message,
 the same followed by *your message was not sent*, or the station's own sentence — the second still answering the
 previous one (`409`), a second that did not take it (`502`). A message whose answer never came says *atelier did not
 answer: the conversation shows whether your message went through*, and the conversation is read again at once.
 Screens: `telephone-projets-second*` of `scripts/capture-ecran` (`docs/captures/1426/`).
 
-### Pairing a phone from the desktop: “pair a phone” on a station's line (#1598)
+### Pairing a phone from the desktop: removed (#2500)
 
-**On the home screen, each station that cooks has a "pair a phone" button at the end of its line** — a paired phone,
-which does not cook, has none, and neither has the Android app. The line keeps its click (it opens the station's page);
-the button opens, in place of the home, the screen **"Pair a phone with box"**, and "‹ All projects" takes you back.
-
-- **A fresh code at once**: the screen issues one on opening, and shows it with its QR and the time it is still valid
-  for, counting down second by second (`valid for 14:32`), then the station's address the phone types it with
-  (`box.tail1234.ts.net`). One sentence on top says what to do: *Scan this QR with the Brigade app on your phone, or
-  type its code there.* What a code is (fifteen minutes, one phone, once) is on hover over the "?" next to the title.
-  The QR is drawn by the app itself (`app/src/vue/qr.js`), from what the station returns — the format of
-  `runtime/src/telephone/appairage.ts` (`contenuDuQr`), carried as is: no QR service is called.
-- **Expired or used**: past its fifteen minutes, or when the station says a phone used it (the screen asks it every
-  five seconds while the code is valid), the QR and the code disappear, one line says so — *This code has expired:
-  nobody can pair with it any more.*, *This code was used: pixel-9 is now paired.* — and one click on **"new code"**
-  shows a fresh code and its QR. A used code also reads the list again: the new phone appears in it.
-- **The phones paired with the station** are listed under the code, one line each — its name, its machine, when it was
-  paired on hover — with **"revoke"**. Revoking is confirmed, with its price in one line (*galaxy can no longer reach
-  box, from any network; pairing it again takes a new code*); revoked, the phone leaves the list.
-- **Unreachable, or refused**: the screen never shows a blank code. One line replaces it — *box did not answer: it may
-  be off, or offline.*, *box refused: this computer is not allowed to manage its phones.*, *box cannot pair phones
-  yet: its version is too old.* — with what to check on hover, and **"try again"**; the list says *paired phones
-  unavailable* the same way.
-- **No command anywhere**, not even on hover: no terminal, no `sudo` to type or read. Behind the screen, the
-  app runs the station's command `phones code | status <code> | list | revoke <phone>` (`runtime/src/telephones.ts`,
-  #1596) — here, for this computer's station — in the name of
-  the first project the station carries; a station that carries none yet says so. The station's own rule is what lets
-  this computer in. A station that is not this computer's is refused in a sentence ("… can only pair phones from the computer it runs on"). The module is `app/src/telephones-de-station.ts`, the screen `app/src/vue/telephones-de-station.js`;
-  captures in `docs/captures/1598/`.
+The "pair a phone" button of a station's line and its screen — a code, its QR drawn by the app, the station's address,
+the paired phones and "revoke" (#1598) — are gone with the phone's pairing: the phone signs in to GitHub instead (see
+"Signing the phone in to GitHub" above). The app no longer runs the station's `phones …` command; the runtime keeps it.
 
 ### Reaching a station from any network: your tailnet (#1408)
 
@@ -1510,17 +1478,13 @@ its own (`runtime/src/telephone/tailnet.ts`) and puts it in the QR.
    machine reaches it and the `tailscale serve` to run; a desk listening on a local-network address gives that
    address, *from this network only*. `BRIGADE_TAILSCALE_BIN` names another `tailscale` than the one in the `PATH`.
 
-**On the phone**, once: install **Tailscale** from Google Play and sign in with the same account. Then, on mobile data
-or any Wi-Fi, scan the station's QR — or type `https://box.tail1234.ts.net` as the station's address with the code.
-A station on your computer works the same way: the Tailscale app, the same `BRIGADE_GUICHET_TELEPHONES` in its
-environment, `tailscale serve --bg 7010`.
+**On the phone**, a phone paired before #2500 keeps reaching its station through the tailnet with the **Tailscale** app,
+signed in with the same account. The Android app no longer pairs (#2500, "Signing the phone in to GitHub" above): a
+fresh install signs in to GitHub instead, and nothing of the tailnet is asked of it.
 
-**A lost phone is revoked** from the desktop: on the station's "pair a phone" screen, its line in the list of paired
-phones, with **"revoke"** (see "Pairing a phone from the desktop" above). Its token opens nothing any more, from any
-network, and it leaves the stations list. Paired again, it needs a new code.
-
-The Android app pairs through the tailnet and says what it cannot reach there (#1409, "Pairing the phone with
-your projects" above). The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
+**A lost phone is revoked** on its station, by the runtime's `phones revoke <phone>` (`runtime/src/telephones.ts`): the
+app's "pair a phone" screen is gone (#2500). Its token opens nothing any more, from any network, and it leaves the
+stations list. The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
 no test mounts a real tailnet.
 
 ### Your stations: paired with a code, read on GitHub
@@ -1669,9 +1633,9 @@ account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair
 the list of stations** (#1778), read each time the home opens — **one row per computer**:
 
 ```
-● macbook-air-de-benoit  online · idle · benomite/brigade        ›   pair a phone
+● macbook-air-de-benoit  online · idle · benomite/brigade        ›
 ● nas                    online · no project chosen yet           ›
-● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›   pair a phone
+● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›
 ```
 
 - **A machine is recognized by its name**, which its registration shares with its presence (case aside). **A paired

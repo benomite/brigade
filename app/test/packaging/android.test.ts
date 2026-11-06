@@ -154,13 +154,13 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
   // Ce que le pont rend vient d'un autre contexte : on le compare en JSON, comme il voyagerait.
   const json = (valeur: unknown) => JSON.parse(JSON.stringify(valeur));
   const recu = json(await pont.demarrage!()) as Record<string, unknown>;
-  assert.deepEqual(recu.configuration, { chemin: "no projects file on this phone — the Android app is not paired with a station yet: this phone reads nothing and sends nothing", projets: [] });
-  // Le reste est ce que le process principal rendrait : les constantes des modules d'app/src/ — et l'appairage du
-  // téléphone, aucun sans stockage qui en garde un (#1161).
+  assert.deepEqual(recu.configuration, { chemin: "no projects file on this phone — the Android app reads no project yet: this phone reads nothing and sends nothing", projets: [] });
+  // Le reste est ce que le process principal rendrait : les constantes des modules d'app/src/ — et le téléphone, ni
+  // appairé ni connecté à GitHub sans stockage ni coffre qui en garde rien (#2500).
   assert.deepEqual(recu.telephone, { appaire: false });
   assert.deepEqual(Object.fromEntries(Object.entries(recu).filter(([cle]) => cle !== "configuration" && cle !== "telephone")), JSON.parse(JSON.stringify(demarrage)));
   assert.equal(await pont.choisirDossier!(), undefined);
-  assert.deepEqual(json(await pont.ajouter!({ dossier: "/x", depot: "a/b", base: "main" })), { etat: "pas-ajoute", titre: "Nothing was added: the Android app is not paired with a station yet: this phone reads nothing and sends nothing." });
+  assert.deepEqual(json(await pont.ajouter!({ dossier: "/x", depot: "a/b", base: "main" })), { etat: "pas-ajoute", titre: "Nothing was added: the Android app reads no project yet: this phone reads nothing and sends nothing." });
   assert.equal(pont.then, undefined);
   // Chaque geste que preload.cjs offre au desktop existe : un abonnement ne reçoit rien, un geste ne rend rien.
   const gestes = [...readFileSync(join(APP, "src", "preload.cjs"), "utf8").matchAll(/^ {2}([a-zA-Z]+): /gm)].map((trouve) => trouve[1] ?? "");
@@ -171,13 +171,15 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
 });
 
 // Le pont joué comme dans la WebView (#1161) : son stockage, et le pont natif de Capacitor (`nativePromise`), dont
-// chaque appel est noté et reçoit la réponse de `natif` — ce que CapacitorHttp rendrait du guichet, ou ce que lève
-// un réseau qui ne joint rien.
+// chaque appel est noté et reçoit la réponse de `natif` — ce que CapacitorHttp rendrait du guichet ou de GitHub, ce que
+// rendrait le coffre, ou ce que lève un réseau qui ne joint rien.
 type AppelNatif = { plugin: string; methode: string; options: Record<string, unknown> };
 async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage = new Map<string, string>()) {
   const appels: AppelNatif[] = [];
   const window: Record<string, unknown> = {
     localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
+    // Le pas d'attente de la connexion à GitHub, que les tests rendent nul.
+    setTimeout,
     Capacitor: {
       nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => {
         // Les options viennent du contexte du pont : on les garde en JSON, comme elles passent au natif.
@@ -205,124 +207,109 @@ function laVuePosee(): Promise<string> {
   });
   return posee;
 }
-const DEMANDE = { adresse: "http://192.168.1.20:7010", code: "7KQ2-M9XD", nom: "pixel-8", machine: "Android 14 · Pixel 8" };
-const STATION = { nom: "pixel-8", machine: "Android 14 · Pixel 8", sorte: "telephone", cuisine: false, statut: "acceptee" };
+// GitHub tel que CapacitorHttp le rendrait au « device flow » (#2500) : le code demandé, puis, à chaque question, ce
+// que `jetons` dit à son tour — le dernier se répète —, le compte qu'ouvre le jeton, et le coffre et le navigateur du
+// téléphone, qui répondent sans rien dire. Le pas d'attente est nul : le pont ne patiente pas pour de faux.
+const CODE_DE_GITHUB = { status: 200, headers: {}, data: { device_code: "dc_123", user_code: "A1B2-C3D4", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 0 } };
+function github(jetons: unknown[], { code = CODE_DE_GITHUB as unknown, compte = { status: 200, headers: {}, data: { login: "benomite" } } as unknown } = {}) {
+  let question = 0;
+  return ({ plugin, methode, options }: AppelNatif) => {
+    if (plugin === "Pont" || (plugin === "Coffre" && methode === "garder")) return {};
+    if (plugin === "Coffre") return {};
+    if (options.url === "https://github.com/login/device/code") return typeof code === "function" ? code() : code;
+    if (options.url === "https://github.com/login/oauth/access_token") return jetons[Math.min(question++, jetons.length - 1)];
+    if (options.url === "https://api.github.com/user") return compte;
+    return assert.fail(`unexpected call: ${plugin}.${methode} ${JSON.stringify(options)}`);
+  };
+}
+const EN_ATTENTE = { status: 200, headers: {}, data: { error: "authorization_pending", error_description: "The authorization request is still pending." } };
+const JETON = { status: 200, headers: {}, data: { access_token: "gho_secret", token_type: "bearer", scope: "gist,read:org,repo" } };
+// La fin du login, qui arrive par `surConnexionGitHub`.
+const laFin = (pont: Record<string, (...args: unknown[]) => unknown>) => new Promise<unknown>((rendre) => void pont.surConnexionGitHub!((fin: unknown) => rendre(JSON.parse(JSON.stringify(fin)))));
 
-test("le pont appaire le téléphone : le code part au guichet par le HTTP natif, le jeton est gardé, et le lancement suivant le sait", async () => {
-  const { pont, appels, stockage, json } = await pontDuTelephone(() => ({ status: 201, headers: {}, data: { paired: true, station: STATION, token: "brgt_secret" } }));
-  assert.deepEqual(await json(pont.appairerLeTelephone!(DEMANDE)), { paired: true, station: "pixel-8" });
+test("le pont connecte le téléphone à GitHub : le code et sa page rendus, la page ouverte, puis, le code tapé, le jeton au coffre et le compte gardé", async () => {
+  const lent = { status: 200, headers: {}, data: { error: "slow_down", interval: 0 } };
+  const { pont, appels, stockage, json } = await pontDuTelephone(github([EN_ATTENTE, lent, JETON]));
+  const fin = laFin(pont);
+  assert.deepEqual(await json(pont.seConnecterAGitHub!()), { code: "A1B2-C3D4", page: "https://github.com/login/device" });
+  // Un second geste pendant que le premier attend le chef rend le même code, sans rien redemander.
+  assert.deepEqual(await json(pont.seConnecterAGitHub!()), { code: "A1B2-C3D4", page: "https://github.com/login/device" });
+  assert.deepEqual(await fin, { connecte: true, compte: "benomite" });
+  const versGitHub = { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, connectTimeout: 10_000, readTimeout: 10_000 };
+  const question = { plugin: "CapacitorHttp", methode: "request", options: { url: "https://github.com/login/oauth/access_token", ...versGitHub, data: { client_id: "178c6fc778ccc68e1d6a", device_code: "dc_123", grant_type: "urn:ietf:params:oauth:grant-type:device_code" } } };
   assert.deepEqual(appels, [
-    {
-      plugin: "CapacitorHttp",
-      methode: "request",
-      options: { url: "http://192.168.1.20:7010/pairing", method: "POST", headers: { "Content-Type": "application/json" }, data: { code: "7KQ2-M9XD", name: "pixel-8", machine: "Android 14 · Pixel 8" }, connectTimeout: 10_000, readTimeout: 10_000 },
-    },
+    { plugin: "CapacitorHttp", methode: "request", options: { url: "https://github.com/login/device/code", ...versGitHub, data: { client_id: "178c6fc778ccc68e1d6a", scope: "repo read:org gist" } } },
+    { plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/login/device" } },
+    question,
+    question,
+    question,
+    { plugin: "Coffre", methode: "garder", options: { cle: "github", valeur: "gho_secret" } },
+    { plugin: "CapacitorHttp", methode: "request", options: { url: "https://api.github.com/user", method: "GET", headers: { Accept: "application/vnd.github+json", Authorization: "Bearer gho_secret" }, connectTimeout: 10_000, readTimeout: 10_000 } },
   ]);
-  // Le jeton est gardé, et la vue n'en reçoit rien.
-  assert.deepEqual(JSON.parse(stockage.get("brigade.telephone") ?? "null"), { station: "pixel-8", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" });
-  // Relancée sur le même stockage, l'app se sait appairée.
-  const relance = await pontDuTelephone(() => assert.fail("nothing is sent at launch"), stockage);
-  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { appaire: true, station: "pixel-8", adresse: "http://192.168.1.20:7010" });
+  // Le jeton est au coffre, jamais dans le stockage de l'app : celui-ci ne garde que le compte.
+  assert.deepEqual([...stockage], [["brigade.github", "benomite"]]);
 });
 
-test("le pont rend le refus du guichet tel quel, et ne garde rien", async () => {
-  const said = "code refused: it expired at 2026-10-21T09:58:00.000Z — ask your station for a new one";
-  const { pont, stockage, json } = await pontDuTelephone(() => ({ status: 403, headers: {}, data: { paired: false, reason: "expire", said } }));
-  assert.deepEqual(await json(pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "expire", said });
-  // Un corps resté en texte se lit aussi.
-  const texte = await pontDuTelephone(() => ({ status: 403, headers: {}, data: JSON.stringify({ paired: false, reason: "inconnu", said: "no code" }) }));
-  assert.deepEqual(await texte.json(texte.pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "inconnu", said: "no code" });
-  assert.equal(stockage.size, 0);
-  assert.deepEqual((await json(pont.demarrage!())).telephone, { appaire: false });
+test("au lancement, le pont dit le téléphone connecté quand le coffre garde son jeton — et rien sur une installation neuve", async () => {
+  const stockage = new Map([["brigade.github", "benomite"]]);
+  const coffre = (valeur: string | undefined) => ({ plugin, methode, options }: AppelNatif) => {
+    assert.deepEqual([plugin, methode, JSON.parse(JSON.stringify(options))], ["Coffre", "lire", { cle: "github" }]);
+    return valeur === undefined ? {} : { valeur };
+  };
+  const relance = await pontDuTelephone(coffre("gho_secret"), stockage);
+  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { appaire: false, github: { compte: "benomite" } });
+  const neuve = await pontDuTelephone(coffre(undefined));
+  assert.deepEqual((await neuve.json(neuve.pont.demarrage!())).telephone, { appaire: false });
+  // Le compte que GitHub n'a pas dit : connecté quand même, sous un compte nul.
+  const muet = await pontDuTelephone(coffre("gho_secret"));
+  assert.deepEqual((await muet.json(muet.pont.demarrage!())).telephone, { appaire: false, github: { compte: null } });
 });
 
-test("le pont dit la station injoignable quand la demande n'arrive pas, et une réponse qui n'est pas d'un guichet comme telle", async () => {
-  const muet = await pontDuTelephone(() => {
-    throw new Error("failed to connect to /192.168.1.20 (port 7010) after 10000ms");
-  });
-  assert.deepEqual(await muet.json(muet.pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "injoignable", said: "failed to connect to /192.168.1.20 (port 7010) after 10000ms" });
-  const autre = await pontDuTelephone(() => ({ status: 404, headers: {}, data: "<html>not found</html>" }));
-  assert.deepEqual(await autre.json(autre.pont.appairerLeTelephone!(DEMANDE)), { paired: false, reason: "inattendu", said: "http://192.168.1.20:7010 answered 404, not as a station's phone desk" });
-  assert.equal(muet.stockage.size + autre.stockage.size, 0);
+test("refusée ou expirée sur GitHub, la connexion finit en le disant, rien n'est gardé, et un nouveau geste repart de zéro", async () => {
+  const refus = { status: 200, headers: {}, data: { error: "access_denied", error_description: "The user has denied your application access." } };
+  const annule = await pontDuTelephone(github([EN_ATTENTE, refus]));
+  let fin = laFin(annule.pont);
+  assert.ok("code" in (await annule.json(annule.pont.seConnecterAGitHub!())));
+  assert.deepEqual(await fin, { refus: "The sign-in was cancelled on GitHub: this phone is not signed in.", detail: "github.com answered 200 — access_denied — The user has denied your application access." });
+  assert.equal(annule.appels.filter(({ plugin }) => plugin === "Coffre").length, 0);
+  assert.equal(annule.stockage.size, 0);
+  // Le geste suivant redemande un code.
+  annule.appels.length = 0;
+  fin = laFin(annule.pont);
+  assert.ok("code" in (await annule.json(annule.pont.seConnecterAGitHub!())));
+  assert.equal(annule.appels[0]?.options.url, "https://github.com/login/device/code");
+  await fin;
+
+  const expire = await pontDuTelephone(github([{ status: 200, headers: {}, data: { error: "expired_token", error_description: "The device_code has expired." } }]));
+  fin = laFin(expire.pont);
+  await expire.pont.seConnecterAGitHub!();
+  assert.deepEqual(await fin, { refus: "The code expired before it was typed on GitHub: sign in again.", detail: "github.com answered 200 — expired_token — The device_code has expired." });
+
+  // Le coffre qui refuse d'écrire : le téléphone n'est pas connecté, et le dit.
+  const sansCoffre = await pontDuTelephone((appel) => (appel.plugin === "Coffre" ? Promise.reject(new Error("the phone's keystore refused to encrypt")) : github([JETON])(appel)));
+  fin = laFin(sansCoffre.pont);
+  await sansCoffre.pont.seConnecterAGitHub!();
+  assert.deepEqual(await fin, { refus: "This phone could not keep its GitHub sign-in: sign in again.", detail: "the phone's keystore refused to encrypt" });
+  assert.equal(sansCoffre.stockage.size, 0);
 });
 
-// Une box louée ailleurs, jointe du réseau mobile par le tailnet du chef (#1409) : `tailscale serve` publie son guichet
-// en https, et répond 502 quand rien n'écoute derrière lui.
-const TAILNET = { ...DEMANDE, adresse: "https://box.tail1234.ts.net" };
-
-test("le pont appaire le téléphone par le tailnet : la demande part en https au nom de la box, et l'app se sait appairée à elle", async () => {
-  const { pont, appels, stockage, json } = await pontDuTelephone(() => ({ status: 201, headers: {}, data: { paired: true, station: { ...STATION, nom: "box" }, token: "brgt_secret" } }));
-  assert.deepEqual(await json(pont.appairerLeTelephone!(TAILNET)), { paired: true, station: "box" });
-  assert.equal(appels[0]?.options.url, "https://box.tail1234.ts.net/pairing");
-  const relance = await pontDuTelephone(() => assert.fail("nothing is sent at launch"), stockage);
-  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { appaire: true, station: "box", adresse: "https://box.tail1234.ts.net" });
+test("GitHub injoignable, ou qui refuse de donner un code : le geste le dit aussitôt, sans rien ouvrir", async () => {
+  const horsLigne = await pontDuTelephone(() => Promise.reject(new Error('Unable to resolve host "github.com": No address associated with hostname')));
+  assert.deepEqual(await horsLigne.json(horsLigne.pont.seConnecterAGitHub!()), { refus: "This phone could not reach GitHub: check its connection, then try again.", detail: 'Unable to resolve host "github.com": No address associated with hostname' });
+  const ferme = await pontDuTelephone(github([], { code: { status: 400, headers: {}, data: JSON.stringify({ error: "device_flow_disabled", error_description: "Device Flow must be explicitly enabled for this App" }) } }));
+  assert.deepEqual(await ferme.json(ferme.pont.seConnecterAGitHub!()), { refus: "GitHub did not start the sign-in: try again.", detail: "github.com answered 400 — device_flow_disabled — Device Flow must be explicitly enabled for this App" });
+  assert.equal(ferme.appels.some(({ plugin }) => plugin === "Pont"), false);
+  // Refusé, le geste suivant redemande.
+  await ferme.pont.seConnecterAGitHub!();
+  assert.equal(ferme.appels.filter(({ options }) => options.url === "https://github.com/login/device/code").length, 2);
 });
 
-test("par le tailnet, le pont dit ce qui ne se joint pas : la box elle-même, ou le guichet derrière `tailscale serve`", async () => {
-  const eteint = await pontDuTelephone(() => {
-    throw { message: 'Unable to resolve host "box.tail1234.ts.net": No address associated with hostname' };
-  });
-  assert.deepEqual(await eteint.json(eteint.pont.appairerLeTelephone!(TAILNET)), { paired: false, reason: "injoignable", said: 'Unable to resolve host "box.tail1234.ts.net": No address associated with hostname' });
-  for (const status of [502, 503, 504]) {
-    const muet = await pontDuTelephone(() => ({ status, headers: {}, data: "" }));
-    assert.deepEqual(await muet.json(muet.pont.appairerLeTelephone!(TAILNET)), { paired: false, reason: "sans-guichet", said: `https://box.tail1234.ts.net answered ${status}: nothing answers behind it` });
-    assert.equal(muet.stockage.size, 0);
-  }
-  assert.equal(eteint.stockage.size, 0);
-});
-
-test("le pont lit le QR par le plugin natif : son texte, un renoncement, ou la raison d'un échec", async () => {
-  for (const [rendu, attendu] of [
-    [{ texte: "brigade://pair?code=7KQ2-M9XD" }, { lu: "brigade://pair?code=7KQ2-M9XD" }],
-    [{}, { annule: true }],
-  ] as const) {
-    const { pont, appels, json } = await pontDuTelephone(() => rendu);
-    assert.deepEqual(await json(pont.scannerLeQr!()), attendu);
-    assert.deepEqual(appels, [{ plugin: "Pont", methode: "scanner", options: {} }]);
-  }
-  const { pont, json } = await pontDuTelephone(() => {
-    throw { message: "Waiting for the Barcode UI module to be downloaded." };
-  });
-  assert.deepEqual(await json(pont.scannerLeQr!()), { refus: "Waiting for the Barcode UI module to be downloaded." });
-});
-
-// Le QR scanné par l'appareil photo du téléphone, hors de l'app (#1597) : son lien ouvre l'app, Pont.java le garde, et le
-// pont le rend à l'écran d'appairage — celui qui a lancé l'app dès l'abonnement, ceux qui la rouvrent quand Pont.java avertit.
-test("le pont rend le lien d'appairage qui a ouvert l'app, puis chacun de ceux qui la rouvrent, une fois", async () => {
-  const LIEN = "brigade://pair?code=7KQ2-M9XD&url=http%3A%2F%2F192.168.1.20%3A7010";
-  const garde: string[] = [LIEN];
-  const { pont, appels, window } = await pontDuTelephone(({ plugin, methode }) => {
-    assert.deepEqual([plugin, methode], ["Pont", "lien"]);
-    const pris = garde.shift();
-    return pris === undefined ? {} : { texte: pris };
-  });
-  const ecoutes: [string, string, () => void][] = [];
-  (window.Capacitor as Record<string, unknown>).addListener = (plugin: string, evenement: string, recevoir: () => void) => void ecoutes.push([plugin, evenement, recevoir]);
-  const recus: string[] = [];
-  const repos = () => new Promise((resolve) => setImmediate(resolve));
-  pont.surLienDAppairage!((texte: unknown) => void recus.push(String(texte)));
-  await repos();
-  assert.deepEqual(recus, [LIEN]);
-  assert.deepEqual(
-    ecoutes.map(([plugin, evenement]) => [plugin, evenement]),
-    [["Pont", "lien"]],
-  );
-  // L'app rouverte par un autre QR : Pont.java avertit, et le pont prend le lien.
-  garde.push("brigade://pair?code=AAAA-BBBB");
-  ecoutes[0]![2]();
-  await repos();
-  assert.deepEqual(recus, [LIEN, "brigade://pair?code=AAAA-BBBB"]);
-  // Pris, il ne revient pas.
-  ecoutes[0]![2]();
-  await repos();
-  assert.equal(recus.length, 2);
-  assert.equal(appels.length, 3);
-  // Le pont natif absent ou qui lève : rien n'est rendu, et rien ne lève.
-  const sans = await pontDuTelephone(() => {
-    throw new Error("the app's native bridge is missing");
-  });
-  sans.pont.surLienDAppairage!(() => assert.fail("no link is received"));
-  await repos();
+test("le pont rouvre la page de GitHub où taper le code dans le navigateur du téléphone — et nulle autre", async () => {
+  const { pont, appels } = await pontDuTelephone(() => ({}));
+  assert.equal(await pont.ouvrirLaPage!("https://github.com/login/device"), true);
+  assert.deepEqual(appels, [{ plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/login/device" } }]);
+  assert.equal(await pont.ouvrirLaPage!("https://example.com/login/device"), false);
+  assert.equal(appels.length, 1);
 });
 
 // Le pont appairé lit sa station (#1414) : joué depuis la vue posée pour Capacitor, comme dans la WebView — son script,
@@ -363,7 +350,9 @@ test("le pont appairé lit les projets de sa station et leur file au guichet, av
     location: { href: pathToFileURL(join(www, "src", "vue", "index.html")).href },
     localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
     Capacitor: {
-      nativePromise: async (_plugin: string, _methode: string, options: Record<string, unknown>) => {
+      nativePromise: async (plugin: string, _methode: string, options: Record<string, unknown>) => {
+        // Le coffre, lu au lancement : ce téléphone n'est pas connecté à GitHub.
+        if (plugin === "Coffre") return {};
         appels.push(JSON.parse(JSON.stringify(options)));
         const chemin = String(options.url).replace("http://192.168.1.20:7010", "");
         if (chemin === "/projects") return { status: 200, headers: {}, data: { projects: projets } };
@@ -476,36 +465,18 @@ test("le pont appairé lit la conversation du second au guichet et lui écrit, a
   assert.deepEqual(appels.at(-1), { plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/chef/parade/pull/40" } });
 });
 
-test("l'enveloppe native a de quoi appairer : le lecteur de QR du pont, et le http en clair vers le guichet", () => {
+test("l'enveloppe native n'appaire plus : ni lecteur de QR ni lien `brigade://pair` ; le navigateur du pont, et le http en clair vers un guichet", () => {
   const java = join(NATIF, "app", "src", "main", "java", ...IDENTIFIANT.split("."));
-  assert.match(readFileSync(join(java, "Pont.java"), "utf8"), /@PluginMethod\s+public void scanner\(PluginCall call\)/);
-  assert.match(readFileSync(join(java, "Pont.java"), "utf8"), /@PluginMethod\s+public void ouvrir\(PluginCall call\)/);
-  assert.match(readFileSync(join(NATIF, "app", "build.gradle"), "utf8"), /com\.google\.android\.gms:play-services-code-scanner:\$codeScannerVersion/);
-  assert.match(readFileSync(join(NATIF, "variables.gradle"), "utf8"), /codeScannerVersion = '\d+\.\d+\.\d+'/);
-  const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8");
-  assert.match(manifeste, /android:usesCleartextTraffic="true"/);
-  assert.match(manifeste, /android:name="com\.google\.mlkit\.vision\.DEPENDENCIES"\s+android:value="barcode_ui"/);
-  // Le QR scanné par l'appareil photo du téléphone ouvre l'app (#1597) : son lien `brigade://pair`, et lui seul.
-  const filtres = [...manifeste.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<intent-filter>([\s\S]*?)<\/intent-filter>/g)].map(([, filtre = ""]) => filtre);
-  const duLien = filtres.find((filtre) => /<data\b/.test(filtre)) ?? "";
-  assert.match(duLien, /android\.intent\.action\.VIEW/);
-  assert.match(duLien, /android\.intent\.category\.DEFAULT/);
-  assert.match(duLien, /android\.intent\.category\.BROWSABLE/);
-  assert.match(duLien, /<data android:scheme="brigade" android:host="pair" \/>/);
-  assert.equal(filtres.filter((filtre) => /<data\b/.test(filtre)).length, 1);
   const pont = readFileSync(join(java, "Pont.java"), "utf8");
-  // Le lien qui lance l'app (démarrage à froid) est lu dans l'intent de l'activité, et ceux qui la rouvrent à leur
-  // arrivée : les deux passent par la même lecture, qui refuse ce qui n'est pas un lien d'appairage, ou qui revient des
-  // applis récentes.
-  const charge = /public void load\(\) \{([\s\S]*?)\n {4}\}/.exec(pont)?.[1] ?? "";
-  assert.match(charge, /lancement = getActivity\(\)\.getIntent\(\);\s+recevoir\(lancement\);/);
-  assert.match(pont, /protected void handleOnNewIntent\(Intent intent\) \{\s+if \(intent != lancement\) recevoir\(intent\);\s+\}/);
-  const lecture = /private void recevoir\(Intent intent\) \{([\s\S]*?)\n {4}\}/.exec(pont)?.[1] ?? "";
-  assert.match(lecture, /Intent\.ACTION_VIEW\.equals\(intent\.getAction\(\)\)/);
-  assert.match(lecture, /"brigade"\.equals\(lu\.getScheme\(\)\)/);
-  assert.match(lecture, /FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY/);
-  assert.match(lecture, /garder\(lu\.toString\(\)\);\s+notifyListeners\("lien", new JSObject\(\)\);/);
-  assert.match(pont, /@PluginMethod\s+public void lien\(PluginCall call\)/);
+  assert.match(pont, /@PluginMethod\s+public void ouvrir\(PluginCall call\)/);
+  assert.doesNotMatch(pont, /public void (scanner|lien)\(|handleOnNewIntent|mlkit/);
+  assert.doesNotMatch(readFileSync(join(NATIF, "app", "build.gradle"), "utf8"), /code-scanner/);
+  assert.doesNotMatch(readFileSync(join(NATIF, "variables.gradle"), "utf8"), /codeScannerVersion/);
+  const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8").replace(/<!--[\s\S]*?-->/g, "");
+  assert.match(manifeste, /android:usesCleartextTraffic="true"/);
+  assert.doesNotMatch(manifeste, /mlkit|android:scheme="brigade"/);
+  // Le coffre où la connexion à GitHub garde son jeton (#2500) est enregistré.
+  assert.match(readFileSync(join(java, "MainActivity.java"), "utf8"), /registerPlugin\(Coffre\.class\)/);
 });
 
 test("ce que posent la construction et `cap sync` n'est pas une source : git l'ignore", () => {

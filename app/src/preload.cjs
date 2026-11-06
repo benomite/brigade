@@ -102,11 +102,6 @@ const pont = {
   ajouterSpecialisation: (projet, demande) => ipcRenderer.invoke("ajouterSpecialisation", projet, demande),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
-  // « Pair a phone », sur la ligne d'une station (ticket 1598) : un code et son QR, son état, les téléphones appairés, une révocation.
-  tirerUnCodeDeTelephone: (id) => ipcRenderer.invoke("tirerUnCodeDeTelephone", id),
-  etatDuCodeDeTelephone: (id, code) => ipcRenderer.invoke("etatDuCodeDeTelephone", id, code),
-  telephonesDeLaStation: (id) => ipcRenderer.invoke("telephonesDeLaStation", id),
-  revoquerUnTelephone: (id, nom) => ipcRenderer.invoke("revoquerUnTelephone", id, nom),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
   appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),
   rangerUneApp: (role, id, cle) => ipcRenderer.invoke("rangerUneApp", role, id, cle),
@@ -160,10 +155,6 @@ const pont = {
   // `surMiseAJour` et n'en reçoit jamais — l'abonnement n'y reçoit rien, le geste n'y fait rien.
   surOffreApk: () => undefined,
   installerApk: async () => undefined,
-  // L'appairage du téléphone (ticket 1161) : le desktop n'a rien à appairer ainsi — son démarrage ne rend aucun
-  // `telephone`, la vue ne pose pas l'écran, et ces gestes n'y font rien.
-  appairerLeTelephone: async () => ({ paired: false, reason: "invalide", said: "only the Android app pairs as a phone" }),
-  scannerLeQr: async () => ({ annule: true }),
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),

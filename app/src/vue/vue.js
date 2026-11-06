@@ -76,9 +76,9 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { tenirInvite } from "./mise-a-jour/invite.js";
-import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairage.js";
+import { poserLaListe } from "./telephone/appairage.js";
+import { poserConnecte, tenirConnexionGitHub } from "./connexion-github.js";
 import { tenirConversation } from "./telephone/conversation.js";
-import { BOUTON as APPAIRER_UN_TELEPHONE, poserLesTelephones, tenirLesTelephones } from "./telephones-de-station.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
@@ -604,16 +604,6 @@ versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
 pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, titreDesProjets, listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation, projetsChoisisDeStation);
-// « Pair a phone », ouvert du bouton d'une ligne de station de l'accueil (ticket 1598, telephones-de-station.js) : à la
-// place de l'accueil, comme la page d'une station — un code et son QR, puis les téléphones appairés. Le desktop seul.
-const pageDesTelephones = document.createElement("section");
-pageDesTelephones.id = "telephones-de-station";
-pageDesTelephones.className = "carte";
-const retourDesTelephones = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
-retourDesTelephones.type = "button";
-retourDesTelephones.className = "retour";
-const corpsDesTelephones = document.createElement("div");
-pageDesTelephones.append(retourDesTelephones, corpsDesTelephones);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
 // un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
@@ -1058,9 +1048,6 @@ let stationOuverte;
 // leurs ratios ajouté / retiré (ticket 1682). Aucune : l'accueil — ou un projet, une station.
 /** @type {typeof COUTS | typeof RATIOS | undefined} */
 let pageDeLApp;
-// La station dont l'écran « Pair a phone » est ouvert, par son gist (ticket 1598). Aucune : il est fermé.
-/** @type {string | undefined} */
-let telephonesOuverts;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Dessinable>} */
@@ -6119,8 +6106,7 @@ function ligneDAccueil(nom, { ton, dit, survol, raison }, ouvrirLa) {
   return cree;
 }
 
-// La ligne d'une station sur l'accueil : un clic l'ouvre ; à côté, « pair a phone » ouvre l'écran qui appaire un
-// téléphone à cette station (ticket 1598). Ni un téléphone, qui ne cuisine pas, ni l'app d'un téléphone n'en ont.
+// La ligne d'une station sur l'accueil : un clic l'ouvre ; à côté, le bouton de ce qui l'empêche de cuire.
 // Une station aussi enregistrée sous le compte GitHub du chef (ticket 1778) : ce qui lui est choisi se fond dans sa ligne
 // (stations-du-compte.js, `ligneFondue`) ; ses cases à cocher sont sur la page de la station.
 /** @param {import("../accueil.ts").LigneDeStation} presence @param {import("../stations-du-compte.ts").StationEnregistree} [enregistree] */
@@ -6128,7 +6114,6 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
   const vue = stationsVues?.stations.find(({ id }) => id === presence.id);
   const station = ligneFondue(presence, vue?.projets ?? [], enregistree);
   const ligne = ligneDAccueil(station.nom, station, () => ouvrirStation(station.id));
-  const cuisine = vue?.cuisine !== false;
   const gestes = [];
   // Une station qui ne cuit pas encore : le bouton de sa raison, un geste que l'app fait (stations/raison.ts).
   if (station.raison !== undefined) {
@@ -6146,14 +6131,6 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
       }
     });
     gestes.push(remede);
-  }
-  if (telephoneVu === undefined && brigade.tirerUnCodeDeTelephone !== undefined && cuisine) {
-    const appairer = /** @type {HTMLButtonElement} */ (bloc("button", APPAIRER_UN_TELEPHONE));
-    appairer.type = "button";
-    appairer.className = "appairer-un-telephone";
-    appairer.ariaLabel = `${APPAIRER_UN_TELEPHONE} with ${station.nom}`;
-    appairer.addEventListener("click", () => ouvrirLesTelephones({ id: station.id, nom: station.nom }));
-    gestes.push(appairer);
   }
   if (gestes.length === 0) return ligne;
   const rang = document.createElement("div");
@@ -6175,7 +6152,7 @@ function poserAccueil() {
     ...(telephoneVu?.appaire === true
       ? [...poserLaListe(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
       : desProjets.length === 0
-        ? [bloc("p", "no project yet: “+” in the bar adds one")]
+        ? [bloc("p", telephoneVu === undefined ? "no project yet: “+” in the bar adds one" : "no project on this phone yet: a project is added from a computer")]
         : desProjets),
   );
   poserStationsDeLAccueil();
@@ -8222,7 +8199,6 @@ function ouvrirTous() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
-  telephonesOuverts = undefined;
   pageDeLApp = undefined;
   marquer();
   poserCode();
@@ -8407,7 +8383,6 @@ function ouvrirPremier() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
-  telephonesOuverts = undefined;
   pageDeLApp = undefined;
   marquer();
   ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
@@ -8500,7 +8475,9 @@ brigade.surOuverture?.((depot, etape) => {
   ouverture.etape = etape;
   poserLePremier();
 });
+// Sur le téléphone, la connexion à GitHub est celle de son premier écran (connexion-github.js) : elle n'est pas d'ici.
 brigade.surConnexionGitHub?.((fin) => {
+  if (telephoneVu !== undefined) return;
   if ("connecte" in fin) return connecteAGitHub();
   premier.connexion = fin;
   poserLePremier();
@@ -8512,7 +8489,6 @@ function ouvrirCouts() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
-  telephonesOuverts = undefined;
   pageDeLApp = COUTS;
   marquer();
   poserCout();
@@ -8527,7 +8503,6 @@ function ouvrirRatios() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
-  telephonesOuverts = undefined;
   pageDeLApp = RATIOS;
   marquer();
   poserRatios();
@@ -8543,7 +8518,6 @@ function ouvrirStation(id) {
   courant = undefined;
   ajoute = false;
   stationOuverte = id;
-  telephonesOuverts = undefined;
   pageDeLApp = undefined;
   retraitDeStationDemande = undefined;
   retraitDeStationRefuse = "";
@@ -8556,49 +8530,6 @@ function ouvrirStation(id) {
   retourALAccueil.focus();
 }
 retourALAccueil.addEventListener("click", () => ouvrirTous());
-
-// L'écran « Pair a phone » d'une station, à la place de l'accueil (ticket 1598) : un code neuf est tiré à l'ouverture,
-// et ses téléphones lus. Il bat la seconde tant qu'il est ouvert — le temps qui reste, et la station sondée —, et
-// s'arrête dès qu'un autre écran le remplace : plus rien n'est demandé à la station.
-const telephonesDeStation = tenirLesTelephones({
-  pont: /** @type {import("./telephones-de-station.js").PontDesTelephones} */ (/** @type {unknown} */ (brigade)),
-  maintenant: () => Date.now(),
-  rendre: () => poserLesTelephonesDeStation(),
-});
-/** @type {ReturnType<typeof setInterval> | undefined} */
-let battementDesTelephones;
-function poserLesTelephonesDeStation() {
-  const etat = telephonesDeStation.etat;
-  corpsDesTelephones.replaceChildren(...(etat === undefined ? [] : [poserLesTelephones(document, etat, Date.now(), telephonesDeStation.gestes)]));
-}
-// La page, remise à sa place sans rien redemander : la barre reposée la remet telle qu'elle était.
-function montrerLesTelephones() {
-  courant = undefined;
-  ajoute = false;
-  stationOuverte = undefined;
-  pageDeLApp = undefined;
-  marquer();
-  if (parcours !== undefined) fermerParcours();
-  tous.replaceChildren(pageDesTelephones);
-}
-/** @param {{ id: string, nom: string }} station */
-function ouvrirLesTelephones(station) {
-  montrerLesTelephones();
-  telephonesOuverts = station.id;
-  telephonesDeStation.ouvrir(station);
-  if (battementDesTelephones !== undefined) clearInterval(battementDesTelephones);
-  battementDesTelephones = setInterval(() => {
-    if (telephonesOuverts === undefined) {
-      clearInterval(battementDesTelephones);
-      battementDesTelephones = undefined;
-      telephonesDeStation.fermer();
-      return;
-    }
-    telephonesDeStation.battre();
-  }, 1000);
-  retourDesTelephones.focus();
-}
-retourDesTelephones.addEventListener("click", () => ouvrirTous());
 
 // Les choix d'une liste, précédés de celui qui n'en est pas un : rien n'est choisi d'avance.
 /** @param {HTMLSelectElement} liste @param {readonly string[]} choix @param {string} aucun */
@@ -8623,7 +8554,6 @@ function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
   stationOuverte = undefined;
-  telephonesOuverts = undefined;
   pageDeLApp = undefined;
   marquer();
   ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
@@ -8731,7 +8661,6 @@ function gestesDuRailPublie(projet) {
 async function ouvrir(projet) {
   courant = projet;
   stationOuverte = undefined;
-  telephonesOuverts = undefined;
   pageDeLApp = undefined;
   if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
@@ -9166,7 +9095,6 @@ function afficher() {
   if (attendu !== undefined) void ouvrir(attendu);
   else if (meme !== undefined) void ouvrir(meme);
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
-  else if (telephonesOuverts !== undefined && !ajoute) montrerLesTelephones();
   else if (pageDeLApp === COUTS && !ajoute) ouvrirCouts();
   else if (pageDeLApp === RATIOS && !ajoute) ouvrirRatios();
   // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (premier-lancement.js). Sur le téléphone,
@@ -9203,16 +9131,18 @@ miseAJourVue ??= demarrage.miseAJour;
 bandeauDeVersion.suivre(miseAJourVue);
 CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
-// Le téléphone (l'app Android, ticket 1161) : son appairage, que le pont garde — rien sur le desktop. Pas encore
-// appairé, l'app s'ouvre sur l'écran qui le relie aux projets, et le reste de l'app est caché derrière. Appairé,
-// elle passe à « Tous les projets », où une ligne dit à quelle station (telephone/appairage.js).
+// Le téléphone (l'app Android) : ce que le pont en garde — rien sur le desktop. Pas encore connecté à GitHub (le ticket
+// 2500), l'app s'ouvre sur l'écran qui l'y connecte, et le reste de l'app est caché derrière ; connecté, elle passe à
+// « Tous les projets », où une ligne dit sous quel compte (connexion-github.js). Un téléphone appairé à une station
+// avant le ticket 2500 la lit encore, sans passer par cet écran (telephone/appairage.js).
 const telephone = demarrage.telephone;
 telephoneVu = telephone;
 brigade.surTelephone?.((vu) => {
   telephoneVu = vu;
   if (courant === undefined && !ajoute && stationOuverte === undefined) poserAccueil();
 });
-// La station ne connaît plus ce téléphone : son appairage est effacé, et l'app se rouvre sur l'écran qui le relie.
+// La station ne connaît plus ce téléphone : son appairage est effacé, et l'app se rouvre — sur ses projets, ou sur la
+// connexion à GitHub.
 async function oublierLeTelephone() {
   await brigade.oublierLeTelephone?.();
   location.reload();
@@ -9222,24 +9152,26 @@ if (telephone !== undefined) {
   conversationDuTelephone = tenue;
   brigade.surConversation?.((projet, conversation) => tenue.recevoir(projet, conversation));
 }
-const appairageDuTelephone = element("appairage");
+const connexionDuTelephone = element("connexion-github");
 const cadreDeLApp = element("cadre");
-if (telephone !== undefined && !telephone.appaire) {
+if (telephone !== undefined && !telephone.appaire && telephone.github === undefined) {
   cadreDeLApp.hidden = true;
-  appairageDuTelephone.hidden = false;
-  tenirAppairage(appairageDuTelephone, document, {
+  connexionDuTelephone.hidden = false;
+  tenirConnexionGitHub(connexionDuTelephone, document, {
     pont: brigade,
-    userAgent: navigator.userAgent,
-    apres: (station) => {
-      // Sa liste n'est pas encore lue : l'adresse de son guichet vient avec sa première lecture.
-      telephoneVu = { appaire: true, station, adresse: "" };
-      appairageDuTelephone.className = "fait";
-      appairageDuTelephone.replaceChildren(poserAppaire(document, station));
+    apres: (compte) => {
+      telephoneVu = { appaire: false, github: { compte } };
+      connexionDuTelephone.className = "fait";
+      connexionDuTelephone.replaceChildren(poserConnecte(document, compte));
       cadreDeLApp.hidden = false;
       ouvrirTous();
       montrer();
     },
   });
+} else if (telephone !== undefined && !telephone.appaire && telephone.github !== undefined) {
+  connexionDuTelephone.hidden = false;
+  connexionDuTelephone.className = "fait";
+  connexionDuTelephone.replaceChildren(poserConnecte(document, telephone.github.compte));
 }
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.

@@ -174,7 +174,7 @@ Un APK installable (`adb install`, ou ouvert depuis le téléphone) : l'envelopp
 [Capacitor](https://capacitorjs.com) d'[`app/android/`](../android/) autour de **la même vue que
 l'app desktop**, `app/src/vue/`, posée telle quelle à chaque construction — le dépôt n'en garde
 aucune copie. Ni file, ni mises à jour : sur Android, la vue s'ouvre, sans projet, derrière un pont
-d'attente (plus bas), qui sait seulement appairer le téléphone à une station.
+d'attente (plus bas), qui sait connecter le téléphone à GitHub (#2500).
 
 ## Construire l'APK
 
@@ -246,7 +246,7 @@ de deux clés différentes. Sa `versionCode` suit celle de `build.gradle` (voir 
 
 ## Une mise à jour qui garde les données
 
-Android installe un APK par-dessus l'ancien, appairage et projets liés conservés, à trois conditions :
+Android installe un APK par-dessus l'ancien, connexion à GitHub et projets conservés, à trois conditions :
 même identifiant d'app, même clé de signature, `versionCode` plus haute. Le dépôt les tient ainsi :
 
 - l'identifiant, `com.github.benomite.brigade`, est dans `natif/app/build.gradle`, `capacitor.config.json`
@@ -276,8 +276,8 @@ Les tests : `app/test/packaging/android-stable.test.ts`.
 | `capacitor.config.json` | l'identifiant de l'app, `com.github.benomite.brigade`, et son nom, `Brigade` — les mêmes que ceux du Mac ; la page où elle s'ouvre, `src/vue/index.html` |
 | `package.json`, `package-lock.json` | Capacitor, épinglé |
 | `web/index.html` | l'entrée que Capacitor réclame à la racine ; ouverte quand même, elle renvoie à la vue |
-| `web/pont.js` | le pont d'attente, et l'appairage du téléphone |
-| `natif/` | le projet Gradle (le gabarit de Capacitor 8.5.3) : `applicationId` et `app_name` y sont redits, `MainActivity` et `Pont.java` dans `com.github.benomite.brigade` |
+| `web/pont.js` | le pont d'attente, et la connexion du téléphone à GitHub |
+| `natif/` | le projet Gradle (le gabarit de Capacitor 8.5.3) : `applicationId` et `app_name` y sont redits, `MainActivity`, `Pont.java` et `Coffre.java` dans `com.github.benomite.brigade` |
 
 `www/`, `node_modules/`, et ce que `cap sync` et Gradle écrivent dans `natif/` (`capacitor.settings.gradle`,
 `app/capacitor.build.gradle`, `capacitor-cordova-android-plugins/`, `app/src/main/assets/`, `build/`)
@@ -293,29 +293,22 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
 
 - `demarrage` rend ce que le process principal rendrait — palettes, onglets, gestes, libellés, lus à
   la construction dans les modules d'`app/src/` (`demarrageDuPont`, dans `android.ts`), jamais
-  recopiés —, une liste de projets vide, et `telephone`, ce que l'app garde de son appairage (#1161) :
-  aucun sur une installation neuve, et la vue s'ouvre sur l'écran qui relie le téléphone aux projets.
-- `appairerLeTelephone` envoie le code au guichet de la station (`POST /pairing`,
-  `runtime/src/telephone/guichet.ts`) par le HTTP natif de Capacitor (`CapacitorHttp`) : le guichet
-  parle http sur le réseau du chef, que la WebView, servie en https, ne joindrait pas elle-même — d'où
-  aussi `android:usesCleartextTraffic` dans le manifeste. Appairé, le jeton, l'adresse et la station
-  sont gardés dans le stockage de l'app ; la vue ne reçoit que le nom de la station.
-- `scannerLeQr` lit le QR de la station par le lecteur de Google Play
-  (`play-services-code-scanner`, épinglé dans `natif/variables.gradle`), que `Pont.java` appelle
-  (`scanner`) : il ouvre l'appareil photo lui-même, l'app ne le demande pas.
-- `surLienDAppairage` rend à l'écran d'appairage le même QR, scanné par l'appareil photo du
-  téléphone plutôt que par l'app (#1597) : son lien, `brigade://pair?code=…&url=…`, ouvre l'app (le
-  filtre d'intent du manifeste), `Pont.java` le garde — lu dans l'intent de l'activité par `load` quand
-  il lance l'app, reçu par `handleOnNewIntent` quand il la rouvre — jusqu'à ce que le pont le prenne
-  (`lien`), et l'écran l'envoie comme un QR scanné d'ici, sans rien taper. Celui qui a lancé
-  l'app est rendu dès l'abonnement, ceux qui la rouvrent à leur arrivée ; rouverte depuis les applis
-  récentes, l'app ne rejoue pas le lien qui l'avait lancée. Déjà appairé, l'app ne le lit pas : il
-  attend, en mémoire, l'écran d'appairage que « pair again » rouvre.
-- `ajouter` refuse, en disant que ce téléphone n'est appairé à aucune station.
+  recopiés —, une liste de projets vide, et `telephone` : `github`, le compte sous lequel le téléphone
+  est connecté à GitHub (#2500) — aucun sur une installation neuve, et la vue s'ouvre sur l'écran de
+  connexion (`app/src/vue/connexion-github.js`) —, et l'appairage à une station d'avant #2500, s'il y en a un.
+- `seConnecterAGitHub` mène le « device flow » de GitHub par le HTTP natif de Capacitor
+  (`CapacitorHttp`) — github.com ne répond pas à une WebView (CORS) — : il demande un code à usage
+  unique, ouvre la page où le taper dans le navigateur du téléphone (`Pont.java`, `ouvrir`), et rend
+  le code à la vue ; puis il demande à GitHub, au pas que GitHub donne, si le chef l'a tapé, et la fin
+  arrive à la vue par `surConnexionGitHub`. Le jeton est gardé dans le coffre du téléphone (`Coffre.java`,
+  chiffré par une clé du Keystore d'Android), le compte dans le stockage de l'app ; la vue ne voit jamais
+  le jeton. L'App OAuth est celle de la GitHub CLI (`CLIENT_GITHUB`), que le desktop emploie déjà par
+  `gh auth login`. `ouvrirLaPage` rouvre la page de GitHub, et nulle autre.
+- Un téléphone appairé à une station avant #2500 la lit encore à son guichet, par le même HTTP natif —
+  d'où `android:usesCleartextTraffic` dans le manifeste : le guichet parle http sur le réseau du chef.
+  Aucun appairage neuf ne se tire plus : ni code, ni lecteur de QR, ni lien `brigade://pair`.
+- `ajouter` refuse, en disant que ce téléphone ne lit encore aucun projet.
 - Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
-
-Hors de l'appairage, ce téléphone ne lit rien et n'envoie rien. Le pont qui lira une station le
-remplacera ; rien du code partagé n'a changé pour Android.
 
 Le tableau de la cuisine d'un projet se lit de GitHub, sans station (`lireLeTableauDuTelephone`,
 `app/android/web/lecture.ts`) : le module du desktop (`app/src/tableau/`) et le lecteur du bloc
@@ -329,8 +322,8 @@ téléphone).
 Les tests (`app/test/packaging/android.test.ts`) vérifient, sans JDK ni SDK : les prérequis nommés
 quand ils manquent (la commande lancée sur une machine qui n'en a aucun), l'identifiant et le nom
 déclarés, les versions épinglées, qu'aucun fichier d'`app/src/` n'est recopié dans `app/android/`,
-la vue posée et chacun des chemins qu'elle charge, et le pont d'attente — son appairage joué contre un
-faux pont natif. L'APK lui-même se construit
+la vue posée et chacun des chemins qu'elle charge, et le pont d'attente — sa connexion à GitHub jouée
+contre un faux pont natif. L'APK lui-même se construit
 et s'ouvre sur un émulateur en CI, par cette même commande. À la main, avec un émulateur ou un
 téléphone branché :
 

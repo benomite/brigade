@@ -2,34 +2,29 @@
 // Le pont d'attente de l'app Android. Sur le desktop, la vue (app/src/vue/vue.js) reçoit
 // `window.brigade` de preload.cjs, et derrière lui le process principal d'Electron, qui lit les
 // projets, lance les terminaux et joint les stations. Sur Android il n'y a pas de process
-// principal : ce téléphone n'est appairé à aucune station, il ne lit rien et n'envoie rien.
-// Ce pont donne à la même vue de quoi s'ouvrir sur son premier écran, sans projet :
+// principal. Ce pont donne à la même vue de quoi s'ouvrir sur son premier écran, sans projet :
 //   - `demarrage` rend ce que le process principal rendrait — les palettes, onglets, gestes et
 //     libellés, lus dans les modules d'app/src/ à la construction (app/packaging/android.ts) — et
 //     une liste de projets vide ;
 //   - `ajouter` refuse, en disant pourquoi ;
 //   - un abonnement (`sur…`) ne reçoit jamais rien ; tout autre geste ne fait rien et ne rend rien.
-// Et l'appairage du téléphone (le ticket 1161), sans terminal :
-//   - `demarrage` rend aussi `telephone`, ce que ce téléphone garde de son appairage — aucun sur une
-//     installation neuve : la vue s'ouvre alors sur l'écran qui le relie aux projets ;
-//   - `appairerLeTelephone` envoie le code au guichet de la station (`POST /pairing`,
-//     runtime/src/telephone/guichet.ts) par le HTTP natif de Capacitor — le guichet parle http, sur le
-//     réseau du chef, que la WebView, servie en https, ne joindrait pas elle-même ; d'un autre réseau,
-//     il le joint en https sur le tailnet du chef (le ticket 1409), où `tailscale serve` le publie.
-//     Appairé, le jeton, l'adresse et la station sont gardés dans le stockage de l'app, et la vue n'en
-//     reçoit que le nom. Ce qui n'est pas le guichet est dit : rien ne répond (`injoignable`), la
-//     machine répond mais pas le guichet derrière elle (`sans-guichet` : le 502 de `tailscale serve`,
-//     la station arrêtée), ou autre chose répond à sa place (`inattendu`) ;
-//   - `scannerLeQr` lit le QR de la station par le lecteur de Google Play (Pont.java, `scanner`) ;
-//   - `surLienDAppairage` rend à l'écran d'appairage le lien qui a ouvert l'app (le ticket 1597) : le même QR, scanné
-//     par l'appareil photo du téléphone plutôt que par l'app (Pont.java, `lien`).
-// Et, appairé, les projets de la station et la file de chacun (le ticket 1414) : `faits`, `tous`, `regarder` et
+// Et la connexion du téléphone à GitHub (le ticket 2500, épique 2498), sans station ni terminal :
+//   - `demarrage` rend aussi `telephone.github`, le compte sous lequel ce téléphone est connecté — aucun sur une
+//     installation neuve : la vue s'ouvre alors sur l'écran de connexion (app/src/vue/connexion-github.js) ;
+//   - `seConnecterAGitHub` mène le « device flow » de GitHub par le HTTP natif de Capacitor — github.com ne répond pas
+//     à une WebView (CORS) : il demande un code à usage unique, ouvre la page où le taper dans le navigateur du
+//     téléphone (Pont.java, `ouvrir`), et rend le code à la vue. Il attend ensuite que le chef l'ait tapé, au pas que
+//     GitHub donne ; la fin — connecté, refusé sur GitHub, le code expiré — arrive à la vue par `surConnexionGitHub`.
+//     Connecté, le jeton est gardé dans le coffre du téléphone (Coffre.java, chiffré par une clé du Keystore
+//     d'Android), le compte dans le stockage de l'app ; la vue ne voit jamais le jeton ;
+//   - `ouvrirLaPage` rouvre la page de GitHub où taper le code.
+// Un téléphone appairé à une station avant le ticket 2500 la lit encore : les projets de la station et la file de chacun (le ticket 1414) : `faits`, `tous`, `regarder` et
 // `relireBox` lisent son guichet (`GET /projects`, `GET /projects/<nom>/queue`) avec le jeton gardé, et ce qui en sort
 // arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surAlertes`, `surAccueil`,
 // `surTelephone`) — tel que le process principal du desktop l'enverrait, calculé par les mêmes modules d'app/src/
 // (app/android/web/lecture.ts, que la construction pose dans www/android/lecture.js, chargé à la première lecture).
 // Les projets de la dernière liste lue sont gardés : relancée, l'app les montre avant de relire. `oublierLeTelephone`
-// efface l'appairage — celui que la station ne connaît plus —, et la vue revient à l'écran qui le relie.
+// efface l'appairage — celui que la station ne connaît plus. Aucun appairage neuf ne se tire plus.
 // Et les gestes de la fiche d'une carte (le ticket 1420) : `gestesDeFiche` rend ceux que le guichet porte — merger la PR,
 // retirer du rail, renvoyer en cuisine —, et `gesteDeFiche` les joue par `POST /projects/<nom>/gestures`, avec le jeton
 // gardé ; la lecture rend ce que la station en a dit, que la vue montre sur la fiche avant de relire la file.
@@ -42,9 +37,9 @@
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
 // www/android/pont.js, que l'activité injecte au début de chaque document de l'app (Pont.java).
 /* global DEMARRAGE */
-const AUCUNE_STATION = "the Android app is not paired with a station yet: this phone reads nothing and sends nothing";
+const AUCUNE_STATION = "the Android app reads no project yet: this phone reads nothing and sends nothing";
 const configuration = { chemin: `no projects file on this phone — ${AUCUNE_STATION}`, projets: [] };
-// Ce que l'app garde de son appairage, dans son stockage : effacé avec elle, une installation neuve n'en a pas.
+// Ce que l'app garde d'un appairage d'avant le ticket 2500, dans son stockage : effacé avec elle.
 const CLE = "brigade.telephone";
 // Les projets de la dernière liste lue au guichet de la station appairée.
 const CLE_DES_PROJETS = "brigade.telephone.projets";
@@ -53,16 +48,25 @@ const DELAI_MS = 10_000;
 // Le temps qu'un geste a pour répondre, une fois le guichet joint : celui que la station laisse à sa commande — un merge
 // attend GitHub (runtime/src/telephone/gestes.ts, `DELAI_DU_GESTE_MS`, deux minutes) —, et de quoi en rendre le verdict.
 const DELAI_DU_GESTE_MS = 130_000;
-// Ce qu'un relais — `tailscale serve`, un proxy — répond quand rien n'écoute derrière lui. Le guichet,
-// lui, n'en rend aucun à `/pairing`.
-const SANS_RIEN_DERRIERE = new Set([502, 503, 504]);
+// La connexion à GitHub (le ticket 2500) : l'App OAuth au nom de laquelle le téléphone demande son code — celle de la
+// GitHub CLI, que le desktop emploie déjà par `gh auth login` (connexion-github.ts) : le chef y a déjà donné son accord
+// et n'en donne aucun à un tiers de plus. Son « device flow » ne demande aucun secret. Une App OAuth de brigade, son
+// device flow activé, la remplacerait ici. Les droits demandés sont ceux de `gh` : les dépôts, les gists, l'organisation lue.
+const CLIENT_GITHUB = "178c6fc778ccc68e1d6a";
+const DROITS_GITHUB = "repo read:org gist";
+// Sous ces noms, le jeton dans le coffre du téléphone (Coffre.java) et le compte dans le stockage de l'app.
+const CLE_GITHUB = "github";
+const CLE_DU_COMPTE = "brigade.github";
+// Le pas d'attente que GitHub donne, quand il n'en dit aucun, et ce qu'il y ajoute quand il dit d'aller moins vite
+// (`slow_down`) — en secondes, comme lui.
+const PAS_GITHUB_S = 5;
 /** @returns {{ station: string, adresse: string, jeton: string } | undefined} */
 function garde() {
   try {
     const lu = JSON.parse(window.localStorage.getItem(CLE) ?? "null");
     if (typeof lu?.station === "string" && typeof lu.adresse === "string" && typeof lu.jeton === "string") return { station: lu.station, adresse: lu.adresse, jeton: lu.jeton };
   } catch {
-    // Illisible, il ne vaut rien : le téléphone se réappaire.
+    // Illisible, il ne vaut rien.
   }
   return undefined;
 }
@@ -88,65 +92,128 @@ function natif(plugin, methode, options) {
   if (typeof capacitor?.nativePromise !== "function") return Promise.reject(new Error("the app's native bridge is missing"));
   return capacitor.nativePromise(plugin, methode, options);
 }
-/** @param {{ adresse: string, code: string, nom: string, machine: string }} demande */
-async function appairerLeTelephone({ adresse, code, nom, machine }) {
-  /** @type {{ status: number, data: unknown }} */
-  let rendu;
-  try {
-    rendu = await natif("CapacitorHttp", "request", { url: `${adresse}/pairing`, method: "POST", headers: { "Content-Type": "application/json" }, data: { code, name: nom, machine }, connectTimeout: DELAI_MS, readTimeout: DELAI_MS });
-  } catch (erreur) {
-    return { paired: false, reason: "injoignable", said: ditDe(erreur) };
-  }
-  /** @type {any} */
-  let corps = rendu.data;
-  if (typeof corps === "string") {
-    try {
-      corps = JSON.parse(corps);
-    } catch {
-      // Ce n'est pas le guichet qui a répondu.
-    }
-  }
-  if (rendu.status === 201 && corps?.paired === true && typeof corps.token === "string" && typeof corps.station?.nom === "string") {
-    window.localStorage.setItem(CLE, JSON.stringify({ station: corps.station.nom, adresse, jeton: corps.token }));
-    // Une autre station, peut-être : ses projets se lisent de nouveau.
-    window.localStorage.removeItem(CLE_DES_PROJETS);
-    lecture = undefined;
-    return { paired: true, station: corps.station.nom };
-  }
-  if (corps?.paired === false && typeof corps.reason === "string") return { paired: false, reason: corps.reason, said: typeof corps.said === "string" ? corps.said : "" };
-  if (SANS_RIEN_DERRIERE.has(rendu.status)) return { paired: false, reason: "sans-guichet", said: `${adresse} answered ${rendu.status}: nothing answers behind it` };
-  return { paired: false, reason: "inattendu", said: `${adresse} answered ${rendu.status}, not as a station's phone desk` };
-}
-async function scannerLeQr() {
-  try {
-    const lu = await natif("Pont", "scanner", {});
-    return typeof lu?.texte === "string" ? { lu: lu.texte } : { annule: true };
-  } catch (erreur) {
-    return { refus: ditDe(erreur) };
-  }
-}
-// Le lien d'appairage que Pont.java garde (`lien`) : celui qui a lancé l'app est rendu dès l'abonnement, ceux qui la
-// rouvrent ensuite à leur arrivée — Pont.java avertit, et le pont le prend. Pris, il ne se rend plus : chacun une fois.
-/** @param {(texte: string) => void} recevoir */
-function surLienDAppairage(recevoir) {
-  const prendre = () =>
-    natif("Pont", "lien", {}).then(
-      (lu) => {
-        if (typeof lu?.texte === "string") recevoir(lu.texte);
-      },
-      () => undefined,
-    );
-  /** @type {any} */ (window).Capacitor?.addListener?.("Pont", "lien", () => void prendre());
-  void prendre();
-}
-
-// Les abonnements de la vue, par leur nom : ce que la lecture de la station leur dit.
+// Les abonnements de la vue, par leur nom : ce que la lecture de la station, ou la connexion à GitHub, leur dit.
 /** @type {Map<string, ((...args: any[]) => void)[]>} */
 const abonnes = new Map();
 /** @param {string} canal @param {unknown[]} args */
 const dire = (canal, ...args) => {
   for (const recevoir of abonnes.get(canal) ?? []) recevoir(...args);
 };
+
+// Le corps d'une réponse de CapacitorHttp : du JSON, lu s'il arrive en texte — rien s'il ne se lit pas.
+/** @param {unknown} corps @returns {any} */
+function corpsLu(corps) {
+  if (typeof corps !== "string") return corps;
+  try {
+    return JSON.parse(corps);
+  } catch {
+    return undefined;
+  }
+}
+/** @param {string} url @param {Record<string, string>} donnees */
+const versGitHub = (url, donnees) => natif("CapacitorHttp", "request", { url, method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, data: donnees, connectTimeout: DELAI_MS, readTimeout: DELAI_MS });
+// Ce que GitHub a dit d'un refus, pour le survol : son code d'erreur et sa phrase.
+/** @param {number} status @param {any} corps */
+const ditDeGitHub = (status, corps) => [`github.com answered ${status}`, ...[corps?.error, corps?.error_description].filter((dit) => typeof dit === "string" && dit !== "")].join(" — ");
+/** @param {number} ms */
+const attendre = (ms) => new Promise((suite) => window.setTimeout(suite, ms));
+
+// Le compte GitHub sous lequel ce téléphone est connecté : nul quand GitHub ne l'a pas dit ; aucun sans jeton dans le coffre.
+/** @returns {Promise<{ compte: string | null } | undefined>} */
+async function connexionGardee() {
+  try {
+    const lu = await natif("Coffre", "lire", { cle: CLE_GITHUB });
+    if (typeof lu?.valeur !== "string" || lu.valeur === "") return undefined;
+  } catch {
+    return undefined;
+  }
+  const compte = window.localStorage.getItem(CLE_DU_COMPTE);
+  return { compte: compte === null || compte === "" ? null : compte };
+}
+
+// Le login que GitHub mène sans station : son code et sa page, rendus à la vue ; puis, au pas que GitHub donne, la
+// question de savoir si le chef l'a tapé — la fin part par `surConnexionGitHub`. Un seul à la fois : un second geste,
+// pendant que le premier attend le chef, rend le même code sans rien demander de plus.
+/** @type {Promise<any> | undefined} */
+let connexionEnCours;
+function seConnecterAGitHub() {
+  connexionEnCours ??= commencerLaConnexion().then((debut) => {
+    if (!("code" in debut)) connexionEnCours = undefined;
+    return debut;
+  });
+  return connexionEnCours;
+}
+async function commencerLaConnexion() {
+  /** @type {{ status: number, data: unknown }} */
+  let rendu;
+  try {
+    rendu = await versGitHub("https://github.com/login/device/code", { client_id: CLIENT_GITHUB, scope: DROITS_GITHUB });
+  } catch (erreur) {
+    return { refus: "This phone could not reach GitHub: check its connection, then try again.", detail: ditDe(erreur) };
+  }
+  const corps = corpsLu(rendu.data);
+  const { device_code: appareil, user_code: code, verification_uri: page } = corps ?? {};
+  if (rendu.status !== 200 || typeof appareil !== "string" || typeof code !== "string" || typeof page !== "string" || !/^https:\/\//.test(page)) {
+    return { refus: "GitHub did not start the sign-in: try again.", detail: ditDeGitHub(rendu.status, corps) };
+  }
+  void natif("Pont", "ouvrir", { url: page }).catch(() => undefined);
+  const pas = typeof corps.interval === "number" && corps.interval >= 0 ? corps.interval : PAS_GITHUB_S;
+  const duree = typeof corps.expires_in === "number" && corps.expires_in > 0 ? corps.expires_in : 900;
+  void attendreLeChef(appareil, pas, Date.now() + duree * 1000).then((fin) => {
+    connexionEnCours = undefined;
+    dire("surConnexionGitHub", fin);
+  });
+  return { code, page };
+}
+// Demander à GitHub, au pas qu'il donne, si le chef a tapé le code : rend la fin — connecté, ou pourquoi pas. Un réseau
+// qui manque un moment ne l'arrête pas : la question repart au pas suivant, jusqu'à l'échéance du code.
+/** @param {string} appareil @param {number} pas @param {number} echeance */
+async function attendreLeChef(appareil, pas, echeance) {
+  const EXPIRE = { refus: "The code expired before it was typed on GitHub: sign in again." };
+  for (;;) {
+    await attendre(pas * 1000);
+    if (Date.now() > echeance) return EXPIRE;
+    /** @type {{ status: number, data: unknown }} */
+    let rendu;
+    try {
+      rendu = await versGitHub("https://github.com/login/oauth/access_token", { client_id: CLIENT_GITHUB, device_code: appareil, grant_type: "urn:ietf:params:oauth:grant-type:device_code" });
+    } catch {
+      continue;
+    }
+    const corps = corpsLu(rendu.data);
+    if (rendu.status === 200 && typeof corps?.access_token === "string" && corps.access_token !== "") return garderLaConnexion(corps.access_token);
+    const erreur = corps?.error;
+    if (erreur === "authorization_pending") continue;
+    if (erreur === "slow_down") {
+      pas = typeof corps.interval === "number" ? corps.interval : pas + PAS_GITHUB_S;
+      continue;
+    }
+    if (erreur === "access_denied") return { refus: "The sign-in was cancelled on GitHub: this phone is not signed in.", detail: ditDeGitHub(rendu.status, corps) };
+    if (erreur === "expired_token") return { ...EXPIRE, detail: ditDeGitHub(rendu.status, corps) };
+    return { refus: "GitHub refused the sign-in: sign in again.", detail: ditDeGitHub(rendu.status, corps) };
+  }
+}
+// Le jeton rendu : gardé dans le coffre, et le compte qu'il ouvre lu sur GitHub — nul s'il ne s'y lit pas.
+/** @param {string} jeton */
+async function garderLaConnexion(jeton) {
+  try {
+    await natif("Coffre", "garder", { cle: CLE_GITHUB, valeur: jeton });
+  } catch (erreur) {
+    return { refus: "This phone could not keep its GitHub sign-in: sign in again.", detail: ditDe(erreur) };
+  }
+  /** @type {string | null} */
+  let compte = null;
+  try {
+    const lu = await natif("CapacitorHttp", "request", { url: "https://api.github.com/user", method: "GET", headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${jeton}` }, connectTimeout: DELAI_MS, readTimeout: DELAI_MS });
+    const login = corpsLu(lu.data)?.login;
+    if (lu.status === 200 && typeof login === "string" && login !== "") compte = login;
+  } catch {
+    // Le compte se tait : le téléphone est connecté quand même.
+  }
+  if (compte === null) window.localStorage.removeItem(CLE_DU_COMPTE);
+  else window.localStorage.setItem(CLE_DU_COMPTE, compte);
+  return { connecte: true, compte };
+}
 // La lecture de la station appairée (app/android/web/lecture.ts), ouverte une fois : son module, posé par la
 // construction à côté de la vue (www/android/lecture.js), est chargé à la première lecture. Rien sans appairage.
 /** @type {Promise<any> | undefined} */
@@ -180,21 +247,29 @@ const sansLecture = (erreur) => ({ refus: "this app could not load what reads it
 const avecLaLecture = (faire) => void laLecture()?.then(faire, () => undefined);
 
 async function demarrage() {
-  const appaire = telephone();
+  const github = await connexionGardee();
+  const appaire = { ...telephone(), ...(github === undefined ? {} : { github }) };
   /** @type {any} */
   const ouverte = await laLecture()?.catch((/** @type {unknown} */ erreur) => ({ refus: ditDe(erreur) }));
   if (ouverte === undefined) return { ...DEMARRAGE, configuration, telephone: appaire };
   // Le module de lecture ne s'est pas chargé : l'app s'ouvre sans projet, et dit pourquoi.
   if ("refus" in ouverte) return { ...DEMARRAGE, configuration: { chemin: "no projects file on this phone", projets: [] }, telephone: { ...appaire, liste: { a: new Date().toISOString(), lue: false, reason: "inattendu", said: `this app could not load what reads its station: ${ouverte.refus}` } } };
-  return { ...DEMARRAGE, configuration: ouverte.configuration(), telephone: ouverte.telephone() };
+  return { ...DEMARRAGE, configuration: ouverte.configuration(), telephone: { ...ouverte.telephone(), ...(github === undefined ? {} : { github }) } };
 }
 
 /** @type {Record<string, (...args: any[]) => unknown>} */
 const connus = {
   demarrage,
-  appairerLeTelephone,
-  scannerLeQr,
-  surLienDAppairage,
+  seConnecterAGitHub,
+  ouvrirLaPage: async (/** @type {string} */ url) => {
+    if (!/^https:\/\/github\.com\//.test(url)) return false;
+    try {
+      await natif("Pont", "ouvrir", { url });
+      return true;
+    } catch {
+      return false;
+    }
+  },
   choisirDossier: async () => undefined,
   ajouter: async () => ({ etat: "pas-ajoute", titre: garde() === undefined ? `Nothing was added: ${AUCUNE_STATION}.` : "Nothing was added: a project is added from a computer, and this phone reads it from its station." }),
   faits: (/** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.faits(demande)),
@@ -227,7 +302,7 @@ const connus = {
       return false;
     }
   },
-  // L'appairage effacé : le jeton, la station et ses projets. La vue revient à l'écran qui relie le téléphone.
+  // L'appairage effacé : le jeton, la station et ses projets. La vue revient à ses projets, ou à la connexion à GitHub.
   oublierLeTelephone: async () => {
     window.localStorage.removeItem(CLE);
     window.localStorage.removeItem(CLE_DES_PROJETS);

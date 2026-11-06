@@ -11,10 +11,12 @@
 import { spawn } from "node:child_process";
 
 // Ce que la vue montre une fois le login parti : le code à taper, et la page où le taper.
-// `connecte` : `gh` a fini sans code à taper — il l'était déjà.
-export type DebutDeConnexion = { code: string; page: string } | { connecte: true } | { refus: string; detail?: string };
+// `connecte` : `gh` a fini sans code à taper — il l'était déjà. `compte` : le compte GitHub connecté, quand on le
+// sait — le pont du téléphone le dit (app/android/web/pont.js, le ticket 2500), `gh` ici non.
+export type Connecte = { connecte: true; compte?: string | null };
+export type DebutDeConnexion = { code: string; page: string } | Connecte | { refus: string; detail?: string };
 // Ce qu'il en est advenu : connecté, ou pourquoi pas.
-export type FinDeConnexion = { connecte: true } | { refus: string; detail?: string };
+export type FinDeConnexion = Connecte | { refus: string; detail?: string };
 
 export type OptionsConnexion = {
   // La commande que le runtime nomme, telle quelle : son premier mot est le `gh` de l'ordinateur.

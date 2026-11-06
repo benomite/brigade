@@ -226,7 +226,7 @@ describe("depuis une carte, sur le téléphone, un geste qui échoue le dit en u
     ["refusé par la station (409)", { status: 409, data: REFUSE }, REFUSE.said, REFUSE.detail, false],
     ["la station injoignable", new Error("failed to connect to /192.168.1.20 (port 7010) after 10000ms"), "atelier could not be reached: nothing was changed", "failed to connect to /192.168.1.20 (port 7010) after 10000ms", false],
     ["le guichet derrière `tailscale serve` qui ne répond pas (502 sans corps)", { status: 502, data: "" }, "atelier's phone desk does not answer: nothing was changed", `${ADRESSE} answered 502: nothing answers behind it`, false],
-    ["un téléphone que la station ne connaît plus (401)", { status: 401, data: { said: "unknown token" } }, "atelier no longer knows this phone: pair it again", "unknown token", false],
+    ["un téléphone que la station ne connaît plus (401)", { status: 401, data: { said: "unknown token" } }, "atelier no longer knows this phone", "unknown token", false],
     ["la réponse qui n'arrive pas à temps : la station est relue", new Error("timeout"), "atelier did not answer: the next read shows whether it went through", "timeout", true],
   ] as const) {
     test(`${cas} : une ligne, son détail au survol seulement ; #12 reste dans TODO, et le geste se rejoue`, async () => {

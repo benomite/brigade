@@ -235,13 +235,13 @@ describe("les projets de la station sur le téléphone appairé", () => {
     assert.equal(phrase(autre.vue)?.children[0]?.textContent, "What answers at 192.168.1.20:7010 is not a station's phone desk.");
   });
 
-  test("une station qui ne connaît plus ce téléphone le dit, avec le geste qui le relie de nouveau", async () => {
+  test("une station qui ne connaît plus ce téléphone le dit, avec le geste qui l'oublie", async () => {
     const { requete } = guichet(() => ({ status: 401, data: { said: "a paired phone's token is required: pair the phone first" } }));
     const { vue } = await telephone({ requete, connus: PROJETS });
     const dite = phrase(vue) ?? assert.fail("aucune phrase");
     assert.equal(dite.dataset.etat, "oublie");
-    assert.equal(dite.children[0]?.textContent, "atelier no longer knows this phone: pair it again.");
-    const bouton = dite.dessous("button").find((pose) => pose.textContent === "pair again") ?? assert.fail("pas de bouton « pair again »");
+    assert.equal(dite.children[0]?.textContent, "atelier no longer knows this phone.");
+    const bouton = dite.dessous("button").find((pose) => pose.textContent === "forget the station") ?? assert.fail("pas de bouton « forget the station »");
     assert.equal(bouton.className, "recommande");
   });
 
