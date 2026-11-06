@@ -8095,6 +8095,31 @@ button.recommande {
 [data-bloc="temps-tickets"] .temps-chiffre[data-depasse="oui"] .temps-valeur {
   color: var(--rouge-clair);
 }
+[data-bloc="bloque-sans-question"] .sans-question-ligne {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+[data-bloc="bloque-sans-question"] .sans-question-valeur {
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--texte);
+}
+[data-bloc="bloque-sans-question"] .sans-question-legende,
+[data-bloc="bloque-sans-question"] .sans-question-inconnu {
+  color: var(--texte-doux);
+}
+[data-bloc="bloque-sans-question"][data-sans-question="alerte"] {
+  border-left: 3px solid var(--rouge-clair);
+  padding-left: 10px;
+}
+[data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur,
+[data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-legende {
+  color: var(--rouge-clair);
+}
+[data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur {
+  font-weight: 700;
+}
 [data-bloc="temps-tickets"] .temps-legende {
   color: var(--texte-doux);
 }

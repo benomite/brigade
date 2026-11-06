@@ -2023,6 +2023,8 @@ key check refuses it) and reads it only from its clone's working tree — its ro
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
 `app/src/vue/projet/cuisine/sante/PlafondsDuree.js`.
 
+**Kitchen > Health: blocked without a question** (#2557, epic #2553). Under the ticket time, a **Blocked without a question** counter: the project status field `blockedWithoutQuestion` (an integer). At 0 it reads neutral ("none — every block asks the chef a question"); above 0 it is an alert — a red left rule, a bold red number, "tickets blocked-on-human with no question — a defect to fix". A station that does not publish the field yet reads "Not available yet", which is not a count of zero.
+
 **Kitchen > Health: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
 read on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/closer-sante.ts`) — when Health
 opens, then at most once a minute while it stays open; each part that fails to read is one line, its detail on hover, and

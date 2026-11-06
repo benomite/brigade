@@ -16,6 +16,7 @@ import type { LectureDuCloser, RenduDesVerifications, RenduDuReglage } from "../
 import { PLAFONDS, type LectureDesPlafonds, type RenduDuPlafond } from "../../../src/plafonds-duree.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { CLES as CLES_DES_REGLAGES } from "../../../src/reglages-du-projet.ts";
+import { poserBlocBloqueSansQuestion } from "../../../src/vue/projet/cuisine/sante/BloqueSansQuestion.js";
 import { poserBlocCloser } from "../../../src/vue/projet/cuisine/sante/Closer.js";
 import { poserBlocPlafondsDuree } from "../../../src/vue/projet/cuisine/sante/PlafondsDuree.js";
 import { lireLesTemps, poserBlocTempsTickets } from "../../../src/vue/projet/cuisine/sante/TempsTickets.js";
@@ -386,5 +387,26 @@ describe("Health, dans la vue", () => {
     }
     // Settings : ses réglages du projet n'en portent aucun.
     assert.deepEqual(CLES_DES_REGLAGES.filter((cle) => /drift|temps|duration|tests|gates/i.test(cle)), []);
+  });
+});
+
+describe("les blocked-on-human sans question, sur Health", () => {
+  test("à 0 le compteur est neutre, à 3 il est en alerte, et sans le champ il ne dit pas zéro", () => {
+    const zero: Faux = poserBlocBloqueSansQuestion(doc, 0);
+    assert.equal(zero.dataset.bloc, "bloque-sans-question");
+    assert.equal(zero.dataset.sansQuestion, "zero");
+    assert.match(texte(zero), /Blocked without a question/);
+    assert.deepEqual(parClasse(zero, "sans-question-valeur").map(texte), ["0"]);
+    assert.notEqual(parClasse(zero, "sans-question-ligne")[0]?.role, "alert");
+
+    const trois: Faux = poserBlocBloqueSansQuestion(doc, 3);
+    assert.equal(trois.dataset.sansQuestion, "alerte");
+    assert.match(texte(trois), /Blocked without a question/);
+    assert.deepEqual(parClasse(trois, "sans-question-valeur").map(texte), ["3"]);
+    assert.match(texte(parClasse(trois, "sans-question-legende")[0] as Faux), /tickets blocked-on-human with no question — a defect to fix/);
+    assert.equal(parClasse(trois, "sans-question-ligne")[0]?.role, "alert");
+    assert.notEqual(zero.dataset.sansQuestion, trois.dataset.sansQuestion);
+
+    for (const absent of [undefined, "3", -1, 1.5]) assert.equal(poserBlocBloqueSansQuestion(doc, absent).dataset.sansQuestion, "inconnu");
   });
 });
