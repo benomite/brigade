@@ -1708,6 +1708,70 @@ test("a cook killed by a signal is not a failed cook: the ticket waits, and noth
   assert.doesNotMatch(corps, /brigade:echec/);
 });
 
+// #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses
+// cooks ; chaque ticket attendait 30 min, puis son cook repris mourait à la relance suivante.
+test("a cook killed because its station stops does not hold its ticket: no wait, no try counted, and the next round takes it again (#2543)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(79);
+  let lances = 0;
+  let tuer: () => void = () => {};
+  const lancer: Lancer = ({ flux }) => {
+    lances += 1;
+    writeFileSync(flux, "");
+    return { fin: new Promise((resoudre) => (tuer = () => resoudre({ code: null, signal: "SIGKILL", turns: 4, tokens: 1, durationMs: 1, arret: null, erreur: null }))) };
+  };
+  const options = {
+    nom: "box", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux),
+    depot: { connait: () => false, preparer: async (run: string) => ({ worktree: join(repertoire, run), branche: "cook/79-github" }), reprendre: async (run: string) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
+    prise: priseDeLaStation, claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" as const }, flux: repertoire, lancer, avertir: () => {},
+  };
+  const station = stationDuDepot(options);
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await jusqua(() => lances === 1);
+  // La station s'arrête, puis le runtime tue son cook.
+  station.arreter?.();
+  tuer();
+  await station.calme();
+
+  const corps = (faux.commentaires.get(79) ?? []).map((c) => c.body).join("\n");
+  assert.match(corps, /stopped with its station[\s\S]*signal SIGKILL/);
+  assert.doesNotMatch(corps, /brigade:attente/);
+  assert.doesNotMatch(corps, /brigade:echec/);
+  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), false);
+
+  // La station relancée le reprend à son premier tour, sans attendre.
+  const relancee = stationDuDepot(options);
+  assert.ok(!("refus" in relancee));
+  if ("refus" in relancee) return;
+  await relancee.tour();
+  await jusqua(() => lances === 2);
+  tuer();
+  await relancee.calme();
+});
+
+test("the loop tells its station it stops before the runtime kills the cooks (#2543)", async (t) => {
+  const appels: string[] = [];
+  const station: StationGitHub = {
+    tour: async () => void appels.push("tour"),
+    arreter: () => void appels.push("arreter"),
+    quitter: async () => void appels.push("quitter"),
+    enCuisine: () => [],
+    calme: async () => {},
+    relu: async () => {},
+  };
+  const ouvert = brancherBrigadeGithub({ station: () => station, intervalleMs: 120_000, avertir: () => {} });
+  const arrete = ouvert.arreter();
+  // Rien n'est attendu : le runtime tue ses cooks juste après cet appel, dans le même tour de boucle.
+  assert.ok(appels.includes("arreter"));
+  await arrete;
+  assert.deepEqual(appels.slice(-2), ["arreter", "quitter"]);
+  t.after(() => ouvert.arreter());
+});
+
 test("a cook that adds nothing to a branch whose PR conflicts with main is not a failed cook: three of them do not take the ticket off the kitchen (#2454, #2061 of 2026-11-05)", async (t) => {
   for (let i = 0; i < 3; i += 1) {
     const faux = await repriseQui(t, false, true);
