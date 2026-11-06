@@ -1045,11 +1045,13 @@ ipcMain.handle("dossiersDeLaStation", async (_, nom: unknown): Promise<DossiersD
 // Les dossiers et la porte réseau de la station de cet ordinateur, changés depuis sa page (#2644) : lus et écrits dans un
 // fichier de cette machine (reglages-de-la-station.ts). Un téléphone n'a pas de station.
 const fichierDesReglagesDeLaStation = join(dirname(cheminConfiguration()), "station-reglages.json");
+// Le bac à sable est « off » dès qu'un projet cuisiné ici a reçu « continuer sans » (suivi publié par la principale).
+const sansBacASable = () => (projetsDesStations.vu()?.projets ?? []).some((projet) => projet.onboarding?.sansBacASable === true && projet.stations.some(({ principale, id }) => principale && id === projetsDesStations.vu()?.locale));
 ipcMain.handle("reglagesDeLaStation:lire", async () => {
   if (role.role !== "station") return { refus: "this device runs no station" };
   try {
     const { lieuxDuProjet, worktreesDeLaStation } = (await import(pathToFileURL(join(emplacements.runtime, "src", "station", "configuration.ts")).href)) as typeof import("../../runtime/src/station/configuration.ts");
-    return lireLesReglagesDeStation(fichierDesReglagesDeLaStation, { clone: dirname(lieuxDuProjet(racineDeLaStation, "x", process.env.HOME).clone), worktrees: worktreesDeLaStation(racineDeLaStation, process.env.HOME) });
+    return lireLesReglagesDeStation(fichierDesReglagesDeLaStation, { clone: dirname(lieuxDuProjet(racineDeLaStation, "x", process.env.HOME).clone), worktrees: worktreesDeLaStation(racineDeLaStation, process.env.HOME) }, sansBacASable());
   } catch (erreur) {
     return { refus: "its folders could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }

@@ -1,14 +1,16 @@
-// La page d'une station en ligne qui n'est pas celle de cet ordinateur (#2644) : sa section « Folders and sandbox » se
-// montre — les dossiers, le bac à sable, la porte réseau —, sans rien offrir de changer.
+// La page de la station de cet ordinateur (#2644) : sa section « Folders and sandbox » montre les dossiers, le bac à
+// sable et la porte réseau, avec de quoi changer un dossier et ouvrir un hôte.
 import type { Ecran } from "./commun.ts";
 import { pageDeStation } from "./station-pannes.ts";
 
-const base = pageDeStation("en-ligne", "la page d'une station en ligne, une autre que cet ordinateur : ses dossiers, son bac à sable et sa porte réseau, en lecture seule");
+const base = pageDeStation("en-ligne", "la page de la station de cet ordinateur : ses dossiers, son bac à sable et sa porte réseau, à changer");
 
 export const ecran: Ecran = {
   ...base,
   donnees: () => {
     const donnees = base.donnees();
+    (donnees.reponses.demarrage as { projetsDesStations: { locale: string | null } }).projetsDesStations.locale = "box";
+    donnees.reponses.ecrireReglagesDeLaStation = { fait: "saved on this machine" };
     donnees.reponses.lireReglagesDeLaStation = {
       clones: "/Users/chef/.brigade/station/clones",
       worktrees: "/Users/chef/.brigade/station/worktrees",

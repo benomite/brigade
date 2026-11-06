@@ -30,6 +30,9 @@ export const BAC = {
 export const PORTE = "the network hosts a cook may reach — everything else is refused";
 export const INDISPONIBLE = "folders and sandbox unavailable";
 export const SANS_LECTURE = "this app does not read them";
+export const AUTRE_STATION = "not available for this station";
+export const SUR_SON_ORDINATEUR = "its folders and hosts are read and changed on its own computer";
+export const PAS_ENCORE = " — the station does not apply this setting yet";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} texte @param {string} [classe] */
 function avec(doc, balise, texte, classe) {
@@ -61,25 +64,26 @@ function rangee(doc, { nom, cle, niveau, valeur, controle = [], dessous = "" }) 
 export function poserSection(doc, contexte) {
   const racine = doc.createElement("div");
   racine.className = "dossiers-et-bac-a-sable";
-  const port = contexte.reglages;
-  let refus = "";
+  const port = contexte.lectureSeule ? undefined : contexte.reglages;
+  /** @type {Record<string, string>} */
+  let refus = {};
 
   const lire = async () => {
-    const lus = port === undefined ? { refus: INDISPONIBLE, detail: SANS_LECTURE } : await port.lire().catch((/** @type {unknown} */ e) => ({ refus: INDISPONIBLE, detail: e instanceof Error ? e.message : String(e) }));
+    const lus = contexte.lectureSeule ? { refus: AUTRE_STATION, detail: SUR_SON_ORDINATEUR } : port === undefined ? { refus: INDISPONIBLE, detail: SANS_LECTURE } : await port.lire().catch((/** @type {unknown} */ e) => ({ refus: INDISPONIBLE, detail: e instanceof Error ? e.message : String(e) }));
     if ("refus" in lus) return racine.replaceChildren(lectureIndisponible(doc, lus.refus, lus.detail ?? ""));
     racine.replaceChildren(...lignes(lus));
   };
 
-  /** @param {{ clones?: string, worktrees?: string, hotes?: string[] }} changement */
-  const ecrire = async (changement) => {
+  /** @param {"clones" | "worktrees" | "porte"} cle @param {{ clones?: string, worktrees?: string, hotes?: string[] }} changement */
+  const ecrire = async (cle, changement) => {
     const rendu = await (port?.ecrire?.(changement) ?? Promise.resolve({ refus: "nothing was changed", detail: "this app cannot write them" }));
-    refus = "refus" in rendu ? rendu.refus : "";
+    refus = "refus" in rendu ? { [cle]: rendu.detail === undefined ? rendu.refus : `${rendu.refus} — ${rendu.detail}` } : {};
     await lire();
   };
 
   /** @param {Reglages} lus */
   function lignes(lus) {
-    const modifiable = !contexte.lectureSeule && port?.ecrire !== undefined;
+    const modifiable = port?.ecrire !== undefined;
     const niveau = () => niveauDe(doc, "dossier");
     /** @param {"clones" | "worktrees"} cle @param {string} nom @param {string} aide */
     const dossier = (cle, nom, aide) => {
@@ -89,18 +93,19 @@ export function poserSection(doc, contexte) {
         champ.type = "text";
         champ.value = lus[cle];
         champ.ariaLabel = `Change the ${nom}`;
-        controle.push(champ, boutonAction(doc, "save", () => void ecrire({ [cle]: String(champ.value).trim() })));
+        controle.push(champ, boutonAction(doc, "save", () => void ecrire(cle, { [cle]: String(champ.value).trim() })));
       }
-      return rangee(doc, { nom, cle: "dossier", niveau: niveau(), valeur: [avec(doc, "span", lus[cle], "mono"), survol(doc, aide)], controle, dessous: refus });
+      return rangee(doc, { nom, cle: "dossier", niveau: niveau(), valeur: [avec(doc, "span", lus[cle], "mono"), survol(doc, aide + PAS_ENCORE)], controle, dessous: refus[cle] ?? "" });
     };
     const bac = BAC[lus.bac];
     const ajoutes = lus.hotes.filter(({ ajoute }) => ajoute);
     const porte = [];
     for (const { hote, origine, ajoute } of lus.hotes) {
-      const un = avec(doc, "span", hote, "mono hote");
+      const un = avec(doc, "span", hote, "mono");
+      un.className = "mono hote";
       un.dataset.hote = hote;
       un.append(survol(doc, origine));
-      if (modifiable && ajoute) un.append(boutonAction(doc, "remove", () => void ecrire({ hotes: ajoutes.map((h) => h.hote).filter((h) => h !== hote) })));
+      if (modifiable && ajoute) un.append(boutonAction(doc, "remove", () => void ecrire("porte", { hotes: ajoutes.map((h) => h.hote).filter((h) => h !== hote) })));
       porte.push(un);
     }
     const controle = [];
@@ -109,13 +114,13 @@ export function poserSection(doc, contexte) {
       champ.type = "text";
       champ.placeholder = "registry.npmjs.org";
       champ.ariaLabel = "Host to open";
-      controle.push(champ, boutonAction(doc, "open", () => void ecrire({ hotes: [...ajoutes.map((h) => h.hote), String(champ.value).trim()] })));
+      controle.push(champ, boutonAction(doc, "open", () => void ecrire("porte", { hotes: [...ajoutes.map((h) => h.hote), String(champ.value).trim()] })));
     }
     return [
       dossier("clones", "clones folder", CLONES),
       dossier("worktrees", "worktrees folder", WORKTREES),
       rangee(doc, { nom: "sandbox", cle: "bac", niveau: niveauDe(doc, "ordinaires"), valeur: [avec(doc, "span", bac.dit), survol(doc, bac.survol)] }),
-      rangee(doc, { nom: "network door", cle: "porte", niveau: niveauDe(doc, "porte"), valeur: [...porte, survol(doc, PORTE)], controle }),
+      rangee(doc, { nom: "network door", cle: "porte", niveau: niveauDe(doc, "porte"), valeur: [...porte, survol(doc, PORTE + PAS_ENCORE)], controle, dessous: refus.porte ?? "" }),
     ];
   }
 

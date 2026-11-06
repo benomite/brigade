@@ -1,7 +1,7 @@
 // La section « Folders and sandbox » de la page d'une station (#2644) : elle montre les dossiers, le bac à sable et la
 // porte réseau, change un dossier ou la porte sur cet ordinateur et le relit, et ne change rien sur une autre station.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -20,10 +20,10 @@ const ligne = (page: Faux, cle: string) => descendants(page).find((n) => n.datas
 const texte = (noeud: Faux): string => descendants(noeud).map((n) => n.textContent).join("|");
 
 // Un port en mémoire, soutenu par le vrai magasin de l'app dans un dossier d'essai.
-function port() {
+function port(sansBac = false) {
   const dossier = mkdtempSync(join(tmpdir(), "reglages-"));
   const fichier = join(dossier, "station-reglages.json");
-  return { fichier, dossier, lire: async () => lireReglagesDeLaStation(fichier, CALCULES), ecrire: async (c: any) => ecrireReglagesDeLaStation(fichier, c) };
+  return { fichier, dossier, lire: async () => lireReglagesDeLaStation(fichier, CALCULES, sansBac), ecrire: async (c: any) => ecrireReglagesDeLaStation(fichier, c) };
 }
 async function section(locale: string, reglages: ReturnType<typeof port>) {
   const page = (await poserPageDeStation(doc, { station: STATION, locale, reglages })) as Faux;
@@ -71,16 +71,54 @@ describe("la section dossiers et bac à sable", () => {
     descendants(ligne(page, "dossier")).find((n) => n.balise === "button" && n.textContent === "save")?.click();
     await repos();
     assert.match(texte(page), /must be an absolute path/);
-    assert.equal((await reglages.lire()).clones, "/st/clones");
+    assert.equal((await reglages.lire() as { clones: string }).clones, "/st/clones");
     rmSync(reglages.dossier, { recursive: true });
   });
 
-  test("sur une autre station, la section montre sans offrir de rien changer", async () => {
+  test("le bac à sable s'affiche « off » quand le chef a choisi de continuer sans", async () => {
+    const reglages = port(true);
+    const page = await section("gist-mac", reglages);
+    assert.match(texte(ligne(page, "bac")), /off/);
+    rmSync(reglages.dossier, { recursive: true });
+  });
+
+  test("un hôte ouvert se retire, un hôte invalide est refusé sous la porte", async () => {
+    const reglages = port();
+    const page = await section("gist-mac", reglages);
+    const porte = () => descendants(ligne(page, "porte"));
+    (porte().find((n) => n.balise === "input") as Faux).value = "registry.npmjs.org";
+    porte().find((n) => n.balise === "button" && n.textContent === "open")?.click();
+    await repos();
+    assert.match(texte(page), /registry\.npmjs\.org/);
+    (porte().find((n) => n.balise === "input") as Faux).value = "not a host";
+    porte().find((n) => n.balise === "button" && n.textContent === "open")?.click();
+    await repos();
+    assert.match(texte(ligne(page, "porte")), /not a host/);
+    assert.doesNotMatch(texte(ligne(page, "dossier")), /not a host/, "le refus reste sous son réglage");
+    porte().find((n) => n.balise === "button" && n.textContent === "remove")?.click();
+    await repos();
+    assert.doesNotMatch(texte(page), /registry\.npmjs\.org/);
+    rmSync(reglages.dossier, { recursive: true });
+  });
+
+  test("un fichier corrompu se dit et n'est pas écrasé ; un chemin Windows absolu passe", () => {
+    const dossier = mkdtempSync(join(tmpdir(), "reglages-"));
+    const fichier = join(dossier, "station-reglages.json");
+    writeFileSync(fichier, "{ pas du json");
+    assert.ok("refus" in lireReglagesDeLaStation(fichier, CALCULES));
+    assert.ok("refus" in ecrireReglagesDeLaStation(fichier, { clones: "/a" }));
+    assert.equal(readFileSync(fichier, "utf8"), "{ pas du json");
+    rmSync(fichier);
+    assert.deepEqual(ecrireReglagesDeLaStation(fichier, { clones: "C:\\brigade\\clones" }), { fait: "saved on this machine" });
+    rmSync(dossier, { recursive: true });
+  });
+
+  test("sur une autre station, la section ne montre rien de cet ordinateur et n'offre rien à changer", async () => {
     const reglages = port();
     const page = await section("autre-station", reglages);
-    assert.match(texte(page), /\/st\/clones/);
-    assert.match(texte(page), /github\.com/);
-    assert.equal(descendants(page).filter((n) => n.balise === "input" || n.balise === "button" && n.textContent !== "?").length, 0);
+    assert.match(texte(page), /not available for this station/);
+    assert.doesNotMatch(texte(page), /\/st\/clones|github\.com/);
+    assert.equal(descendants(page).filter((n) => n.balise === "input" || (n.balise === "button" && n.textContent !== "?")).length, 0);
     rmSync(reglages.dossier, { recursive: true });
   });
 });

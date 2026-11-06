@@ -6390,7 +6390,7 @@ function poserLesSectionsDeStation(station) {
   const posees = JSON.stringify([station.id, station.nom, locale]);
   if (posees === sectionsDeStationPosees) return;
   sectionsDeStationPosees = posees;
-  void poserLaCoqueDeStation(document, { station, locale, reglages: brigade.lireReglagesDeLaStation && { lire: () => brigade.lireReglagesDeLaStation?.(), ecrire: (/** @type {any} */ c) => brigade.ecrireReglagesDeLaStation?.(c) } }).then((page) => {
+  void poserLaCoqueDeStation(document, { station, locale, reglages: brigade.lireReglagesDeLaStation === undefined ? undefined : { lire: async () => (await brigade.lireReglagesDeLaStation?.()) ?? { refus: "folders and sandbox unavailable" }, ecrire: async (/** @type {any} */ c) => (await brigade.ecrireReglagesDeLaStation?.(c)) ?? { refus: "nothing was changed" } } }).then((page) => {
     if (sectionsDeStationPosees === posees) sectionsDeStation.replaceChildren(page);
   });
 }

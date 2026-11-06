@@ -23,8 +23,9 @@ import { niveauReglage } from "./NiveauReglage.js";
 /**
  * Ce que chaque section reçoit : la station, si elle est celle de cet ordinateur, si elle se montre sans se régler, et
  * la marque du niveau d'un réglage, par sa clé de niveaux.js.
- * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: any }} Contexte
+ * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: Port }} Contexte
  */
+/** @typedef {import("./sections/dossiers-et-bac-a-sable.js").Port} Port */
 /** @typedef {{ poserSection(doc: Fabrique, contexte: Contexte): any }} Section */
 /** @typedef {(fichier: string) => Promise<Partial<Section>> | undefined} Charger */
 
@@ -54,7 +55,7 @@ export function estCetOrdinateur(station, locale) {
 const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(`./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
-/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: any }} ouverte */
+/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port }} ouverte */
 export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages }) {
   const ici = estCetOrdinateur(station, locale);
   /** @type {Contexte} */
