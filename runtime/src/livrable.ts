@@ -89,7 +89,15 @@ export const direDefaut = (defaut: Defaut | null): string =>
 // lui répond, et ce qui juge son travail — relecture, CI, verdict de la pass,
 // retour du chef — vient après sa livraison : « j'attends la relecture » a coûté
 // 450 627 tokens pour aucun commit (#413).
+//
+// Et rien de ce qu'il a lancé en arrière-plan ne tourne encore quand il finit :
+// tant qu'une tâche tourne, `claude -p` ne rend pas la main, et la station
+// l'attend. Sur les tickets de #2541, des cooks ont fini leur compte-rendu sur
+// un test laissé en arrière-plan, puis attendu 7 à 8 min que l'outil le tue,
+// comptées à la cuisson ; et leur réponse à la notification de sa fin est
+// devenue leur dernier message, à la place du livrable.
 export const CONSIGNE_DE_FIN_DE_TOUR = [
   "Personne ne te répondra, et rien n'arrivera pendant ton tour : ni la relecture, ni la CI, ni le verdict de la pass, ni un retour du chef. Tout cela vient après ta livraison, jamais avant : « j'attends la relecture » n'est jamais une raison de t'arrêter.",
   "S'il te manque une décision, ne la devine pas : dis laquelle dans ton compte-rendu. Mais commite d'abord ce que tu as dans les mains — complet ou partiel, mais écrit —, quelle que soit la raison de ton arrêt : décision manquante, doute, attente. Ta fin de tour n'est pas une conversation, c'est une livraison : ce que tu as au moment de t'arrêter est dans un commit.",
+  "Avant ce dernier message, plus rien de ce que tu as lancé en arrière-plan ne tourne — commande, Monitor, sous-agent : attends sa fin, ou arrête-le (TaskStop). Tant qu'une tâche tourne, `claude` ne rend pas la main et la station l'attend, ce temps compté à ton ticket ; puis ta réponse à sa fin devient ton dernier message, à la place de ton livrable.",
 ].join(" ");
