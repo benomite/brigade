@@ -29,8 +29,8 @@ const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- br
 
 // Le projet : #1 en attente, #2 pris par box/claude, #3 en pass (PR #40) cuisiné par mac/claude, #4 en WAITING, #5 en pass
 // sans PR — GitHub ne dit d'elle aucun des quatre —, et #6, sans `fire`, avant le rail. Sa base est verte, ou rouge.
-type Monde = { base?: string; issues?: () => unknown[]; commentaires?: Record<number, unknown[]>; appels?: string[] };
-function github({ base = "success", issues, commentaires = {}, appels = [] }: Monde = {}): AppelGitHub {
+type Monde = { fermees?: unknown[]; base?: string; issues?: () => unknown[]; commentaires?: Record<number, unknown[]>; appels?: string[] };
+function github({ fermees, base = "success", issues, commentaires = {}, appels = [] }: Monde = {}): AppelGitHub {
   return async (chemin) => {
     appels.push(chemin);
     if (chemin.includes("/issues?") && chemin.includes("labels=fire")) {
@@ -38,6 +38,7 @@ function github({ base = "success", issues, commentaires = {}, appels = [] }: Mo
     }
     // Toutes les issues ouvertes : ce qui est avant le rail (tableau/lecture.ts).
     if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "taken"]), issue(6, [])]);
+    if (chemin.includes("/pulls?state=closed")) return ok(fermees ?? []);
     if (chemin.includes("/pulls?")) return ok([{ number: 40, state: "open", html_url: `https://github.com/${DEPOT}/pull/40`, created_at: "2026-11-04T02:30:00Z", head: { ref: "cook/3-github" }, body: "" }]);
     if (chemin === `/repos/${DEPOT}`) return ok({ default_branch: "main" });
     if (chemin.includes("/commits/main/check-runs")) return ok({ check_runs: [{ conclusion: base }] });
@@ -87,7 +88,7 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
     assert.match(status, /^cooks {6}2 running$/m);
   });
 
-  test("ce que la lecture porte d'autre reste : ses autres rubriques, ses livrés et TODO comptés ; le rail et les cooks sont refaits", async () => {
+  test("ce que la lecture porte d'autre reste : ses autres rubriques, son TODO compté, ses livrés lus des PR mergées ; le rail et les cooks sont refaits", async () => {
     const avant: TableauLu = {
       lu: true,
       depot: DEPOT,
@@ -106,7 +107,7 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
       { titre: "rail", lignes: ["1 taken · 1 in pass · 1 WAITING · 2 queued"] },
       { titre: "cooks", lignes: ["2 running"] },
     ]);
-    assert.deepEqual(lu.faits.compteurs, { rail: 5, auTravail: 1, aLaPass: 1, attend: 2, livres24h: 4 });
+    assert.deepEqual(lu.faits.compteurs, { rail: 5, auTravail: 1, aLaPass: 1, attend: 2, livres24h: 0 });
   });
 
   test("base rouge : le ticket en pass est « base red »", async () => {
@@ -336,5 +337,30 @@ describe("ce qui attend le chef : la lecture du second", () => {
     const lu = await lire(refuse);
     assert.ok(!lu.lu);
     assert.match(lu.raison, /^What awaits the chef in acme\/kitchen was not read from GitHub: GitHub answered HTTP 403/);
+  });
+});
+
+describe("la colonne Served : les issues fermées par une PR mergée en 24 h", () => {
+  const fermee = (n: number, mergeLe: string | null, station = "box/claude") => ({
+    number: 1000 + n, title: `#${n} — Ticket ${n}`, html_url: `https://github.com/${DEPOT}/pull/${1000 + n}`, created_at: "2026-11-05T10:00:00Z",
+    updated_at: mergeLe ?? "2026-11-05T12:00:00Z", merged_at: mergeLe, head: { ref: `cook/${n}-github` }, body: `Closes #${n}\n\nCooked by station \`${station}\`.`,
+  });
+
+  test("brigade le 2026-11-06 : une trentaine de tickets servis, tous dans Served, le plus récent d'abord", async () => {
+    const trente = Array.from({ length: 30 }, (_, i) => fermee(100 + i, new Date(Date.parse("2026-11-04T03:00:00Z") - (i + 1) * 40 * 60_000).toISOString()));
+    const vieille = fermee(99, "2026-11-02T00:00:00Z");
+    const sansMerge = fermee(98, null);
+    const vu = dessine(await lire(github({ fermees: [...trente, sansMerge, vieille] })));
+    const servis = colonnes(vu)["Served"] ?? [];
+    assert.equal(servis.length, 30);
+    assert.equal(servis[0]?.split(" ")[0], "#100");
+    assert.ok(!servis.some((c) => c.startsWith("#98 ") || c.startsWith("#99 ")), "neither unmerged nor older than 24 h");
+    assert.equal(vu.compteurs.find(({ libelle }) => libelle === "served 24 h")?.nombre, 30);
+  });
+
+  test("une seule lecture des PR fermées par rafraîchissement", async () => {
+    const appels: string[] = [];
+    await lire(github({ fermees: [fermee(7, "2026-11-04T01:00:00Z")], appels }));
+    assert.equal(appels.filter((c) => c.includes("/pulls?state=closed")).length, 1);
   });
 });
