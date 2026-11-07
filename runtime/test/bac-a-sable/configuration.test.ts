@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, s
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, posix } from "node:path";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { estUneVerification, viseUneVerification } from "../../src/bac-a-sable/verification.ts";
@@ -27,7 +27,7 @@ test("l'écriture n'est ouverte que dans le worktree et les caches du projet —
   assert.deepEqual(sandbox.filesystem.allowWrite, [WORKTREE, ...CACHES]);
   assert.deepEqual(
     permissions.allow.filter((regle) => regle.startsWith("Edit(")),
-    [WORKTREE, ...CACHES].map((lieu) => `Edit(/${lieu}/**)`),
+    [...[WORKTREE, ...CACHES].map((lieu) => `Edit(/${lieu}/**)`), `Edit(/${WORKTREE}/.claude/brigade/**)`],
   );
   // Rien d'autre n'ouvre l'écriture : ni répertoire ajouté, ni commande hors
   // du bac à sable, ni repli à nu quand une commande y échoue ou qu'il manque.
@@ -40,6 +40,31 @@ test("l'écriture n'est ouverte que dans le worktree et les caches du projet —
   // cook, et `bypassPermissions` est désactivé.
   assert.equal(modeDePermission, "dontAsk");
   assert.equal(permissions.disableBypassPermissionsMode, "disable");
+});
+
+test("Write et Edit sont ouverts sur `.claude/brigade/` du worktree du cook, nulle part ailleurs hors de ce qu'ils couvraient déjà", () => {
+  const { allow, deny } = configurer(projet()).reglages.permissions;
+  // Une règle `Outil(//chemin/**)` : ce que `claude` compare à un chemin
+  // normalisé ; `..` est résolu avant la comparaison.
+  const ouvre = (outil: string, lieu: string) => {
+    const net = posix.normalize(lieu);
+    return allow.some((regle) => {
+      const m = /^(\w+)\(\/(.*)\/\*\*\)$/.exec(regle);
+      return m !== null && m[1] === outil && net.startsWith(`${m[2]}/`) && net.includes("/.claude/brigade/") === regle.includes("/.claude/brigade/");
+    });
+  };
+  const brigade = `${WORKTREE}/.claude/brigade`;
+  for (const outil of ["Write", "Edit"]) {
+    assert.equal(allow.includes(`${outil}(/${brigade}/**)`), true);
+    assert.equal(ouvre(outil, `${brigade}/gates.sh`), true, "fichier existant");
+    assert.equal(ouvre(outil, `${brigade}/nouveau/reseau.txt`), true, "nouveau fichier");
+    assert.equal(ouvre(outil, "/Users/chef/brigade-wt/autre/.claude/brigade/gates.sh"), false, "worktree voisin");
+    assert.equal(ouvre(outil, `${brigade}/../../../autre/x`), false, "échappée par ../");
+    assert.equal(ouvre(outil, "/Users/chef/.zshrc"), false);
+  }
+  // Seul le worktree du cook est nommé, et Write n'ouvre rien d'autre.
+  assert.deepEqual(allow.filter((regle) => regle.startsWith("Write(")), [`Write(/${brigade}/**)`]);
+  assert.equal(deny.some((regle) => regle.includes(".claude/brigade")), false);
 });
 
 test("un autre worktree, d'autres caches : la configuration n'ouvre que ceux-là, chemins nettoyés et sans doublon", () => {
@@ -139,7 +164,7 @@ test("avec une liste réseau vide, aucun hôte n'est joignable : ni par le bac �
   assert.equal(reglages.sandbox.network.strictAllowlist, true);
   assert.deepEqual(
     reglages.permissions.allow.filter((regle) => !regle.startsWith("Edit(")),
-    [],
+    [`Write(/${WORKTREE}/.claude/brigade/**)`],
   );
 });
 
