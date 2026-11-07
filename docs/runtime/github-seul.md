@@ -94,6 +94,14 @@ base, the stale-branch pruning).
   ([manager](manager.md)).
 - **The chef's TODO** is facts on GitHub only: an issue labelled `chef-todo` with its marked comment
   (`github-seul/carte-todo/`), a PR awaiting the chef. The app reads them from GitHub; no runtime writes a board.
+- **The chef is mentioned on each TODO card** (#2746). Every entry of the `awaiting` block of `status` that carries a
+  ticket gets one comment on its issue that @-mentions the chef's login (`chef` in `.claude/brigade/projet.json`,
+  [settings](../reglages.md)) and says the card's question on one line, so GitHub Mobile notifies the chef. The comment
+  carries `<!-- brigade:chef-mention card=<key> -->`, keyed on the card's kind and question: the same card seen again —
+  next tick, after a restart, by another station — finds it and writes nothing; a new question is a new mention. Kitchen
+  traffic (claims, send-backs, verdicts, merges) never mentions the chef. Without `chef`, nothing is mentioned and the
+  station says so once (`runtime/src/mention-du-chef/`). Under a single GitHub identity that is the chef's own, GitHub
+  does not notify the chef of their own comments: the per-role identities post as an app.
 
 ## What is gone (#2061)
 

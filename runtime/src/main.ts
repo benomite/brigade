@@ -27,6 +27,7 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
+import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { brancherRetenue } from "./retenue/brancher.ts";
@@ -227,6 +228,8 @@ try {
   // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
   brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
   runtime = brancherRepriseParGitHub(alertee, { github: githubs.rail });
+  // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
+  brancherMentionDuChef(runtime, { github: githubs.station, chef: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef ?? null });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
