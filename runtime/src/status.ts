@@ -28,7 +28,6 @@ import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
-import { qualitesDuJournal } from "./mesure-qualite.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
@@ -126,8 +125,12 @@ function ouvrirEnLecture(repertoireEtat: string): Journal {
 
 function photographier(journal: Journal, env: Record<string, string | undefined>, jours: number, ageMaxSauvegardeMs: number, maintenant: Date, rouge = false): { lignes: string[]; dernierSeq: number } {
   let etat;
+  // Le journal ne voit plus de merge (#2061) : la dérive est celle que relève la passe du closer (#2361), quand
+  // la station GitHub seul tourne ; le premier coup, celui des temps du clone (#2707).
+  const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
+  const temps = lesTempsDesTickets(env.BRIGADE_REPO_DIR);
   try {
-    etat = lireEtat(journal, maintenant);
+    etat = lireEtat(journal, maintenant, { temps: temps.enregistrements, derive: githubSeul?.etat === "accepted" ? (lireDeriveGithub(env.BRIGADE_STATE_DIR)?.franchis ?? []) : [] });
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
@@ -136,11 +139,6 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     }
     throw erreur;
   }
-  // Le journal ne voit plus de merge : la dérive est celle que relève la passe du closer (#2361), quand la station GitHub seul tourne.
-  const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
-  const derive = githubSeul?.etat === "accepted" ? lireDeriveGithub(env.BRIGADE_STATE_DIR) : null;
-  if (derive !== null) etat = { ...etat, derive: derive.franchis };
-  const temps = lesTempsDesTickets(env.BRIGADE_REPO_DIR);
   etat = { ...etat, tropLongs: lignesDeTicketsQuiPerdent(temps.enregistrements, temps.lostTimeMaxMin) };
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
@@ -158,9 +156,9 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
   // Les quatre chiffres (#2672) : valeur, seuil, rouge au-dessus.
-  lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR, qualitesDuJournal(journal.base)), rouge));
+  lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).
-  lignes.push(ligneDesReparations(temps.enregistrements, journal.base));
+  lignes.push(ligneDesReparations(temps.enregistrements));
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;
   const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;

@@ -532,34 +532,28 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
   assert.deepEqual(claude(`${JOUR_HORLOGE}T13:00:03.000Z`), []);
 });
 
-test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {
+test("les seuils franchis que la passe du closer a relevés sont signalés dans l'état, sans qu'on les demande ; un merge au journal n'y compte plus ; sinon le bloc n'existe pas", (t) => {
   const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
-  const gates = { outcome: "green" as const, code: 0, failures: [], tail: "", measures: { tests: 622, tests_s: 6.2 } };
-  noter({ type: "drift.configured", payload: { limits: { tests: 500, testsSeconds: 5, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null } } });
-  noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-1", gates, findings: [] } }, 17, "pass");
-
-  // Jugée, pas encore mergée : le projet ne porte pas cette livraison.
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
+  const bloc = (derive?: { measure: string; observed: number; limit: number }[]) => decrireEtat(lireEtat(journal, maintenant, derive === undefined ? {} : { derive }), maintenant).filter((ligne) => ligne.startsWith("drift"));
+  noter({ type: "drift.configured", payload: { limits: { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: 2, growthPercent: null } } });
+  // Le journal ne voit plus un merge depuis #2061 : ceux qu'il porterait ne font rien franchir (#2707).
+  for (const ticket of [17, 18, 19]) noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket, "pass");
   assert.deepEqual(bloc(), []);
 
-  noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/17", sha: "sha-17", by: "pass", reconciled: false } }, 17, "pass");
-
-  assert.deepEqual(bloc(), ["drift      tests 622 for a threshold of 500 · test suite 6.2 s for a threshold of 5 s — `brigade <projet> measures`"]);
+  assert.deepEqual(bloc([{ measure: "merges", observed: 3, limit: 2 }]), ["drift      3 merges since the last closing for a threshold of 2 — `brigade <projet> measures`"]);
 });
 
 test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ; le seuil et la fenêtre se règlent par les seuils de la dérive", (t) => {
   const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
+  // Les temps du clone, où la station écrit au merge ce que GitHub dit de chaque ticket (#2707).
+  const temps: { ticket: number; claimedAt: string; mergedAt: string; qualite: { renvois: string[]; cooksRates: number } }[] = [];
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
+  const bloc = () => decrireEtat(lireEtat(journal, maintenant, { temps }), maintenant).filter((ligne) => ligne.startsWith("drift"));
   const LIGNE = (part: string, seuil: number) => `drift      ${part} tickets delivered on the first try (threshold ${seuil}%) — \`brigade <projet> measures\``;
-  const livrer = (ticket: number, essais: number) => {
-    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T23:00:00.000Z` } }, ticket);
-    for (let i = 0; i < essais; i++) {
-      const run = `run-${ticket}-${i}`;
-      noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: "box/claude" } }, ticket);
-      noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }, ticket);
-    }
-    noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket, "pass");
-  };
+  // Un ticket mergé après `essais` livraisons : toutes renvoyées au cook sauf la dernière.
+  const livrer = (ticket: number, essais: number) =>
+    temps.push({ ticket, claimedAt: `${JOUR_HORLOGE}T09:00:00.000Z`, mergedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, qualite: { renvois: Array.from({ length: essais - 1 }, () => "red CI"), cooksRates: 0 } });
   const limites = (reglage: { firstTryPercent?: number | null; firstTryWindow?: number | null }) =>
     noter({ type: "drift.configured", payload: { limits: { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ...reglage } } });
 

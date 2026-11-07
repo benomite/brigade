@@ -336,8 +336,9 @@ The writing pass above read the log; it went with the old path (#2061). The clos
   station spent on each ticket — read from their streams (`<state>/github-seul/<n>-github.flux.jsonl`),
   counted as the supervisor counts, a launch whose result is an error being lost. Against the chef's
   thresholds, with the same gauges (`merges`, `tokens_ticket`, `tokens_perdus`), it writes what is
-  crossed to `<state>/derive-github.json`; while the GitHub-only station runs, `status` takes its `drift` line
-  from that file, not from the log, and a threshold newly crossed is said once. The gates' measures
+  crossed to `<state>/derive-github.json`, with the number of merges since the last closing issue; `status`
+  takes its `drift` line from that file, never from the log, and so do `closing` (its `log` line) and its
+  reading for the app (`drift`, `mergesSinceCleanup`) since #2707. A threshold newly crossed is said once. The gates' measures
   (tests, repo, context, gates duration) and the cooks of another station are not read there.
 - **The times of the tickets** (#2364): each time it opens a closing issue, the pass reads the times the station
   recorded at each merge (`.claude/brigade/temps-tickets.json`, `lesTempsDesTickets`) and hands those merged since

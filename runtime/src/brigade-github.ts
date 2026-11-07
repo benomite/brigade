@@ -29,7 +29,7 @@ import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
-import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
+import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -57,9 +57,12 @@ import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
+import { ticketsRecents } from "./temps-max/mesure.ts";
+import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
-import { chronometre, type DepotDuTicket } from "./temps-ticket/mesure.ts";
+import { chronometre, completerLesTemps, type DepotDuTicket } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -208,11 +211,6 @@ export type OptionsDeStation = {
   // Le répertoire d'état du projet, où se compte un `blocked-on-human` sans
   // question (#2556). Absent, le cas est refusé mais pas compté.
   repertoireEtat?: string;
-  // Ce que le journal sait de la qualité de chaque ticket mergé
-  // (`qualitesDuJournal`, #2678), lu à chaque tour avec le projet.json du
-  // clone : la porte de qualité (#2680) passe avant la correction du temps.
-  // Absent, pas de porte.
-  qualites?: () => ReadonlyMap<number, QualiteDuTicket>;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
@@ -286,7 +284,9 @@ const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
 
 // Combien de cooks sans livraison, pour un même ticket, avant qu'il sorte de la cuisine.
 export const ECHECS_MAX = 3;
-const MARQUE_D_ECHEC = "<!-- brigade:echec";
+
+// Au plus ce nombre de tickets récents reçoivent leur qualité à chaque merge (#2707).
+export const RATTRAPAGE_PAR_MERGE = 10;
 
 // Des gates qui n'ont pas pu se jouer sur une tête se retentent au plus tôt
 // après ce délai (#2456).
@@ -305,7 +305,6 @@ export const PASS_MAX = 5;
 // de renvoyer à un cook — la liste lue peut porter encore leur label.
 export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
-const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 // Posée sur un renvoi pour conflit avec la base : il ne compte pas dans le budget des renvois (#2726).
 const MARQUE_DE_CONFLIT = " conflit";
 
@@ -383,10 +382,44 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       })) ?? undefined;
     const temps = chrono.servir(issue, depot);
     if (temps === null) return;
+    // Sa qualité, lue sur l'issue, s'écrit avec son temps (#2707) : le journal
+    // ne la sait plus. Illisible, elle reste inconnue, et la station le dit.
+    const qualite = await Promise.all([github.corpsDuTicket(issue), github.commentaires(issue)])
+      .then(([corps, commentaires]) => qualiteDeLIssue({ corps, labels, commentaires }))
+      .catch((erreur) => {
+        avertir(`brigade : #${issue} sur ${nom} — its comments are unreadable, its quality is not recorded: ${message(erreur)}`);
+        return null;
+      });
     try {
-      servirLeTemps(options.clone, temps, labels);
+      servirLeTemps(options.clone, qualite === null ? temps : { ...temps, qualite }, labels);
     } catch (erreur) {
       avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
+    }
+    await rattraperLesQualites(options.clone);
+  };
+  // Les tickets récents mergés sans leur qualité — avant #2707, ou GitHub muet
+  // à leur merge — la reçoivent après un merge, quelques-uns à la fois : les
+  // chiffres de qualité ne restent pas vides jusqu'à ce que la fenêtre se
+  // renouvelle. Leurs labels ne se relisent pas ; une réparation de la base s'y
+  // reconnaît à la marque de commit rouge que la station seule écrit dans son corps.
+  const rattraperLesQualites = async (dossier: string) => {
+    const manquants = ticketsRecents(lesTempsDesTickets(dossier).enregistrements)
+      .filter(({ qualite }) => qualiteLue(qualite) === null)
+      .slice(-RATTRAPAGE_PAR_MERGE);
+    const ajouts = new Map<number, { qualite: QualiteDuTicket }>();
+    for (const { ticket } of manquants) {
+      try {
+        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(ticket), github.commentaires(ticket)]);
+        ajouts.set(ticket, { qualite: qualiteDeLIssue({ corps, labels: shaDeBaseRouge(corps) === null ? [] : [PRIO_REPARATION], commentaires }) });
+      } catch (erreur) {
+        if (erreur instanceof LimiteGitHubAtteinte) break;
+      }
+    }
+    if (ajouts.size === 0) return;
+    try {
+      completerLesTemps(dossier, ajouts);
+    } catch (erreur) {
+      avertir(`brigade : the quality of ${[...ajouts.keys()].map((n) => `#${n}`).join(", ")} could not be recorded on ${nom} — ${message(erreur)}`);
     }
   };
   const fermerLaReparation = fermeReparation({ github, base });
@@ -394,15 +427,30 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
   // Devant elle, et devant l'alerte de la cuisson, la porte de qualité (#2680),
-  // sur le journal et le projet.json du clone.
-  const { qualites } = options;
-  const corrigerLeTemps = clone === undefined ? null : correctionDuTemps({ github, lire: () => ({ ...lesTempsDesTickets(clone), ...(qualites === undefined ? {} : { qualites: qualites(), projet: projetDuClone(clone) }) }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  // sur la qualité que les temps du clone portent (#2707) et son projet.json.
+  const corrigerLeTemps =
+    clone === undefined
+      ? null
+      : correctionDuTemps({
+          github,
+          lire: () => {
+            const temps = lesTempsDesTickets(clone);
+            return { ...temps, qualites: qualitesDesTemps(temps.enregistrements), projet: projetDuClone(clone) };
+          },
+          ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
+        });
   // La médiane des rapports cuisson réelle / attendue au-dessus de
   // `cookingOverEstimateMax` ouvre son ticket de correction, un seul (#2676).
   // La porte de qualité la fait taire aussi : la qualité en défaut, c'est le
   // ticket de qualité, que la correction du temps ouvre, qui part (#2680).
   const alerteDeLaCuisson = clone === undefined ? null : alerteDuClone(clone, { github, avertir, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
-  const alerterLaCuisson = alerteDeLaCuisson === null || clone === undefined || qualites === undefined ? alerteDeLaCuisson : async () => (qualiteEnDefaut(mesurerQualite(lesTempsDesTickets(clone).enregistrements, qualites(), projetDuClone(clone))) ? null : alerteDeLaCuisson());
+  const alerterLaCuisson =
+    alerteDeLaCuisson === null || clone === undefined
+      ? alerteDeLaCuisson
+      : async () => {
+          const { enregistrements } = lesTempsDesTickets(clone);
+          return qualiteEnDefaut(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(clone))) ? null : alerteDeLaCuisson();
+        };
   // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
   // `in-pass`. GitHub ne ferme pas toujours l'issue par le `Closes #N` de la PR
   // (#2467) ; la fermeture passe d'abord, pour qu'un retrait réussi sur une
@@ -743,7 +791,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               continue;
             }
           }
-          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit", 1, "conflict", synchroniser);
+          await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.conflit}: merge the base into the branch, resolve the conflicts, run the gates, and commit`, 1, "conflict", synchroniser);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
@@ -794,7 +842,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             if (second === "sans-juge") return;
             if (second?.lance) bouge = true;
             if (second?.jugement.verdict === "request-changes") {
-              await renvoyer(ticket, pr.sha, `the second judge requested changes: ${second.jugement.motif}`, 1, "review");
+              await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.second}: ${second.jugement.motif}`, 1, "review");
               bouge = true;
               return;
             }
@@ -840,12 +888,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
-            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`, 1, "red CI");
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.ci} \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`, 1, "red CI");
           }
           // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
           if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) {
             const commentaires = await github.commentaires(pr.number);
-            await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(commentaires, rendu.commentaire)}`, renvoisDeLaTete(commentaires, pr.sha));
+            await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.relecture}: ${motifDuVerdict(commentaires, rendu.commentaire)}`, renvoisDeLaTete(commentaires, pr.sha));
           }
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
@@ -1254,8 +1302,6 @@ export type OptionsDuDepot = {
   clone?: string;
   // Le répertoire d'état du projet (#2556).
   repertoireEtat?: string;
-  // La qualité des tickets mergés, lue du journal (#2680).
-  qualites?: () => ReadonlyMap<number, QualiteDuTicket>;
   // Les gates d'un projet sans CI sur ses PR, que la station joue sur leur
   // tête (#2456) : leur plafond de durée, le fichier des secrets de la machine,
   // et si la station agit sous une identité par rôle — ses gates ne reçoivent
@@ -1605,7 +1651,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.qualites === undefined ? {} : { qualites: options.qualites }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

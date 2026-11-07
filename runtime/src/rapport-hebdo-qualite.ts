@@ -16,7 +16,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { seuilDuProjet, tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
-import { mesurerQualite, partDansLesSeuils, projetDuClone, qualitesDuJournal, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { mesurerQualite, partDansLesSeuils, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { qualitesDesTemps } from "./qualite-github.ts";
 import { lesTempsDesTickets, type TempsTicket } from "./temps-ticket/ligne-status.ts";
 import type { Runtime } from "./runtime.ts";
 
@@ -131,10 +132,11 @@ export function brancherRapportHebdo<R extends Runtime>(runtime: R, { clone, rep
   const passer = () => {
     try {
       const date = maintenant();
+      const { enregistrements } = lesTempsDesTickets(clone);
       rapportHebdomadaire({
         dossier: repertoireEtat,
-        temps: lesTempsDesTickets(clone).enregistrements,
-        qualites: qualitesDuJournal(runtime.journal.base),
+        temps: enregistrements,
+        qualites: qualitesDesTemps(enregistrements),
         projet: projetDuClone(clone),
         maintenant: date,
         envoyer: (text) => {

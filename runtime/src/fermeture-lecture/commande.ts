@@ -15,6 +15,7 @@ import { ConfigInvalide } from "../runtime.ts";
 import { observer } from "../closing/observer.ts";
 import { DepotIllisible, lireDepot } from "../closing/reading.ts";
 import { lireFermeture } from "./lecture.ts";
+import { lireDeriveGithub } from "../closer-github-passe/derive-github.ts";
 
 export const JSON_ = "--json";
 const USAGE = `usage: BRIGADE_STATE_DIR=<state directory> BRIGADE_REPO_DIR=<project clone> BRIGADE_BASE_BRANCH=<integration branch> npm --prefix runtime run closing -- ${JSON_}`;
@@ -43,7 +44,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
         if (erreur instanceof DepotIllisible) return { erreur: erreur.message };
         throw erreur;
       }
-    });
+    }, lireDeriveGithub(repertoireEtat));
     dire(JSON.stringify(lue));
   } catch (erreur) {
     if (journalPasRejoue(erreur)) echouer(1, "this log does not yet have the state of the rail and the measures: restart the runtime, which recomputes it");

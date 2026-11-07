@@ -245,8 +245,9 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
 
   const relever = (derive: NonNullable<OptionsCloserGithub["derive"]>, derniere: Passe | null, merges: MergeDuClone[]) => {
     try {
-      const franchis = releverDerive(merges, depuisLaPasse(derniere), derive.couts, derive.seuils());
-      derive.noter({ at: maintenant().toISOString(), franchis });
+      const depuis = depuisLaPasse(derniere);
+      const franchis = releverDerive(merges, depuis, derive.couts, derive.seuils());
+      derive.noter({ at: maintenant().toISOString(), franchis, merges: merges.filter(({ at }) => Date.parse(at) > depuis).length });
       for (const franchi of franchis) if (!signales.has(franchi.measure)) avertir(`brigade : drift — ${direJaugeEn(franchi)}`);
       signales = new Set(franchis.map(({ measure }) => measure));
     } catch (erreur) {

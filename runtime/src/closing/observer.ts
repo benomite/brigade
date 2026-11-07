@@ -8,8 +8,9 @@ import { geste } from "../geste.ts";
 import { Sortie } from "../appel.ts";
 import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
-import { direJaugeEn, franchis, SANS_SEUIL } from "../mesures.ts";
-import { mergedDeliveries, seuilsEnVigueur } from "../projections/measures.ts";
+import { direJaugeEn } from "../mesures.ts";
+import { seuilsEnVigueur } from "../projections/measures.ts";
+import { lireDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./dead-code.ts";
 import { direBilan } from "./report.ts";
@@ -136,11 +137,14 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     return nonLu(erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    const livraisons = mergedDeliveries(journal.base);
+    // Le journal ne voit plus un merge (#2061) : les merges et les seuils
+    // franchis sont ceux que la passe du closer a relevés sur le clone (#2707).
+    const relevee = lireDeriveGithub(repertoireEtat);
     const seuils = seuilsEnVigueur(journal.base);
-    const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
+    const passes = relevee?.franchis ?? [];
     const constat = seuils === null ? "no threshold declared" : passes.length === 0 ? "no threshold crossed" : `${pluriel(passes.length, "threshold")} crossed, details with \`${geste(`measures`)}\``;
-    return [ligne("log", `${pluriel(livraisons.length, "merge")} since the last closing (none in the log) — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(journal, arbre)];
+    const merges = relevee?.merges === undefined ? "merges not yet counted by a closing pass" : `${pluriel(relevee.merges, "merge")} since the last closing`;
+    return [ligne("log", `${merges} — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(journal, arbre)];
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("it does not yet have the measures record, restart the runtime to recompute it");
     throw erreur;

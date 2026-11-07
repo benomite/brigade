@@ -1,12 +1,10 @@
-// La dérive, branchée sur le runtime : les seuils du chef entrent au journal,
-// et une mesure qui en franchit un y est signalée — une fois, sans qu'on le
-// demande. Mécanique, pas jugement : rien n'est arrêté ni rangé.
+// La dérive, branchée sur le runtime : les seuils du chef entrent au journal.
+// Mécanique, pas jugement : rien n'est arrêté ni rangé.
 import type { Fait } from "./evenements.ts";
-import { geste } from "./geste.ts";
 import type { Seuils } from "./events/drift.ts";
-import { direJauge, franchis, SANS_SEUIL } from "./mesures.ts";
+import { SANS_SEUIL } from "./mesures.ts";
 import { lire } from "./plafonds.ts";
-import { mergedDeliveries, seuilsEnVigueur, signalements } from "./projections/measures.ts";
+import { seuilsEnVigueur } from "./projections/measures.ts";
 import type { Runtime } from "./runtime.ts";
 
 const AUTEUR = "runtime";
@@ -41,11 +39,13 @@ export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
   };
 }
 
-// Écrit les seuils au journal s'ils ont changé, puis regarde à chaque merge si
-// une mesure vient d'en franchir un. `seuils` : une fonction quand le chef
-// peut les changer sans redémarrer (`decisions.ts`) — relus à chaque réveil,
-// écrits au journal dès qu'ils changent, et toutes les mesures regardées de
-// nouveau à leur aune. `avertir` : par défaut, la sortie d'erreur du runtime.
+// Écrit les seuils au journal s'ils ont changé : `status` y lit le seuil du
+// premier coup (`seuilsEnVigueur`). `seuils` : une fonction quand le chef peut
+// les changer sans redémarrer (`decisions.ts`) — relus à chaque réveil, écrits
+// au journal dès qu'ils changent. Le franchissement d'un seuil ne se regarde
+// plus ici : le journal ne voit plus un merge depuis #2061, c'est la passe du
+// closer qui le relève sur le clone (`closer-github-passe/derive-github.ts`,
+// #2707). `avertir` : par défaut, la sortie d'erreur du runtime.
 export function brancherDerive(runtime: Runtime, seuils: Seuils | (() => Seuils), avertir: (message: string) => void = (message) => console.error(message)): void {
   const { journal, projet } = runtime;
   const { base } = journal;
@@ -53,44 +53,17 @@ export function brancherDerive(runtime: Runtime, seuils: Seuils | (() => Seuils)
   const relire = typeof seuils === "function" ? seuils : () => seuils;
 
   // Un projet qui n'a jamais déclaré de seuil n'a rien à écrire.
-  const declarer = (lus: Seuils) =>
-    base.transaction(() => {
-      if (JSON.stringify(seuilsEnVigueur(base) ?? SANS_SEUIL) !== JSON.stringify(lus)) noter({ type: "drift.configured", payload: { limits: lus } });
-    });
-  let enVigueur = relire();
-  declarer(enVigueur);
-
-  // Le dernier merge regardé : sans merge nouveau, aucune mesure n'a bougé.
-  let regarde: number | null = null;
-  const regarder = () => {
+  const declarer = () => {
     try {
-      // Des seuils changés regardent de nouveau ce qui est déjà mergé.
       const lus = relire();
-      if (JSON.stringify(lus) !== JSON.stringify(enVigueur)) {
-        declarer(lus);
-        enVigueur = lus;
-        regarde = null;
-      }
-      const dernier = base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM measured_merges")[0]?.seq ?? 0;
-      if (dernier === regarde) return;
       base.transaction(() => {
-        const courants = franchis(mergedDeliveries(base), enVigueur);
-        const signales = signalements(base);
-        for (const franchi of courants) {
-          if (signales.includes(franchi.measure)) continue;
-          noter({ type: "drift.crossed", payload: franchi });
-          avertir(`brigade : dérive du projet « ${projet} » — ${direJauge(franchi)} — voir : ${geste("measures")}`);
-        }
-        for (const measure of signales) {
-          if (!courants.some((franchi) => franchi.measure === measure)) noter({ type: "drift.cleared", payload: { measure } });
-        }
+        if (JSON.stringify(seuilsEnVigueur(base) ?? SANS_SEUIL) !== JSON.stringify(lus)) noter({ type: "drift.configured", payload: { limits: lus } });
       });
-      regarde = dernier;
     } catch (erreur) {
-      // Un relevé qui échoue n'arrête pas la cuisine : il sera repris au réveil suivant.
-      avertir(`brigade : dérive non relevée — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      // Des seuils qui ne s'écrivent pas n'arrêtent pas la cuisine : ils seront repris au réveil suivant.
+      avertir(`brigade : seuils de dérive non écrits — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
   };
-  regarder();
-  runtime.surReveil(regarder);
+  declarer();
+  runtime.surReveil(declarer);
 }

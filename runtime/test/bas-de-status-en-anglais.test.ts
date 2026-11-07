@@ -60,6 +60,9 @@ function lignesDepuis1844(lignes: readonly string[]): string[] {
 const depuis1844 = <F extends { dernierEvenement: { seq: number } | null }>(avant: F): F =>
   avant.dernierEvenement === null ? avant : { ...avant, dernierEvenement: { ...avant.dernierEvenement, seq: avant.dernierEvenement.seq - SERVICE_RETIRE } };
 
+// La dérive de l'exemple : le journal ne voit plus un merge (#2061), elle vient de la passe du closer (#2707).
+const DERIVE_DU_BAS = [{ measure: "tests", observed: 622, limit: 500 }];
+
 test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes", (t) => {
   const avant = lignesDepuis1834(readFileSync(join(ETAT_D_AVANT, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"));
   const apres = decrireEtat(lireEtat(etatDAvant(t).journal, LU_LE), LU_LE);
@@ -96,7 +99,7 @@ test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes �
 });
 
 test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucune ligne de toute la sortie ne porte un mot français du glossaire", (t) => {
-  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE);
+  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE);
   const bas = basDe(sortie);
 
   assert.deepEqual(bas.slice(0, bas.indexOf("latest events")), [
@@ -157,7 +160,7 @@ const chiffres = (ligne: string, francais = false) =>
 
 test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets, ports, durées et nombres qu'avant — et la même ligne y répond, une à une", (t) => {
   const avant = basDe(lignesDepuis1844(lignesDepuis1834(readFileSync(join(FIXTURE_940, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"))));
-  const apres = basDe(decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE));
+  const apres = basDe(decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE));
   assert.equal(apres.length, avant.length);
   const titres: Array<[string, string]> = [
     ["rail", "rail"], ["cooks", "cooks"], ["consommé", "consumed"],
@@ -211,7 +214,7 @@ test("une saturation et une dérive se disent en anglais, nombres compris", () =
 // vérifie ici, mot pour mot, comme la ligne `github`.
 test("les lignes `project` et `github` sont en anglais : le projet, ou `unknown — empty log` ; la limite de GitHub et l'heure de reprise", (t) => {
   const reprise = LU_LE.getTime() + 20 * 60_000;
-  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE, undefined, reprise);
+  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE, undefined, reprise);
   const hhmm = `${String(new Date(reprise).getHours()).padStart(2, "0")}:${String(new Date(reprise).getMinutes()).padStart(2, "0")}`;
   assert.deepEqual(sortie.slice(1, 3), ["project    brigade", `github     GitHub is rate-limiting calls, back around ${hhmm}`]);
   assert.ok(!sortie.some((ligne) => /^projet\b/.test(ligne)), "aucune ligne `projet`");
