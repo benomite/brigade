@@ -33,7 +33,7 @@ export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
 // Ce que la règle lit et écrit de GitHub — la forme de celui de la correction
 // du temps. `state` absent : l'issue compte comme ouverte.
 export type GitHubDeLaQualite = {
-  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state">>)[]>;
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt">>)[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
 };
@@ -143,8 +143,12 @@ export function porteDeQualite({ github, maintenant = () => new Date() }: { gith
     }
     // Les tickets de qualité mergés ont compté ces tickets : sans renvoi plus récent, rien à ouvrir.
     const comptes = new Set(toutes.flatMap((issue) => comptesDe(issue.body)));
+    // Un ticket ouvert avant la marque (#2813) a compté les fautifs déjà mergés à son
+    // ouverture : sans lui, #2805 servi rouvrait #2813 sur les mêmes 13 renvois.
+    const ouvertureSansMarque = Math.max(...toutes.filter((issue) => !MARQUE_COMPTES.test(issue.body)).map((issue) => Date.parse(issue.createdAt ?? "")).filter((instant) => !Number.isNaN(instant)));
+    const compte = (ticket: number) => comptes.has(ticket) || Date.parse(qualite.mergesDesFautifs.get(ticket) ?? "") <= ouvertureSansMarque;
     const derniere = toutes.at(-1);
-    if (derniere !== undefined && qualite.fautifs.every((ticket) => comptes.has(ticket))) return { issue: "deja-servie", numero: derniere.number, causes };
+    if (derniere !== undefined && qualite.fautifs.every(compte)) return { issue: "deja-servie", numero: derniere.number, causes };
     const creee = await github.creerIssue({ titre: ticket.titre, corps: ticket.corps, labels: LABELS_QUALITE });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();
