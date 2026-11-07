@@ -4,8 +4,9 @@
 //   status.json    où elle en est — la version qui tourne, la plus récente
 //                  publiée, le retard —, réécrit à chaque changement : c'est ce
 //                  que l'app lit ;
-//   restart.json   la demande de relance, posée une fois la station vidée de
-//                  ses cooks : la release à lancer, et son point d'entrée ;
+//   restart.json   la demande de relance, posée au premier moment sans cook en
+//                  vol, ou à l'échéance une fois leur travail sauvé : la
+//                  release à lancer, et son point d'entrée ;
 //   releases/      les releases téléchargées, une par version : celle visée,
 //                  et celle qui tourne si elle en vient.
 //
@@ -40,10 +41,10 @@ export type StatutDeLaStation = {
   held: string | null;
   // La release téléchargée et vérifiée, prête à lancer.
   ready: string | null;
-  // La station se vide pour sa relance : elle ne prend plus de ticket et
-  // attend ses cooks en vol.
+  // Une release prête attend le moment de la relance : la station prend encore
+  // ses tickets, et dit ses cooks en vol (#2815).
   draining: { since: string; cooks: number[] } | null;
-  // La demande de relance, une fois vidée.
+  // La demande de relance, une fois faite.
   restart: DemandeDeRelance | null;
 };
 

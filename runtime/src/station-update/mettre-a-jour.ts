@@ -8,12 +8,20 @@
 // démarrage, puis dix minutes après chaque regard ; les releases
 // `station-<version>` de `BRIGADE_MISE_A_JOUR_SOURCE`.
 //
-// Aucun cook n'est coupé. Une release prête, la station se vide : elle ne
-// prend plus de ticket (`retenirLaPrise`), et attend que ses cooks en vol
-// aient fini. Puis, vidée, elle demande sa relance, une fois. Un ticket qu'elle
-// tient encore sans cook est rendu sur GitHub par la station relancée, à son
-// premier tour — ce que fait déjà celle de la box après sa mise à jour
-// (`brigade-github.ts`) : rien n'est réinventé ici.
+// Aucun cook n'est coupé. Une release prête, la station prend encore ses
+// tickets, et demande sa relance, une fois, au premier moment sans cook en
+// vol — au plus tard `ECHEANCE_MS` après, le travail de ses cooks en vol sauvé
+// sur leur branche (`../mise-a-jour/attente/attente.ts`, celle de la box depuis
+// #2586). Elle ne se retient de prendre (`retenirLaPrise`) que de ce moment à
+// sa relance. Jusqu'ici, elle se vidait : plus aucune prise de la release prête
+// à la fin de son dernier cook. Une release publiée à chaque merge du runtime,
+// regardée toutes les dix minutes, la tenait vide presque sans cesse : sur
+// BOBL-tech/mirrorscreen, l'attente d'une prise faisait tout le temps perdu des
+// tickets — 96 min de 96, 71 min pour #969 (#2815).
+//
+// Un ticket qu'elle tient encore sans cook est rendu sur GitHub par la station
+// relancée, à son premier tour — ce que fait déjà celle de la box après sa mise
+// à jour (`brigade-github.ts`) : rien n'est réinventé ici.
 //
 // Un regard ou un téléchargement qui rate laisse la station telle quelle : ni
 // vidée, ni relancée. Le statut le dit, et le regard suivant réessaie.
@@ -21,6 +29,8 @@ import { mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Prise } from "../brigade-github.ts";
 import { versionDuRuntime } from "../mise-a-jour/en-service.ts";
+import { attendreLaRelance } from "../mise-a-jour/attente/attente.ts";
+import { INTERVALLE_MS as INTERVALLE_DES_LOTS_MS } from "../mise-a-jour/lot/fenetre.ts";
 import { comparerVersions } from "../mise-a-jour/versions.ts";
 import { extraireParTar, POINT_D_ENTREE, RUNTIME, verifierRelease, type Extraire } from "./archive.ts";
 import { archiveDe, sourceDesVersions, type Release, type SourceDesVersions } from "./releases.ts";
@@ -44,6 +54,9 @@ export const PREMIER_MS = 2 * 60_000;
 export const INTERVALLE_MS = 10 * 60_000;
 const ALEA_MS = 60_000;
 const PAS_DU_DRAIN_MS = 5_000;
+// Le plus long qu'une release prête attend un moment sans cook en vol : celui
+// de la box entre deux lots (`../mise-a-jour/lot/fenetre.ts`), une heure.
+export const ECHEANCE_MS = INTERVALLE_DES_LOTS_MS;
 
 // Une version de la station, telle que sa publication la donne
 // (`runtime/paquet/construire.ts`) : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`. Le
@@ -66,6 +79,11 @@ export type OptionsDeLaMiseAJour = {
   plateforme?: NodeJS.Platform;
   // Les tickets dont un cook de la station est en vol, tous projets confondus.
   enVol: () => number[];
+  // Sauve le travail de ses cooks en vol sur leur branche, et rend leurs
+  // tickets : ce qu'elle fait à l'échéance. Sans lui, rien n'est sauvé.
+  sauver?: () => Promise<number[]>;
+  // Le plus long qu'une release prête attend un moment sans cook en vol.
+  echeanceMs?: number;
   // Ce que fait la station de sa demande de relance. Nul : personne ne la
   // relance sur une autre release — elle regarde et dit son retard, sans rien
   // télécharger ni se vider.
@@ -73,7 +91,7 @@ export type OptionsDeLaMiseAJour = {
   extraire?: Extraire;
   dire: (ligne: string) => void;
   maintenant?: () => Date;
-  // Entre deux regards sur les cooks en vol, pendant le drain.
+  // Entre deux regards sur les cooks en vol, pendant l'attente de la relance.
   pasDuDrainMs?: number;
 };
 
@@ -83,9 +101,10 @@ export type MiseAJourDeLaStation = {
   // à faire.
   passer(): Promise<StatutDeLaStation>;
   statut(): StatutDeLaStation;
-  // Vrai dès que la station se vide pour sa relance : elle ne prend plus de ticket.
+  // Vrai du moment de sa relance — aucun cook en vol, ou leur sauvegarde à
+  // l'échéance — à la relance : elle ne prend plus de ticket.
   retenue(): boolean;
-  // Plus de regard ; un drain en cours n'attend plus.
+  // Plus de regard ; une attente en cours n'attend plus.
   arreter(): void;
 };
 
@@ -96,6 +115,8 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
   const extraire = options.extraire ?? extraireParTar;
   const maintenant = options.maintenant ?? (() => new Date());
   const pasDuDrainMs = options.pasDuDrainMs ?? PAS_DU_DRAIN_MS;
+  const echeanceMs = options.echeanceMs ?? ECHEANCE_MS;
+  const attente = attendreLaRelance({ enVol: options.enVol, sauver: options.sauver ?? (async () => []), maintenant: () => maintenant().getTime(), dire });
   const releases = join(dossierDe(racine), RELEASES);
 
   // Une demande d'avant ce démarrage n'a plus d'objet : la station relancée
@@ -157,9 +178,9 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
     return join(dossier, RUNTIME);
   };
 
-  // Attend que les cooks en vol aient fini ; rend faux si la mise à jour s'est
-  // arrêtée avant.
-  const vider = async (): Promise<boolean> => {
+  // Attend le moment de la relance : aucun cook en vol, ou l'échéance passée et
+  // leur travail sauvé ; rend faux si la mise à jour s'est arrêtée avant.
+  const attendre = async (echeance: number): Promise<boolean> => {
     for (;;) {
       if (arretee) return false;
       const cooks = [...options.enVol()].sort((a, b) => a - b);
@@ -167,7 +188,7 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
         statut.draining.cooks = cooks;
         ecrire();
       }
-      if (cooks.length === 0) return true;
+      if (attente.veiller(echeance)) return true;
       await pause(pasDuDrainMs);
     }
   };
@@ -210,9 +231,10 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
     statut.ready = visee;
     statut.draining = { since: maintenant().toISOString(), cooks: [...options.enVol()].sort((a, b) => a - b) };
     ecrire();
+    const echeance = maintenant().getTime() + echeanceMs;
     const cooks = statut.draining.cooks.length;
-    dire(`brigade: station update — release ${visee} is ready: the station takes no new ticket${cooks === 0 ? "" : ` and waits for its ${cooks} cook${cooks > 1 ? "s" : ""} in flight`}, then asks to be restarted on it`);
-    if (!(await vider())) return statut;
+    dire(`brigade: station update — release ${visee} is ready: ${cooks === 0 ? "the station asks to be restarted on it" : `the station keeps taking its tickets, and asks to be restarted on it as soon as no cook is in flight, at the latest at ${new Date(echeance).toISOString()}, their work saved on their branch`}`);
+    if (!(await attendre(echeance))) return statut;
     const demande: DemandeDeRelance = { version: visee, runtime, main: join(runtime, POINT_D_ENTREE), from: version, at: maintenant().toISOString() };
     try {
       options.relancer(demande);
@@ -220,6 +242,7 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
       // Personne ne la relancera : la station reprend ses tickets, et le
       // regard suivant redemande — la release est déjà là.
       statut.draining = null;
+      attente.veiller(null);
       echouer(`the restart request on release ${visee} cannot be made: ${message(erreur)}`);
       ecrire();
       return statut;
@@ -238,14 +261,14 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
       return enCours;
     },
     statut: () => structuredClone(statut),
-    retenue: () => statut.draining !== null,
+    retenue: () => attente.retenue(),
     arreter() {
       arretee = true;
     },
   };
 }
 
-// La prise d'une station GitHub seul, retenue pendant le drain : elle ne prend
+// La prise d'une station GitHub seul, retenue jusqu'à sa relance : elle ne prend
 // plus aucun ticket, sans rien écrire sur l'issue. Le lâcher reste le sien.
 export function retenirLaPrise(prise: Prise, retenue: () => boolean): Prise {
   return {
@@ -297,11 +320,11 @@ export function configDeLaMiseAJour(env: NodeJS.ProcessEnv): { versions: SourceD
 
 // La mise à jour d'une station, ouverte d'après son environnement et tenue à
 // sa cadence ; null quand elle n'a pas lieu ici. La station lui dit ses cooks
-// en vol (`enVol`), et retient ses prises tant que `retenue()` est vrai
-// (`retenirLaPrise`).
-export function ouvrirLaMiseAJour(options: { racine: string; env: NodeJS.ProcessEnv; enVol: () => number[]; dire: (ligne: string) => void }): { miseAJour: MiseAJourDeLaStation; arreter: () => void } | null {
+// en vol (`enVol`), lui donne de quoi les sauver (`sauver`), et retient ses
+// prises tant que `retenue()` est vrai (`retenirLaPrise`).
+export function ouvrirLaMiseAJour(options: { racine: string; env: NodeJS.ProcessEnv; enVol: () => number[]; sauver?: () => Promise<number[]>; dire: (ligne: string) => void }): { miseAJour: MiseAJourDeLaStation; arreter: () => void } | null {
   const config = configDeLaMiseAJour(options.env);
   if (config === null) return null;
-  const miseAJour = miseAJourDeLaStation({ racine: options.racine, versions: config.versions, enVol: options.enVol, relancer: config.relance ? demanderAuSuperviseur(options.racine, options.dire) : null, dire: options.dire });
+  const miseAJour = miseAJourDeLaStation({ racine: options.racine, versions: config.versions, enVol: options.enVol, ...(options.sauver === undefined ? {} : { sauver: options.sauver }), relancer: config.relance ? demanderAuSuperviseur(options.racine, options.dire) : null, dire: options.dire });
   return { miseAJour, arreter: tenirLaMiseAJour(miseAJour) };
 }
