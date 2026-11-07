@@ -191,7 +191,8 @@ export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): T
   }
   // Le résumé est celui de la première station qui en publie un ; le seuil, celui de la première.
   const resume = a.resume ?? b.resume;
-  return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }) };
+  const chiffres = a.chiffres ?? b.chiffres;
+  return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }), ...(chiffres === undefined ? {} : { chiffres }) };
 }
 
 export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {

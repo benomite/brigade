@@ -2,13 +2,13 @@
 // Le temps des tickets, en détail, sur Kitchen > Health (ticket 2490, épique 2484) : la durée d'un ticket — de sa prise
 // à son merge — et celle de sa pass — l'attente de la pass et sa revue —, en médiane, ticket par ticket, et dans le
 // temps. Les mesures sont celles que la principale publie sous `temps` du projet vu (`.claude/brigade/temps-tickets.json`
-// de son clone, en secondes entières). Le temps d'un ticket n'a pas de plafond, sa taille varie (ticket 2670) : seul son
-// temps perdu en a un, `lostTimeMaxMin` (2 minutes par défaut), sur la médiane des tickets récents. Les mêmes que la
+// de son clone, en secondes entières). Le temps d'un ticket n'a pas de plafond, sa taille varie (ticket 2670) : seuls
+// les quatre chiffres du projet (temps perdu, cuisson contre estimation, premier coup, réparations) ont un seuil. Les mêmes que la
 // carte des temps de Cooks (temps-ticket.js), dont ce bloc reprend les mots et les calculs. Ce module ne touche pas
 // `document` : il reçoit de quoi créer un élément (briques.js) et rend le bloc.
 
 import { survol } from "../../../briques.js";
-import { depasse, enMinutes, estDepasse, lireLeResume, SANS_MESURE, SANS_MESURE_DETAIL, surCombien } from "../../../temps-ticket/resume.js";
+import { aUnDepassement, enMinutes, lireLeResume, lireLesChiffres, pesentLePlus, SANS_MESURE, SANS_MESURE_DETAIL, surCombien } from "../../../temps-ticket/resume.js";
 import { dureeEnClair, mediane, total } from "../../../temps-ticket/temps-ticket.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
@@ -74,9 +74,9 @@ function chiffre(doc, valeur, legende, depasse = false) {
 }
 
 // Le bloc à poser sur Health : toujours un bloc, jamais un blanc ni un zéro. Trois états — `data-temps` : « normal »,
-// « depasse » (le temps perdu médian du résumé de la mesure passe son seuil) et « vide » (la mesure n'a rien publié :
-// « no measure yet », qui n'est pas un compte de zéro). En tête, les mêmes chiffres que la bande du rail, lus du
-// résumé sans les recalculer (resume.js), la perte la plus lourde et la phase la plus longue avec leur médiane ; dessous, la courbe et la liste
+// « depasse » (un des quatre chiffres de la station passe son seuil) et « vide » (la mesure n'a rien publié :
+// « no measure yet », qui n'est pas un compte de zéro). En tête, les mêmes chiffres que la bande du rail, lus de
+// la station sans les recalculer (resume.js), la perte la plus lourde et la phase la plus longue avec leur médiane ; dessous, la courbe et la liste
 // des tickets, quand les enregistrements sont là.
 /** @param {Fabrique} doc @param {TempsDuProjet} [temps] */
 export function poserBlocTempsTickets(doc, temps) {
@@ -89,25 +89,29 @@ export function poserBlocTempsTickets(doc, temps) {
   titre.append(survol(doc, AIDE));
   bloc.append(titre);
   const resume = lireLeResume(temps);
-  if (resume === null) {
+  const quatre = lireLesChiffres(temps);
+  if (resume === null && quatre === null) {
     bloc.dataset.temps = "vide";
     const vide = noeud(doc, "p", "temps-vide", SANS_MESURE);
     vide.append(survol(doc, SANS_MESURE_DETAIL));
     bloc.append(vide);
   } else {
-    const trop = depasse(resume);
-    bloc.dataset.temps = estDepasse(resume) ? "depasse" : "normal";
-    const sur = surCombien(resume);
+    bloc.dataset.temps = aUnDepassement(quatre) ? "depasse" : "normal";
     const chiffres = noeud(doc, "div", "temps-chiffres");
-    chiffres.append(
-      chiffre(doc, enMinutes(resume.medianMin), `median of ${sur}`),
-      chiffre(doc, enMinutes(resume.p75Min), `p75 of ${sur}`),
-      chiffre(doc, enMinutes(resume.perduMedianMin), `median lost time, max ${enMinutes(resume.lostTimeMaxMin)}`, trop.perdu),
-    );
+    if (resume !== null) {
+      const sur = surCombien(resume);
+      chiffres.append(chiffre(doc, enMinutes(resume.medianMin), `median of ${sur}`), chiffre(doc, enMinutes(resume.p75Min), `p75 of ${sur}`));
+    }
+    // Les quatre chiffres du projet, de la station : valeur, seuil, rouge au-dessus ; ce qui pèse le plus au survol.
+    for (const c of quatre ?? []) {
+      const un = chiffre(doc, c.valeur, `${c.nom}, threshold ${c.seuil}`, c.depasse);
+      un.dataset.chiffre = c.cle;
+      un.tabIndex = 0;
+      chiffres.append(survol(doc, pesentLePlus(c), un));
+    }
     bloc.append(chiffres);
-    if (estDepasse(resume)) bloc.append(noeud(doc, "p", "temps-depasse", `Lost time over the max of ${enMinutes(resume.lostTimeMaxMin)}`));
-    if (resume.perteLaPlusLourde !== null) bloc.append(noeud(doc, "p", "temps-phase-lente", `Heaviest loss: ${resume.perteLaPlusLourde.nom}, median ${enMinutes(resume.perteLaPlusLourde.medianMin)}`));
-    if (resume.phaseLaPlusLongue !== null) bloc.append(noeud(doc, "p", "temps-phase-lente", `Slowest phase: ${resume.phaseLaPlusLongue.nom}, median ${enMinutes(resume.phaseLaPlusLongue.medianMin)}`));
+    if (resume?.perteLaPlusLourde) bloc.append(noeud(doc, "p", "temps-phase-lente", `Heaviest loss: ${resume.perteLaPlusLourde.nom}, median ${enMinutes(resume.perteLaPlusLourde.medianMin)}`));
+    if (resume?.phaseLaPlusLongue) bloc.append(noeud(doc, "p", "temps-phase-lente", `Slowest phase: ${resume.phaseLaPlusLongue.nom}, median ${enMinutes(resume.phaseLaPlusLongue.medianMin)}`));
   }
   const lu = temps === undefined ? null : lireLesTemps(temps);
   if (lu === null) return bloc;

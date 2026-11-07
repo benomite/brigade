@@ -1,10 +1,10 @@
 // The ticket-times line of `status`: median and slowest of the last 10 measured
-// tickets (from filing, or fire, to merge since #2662), the split by phase, and their median lost time against the project's threshold (#2670). Reads the two files of
+// tickets (from filing, or fire, to merge since #2662), the split by phase. Reads the two files of
 // `.claude/brigade/` directly — nothing written, and a missing or unreadable
 // file reads as "no measured ticket yet".
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { dureeDuTicket as duree, medianePerdueDesRecents, PHASES, SEUIL_PERDU_PAR_DEFAUT_MIN, seuilDuProjet } from "../temps-max/mesure.ts";
+import { dureeDuTicket as duree, PHASES, SEUIL_PERDU_PAR_DEFAUT_MIN, seuilDuProjet } from "../temps-max/mesure.ts";
 import { ticketsDuFichier } from "./mesure.ts";
 import { type EnregistrementTemps, mediane, PHASES as PHASES_REQUISES } from "./synthese.ts";
 
@@ -18,7 +18,7 @@ const entier = (v: unknown): v is number => typeof v === "number" && Number.isFi
 
 const minutes = (secondes: number) => `${Math.round(secondes / 60)}m`;
 
-export function direLesTempsDesTickets(enregistrements: TempsTicket[], seuilMin: number = SEUIL_PERDU_PAR_DEFAUT_MIN): string {
+export function direLesTempsDesTickets(enregistrements: TempsTicket[]): string {
   if (enregistrements.length === 0) return "tickets: no measured ticket yet";
   const derniers = enregistrements.slice(-DERNIERS);
   const durees = derniers.map(duree);
@@ -33,9 +33,7 @@ export function direLesTempsDesTickets(enregistrements: TempsTicket[], seuilMin:
     `CI ${minutes(moyenne((t) => t.ci))}`,
     `merge ${minutes(moyenne((t) => t.merge))}`,
   ].join(" · ");
-  const perdu = medianePerdueDesRecents(enregistrements) ?? 0;
-  const depasse = perdu > seuilMin * 60 ? " — over the threshold" : "";
-  return `tickets: median ${minutes(med)} (slowest #${plusLent} ${minutes(dureeMax)}) | ${phases} | lost ${Math.round(perdu / 6) / 10}m, max ${seuilMin}m${depasse}`;
+  return `tickets: median ${minutes(med)} (slowest #${plusLent} ${minutes(dureeMax)}) | ${phases}`;
 }
 
 function lireJson(chemin: string): unknown {
@@ -64,6 +62,5 @@ export function lesTempsDesTickets(repertoireDepot: string | undefined): { enreg
 }
 
 export function ligneDesTempsDesTickets(repertoireDepot: string | undefined): string {
-  const { enregistrements, lostTimeMaxMin } = lesTempsDesTickets(repertoireDepot);
-  return direLesTempsDesTickets(enregistrements, lostTimeMaxMin);
+  return direLesTempsDesTickets(lesTempsDesTickets(repertoireDepot).enregistrements);
 }

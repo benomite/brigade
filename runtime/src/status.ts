@@ -28,7 +28,9 @@ import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { ligneDuTempsPerdu, lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
+import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
+import { qualitesDuJournal } from "./mesure-qualite.ts";
+import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -156,9 +158,9 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
-  const perdu = ligneDuTempsPerdu(temps.enregistrements, temps.lostTimeMaxMin, rouge);
-  if (perdu !== null) lignes.push(`${"lost time".padEnd(11)} ${perdu}`);
-  // Les réparations de la base par PR mergée, sur la fenêtre des temps (#2696).
+  // Les quatre chiffres (#2672) : valeur, seuil, rouge au-dessus.
+  lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR, qualitesDuJournal(journal.base)), rouge));
+  // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).
   lignes.push(ligneDesReparations(temps.enregistrements, journal.base));
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;

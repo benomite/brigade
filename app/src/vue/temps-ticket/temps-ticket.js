@@ -1,20 +1,17 @@
 // @ts-check
 // Les temps des derniers tickets d'un projet, sur sa page (ticket 2346, épique 2336) : la médiane et le plus lent des
 // 10 derniers tickets mesurés, avec le partage en cinq phases (cuisson avec ses tests, attente de la passe, revue, CI,
-// merge), et leur temps perdu contre le seuil du projet (ticket 2670). Les enregistrements sont ceux de
-// `.claude/brigade/temps-tickets.json` (secondes entières) ; le temps perdu d'un ticket est son `perdu` (l'attente avant
-// la prise, les cuissons ratées, les renvois — 0 sur un enregistrement plus ancien qui ne le porte pas) ; le seuil est
-// `lostTimeMaxMin` de `.claude/brigade/projet.json` (2 minutes par défaut), sur la médiane du temps perdu. Le temps total
-// d'un ticket n'a pas de plafond : sa taille varie. Ce module ne touche pas `document` : il reçoit de quoi créer un
+// merge). Les enregistrements sont ceux de `.claude/brigade/temps-tickets.json` (secondes entières). Le temps total
+// d'un ticket n'a pas de plafond : sa taille varie ; le temps perdu, la cuisson contre l'estimation et la qualité sont
+// les quatre chiffres de la bande du rail et de Health (resume.js), pas d'ici. Ce module ne touche pas `document` : il reçoit de quoi créer un
 // élément (briques.js) et rend le bloc.
 
 import { survol } from "../briques.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number, claimedAt: string, mergedAt: string, cuisson: number, cuissonTests: number, attentePasse: number, revue: number, ci: number, merge: number }} Enregistrement */
-/** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown }} TempsDuProjet */
+/** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown }} TempsDuProjet */
 
-export const PERDU_MAX_PAR_DEFAUT_MIN = 2;
 export const NOMBRE_DE_TICKETS = 10;
 
 // Les cinq phases montrées : chacune est la médiane de cette phase seule (leur somme peut donc différer de la médiane du total) ; la cuisson compte ses tests, qui se disent au survol.
@@ -31,20 +28,6 @@ export const PHASES = [
 const cuisson = (e) => e.cuisson + e.cuissonTests;
 /** @param {Enregistrement} e */
 export const total = (e) => cuisson(e) + e.attentePasse + e.revue + e.ci + e.merge;
-
-/** @param {unknown} x */
-const positif = (x) => (typeof x === "number" && Number.isFinite(x) && x > 0 ? x : 0);
-// Le temps perdu d'un ticket, en secondes : l'attente avant la prise, les cuissons ratées et les renvois. Un
-// enregistrement sans `perdu` (plus ancien que la mesure) compte zéro.
-/** @param {Enregistrement} e */
-export const perdu = (e) => {
-  const p = /** @type {Record<string, unknown> | null | undefined} */ (/** @type {Record<string, unknown>} */ (e).perdu);
-  return typeof p === "object" && p !== null ? positif(p.attente) + positif(p.ratees) + positif(p.renvois) : 0;
-};
-
-// Le seuil du temps perdu du projet, en minutes : `lostTimeMaxMin`, ou 2 s'il est absent ou absurde.
-/** @param {{ lostTimeMaxMin?: number | undefined }} temps */
-export const seuilPerdu = (temps) => (typeof temps.lostTimeMaxMin === "number" && Number.isFinite(temps.lostTimeMaxMin) && temps.lostTimeMaxMin > 0 ? temps.lostTimeMaxMin : PERDU_MAX_PAR_DEFAUT_MIN);
 
 /** @param {number[]} valeurs */
 export function mediane(valeurs) {
@@ -79,7 +62,6 @@ const lisible = (x) => {
 // La synthèse des 10 derniers tickets (par `mergedAt`), ou null sans ticket mesuré. Les entrées illisibles sont écartées.
 /** @param {TempsDuProjet} temps */
 export function synthese(temps) {
-  const max = seuilPerdu(temps);
   const recents = (temps.enregistrements ?? []).filter(lisible).sort((a, b) => Date.parse(b.mergedAt) - Date.parse(a.mergedAt)).slice(0, NOMBRE_DE_TICKETS);
   const premier = recents[0];
   if (premier === undefined) return null;
@@ -87,13 +69,9 @@ export function synthese(temps) {
   for (const e of recents) if (total(e) > total(lent)) lent = e;
   // La phase la plus longue du ticket le plus lent (la cuisson compte ses tests) ; à égalité, la première dans l'ordre du ticket.
   const phaseLente = PHASES.reduce((a, b) => ((b.cle === "cuisson" ? cuisson(lent) : lent[b.cle]) > (a.cle === "cuisson" ? cuisson(lent) : lent[a.cle]) ? b : a));
-  const perduMedian = mediane(recents.map(perdu));
   return {
-    max,
     nombre: recents.length,
     mediane: mediane(recents.map(total)),
-    perdu: perduMedian,
-    depasse: perduMedian > max * 60,
     plusLent: { ticket: lent.ticket, total: total(lent), phase: phaseLente.libelle },
     phases: PHASES.map(({ cle, libelle }) => ({ cle, libelle, duree: mediane(recents.map((e) => (cle === "cuisson" ? cuisson(e) : e[cle]))) })),
     testsMedians: mediane(recents.map((e) => e.cuissonTests)),
@@ -113,8 +91,8 @@ function noeud(doc, balise, classe, texte) {
   return n;
 }
 
-// Le bloc à poser sur la page du projet : toujours un bloc, jamais un blanc ni un zéro. Trois états — `data-temps` :
-// « normal », « depasse » (la médiane du temps perdu passe le seuil du projet) et « vide » (aucun ticket mesuré). `temps` indéfini : la station
+// Le bloc à poser sur la page du projet : toujours un bloc, jamais un blanc ni un zéro. Deux états — `data-temps` :
+// « normal » et « vide » (aucun ticket mesuré). `temps` indéfini : la station
 // du projet ne publie pas encore ses temps — « vide » aussi, mais qui le dit, pour ne pas affirmer qu'aucun ticket n'est mesuré.
 /**
  * @param {Fabrique} doc
@@ -141,16 +119,9 @@ export function poserTempsTicket(doc, temps) {
     bloc.append(vide);
     return bloc;
   }
-  bloc.dataset.temps = lu.depasse ? "depasse" : "normal";
+  bloc.dataset.temps = "normal";
   const mediane_ = noeud(doc, "p", "temps-mediane");
   mediane_.append(noeud(doc, "span", "temps-valeur", dureeEnClair(lu.mediane)), noeud(doc, "span", "temps-legende", lu.nombre === 1 ? "median of the only measured ticket" : `median of the last ${lu.nombre} tickets`));
-  const maxDit = noeud(doc, "span", "temps-max", `lost ${dureeEnClair(lu.perdu)} vs ${lu.max} min max`);
-  tete.append(maxDit);
-  if (lu.depasse) {
-    const alerte = noeud(doc, "span", "temps-depasse", `Lost time over the max of ${lu.max} min`);
-    alerte.dataset.depasse = "oui";
-    mediane_.append(alerte);
-  }
   const lent = noeud(doc, "p", "temps-lent", `Slowest: #${lu.plusLent.ticket} — ${dureeEnClair(lu.plusLent.total)}`);
   bloc.append(mediane_, lent);
 

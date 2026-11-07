@@ -523,8 +523,13 @@ merge holds nothing back. The rule holds only once the station runs it: #2580 op
 merged, from a station still on the code before it, whose update comes much later; the same turn on the
 code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
 and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that
-of the tickets cooked before them. At or under the threshold, nothing is opened and GitHub is not read. `status` says the
-median lost time against the threshold (`lost time`, red over it), and TODO's informative part names each of the
+of the tickets cooked before them. At or under the threshold, nothing is opened and GitHub is not read. `status` says four
+figures, one line each, value then threshold and red over it (`runtime/src/chiffres-du-projet.ts`, #2672): the median and
+p75 lost time (`lostTimeMaxMin`), the median cooking over estimate (`cookingOverEstimateMax`), the first-try rate
+(`premierCoupMinPourcent`) and the repairs of main per merged PR (`REPARATIONS_PAR_MERGE_MAX`). The station publishes
+them with the ticket times (`temps.chiffres`), with what weighs most on each (the 5 tickets with the most lost time or
+most over their estimate, the most frequent send-back reasons and broken checks); the app's rail band and Health tab
+show them from those values. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
 
 ## The daily report of the decisions brigade told about
