@@ -2,8 +2,7 @@
 // `brigade:renvoi` et `brigade:echec`, et la marque d'une réparation de la
 // base. Le journal ne la sait plus depuis #2061 ; ces tests n'en ouvrent aucun.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { corpsDeLaReparation } from "../src/base-rouge/ouvre-reparation.ts";
@@ -15,6 +14,7 @@ import { causeDuRenvoi, causesDesTemps, checksDeLaReparation, parcoursDesTemps, 
 import { PRIO_REPARATION } from "../src/reparation.ts";
 import { derivePremierCoup } from "../src/renvois.ts";
 import { direLesReparations } from "../src/status-reparations.ts";
+import { aArreter, repertoireTemporaire } from "./outils.ts";
 
 const station = (body: string) => ({ body, association: "MEMBER" });
 const renvoi = (n: number, raison: string) => station(`<!-- brigade:renvoi n=${n} sha=${"a".repeat(40)} -->\nStation \`box/claude\`: sent back to a cook (${n}/2) — ${raison}`);
@@ -135,10 +135,9 @@ test("replayed on brigade's merges of 2026-11-05 to 07, the quality figures are 
 });
 
 test("replayed, `status`'s state reads the first-try drift from the clone's times it is given, never from the log", (t) => {
-  const repertoire = mkdtempSync(join(tmpdir(), "qualite-github-"));
-  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
-  const journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
+  // Le journal se ferme avant que son répertoire s'efface : Windows refuse d'effacer une base ouverte.
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  aArreter(t, () => journal.fermer());
   // Les dix premiers tickets du rejeu, dont quatre marqués, sous un seuil du premier coup à 70 %.
   const temps = rejouer().slice(0, 10);
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.configured", payload: { limits: { ...SANS_SEUIL, firstTryPercent: 70 } } });
