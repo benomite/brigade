@@ -38,9 +38,11 @@ const ECARTEES: Readonly<Record<string, Attendu>> = {
   "blocked-on-human": { phrase: "Held for you: remove the label so the manager judges it again, or close the issue.", gestes: [] },
 };
 
-// Ce qui sort une remontée, selon qu'elle a une PR à merger ou non.
-const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } =>
-  pr === null ? { suite: "take it off the rail, or close its issue.", gestes: ["retirer"] } : { suite: "merge it anyway, or take it off the rail.", gestes: ["retirer"] };
+// Ce qui sort une remontée : le retrait du rail ; la phrase dit en plus que la PR, s'il y en a une, se merge sur GitHub.
+const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } => ({
+  suite: pr === null ? "take it off the rail, or close its issue." : "merge it anyway, or take it off the rail.",
+  gestes: ["retirer"],
+});
 
 function remontee({ motif, cause, pr }: Decision): Attendu {
   const { suite, gestes } = SORTIR(pr);
