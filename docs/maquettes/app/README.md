@@ -58,8 +58,7 @@ back.
 | an expiry for the connection (« expire dans 2 j ») | the runtime says `connection Max tenue pour bonne` — no date |
 
 The **cook profiles** and the **notebook** of their lessons, long parked (milestone 8), are built
-from epic #1033: the card of a proposed profile, in the project's queue (#1053), is the first.
-The mockup does not draw them: their card reuses that of a proposed correction.
+from epic #1033. The mockup does not draw them.
 
 ## What the mockup does not fix
 

@@ -11,7 +11,6 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { survol, uneLigne } from "./briques.js";
-import { enMono, ligneDuContenu } from "./profil/carte.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../apprentissage.ts").Apprentissage} Apprentissage */
@@ -65,6 +64,26 @@ function cree(doc, balise, texte) {
   if (texte !== undefined) pose.textContent = texte;
   return pose;
 }
+
+// Une ligne de ce que le profil contient : son libellé, puis ce qu'elle porte.
+/** @param {Fabrique} doc @param {string} libelle @param {any[]} contenu */
+function ligneDuContenu(doc, libelle, contenu) {
+  const ligne = cree(doc, "p");
+  ligne.className = "ligne-contenu";
+  const nom = cree(doc, "span", libelle);
+  nom.className = "libelle";
+  ligne.append(nom, ...contenu);
+  return ligne;
+}
+
+// Des chemins ou des noms, chacun en monospace : ce qui se recopie.
+/** @param {Fabrique} doc @param {string[]} noms */
+const enMono = (doc, noms) =>
+  noms.map((nom) => {
+    const pose = cree(doc, "code", nom);
+    pose.className = "mono";
+    return pose;
+  });
 
 // Des tickets, sous leur libellé : chacun son numéro, en monospace, qui ouvre sa fiche — ou `vide` s'il n'y
 // en a aucun.
@@ -194,7 +213,7 @@ function unProfil(doc, profil, ouvrir) {
   domaine.append("for ", zone);
   tete.append(nom, domaine);
 
-  // Ce que le profil contient, dit comme sur la carte d'un profil proposé (profil/carte.js).
+  // Ce que le profil contient, une ligne par rubrique.
   const contenu = cree(doc, "div");
   contenu.className = "contenu";
   const sansSkills = cree(doc, "span", "none");

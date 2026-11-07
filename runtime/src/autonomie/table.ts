@@ -69,7 +69,7 @@ export const AUJOURDHUI: Record<Exclude<Rangee, "merge">, Position> = {
   // issue (`manager.ts`, `decoupage.ts`); the triage agent re-splits alone.
   specification: "brigade-decides",
   // The queue follows the chef's `prio:` labels, and a ticket born in the
-  // kitchen waits for the chef's yes or no (`correctif/decision.ts`).
+  // kitchen waits for the chef's yes or no.
   priorities: "i-decide",
   // Raising a calibration, a relaunch, the quota's share: taken alone, within
   // the ceilings the chef sets (`reaction.ts`, `reagir.ts`, `arbitre.ts`).

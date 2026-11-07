@@ -1440,11 +1440,6 @@ ipcMain.handle("reprendreLeDisjoncteur", async (_, nom: unknown) => {
   if (vise === undefined) return undefined;
   return reprendreLeDisjoncteur(await depotDuProjet(vise), clientDuDisjoncteur);
 });
-// Le « yes » ou le « no » du chef sur une correction ou un profil proposés (correction.ts, profil.ts) : ils partaient sur le
-// tableau de la cuisine, que plus aucun runtime ne lit (#2061). Aucune lecture de GitHub ne porte plus de proposition :
-// rien ne part, et la phrase dit pourquoi.
-ipcMain.handle("corriger", () => ({ refus: SANS_FAIT.proposition, detail: "" }));
-ipcMain.handle("trancherLeProfil", () => ({ refus: SANS_FAIT.proposition, detail: "" }));
 // La réponse du chef à une carte de TODO (carte-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
 // sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (tableau-gestes/reponse-github.ts) —, ni
 // tableau, ni box. Toute autre carte ne se répond plus de l'app (#2061) : rien ne part, et la phrase dit pourquoi.
