@@ -25,6 +25,7 @@ import { ligneDesRedemarrages } from "./redemarrages/journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
+import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { ligneMedianeContreMax, lignesDeTicketsTropLongs } from "./temps-max/affichage/affichage.ts";
 
@@ -153,6 +154,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
+  lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
   const contreMax = ligneMedianeContreMax(temps.enregistrements, temps.tempsMaxTicketMin, rouge);
   if (contreMax !== null) lignes.push(`${"ticket time".padEnd(11)} ${contreMax}`);
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
