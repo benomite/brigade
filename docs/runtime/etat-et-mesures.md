@@ -495,6 +495,15 @@ so each quality ticket served before the update reopened the next. On the code o
 them opens one. The cause they name, blocking review, is corrected in the cook's instruction (#2770, #2789,
 #2797, #2803, #2812, #2819) and by a blocked cook going to the chef (#2805); none of the 13 was cooked under it.
 
+The rule each quality ticket carries (`runtime/src/garde-correction.ts`) also keeps its correction off the measure
+that opened it (#2824): a send-back the ticket did not count is never counted away, by its claim date, its age or its
+project. #2818 did just that — its cause already had its fix on main (#2812), and it made the gate count every
+send-back claimed before the last quality ticket closed as counted — and the review sent it back as a silencer. Of the
+tickets whose first commit came after #2812 merged (#2815, #2818, #2819), it is the only one sent back, and its send-back
+is the blocking review #2824 counts on top of the 21 #2818 had counted. The measure is corrected
+only when it reopens on the send-backs a served quality ticket already counted (#2804, #2813). When the cause is
+already fixed on main and nothing was cooked since, the delivery says so with the evidence and changes nothing.
+
 ## The daily report of the decisions brigade told about
 
 Every decision taken under `brigade decides and tells me` writes an entry (`autonomy.reported`).
