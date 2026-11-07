@@ -151,6 +151,16 @@ commits most often finished such a removal: dead code and CSS rules left behind 
 the replaced figure still shown (#2672), tests, tutorial and docs pointing at a removed button or role
 (#2711, #2713, #2715).
 
+The same instruction tells the cook to build on what the repo already has: before writing a reader, a
+measure, a check or a rule, it looks for the one that already does the same thing, starting with what
+the ticket names (a ticket number, a module). A second path next to the existing one, or a rule
+rewritten without one of the original's conditions, is blocking. Blocking review was still the first
+send-back reason after #2789 (#2797: 26 over 70 merged tickets), and the second commits of the tickets
+cooked since #2770 most often replaced such a parallel mechanism with the existing one: an idle-kitchen
+check of its own next to #2755's inertia bug (#2757), a second read of `projet.json` next to the
+project settings (#2759), a claim-wait bound that rewrote the time measure's rule without its
+conditions (#2784).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
