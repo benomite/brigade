@@ -86,6 +86,13 @@ the station as it does on close (its input closed) and launches `main` instead o
 point, with the same environment. If the new station does not start, the app relaunches `from`. A
 station that starts removes any earlier `restart.json`.
 
+A request nobody plays does not hold the station forever (#2820). The app refuses some — a release that
+did not start at its try, a runtime it cannot find, an entry point it does not hold — and leaves the
+running process in place; held, it took no ticket and checked no release until someone restarted the
+app. So the station keeps checking after its request, and if it is still running `SANS_SUITE_MS`
+(5 minutes) after it, the request was not played: it removes `restart.json`, takes its tickets again,
+says so, and never asks for that release again (`held` says why) — a newer one, it does.
+
 ## The status
 
 `<BRIGADE_STATION_DIR>/station-update/status.json`, rewritten at each change, and printed by

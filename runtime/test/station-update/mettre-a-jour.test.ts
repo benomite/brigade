@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../src/brigade-github.ts";
-import { configDeLaMiseAJour, demanderAuSuperviseur, LIGNE_DE_RELANCE, miseAJourDeLaStation, retenirLaPrise, type OptionsDeLaMiseAJour } from "../../src/station-update/mettre-a-jour.ts";
+import { configDeLaMiseAJour, demanderAuSuperviseur, LIGNE_DE_RELANCE, miseAJourDeLaStation, retenirLaPrise, SANS_SUITE_MS, tenirLaMiseAJour, type OptionsDeLaMiseAJour } from "../../src/station-update/mettre-a-jour.ts";
 import { sourceDesVersions, type SourceDesVersions } from "../../src/station-update/releases.ts";
 import { lireDemande, lireStatut, type DemandeDeRelance } from "../../src/station-update/statut.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
@@ -327,4 +327,49 @@ test("une demande de relance qui ne s'écrit pas rend ses tickets à la station 
   assert.equal(miseAJour.retenue(), false);
   assert.equal(statut.restart, null);
   assert.match(statut.check ?? "", /the restart request on release 0\.20261102\.100000 cannot be made: EACCES/);
+});
+
+test("une relance demandée que l'app ne joue pas ne retient pas la station pour toujours : passé SANS_SUITE_MS, elle reprend ses tickets, ne redemande plus cette release, et demande la suivante (#2820)", async (t) => {
+  let instant = Date.parse("2026-11-07T21:00:00Z");
+  const { publiees, demandes, dit, ouvrir, racine } = station(t, { maintenant: () => new Date(instant) });
+  publier(publiees, "0.20261102.100000");
+  const prises: number[] = [];
+  const miseAJour = ouvrir("0.20261101.100000");
+  const prise = retenirLaPrise({ prendre: async (issue) => (prises.push(issue.number), { prise: true }), lacher: async () => true }, () => miseAJour.retenue());
+  await miseAJour.passer();
+  assert.equal(demandes.length, 1);
+  assert.equal(miseAJour.retenue(), true);
+  assert.deepEqual(await prise.prendre({ number: 969, labels: ["fire"] }), { prise: false });
+  // L'app la relance dans le délai : rien ne bouge.
+  instant += SANS_SUITE_MS - 1_000;
+  await miseAJour.passer();
+  assert.equal(miseAJour.retenue(), true);
+  assert.equal(demandes.length, 1);
+  // Personne ne l'a relancée (une release refusée par l'app, par exemple) :
+  // retenue, elle ne prenait plus rien jusqu'à ce que l'app soit relancée.
+  instant += 1_000;
+  const statut = await miseAJour.passer();
+  assert.equal(miseAJour.retenue(), false);
+  assert.deepEqual([statut.restart, statut.draining, lireDemande(racine)], [null, null, null]);
+  assert.match(statut.held ?? "", /0\.20261102\.100000 was asked and did not come/);
+  assert.ok(dit.some((ligne) => /did not come: the station takes its tickets again on 0\.20261101\.100000/.test(ligne)));
+  assert.deepEqual(await prise.prendre({ number: 969, labels: ["fire"] }), { prise: true });
+  assert.deepEqual(prises, [969]);
+  // La même release ne se redemande pas ; une plus récente, si.
+  await miseAJour.passer();
+  assert.deepEqual([demandes.length, miseAJour.retenue()], [1, false]);
+  publier(publiees, "0.20261103.100000");
+  await miseAJour.passer();
+  assert.deepEqual([demandes.length, demandes[1]?.version, miseAJour.retenue()], [2, "0.20261103.100000", true]);
+});
+
+test("les regards continuent après la demande de relance : sans suite, le suivant rend ses prises à la station (#2820)", async (t) => {
+  const { publiees, demandes, ouvrir } = station(t, { sansSuiteMs: 20 });
+  publier(publiees, "0.20261102.100000");
+  const miseAJour = ouvrir("0.20261101.100000");
+  const arreter = tenirLaMiseAJour(miseAJour, { premierMs: 0, aleaMs: 0, intervalleMs: 60_000, sansSuiteMs: 20 });
+  t.after(arreter);
+  await jusqua(() => demandes.length === 1);
+  await jusqua(() => !miseAJour.retenue() && miseAJour.statut().restart === null);
+  assert.equal(demandes.length, 1);
 });
