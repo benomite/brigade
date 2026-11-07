@@ -172,6 +172,16 @@ not give failed the whole tick (#2741), an unreadable completion closed the foll
 corrupted settings file was read as empty and would be overwritten while another station showed
 invented values (#2644), a station with no clone kept a ticket's clock (#2662).
 
+The same instruction tells the cook that a written deliverable — a doc, a spec, the README, a post —
+says nothing its sources do not: every sentence comes from a source it can name (the ticket, the
+chef's words, the repo, a page it read) and says no more than it. A section nobody asked for, a figure
+stated stronger than what it measures, an unverified fact written as verified, or a criterion left
+open without saying so, is blocking. Blocking review was still the first send-back reason after #2803
+(#2812: 21 over 70 merged tickets), and among the second commits the four rules above do not cover,
+the written deliverables were sent back for saying more than their sources: a vision spec with sections
+neither the ticket nor the chef had stated (#2749), a launch plan whose figure claimed more than it
+measured, whose unread rules and places read as verified, and whose unmet criterion went unsaid (#2774).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
