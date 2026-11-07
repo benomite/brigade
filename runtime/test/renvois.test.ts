@@ -2,6 +2,7 @@
 // lus du journal, puis mesurés sur les derniers tickets servis. Le journal est
 // écrit à la main : aucune cuisine ne tourne ici.
 import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
@@ -132,7 +133,7 @@ test("le parcours d'un ticket va de sa première prise à son merge, rendu et re
   assert.equal(rouvert?.attempts.length, 1);
 });
 
-test("`measures --last` mesure les renvois des N derniers tickets servis, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un", async (t) => {
+test("`measures --last` mesure les renvois des N derniers tickets mergés, lus dans les temps du clone, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un", async (t) => {
   const { repertoire, servir, prendre, cuire } = cuisine(t);
   servir(1, 3);
   servir(2);
@@ -141,7 +142,24 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   prendre(5);
   cuire(5);
 
-  const commande = lancer(t, MESURES, ["--last", "4", "--by", "2"], { BRIGADE_STATE_DIR: repertoire });
+  // Les renvois se lisent dans les temps du clone, où la station écrit au merge ce que GitHub dit
+  // de chaque ticket (#2707) : 5, mergé avant, n'a pas sa qualité, et n'est pas compté.
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  const enregistre = (ticket: number, renvois: number, cooksRates = 0) => ({
+    ticket,
+    claimedAt: a("10:00"),
+    mergedAt: a("10:30"),
+    cuisson: 60,
+    cuissonTests: 0,
+    attentePasse: 0,
+    revue: 0,
+    ci: 0,
+    merge: 0,
+    ...(renvois < 0 ? {} : { qualite: { renvois: Array.from({ length: renvois }, () => "blocking review"), cooksRates } }),
+  });
+  writeFileSync(join(clone, ".claude", "brigade", "temps-tickets.json"), JSON.stringify([enregistre(5, -1), enregistre(1, 3), enregistre(2, 0), enregistre(3, 0, 1), enregistre(4, 3)]));
+  const commande = lancer(t, MESURES, ["--last", "4", "--by", "2"], { BRIGADE_STATE_DIR: repertoire, BRIGADE_REPO_DIR: clone });
   const nul = lancer(t, MESURES, ["--last", "0"], { BRIGADE_STATE_DIR: repertoire });
   const double = lancer(t, MESURES, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
 
@@ -149,7 +167,7 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   assert.match(commande.sortie(), /^report {5}brigade — 4 merges in the log, in slices of 2\n/);
   assert.match(
     commande.sortie(),
-    /\n\nretries {4}the last 4 served tickets \(N = 4\): 4 in the log, 3 kept, 1 set aside — not merged[^\n]*\n {11}delivered on the first try: 33% \(1 of 3\)\n {11}attempts per ticket: 2\.3 on average\n {11}from taking to merge: \d+ s on average\n {11}from delivery to the cook's restart: [^\n]*\n\nfailures/,
+    /\n\nretries {4}the last 4 served tickets \(N = 4\): 4 in the log, 4 kept, 0 set aside — not merged[^\n]*\n {11}delivered on the first try: 25% \(1 of 4\)\n {11}attempts per ticket: 2\.8 on average\n {11}from taking to merge: 30 min on average\n {11}from delivery to the cook's restart: [^\n]*\n\nfailures {3}7 failed attempts \(not ending in a merge\), each under one cause\n {11}blocking review: 6 \(86%\) — #4, #1\n/,
   );
   assert.equal(await nul.fin, 2);
   assert.match(nul.sortie(), /usage: .*--last <number of tickets>/);

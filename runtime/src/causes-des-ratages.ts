@@ -90,7 +90,11 @@ const DERNIERS_TICKETS = 3;
 // `pourcent` : la part en pourcents entiers, arrondie au plus fort reste pour
 // que la somme vaille 100.
 export function mesurerCauses(parcours: readonly Parcours[]): CausesDesRatages {
-  const rates = essaisRates(parcours);
+  return compterCauses(essaisRates(parcours));
+}
+
+// Les mêmes comptes, sur des essais ratés déjà rangés, dans l'ordre où ils sont venus.
+export function compterCauses(rates: ReadonlyArray<{ ticket: number; cause: Cause }>): CausesDesRatages {
   const lignes: LigneDeCause[] = CAUSES.map(({ cle, titre }) => {
     const siennes = rates.filter((essai) => essai.cause === cle);
     // Les plus récents d'abord, chaque ticket une fois.

@@ -6,8 +6,8 @@
 // pèse le plus. La station les publie avec les temps des tickets (`temps.chiffres`), l'app les
 // relaie telles quelles.
 import { medianeDesRatios, lireRatios, plusAuDessus, seuilDuProjet as seuilDuRatio, type RatioServi } from "./alerte-temps-cuisson/alerte.ts";
-import { ouvrirJournal } from "./journal.ts";
-import { mesurerQualite, projetDuClone, qualitesDuJournal, REPARATIONS_PAR_MERGE_MAX, type Compte, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { mesurerQualite, projetDuClone, REPARATIONS_PAR_MERGE_MAX, type Compte, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { qualitesDesTemps } from "./qualite-github.ts";
 import { centile } from "./temps-ticket/mesure.ts";
 import { mediane } from "./temps-ticket/synthese.ts";
 import { lesTempsDesTickets, type TempsTicket } from "./temps-ticket/ligne-status.ts";
@@ -96,31 +96,15 @@ export function chiffresDuProjet({ enregistrements, qualites, ratios, projet }: 
   return [perdu, estimation, premierCoup, reparations];
 }
 
-// Ce que le journal du projet sait de la qualité de ses tickets ; rien s'il ne se lit pas.
-export function qualitesDuRepertoire(repertoireEtat: string | undefined): Map<number, QualiteDuTicket> {
-  if (!repertoireEtat) return new Map();
-  let journal;
-  try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
-  } catch {
-    return new Map();
-  }
-  try {
-    return qualitesDuJournal(journal.base);
-  } catch {
-    return new Map();
-  } finally {
-    journal.fermer();
-  }
-}
-
-// Les quatre chiffres du clone d'un projet, lus de `.claude/brigade/` et des qualités données.
-export function chiffresDuClone(clone: string | undefined, qualites: ReadonlyMap<number, QualiteDuTicket>): Chiffre[] {
+// Les quatre chiffres du clone d'un projet, lus de `.claude/brigade/` : la
+// qualité de chaque ticket y est écrite avec son temps (#2707).
+export function chiffresDuClone(clone: string | undefined): Chiffre[] {
   let ratios: RatioServi[] = [];
   try {
     ratios = clone ? lireRatios(clone) : [];
   } catch {}
-  return chiffresDuProjet({ enregistrements: lesTempsDesTickets(clone).enregistrements, qualites, ratios, projet: clone ? projetDuClone(clone) : null });
+  const { enregistrements } = lesTempsDesTickets(clone);
+  return chiffresDuProjet({ enregistrements, qualites: qualitesDesTemps(enregistrements), ratios, projet: clone ? projetDuClone(clone) : null });
 }
 
 const ROUGE = "\u001b[31m";

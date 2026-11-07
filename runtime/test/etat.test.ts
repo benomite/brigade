@@ -549,17 +549,14 @@ test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sa
 
 test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ; le seuil et la fenêtre se règlent par les seuils de la dérive", (t) => {
   const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("drift"));
+  // Les temps du clone, où la station écrit au merge ce que GitHub dit de chaque ticket (#2707).
+  const temps: { ticket: number; claimedAt: string; mergedAt: string; qualite: { renvois: string[]; cooksRates: number } }[] = [];
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
+  const bloc = () => decrireEtat(lireEtat(journal, maintenant, temps), maintenant).filter((ligne) => ligne.startsWith("drift"));
   const LIGNE = (part: string, seuil: number) => `drift      ${part} tickets delivered on the first try (threshold ${seuil}%) — \`brigade <projet> measures\``;
-  const livrer = (ticket: number, essais: number) => {
-    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T23:00:00.000Z` } }, ticket);
-    for (let i = 0; i < essais; i++) {
-      const run = `run-${ticket}-${i}`;
-      noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: "box/claude" } }, ticket);
-      noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }, ticket);
-    }
-    noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket, "pass");
-  };
+  // Un ticket mergé après `essais` livraisons : toutes renvoyées au cook sauf la dernière.
+  const livrer = (ticket: number, essais: number) =>
+    temps.push({ ticket, claimedAt: `${JOUR_HORLOGE}T09:00:00.000Z`, mergedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, qualite: { renvois: Array.from({ length: essais - 1 }, () => "red CI"), cooksRates: 0 } });
   const limites = (reglage: { firstTryPercent?: number | null; firstTryWindow?: number | null }) =>
     noter({ type: "drift.configured", payload: { limits: { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ...reglage } } });
 

@@ -39,7 +39,7 @@ import {
   type EtatGardeFous,
   type Mesure,
 } from "./projections/guardrails.ts";
-import { parcoursDesTickets } from "./parcours-des-tickets.ts";
+import { parcoursDesTemps } from "./qualite-github.ts";
 import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { direInterrupteur } from "./interrupteur.ts";
@@ -201,7 +201,9 @@ export type EtatCuisine = {
 };
 
 // `maintenant` : l'heure jusqu'à laquelle les fenêtres du relevé se comptent.
-export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine {
+// `temps` : les enregistrements de `temps-tickets.json` du clone, où la qualité
+// de chaque ticket mergé est écrite (#2707) — le journal ne la sait plus.
+export function lireEtat(journal: Journal, maintenant = new Date(), temps: readonly { ticket: number; claimedAt?: string; mergedAt?: string; qualite?: unknown }[] = []): EtatCuisine {
   const { base } = journal;
   // Lu en premier : ce qui s'écrit pendant la lecture sera repris par le
   // suivi, au pire montré deux fois, jamais manqué.
@@ -264,7 +266,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
     derive: franchis(mergedDeliveries(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
-    derivePremierCoup: derivePremierCoup(parcoursDesTickets(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
+    derivePremierCoup: derivePremierCoup(parcoursDesTemps(temps), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     coincees: livraisonsCoincees(base, maintenant),
     oisive: cuisineOisive({ session, gardeFous, interrupteur, stations, arretees, rail, cooks, livres, finDuDernierCook: finDuDernierCook(base) }, maintenant),

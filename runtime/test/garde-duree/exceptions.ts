@@ -323,7 +323,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/proteger-branche.test.ts", test: "la commande du chef, par `gh` : une branche déjà protégée, l'étape faite, aucune écriture" },
   { file: "test/reglages-projet/en-vigueur.test.ts", test: "a change merged on the integration branch applies to the next read once the station fetches it, without any restart" },
   { file: "test/reglages-projet/en-vigueur.test.ts", test: "a clone whose integration branch carries the file: its branch, calibrations and ceiling are used, the box's values ignored" },
-  { file: "test/renvois.test.ts", test: "`measures --last` mesure les renvois des N derniers tickets servis, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un" },
+  { file: "test/renvois.test.ts", test: "`measures --last` mesure les renvois des N derniers tickets mergés, lus dans les temps du clone, dit N et ce qu'il écarte, et refuse un N qui n'en est pas un" },
   { file: "test/reseau.test.ts", test: "le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien" },
   { file: "test/sauvegarde.test.ts", test: "restaurer réclame une sauvegarde et un répertoire d'état" },
   { file: "test/sauvegarde.test.ts", test: "une réussite non journalisée et des flux manquants se disent, sans faire échouer la commande" },

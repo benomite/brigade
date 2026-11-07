@@ -224,6 +224,16 @@ time**, what the log knows of the project's heaviness: the slope reveals a drift
 
 At the end, `measures` adds the CI duration of the last 10 merged PRs (`runtime/src/measures/ci-duration.ts`, from `BRIGADE_GITHUB_REPO`): per merge, the start of the first check of the merge commit to the end of the last, then the median beside the 60 s target, and the worst. A merge over target is marked `OVER TARGET`. With fewer than 10 merges, or a failed GitHub call, the section is one line saying so; nothing else changes.
 
+Between the tables and the `flaky` block, `measures` gives the `retries` and `failures` blocks of the last
+merged tickets (`--last <n>`, 20 by default): the share delivered on the first try, the attempts per ticket, and
+the cause of each failed attempt. They are read from `.claude/brigade/temps-tickets.json` of the clone
+(`BRIGADE_REPO_DIR`), not from the log, which no longer sees a merge since #2061: at each merge the station reads
+the ticket's issue on GitHub and writes its quality with its time (`qualite`, `runtime/src/qualite-github.ts`,
+#2707) — a `brigade:renvoi` comment is a delivery sent back to a cook, with its reason, a `brigade:echec` comment
+a cook without a delivery, and a `prio:0` ticket with a `brigade:base-rouge` mark a repair of main, with the
+checks its body names. A ticket merged before #2707, or whose issue GitHub did not return at its merge, has no
+quality: it is not counted, never counted as a first try.
+
 Before it, `measures` gives two lines on the GitHub account over the last 7 days (`runtime/src/mesures-github.ts`): the rate-limited minutes and the peak writes per minute. The GitHub call layer notes each write as it leaves, once the pause has passed, and each limit episode GitHub declares (every minute from `since` to `backAt` counts), in `<BRIGADE_STATION_DIR>/appels-github/minutes.db`, next to the counter. Nothing noted reads as 0 and 0; a minute older than 7 days is forgotten.
 
 When a ticket among the last ten merges exceeds the drift's cost threshold (`BRIGADE_DRIFT_TICKET_TOKENS`),
@@ -309,7 +319,8 @@ Two thresholds concern **cost**, in tokens, over the last ten merges, and are se
 the tokens of the most expensive ticket, all its launches counted, and the tokens of the launches that delivered nothing, summed. Crossed when exceeded, named in the `drift` block. **No default**: it is the chef's quota. A crossed cost threshold is only read
 — it turns nothing red, stops no cook and blocks no delivery.
 
-One last signal concerns **send-backs**: the share of tickets delivered on the first try over the last served tickets. Under the threshold, `status`'s `drift` block
+One last signal concerns **send-backs**: the share of tickets delivered on the first try over the last merged tickets
+whose quality is recorded with their time (see "The measures reading", #2707). Under the threshold, `status`'s `drift` block
 adds a line — "4/10 tickets delivered on the first try (threshold 50%)". At or above it,
 or while the window is not full, nothing. Set by gesture:
 `station seuil-renvois <percentage>` (50 by default) and `station fenetre-renvois <tickets>`
@@ -451,7 +462,8 @@ and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window'
 of the tickets cooked before them. At or under the threshold, nothing is opened and GitHub is not read. `status` says four
 figures, one line each, value then threshold and red over it (`runtime/src/chiffres-du-projet.ts`, #2672): the median and
 p75 lost time (`lostTimeMaxMin`), the median cooking over estimate (`cookingOverEstimateMax`), the first-try rate
-(`premierCoupMinPourcent`) and the repairs of main per merged PR (`REPARATIONS_PAR_MERGE_MAX`). The station publishes
+(`premierCoupMinPourcent`) and the repairs of main per merged PR (`REPARATIONS_PAR_MERGE_MAX`) — these two
+over the recent tickets whose `qualite` the station recorded at their merge, from GitHub (#2707). The station publishes
 them with the ticket times (`temps.chiffres`), with what weighs most on each (the 5 tickets with the most lost time or
 most over their estimate, the most frequent send-back reasons and broken checks); the app's rail band and Health tab
 show them from those values. TODO's informative part names each of the

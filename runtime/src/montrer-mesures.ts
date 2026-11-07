@@ -1,7 +1,9 @@
 // Le relevé des mesures, en lecture seule :
 //   npm --prefix runtime run measures                 par tranches de 10 merges
 //   npm --prefix runtime run measures -- --by <n>     par tranches de <n> merges
-//   npm --prefix runtime run measures -- --last <n>   les renvois des <n> derniers tickets servis (20 par défaut)
+//   npm --prefix runtime run measures -- --last <n>   les renvois des <n> derniers tickets mergés (20 par défaut)
+// Les renvois et leurs causes se lisent dans `temps-tickets.json` du clone (`BRIGADE_REPO_DIR`),
+// où la station écrit au merge ce que GitHub dit de chaque ticket (#2707) : le journal ne le sait plus.
 // Les tests verts seulement au rejeu de la CI se comptent sur les 10 derniers merges.
 // L'ancienne option `--par` répond encore, en disant la nouvelle (`commandes.ts`).
 // La commande n'écrit jamais, et répond pendant que le runtime tourne.
@@ -9,8 +11,9 @@ import { enAnglais } from "./commandes.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
-import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
-import { parcoursDesTickets } from "./parcours-des-tickets.ts";
+import { decrireCauses } from "./causes-des-ratages.ts";
+import { causesDesTemps, parcoursDesTemps, qualiteLue } from "./qualite-github.ts";
+import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { direLeReleveGitHub, releveGitHubDeLaStation } from "./mesures-github.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { describeCallsPerTicket, measureCallsPerTicket, type PerTicket } from "./mesures/appels-par-ticket.ts";
@@ -49,10 +52,10 @@ try {
   const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
   for (const ligne of decrireReleve({ projet, livraisons: mergedDeliveries(base), seuils: seuilsEnVigueur(base) }, par)) console.log(ligne);
   console.log("");
-  const parcours = parcoursDesTickets(base);
-  for (const ligne of decrireRenvois(mesurerRenvois(parcours, derniers))) console.log(ligne);
+  const connus = lesTempsDesTickets(process.env.BRIGADE_REPO_DIR).enregistrements.filter(({ qualite }) => qualiteLue(qualite) !== null);
+  for (const ligne of decrireRenvois(mesurerRenvois(parcoursDesTemps(connus), derniers))) console.log(ligne);
   console.log("");
-  for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) console.log(ligne);
+  for (const ligne of decrireCauses(causesDesTemps(connus.slice(-derniers)))) console.log(ligne);
   console.log("");
   for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) console.log(ligne);
   // The ledger snapshot (`perTicket`) comes from `github/budget-appels.ts`, which is not on main yet:

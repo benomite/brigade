@@ -5,15 +5,12 @@
 // jamais une seconde : les deux mesures parlent des mêmes tickets.
 //
 // Elles reçoivent ce que l'appelant a lu : les enregistrements de temps, dans
-// l'ordre des merges, et ce que le journal sait de la qualité de chaque ticket.
-// Aucune ne lit ni n'écrit de fichier. Les deux lectures — `qualitesDuJournal`
-// et `projetDuClone` — sont à part, en fin de module : la cuisine les fait pour
-// la passe de fermeture, qui dit la qualité à côté des temps.
+// l'ordre des merges, et la qualité de chaque ticket, que la station a lue sur
+// GitHub au merge et écrite avec son temps (`qualite-github.ts`, #2707) — le
+// journal ne la sait plus depuis #2061. Aucune ne lit ni n'écrit de fichier,
+// sauf `projetDuClone`, à part en fin de module.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Base } from "./base.ts";
-import { CAUSES, classerEssai, SANS_SIGNAUX } from "./causes-des-ratages.ts";
-import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
 import type { TempsTicket } from "./temps-ticket/ligne-status.ts";
 
@@ -30,11 +27,11 @@ export function seuilPremierCoup(projet: unknown): number {
   return typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0 && valeur <= 100 ? valeur : SEUIL_PREMIER_COUP_PAR_DEFAUT;
 }
 
-// Ce que le journal sait d'un ticket mergé. `renvois` : le motif de chacun de
-// ses renvois par la pass. `cooksRates` : ses cooks qui n'ont rien livré.
-// `reparation` : présent si le ticket répare la base, avec les checks qui
-// l'avaient cassée.
-export type QualiteDuTicket = { renvois: readonly string[]; cooksRates: number; reparation?: readonly string[] };
+// Ce que GitHub dit d'un ticket mergé. `renvois` : le motif de chacun de ses
+// renvois au cook. `cooksRates` : ses cooks qui n'ont rien livré, et `ratees`,
+// quand elle est connue, la cause de chacun. `reparation` : présent si le
+// ticket répare la base, avec les checks qui l'avaient cassée.
+export type QualiteDuTicket = { renvois: readonly string[]; cooksRates: number; ratees?: readonly string[]; reparation?: readonly string[] };
 
 export type Compte = { nom: string; fois: number };
 
@@ -107,8 +104,8 @@ export function direLaQualite(q: Qualite): string[] {
   const inconnus = q.inconnus === 0 ? "" : `, ${q.inconnus} more not known`;
   const premierCoup =
     q.premierCoup === null
-      ? `- First try: unknown — none of the ${q.tickets.length} recent tickets is known to the log (threshold ${q.seuilPremierCoup}%).`
-      : `- First try: ${pourcent(q.premierCoup)} of the ${q.mesures} recent tickets known to the log${inconnus} — ${q.sousLeSeuil ? "under" : "at or over"} the project's threshold of ${q.seuilPremierCoup}%.`;
+      ? `- First try: unknown — none of the ${q.tickets.length} recent tickets has its GitHub markers recorded (threshold ${q.seuilPremierCoup}%).`
+      : `- First try: ${pourcent(q.premierCoup)} of the ${q.mesures} recent tickets with their GitHub markers recorded${inconnus} — ${q.sousLeSeuil ? "under" : "at or over"} the project's threshold of ${q.seuilPremierCoup}%.`;
   const reparations =
     q.reparationsParMerge === null
       ? "- Repairs of main: unknown — no merged PR to count."
@@ -119,30 +116,6 @@ export function direLaQualite(q: Qualite): string[] {
     `- Send-back reasons: ${q.motifsDeRenvoi.length === 0 ? "none" : comptes(q.motifsDeRenvoi)}.`,
     `- Checks that broke main: ${q.checksCasses.length === 0 ? "none" : comptes(q.checksCasses)}.`,
   ];
-}
-
-const titreDeCause = (cle: string) => CAUSES.find((cause) => cause.cle === cle)?.titre ?? cle;
-
-// Ce que le journal sait de chaque ticket mergé, de son dernier parcours
-// (`parcours-des-tickets.ts`) : tout essai avant le dernier a raté — renvoyé
-// quand la pass l'a jugé rouge, avec la cause que `causes-des-ratages.ts` lui
-// donne ; sinon un cook qui n'a rien livré. Le ticket de réparation de la base
-// est celui d'un `base.repair-opened`, qui nomme les checks en échec. Un
-// ticket mergé sans essai au journal n'y est pas : sa qualité est inconnue.
-export function qualitesDuJournal(base: Base): Map<number, QualiteDuTicket> {
-  const qualites = new Map<number, QualiteDuTicket>();
-  for (const { ticket, end, attempts } of parcoursDesTickets(base)) {
-    if (end?.kind !== "merged" || attempts.length === 0) continue;
-    const rates = attempts.slice(0, -1);
-    const renvois = rates.filter((essai) => essai.verdict === "red").map((essai) => titreDeCause(classerEssai(essai.signaux ?? SANS_SIGNAUX)));
-    qualites.set(ticket, { renvois, cooksRates: rates.length - renvois.length });
-  }
-  for (const { ticket, payload } of base.lire<{ ticket: number; payload: string }>("SELECT ticket, payload FROM events WHERE type = 'base.repair-opened' AND ticket IS NOT NULL ORDER BY seq")) {
-    const qualite = qualites.get(ticket);
-    const { failures } = JSON.parse(payload) as { failures?: unknown };
-    if (qualite !== undefined) qualites.set(ticket, { ...qualite, reparation: Array.isArray(failures) ? failures.filter((f): f is string => typeof f === "string") : [] });
-  }
-  return qualites;
 }
 
 // Le projet.json du clone, lu tel quel ; null s'il manque ou ne se lit pas.

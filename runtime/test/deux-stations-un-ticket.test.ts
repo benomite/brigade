@@ -30,19 +30,23 @@ type Commentaire = { id: number; body: string; createdAt: string; station: strin
 // Un faux GitHub partagé par les deux stations, réduit à ce que le tour GitHub
 // seul appelle. Chaque commentaire est daté par l'ordre où il arrive, et porte
 // un id croissant, comme chez GitHub. Un poste de commentaire peut être retenu
-// jusqu'à ce qu'une autre station ait posté sa prise.
+// jusqu'à ce qu'une autre station ait posté sa prise ; et cette autre ne poste
+// sa prise qu'une fois la station retenue venue poster la sienne — elle a donc
+// lu le ticket libre —, quel que soit l'ordre où leurs tours avancent.
 class FauxGitHub {
   labels = new Set(CALIBRE);
   commentaires: Commentaire[] = [];
   prs: Array<{ number: number; branche: string; base: string; titre: string; corps: string }> = [];
   private horloge = 0;
-  private retenus = new Map<string, { attendu: string; pret: Promise<void>; lever: () => void }>();
+  private retenus = new Map<string, { attendu: string; pret: Promise<void>; lever: () => void; venue: Promise<void>; venir: () => void }>();
 
   // `station` ne poste rien avant que `attendue` ait posté sa prise.
   retenir(station: string, attendue: string): void {
     let lever = () => {};
     const pret = new Promise<void>((resoudre) => (lever = resoudre));
-    this.retenus.set(station, { attendu: attendue, pret, lever });
+    let venir = () => {};
+    const venue = new Promise<void>((resoudre) => (venir = resoudre));
+    this.retenus.set(station, { attendu: attendue, pret, lever, venue, venir });
   }
 
   prises(): string[] {
@@ -64,7 +68,10 @@ class FauxGitHub {
       issue: async () => ({ ...issue(), body: "" }),
       commentaires: async () => this.commentaires.map(({ id, body, createdAt }) => ({ id, body, author: "brigade", association: "OWNER", createdAt })),
       commenter: async (_numero, body) => {
+        const prise = body.startsWith("<!-- brigade:prise");
+        if (prise) this.retenus.get(station)?.venir();
         await this.retenus.get(station)?.pret;
+        for (const [autre, { attendu, venue }] of this.retenus) if (autre !== station && attendu === station && prise) await venue;
         this.horloge += 1;
         this.commentaires.push({ id: this.horloge, body, createdAt: new Date(Date.UTC(2026, 10, 5) + this.horloge * 1000).toISOString(), station });
         for (const [autre, { attendu, lever }] of this.retenus) if (autre !== station && attendu === station && body.startsWith("<!-- brigade:prise")) lever();

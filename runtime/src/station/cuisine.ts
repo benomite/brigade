@@ -49,7 +49,8 @@ import { brancherReseau, configReseau, DECLARATION_RESEAU, lireDeclaration, regl
 import { plafondDuProjet } from "../reagir.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { configReviewer } from "../reviewer.ts";
-import { direLaQualite, mesurerQualite, projetDuClone, qualitesDuJournal } from "../mesure-qualite.ts";
+import { direLaQualite, mesurerQualite, projetDuClone } from "../mesure-qualite.ts";
+import { qualitesDesTemps } from "../qualite-github.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
 import { configStation } from "../station.ts";
@@ -223,8 +224,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
               repertoireEtat,
-              // La porte de qualité devant la correction du temps (#2680) : ce que le journal sait des tickets mergés.
-              qualites: () => qualitesDuJournal(journal),
               // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
               gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
               // Le setup du worktree de chaque cook, joué avant lui (#2535).
@@ -242,7 +241,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
     // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
-    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => direLaQualite(mesurerQualite(lesTempsDesTickets(station.clone).enregistrements, qualitesDuJournal(elaguee.journal.base), projetDuClone(station.clone))), derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
+    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => {
+        const { enregistrements } = lesTempsDesTickets(station.clone);
+        return direLaQualite(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(station.clone)));
+      }, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherRapportHebdo(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat })), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);

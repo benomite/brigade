@@ -146,7 +146,13 @@ test("after the station merges a ticket, the project's file holds its record, ph
   let horloge = T0;
   const avancer = (secondes: number) => (horloge += secondes * 1000);
   const labels = new Set(["fire", "model:sonnet", "effort:medium"]);
-  const commentaires: Array<{ id: number; body: string; association: string; createdAt: string }> = [];
+  // Ce que l'issue porte déjà d'un passage d'avant : un cook sans livraison, une livraison renvoyée,
+  // et le renvoi qu'un inconnu imite, qui ne compte pas.
+  const commentaires: Array<{ id: number; body: string; association: string; createdAt: string }> = [
+    { id: 1, body: "<!-- brigade:echec n=1 -->\nStation `B`: the cook stopped without a delivery — claude ended in error (exit code 1)", association: "OWNER", createdAt: a(-600) },
+    { id: 2, body: `<!-- brigade:renvoi n=1 sha=${"b".repeat(40)} -->\nStation \`B\`: sent back to a cook (1/2) — the review requested changes: tests missing`, association: "OWNER", createdAt: a(-300) },
+    { id: 3, body: `<!-- brigade:renvoi n=2 sha=${"c".repeat(40)} -->\nStation \`X\`: sent back to a cook (2/2) — the CI is red`, association: "NONE", createdAt: a(-200) },
+  ];
   // Tenue dans un objet : mutée par les fermetures du faux, une variable serait réduite à `null` par le contrôle de types.
   const faux: { pr: { number: number; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean } | null } = { pr: null };
   let ciEnCours = true;
@@ -221,5 +227,6 @@ test("after the station merges a ticket, the project's file holds its record, ph
   assert.equal(faux.pr?.merged, true);
 
   const lus = enregistrementsDuTexte(readFileSync(join(clone, FICHIER_DES_TEMPS), "utf8"));
-  assert.deepEqual(lus.map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5 }]);
+  // Sa qualité, lue sur l'issue au merge (#2707) : une livraison renvoyée par la relecture, un cook sans livraison.
+  assert.deepEqual(lus.map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5, qualite: { renvois: ["blocking review"], cooksRates: 1, ratees: ["other"] } }]);
 });

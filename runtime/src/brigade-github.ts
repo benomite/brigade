@@ -56,7 +56,8 @@ import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { mesurerQualite, projetDuClone } from "./mesure-qualite.ts";
+import { qualiteDeLIssue, qualitesDesTemps } from "./qualite-github.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, type DepotDuTicket } from "./temps-ticket/mesure.ts";
@@ -208,11 +209,6 @@ export type OptionsDeStation = {
   // Le répertoire d'état du projet, où se compte un `blocked-on-human` sans
   // question (#2556). Absent, le cas est refusé mais pas compté.
   repertoireEtat?: string;
-  // Ce que le journal sait de la qualité de chaque ticket mergé
-  // (`qualitesDuJournal`, #2678), lu à chaque tour avec le projet.json du
-  // clone : la porte de qualité (#2680) passe avant la correction du temps.
-  // Absent, pas de porte.
-  qualites?: () => ReadonlyMap<number, QualiteDuTicket>;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
@@ -383,8 +379,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       })) ?? undefined;
     const temps = chrono.servir(issue, depot);
     if (temps === null) return;
+    // Sa qualité, lue sur l'issue, s'écrit avec son temps (#2707) : le journal
+    // ne la sait plus. Illisible, elle reste inconnue, et la station le dit.
+    const qualite = await Promise.all([github.corpsDuTicket(issue), github.commentaires(issue)])
+      .then(([corps, commentaires]) => qualiteDeLIssue({ corps, labels, commentaires }))
+      .catch((erreur) => {
+        avertir(`brigade : #${issue} sur ${nom} — its comments are unreadable, its quality is not recorded: ${message(erreur)}`);
+        return null;
+      });
     try {
-      servirLeTemps(options.clone, temps, labels);
+      servirLeTemps(options.clone, qualite === null ? temps : { ...temps, qualite }, labels);
     } catch (erreur) {
       avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
     }
@@ -394,15 +398,30 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
   // Devant elle, et devant l'alerte de la cuisson, la porte de qualité (#2680),
-  // sur le journal et le projet.json du clone.
-  const { qualites } = options;
-  const corrigerLeTemps = clone === undefined ? null : correctionDuTemps({ github, lire: () => ({ ...lesTempsDesTickets(clone), ...(qualites === undefined ? {} : { qualites: qualites(), projet: projetDuClone(clone) }) }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  // sur la qualité que les temps du clone portent (#2707) et son projet.json.
+  const corrigerLeTemps =
+    clone === undefined
+      ? null
+      : correctionDuTemps({
+          github,
+          lire: () => {
+            const temps = lesTempsDesTickets(clone);
+            return { ...temps, qualites: qualitesDesTemps(temps.enregistrements), projet: projetDuClone(clone) };
+          },
+          ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
+        });
   // La médiane des rapports cuisson réelle / attendue au-dessus de
   // `cookingOverEstimateMax` ouvre son ticket de correction, un seul (#2676).
   // La porte de qualité la fait taire aussi : la qualité en défaut, c'est le
   // ticket de qualité, que la correction du temps ouvre, qui part (#2680).
   const alerteDeLaCuisson = clone === undefined ? null : alerteDuClone(clone, { github, avertir, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
-  const alerterLaCuisson = alerteDeLaCuisson === null || clone === undefined || qualites === undefined ? alerteDeLaCuisson : async () => (qualiteEnDefaut(mesurerQualite(lesTempsDesTickets(clone).enregistrements, qualites(), projetDuClone(clone))) ? null : alerteDeLaCuisson());
+  const alerterLaCuisson =
+    alerteDeLaCuisson === null || clone === undefined
+      ? alerteDeLaCuisson
+      : async () => {
+          const { enregistrements } = lesTempsDesTickets(clone);
+          return qualiteEnDefaut(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(clone))) ? null : alerteDeLaCuisson();
+        };
   // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
   // `in-pass`. GitHub ne ferme pas toujours l'issue par le `Closes #N` de la PR
   // (#2467) ; la fermeture passe d'abord, pour qu'un retrait réussi sur une
@@ -1254,8 +1273,6 @@ export type OptionsDuDepot = {
   clone?: string;
   // Le répertoire d'état du projet (#2556).
   repertoireEtat?: string;
-  // La qualité des tickets mergés, lue du journal (#2680).
-  qualites?: () => ReadonlyMap<number, QualiteDuTicket>;
   // Les gates d'un projet sans CI sur ses PR, que la station joue sur leur
   // tête (#2456) : leur plafond de durée, le fichier des secrets de la machine,
   // et si la station agit sous une identité par rôle — ses gates ne reçoivent
@@ -1605,7 +1622,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.qualites === undefined ? {} : { qualites: options.qualites }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

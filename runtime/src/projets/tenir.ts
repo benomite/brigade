@@ -56,7 +56,7 @@ import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
-import { chiffresDuClone, qualitesDuRepertoire } from "../chiffres-du-projet.ts";
+import { chiffresDuClone } from "../chiffres-du-projet.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
@@ -541,7 +541,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       // l'app fusionne ceux des stations (une ligne écrite à la main peut poser son propre clone).
       // Avec eux, les quatre chiffres du projet (`chiffres-du-projet.ts`, #2672) : l'app les relaie, ne les recalcule pas.
       const cloneServi = servis.clones?.()[projet.nom] ?? cloneDe(dit.nom);
-      const temps = { ...lesTempsDesTickets(cloneServi), chiffres: chiffresDuClone(cloneServi, qualitesDuRepertoire(etatDe(dit.nom))) };
+      const temps = { ...lesTempsDesTickets(cloneServi), chiffres: chiffresDuClone(cloneServi) };
       return { ...dit, ...(delai === null ? {} : { delai }), temps, ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Un besoin que le chef laisse au setup du projet : la station ouvre sur

@@ -1,6 +1,7 @@
 // La synthèse des derniers tickets servis (#2343, épique #2336), tirée des
 // enregistrements de `.claude/brigade/temps-tickets.json`. Fonctions pures : ce
 // module ne lit ni n'écrit le fichier, il reçoit son contenu.
+import type { QualiteDuTicket } from "../mesure-qualite.ts";
 
 export const PHASES = ["cuisson", "cuissonTests", "attentePasse", "revue", "ci", "merge"] as const;
 export type Phase = (typeof PHASES)[number];
@@ -18,6 +19,8 @@ export type EnregistrementTemps = { ticket: number; claimedAt: string; mergedAt:
     phases?: { nom: string; minutes: number }[];
     // Depuis #2670, son temps perdu, en secondes (`temps-max/mesure.ts`).
     perdu?: Pertes;
+    // Depuis #2707, sa qualité, lue sur GitHub au merge (`qualite-github.ts`).
+    qualite?: QualiteDuTicket;
   };
 
 // Le temps perdu d'un ticket, en secondes : l'attente avant sa prise, ses
