@@ -5,15 +5,14 @@
 // liste parmi `product`, `design`, `review` et `client-contact`. Les rôles sont
 // ceux du projet : le même compte peut en porter d'autres dans un autre projet.
 //
-// Ce module valide cette liste et la lit depuis le clone d'un projet ; il dit
-// qui porte un rôle. Un projet sans `humans` — ou sans fichier — n'a personne :
+// Ce module valide cette liste, que `reglages-projet/reglages.ts` lit avec les
+// autres réglages, et dit qui porte un rôle : la cuisine, en s'ouvrant, dit les
+// humains du projet rôle par rôle (`direHumains`, dans `en-vigueur.ts`). Un projet sans `humans` — ou sans fichier — n'a personne :
 // une liste vide, comme avant. Une entrée refusée (rôle inconnu, compte vide
 // ou déclaré deux fois) est un refus qui la nomme, jamais une liste devinée.
 //
 // Ses messages sont en anglais : c'est l'app qui les montre.
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { FICHIER, LOGIN, reglagesDuTexte } from "../reglages-projet/reglages.ts";
+import { LOGIN } from "./login.ts";
 
 export const ROLES_HUMAINS = ["product", "design", "review", "client-contact"] as const;
 export type RoleHumain = (typeof ROLES_HUMAINS)[number];
@@ -58,23 +57,18 @@ export function humainsDe(valeur: unknown): Humain[] {
   });
 }
 
-// Les humains déclarés dans le texte de `projet.json`.
-export function humainsDuTexte(texte: string): Humain[] {
-  return reglagesDuTexte(texte).humans ?? [];
-}
-
-// Les humains du projet dont `clone` est le clone : vide sans fichier.
-export function lireHumains(clone: string): Humain[] {
-  const fichier = join(clone, FICHIER);
-  return existsSync(fichier) ? humainsDuTexte(readFileSync(fichier, "utf8")) : [];
-}
-
 // Qui porte un rôle, dans l'ordre de la déclaration.
 export function humainsDuRole(humains: readonly Humain[], role: RoleHumain): Humain[] {
   return humains.filter((humain) => humain.roles.includes(role));
 }
 
-// Les comptes de chaque rôle : tous les rôles y sont, vides s'il le faut.
-export function humainsParRole(humains: readonly Humain[]): Record<RoleHumain, string[]> {
-  return Object.fromEntries(ROLES_HUMAINS.map((role) => [role, humainsDuRole(humains, role).map(({ login }) => login)])) as Record<RoleHumain, string[]>;
+// Les humains d'un projet, rôle par rôle, pour la ligne que la cuisine dit en
+// s'ouvrant : `humans product alice, review alice bob`. Un rôle que personne
+// ne porte est tu ; sans humains, rien n'est dit.
+export function direHumains(humains: readonly Humain[]): string {
+  const roles = ROLES_HUMAINS.flatMap((role) => {
+    const logins = humainsDuRole(humains, role).map(({ login }) => login);
+    return logins.length === 0 ? [] : [`${role} ${logins.join(" ")}`];
+  });
+  return roles.length === 0 ? "" : `humans ${roles.join(", ")}`;
 }

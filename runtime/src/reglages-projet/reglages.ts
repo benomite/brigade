@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { EFFORTS, MODELES, type Calibrage } from "../calibrage.ts";
 import { HumainsInvalides, humainsDe, type Humain } from "../humains/humains.ts";
+import { LOGIN } from "../humains/login.ts";
 import { execFile } from "../sans-invite.ts";
 import { refusEn } from "../zones.ts";
 import { nomPrive, valeurPrivee, type Prive } from "./prive.ts";
@@ -166,10 +167,6 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // sa réécriture le retire.
 const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
-
-// Un compte GitHub tel que GitHub en accepte : lettres, chiffres et tirets
-// isolés, 39 caractères au plus, sans tiret au bord.
-export const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 
