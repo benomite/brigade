@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
+import { chiffresDuProjet } from "../../src/chiffres-du-projet.ts";
 import { decisionsPosees } from "../../src/decisions.ts";
 import type { Fait } from "../../src/evenements.ts";
 import { leverBlocageDans, poserBlocageDans } from "../../src/installation/blocages/blocages.ts";
@@ -127,7 +128,8 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
 
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
 // Les temps des tickets que la principale publie : aucun fichier dans le clone, aucun enregistrement et le seuil du temps perdu par défaut (#2346, #2670).
-const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2 };
+// Avec les quatre chiffres du projet (#2672), qui n'ont rien à dire.
+const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2, chiffres: chiffresDuProjet({ enregistrements: [], qualites: new Map(), ratios: [], projet: null }) };
 const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -729,4 +731,7 @@ test("la boîte du 2026-11-06 : une ligne écrite à la main, aucune station pri
   const temps = station.suivi()?.[0]?.temps;
   assert.equal(temps?.enregistrements.length, 13);
   assert.equal(temps?.lostTimeMaxMin, 2);
+  // Les quatre chiffres sont publiés avec eux, dans l'ordre de la table du ticket #2672.
+  assert.deepEqual(temps?.chiffres?.map(({ cle }) => cle), ["perdu", "estimation", "premier-coup", "reparations"]);
+  assert.match(temps?.chiffres?.[0]?.valeur ?? "", /^[\d.]+ min median, [\d.]+ min p75$/);
 });

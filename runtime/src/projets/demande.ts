@@ -118,6 +118,7 @@ import { capacite, CAPACITE } from "../capacites.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { Blocage } from "../installation/blocages/blocages.ts";
+import type { Chiffre } from "../chiffres-du-projet.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import type { Delai } from "../installation/delai/delai.ts";
 import { selectionsLues, type Choix, type Selections } from "../installation/besoins/besoins.ts";
@@ -205,7 +206,7 @@ export type SuiviDuProjet = {
   // Le temps de son ajout à son premier ticket servi (`installation/delai/`).
   delai?: Delai;
   // Les temps des derniers tickets mesurés du projet et le seuil de leur temps perdu (`temps-ticket/ligne-status.ts`).
-  temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number };
+  temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number; chiffres?: Chiffre[] };
   choix?: Choix[];
   // Les stations que l'app lui appaire en plus de la principale (`secondaires.ts`).
   secondaires?: StationSecondaire[];

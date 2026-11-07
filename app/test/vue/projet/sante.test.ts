@@ -38,10 +38,16 @@ const ticket = (n: number, total: number, pass: number, jour = n - 100) => ({
   ci: (total - pass) * MIN * 0.05,
   merge: (total - pass) * MIN * 0.05,
 });
-// Le résumé de la mesure (`resume` de temps-tickets.json) : la bande du rail et Health le lisent sans le recalculer.
-// Le temps total n'a pas de plafond (#2670) : seul le temps perdu médian se compare à son seuil, `lostTimeMaxMin`.
-const RESUME = { n: 3, medianMin: 10, p75Min: 14, perduMedianMin: 1, lostTimeMaxMin: 2, phaseLaPlusLongue: { nom: "cooking", medianMin: 6, partPct: 60 }, perteLaPlusLourde: null };
-const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], lostTimeMaxMin: 2, resume: RESUME };
+// Le résumé de la mesure (`resume` de temps-tickets.json) et les quatre chiffres (`chiffres`) : la bande du rail et Health les lisent sans les recalculer.
+// Le temps total n'a pas de plafond (#2670, #2672) : seuls les quatre chiffres ont un seuil.
+const RESUME = { n: 3, medianMin: 10, p75Min: 14, phaseLaPlusLongue: { nom: "cooking", medianMin: 6, partPct: 60 }, perteLaPlusLourde: null };
+const CHIFFRES = [
+  { cle: "perdu", nom: "lost time", valeur: "1 min median, 1.5 min p75", seuil: "2 min", depasse: false, pesent: ["#102 lost 1.5 min"] },
+  { cle: "estimation", nom: "vs estimate", valeur: "×1.20 median", seuil: "×1.5", depasse: false, pesent: [] },
+  { cle: "premier-coup", nom: "first try", valeur: "80%", seuil: "70%", depasse: false, pesent: ["red CI (2)"] },
+  { cle: "reparations", nom: "main repairs", valeur: "0.050 per merge", seuil: "0.1 per merge", depasse: false, pesent: [] },
+];
+const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], lostTimeMaxMin: 2, resume: RESUME, chiffres: CHIFFRES };
 
 const texte = (racine: Faux) => racine.textContent;
 const parClasse = (racine: Faux, classe: string) => [...racine.descendants()].filter((pose) => pose.className.split(" ").includes(classe));
@@ -60,7 +66,14 @@ describe("le temps des tickets, sur Health", () => {
 
     const bloc: Faux = poserBlocTempsTickets(doc, TEMPS);
     assert.equal(bloc.dataset.temps, "normal");
-    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), ["10 minmedian of the last 3 measured tickets", "14 minp75 of the last 3 measured tickets", "1 minmedian lost time, max 2 min"]);
+    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), [
+      "10 minmedian of the last 3 measured tickets",
+      "14 minp75 of the last 3 measured tickets",
+      "1 min median, 1.5 min p75lost time, threshold 2 min",
+      "×1.20 medianvs estimate, threshold ×1.5",
+      "80%first try, threshold 70%",
+      "0.050 per mergemain repairs, threshold 0.1 per merge",
+    ]);
     assert.equal(parClasse(bloc, "temps-phase-lente").map(texte)[0], "Slowest phase: cooking, median 6 min");
     const colonnes = parClasse(bloc, "temps-colonne");
     assert.deepEqual(colonnes.map(({ title }) => title), ["#101 · Oct 1 · 10 min, pass 2 min", "#102 · Oct 2 · 20 min, pass 6 min", "#103 · Oct 3 · 9 min, pass 3 min"]);
@@ -74,23 +87,25 @@ describe("le temps des tickets, sur Health", () => {
     ]);
   });
 
-  test("le temps perdu médian au-delà de son seuil passe le bloc en « depasse », lui seul en rouge ; la perte la plus lourde se dit", () => {
-    const sur = (resume: object) => poserBlocTempsTickets(doc, { ...TEMPS, resume });
-    const perdu = sur({ ...RESUME, perduMedianMin: 5, perteLaPlusLourde: { nom: "send-backs", medianMin: 3, partPct: 60 } });
+  test("un chiffre au-delà de son seuil passe le bloc en « depasse », lui seul en rouge ; ce qui pèse le plus au survol ; la perte la plus lourde se dit", () => {
+    const sur = (chiffres: object[], resume: object = RESUME) => poserBlocTempsTickets(doc, { ...TEMPS, resume, chiffres });
+    const rouge = CHIFFRES.map((c) => (c.cle === "premier-coup" ? { ...c, valeur: "50%", depasse: true, pesent: ["tests failed (3)", "review (1)"] } : c));
+    const perdu = sur(rouge, { ...RESUME, perteLaPlusLourde: { nom: "send-backs", medianMin: 3, partPct: 60 } });
     assert.equal(perdu.dataset.temps, "depasse");
-    assert.deepEqual(parClasse(perdu, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, "oui"]);
-    assert.match(texte(perdu), /Lost time over the max of 2 min/);
+    assert.deepEqual(parClasse(perdu, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined, undefined, "oui", undefined]);
     assert.deepEqual(parClasse(perdu, "temps-phase-lente").map(texte), ["Heaviest loss: send-backs, median 3 min", "Slowest phase: cooking, median 6 min"]);
-    const long = sur({ ...RESUME, medianMin: 90, p75Min: 160 });
+    const survols = parClasse(perdu, "survol").map((pose) => pose.children[0] as Faux);
+    assert.equal(survols.find((c) => c.dataset.chiffre === "premier-coup")?.ariaLabel, "Weighs most: tests failed (3) · review (1)");
+    const long = sur(CHIFFRES, { ...RESUME, medianMin: 90, p75Min: 160 });
     assert.equal(long.dataset.temps, "normal", "un long ticket sans temps perdu n'est au-dessus de rien");
-    assert.deepEqual(parClasse(long, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined]);
+    assert.deepEqual(parClasse(long, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined, undefined, undefined, undefined]);
   });
 
-  test("les chiffres sont ceux du résumé, les mêmes que ceux de la bande du rail", () => {
+  test("les chiffres sont ceux de la station, les mêmes que ceux de la bande du rail", () => {
     const bloc = poserBlocTempsTickets(doc, TEMPS);
     const bande = tempsDeLaBande(doc, TEMPS);
-    assert.equal(texte(bande), "Ticket time" + "median" + "10 min" + "/" + "p75" + "14 min" + "·" + "lost" + "1 min" + "vs 2 min max");
-    assert.deepEqual(parClasse(bloc, "temps-valeur").map(texte), ["10 min", "14 min", "1 min"]);
+    assert.deepEqual(parClasse(bloc, "temps-valeur").map(texte), ["10 min", "14 min", "1 min median, 1.5 min p75", "×1.20 median", "80%", "0.050 per merge"]);
+    for (const c of CHIFFRES) assert.ok(texte(bande).includes(c.valeur) && texte(bande).includes(`/ ${c.seuil}`), c.cle);
   });
 
   test("jamais un blanc ni un zéro : sans mesure, « no measure yet » — la phase, le plafond et les figures ne s'inventent pas", () => {

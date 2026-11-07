@@ -15,18 +15,13 @@ test("no measured ticket: one short sentence", () => {
   assert.equal(direLesTempsDesTickets([]), "tickets: no measured ticket yet");
 });
 
-test("the line gives median, slowest, split by phase and the lost time against its threshold", () => {
+test("the line gives median, slowest and the split by phase, with no max", () => {
   const lignes = [t(1, 8, 3, 2, 1, 1, 0), t(2, 8, 3, 2, 1, 1, 0), t(2301, 25, 5, 3, 1, 1, 1)];
   const sans = lignes.map(({ claimedAt, mergedAt, ...r }) => r);
   assert.equal(
     direLesTempsDesTickets(sans),
-    "tickets: median 12m (slowest #2301 31m) | cook 8m (tests 3m) · pass 2m · review 1m · CI 1m · merge 0m | lost 0m, max 2m",
+    "tickets: median 12m (slowest #2301 31m) | cook 8m (tests 3m) · pass 2m · review 1m · CI 1m · merge 0m",
   );
-});
-
-test("lost time over the threshold: the line says so; a long ticket that lost nothing is not over", () => {
-  assert.match(direLesTempsDesTickets([{ ...t(1, 20, 1, 0, 0, 0, 0), attentePrise: m(3) }].map(({ claimedAt, mergedAt, ...r }) => r), 2), /lost 3m, max 2m — over the threshold$/);
-  assert.doesNotMatch(direLesTempsDesTickets([t(1, 90, 1, 0, 0, 0, 0)].map(({ claimedAt, mergedAt, ...r }) => r), 2), /over/);
 });
 
 test("only the last 10 count", () => {
@@ -42,7 +37,7 @@ test("reads both files; a missing file still gives a line", (tc) => {
   mkdirSync(dossier, { recursive: true });
   writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify([{ ticket: 5, attentePrise: 360, cuisson: 600, cuissonTests: 60, attentePasse: 0, revue: 0, ci: 0, merge: 0 }]));
   writeFileSync(join(dossier, "projet.json"), JSON.stringify({ lostTimeMaxMin: 5 }));
-  assert.match(ligneDesTempsDesTickets(depot), /median 16m \(slowest #5 16m\).*lost 6m, max 5m — over the threshold$/);
+  assert.match(ligneDesTempsDesTickets(depot), /median 16m \(slowest #5 16m\)/);
 });
 
 test("the published times: valid records and the project's lost-time threshold, the default without files", (tc) => {

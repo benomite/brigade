@@ -34,12 +34,27 @@ const ticket = (n: number, minutes: number) => ({
   ci: minutes * MIN * 0.1,
   merge: minutes * MIN * 0.1,
 });
-// Le résumé de la mesure (`resume` de temps-tickets.json), tel qu'elle le publie : la vue le lit, elle ne le recalcule pas.
-// Le temps total n'a pas de plafond (#2670) : seul le temps perdu médian se compare à son seuil, `lostTimeMaxMin`.
-const RESUME_NORMAL = { n: 10, medianMin: 11, p75Min: 13, perduMedianMin: 1, lostTimeMaxMin: 2, phaseLaPlusLongue: { nom: "review", medianMin: 2, partPct: 18 }, perteLaPlusLourde: null };
-const RESUME_LENT = { n: 10, medianMin: 14, p75Min: 47, perduMedianMin: 5, lostTimeMaxMin: 2, phaseLaPlusLongue: { nom: "review", medianMin: 9, partPct: 64 }, perteLaPlusLourde: { nom: "failed cooks", medianMin: 4, partPct: 80 } };
-const NORMAL = { enregistrements: [9, 11, 8, 12, 10, 14, 9, 13, 11, 18].map((m, i) => ticket(2331 + i, m)), lostTimeMaxMin: 2, resume: RESUME_NORMAL };
-const LENT = { enregistrements: [19, 22, 17, 25, 21, 30, 18, 24, 20, 28].map((m, i) => ticket(2331 + i, m)), lostTimeMaxMin: 2, resume: RESUME_LENT };
+// Le résumé de la mesure (`resume` de temps-tickets.json) et les quatre chiffres (`chiffres`), tels que la station les publie :
+// la vue les lit, elle ne les recalcule pas. Le temps total n'a pas de plafond (#2670, #2672) : seuls les quatre chiffres ont un seuil.
+const RESUME_NORMAL = { n: 10, medianMin: 11, p75Min: 13, phaseLaPlusLongue: { nom: "review", medianMin: 2, partPct: 18 }, perteLaPlusLourde: null };
+const RESUME_LENT = { n: 10, medianMin: 14, p75Min: 47, phaseLaPlusLongue: { nom: "review", medianMin: 9, partPct: 64 }, perteLaPlusLourde: { nom: "failed cooks", medianMin: 4, partPct: 80 } };
+const CHIFFRES_NORMAL = [
+  { cle: "perdu", nom: "lost time", valeur: "1 min median, 1.5 min p75", seuil: "2 min", depasse: false, pesent: ["#2335 lost 1.5 min"] },
+  { cle: "estimation", nom: "vs estimate", valeur: "×1.20 median", seuil: "×1.5", depasse: false, pesent: ["#2333 ×1.40 (14 min against 10)"] },
+  { cle: "premier-coup", nom: "first try", valeur: "80%", seuil: "70%", depasse: false, pesent: ["red CI (2)"] },
+  { cle: "reparations", nom: "main repairs", valeur: "0.050 per merge", seuil: "0.1 per merge", depasse: false, pesent: [] },
+];
+const CHIFFRES_ROUGES = [
+  { cle: "perdu", nom: "lost time", valeur: "5 min median, 9 min p75", seuil: "2 min", depasse: true, pesent: ["#2338 lost 9 min", "#2333 lost 6 min"] },
+  { cle: "estimation", nom: "vs estimate", valeur: "×2.10 median", seuil: "×1.5", depasse: true, pesent: ["#2338 ×3.00 (30 min against 10)"] },
+  { cle: "premier-coup", nom: "first try", valeur: "50%", seuil: "70%", depasse: true, pesent: ["tests failed (3)", "review (1)"] },
+  { cle: "reparations", nom: "main repairs", valeur: "0.200 per merge", seuil: "0.1 per merge", depasse: true, pesent: ["typecheck (2)"] },
+];
+const NORMAL = { enregistrements: [9, 11, 8, 12, 10, 14, 9, 13, 11, 18].map((m, i) => ticket(2331 + i, m)), lostTimeMaxMin: 2, resume: RESUME_NORMAL, chiffres: CHIFFRES_NORMAL };
+const LENT = { enregistrements: [19, 22, 17, 25, 21, 30, 18, 24, 20, 28].map((m, i) => ticket(2331 + i, m)), lostTimeMaxMin: 2, resume: RESUME_LENT, chiffres: CHIFFRES_ROUGES };
+// Ce que la bande dit des quatre chiffres : « · », le nom, la valeur, « / » et le seuil.
+const DIT_NORMAL = "·" + "lost time" + "1 min median, 1.5 min p75" + "/ 2 min" + "·" + "vs estimate" + "×1.20 median" + "/ ×1.5" + "·" + "first try" + "80%" + "/ 70%" + "·" + "main repairs" + "0.050 per merge" + "/ 0.1 per merge";
+const DIT_ROUGE = "·" + "lost time" + "5 min median, 9 min p75" + "/ 2 min" + "·" + "vs estimate" + "×2.10 median" + "/ ×1.5" + "·" + "first try" + "50%" + "/ 70%" + "·" + "main repairs" + "0.200 per merge" + "/ 0.1 per merge";
 
 // La part elle-même, sous l'enveloppe de son survol quand elle en a une.
 const laPart = (pose: Faux): Faux => (pose.className === "survol" ? (pose.children[0] ?? assert.fail("survol sans part")) : pose);
@@ -55,53 +70,50 @@ function auSurvol(pose: Faux): string {
 }
 
 describe("le temps d'un ticket, dans la bande", () => {
-  test("sous le seuil : la médiane, le p75 et le temps perdu contre son seuil, sans rouge ; la phase la plus longue au survol", () => {
+  test("sous les seuils : la médiane, le p75 et les quatre chiffres contre leur seuil, sans rouge ; ce qui pèse le plus au survol de chacun", () => {
     const pose = tempsDeLaBande(doc, NORMAL);
     assert.equal(laPart(pose).className, "bande-part bande-temps");
     assert.equal(laPart(pose).dataset.temps, "normal");
-    assert.equal(pose.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + "·" + "lost" + "1 min" + "vs 2 min max");
+    assert.equal(pose.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + DIT_NORMAL);
     assert.equal(laPart(pose).dessous("span").some(({ dataset }) => dataset.depasse === "oui"), false);
-    // Le détail n'est écrit nulle part hors survol ; la part prend le clavier pour le dire.
+    const chiffres = laPart(pose).dessous("span").filter(({ dataset }) => dataset.chiffre !== undefined);
+    assert.deepEqual(chiffres.map(({ dataset }) => dataset.chiffre), ["perdu", "estimation", "premier-coup", "reparations"]);
+    assert.deepEqual(chiffres.map((c) => c.ariaLabel), ["Weighs most: #2335 lost 1.5 min", "Weighs most: #2333 ×1.40 (14 min against 10)", "Weighs most: red CI (2)", "Nothing weighs on main repairs yet."]);
+    // Le détail du temps n'est écrit nulle part hors survol ; la part prend le clavier pour le dire.
     assert.equal(Reflect.get(laPart(pose), "tabIndex"), 0);
-    assert.equal(auSurvol(pose), "Median and p75 of the last 10 measured tickets, from filing to merge. Lost time (waiting for a claim, failed cooks, send-backs): median 1 min, against the max of 2 min. Slowest phase: review, median 2 min.");
-    assert.equal(laPart(pose).ariaLabel, auSurvol(pose));
+    assert.equal(auSurvol(pose).startsWith("Median and p75 of the last 10 measured tickets, from filing to merge."), true);
+    assert.doesNotMatch(pose.textContent, /max/);
   });
 
-  test("5 min perdues contre 2 : le temps perdu seul en rouge, avec « lost time over the max » ; la perte la plus lourde au survol", () => {
+  test("les quatre au-dessus de leur seuil : chacun en rouge, la médiane et le p75 jamais", () => {
     const pose = tempsDeLaBande(doc, LENT);
     assert.equal(laPart(pose).dataset.temps, "depasse");
-    assert.equal(pose.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + "·" + "lost" + "5 min" + "vs 2 min max" + "lost time over the max");
+    assert.equal(pose.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + DIT_ROUGE);
     const rouges = laPart(pose).dessous("span").filter(({ dataset }) => dataset.depasse === "oui");
-    assert.deepEqual(rouges.map((c) => c.textContent), ["lost" + "5 min"], "la médiane et le p75 n'ont pas de plafond");
-    assert.ok(laPart(pose).dessous("span").some(({ className }) => className === "bande-depasse"));
-    assert.match(auSurvol(pose), /median 5 min, against the max of 2 min\. Heaviest loss: failed cooks, median 4 min\. Slowest phase: review, median 9 min\.$/);
+    assert.deepEqual(rouges.map(({ dataset }) => dataset.chiffre), ["perdu", "estimation", "premier-coup", "reparations"]);
+    assert.match(auSurvol(pose), /Heaviest loss: failed cooks, median 4 min\. Slowest phase: review, median 9 min\.$/);
   });
 
-  test("un long ticket sans temps perdu n'est pas rouge : sa taille varie", () => {
-    const pose = tempsDeLaBande(doc, { enregistrements: [], resume: { ...RESUME_NORMAL, medianMin: 90, p75Min: 160 } });
+  test("un seul chiffre au-dessus de son seuil : lui seul en rouge", () => {
+    const un = CHIFFRES_NORMAL.map((c) => (c.cle === "premier-coup" ? { ...c, valeur: "60%", depasse: true } : c));
+    const pose = tempsDeLaBande(doc, { ...NORMAL, chiffres: un });
+    assert.equal(laPart(pose).dataset.temps, "depasse");
+    assert.deepEqual(laPart(pose).dessous("span").filter(({ dataset }) => dataset.depasse === "oui").map(({ dataset }) => dataset.chiffre), ["premier-coup"]);
+  });
+
+  test("un long ticket n'est pas rouge : sa taille varie", () => {
+    const pose = tempsDeLaBande(doc, { enregistrements: [], resume: { ...RESUME_NORMAL, medianMin: 90, p75Min: 160 }, chiffres: CHIFFRES_NORMAL });
     assert.equal(laPart(pose).dataset.temps, "normal");
     assert.equal(laPart(pose).dessous("span").some(({ dataset }) => dataset.depasse === "oui"), false);
   });
 
-  test("le seuil absent du résumé : celui que la station publie, sinon 2 min", () => {
-    const { lostTimeMaxMin: _, ...sansSeuil } = RESUME_LENT;
-    assert.match(tempsDeLaBande(doc, { enregistrements: [], lostTimeMaxMin: 10, resume: sansSeuil }).textContent, /lost5 minvs 10 min max$/);
-    assert.match(tempsDeLaBande(doc, { enregistrements: [], resume: sansSeuil }).textContent, /vs 2 min maxlost time over the max$/);
-  });
-
-  test("au seuil ou dessous : pas rouge", () => {
-    const pose = tempsDeLaBande(doc, { enregistrements: [], resume: { ...RESUME_NORMAL, perduMedianMin: 2 } });
-    assert.equal(laPart(pose).dataset.temps, "normal");
-    assert.equal(laPart(pose).dessous("span").some(({ className }) => className === "bande-depasse"), false);
-  });
-
-  test("les chiffres sont ceux du résumé, jamais recalculés des enregistrements", () => {
+  test("les chiffres sont ceux de la station, jamais recalculés des enregistrements", () => {
     const pose = tempsDeLaBande(doc, { ...LENT, resume: { ...RESUME_LENT, medianMin: 3, p75Min: 4 } });
-    assert.equal(pose.textContent, "Ticket time" + "median" + "3 min" + "/" + "p75" + "4 min" + "·" + "lost" + "5 min" + "vs 2 min max" + "lost time over the max");
+    assert.equal(pose.textContent, "Ticket time" + "median" + "3 min" + "/" + "p75" + "4 min" + DIT_ROUGE);
   });
 
-  test("sans mesure : « no measure yet », neutre — ni blanc ni zéro, qu'il manque le temps, le résumé ou qu'il soit illisible", () => {
-    for (const temps of [undefined, { enregistrements: [] }, { enregistrements: LENT.enregistrements }, { enregistrements: [], resume: { n: 0, medianMin: 0, p75Min: 0, perduMedianMin: 0, lostTimeMaxMin: 2 } }, { enregistrements: [], resume: { n: 10, medianMin: 14, p75Min: 47, maxMin: 10 } }, { enregistrements: [], resume: "x" }]) {
+  test("sans mesure : « no measure yet », neutre — ni blanc ni zéro, qu'il manque le temps, les chiffres ou qu'ils soient illisibles", () => {
+    for (const temps of [undefined, { enregistrements: [] }, { enregistrements: LENT.enregistrements }, { enregistrements: [], resume: { n: 0, medianMin: 0, p75Min: 0 } }, { enregistrements: [], resume: "x", chiffres: [{ cle: "perdu" }] }]) {
       const pose = tempsDeLaBande(doc, temps);
       assert.equal(laPart(pose).dataset.temps, "vide");
       assert.equal(pose.textContent, "Ticket time" + "no measure yet");
@@ -220,7 +232,7 @@ describe("sur l'onglet Rail", () => {
   test("une bande en tête du rail dit le temps d'un ticket et les cooks en cours ; le bloc des temps n'est plus sur Rail", async () => {
     const vue = await ouvrir(NORMAL);
     const [temps, cooks] = parts(vue);
-    assert.equal(temps?.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + "·" + "lost" + "1 min" + "vs 2 min max");
+    assert.equal(temps?.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + DIT_NORMAL);
     assert.equal(cooks?.textContent, "Cooks" + "2" + "running");
     // Avant les colonnes, et aucun bloc séparé des temps ni des cooks sur Rail.
     const enfants = vue.element("rail").children.map(({ className }) => className);
@@ -244,6 +256,6 @@ describe("sur l'onglet Rail", () => {
     assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "no measure yet");
     vue.dire("surProjetsDesStations", projets(LENT));
     await repos();
-    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + "·" + "lost" + "5 min" + "vs 2 min max" + "lost time over the max");
+    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + DIT_ROUGE);
   });
 });
