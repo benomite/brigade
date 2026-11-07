@@ -1453,6 +1453,30 @@ hover), does not read the box again: the queue stays as it was, and the gesture 
 narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
 is in the Second tab`.
 
+### The Android app notifies the chef of a TODO card (#2747)
+
+The chef follows Brigade from the phone, away from the computer. **When a TODO card appears on any of their projects, the
+app shows one system notification** — "A card awaits you", its text naming the project and the card's question — and
+**tapping it opens that card** on the project's space, on the existing card sheet (#2498) where the gesture that answers it is.
+
+- **The signal is the TODO's own.** A card is whatever `lireCeQuiAttendLeChef` reads as awaiting the chef
+  (`app/src/tableau/attente-du-chef.ts`): nothing new is marked on GitHub. Any other issue, comment, label or status change
+  is not an entry of that reading, so it stays silent.
+- **A background poll, no Brigade server.** `MainActivity` schedules `SondeWorker` (Android's WorkManager) every 15 minutes
+  — the shortest period Android gives a periodic job — with a network. It plays `android/sonde.html` in a headless WebView,
+  which runs `sonder` (`app/src/notifications-todo.ts`) with the vault's token against `api.github.com` and nothing else.
+- **Once per card.** What was notified (repository, ticket, question) is kept in the app's preferences before the
+  notification is shown, so neither a later poll nor a restart notifies it again. A card that asks another question is
+  another card.
+- **Dismissed when answered.** Answering in the app dismisses its notification at once (`carteRepondue`, called by the
+  bridge's `repondreCarte`); answering on GitHub dismisses it at the next poll, which no longer reads the card. A project
+  GitHub could not be read for dismisses nothing: an unread project is not an answered one.
+- **Permission.** On Android 13 and later the app asks once for the right to notify; without it nothing is shown.
+
+Its tests (`app/test/notifications-todo.test.ts`) run against a simulated GitHub, a memory and a fake notifier: detection of a
+new card, silence on kitchen traffic, no duplicate (successive polls and a restart), dismissal after an answer in the app
+and outside it. The Java side (`Notifications.java`, `SondeWorker.java`, `Pont.java`) is not built by the tests.
+
 ### Your stations: paired with a code, read on GitHub
 
 **At the bottom of a project's Stations tab** (#2638), the "All stations" list shows the ones you have paired, one line each —

@@ -3,6 +3,7 @@ package com.github.benomite.brigade;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
+import com.getcapacitor.JSObject;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.Logger;
@@ -27,8 +28,32 @@ public class Pont extends Plugin {
 
     static final String SCRIPT = "public/android/pont.js";
 
+    // La carte que le chef a touchée dans une notification, tant que la vue ne l'a pas prise.
+    private String projetEnAttente;
+    private int ticketEnAttente;
+
+    private void prendre(Intent intent) {
+        if (intent == null) return;
+        String projet = intent.getStringExtra(Notifications.EXTRA_PROJET);
+        int ticket = intent.getIntExtra(Notifications.EXTRA_TICKET, 0);
+        if (projet == null || ticket <= 0) return;
+        projetEnAttente = projet;
+        ticketEnAttente = ticket;
+        intent.removeExtra(Notifications.EXTRA_PROJET);
+        intent.removeExtra(Notifications.EXTRA_TICKET);
+    }
+
+    // Une notification touchée alors que l'app tourne : la vue est prévenue qu'une carte l'attend.
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        prendre(intent);
+        getBridge().getWebView().post(() -> getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new Event('brigade-carte'))", null));
+    }
+
     @Override
     public void load() {
+        prendre(getActivity().getIntent());
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             Logger.error("Brigade", "this WebView cannot inject a script at document start: the app's view has no bridge", null);
             return;
@@ -61,5 +86,47 @@ public class Pont extends Plugin {
         } catch (ActivityNotFoundException erreur) {
             call.reject("no app on this phone opens web addresses");
         }
+    }
+
+    // Rend `{projet, ticket}` de la carte touchée dans une notification, une seule fois ; `{}` sans elle.
+    @PluginMethod
+    public void carteDemandee(PluginCall call) {
+        JSObject rendu = new JSObject();
+        if (projetEnAttente != null) {
+            rendu.put("projet", projetEnAttente);
+            rendu.put("ticket", ticketEnAttente);
+            projetEnAttente = null;
+        }
+        call.resolve(rendu);
+    }
+
+    // La mémoire des cartes notifiées (Notifications.java), que le pont lit et écrit en JSON.
+    @PluginMethod
+    public void gardees(PluginCall call) {
+        JSObject rendu = new JSObject();
+        rendu.put("valeur", Notifications.gardees(getContext()));
+        call.resolve(rendu);
+    }
+
+    @PluginMethod
+    public void garder(PluginCall call) {
+        String valeur = call.getString("valeur");
+        if (valeur == null) {
+            call.reject("nothing to keep");
+            return;
+        }
+        Notifications.garder(getContext(), valeur);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void retirer(PluginCall call) {
+        Integer id = call.getInt("id");
+        if (id == null) {
+            call.reject("a notification to take down needs its id");
+            return;
+        }
+        Notifications.retirer(getContext(), id);
+        call.resolve();
     }
 }

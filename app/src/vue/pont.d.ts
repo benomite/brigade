@@ -240,6 +240,8 @@ export type Pont = {
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(recevoir: (telephone: Telephone) => void): void;
+  // L'app Android seule (le ticket 2747) : le chef a touché la notification d'une carte de TODO — sa fiche s'ouvre.
+  surOuvrirCarte?(recevoir: (projet: string, ticket: number) => void): void;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le

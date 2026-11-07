@@ -346,7 +346,8 @@ test("l'enveloppe native n'appaire plus : ni lecteur de QR ni lien `brigade://pa
   const java = join(NATIF, "app", "src", "main", "java", ...IDENTIFIANT.split("."));
   const pont = readFileSync(join(java, "Pont.java"), "utf8");
   assert.match(pont, /@PluginMethod\s+public void ouvrir\(PluginCall call\)/);
-  assert.doesNotMatch(pont, /public void (scanner|lien)\(|handleOnNewIntent|mlkit/);
+  assert.doesNotMatch(pont, /public void (scanner|lien)\(|mlkit/);
+  // Une intention neuve n'ouvre plus d'appairage : elle ouvre la carte d'une notification de TODO (#2747).
   assert.doesNotMatch(readFileSync(join(NATIF, "app", "build.gradle"), "utf8"), /code-scanner/);
   assert.doesNotMatch(readFileSync(join(NATIF, "variables.gradle"), "utf8"), /codeScannerVersion/);
   const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8").replace(/<!--[\s\S]*?-->/g, "");

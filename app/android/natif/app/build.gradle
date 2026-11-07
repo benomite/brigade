@@ -56,6 +56,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     // Le pont d'attente s'injecte au début de chaque document (Pont.java).
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
+    // Le sondage d'arrière-plan des cartes de TODO (SondeWorker.java, le ticket 2747).
+    implementation "androidx.work:work-runtime:$androidxWorkVersion"
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
 }

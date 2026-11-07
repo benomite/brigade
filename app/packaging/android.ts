@@ -167,6 +167,7 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
   copyFileSync(join(ANDROID, "web", "index.html"), join(www, "index.html"));
   mkdirSync(join(www, "android"), { recursive: true });
   writeFileSync(join(www, "android", "pont.js"), scriptDuPont(demarrage));
+  copyFileSync(join(ANDROID, "web", "sonde.html"), join(www, "android", "sonde.html"));
   poserLesModules(www, app);
 }
 
@@ -178,8 +179,12 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
 // noms, que rien n'appelle sur le téléphone — le pont n'en lit que ce qui calcule. Un module du runtime que l'app
 // partage avec lui (le lecteur du tableau de la cuisine, runtime/src/tableau/rendu/bloc.ts) est posé à
 // `runtime/src/<chemin>.js` : à côté de l'app, comme dans le paquet du desktop. Rend les fichiers posés, relatifs à `www`.
+// Et ceux du sondage des cartes de TODO (#2747) : `src/notifications-todo.js`, que le pont (la réponse retire la notification)
+// et android/sonde.html chargent, et le client de GitHub que sonde.html compose.
 export const LECTURE_GITHUB = join(APP, "src", "lecture-github-telephone.ts");
-export function poserLesModules(www = WWW, app = APP, entrees: string | readonly string[] = [LECTURE_GITHUB]): string[] {
+export const NOTIFICATIONS_TODO = join(APP, "src", "notifications-todo.ts");
+export const CLIENT_GITHUB = join(APP, "src", "tableau", "client.ts");
+export function poserLesModules(www = WWW, app = APP, entrees: string | readonly string[] = [LECTURE_GITHUB, NOTIFICATIONS_TODO, CLIENT_GITHUB]): string[] {
   const posee = (source: string): string => {
     const relatif = relative(app, source).split(sep).join("/");
     if (relatif.startsWith("src/")) return relatif.replace(/\.ts$/, ".js");

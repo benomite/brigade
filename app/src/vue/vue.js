@@ -9023,6 +9023,8 @@ brigade.surTelephone?.((vu) => {
   telephoneVu = vu;
   if (courant === undefined && !ajoute && stationOuverte === undefined) poserAccueil();
 });
+// Le chef touche la notification d'une carte de TODO (le ticket 2747) : le projet s'ouvre, puis la fiche de la carte.
+brigade.surOuvrirCarte?.((nom, ticket) => void ouvrirTicketDepuisLesCouts(nom, ticket));
 // GitHub refuse la connexion de ce téléphone : elle est effacée, et l'app se rouvre sur la connexion à GitHub.
 async function oublierLeTelephone() {
   await brigade.oublierLeTelephone?.();
