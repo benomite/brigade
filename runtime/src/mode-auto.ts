@@ -48,7 +48,7 @@ export const SSH = "ssh -o BatchMode=yes -o ConnectTimeout=10 --";
 // stop` écrivent, et une règle qui les laisserait passer ne serait plus une
 // lecture.
 export const LECTURE_DE_LA_FILE = "status";
-export const LECTURES_DE_L_ETAT = ["rail", "log", "pass", "station", "base", "installation", "guardrails", "partition", "measures", "facts"] as const;
+export const LECTURES_DE_L_ETAT = ["rail", "log", "station", "base", "installation", "guardrails", "partition", "measures", "facts"] as const;
 
 // La doc de brigade sur la box : le clone de `/opt/brigade` (docs/installer.md,
 // « Préparer la box »), lue fichier par fichier. Un `grep` ne s'y autorise pas :
