@@ -339,9 +339,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Illisible, le temps part de la prise.
   const chrono = chronometre(options.maintenant);
   const servir = async (issue: number) => {
+    if (options.clone === undefined) {
+      chrono.oublier(issue);
+      return;
+    }
     const depot = (await github.depotDuTicket?.(issue).catch(() => null)) ?? undefined;
     const temps = chrono.servir(issue, depot);
-    if (temps === null || options.clone === undefined) return;
+    if (temps === null) return;
     try {
       enregistrerTemps(options.clone, temps);
     } catch (erreur) {
