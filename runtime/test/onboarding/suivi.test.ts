@@ -71,7 +71,7 @@ function uneStation(t: TestContext) {
   return { projets, demander, document, autorisations };
 }
 
-test("le suivi porte l'onboarding de chaque projet dont la station est la principale : la préparation ouverte, son lien, l'étape courante", async (t) => {
+test("le suivi porte l'onboarding de chaque projet qu'elle sert, qu'une ligne la dise principale ou non (#2713) : la préparation ouverte, son lien, l'étape courante", async (t) => {
   const station = uneStation(t);
   station.demander(projet("shop"), projet("cortege", false));
   await station.projets.relire();
@@ -80,9 +80,10 @@ test("le suivi porte l'onboarding de chaque projet dont la station est la princi
   // Les projets du suivi n'en changent pas : l'onboarding est à côté.
   assert.deepEqual(document?.projets.map(({ nom, etat }) => [nom, etat]), [
     ["shop", "servi"],
-    ["cortege", "secondaire"],
+    // Sa ligne est écrite ; la doublure ne sert que shop : il s'ouvre encore.
+    ["cortege", "en-preparation"],
   ]);
-  assert.deepEqual(Object.keys(document?.onboarding ?? {}), ["shop"]);
+  assert.deepEqual(Object.keys(document?.onboarding ?? {}), ["shop", "cortege"]);
   const onboarding = document?.onboarding?.shop;
   assert.equal(onboarding?.courante, "preparation");
   assert.deepEqual(

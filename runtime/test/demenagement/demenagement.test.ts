@@ -316,7 +316,10 @@ test("vers cet ordinateur sans bac à sable : le déménagement est refusé avec
   await leMac.relire();
   assert.equal(box.sert(), true);
   assert.deepEqual([box.suivi()?.etat, box.suivi()?.bascule ?? null], ["servi", null]);
-  assert.equal(leMac.suivi()?.etat, "secondaire");
+  // La reprise annulée laisse au Mac la ligne du projet, sans reprise : toute
+  // station dont la demande porte un projet le sert (#2713) — il n'est plus
+  // « secondaire », et sa cuisine s'ouvre aussi.
+  assert.equal(leMac.suivi()?.bascule ?? null, null);
 });
 
 test("la commande refuse un déménagement qui n'a pas de sens, en une phrase : un projet qui ne cuit nulle part, une station qu'il occupe déjà, un déménagement en cours", async (t) => {
