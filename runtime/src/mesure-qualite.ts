@@ -50,6 +50,9 @@ export type Qualite = {
   tropDeReparations: boolean | null;
   motifsDeRenvoi: Compte[];
   checksCasses: Compte[];
+  // Les tickets mesurés qui ne sont pas du premier coup ou qui réparent la base :
+  // ce qu'un ticket de qualité compte, et que le suivant ne recompte pas (#2804).
+  fautifs: number[];
 };
 
 // Livré du premier coup : mergé sans renvoi ni cook raté.
@@ -75,6 +78,10 @@ export function classer(noms: readonly string[]): Compte[] {
 export function mesurerQualite<T extends { ticket: number; mergedAt?: string }>(temps: readonly T[], qualites: ReadonlyMap<number, QualiteDuTicket>, projet?: unknown): Qualite {
   const tickets = ticketsRecents(temps).map(({ ticket }) => ticket);
   const connues = tickets.flatMap((ticket) => qualites.get(ticket) ?? []);
+  const fautifs = tickets.filter((ticket) => {
+    const q = qualites.get(ticket);
+    return q !== undefined && (!duPremierCoup(q) || q.reparation !== undefined);
+  });
   const premierCoup = partDuPremierCoup(connues);
   const seuil = seuilPremierCoup(projet);
   const reparations = connues.filter((q) => q.reparation !== undefined);
@@ -92,6 +99,7 @@ export function mesurerQualite<T extends { ticket: number; mergedAt?: string }>(
     tropDeReparations: parMerge === null ? null : parMerge > REPARATIONS_PAR_MERGE_MAX,
     motifsDeRenvoi: classer(connues.flatMap((q) => q.renvois)),
     checksCasses: classer(reparations.flatMap((q) => q.reparation ?? [])),
+    fautifs,
   };
 }
 

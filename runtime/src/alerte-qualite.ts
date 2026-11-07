@@ -18,6 +18,12 @@ import { LABEL, type IssueOuverte } from "./github.ts";
 import { REPARATIONS_PAR_MERGE_MAX, type Compte, type Qualite } from "./mesure-qualite.ts";
 
 export const MARQUE_QUALITE = "<!-- brigade:qualite -->";
+// Les tickets que ce ticket de qualité a comptés (#2804) : tant que la fenêtre
+// n'en contient pas d'autre, le corriger ne bouge pas le taux, et le détecteur
+// n'en ouvre pas un second.
+const MARQUE_COMPTES = /<!-- brigade:qualite-comptes ([\d,]*) -->/;
+export const marqueDesComptes = (tickets: readonly number[]) => `<!-- brigade:qualite-comptes ${tickets.join(",")} -->`;
+const comptesDe = (corps: string): number[] => (MARQUE_COMPTES.exec(corps)?.[1] ?? "").split(",").filter(Boolean).map(Number);
 export const LABELS_QUALITE = [LABEL, "prio:0", "model:opus", "effort:medium"];
 // Combien de motifs de renvoi, ou de checks, le corps nomme.
 export const CAUSES_NOMMEES = 5;
@@ -76,6 +82,7 @@ export function ticketDeQualite(q: Qualite): { titre: string; corps: string; cau
   const titre = `Quality before time: ${constats.join("; ")}`;
   const corps = [
     MARQUE_QUALITE,
+    marqueDesComptes(q.fautifs),
     "",
     "## Context",
     "",
@@ -102,7 +109,9 @@ export function ticketDeQualite(q: Qualite): { titre: string; corps: string; cau
   return { titre, corps, causes };
 }
 
-export type DecisionDeQualite = { issue: "ouverte" | "deja-ouverte"; numero: number; causes: CauseDeQualite[] };
+// `deja-servie` : le dernier ticket de qualité est mergé et la fenêtre ne porte
+// aucun renvoi plus récent que ceux qu'il a comptés — numero est ce ticket.
+export type DecisionDeQualite = { issue: "ouverte" | "deja-ouverte" | "deja-servie"; numero: number; causes: CauseDeQualite[] };
 
 // La porte, liée au GitHub du projet. Elle rend null quand la qualité tient :
 // les alertes de temps décident comme avant. Sinon elle trouve le ticket de
@@ -111,25 +120,31 @@ export type DecisionDeQualite = { issue: "ouverte" | "deja-ouverte"; numero: num
 export function porteDeQualite({ github, maintenant = () => new Date() }: { github: GitHubDeLaQualite; maintenant?: () => Date }) {
   let connue: number | null = null;
 
-  const ouverts = async (): Promise<number[]> => {
+  // Les tickets de qualité de confiance, du plus ancien au plus récent.
+  const lues = async () => {
     const debut = new Date(maintenant().getTime() - FENETRE_MS);
     debut.setUTCHours(0, 0, 0, 0);
     return (await github.issuesDepuis(debut.toISOString()))
-      .filter((issue) => DE_CONFIANCE.includes(issue.association) && issue.body.includes(MARQUE_QUALITE) && issue.state !== "closed")
-      .map((issue) => issue.number)
-      .sort((x, y) => x - y);
+      .filter((issue) => DE_CONFIANCE.includes(issue.association) && issue.body.includes(MARQUE_QUALITE))
+      .sort((x, y) => x.number - y.number);
   };
+  const ouverts = async (): Promise<number[]> => (await lues()).filter((issue) => issue.state !== "closed").map((issue) => issue.number);
 
   return async (qualite: Qualite, ouvertes?: readonly number[]): Promise<DecisionDeQualite | null> => {
     const ticket = ticketDeQualite(qualite);
     if (ticket === null) return null;
     const { causes } = ticket;
     if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, causes };
-    const [deja] = await ouverts();
+    const toutes = await lues();
+    const deja = toutes.find((issue) => issue.state !== "closed")?.number;
     if (deja !== undefined) {
       connue = deja;
       return { issue: "deja-ouverte", numero: deja, causes };
     }
+    // Les tickets de qualité mergés ont compté ces tickets : sans renvoi plus récent, rien à ouvrir.
+    const comptes = new Set(toutes.flatMap((issue) => comptesDe(issue.body)));
+    const derniere = toutes.at(-1);
+    if (derniere !== undefined && qualite.fautifs.every((ticket) => comptes.has(ticket))) return { issue: "deja-servie", numero: derniere.number, causes };
     const creee = await github.creerIssue({ titre: ticket.titre, corps: ticket.corps, labels: LABELS_QUALITE });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();
