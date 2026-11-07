@@ -17,6 +17,7 @@
 // n'a pas vue passer vaut 0 — rien n'est estimé à sa place.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { accepterLaMesure } from "../borne-attente-prise.ts";
 import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, phaseLaPlusLenteDesTickets, seuilDuProjet, ticketsRecents } from "../temps-max/mesure.ts";
 import type { EnregistrementTemps, Pertes } from "./synthese.ts";
 
@@ -318,7 +319,7 @@ export function chronometre(maintenant: () => Date = () => new Date()): Chronome
       const ouvert = parcours.get(ticket);
       if (ouvert === undefined) return null;
       parcours.delete(ticket);
-      return mesurer(ouvert, maintenant().toISOString(), depot);
+      return accepterLaMesure(mesurer(ouvert, maintenant().toISOString(), depot));
     },
     oublier: (ticket) => {
       parcours.delete(ticket);
