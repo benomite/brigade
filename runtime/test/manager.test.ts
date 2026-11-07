@@ -24,7 +24,8 @@ import { aArreter, jusqua, repertoireTemporaire } from "./outils.ts";
 function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
   const c = cuisine(t, { ...options, manager: options.manager ?? {} });
   if (!options.eteint) chef(c.repertoire, "manager.enabled");
-  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools"));
+  // Une complétion d'issue incomplète (#2692) n'est pas un jugement : elle a son test.
+  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools") && !/Tu as jugé cette issue `incomplete`/.test(lancement.args[1] ?? ""));
   // Ce que le manager a dit sur une issue.
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);
   const faits = (numero: number) => c.journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
@@ -178,7 +179,8 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Rien ne dit comment vérifier que c'est fait\./);
     assert.match(dit, /Ce qui le rendrait exécutable\.\*\* Un critère d'acceptation\./);
     assert.match(dit, /rejugée/);
-    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
+    // La complétion qui le suit (#2692) ne lit rien d'utilisable ici : le verdict reste.
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.commented"]);
     assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "incomplete" });
   });
 
@@ -773,7 +775,7 @@ describe("le manager", { concurrency: 8 }, () => {
     gh.poser(issue(30, [], { state: "closed" }));
     await laisserTourner();
 
-    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.commented"]);
   });
 
   test("un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118)", async (t) => {
@@ -796,7 +798,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118)", async (t) => {
     const { gh, journal, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => faits(30).length === 2);
+    await jusqua(() => faits(30).length === 3);
     // La cuisine l'avait pris, puis abandonné : le sondage, qui n'y voyait pas `fire`, l'a sorti du rail.
     journal.ajouter({ project: "brigade", ticket: 30, author: "github", type: "ticket.arrived", payload: { title: "Ticket 30", priority: 1, createdAt: "2026-10-01T00:00:30Z", url: "https://exemple.test/30", card: null } });
     journal.ajouter({ project: "brigade", ticket: 30, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });

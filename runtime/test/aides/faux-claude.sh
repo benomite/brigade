@@ -438,6 +438,20 @@ FIN
 {"nature":"incomplete","motif":"Rien ne dit comment vérifier que c'est fait.","manque":"Un critère d'acceptation."}
 FIN
       ;;
+    # Un verdict `incomplete` suivi (#2692) : le manager le complète, ou pose
+    # une question produit au chef.
+    complete-criteres)
+      assistant
+      resultat <<'FIN'
+{"issue":"complete","motif":"Le seuil manquait : il est posé à 3 échecs, et l'essai manuel devient un test.","criteres":["Three failures in a row open the breaker","A test in runtime/test/disjoncteur.test.ts plays the three failures"],"modele":"sonnet","effort":"medium","calibrage":"Critères précis, module connu."}
+FIN
+      ;;
+    complete-question)
+      assistant
+      resultat <<'FIN'
+{"issue":"question","motif":"Deux comportements s'opposent, et l'utilisateur ne voit pas le même écran.","resume":"Le ticket ne dit pas ce que voit l'utilisateur.","question":"Le TODO montre-t-il les tickets fermés ?","choix":["Oui, grisés","Non, masqués"]}
+FIN
+      ;;
     # L'agent de triage : il envoie la carte en TODO, une question et ses
     # choix, ou tranche.
     triage-laisse)

@@ -131,6 +131,21 @@ is sent back (`calibrageAuDessus`); the manager sets `high` from the start only 
 lines", "no preamble"), the ticket goes out at `sonnet` / `low` at least — **write it in the criteria**,
 it does not guess. It never sets `xhigh` or `max`: they are yours alone.
 
+**An `incomplete` verdict never ends as a comment alone** (#2692, `runtime/src/manager/verdict-incomplet.ts`).
+In the same turn, the manager re-reads the issue with its own "what would make it executable", in one more
+call to `claude`, and does one of two things:
+
+- **the gap needs no product or design decision** (a threshold, a name, a file, a manual trial to turn into
+  a test, a split): it rewrites the issue's acceptance criteria section (or adds one), keeping the rest of
+  the body and the author's intent, says on the issue that it completed it, and judges it `fire` with a
+  calibration — the labels are set in the same turn;
+- **the gap is a product or design choice**: the issue gets the `product-question` label and a `product`
+  TODO card carrying exactly one question for you. Your answer on the issue changes it, and it is judged
+  again.
+
+The follow-up is written to the log (`manager.completed`, outcome `completed`, `question` or `unreadable`)
+with the fingerprint of the verdict it follows: the same verdict is not followed twice.
+
 ### Handing it back
 
 **Each deviation has its gesture, and `run manager` says it** (the `set aside` section, ten most recent).
