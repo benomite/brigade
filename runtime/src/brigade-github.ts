@@ -56,7 +56,8 @@ import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, type DepotDuTicket } from "./temps-ticket/mesure.ts";
 
@@ -378,7 +379,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const corrigerLeTemps = clone === undefined ? null : correctionDuTemps({ github, lire: () => ({ ...lesTempsDesTickets(clone), ...(qualites === undefined ? {} : { qualites: qualites(), projet: projetDuClone(clone) }) }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
   // La médiane des rapports cuisson réelle / attendue au-dessus de
   // `cookingOverEstimateMax` ouvre son ticket de correction, un seul (#2676).
-  const alerterLaCuisson = clone === undefined ? null : alerteDuClone(clone, { github, avertir, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  // La porte de qualité la fait taire aussi : la qualité en défaut, c'est le
+  // ticket de qualité, que la correction du temps ouvre, qui part (#2680).
+  const alerteDeLaCuisson = clone === undefined ? null : alerteDuClone(clone, { github, avertir, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  const alerterLaCuisson = alerteDeLaCuisson === null || clone === undefined || qualites === undefined ? alerteDeLaCuisson : async () => (qualiteEnDefaut(mesurerQualite(lesTempsDesTickets(clone).enregistrements, qualites(), projetDuClone(clone))) ? null : alerteDeLaCuisson());
   // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
   // `in-pass`. GitHub ne ferme pas toujours l'issue par le `Closes #N` de la PR
   // (#2467) ; la fermeture passe d'abord, pour qu'un retrait réussi sur une
@@ -655,10 +659,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     const lus = await github.fires();
-    // La porte de qualité (#2680) passe avant les deux alertes de temps : quand
-    // elle a ouvert, ou trouvé, le ticket de qualité, l'alerte de la cuisson n'ouvre rien non plus.
-    const temps = await corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`));
-    if (temps?.issue !== "qualite") await alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`));
+    await Promise.all([
+      corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
+      alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
+    ]);
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
     // Une épique découpée garde `fire` et sa `prio:` : ni elle ne se prend, ni

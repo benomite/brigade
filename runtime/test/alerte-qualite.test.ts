@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { MARQUE_CORRECTION as MARQUE_CUISSON } from "../src/alerte-temps-cuisson/alerte.ts";
 import { baseTropCassee, LABELS_QUALITE, MARQUE_QUALITE, porteDeQualite, ticketDeQualite } from "../src/alerte-qualite.ts";
 import { stationGitHub, type GitHubDuTour } from "../src/brigade-github.ts";
 import type { Fait } from "../src/evenements.ts";
@@ -36,9 +37,9 @@ class FauxDepot {
 }
 
 const MAINTENANT = () => new Date("2026-11-07T12:00:00Z");
-// `combien` tickets de 20 min de cuisson — au-dessus du max de 10 —, mergés un toutes les dix minutes le 2026-11-07.
+// `combien` tickets qui ont perdu 20 min à attendre leur prise — au-dessus du seuil de 10 —, mergés un toutes les dix minutes le 2026-11-07.
 const lents = (combien: number): TempsTicket[] =>
-  Array.from({ length: combien }, (_, rang) => ({ ticket: rang + 1, mergedAt: new Date(Date.UTC(2026, 10, 7) + rang * 10 * 60_000).toISOString(), cuisson: 20 * 60, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }));
+  Array.from({ length: combien }, (_, rang) => ({ ticket: rang + 1, mergedAt: new Date(Date.UTC(2026, 10, 7) + rang * 10 * 60_000).toISOString(), cuisson: 5 * 60, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, perdu: { attente: 20 * 60, ratees: 0, renvois: 0 } }));
 const bien: QualiteDuTicket = { renvois: [], cooksRates: 0 };
 
 // 10 tickets, 6 du premier coup : 60 %.
@@ -54,7 +55,7 @@ const soixante = (): Map<number, QualiteDuTicket> =>
 test("first-try rate of 60% with the time over the max: no time ticket, one quality ticket listing the top send-back reasons with their counts", async () => {
   const depot = new FauxDepot();
   const enregistrements = lents(10);
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10, qualites: soixante() }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites: soixante() }), maintenant: MAINTENANT });
   assert.deepEqual(await corriger(), { issue: "qualite", qualite: { issue: "ouverte", numero: 2700, causes: ["premier-coup"] } });
   assert.equal(depot.issues.length, 1);
   const [ouverte] = depot.issues;
@@ -74,7 +75,7 @@ test("7 repairs of main for 74 merged PRs: one quality ticket naming the checks 
   const checks = [["types (runtime)"], ["types (runtime)", "tests (app)"], ["types (runtime)"], ["tests (runtime)"], ["tests (app)"], ["types (runtime)"], ["tests (runtime)"]];
   const qualites = new Map<number, QualiteDuTicket>(enregistrements.map(({ ticket }) => [ticket, ticket <= 7 ? { ...bien, reparation: checks[ticket - 1] ?? [] } : bien]));
   assert.equal(mesurerQualite(enregistrements, qualites).mesures, 74);
-  const decision = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10, qualites }), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
   assert.deepEqual(decision, { issue: "qualite", qualite: { issue: "ouverte", numero: 2700, causes: ["base-cassee"] } });
   assert.equal(depot.issues.length, 1);
   const corps = depot.issues[0]?.corps ?? "";
@@ -87,9 +88,9 @@ test("first-try rate of 80% and under one repair per ten merges: the time alert 
   const depot = new FauxDepot();
   const enregistrements = lents(10);
   const qualites = new Map<number, QualiteDuTicket>(enregistrements.map(({ ticket }) => [ticket, ticket <= 2 ? { renvois: ["criteria not met"], cooksRates: 0 } : bien]));
-  const avec = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10, qualites }), maintenant: MAINTENANT })();
+  const avec = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
   const temoin = new FauxDepot();
-  const sans = await correctionDuTemps({ github: temoin.github(), lire: () => ({ enregistrements, tempsMaxTicketMin: 10 }), maintenant: MAINTENANT })();
+  const sans = await correctionDuTemps({ github: temoin.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
   assert.deepEqual(avec, sans);
   assert.equal(avec.issue, "ouverte");
   assert.deepEqual(depot.issues, temoin.issues);
@@ -98,7 +99,7 @@ test("first-try rate of 80% and under one repair per ten merges: the time alert 
 
 test("a quality ticket already open: a new run, by this station or another, opens no other ticket", async () => {
   const depot = new FauxDepot();
-  const lire = () => ({ enregistrements: lents(10), tempsMaxTicketMin: 10, qualites: soixante() });
+  const lire = () => ({ enregistrements: lents(10), lostTimeMaxMin: 10, qualites: soixante() });
   const corriger = correctionDuTemps({ github: depot.github(), lire, maintenant: MAINTENANT });
   await corriger();
   assert.deepEqual(await corriger([2700]), { issue: "qualite", qualite: { issue: "deja-ouverte", numero: 2700, causes: ["premier-coup"] } });
@@ -187,6 +188,8 @@ function clone(t: TestContext, projet: object): string {
   mkdirSync(dossier, { recursive: true });
   writeFileSync(join(dossier, "projet.json"), JSON.stringify(projet));
   writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify(lents(10)));
+  // La cuisson aussi au-dessus de son estimation : ×2, sur le seuil de ×1,5 (#2676).
+  writeFileSync(join(dossier, "ratios-cuisson.json"), JSON.stringify(lents(10).map(({ ticket, mergedAt }) => ({ ticket, servedAt: mergedAt, attendu: 10, reel: 20, ratio: 2 }))));
   return depot;
 }
 
@@ -205,12 +208,12 @@ const station = (github: GitHubDuTour, depot: string, base: ReturnType<typeof jo
     maintenant: MAINTENANT,
   });
 
-test("the station's turn reads the quality from the project's log and its threshold from projet.json: 60% first try opens the quality ticket, once", async (t) => {
+test("the station's turn reads the quality from the project's log and its threshold from projet.json: 60% first try opens the quality ticket, once, and neither time alert opens its own", async (t) => {
   const j = journal(t);
   for (let ticket = 1; ticket <= 10; ticket++) j.servir(ticket, ticket <= 4 ? 1 : 0);
   const { issues, github } = faux();
   const avertis: string[] = [];
-  const depot = clone(t, { tempsMaxTicketMin: 10 });
+  const depot = clone(t, { lostTimeMaxMin: 10 });
   await station(github, depot, j.base, avertis).tour();
   await station(github, depot, j.base, avertis).tour();
   assert.deepEqual(avertis, []);
@@ -219,13 +222,14 @@ test("the station's turn reads the quality from the project's log and its thresh
   assert.match(issues[0]?.title ?? "", /first-try rate 60% under the 70% threshold/);
 });
 
-test("the project's own first-try threshold, read from projet.json by the station: at 50%, 60% holds and the time alert opens its ticket as before", async (t) => {
+test("the project's own first-try threshold, read from projet.json by the station: at 50%, 60% holds and both time alerts open their tickets as before", async (t) => {
   const j = journal(t);
   for (let ticket = 1; ticket <= 10; ticket++) j.servir(ticket, ticket <= 4 ? 1 : 0);
   const { issues, github } = faux();
   const avertis: string[] = [];
-  await station(github, clone(t, { tempsMaxTicketMin: 10, premierCoupMinPourcent: 50 }), j.base, avertis).tour();
+  await station(github, clone(t, { lostTimeMaxMin: 10, premierCoupMinPourcent: 50 }), j.base, avertis).tour();
   assert.deepEqual(avertis, []);
-  assert.equal(issues.length, 1);
-  assert.ok(issues[0]?.body.startsWith(MARQUE_CORRECTION));
+  assert.equal(issues.length, 2);
+  assert.ok(issues.some(({ body }) => body.startsWith(MARQUE_CORRECTION)));
+  assert.ok(issues.some(({ body }) => body.startsWith(MARQUE_CUISSON)));
 });

@@ -54,6 +54,9 @@ export function causesDeQualite(q: Qualite): CauseDeQualite[] {
   return [...(q.sousLeSeuil === true ? ["premier-coup" as const] : []), ...(baseTropCassee(q) ? ["base-cassee" as const] : [])];
 }
 
+// La qualité en défaut : les alertes de temps n'ouvrent rien.
+export const qualiteEnDefaut = (q: Qualite): boolean => causesDeQualite(q).length > 0;
+
 const pourcent = (part: number) => `${Math.round(part * 100)}%`;
 const liste = (comptes: readonly Compte[], vide: string) =>
   comptes.length === 0 ? [vide] : comptes.slice(0, CAUSES_NOMMEES).map(({ nom, fois }) => `- ${nom}: ${fois} ${fois === 1 ? "time" : "times"}`);

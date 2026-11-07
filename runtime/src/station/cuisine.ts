@@ -15,7 +15,6 @@ import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breake
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot, type ProjetOuvert } from "../brigade-github.ts";
-import { qualitesDuJournal } from "../mesure-qualite.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
