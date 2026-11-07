@@ -1606,6 +1606,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
     await depot.ranger(worktree, branche);
+    // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
+    // motif nommé, qui ne compte pas vers `hors-cuisine` (#2738).
+    const refusee = lireLeFlux(lance.flux ?? flux).ecritureRefusee;
+    if (depot.commits(branche) === 0 && refusee !== null) return { subi: `write refused by sandbox: ${refusee} (the cook committed nothing)` };
     if (depot.commits(branche) === 0) return { echec: motifArretCook("the cook committed nothing", arretDuCook()) };
     // Sa réponse aux remarques, que la station poste pour lui sur la PR (#2592).
     const reponse = prOuverte === null ? null : reponseDuMessage(lireLeFlux(lance.flux ?? flux).message ?? null);

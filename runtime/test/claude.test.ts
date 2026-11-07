@@ -292,3 +292,11 @@ test("les consignes disent de lire en un seul tour ce qui ne dépend d'aucune au
     assert.match(texte, /lis-le dans le même tour — plusieurs appels dans un seul message, ou une seule commande qui lit plusieurs fichiers/);
   }
 });
+
+test("a result whose permission_denials refuse a write names the first refused path (#2738)", () => {
+  const refus = (tool_name: string, file_path: string) => ({ tool_name, tool_input: { file_path } });
+  const flux = (denials: unknown[]) => `${JSON.stringify({ type: "result", is_error: false, result: "x", permission_denials: denials })}\n`;
+  assert.equal(lireFlux(flux([refus("Bash", "/a"), refus("Edit", "src/a.ts"), refus("Write", "src/b.ts")])).ecritureRefusee, "src/a.ts");
+  assert.equal(lireFlux(flux([])).ecritureRefusee, null);
+  assert.equal(lireFlux("").ecritureRefusee, null);
+});
