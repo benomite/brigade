@@ -17,6 +17,13 @@
 // petit-enfant dont le parent est mort avant l'arrêt — son lien vers la racine
 // est perdu avec ce parent.
 //
+// La table se lit même quand PowerShell sort en erreur : un process qui meurt
+// pendant que `Get-CimInstance` parcourt la table peut y laisser une erreur, et
+// le reste de la table est bon. Une lecture qui ne rend aucune ligne se refait
+// au tour suivant : sinon une seule lecture ratée, sous la charge, laisse vivre
+// tout l'arbre d'un cook sorti (#2829). Elle ne se refait pas quand PowerShell
+// manque ou a déjà mis tout son délai : le tour suivant ne ferait pas mieux.
+//
 // Un pid se reprend. Un process né avant `depuis` (le lancement de la racine)
 // n'est pas de l'arbre, ni celui né avant son parent : son parent n'est pas
 // celui qu'il croit.
@@ -83,14 +90,19 @@ export function arbreDe(table: Processus[], racine: number, depuis?: number, soi
   return [...arbre].filter((pid) => parPid.has(pid));
 }
 
-// Tue ce que la table dit vivant de l'arbre. Rend faux s'il n'y avait personne.
-function unTour(texte: string | null, racine: number, depuis: number | undefined, premier: boolean): boolean {
-  if (texte === null) {
-    // La table ne se lit pas (PowerShell absent, refusé) : la racine, au moins,
-    // ne survit pas à l'arrêt.
+// Ce que rend une lecture de la table : son texte, ou pourquoi il manque —
+// `ratee` se retente, `perdue` (PowerShell absent, délai épuisé) non.
+type Lecture = string | "ratee" | "perdue";
+
+// Tue ce que la table dit vivant de l'arbre. Rend faux quand il n'y a plus de
+// tour à faire : personne de vivant, ou une table qu'on ne lira pas.
+function unTour(lecture: Lecture, racine: number, depuis: number | undefined, premier: boolean): boolean {
+  if (lecture === "ratee" || lecture === "perdue") {
+    // La table ne se lit pas : la racine, au moins, ne survit pas à l'arrêt.
     if (premier) tuer(racine);
-    return false;
+    return lecture === "ratee";
   }
+  const texte = lecture;
   const vivants = arbreDe(lireTable(texte), racine, depuis);
   for (const pid of vivants) tuer(pid);
   return vivants.length > 0;
@@ -104,17 +116,28 @@ function tuer(pid: number): void {
   }
 }
 
-function lireLaTable(): Promise<string | null> {
+type ErreurDeLecture = { code?: string | number | null; killed?: boolean; signal?: NodeJS.Signals | string | null; stdout?: unknown };
+
+// Une sortie qui porte au moins une ligne de la table se lit, erreur ou pas.
+function lecture(erreur: ErreurDeLecture | null, sortie: unknown): Lecture {
+  const texte = typeof sortie === "string" ? sortie : Buffer.isBuffer(sortie) ? sortie.toString("utf8") : "";
+  if (!erreur || lireTable(texte).length > 0) return texte;
+  // PowerShell absent, ou tué au bout de son délai.
+  if (erreur.code === "ENOENT" || erreur.code === "ETIMEDOUT" || erreur.killed || erreur.signal) return "perdue";
+  return "ratee";
+}
+
+function lireLaTable(): Promise<Lecture> {
   return new Promise((rendre) => {
-    execFile(POWERSHELL, ARGS_DE_LA_TABLE, OPTIONS_DE_LA_TABLE, (erreur, sortie) => rendre(erreur ? null : sortie));
+    execFile(POWERSHELL, ARGS_DE_LA_TABLE, OPTIONS_DE_LA_TABLE, (erreur, sortie) => rendre(lecture(erreur, sortie)));
   });
 }
 
-function lireLaTableSync(): string | null {
+function lireLaTableSync(): Lecture {
   try {
     return execFileSync(POWERSHELL, ARGS_DE_LA_TABLE, { ...OPTIONS_DE_LA_TABLE, stdio: ["ignore", "pipe", "ignore"] });
-  } catch {
-    return null;
+  } catch (erreur) {
+    return lecture(erreur as ErreurDeLecture, (erreur as ErreurDeLecture).stdout);
   }
 }
 
