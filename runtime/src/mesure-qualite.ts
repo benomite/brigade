@@ -50,6 +50,10 @@ export type Qualite = {
   tropDeReparations: boolean | null;
   motifsDeRenvoi: Compte[];
   checksCasses: Compte[];
+  // Les tickets mesurés qui ne sont pas du premier coup, dans l'ordre des
+  // merges, avec leurs renvois et leurs cooks sans livraison : où chercher la
+  // cause que les motifs comptent (#2742).
+  rates: { ticket: number; renvois: readonly string[]; cooksRates: number }[];
 };
 
 // Livré du premier coup : mergé sans renvoi ni cook raté.
@@ -92,6 +96,10 @@ export function mesurerQualite<T extends { ticket: number; mergedAt?: string }>(
     tropDeReparations: parMerge === null ? null : parMerge > REPARATIONS_PAR_MERGE_MAX,
     motifsDeRenvoi: classer(connues.flatMap((q) => q.renvois)),
     checksCasses: classer(reparations.flatMap((q) => q.reparation ?? [])),
+    rates: tickets.flatMap((ticket) => {
+      const q = qualites.get(ticket);
+      return q === undefined || duPremierCoup(q) ? [] : [{ ticket, renvois: q.renvois, cooksRates: q.cooksRates }];
+    }),
   };
 }
 

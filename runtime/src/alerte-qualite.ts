@@ -61,6 +61,10 @@ const pourcent = (part: number) => `${Math.round(part * 100)}%`;
 const liste = (comptes: readonly Compte[], vide: string) =>
   comptes.length === 0 ? [vide] : comptes.slice(0, CAUSES_NOMMEES).map(({ nom, fois }) => `- ${nom}: ${fois} ${fois === 1 ? "time" : "times"}`);
 
+// Un ticket qui n'est pas du premier coup : ses renvois, puis ses cooks sans livraison (#2742).
+const rate = ({ ticket, renvois, cooksRates }: Qualite["rates"][number]) =>
+  `- #${ticket}: ${[...renvois, ...(cooksRates > 0 ? [`${cooksRates} ${cooksRates === 1 ? "cook" : "cooks"} without a delivery`] : [])].join(", ")}`;
+
 // Le ticket de qualité, ou null quand la qualité tient (ou n'est pas mesurée).
 export function ticketDeQualite(q: Qualite): { titre: string; corps: string; causes: CauseDeQualite[] } | null {
   const causes = causesDeQualite(q);
@@ -87,6 +91,7 @@ export function ticketDeQualite(q: Qualite): { titre: string; corps: string; cau
     "While the quality is under these limits, the time alerts open no ticket: going faster would only send back more. This ticket opens instead.",
     "",
     ...(premierCoup ? ["## Most frequent send-back reasons", "", ...liste(q.motifsDeRenvoi, "- no reason recorded: the misses are cooks that delivered nothing"), ""] : []),
+    ...(premierCoup && q.rates.length > 0 ? ["## Tickets not served first-try", "", ...q.rates.map(rate), "", "Their `brigade:renvoi` and `brigade:echec` comments give the station's reason for each miss.", ""] : []),
     ...(baseCassee ? ["## Checks that broke main", "", ...liste(q.checksCasses, "- no check recorded"), ""] : []),
     REGLE_GARDE_CORRECTION,
     "",

@@ -474,7 +474,9 @@ p75 lost time (`lostTimeMaxMin`), the median cooking over estimate (`cookingOver
 over the recent tickets whose `qualite` the station recorded at their merge, from GitHub (#2707). The station publishes
 them with the ticket times (`temps.chiffres`), with what weighs most on each (the 5 tickets with the most lost time or
 most over their estimate, the most frequent send-back reasons and broken checks); the app's rail band and Health tab
-show them from those values. TODO's informative part names each of the
+show them from those values. Under the first-try threshold, the quality ticket the station opens (`runtime/src/alerte-qualite.ts`,
+#2680) names the most frequent send-back reasons and, since #2742, the tickets not served first-try, each with its
+misses: its cook knows which tickets to look into, not only how many times. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
 
 ## The daily report of the decisions brigade told about
