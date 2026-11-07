@@ -33,7 +33,7 @@ them (`docs/app.md`, "The Manager tab"). GitHub not reached, it exits with `1`.
 
 ### Several stations on one project
 
-Every station that serves a project runs its manager (none is the main one), each with its own log. So that
+Every station that serves a project runs its manager, each with its own log. So that
 two stations never qualify, calibrate, split, requalify or set aside the same issue twice (#2568), the
 manager's work on an issue is **claimed on GitHub like a ticket** (`runtime/src/github-etat/prise-du-manager.ts`):
 

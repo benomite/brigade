@@ -32,7 +32,7 @@ compares them as written.
 | **provides** | its **capabilities**: what this machine knows how to do (`code`, `navigateur-headless`, `chrome-connecté`…) | at least one; letters, digits and hyphens, separated by `+` |
 | **distante** | optional: the station is the chef's workstation, **not on the runtime's machine**. The runtime never reaches it: it pulls its work itself (see "A remote station pulls its work" in [`station-distante.md`](station-distante.md)) | the word `distante` only: **no host, port or address** |
 | **ordinaires** | optional, after `distante`: the remote station takes **the ordinary tickets too** (those that ask for no capability), in the sandbox of its workstation (see "Ordinary tickets on the chef's workstation" in [`station-distante.md`](station-distante.md)) | only on a `distante` station |
-| **ensemble** | optional, after `distante`, instead of `ordinaires`: the remote station is **one more station of the project**, cooking **alongside** the first (see "A second station of the project" in [`station-distante.md`](station-distante.md)) | only on a `distante` station; not with `ordinaires` |
+| **ensemble** | optional, after `distante`, instead of `ordinaires`: the remote station is **one more station of the project**, cooking **alongside** the first (see "A station on another machine" in [`station-distante.md`](station-distante.md)) | only on a `distante` station; not with `ordinaires` |
 
 - **Several stations on the same machine** are declared side by side (`box/claude`,
   `box/playwright`): each has its cap and cooks, and a ticket goes to the first one, in declaration
@@ -394,7 +394,7 @@ for none.
 
 | What the ticket asks for | Where it goes |
 |---|---|
-| Nothing | to the first station, in declaration order, that nothing withholds — **whatever it provides** |
+| Nothing | to the station, in declaration order, that nothing withholds — **whatever it provides** |
 | One or more capabilities | to the first free station that provides them **all** |
 | A capability that a **full or withheld** station provides | nowhere for now: it waits for its place, and `status` says which one holds it |
 | A capability that **no declared station provides** — or several that none provides together | **it does not leave**: 86, no cook |

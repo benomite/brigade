@@ -3,7 +3,7 @@
 **Every station of a project serves it itself, on GitHub** ([`github-seul.md`](github-seul.md)). A station
 that runs elsewhere than the box — `mac/claude`, with the chef's connected Chrome — opens the project's kitchen
 in its own process and takes, cooks, reviews and merges tickets like any other, reading and writing only GitHub.
-No station is the main one, and nothing passes between stations but GitHub.
+Every station of a project is equal, and nothing passes between stations but GitHub.
 
 ```bash
 brigade <project> station stations box/claude:30:code,mac/claude:1:chrome-connecté:distante
@@ -15,13 +15,13 @@ of the station that is **not** marked `distante`.
 
 **What is gone (#2061).** The box no longer serves remote stations: no `pull` request, no `remote.asked` /
 `remote.answered`, no lease lent from its log, no presence (`station.present` / `station.absent`), no ordinary ticket
-lent to the chef's workstation when the box is saturated, no second station whose deliveries went through the main
-station's pass, and no claim relay through the stations' gists and the Kitchen board. Those events may remain in an
+lent to the chef's workstation when the box is saturated, no station whose deliveries went through another station's
+pass, and no claim relay through the stations' gists and the Kitchen board. Those events may remain in an
 old log, unread.
 
 **A station paired through the app** and added to a project opens that project's kitchen on its own computer and
-cooks there through GitHub, whatever other stations serve it (#2713): no station is the main one, none joins another's
-kitchen, and `brigade-cuisines-rejointes.json` is no longer written.
+cooks there through GitHub, whatever other stations serve it (#2713): it opens its own kitchen, as each of the others
+does, and `brigade-cuisines-rejointes.json` is no longer written.
 
 **What it says when it cannot cook yet.** A station installed from the app and cooking nothing says why on its line
 of the home screen, with the gesture: `not reached` (stopped or silent on GitHub: start Brigade on its computer,
@@ -89,10 +89,9 @@ Expected: `~/brigade-essai`, `~/.ssh` and the credentials fail (`Operation not p
 
 #### Moving a project's kitchen, whenever you want
 
-The main station — the one that runs a project's kitchen, manager and pass — is chosen when the
-project is added ("Adding a project to a station from the app, without a terminal", in
-[`station-machine.md`](station-machine.md)); **that choice commits to nothing**: the kitchen can be
-moved afterwards to this computer, to its box or to another station, without removing or re-adding the
+The station that runs a project's manager and pass is chosen when the project is added ("Adding a project
+to a station from the app, without a terminal", in [`station-machine.md`](station-machine.md)); **that
+choice commits to nothing**: the manager and the pass can be moved afterwards to this computer, to its box or to another station, without removing or re-adding the
 project. The app launches the operation (`runtime/src/demenagement/demenager.ts`):
 
 ```bash
@@ -106,7 +105,7 @@ The gists are those of the chef's stations. It returns a JSON line —
 neither read nor written. It writes only two requests (`brigade-projets.json`): `remise` on the
 station the kitchen is leaving, `reprise` on the one that takes it over (field names stay French); the
 app must keep them as they are when it rewrites these requests, or the move becomes an ordinary change
-of main station. The rest happens **through the stations' gists**, in three steps
+of the station that runs the manager and the pass. The rest happens **through the stations' gists**, in three steps
 (`runtime/src/projets/tenir.ts`):
 
 1. **The target station says it is ready**, or why it cannot be: its Apps authorized on the
