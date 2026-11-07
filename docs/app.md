@@ -760,6 +760,16 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 `app/src/tableau-gestes/reponse-github.ts`. Test: `app/test/tableau-gestes/reponse-github.test.ts` (#2061 and #1554 rewritten
 with choices, a click on each gesture against a fake GitHub).*
 
+**Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
+signed in to the cards assigned to it on GitHub. The chef — `chef` in the repository's `.claude/brigade/projet.json`, or,
+without it, the repository's owner — sees every card, as before. Any other signed-in human sees only the cards whose issue
+lists them among its assignees: not the chef's unassigned cards, not someone else's; with none, the usual empty Todo. A card
+they see is the chef's card unchanged, answered with the same buttons and the same answer flow (above). An account or a
+`projet.json` that cannot be read filters nothing. The account is read again at most every five minutes, and right after a
+GitHub sign-in. *Code: `app/src/vue/cartes-assignees/cartes-assignees.ts`, used by `lireLeTableau` (`app/src/main.ts`).
+Test: `app/test/cartes-assignees/cartes-assignees.test.ts`. Captures: `docs/captures/2761/` — `todo-cartes-assignees-avant.png`
+(the human sees all four cards) and `todo-cartes-assignees-apres.png` (only their two).*
+
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
 is the question "Merge PR #N by hand? It changes what judges it." with the PR link, to merge on GitHub; a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its

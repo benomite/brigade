@@ -49,6 +49,8 @@ export type AttenteDuChef = {
   chef?: CarteDuChef;
   miseDeCote?: MiseDeCote;
   decision?: DecisionDeMerge;
+  // Les logins de ses assignés sur GitHub, quand elle en a : qui d'autre que le chef la voit (vue/cartes-assignees/, #2761).
+  assignes?: string[];
 };
 // Ce que la lecture rend : les entrées et l'heure de la lecture — ou pourquoi rien ne se lit. `horsLigne` : GitHub n'a
 // pas été joint du tout.
@@ -107,7 +109,10 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       return issue.pull_request === undefined && typeof issue.number === "number" && labels.includes(label) && !labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE);
     });
   const commentaires = (numero: number) => pages(`/repos/${depot}/issues/${numero}/comments`);
-  const entree = (issue: Brut) => ({ ticket: issue.number as number, titre: texte(issue.title), url: texte(issue.html_url) || `https://github.com/${depot}/issues/${issue.number}` });
+  const entree = (issue: Brut) => {
+    const assignes = liste(issue.assignees).flatMap(({ login }) => (typeof login === "string" ? [login] : []));
+    return { ticket: issue.number as number, titre: texte(issue.title), url: texte(issue.html_url) || `https://github.com/${depot}/issues/${issue.number}`, ...(assignes.length === 0 ? {} : { assignes }) };
+  };
   const creee = (issue: Brut) => date(issue.created_at) ?? new Date(0).toISOString();
 
   try {
@@ -208,10 +213,11 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles }: { at
 }
 
 // La lecture du rail, avec ce qui attend le chef lu de GitHub comme le second le lit (main.ts) : l'app ne dit jamais autre
-// chose que lui. Pas lu : une lecture ratée, jamais un TODO vide.
-export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub): Promise<LectureDuTableauDuDepot> {
+// chose que lui. Pas lu : une lecture ratée, jamais un TODO vide. `filtrer` : les cartes que le compte connecté voit
+// (vue/cartes-assignees/, #2761).
+export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, filtrer?: (attentes: AttenteDuChef[]) => Promise<AttenteDuChef[]>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
   const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe) });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  return avecLAttenteDuChef(lu, attente);
+  return avecLAttenteDuChef(lu, filtrer === undefined ? attente : { ...attente, attentes: await filtrer(attente.attentes) });
 }
