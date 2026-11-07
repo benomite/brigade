@@ -1,6 +1,6 @@
 # Post for r/ClaudeAI
 
-Status: **rules not verified, chef to read the page before posting** (see [`plan-lancement.md`](plan-lancement.md)). Nothing is posted from this repository.
+Status: **superseded by [`docs/marketing/launch-plan.md`](../marketing/launch-plan.md), do not post this draft**; rules not verified, chef to read the page before posting** (see [`plan-lancement.md`](plan-lancement.md)). Nothing is posted from this repository.
 
 ## Title
 

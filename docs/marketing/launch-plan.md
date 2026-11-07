@@ -15,6 +15,8 @@ Links used in every post: site https://benomite.github.io/brigade/ and repo http
 
 ## Rules: what is verified and what is not
 
+**Acceptance criterion 1 is not fully met, on purpose.** The station tried again on 2026-11-07 through a fetch tool: `news.ycombinator.com` (showhn.html, newsguidelines.html) answered "proxy refused the connection", and `www.reddit.com` / `old.reddit.com` (`about/rules.json` for r/ClaudeAI, r/ClaudeCode, r/SideProject) answered "unable to fetch". No rule text was readable, so none is quoted; inventing one from memory would be worse than a gap. **Decision for the chef**: open the links below in a browser and paste the exact sentences into the "Rule quoted" lines, or paste them to a cook to fold in. Until then the criterion is open.
+
 The station has no authenticated browser: Reddit and LinkedIn refuse unauthenticated tools (proxy `403`, already recorded on 2026-10-23 and 2026-11-01 in the older plan), and a web search on 2026-11-07 returned no rule text for the subreddits. **So no rule below is quoted from memory.** Each place gives its rules link and the one-line check the chef must do; the chef pastes the exact sentence into the "Rule quoted" line when reading the page. The only facts taken from a search are marked "(secondary source)" and are not rules.
 
 ## Places, in posting order
@@ -64,9 +66,9 @@ Space them out: Show HN and Reddit on a weekday morning US Eastern time, never t
 ### 6. The Claude community — day 10
 
 - **Why last**: it is the most official place, so post when the product has shown it holds up and there are real answers to link.
-- **Which place**: Anthropic's own community spaces (the Claude Discord, and the Anthropic community forums if the chef has an account there). The chef picks the channel; this plan does not assume one exists for showcases.
+- **Which place**: the official Claude Discord server (invite from https://www.anthropic.com/community), in its showcase or projects channel if it has one. Channel names could not be verified from the station: the chef confirms one exists before posting, and if none does, skips this place rather than use a general channel.
 - **Angle**: a short showcase for people building with Claude Code, with a question about subscription limits.
-- **Rules link**: the server's rules channel (Discord) or the forum's posting guidelines; the chef finds the URL when joining. No link could be verified from the station.
+- **Rules link**: the server's `#rules` channel, read after joining (a Discord channel has no public URL). Not verified from the station.
 - **Rule quoted**: *chef to paste.* Not verified.
 - **Checklist**: use the showcase or projects channel only, no cross-posting the same text to several channels.
 
@@ -97,7 +99,7 @@ What happens next:
 - Guardrails: caps on duration, tokens and simultaneous cooks, a breaker after repeated failures, and one `stop` that halts every cook.
 - It only calls you for a product or design choice, or a review only you can make. On my phone that is a GitHub notification, plus a notification in the Android app.
 
-Brigade builds itself: 1,016 of its 1,191 merged PRs (85%) came from a cook's branch. Demo, two minutes: [DEMO LINK]
+Brigade builds itself: 1,016 of its 1,191 merged PRs (85%) came from a cook's branch (the branch name shows who cooked, not who clicked merge). Demo, two minutes: [DEMO LINK]
 
 It's young and opinionated, and the cooks run on your Claude Max session (an API key does not fit). Does a ticket-in, reviewed-PR-out loop match how you'd trust agents with your repo? Where would you want a human gate I haven't put?
 
@@ -131,7 +133,7 @@ https://benomite.github.io/brigade/ · https://github.com/benomite/brigade
 
 Show HN: Brigade, Claude Code agents that work your GitHub tickets while you're away
 
-**Text** (leave the URL field as the repo, put this as the first comment)
+**Text** (form to confirm against the HN pages: URL field = the repo, this text as the first comment; HN also accepts a text-only submission, but then there is no URL)
 
 Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plus a runtime. You put a `fire` label on a GitHub issue; a `claude` session takes it in its own git worktree and opens a PR; a separate "pass" runs the gates and CI, has a model review it, and merges only if everything is green. You are called only for product or design choices.
 
@@ -155,7 +157,7 @@ I built Brigade so my side project keeps shipping when I'm not at my computer
 
 My side projects stall when I leave the desk. So I built a small kitchen for them: I write a ticket on GitHub, put a label on it, and an AI agent (Claude Code) cooks it in its own branch and opens a pull request. Another step checks it and merges it if the tests are green. I'm only called for the choices that are mine, on my phone.
 
-It's open source (MIT), a desktop app for Mac and Windows. It builds itself: most of its merged PRs were cooked by its own agents.
+It's open source (MIT), a desktop app for Mac and Windows. It builds itself: most of its merged PRs come from its own agents' branches.
 
 What I'd love to know: would you leave your own side project to something like this, and what would stop you? Two-minute demo: [DEMO LINK]
 
@@ -169,7 +171,7 @@ For months I've worked differently: I write a ticket, I leave, and the work is d
 
 How it works: I describe what I want to an assistant, which writes the ticket. An AI agent takes it in its own branch and opens a pull request. A second step checks the tests and reviews it, and merges it if everything is green. I'm called, on my phone, only for what is mine to decide.
 
-The proof is the project itself: 1,016 of its 1,191 merged pull requests (85%) were cooked by agents this way.
+The proof is the project itself: 1,016 of its 1,191 merged pull requests (85%) came from an agent's branch.
 
 Three things I learned: bounding every agent (time, tokens, a stop button) matters more than making it smarter; the backlog is the only place where work should be coordinated; and "what needs a human" has to be written down, or everything comes back to you.
 

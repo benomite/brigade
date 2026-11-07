@@ -1,6 +1,6 @@
 # Post for LinkedIn
 
-Status: **rules not verified, chef to read the page before posting** (see [`plan-lancement.md`](plan-lancement.md)). Nothing is posted from this repository.
+Status: **superseded by [`docs/marketing/launch-plan.md`](../marketing/launch-plan.md), do not post this draft**; rules not verified, chef to read the page before posting** (see [`plan-lancement.md`](plan-lancement.md)). Nothing is posted from this repository.
 
 LinkedIn has no title field: the first line is the hook.
 
