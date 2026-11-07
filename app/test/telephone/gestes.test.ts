@@ -1,10 +1,10 @@
-// Les gestes de la file sur le téléphone appairé (ticket 1164) : merger une PR qui attend, trancher une carte, arrêter
+// Les gestes de la file sur le téléphone (ticket 1164) : merger une PR qui attend, trancher une carte, arrêter
 // ou relancer la cuisine d'un projet. La vue est celle du desktop, sur un écran étroit (#1186), et ses gestes appellent
 // les mêmes actions du pont que sur le desktop : `gesteDeFiche` — le geste, le ticket, jamais une commande — et
 // `cuireSurLaStation`. Sur le téléphone, il n'y a pas de second où écrire la commande : le pont rend ce que la station
 // a fait (`fait`), comme pour une station sur Cooks. La fiche le dit, la box est relue tout de suite, et la carte quitte
 // la file à la lecture qui suit. Un geste refusé, ou un pont qui lève, le dit en une ligne, son détail au survol, et la
-// file reste ce qu'elle était. Vus sur les captures `telephone-gestes*` de scripts/capture-ecran (docs/captures/1164/).
+// file reste ce qu'elle était.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../../runtime/src/etat.ts";
@@ -40,7 +40,7 @@ const demarrage = () => ({
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
-  telephone: { appaire: true as const, station: "box", adresse: "http://192.168.1.20:7010" },
+  telephone: { github: { compte: "chef" } },
 });
 
 type Station = FaitsDuRuntime["stations"][number];

@@ -108,7 +108,7 @@ All station: what is installed on, or identifies, the machine.
 | Setting | What it sets |
 |---|---|
 | `BRIGADE_CLAUDE_BIN` | The `claude` program the station runs (its **engine**) |
-| `BRIGADE_GH_BIN`, `BRIGADE_GIT_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_TAILSCALE_BIN`, `BRIGADE_SANDBOX_BIN` | The `gh`, `git`, `systemctl`, `tailscale` and sandbox (bwrap) programs |
+| `BRIGADE_GH_BIN`, `BRIGADE_GIT_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_SANDBOX_BIN` | The `gh`, `git`, `systemctl` and sandbox (bwrap) programs |
 | `BRIGADE_STATION_NOM` | Name the station announces (the host name by default) |
 | `BRIGADE_STATION_VERSION` | Version the station announces |
 | `BRIGADE_STATION_PORTES` | The station's doors file |
@@ -118,7 +118,6 @@ All station: what is installed on, or identifies, the machine.
 | `BRIGADE_MISE_A_JOUR_DIR` | Directory of the station's own update |
 | `BRIGADE_MISE_A_JOUR_SOURCE` | Where the station finds new versions of brigade |
 | `BRIGADE_MISE_A_JOUR_GARDE_S` | Time left to the station to start after an update, in seconds |
-| `BRIGADE_GUICHET_TELEPHONES` | The counter of paired phones |
 | `BRIGADE_SECOND_DIR`, `BRIGADE_SECOND_PROPOSAL` | The second's directory; the channel of its proposals |
 | `BRIGADE_APP_CONFIG` | The app's configuration file (`app.json`), on the chef's Mac |
 | `BRIGADE_REGISTRE_DIR` | The registry of enrolled stations |

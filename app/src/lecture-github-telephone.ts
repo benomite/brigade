@@ -51,7 +51,7 @@ export type ProjetDuCompte = { nom: string; depot: string };
 export type Motif = { reason: "injoignable" | "oublie" | "inattendu"; said: string };
 export type ListeLue = { a: string; lue: true } | ({ a: string; lue: false } & Motif);
 // Le téléphone, tel que la vue le reçoit : connecté à GitHub — le compte, nul quand il n'est pas dit —, sans station.
-export type TelephoneGitHub = { appaire: false; github: { compte: string | null }; liste?: ListeLue };
+export type TelephoneGitHub = { github: { compte: string | null }; liste?: ListeLue };
 // Ce que la lecture dit à la vue, par le nom de son abonnement (app/src/vue/pont.d.ts).
 export type Dire = {
   (canal: "surConfiguration", configuration: Affichee, fermes: number[]): void;
@@ -194,7 +194,7 @@ export function ouvrirLaLectureGitHub(options: Options) {
   let espace: string | undefined;
 
   const configuration = (): Affichee => pourLaBarre({ chemin: "GitHub — the projects your stations serve", projets: projets.map(projetDe) }, () => true);
-  const telephone = (): TelephoneGitHub => ({ appaire: false, github: { compte: options.compte ?? null }, ...(liste === undefined ? {} : { liste }) });
+  const telephone = (): TelephoneGitHub => ({ github: { compte: options.compte ?? null }, ...(liste === undefined ? {} : { liste }) });
   const direLAccueil = (vu: Accueil | undefined) => {
     if (vu !== undefined) dire("surAccueil", vu);
   };

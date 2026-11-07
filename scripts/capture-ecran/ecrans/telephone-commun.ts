@@ -7,13 +7,10 @@ import { configuration, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 export const LARGEUR = 412;
 export const HAUTEUR = 915;
 
-// Le guichet de la station d'un téléphone appairé avant #2500.
-export const ADRESSE = "http://192.168.1.20:7010";
+type Telephone = { github?: { compte: string | null } };
 
-type Telephone = ({ appaire: false } | { appaire: true; station: string; adresse: string }) & { github?: { compte: string | null } };
-
-// `telephone` : ce que le pont lit au lancement — ni connexion ni appairage, sur une installation neuve.
-export function demarrageDuTelephone(telephone: Telephone = { appaire: false }) {
+// `telephone` : ce que le pont lit au lancement — aucune connexion, sur une installation neuve.
+export function demarrageDuTelephone(telephone: Telephone = {}) {
   const tout = demarrage(configuration([]));
   return {
     ...tout,

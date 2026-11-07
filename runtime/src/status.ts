@@ -7,8 +7,7 @@
 // BRIGADE_BACKUP_MAX_AGE_HOURS règle l'âge au-delà duquel la dernière sauvegarde
 // est marquée (48 par défaut).
 // La commande n'écrit jamais, et répond pendant que le runtime et ses cooks
-// tournent. La photo se lit aussi sans process (`photoDuProjet`) : le guichet
-// des téléphones la rend au téléphone telle quelle (`telephone/projets.ts`).
+// tournent. La photo se lit aussi sans process (`photoDuProjet`).
 import { direEntreesEn, entreesParType } from "./carte-todo.ts";
 import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";

@@ -1,12 +1,12 @@
-// L'app Android, le téléphone appairé, quand une version plus haute est publiée (#1528, #2431), en 412 × 915 :
+// L'app Android, le téléphone connecté à GitHub, quand une version plus haute est publiée (#1528, #2431), en 412 × 915 :
 // la ligne en tête, la version qui tourne et la dernière, son lien Download vers l'.apk — sans premier lancement au survol.
 import { indiceDe } from "../../../app/src/mise-a-jour/avis.ts";
 import { type Ecran, MAINTENANT } from "./commun.ts";
-import { ecran as relance } from "./telephone-relance.ts";
+import { ecran as relance } from "./telephone-connecte.ts";
 
 export const ecran: Ecran = {
   ...relance,
-  dit: "L'app Android appairée, une version plus haute publiée : la ligne de tête et son lien Download vers l'.apk",
+  dit: "L'app Android connectée à GitHub, une version plus haute publiée : la ligne de tête et son lien Download vers l'.apk",
   donnees: () => {
     const { reponses, ...reste } = relance.donnees();
     const indice = indiceDe("android");

@@ -313,10 +313,8 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   sur GitHub seul (#2502) : répondre à une carte de TODO, reprendre, mettre en suspens, par le code
   d'écriture du desktop (`app/src/gestes-github-telephone.ts`, posé à `www/src/gestes-github-telephone.js`),
   avec le jeton du coffre, par le même HTTP natif. Aucune station n'est jointe pour un geste.
-- Un téléphone appairé à une station avant #2500 ne joint plus son guichet que pour la conversation
-  avec le second, par le même HTTP natif — d'où `android:usesCleartextTraffic`
-  dans le manifeste : le guichet parle http sur le réseau du chef. Aucun appairage neuf ne se tire plus :
-  ni code, ni lecteur de QR, ni lien `brigade://pair`.
+- Aucun appairage ne se tire : ni code, ni lecteur de QR, ni lien `brigade://pair`, ni http en clair — le téléphone ne parle
+  qu'à GitHub, en https.
 - `ajouter` refuse, en disant que ce téléphone ne lit encore aucun projet.
 - Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
 

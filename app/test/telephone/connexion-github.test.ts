@@ -39,7 +39,7 @@ const demarrage = (telephone: Telephone | null) => () => ({
 });
 
 // L'app Android lancée ; `debut` : ce que le pont rend au login — le code, ou pourquoi il n'est pas parti.
-async function auLancement({ debut = () => CODE, telephone = { appaire: false } }: { debut?: () => DebutDeConnexion | Promise<DebutDeConnexion>; telephone?: Telephone | null } = {}) {
+async function auLancement({ debut = () => CODE, telephone = {} }: { debut?: () => DebutDeConnexion | Promise<DebutDeConnexion>; telephone?: Telephone | null } = {}) {
   const vue = await jouerLaVue({ demarrage: demarrage(telephone), espace: () => [], seConnecterAGitHub: debut });
   const ecran = () => vue.element("connexion-github");
   const boutons = () => ecran().dessous("button").filter((pose) => pose.parentElement?.className === "action");
@@ -138,18 +138,11 @@ describe("sur une installation neuve, le premier écran connecte le téléphone 
 
 describe("hors d'une installation neuve", () => {
   test("le téléphone déjà connecté : l'app s'ouvre sur « Tous les projets », le compte en tête, sans écran de connexion", async () => {
-    const { vue, ecran } = await auLancement({ telephone: { appaire: false, github: { compte: null } } });
+    const { vue, ecran } = await auLancement({ telephone: { github: { compte: null } } });
     assert.equal(vue.element("cadre").hidden, false);
     assert.equal(vue.element("tous").hidden, false);
     assert.match(ecran().textContent, /^This phone is signed in to GitHub\./);
     assert.deepEqual(ecran().dessous("button").filter((pose) => pose.parentElement?.className === "action"), []);
-  });
-
-  test("le téléphone appairé à une station avant #2500 : il la lit encore, sans écran de connexion", async () => {
-    const { vue, ecran } = await auLancement({ telephone: { appaire: true, station: "atelier", adresse: "http://192.168.1.20:7010" } });
-    assert.equal(ecran().hidden, true);
-    assert.equal(vue.element("cadre").hidden, false);
-    assert.match(vue.element("tous").textContent, /atelier's projects: first read in progress/);
   });
 
   test("le desktop, qui ne rend aucun `telephone` : rien n'est posé, et sans projet l'app s'ouvre sur les stations du chef (#1434)", async () => {

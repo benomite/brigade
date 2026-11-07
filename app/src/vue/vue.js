@@ -76,9 +76,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { tenirInvite } from "./mise-a-jour/invite.js";
-import { poserLaListe } from "./telephone/appairage.js";
 import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./connexion-github.js";
-import { tenirConversation } from "./telephone/conversation.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
@@ -268,12 +266,6 @@ const propositionsDuSecond = tenirLesChoix();
 const fil = element("fil");
 const bandeau = element("bandeau");
 const teteDuSecond = element("tete-du-second");
-const sectionConversation = element("conversation");
-// Sur le téléphone (ticket 1165), l'onglet Second n'a pas de terminal : il tient la conversation avec le second, en
-// messages (telephone/conversation.js). Posée au démarrage, quand le pont dit que l'app est celle du téléphone ; sur le
-// desktop, il n'y en a pas, et le second reste son terminal.
-/** @type {ReturnType<typeof tenirConversation> | undefined} */
-let conversationDuTelephone;
 const message = element("message");
 const etat = element("etat");
 const journal = element("journal");
@@ -1286,8 +1278,8 @@ const refusDeFiches = new Map();
 // que le pont du téléphone rend —, ou écrit dans le second, que l'écran étroit ne montre pas à côté de la fiche.
 /** @type {Map<string, { envoi: string } | { fait: string, detail: string } | { second: true }>} */
 const issuesDeFiches = new Map();
-// Un geste qui n'est pas parti — le pont a levé, ou ne porte pas l'action (le téléphone, tant que le guichet de sa
-// station ne la prend pas) : une ligne, et pourquoi au survol.
+// Un geste qui n'est pas parti — le pont a levé, ou ne porte pas l'action (le téléphone, tant que son pont ne la
+// prend pas) : une ligne, et pourquoi au survol.
 const SANS_ENVOI = "nothing was sent — nothing was changed";
 const SANS_PONT = "this app does not carry this action to the station yet";
 // Le geste de la fiche qui coûte et que le chef a cliqué, en attente de sa confirmation, par
@@ -1511,7 +1503,7 @@ function montrer() {
             return cree;
           }),
           // Sur un écran étroit, la conversation avec le second est un cinquième onglet, après Settings.
-          ...(etroit()
+          ...(etroit() && telephoneVu === undefined
             ? [CONVERSATION_ONGLET].map(({ id, titre }) => {
                 const cree = bouton(titre, () => choisirOnglet(id));
                 cree.role = "tab";
@@ -1625,13 +1617,8 @@ function poserSecond(ouvrable, montre) {
   colonneSecond.hidden = courant === undefined || (etroit() && !conversation);
   centre.hidden = conversation;
   principal.toggleAttribute("data-conversation", conversation);
-  // Le téléphone n'a ni terminal ni shell : à leur place, la conversation du projet — sauf s'il ne s'ouvre pas, ce que
-  // la note dit, comme sur le desktop.
-  const enMessages = conversationDuTelephone !== undefined && courant !== undefined && courant.refus === undefined;
-  teteDuSecond.hidden = conversationDuTelephone !== undefined;
-  sectionConversation.hidden = !enMessages;
-  noteSecond.hidden = enMessages;
-  if (enMessages && !colonneSecond.hidden) conversationDuTelephone?.montrer(/** @type {Projet} */ (courant).nom);
+  // Le téléphone n'a ni terminal ni shell ni second.
+  teteDuSecond.hidden = telephoneVu !== undefined;
   const note =
     courant !== undefined && courant.refus !== undefined
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
@@ -1642,10 +1629,10 @@ function poserSecond(ouvrable, montre) {
   if (montre?.empeche !== undefined && note === montre.note) noteSecond.replaceChildren(phrase(document, "span", note));
   else noteSecond.textContent = note;
   // Un second qui ne part pas n'a pas de terminal à montrer : à sa place, pourquoi, et ce qui lui manque (ticket 1435).
-  fil.hidden = !ouvrable || conversationDuTelephone !== undefined || montre?.empeche !== undefined;
+  fil.hidden = !ouvrable || telephoneVu !== undefined || montre?.empeche !== undefined;
   // Le second ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque, et ce
   // qui l'obtient — et, s'il ne part pas, de quoi réessayer. Sur un projet qui ne s'ouvre pas, il n'y a pas de second.
-  const dit = !ouvrable || enMessages ? undefined : (montre?.empeche ?? montre?.manque);
+  const dit = !ouvrable || telephoneVu !== undefined ? undefined : (montre?.empeche ?? montre?.manque);
   outilsDuSecond.hidden = dit === undefined;
   outilsDuSecond.replaceChildren(
     ...(dit === undefined || montre === undefined
@@ -1659,7 +1646,7 @@ function poserSecond(ouvrable, montre) {
           }),
         ]),
   );
-  poserSousLeSecond(ouvrable && !enMessages ? montre : undefined);
+  poserSousLeSecond(ouvrable && telephoneVu === undefined ? montre : undefined);
 }
 
 // Sous le terminal du second, ses choix quand il demande de choisir (ticket 1520), ou le geste qu'il nomme (ticket
@@ -2079,8 +2066,6 @@ function montrerADroite(id) {
 /** @param {string} id */
 function choisirOnglet(id) {
   if (courant === undefined) return;
-  // Sur le téléphone, choisir Second relit la conversation : ce qui est montré reste en attendant.
-  if (id === CONVERSATION) conversationDuTelephone?.relire(courant.nom);
   retenir(courant.nom, id);
   if (id === STATIONS) enregistreesARelire = true;
   laisse.delete(courant.nom);
@@ -2208,8 +2193,8 @@ function propos(texte) {
 
 // Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
-// Ce qui se dit, au survol, d'un guichet joint qui n'a pas rendu la file sur le téléphone (le ticket 1414).
-const AU_TELEPHONE = "The station's phone desk was reached, and did not give this project's queue as the app expects. This phone tries again every 30 s.";
+// Ce qui se dit, au survol, d'une lecture de GitHub qui n'a pas rendu la file sur le téléphone.
+const AU_TELEPHONE = "GitHub was reached, and did not give this project's queue as the app expects. This phone tries again every 30 s.";
 const GESTE = [
   "The station was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
   "What the app got is above; it knows no more.",
@@ -5326,7 +5311,7 @@ function poserLeRail(projet) {
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
   // Le téléphone ne lit pas GitHub : rien n'y passe au-dessus.
-  const auTelephone = telephoneVu?.appaire === true;
+  const auTelephone = telephoneVu !== undefined;
   const marque = muet === undefined || cuisine || auTelephone ? [] : poserMuet(projet);
   if (tenu === undefined || !("tableau" in tenu)) {
     // Le téléphone n'a pas de panneau à droite : ce qui a été obtenu se dit sous le titre, en une ligne, son détail au survol.
@@ -6245,18 +6230,16 @@ function poserAccueil() {
     }),
     gestesDuBloc,
   );
-  // Sur le téléphone, les projets sont ceux qu'il lit — sur GitHub, connecté (connexion-github.js), ou à la station d'un
-  // appairage d'avant le ticket 2500 (telephone/appairage.js) : la section dit ce qui manque à leur liste.
+  // Sur le téléphone, les projets sont ceux qu'il lit sur GitHub, connecté (connexion-github.js) : la section dit ce
+  // qui manque à leur liste.
   projetsDeLAccueil.replaceChildren(
-    ...(telephoneVu?.appaire === true
-      ? [...poserLaListe(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
-      : telephoneVu?.github !== undefined
-        ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
-        : desProjets.length === 0
-          ? (telephoneVu === undefined
-            ? [bloc("p", "no project yet: “+” in the bar adds one"), boutonDAjout(document, gestesDuBloc, true)]
-            : [bloc("p", "no project on this phone yet: a project is added from a computer")])
-          : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, false)] : [])]),
+    ...(telephoneVu?.github !== undefined
+      ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
+      : desProjets.length === 0
+        ? (telephoneVu === undefined
+          ? [bloc("p", "no project yet: “+” in the bar adds one"), boutonDAjout(document, gestesDuBloc, true)]
+          : [bloc("p", "no project on this phone yet: a project is added from a computer")])
+        : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, false)] : [])]),
   );
 }
 
@@ -9332,34 +9315,27 @@ CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
 // Le téléphone (l'app Android) : ce que le pont en garde — rien sur le desktop. Pas encore connecté à GitHub (le ticket
 // 2500), l'app s'ouvre sur l'écran qui l'y connecte, et le reste de l'app est caché derrière ; connecté, elle passe à
-// « Tous les projets », où une ligne dit sous quel compte (connexion-github.js). Un téléphone appairé à une station
-// avant le ticket 2500 la lit encore, sans passer par cet écran (telephone/appairage.js).
+// « Tous les projets », où une ligne dit sous quel compte (connexion-github.js).
 const telephone = demarrage.telephone;
 telephoneVu = telephone;
 brigade.surTelephone?.((vu) => {
   telephoneVu = vu;
   if (courant === undefined && !ajoute && stationOuverte === undefined) poserAccueil();
 });
-// La station ne connaît plus ce téléphone : son appairage est effacé, et l'app se rouvre — sur ses projets, ou sur la
-// connexion à GitHub.
+// GitHub refuse la connexion de ce téléphone : elle est effacée, et l'app se rouvre sur la connexion à GitHub.
 async function oublierLeTelephone() {
   await brigade.oublierLeTelephone?.();
   location.reload();
 }
-if (telephone !== undefined) {
-  const tenue = tenirConversation(sectionConversation, document, { pont: brigade, rendre: poserBlocs });
-  conversationDuTelephone = tenue;
-  brigade.surConversation?.((projet, conversation) => tenue.recevoir(projet, conversation));
-}
 const connexionDuTelephone = element("connexion-github");
 const cadreDeLApp = element("cadre");
-if (telephone !== undefined && !telephone.appaire && telephone.github === undefined) {
+if (telephone !== undefined && telephone.github === undefined) {
   cadreDeLApp.hidden = true;
   connexionDuTelephone.hidden = false;
   tenirConnexionGitHub(connexionDuTelephone, document, {
     pont: brigade,
     apres: (compte) => {
-      telephoneVu = { appaire: false, github: { compte } };
+      telephoneVu = { github: { compte } };
       connexionDuTelephone.className = "fait";
       connexionDuTelephone.replaceChildren(poserConnecte(document, compte));
       cadreDeLApp.hidden = false;
@@ -9367,7 +9343,7 @@ if (telephone !== undefined && !telephone.appaire && telephone.github === undefi
       montrer();
     },
   });
-} else if (telephone !== undefined && !telephone.appaire && telephone.github !== undefined) {
+} else if (telephone !== undefined && telephone.github !== undefined) {
   connexionDuTelephone.hidden = false;
   connexionDuTelephone.className = "fait";
   connexionDuTelephone.replaceChildren(poserConnecte(document, telephone.github.compte));

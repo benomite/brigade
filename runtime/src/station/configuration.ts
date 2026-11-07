@@ -167,8 +167,7 @@ export function environnementDuProjet(racine: string, projet: ProjetConfigure, e
 
 // L'environnement où une commande du chef lit un projet de la station — le
 // geste de la station (`geste.ts`), par où l'app lit `facts` et `status` sur
-// la box, et le guichet des téléphones (`telephone/projets.ts`) : celui du
-// projet, avec la branche d'intégration que son dépôt déclare, celle que sa
+// la box : celui du projet, avec la branche d'intégration que son dépôt déclare, celle que sa
 // cuisine lit.
 export const environnementDeLaCommande = (racine: string, projet: ProjetConfigure, env: Record<string, string | undefined>): Record<string, string | undefined> =>
   avecLaBrancheDuDepot(environnementDuProjet(racine, projet, env));

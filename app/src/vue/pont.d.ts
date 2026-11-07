@@ -237,24 +237,11 @@ export type Pont = {
   // l'est pas, en une ligne et son détail. Absent, le bouton de l'accueil dit que cet appareil ne l'installe pas.
   installerLaStation?(): Promise<{ refus: string; detail?: string } | undefined>;
   surStatutDeLaStation?(recevoir: (statut: unknown) => void): void;
-  // L'app Android seule (le ticket 1414) : la liste des projets de la station appairée vient d'être lue à son guichet, ou
-  // ne l'a pas été — `liste` dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
+  // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
+  // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(recevoir: (telephone: Telephone) => void): void;
-  // La station ne connaît plus ce téléphone : le pont efface son jeton, et la vue revient à ses projets — ou à la
-  // connexion à GitHub, s'il n'y est pas connecté.
+  // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
-  // L'app Android seule (le ticket 1165) : la conversation avec le second d'un projet, là où il n'y a pas de terminal
-  // où la lire. C'est celle du second du desktop — ce que le chef y a écrit, d'ici ou de son ordinateur, et ce que le
-  // second a répondu, du plus ancien au plus récent —, ou pourquoi elle ne se lit pas. Le desktop ne les porte pas :
-  // son second est un terminal. Un pont qui ne les porte pas encore rend `undefined`, et la vue le dit.
-  conversation?(projet: string): Promise<Conversation | RefusDeConversation | undefined>;
-  // Un message du chef au second du projet, tel qu'il l'a tapé : il part dans cette même conversation, comme s'il était
-  // tapé dans le terminal du second sur le desktop. Rend la conversation qui le porte, ou pourquoi rien n'est parti.
-  envoyerAuSecond?(projet: string, texte: string): Promise<Conversation | RefusDeConversation | undefined>;
-  // La conversation d'un projet a bougé : le second répond, ou le chef a écrit du desktop.
-  surConversation?(recevoir: (projet: string, conversation: Conversation) => void): void;
-  // Un lien d'un message du second, ouvert dans le navigateur du téléphone.
-  ouvrirLienDuSecond?(projet: string, url: string): Promise<boolean>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
   // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
   appairer(code: string): Promise<Appairage>;
@@ -491,20 +478,10 @@ declare global {
   }
 }
 
-// Un message de la conversation avec le second (le ticket 1165) : qui l'a écrit — le chef, d'où qu'il l'ait envoyé, ou
-// le second —, quand, et son texte, le markdown rendu (markdown.ts), comme une discussion d'issue.
-export type MessageDuSecond = { de: "chef" | "second"; a: string; blocs: import("../markdown.ts").Bloc[] };
-// `repond` : le second écrit encore sa réponse au dernier message ; `echec` : il a échoué en y répondant (le ticket 1426) — une
-// phrase, et ce que la station en a dit, au survol.
-export type Conversation = { messages: MessageDuSecond[]; repond?: true; echec?: { refus: string; detail: string } };
-// Une phrase, et ce que la station ou le pont en a dit, au survol.
-export type RefusDeConversation = { refus: string; detail?: string };
-// `liste` : la dernière lecture de la liste des projets — sur GitHub, connecté (le ticket 2501), ou au guichet de la
-// station d'un appairage d'avant le ticket 2500 (le ticket 1414) —, absente avant la première. Lue, ou ce qui l'a
-// empêchée : ce qui ne se joint pas (`injoignable`, `sans-guichet`, `inattendu`), ou `oublie`, la session GitHub refusée
-// ou la station qui ne connaît plus le jeton de ce téléphone.
-export type ListeDuTelephone = { a: string; lue: true } | { a: string; lue: false; reason: "injoignable" | "sans-guichet" | "inattendu" | "oublie"; said: string };
-// Le téléphone, tel que le pont de l'app Android le garde : l'appairage à une station d'avant le ticket 2500 — aucun sur une
-// installation neuve, qui n'en tire plus —, et `github`, sa connexion à GitHub (le ticket 2500) — le compte sous lequel il lit, nul quand GitHub ne l'a pas
-// dit ; absente tant qu'il n'y est pas connecté, et la vue s'ouvre alors sur la connexion.
-export type Telephone = ({ appaire: false; liste?: ListeDuTelephone } | { appaire: true; station: string; adresse: string; liste?: ListeDuTelephone }) & { github?: { compte: string | null } };
+// `liste` : la dernière lecture de la liste des projets sur GitHub (le ticket 2501), absente avant la première. Lue, ou ce
+// qui l'a empêchée : ce qui ne se joint pas (`injoignable`, `inattendu`), ou `oublie`, la session GitHub refusée.
+export type ListeDuTelephone = { a: string; lue: true } | { a: string; lue: false; reason: "injoignable" | "inattendu" | "oublie"; said: string };
+// Le téléphone, tel que le pont de l'app Android le garde : `github`, sa connexion à GitHub (le ticket 2500) — le compte
+// sous lequel il lit, nul quand GitHub ne l'a pas dit ; absente tant qu'il n'y est pas connecté, et la vue s'ouvre alors
+// sur la connexion.
+export type Telephone = { github?: { compte: string | null }; liste?: ListeDuTelephone };

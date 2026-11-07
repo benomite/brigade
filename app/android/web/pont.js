@@ -25,8 +25,8 @@
 // `surAmont`, `surTelephone`), tel que le process principal du desktop l'enverrait. La construction pose ce module à côté
 // de la vue (www/src/lecture-github-telephone.js), chargé à la première lecture. Les projets de la dernière liste lue
 // sont gardés : relancée, l'app les montre avant de relire. Aucune station n'est lue : pas connecté, le téléphone ne lit
-// rien — un téléphone appairé à une station avant le ticket 2500 se connecte à GitHub comme une installation neuve.
-// `oublierLeTelephone` oublie sa connexion à GitHub — celle que GitHub refuse — et ce qui reste d'un appairage.
+// rien.
+// `oublierLeTelephone` oublie sa connexion à GitHub — celle que GitHub refuse.
 // Et, connecté, les gestes du chef, écrits sur GitHub seul (le ticket 2502) : `gestesDeFiche`, `gesteDeFiche`, `attente` et
 // `repondreCarte` passent par les gestes de la même lecture (app/src/gestes-github-telephone.ts) — le code d'écriture du
 // desktop, sur le dernier rail lu, avec le jeton du coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part
@@ -34,13 +34,6 @@
 // kitchen », « it arrived ») retire `waiting` ; mettre en suspens (« remove from the rail ») retire `fire`. Ce que GitHub
 // refuse, ou un GitHub qui ne répond pas, revient à la vue en une phrase, et rien n'est montré fait. Aucune station n'est
 // jointe pour un geste : pas connecté, rien ne part.
-// Ce qui reste d'un appairage d'avant le ticket 2500 ne sert plus qu'à la conversation ci-dessous, au guichet de sa station
-// (app/android/web/lecture.ts, posé dans www/android/lecture.js) ; ce qu'il en lirait n'arrive jamais à la vue, hors la
-// conversation.
-// Et la conversation de chaque projet avec son second (le ticket 1426) : `conversation` la lit au guichet
-// (`GET /projects/<nom>/second`), `envoyerAuSecond` y écrit un message du chef (`POST`), avec le jeton gardé ; la réponse
-// du second, et ce que le chef tape au desktop, arrivent à la vue par `surConversation`. Un lien d'un message du second
-// s'ouvre dans le navigateur du téléphone (Pont.java, `ouvrir`).
 // Les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
@@ -48,21 +41,14 @@
 /* global DEMARRAGE */
 const AUCUNE_STATION = "the Android app reads no project yet: this phone reads nothing and sends nothing";
 const configuration = { chemin: `no projects file on this phone — ${AUCUNE_STATION}`, projets: [] };
-// Ce que l'app garde d'un appairage d'avant le ticket 2500, dans son stockage : effacé avec elle.
-const CLE = "brigade.telephone";
-// Les projets de la dernière liste lue au guichet de la station appairée.
-const CLE_DES_PROJETS = "brigade.telephone.projets";
 // Les projets de la dernière liste lue sur GitHub.
 const CLE_DES_PROJETS_GITHUB = "brigade.github.projets";
-// Le temps de joindre GitHub ou le guichet, puis celui qu'il réponde : au-delà, il ne répond pas.
+// Le temps de joindre GitHub, puis celui qu'il réponde : au-delà, il ne répond pas.
 const DELAI_MS = 10_000;
 // Le temps qu'une écriture a pour répondre, une fois GitHub joint : un merge attend que GitHub l'ait fait.
 const DELAI_D_ECRITURE_MS = 60_000;
 // Ce que dit un geste quand le téléphone n'est pas connecté à GitHub : rien n'est parti.
 const SANS_GITHUB = "nothing was sent: this phone is not signed in to GitHub — sign in, then try again";
-// Le temps qu'un message au second a pour répondre, une fois le guichet joint : celui que la station laisse à sa commande,
-// et de quoi en rendre le verdict.
-const DELAI_DU_GUICHET_MS = 130_000;
 // La connexion à GitHub (le ticket 2500) : l'App OAuth au nom de laquelle le téléphone demande son code — celle de la
 // GitHub CLI, que le desktop emploie déjà par `gh auth login` (connexion-github.ts) : le chef y a déjà donné son accord
 // et n'en donne aucun à un tiers de plus. Son « device flow » ne demande aucun secret. Une App OAuth de brigade, son
@@ -75,18 +61,8 @@ const CLE_DU_COMPTE = "brigade.github";
 // Le pas d'attente que GitHub donne, quand il n'en dit aucun, et ce qu'il y ajoute quand il dit d'aller moins vite
 // (`slow_down`) — en secondes, comme lui.
 const PAS_GITHUB_S = 5;
-/** @returns {{ station: string, adresse: string, jeton: string } | undefined} */
-function garde() {
-  try {
-    const lu = JSON.parse(window.localStorage.getItem(CLE) ?? "null");
-    if (typeof lu?.station === "string" && typeof lu.adresse === "string" && typeof lu.jeton === "string") return { station: lu.station, adresse: lu.adresse, jeton: lu.jeton };
-  } catch {
-    // Illisible, il ne vaut rien.
-  }
-  return undefined;
-}
 // Les projets de la dernière liste lue — aucun s'ils ne se relisent pas.
-function projetsGardes(cle = CLE_DES_PROJETS) {
+function projetsGardes(cle) {
   try {
     const lus = JSON.parse(window.localStorage.getItem(cle) ?? "[]");
     return Array.isArray(lus) ? lus : [];
@@ -102,7 +78,7 @@ function natif(plugin, methode, options) {
   if (typeof capacitor?.nativePromise !== "function") return Promise.reject(new Error("the app's native bridge is missing"));
   return capacitor.nativePromise(plugin, methode, options);
 }
-// Les abonnements de la vue, par leur nom : ce que la lecture de la station, ou la connexion à GitHub, leur dit.
+// Les abonnements de la vue, par leur nom : ce que la lecture sur GitHub, ou la connexion, leur dit.
 /** @type {Map<string, ((...args: any[]) => void)[]>} */
 const abonnes = new Map();
 /** @param {string} canal @param {unknown[]} args */
@@ -278,54 +254,16 @@ const avecLesGestes = async (faire, sans) => {
   const ouverte = await laLectureGitHub();
   return ouverte === undefined ? sans : faire(ouverte.gestes);
 };
-// Ce qui joint la station d'un appairage d'avant le ticket 2500 (app/android/web/lecture.ts), ouvert une fois, pour sa
-// conversation : son module, posé par la construction à côté de la vue (www/android/lecture.js), est chargé au premier
-// message. Rien sans appairage. Ce qu'il lirait de la station n'arrive pas à la vue — les projets, le rail et TODO se
-// lisent sur GitHub —, hors la conversation.
-/** @type {Promise<any> | undefined} */
-let lecture;
-function laLecture() {
-  const lu = garde();
-  if (lu === undefined) return undefined;
-  lecture ??= Promise.resolve()
-    .then(() => import(new URL("../../android/lecture.js", window.location.href).href))
-    .then(({ ouvrirLaLecture, INTERVALLE_MS }) =>
-    ouvrirLaLecture({
-      station: lu.station,
-      adresse: lu.adresse,
-      dire: (/** @type {string} */ canal, /** @type {unknown[]} */ ...args) => (canal === "surConversation" ? dire(canal, ...args) : undefined),
-      /** @param {string} chemin */
-      requete: (chemin) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "GET", headers: { Authorization: `Bearer ${lu.jeton}` }, connectTimeout: DELAI_MS, readTimeout: DELAI_MS }),
-      /** @param {string} chemin @param {unknown} corps */
-      envoyer: (chemin, corps) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "POST", headers: { Authorization: `Bearer ${lu.jeton}`, "Content-Type": "application/json" }, data: corps, connectTimeout: DELAI_MS, readTimeout: DELAI_DU_GUICHET_MS }),
-      connus: projetsGardes(),
-      /** @param {unknown[]} projets */
-      garder: (projets) => window.localStorage.setItem(CLE_DES_PROJETS, JSON.stringify(projets)),
-      // La station n'est pas relue toutes les trente secondes — rien n'y est lu pour la vue — ; seule la conversation d'un
-      // second qui répond l'est, à son pas.
-      /** @param {() => void} faire @param {number} ms */
-      planifier: (faire, ms) => {
-        if (ms >= INTERVALLE_MS) return () => undefined;
-        const minuterie = window.setTimeout(faire, ms);
-        return () => window.clearTimeout(minuterie);
-      },
-    }),
-  );
-  return lecture;
-}
-// Ce que dit une conversation quand la lecture de la station ne s'est pas chargée.
-/** @param {unknown} erreur */
-const sansLecture = (erreur) => ({ refus: "this app could not load what reads its station", detail: ditDe(erreur) });
 // Pas connecté, la vue s'ouvre sur l'écran de connexion à GitHub, sans projet ; connecté, sur les projets de la dernière
 // liste lue sur GitHub, que la lecture relit.
 async function demarrage() {
   const github = await connexionGardee();
-  if (github === undefined) return { ...DEMARRAGE, configuration, telephone: { appaire: false } };
+  if (github === undefined) return { ...DEMARRAGE, configuration, telephone: {} };
   /** @type {any} */
   const ouverte = await laLectureGitHub().catch((/** @type {unknown} */ erreur) => ({ refus: ditDe(erreur) }));
-  if (ouverte === undefined) return { ...DEMARRAGE, configuration, telephone: { appaire: false } };
+  if (ouverte === undefined) return { ...DEMARRAGE, configuration, telephone: {} };
   // Le module de lecture ne s'est pas chargé : l'app s'ouvre sans projet, et dit pourquoi.
-  if ("refus" in ouverte) return { ...DEMARRAGE, configuration: { chemin: "no projects file on this phone", projets: [] }, telephone: { appaire: false, github, liste: { a: new Date().toISOString(), lue: false, reason: "inattendu", said: `this app could not load what reads your projects on GitHub: ${ouverte.refus}` } } };
+  if ("refus" in ouverte) return { ...DEMARRAGE, configuration: { chemin: "no projects file on this phone", projets: [] }, telephone: { github, liste: { a: new Date().toISOString(), lue: false, reason: "inattendu", said: `this app could not load what reads your projects on GitHub: ${ouverte.refus}` } } };
   return { ...DEMARRAGE, configuration: ouverte.configuration(), telephone: ouverte.telephone() };
 }
 
@@ -355,35 +293,11 @@ const connus = {
   gesteDeFiche: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.geste(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
   attente: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.attente(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
   repondreCarte: (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ reponse) => avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }),
-  // Sans appairage, rien : la vue dit que la conversation ne se lit pas.
-  conversation: async (/** @type {string} */ projet) => {
-    try {
-      return await (await laLecture())?.conversation(projet);
-    } catch (erreur) {
-      return sansLecture(erreur);
-    }
-  },
-  envoyerAuSecond: async (/** @type {string} */ projet, /** @type {string} */ texte) => {
-    try {
-      return await (await laLecture())?.envoyerAuSecond(projet, texte);
-    } catch (erreur) {
-      return sansLecture(erreur);
-    }
-  },
-  ouvrirLienDuSecond: async (/** @type {string} */ _projet, /** @type {string} */ url) => {
-    try {
-      await natif("Pont", "ouvrir", { url });
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  // La connexion à GitHub oubliée — le jeton du coffre, le compte et ses projets —, et ce qui restait d'un appairage. La
-  // vue revient à l'écran de connexion à GitHub.
+  // La connexion à GitHub oubliée — le jeton du coffre, le compte et ses projets. La vue revient à l'écran de
+  // connexion à GitHub.
   oublierLeTelephone: async () => {
     await natif("Coffre", "oublier", { cle: CLE_GITHUB }).catch(() => undefined);
-    for (const cle of [CLE, CLE_DES_PROJETS, CLE_DU_COMPTE, CLE_DES_PROJETS_GITHUB]) window.localStorage.removeItem(cle);
-    lecture = undefined;
+    for (const cle of [CLE_DU_COMPTE, CLE_DES_PROJETS_GITHUB]) window.localStorage.removeItem(cle);
     lectureGitHub = undefined;
   },
 };

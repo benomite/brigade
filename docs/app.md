@@ -1383,12 +1383,6 @@ and keeps asking through a lost network until the code expires. On the desktop, 
 `app/src/vue/connexion-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
 
-**Phones paired with a station before #2500.** The pairing screen — the station's address, its code, its QR, the
-`brigade://pair` link — is gone, and no new pairing is drawn. A phone that was paired before no longer reads its
-projects at its station (#2501): it opens on the sign-in screen like a fresh install. What remains of its pairing only
-carries the conversation with the second, at its station's phone desk (below); the sheet's gestures are written to
-GitHub (#2502).
-
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
 Signed in, **the phone reads the chef's projects, each project's rail and its TODO on GitHub alone** — no station is
@@ -1449,36 +1443,7 @@ bridge with no station reachable — are `app/test/gestes-github-telephone.test.
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
 and nothing on it scrolls sideways at phone width. Screens: `telephone-file`, `telephone-file-cooks` and
-`telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`). **The station's phone desk serves these
-readings** (#1411), behind the paired phone's token — without it, `401`: `GET /projects`, every project of the
-station's configuration in its order, each `served`, `refused` (with its `reason`) or `opening`; and
-`GET /projects/<name>/queue`, `{"project", "repository", "facts", "status"}` — the very `facts` and `status` the desktop
-reads for that project, read the same way at the same moment (`runtime/src/telephone/projets.ts`); `404` a project the
-station does not have, `503` a log it cannot read, with what the command would say.
-
-**The paired phone read them** (#1414; since #2501 the bridge no longer calls this reading for projects, rail and
-TODO — what follows describes `app/android/web/lecture.ts`, which still carries the conversation). The Android bridge reads `GET /projects` and each project's `queue` with its
-token, every 30 s and whenever the view asks (opening a project, "All projects", *try again now*). It does with them
-what the desktop's main process does with its readings: the same modules of `app/src/` — `facts` through `tenirFaits`,
-`status` through `mettreAPart` and `attendre`, the alert band and the lines of "All projects" — so a queue on the phone
-shows the cards the desktop shows of it at the same moment. That reading is `app/android/web/lecture.ts`; the APK build
-lays it, and what it imports from `app/src/`, next to the view without their types (`www/android/lecture.js`,
-`www/src/*.js`, Node's own modules replaced by inert ones), and the bridge loads it at its first reading. None of those
-modules may read a Node global when it loads — the WebView has no `process` —, which `app/test/packaging/android.test.ts`
-checks by loading the laid reading in a Node without one. "All projects"
-lists every project of the station in its order, one line each; the last list read is kept, so a relaunched app shows
-it before reading again. Above the lines, the Projects section says in one sentence what the list lacks, and nothing
-when it was just read: *atelier's projects: first read in progress…*; *atelier serves no project yet: a project is
-added from a computer.*; or what cannot be reached, said as at pairing — *This phone cannot reach your station at
-192.168.1.20:7010.*, *This phone cannot reach box.tail1234.ts.net on your tailnet.*, *box.tail1234.ts.net answers, but
-the station's phone desk behind it does not.*, *What answers at … is not a station's phone desk.* — what the network
-said on hover, with *This phone tries again every 30 s.* The projects already known stay under it, each line `station
-unreachable`, and an opened queue says *the rail is not drawn — tried at …* and, under it, *the station did not answer*,
-what the network said on hover — no GitHub list, which the phone does not read, and no panel on the right, which it
-does not have. A station that no longer knows the phone (`401`:
-revoked, or paired again elsewhere) says *atelier no longer knows this phone.*, with a **forget the station**
-button that forgets the pairing and reopens the app — on its projects, or on the sign-in screen. Screens: `telephone-projets*` of `scripts/capture-ecran`
-(`docs/captures/1414/`), whose readings are those `lecture.ts` sends for a fixed phone desk.
+`telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`).
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
 `merge the PR`, `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
@@ -1492,129 +1457,7 @@ not come, the line says `merge the PR: sent, waiting for the answer…` and the 
 nothing goes twice. A refusal, or a bridge that fails or carries nothing (`nothing was sent — nothing was changed`, the reason on
 hover), does not read the box again: the queue stays as it was, and the gesture can be played again. On a
 narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
-is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` (`docs/captures/1164/`).
-
-**The paired phone played them at its station** (#1420), through `POST /projects/<name>/gestures` of its phone desk.
-Since #2502 the phone no longer sends them there: it writes them to GitHub (above), and its sheet no longer offers
-`merge the PR`.
-
-**Talking to a project's second from the phone** (#1165): on a phone, the Second tab has no terminal and no shell —
-no pty runs there —, it holds **the conversation with the second, as messages**: what you wrote to it, from the phone
-or from your computer, on the right; what the second answered, on the left, its markdown rendered as in an issue's
-discussion; oldest first, the list scrolling on its own. At the top, one line — *Write to parade's second: it answers
-here.* —, and on hover that it is the same conversation as your computer's Second. At the bottom, always in view, the
-message field and **send**, the recommended gesture, inactive while the field is empty; its price is on hover (the
-second's reply is spent on your Max quota).
-
-- **send** calls `envoyerAuSecond` (the project, the text as typed): the message goes into the same conversation as
-  the desktop's second, as if typed in its terminal, and the bridge answers with the conversation that carries it — it
-  appears, the field empties, and *the second is answering…* closes the list until the reply comes. While the answer
-  has not come, *sending to the second…*, and the field and send are inactive: nothing goes twice.
-- **The reply**, and anything typed on the desktop into that second, come back by `surConversation`: the list is
-  posed again, never the field — what you are typing is not lost, and each project keeps its own draft.
-- **Not sent**: one line under the list — the bridge's sentence, or *your message was not sent* —, what the station
-  said on hover; the text stays in the field, and send can be played again.
-- **A conversation that cannot be read** says why in one sentence — the bridge's (#1426), or *conversation unavailable*
-  from a bridge that does not carry it —, what the station or the network said on hover, with **read again**, and no
-  field. Choosing the Second tab again re-reads it; a re-read that fails keeps what was shown, and says so under it
-  until a read succeeds.
-- **A second that failed answering** (its quota spent, `claude` stopped) says so in one line under the conversation —
-  the station's sentence, what `claude` wrote on hover —; the field stays, and the next message is sent as usual.
-
-On the desktop, nothing changes: the Second tab of a narrow window is still the second's terminal. The screen is
-`app/src/vue/telephone/conversation.js`; the bridge actions are `conversation`, `envoyerAuSecond`, `surConversation`
-and `ouvrirLienDuSecond` (`app/src/vue/pont.d.ts`, optional: only a phone's bridge carries them). Screens:
-`telephone-second*` of `scripts/capture-ecran` (`docs/captures/1165/`). **The station's phone desk serves the
-conversation** (#1413), behind the paired phone's token — without it, `401`, and nothing is read or sent:
-`GET /projects/<name>/second`, `{"project", "session", "messages": [{"from": "chef" | "second", "at", "text"}, …]}`,
-oldest first (the latest 200, `omitted` counting the earlier ones), with `answering` while the second is answering a
-message sent from the phone and `failed` (`said`, `detail`) when it failed doing so; and `POST /projects/<name>/second`
-`{"text"}`, `202` once the message is in the conversation, `409` while the second still answers the previous one,
-`502` a second that did not take it (`claude` missing, a failure such as the quota), each with its one-sentence `said`;
-`404` a project the station does not have, `503` a conversation it does not hold or cannot read. It is the desktop
-second's conversation: the latest Claude Code session of the folder where that second runs — the one
-`claude --continue` resumes —, read by the module the desktop can read it with (`runtime/src/second/conversation.ts`,
-also `node runtime/src/second/conversation.ts <folder>`), and a message goes into it by `claude --continue -p` in that
-folder (`runtime/src/telephone/second.ts`). The station knows that folder from the project's line,
-`BRIGADE_SECOND_DIR=<folder>`, and reads it under its own account's Claude Code configuration — the second must run on
-the station's machine, under its account. A desktop terminal already open does not redraw what the phone wrote: it
-shows it when it resumes the session. The desktop app does not write `BRIGADE_SECOND_DIR` on the line yet: until it
-does, or the line is written by hand, the Second tab of the phone says *atelier cannot reach parade's second*.
-
-**The Android bridge carries the conversation** (#1426): `conversation` reads `GET /projects/<name>/second` with the
-phone's token, each message's markdown rendered by `app/src/markdown.ts`; `envoyerAuSecond` posts `{"text"}` (it waits
-up to 130 s for the station to put the message in, as for a card's gesture), and answers with the conversation that
-carries it. While the second answers (`answering`), the conversation is read again every three seconds
-(`PAS_DE_LA_REPONSE_MS`) and the reply is pushed to the view by `surConversation`; a conversation the phone has read is
-also read again with the station, every thirty seconds, so what the chef types on the desktop reaches the phone. The
-reading is `app/android/web/lecture.ts`; a link in the second's message opens in the phone's browser (`Pont.java`,
-`ouvrir`). What does not go through is said in one sentence, the detail on hover: *atelier could not be reached*,
-*atelier did not answer*, *atelier's phone desk does not answer*, *atelier no longer knows this phone*,
-*atelier cannot reach parade's second* (`503`: the station does not hold that second, or cannot read it); for a message,
-the same followed by *your message was not sent*, or the station's own sentence — the second still answering the
-previous one (`409`), a second that did not take it (`502`). A message whose answer never came says *atelier did not
-answer: the conversation shows whether your message went through*, and the conversation is read again at once.
-Screens: `telephone-projets-second*` of `scripts/capture-ecran` (`docs/captures/1426/`).
-
-### Pairing a phone from the desktop: removed (#2500)
-
-The "pair a phone" button of a station's line and its screen — a code, its QR drawn by the app, the station's address,
-the paired phones and "revoke" (#1598) — are gone with the phone's pairing: the phone signs in to GitHub instead (see
-"Signing the phone in to GitHub" above). The station no longer has a `phones` command (#2503).
-
-### Reaching a station from any network: your tailnet (#1408)
-
-**The phone reaches a station's phone desk through your tailnet** — the private network that
-[Tailscale](https://tailscale.com) weaves between your own devices, over WireGuard. It is the chosen mechanism because:
-
-- it is a standard tool, not a relay of ours to host and keep up;
-- it crosses home routers and mobile data alike: the phone on 4G reaches the remote box and the computer at home, with
-  no port opened on either;
-- it is encrypted end to end, and **only your own devices**, signed in to your tailnet, reach the desk at all — the
-  pairing code and the phone's token still guard it, exactly as on the local network;
-- on the phone it is an app from Google Play: **no terminal on the phone**.
-
-**How it is wired.** The desk keeps listening on the station's loopback (`127.0.0.1`); `tailscale serve` publishes it
-on the tailnet, in HTTPS, under the machine's name (`https://box.tail1234.ts.net`). On the box this matters: the
-station's unit reaches nothing but the loopback (`IPAddressAllow=localhost` in `brigade-station.service`), and
-tailscaled, outside it, receives the phone and hands the request to the desk on the loopback — nothing in the unit
-is reopened. Whatever comes through `serve` arrives from the loopback: that is why the desk never issues a code
-itself, and judges every request by the code and the token alone. The pairing command finds the published address on
-its own (`runtime/src/telephone/tailnet.ts`) and puts it in the QR.
-
-**What you do, once per station — here, the remote box** (over your usual `ssh <box>`):
-
-1. Install Tailscale and join your tailnet: `curl -fsSL https://tailscale.com/install.sh | sh`, then
-   `sudo tailscale up` — it prints a link: open it on your computer and sign in. In the Tailscale admin console (DNS
-   page), MagicDNS and HTTPS certificates must be on: `serve` needs them to publish in HTTPS.
-2. Give the station a phone desk on its loopback: `sudo systemctl edit brigade-station`, add
-
-   ```
-   [Service]
-   Environment=BRIGADE_GUICHET_TELEPHONES=127.0.0.1:7010
-   ```
-
-   then `sudo systemctl restart brigade-station`. Its journal says `guichet des téléphones à l'écoute sur
-   127.0.0.1:7010`. Any free port does; 7010 is an example.
-3. Publish it on the tailnet: `sudo tailscale serve --bg 7010`. `tailscale serve status` then shows
-   `https://box.tail1234.ts.net (tailnet only)` proxying to `http://127.0.0.1:7010`; it survives reboots. **Not
-   `tailscale funnel`**: Funnel opens the desk to the whole internet, not only to your devices — the pairing command
-   says so if it finds it.
-4. Issue a pairing code, as the station's account (its registry is in `/home/brigade/.local/state/brigade`):
-   `sudo -u brigade -H /usr/lib/brigade-station/node/bin/node /usr/lib/brigade-station/runtime/src/telephone/appairage-cli.ts code`.
-   With no `--url`, it asks `tailscale serve status --json` where the desk is published, and the QR carries that
-   address (`brigade://pair?code=…&url=https://box.tail1234.ts.net`, also `url` in its JSON). Its last line says from
-   where the phone reaches the desk: *from any network, through your tailnet* — or, not published, that only this
-   machine reaches it and the `tailscale serve` to run; a desk listening on a local-network address gives that
-   address, *from this network only*. `BRIGADE_TAILSCALE_BIN` names another `tailscale` than the one in the `PATH`.
-
-**On the phone**, a phone paired before #2500 keeps reaching its station through the tailnet with the **Tailscale** app,
-signed in with the same account. The Android app no longer pairs (#2500, "Signing the phone in to GitHub" above): a
-fresh install signs in to GitHub instead, and nothing of the tailnet is asked of it.
-
-**A lost phone** can no longer be revoked by a command: the `phones` command and the app's "pair a phone" screen are gone (#2500, #2503). Its token opens nothing any more, from any network, and it leaves the
-stations list. The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
-no test mounts a real tailnet.
+is in the Second tab`.
 
 ### Your stations: paired with a code, read on GitHub
 

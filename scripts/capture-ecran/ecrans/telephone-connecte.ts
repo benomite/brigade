@@ -8,5 +8,5 @@ export const ecran: Ecran = {
   largeur: LARGEUR,
   hauteur: HAUTEUR,
   etapes: [],
-  donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrageDuTelephone({ appaire: false, github: { compte: "benomite" } }) }, envois: {} }),
+  donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrageDuTelephone({ github: { compte: "benomite" } }) }, envois: {} }),
 };

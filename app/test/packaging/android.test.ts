@@ -157,7 +157,7 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
   assert.deepEqual(recu.configuration, { chemin: "no projects file on this phone — the Android app reads no project yet: this phone reads nothing and sends nothing", projets: [] });
   // Le reste est ce que le process principal rendrait : les constantes des modules d'app/src/ — et le téléphone, ni
   // appairé ni connecté à GitHub sans stockage ni coffre qui en garde rien (#2500).
-  assert.deepEqual(recu.telephone, { appaire: false });
+  assert.deepEqual(recu.telephone, {});
   assert.deepEqual(Object.fromEntries(Object.entries(recu).filter(([cle]) => cle !== "configuration" && cle !== "telephone")), JSON.parse(JSON.stringify(demarrage)));
   assert.equal(await pont.choisirDossier!(), undefined);
   assert.deepEqual(json(await pont.ajouter!({ dossier: "/x", depot: "a/b", base: "main" })), { etat: "pas-ajoute", titre: "Nothing was added: the Android app reads no project yet: this phone reads nothing and sends nothing." });
@@ -188,7 +188,7 @@ async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage =
       },
     },
   };
-  // Le pont tel que la construction le pose, à côté de la vue : appairé, il y charge sa lecture (#1414).
+  // Le pont tel que la construction le pose, à côté de la vue : connecté, il y charge sa lecture GitHub (#2501).
   const www = await laVuePosee();
   window.location = { href: pathToFileURL(join(www, "src", "vue", "index.html")).href };
   vm.runInNewContext(readFileSync(join(www, "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
@@ -257,12 +257,12 @@ test("au lancement, le pont dit le téléphone connecté quand le coffre garde s
     return valeur === undefined ? {} : { valeur };
   };
   const relance = await pontDuTelephone(coffre("gho_secret"), stockage);
-  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { appaire: false, github: { compte: "benomite" } });
+  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { github: { compte: "benomite" } });
   const neuve = await pontDuTelephone(coffre(undefined));
-  assert.deepEqual((await neuve.json(neuve.pont.demarrage!())).telephone, { appaire: false });
+  assert.deepEqual((await neuve.json(neuve.pont.demarrage!())).telephone, {});
   // Le compte que GitHub n'a pas dit : connecté quand même, sous un compte nul.
   const muet = await pontDuTelephone(coffre("gho_secret"));
-  assert.deepEqual((await muet.json(muet.pont.demarrage!())).telephone, { appaire: false, github: { compte: null } });
+  assert.deepEqual((await muet.json(muet.pont.demarrage!())).telephone, { github: { compte: null } });
 });
 
 test("refusée ou expirée sur GitHub, la connexion finit en le disant, rien n'est gardé, et un nouveau geste repart de zéro", async () => {
@@ -313,13 +313,12 @@ test("le pont rouvre la page de GitHub où taper le code dans le navigateur du t
 });
 
 // Les modules que le pont charge à côté de la vue posée pour Capacitor — la lecture de GitHub (#2501,
-// www/src/lecture-github-telephone.js) et ce qui joint la station d'un appairage d'avant #2500 (#1414,
-// www/android/lecture.js) —, sans leurs types, avec ce qu'ils importent d'app/src/.
+// www/src/lecture-github-telephone.js) —, sans leurs types, avec ce qu'ils importent d'app/src/.
 test("les lectures du pont sont posées à côté de la vue, sans types ni modules de Node, et chaque import y tient", async (t) => {
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const poses = poserLesModules(www);
-  assert.ok(poses.includes("android/lecture.js") && poses.includes("src/lecture-github-telephone.js") && poses.includes("src/gestes-github-telephone.js"));
+  assert.ok(!poses.includes("android/lecture.js") && poses.includes("src/lecture-github-telephone.js") && poses.includes("src/gestes-github-telephone.js"));
   assert.ok(poses.includes("src/faits.js") && poses.includes("src/attend.js") && poses.includes("src/accueil.js"));
   for (const pose of poses.filter((chemin) => chemin.endsWith(".js"))) {
     const code = readFileSync(join(www, pose), "utf8");
@@ -333,86 +332,17 @@ test("les lectures du pont sont posées à côté de la vue, sans types ni modul
   assert.match(readFileSync(join(www, "android", "node", "child_process.js"), "utf8"), /export const execFile = inerte;/);
 });
 
-// Les projets, le rail et TODO se lisent sur GitHub (#2501, lecture-github-telephone.test.ts) : un téléphone appairé à
-// une station avant #2500, et pas connecté à GitHub, ne lit plus rien à son guichet — il s'ouvre sur la connexion.
-test("le pont appairé avant #2500 ne lit ni les projets ni leur file à sa station : sans GitHub, il ne lit rien", async () => {
-  const stockage = new Map([
-    ["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })],
-    ["brigade.telephone.projets", JSON.stringify([{ name: "parade", repository: "chef/parade", state: "served" }])],
-  ]);
-  // Le coffre, lu au lancement : ce téléphone n'est pas connecté à GitHub. Rien d'autre ne doit être demandé.
-  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => (plugin === "Coffre" ? {} : assert.fail(`unexpected call to ${plugin}`)), stockage);
-  const demarrage = await json(pont.demarrage!());
-  assert.deepEqual(demarrage.configuration.projets, []);
-  assert.deepEqual(demarrage.telephone, { appaire: false });
-  void pont.faits!(1);
-  void pont.tous!(2);
-  void pont.regarder!("parade", 3);
-  void pont.relireBox!();
-  for (let tour = 0; tour < 50; tour++) await new Promise((fait) => setImmediate(fait));
-  assert.deepEqual(appels.filter(({ plugin }) => plugin !== "Coffre"), []);
-  // Oubliée, la connexion s'efface avec ce qui restait de l'appairage : le jeton du coffre, la station et ses projets.
-  await pont.oublierLeTelephone!();
-  assert.equal(stockage.size, 0);
-  assert.deepEqual(appels.at(-1), { plugin: "Coffre", methode: "oublier", options: { cle: "github" } });
-});
-
 // La WebView n'a rien de Node : ni `process`, ni ses modules. La lecture posée, et tout ce qu'elle importe d'app/src/,
 // se charge dans un Node privé de `process` — un module qui le lit à son chargement l'y ferait lever, et le téléphone
-// appairé ne lirait rien (#1420 : `plateforme.ts`, par les gestes de la fiche).
+// ne lirait rien (#1420 : `plateforme.ts`, par les gestes de la fiche).
 test("la lecture posée se charge sans rien de Node, comme dans la WebView", async (t) => {
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
-  const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "android", "lecture.js")).href], { encoding: "utf8" });
-  assert.equal(charge.stdout.trim(), "INTERVALLE_MS PAS_DE_LA_REPONSE_MS ouvrirLaLecture", charge.stderr);
+  const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "lecture-github-telephone.js")).href], { encoding: "utf8" });
+  assert.equal(charge.stdout.trim(), "INTERVALLE_MS lireLesProjetsDuCompte ouvrirLaLectureGitHub parCapacitor", charge.stderr);
 });
 
-// Les gestes de la fiche ne vont plus au guichet (#2502) : ils s'écrivent sur GitHub, par la lecture GitHub du téléphone
-// (gestes-github-telephone.test.ts). Pas connecté à GitHub, un téléphone appairé avant #2500 n'envoie rien à sa station.
-test("le pont appairé avant #2500, pas connecté à GitHub, n'envoie aucun geste à sa station : rien ne part, et il le dit", async () => {
-  const stockage = new Map([["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })]]);
-  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => (plugin === "Coffre" ? {} : assert.fail(`unexpected call to ${plugin}`)), stockage);
-  const carte = { ticket: 12, etat: "en attente", ouvrable: true, attendu: false };
-  assert.deepEqual(await json(pont.gestesDeFiche!(carte)), []);
-  const sansGitHub = { refus: "nothing was sent: this phone is not signed in to GitHub — sign in, then try again", detail: "" };
-  assert.deepEqual(await json(pont.gesteDeFiche!("parade", "retirer", 12)), sansGitHub);
-  assert.deepEqual(await json(pont.attente!("parade", "attente-arrivee", 12)), sansGitHub);
-  assert.deepEqual(await json(pont.repondreCarte!("parade", 12, { question: "Keep it?", choix: 1 })), sansGitHub);
-  assert.deepEqual(appels.filter(({ plugin }) => plugin !== "Coffre"), []);
-});
-
-// La conversation avec le second, par le pont appairé (#1426) : un `GET` puis un `POST` au guichet, avec le jeton, le
-// message en `{"text"}` et le temps qu'un second met à le prendre ; ce que la station rend arrive à la vue en messages.
-// Un lien d'un message du second s'ouvre dans le navigateur du téléphone, par le plugin natif.
-test("le pont appairé lit la conversation du second au guichet et lui écrit, avec son jeton, et ouvre ses liens dans le navigateur", async () => {
-  const stockage = new Map([["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })]]);
-  const lue = { project: "parade", session: "0b6c", messages: [{ from: "second", at: "2026-10-23T08:01:10.000Z", text: "**#15** waits." }] };
-  const reponses: unknown[] = [
-    { status: 200, headers: {}, data: lue },
-    { status: 202, headers: {}, data: JSON.stringify({ sent: true, ...lue, messages: [...lue.messages, { from: "chef", at: "2026-10-23T08:05:00.000Z", text: "Merge #12." }], answering: true }) },
-  ];
-  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => {
-    if (plugin === "Pont") return {};
-    const reponse = reponses.shift();
-    if (reponse === undefined) throw new Error("failed to connect to /192.168.1.20 (port 7010) after 10000ms");
-    return reponse;
-  }, stockage);
-  assert.deepEqual(await json(pont.conversation!("parade")), { messages: [{ de: "second", a: "2026-10-23T08:01:10.000Z", blocs: [{ paragraphe: [{ gras: [{ texte: "#15" }] }, { texte: " waits." }] }] }] });
-  assert.deepEqual(appels.at(-1), { plugin: "CapacitorHttp", methode: "request", options: { url: "http://192.168.1.20:7010/projects/parade/second", method: "GET", headers: { Authorization: "Bearer brgt_secret" }, connectTimeout: 10_000, readTimeout: 10_000 } });
-  const envoyee = await json(pont.envoyerAuSecond!("parade", "Merge #12."));
-  assert.equal(envoyee.repond, true);
-  assert.deepEqual(envoyee.messages.at(-1), { de: "chef", a: "2026-10-23T08:05:00.000Z", blocs: [{ paragraphe: [{ texte: "Merge #12." }] }] });
-  assert.deepEqual(appels.at(-1), {
-    plugin: "CapacitorHttp",
-    methode: "request",
-    options: { url: "http://192.168.1.20:7010/projects/parade/second", method: "POST", headers: { Authorization: "Bearer brgt_secret", "Content-Type": "application/json" }, data: { text: "Merge #12." }, connectTimeout: 10_000, readTimeout: 130_000 },
-  });
-  assert.deepEqual(await json(pont.envoyerAuSecond!("parade", "Again.")), { refus: "atelier could not be reached: your message was not sent", detail: "failed to connect to /192.168.1.20 (port 7010) after 10000ms" });
-  assert.equal(await pont.ouvrirLienDuSecond!("parade", "https://github.com/chef/parade/pull/40"), true);
-  assert.deepEqual(appels.at(-1), { plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/chef/parade/pull/40" } });
-});
-
-test("l'enveloppe native n'appaire plus : ni lecteur de QR ni lien `brigade://pair` ; le navigateur du pont, et le http en clair vers un guichet", () => {
+test("l'enveloppe native n'appaire plus : ni lecteur de QR ni lien `brigade://pair` ; le navigateur du pont, et aucun http en clair", () => {
   const java = join(NATIF, "app", "src", "main", "java", ...IDENTIFIANT.split("."));
   const pont = readFileSync(join(java, "Pont.java"), "utf8");
   assert.match(pont, /@PluginMethod\s+public void ouvrir\(PluginCall call\)/);
@@ -420,7 +350,7 @@ test("l'enveloppe native n'appaire plus : ni lecteur de QR ni lien `brigade://pa
   assert.doesNotMatch(readFileSync(join(NATIF, "app", "build.gradle"), "utf8"), /code-scanner/);
   assert.doesNotMatch(readFileSync(join(NATIF, "variables.gradle"), "utf8"), /codeScannerVersion/);
   const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8").replace(/<!--[\s\S]*?-->/g, "");
-  assert.match(manifeste, /android:usesCleartextTraffic="true"/);
+  assert.doesNotMatch(manifeste, /usesCleartextTraffic/);
   assert.doesNotMatch(manifeste, /mlkit|android:scheme="brigade"/);
   // Le coffre où la connexion à GitHub garde son jeton (#2500) est enregistré.
   assert.match(readFileSync(join(java, "MainActivity.java"), "utf8"), /registerPlugin\(Coffre\.class\)/);

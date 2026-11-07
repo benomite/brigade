@@ -203,7 +203,7 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     const { lecture, tel } = telephone({ envoyer });
     await lecture.faits(1);
     assert.deepEqual(lecture.configuration().projets, []);
-    assert.deepEqual(tel(), { appaire: false, github: { compte: "chef" }, liste: { a: LU, lue: true } });
+    assert.deepEqual(tel(), { github: { compte: "chef" }, liste: { a: LU, lue: true } });
   });
 
   test("le rail d'un projet que GitHub refuse : l'échec que le desktop montre, sa raison en une phrase", async () => {
@@ -299,15 +299,13 @@ function laVuePosee(): Promise<string> {
   });
   return posee;
 }
-const STATION = "http://192.168.1.20:7010";
-const APPAIRAGE = JSON.stringify({ station: "atelier", adresse: STATION, jeton: "brgt_secret" });
 type AppelNatif = { plugin: string; methode: string; options: Record<string, unknown> };
 
 async function telephoneDeLAPK({ monde = MONDE, refuser, connus }: { monde?: Monde; refuser?: Parameters<typeof github>[1]; connus?: ProjetDuCompte[] } = {}) {
   const { envoyer, demandes } = github(monde, refuser);
   const natifs: AppelNatif[] = [];
   const planifiees: number[] = [];
-  const stockage = new Map([["brigade.github", "chef"], ["brigade.telephone", APPAIRAGE], ...(connus === undefined ? [] : [["brigade.github.projets", JSON.stringify(connus)] as [string, string]])]);
+  const stockage = new Map([["brigade.github", "chef"], ...(connus === undefined ? [] : [["brigade.github.projets", JSON.stringify(connus)] as [string, string]])]);
   const window: Record<string, unknown> = {
     location: { href: pathToFileURL(join(await laVuePosee(), "src", "vue", "index.html")).href },
     localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
@@ -371,7 +369,7 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     const recus: Record<string, unknown[]> = {};
     for (const canal of CANAUX) pont[canal]!((premier: unknown) => void (recus[canal] ??= []).push(JSON.parse(JSON.stringify(premier))));
     const demarrage = JSON.parse(JSON.stringify(await pont.demarrage!()));
-    assert.deepEqual(demarrage.telephone, { appaire: false, github: { compte: "chef" } });
+    assert.deepEqual(demarrage.telephone, { github: { compte: "chef" } });
     assert.deepEqual(demarrage.configuration.projets, []);
     assert.deepEqual(http(), []);
     // La barre posée, puis « All projects » : la liste se lit, et la vue, qui la reçoit, redemande les faits et l'écran.
@@ -395,34 +393,14 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
           .replace(/"for [^"]*?  /g, '"for <durée>  '),
       );
     assert.deepEqual(sansHeure(parade), sansHeure(await commeLeDesktop("parade", "chef/parade", 3, 4)));
-    // Chaque demande est partie à l'API de GitHub, avec le jeton du coffre ; aucune à la station.
+    // Chaque demande est partie à l'API de GitHub, avec le jeton du coffre ; aucune ailleurs.
     assert.ok(http().length > 0);
     assert.deepEqual(http().filter((url) => !url.startsWith(`${API_GITHUB}/`)), []);
     assert.ok(natifs.filter(({ plugin }) => plugin === "CapacitorHttp").every(({ options }) => (options.headers as Record<string, string>).Authorization === `Bearer ${JETON}`));
-    assert.ok(!JSON.stringify(natifs).includes(STATION));
     // La liste lue est gardée — relancée, l'app la montre avant de relire —, et la lecture suivante part dans trente secondes.
     assert.deepEqual(JSON.parse(stockage.get("brigade.github.projets") ?? "null"), [{ nom: "cantine", depot: "chef/cantine" }, { nom: "parade", depot: "chef/parade" }]);
     assert.deepEqual([...new Set(planifiees)], [INTERVALLE_MS]);
     assert.deepEqual((recus.surTelephone?.at(-1) as TelephoneGitHub).liste, { a: (recus.surTelephone?.at(-1) as { liste: { a: string } }).liste.a, lue: true });
-  });
-
-  test("sans connexion à GitHub, un téléphone appairé avant #2500 ne lit rien à sa station : la vue s'ouvre sur la connexion", async () => {
-    const stockage = new Map([["brigade.telephone", APPAIRAGE]]);
-    const appels: AppelNatif[] = [];
-    const window: Record<string, unknown> = {
-      location: { href: pathToFileURL(join(await laVuePosee(), "src", "vue", "index.html")).href },
-      localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
-      Capacitor: { nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => (appels.push({ plugin, methode, options }), {}) },
-    };
-    vm.runInNewContext(readFileSync(join(await laVuePosee(), "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
-    const pont = window.brigade as Record<string, (...args: unknown[]) => unknown>;
-    assert.deepEqual(JSON.parse(JSON.stringify(await pont.demarrage!())).telephone, { appaire: false });
-    pont.faits!(1);
-    pont.tous!(2);
-    pont.regarder!("parade", 3);
-    pont.relireBox!();
-    for (let tour = 0; tour < 50; tour++) await repos();
-    assert.deepEqual(appels.filter(({ plugin }) => plugin !== "Coffre"), []);
   });
 
   test("l'app connectée liste les projets du chef ; chaque projet ouvert montre son rail et son TODO, lus sur GitHub", async () => {

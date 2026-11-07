@@ -38,7 +38,7 @@ const demarrage = () => ({
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
-  telephone: { appaire: true as const, station: "box", adresse: "http://192.168.1.20:7010" },
+  telephone: { github: { compte: "chef" } },
 });
 
 type Station = FaitsDuRuntime["stations"][number];
