@@ -88,7 +88,7 @@ host is opened by a **merge**, which the pass never does itself (`review-require
 `declaration-modified: …`). The runtime re-reads it at each base fetch and tick (`network.declared`);
 the door reads its list there, with no restart. **One exception, by the chef's choice (#1397)**: a
 host the project's setup reaches and the list lacks is opened by the kitchen alone, before that
-setup (`repair.network`, joined to every declaration it publishes; a `repair.done` line says so). It
+setup (`repair.network`, appended to every declaration it publishes; a `repair.done` line says so). It
 writes nothing in the file: the host stays open for following cooks, dev secrets included, until the
 base declares it. **The runtime goes out through the door too**: with `BRIGADE_PROXY_PORT` it sets
 `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY` for itself and what it launches. **`git` over SSH does not

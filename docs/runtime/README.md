@@ -14,7 +14,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | Page | What it holds |
 |---|---|
 | [`../reglages.md`](../reglages.md) | The three levels of settings and their fallbacks |
-| [`github-seul.md`](github-seul.md) | **The GitHub-only station, the kitchen's only path**, and what was removed with the main station |
+| [`github-seul.md`](github-seul.md) | **The GitHub-only station, the kitchen's only path**, and what was removed with the station roles |
 | [`journal-et-rail.md`](journal-et-rail.md) | The log, the ticket rail |
 | [`garde-fous.md`](garde-fous.md) | The guardrails: caps, stop and resume |
 | [`station.md`](station.md) | Stations, several cooks, worktree setup, gates, calibration, a ticket's card |

@@ -2,7 +2,7 @@
 
 Every project's kitchen runs on GitHub as its only state ([spec](../superpowers/specs/2026-11-02-github-only-state.md),
 epic #2053). The project's stations take, cook, review and merge its tickets reading and writing only GitHub:
-issues, labels, claim comments, pull requests and the CI of the base. No station is the main one, and stopping one
+issues, labels, claim comments, pull requests and the CI of the base. Every station is equal, and stopping one
 stops nothing else. The code is `runtime/src/brigade-github.ts`, which chains `github-etat/` (a ticket's and the
 base's state, the claim, the review and the merge) and `github-seul/` (the guardrails of a turn, the hold on a red
 base, the stale-branch pruning).
@@ -97,7 +97,7 @@ base, the stale-branch pruning).
 
 ## What is gone (#2061)
 
-The main-station code is removed from the runtime. Nothing takes a ticket from the log any more:
+The code that gave one station the kitchen of a project is removed from the runtime. Nothing takes a ticket from the log any more:
 
 - the station of the log (`station.ts` keeps only its configuration), its worktree cleanup, and the remote stations it
   served under leases (`distantes.ts`, `superviseur-distant.ts`, the `remote.asked` events);

@@ -223,10 +223,10 @@ A project is only a line of the station's configuration. The chef adds it from t
 request in the gist of each station he chose, and the station reads it there (`runtime/src/projets/`).
 
 - **What the app writes**: `brigade-projets.json`, per project: its name (from the repository), its
-  repository, its integration base, whether this station is its **main** one (running its manager and
-  pass), its cap of cooks, and the manager and reviewer calibration.
-- **Every thirty seconds** (or on `SIGHUP`), a paired station rereads the request. For each project of
-  which it is the main station:
+  repository, its integration base, whether this station runs its manager and pass, its cap of cooks, and
+  the manager and reviewer calibration.
+- **Every thirty seconds** (or on `SIGHUP`), a paired station rereads the request. For each project it
+  serves:
   1. **its GitHub Apps** (`BRIGADE_GITHUB_APPS_DIR`, if set) must be installed on the repository;
      otherwise it publishes, for each App, the install page
      (`https://github.com/apps/<app>/installations/new`) and waits. Without Apps it acts under its `gh`
@@ -256,14 +256,14 @@ request in the gist of each station he chose, and the station reads it there (`r
   since when), `a-autoriser` (with its pages), `en-preparation`, `refuse` (failed clone, refused
   repository access, hand-written line, station refusal) or `secondaire`. A `servi` project whose kitchen
   no longer prepares a worktree also carries `worktree`; one with blockers, `blocages`; next to the
-  list, the **onboarding** of each project of which it is the main station. Keys and status words are
+  list, the **onboarding** of each project it serves. Keys and status words are
   French until translated.
 - **Removed from the app**, the project leaves the request: the station removes its line from the block
   and no longer serves it; state and clone stay.
 - **Every station that serves a project** writes its line and opens its kitchen (#2713), whatever
-  other stations serve it: none is the main one, none joins another's kitchen, and each claims, cooks,
-  reviews and merges its tickets through GitHub. The state `secondaire` is left only to a project
-  handed over to another station (`remise`), whose kitchen is closed here.
+  other stations serve it: each opens its own kitchen, and each claims, cooks, reviews and merges its
+  tickets through GitHub. The status word `secondaire` (the code's, French until translated) marks only a
+  project handed over to another station (`remise`), whose kitchen is closed here.
 
 ### The blocked access
 
@@ -388,7 +388,7 @@ resolve; `lireBlocages` reads.
 
 ### What the station lacks for the project
 
-*Ticket #1398, epic #1393.* At each beat, the main station reads what the project's tests need in its
+*Ticket #1398, epic #1393.* At each beat, the station reads what the project's tests need in its
 clone (`runtime/src/installation/besoins/`): the worktree setup (a command it runs such as `psql` or
 `docker`, a `postgres://` address), the test configuration (test scripts, a Playwright or Cypress config,
 the services its CI starts) and its manifests (dependencies, a Prisma datasource, a Flutter
@@ -441,7 +441,7 @@ back. `choisir` / `choisirDans` record a selection (refusing a choice not raised
 offer: `ChoixInconnu`); `lireChoix` reads them.
 
 **Choosing `setup-brings-it` opens one ticket on the project** (#1534,
-`runtime/src/installation/besoins/ticket.ts`): at the read where the main station writes the selection,
+`runtime/src/installation/besoins/ticket.ts`): at the read where the station writes the selection,
 it opens the issue "Make the worktree setup of `<project>` bring `<need>` itself" (the choice's message
 and cause, what the setup must do, acceptance criteria; labels `fire`, `model:opus`, `effort:high`). Its
 creation is announced in the log first (`need.ticket-opening`), then noted (`need.ticket-opened`):
@@ -506,7 +506,7 @@ ten minutes.
 ### The onboarding: where a new project stands
 
 *Ticket #1110.* Between "project added" and "first ticket served", the station computes where each
-project of which it is the main station stands (`runtime/src/onboarding/`) and publishes it in its
+project it serves stands (`runtime/src/onboarding/`) and publishes it in its
 tracking, under `onboarding`, by project name (where the app reads it). A project taken over from
 another station (`reprise`) has none. It is computed read-only from the station's tracking, clone,
 preparation ticket and the project's log.

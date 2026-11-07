@@ -6,7 +6,7 @@ Epic [#1665](https://github.com/benomite/brigade/issues/1665) moves project deci
 
 Words are those of [`../glossary.md`](../glossary.md).
 
-- **project** — a decision about *this project*: what its kitchen may spend, how its roles are calibrated, what counts as drift for it. It is the same whichever box serves the project, so a second station must get the same value. It belongs to the chef and the project, outside any box.
+- **project** — a decision about *this project*: what its kitchen may spend, how its roles are calibrated, what counts as drift for it. It is the same whichever box serves the project, so every station serving it must get the same value. It belongs to the chef and the project, outside any box.
 - **station** — a fact or choice about *this machine* (a box or a workstation): its engines, capacity, secrets, paths, ports, log. It stays on the station.
 
 Each row has one owner. Station rows in §1 are capacity, operations on a running machine, or machine facts (the project does not decide what a machine can do); project rows are what the project spends, tests, calibrates or counts as drift. A project row names the ticket that moves it: [#1668](https://github.com/benomite/brigade/issues/1668) (the manager and reviewer calibration and the project's caps) or the ticket named in the row.
