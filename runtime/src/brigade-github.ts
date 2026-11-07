@@ -26,6 +26,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
 import { lireBlocage } from "./livrable.ts";
+import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
@@ -121,6 +122,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     checksDeLaBase(): Promise<CheckDeLaBase[]>;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
+    // Remplace le corps de l'issue : la preuve d'un ticket de mesure y
+    // s'ajoute (#2841). Absent, un cook bloqué va au chef comme avant.
+    ecrireCorps?: GitHub["ecrireCorps"];
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
     prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
     // L'issue, son état et son corps : ce qu'il faut pour fermer une épique
@@ -612,6 +616,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // déclarait bloqué à son tour : 6 des 13 relectures bloquantes de
       // BOBL-tech/espace (#798 quatre fois, #755 deux fois) (#2805).
       if ("bloque" in fait) {
+        // Une question que la preuve de la mesure répond n'est pas pour le
+        // chef : la station l'ajoute au ticket et le rend à un cook (#2841).
+        const relance = await ajouterLaPreuve(github, issue, fait.bloque);
+        if (relance?.relance === true) {
+          avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a question the measurement evidence answers: the evidence is added to the ticket, which goes back to a cook`);
+          await github.commenter(issue, `Station \`${nom}\`: the cook stopped, blocked on a question the measurement evidence answers. The station added that evidence to the ticket's body; the ticket goes back to a cook, not to a human. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
+          chrono.rater(issue);
+          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+          liberee = true;
+          return;
+        }
+        if (relance !== null) avertir(`brigade : #${issue} sur ${nom} — the blocked question is not re-queued with the evidence: ${relance.pourquoi}`);
         const citee = fait.bloque.split("\n").map((ligne) => `> ${ligne}`).join("\n");
         avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked: the ticket goes to the chef, not to review`);
         const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, `Station \`${nom}\`: the cook stopped, blocked — nothing it did goes to review. Its question:\n\n${citee}\n\nAnswer it on this issue, then remove \`${A_LA_MAIN}\`: a cook resumes the ticket from its branch.`);
@@ -1389,6 +1405,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
     },
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
+    ecrireCorps: (numero, corps) => github.ecrireCorps(numero, corps),
     issue: (numero) => github.issue(numero),
     depotDuTicket: async (issue) => {
       const lue = await github.issue(issue);

@@ -28,6 +28,14 @@ base, the stale-branch pruning).
   that resumes after the answer starts from it instead of the pass judging it as a delivery. Since #2061 the station
   never read `<bloque>`: the partial work of a blocked cook went to review, came back red, and the next cook blocked
   again — 6 of the 13 blocking reviews on BOBL-tech/espace (#798 four times, #755 twice) (#2805).
+- **A blocked question the evidence answers goes back to a cook, not to the chef.** When the blocked ticket is a
+  quality ticket that counts tickets (`brigade:qualite-comptes`) and the question asks for what that evidence holds —
+  which tickets, their send-backs or cooks without a delivery, their reasons, their timestamps — the station appends
+  to the ticket's body, under `<!-- brigade:preuve -->`, every `brigade:renvoi` and `brigade:echec` a station wrote on
+  each counted ticket, with its time and reason, and gives the ticket back without `blocked-on-human`, not counted
+  among its tries (`runtime/src/relance-blocage-preuve.ts`). Once only: a ticket that already carries the evidence and
+  blocks again goes to the chef, as does a question the evidence does not answer, or evidence the station cannot read
+  or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
