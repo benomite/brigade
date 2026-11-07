@@ -23,7 +23,7 @@ export const MARQUE_QUALITE = "<!-- brigade:qualite -->";
 // n'en ouvre pas un second.
 const MARQUE_COMPTES = /<!-- brigade:qualite-comptes ([\d,]*) -->/;
 export const marqueDesComptes = (tickets: readonly number[]) => `<!-- brigade:qualite-comptes ${tickets.join(",")} -->`;
-const comptesDe = (corps: string): number[] => (MARQUE_COMPTES.exec(corps)?.[1] ?? "").split(",").filter(Boolean).map(Number);
+export const comptesDe = (corps: string): number[] => (MARQUE_COMPTES.exec(corps)?.[1] ?? "").split(",").filter(Boolean).map(Number);
 export const LABELS_QUALITE = [LABEL, "prio:0", "model:opus", "effort:medium"];
 // Combien de motifs de renvoi, ou de checks, le corps nomme.
 export const CAUSES_NOMMEES = 5;

@@ -34,7 +34,7 @@ export type IssueLue = { corps: string; labels: readonly string[]; commentaires:
 
 const titre = (cause: Cause) => CAUSES.find(({ cle }) => cle === cause)?.titre ?? cause;
 // La raison qu'un commentaire de la station donne, après son « — ».
-const raisonDe = (corps: string) => /— ([^\n]*)/.exec(corps)?.[1] ?? "";
+export const raisonDe = (corps: string) => /— ([^\n]*)/.exec(corps)?.[1] ?? "";
 
 // La cause d'un renvoi, de la raison que la station a écrite (`brigade-github.ts`, `renvoyer`).
 export function causeDuRenvoi(corps: string): Cause {
