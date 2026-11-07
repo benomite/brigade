@@ -92,8 +92,9 @@ export type ServiceDeLOrdinateur = {
   sauver?(): Promise<number[]>;
   // Plus aucun tour ; ce qu'un tour tient est rendu.
   arreter(): Promise<void>;
-  // Posé par la boucle : un projet a bougé au pass, le tour suivant presse.
-  presser?: () => void;
+  // Posé par la boucle : un projet a bougé au pass, le tour suivant presse ;
+  // tout de suite si `maintenant` — un fait qui rend un ticket prenable (#2832).
+  presser?: (maintenant?: boolean) => void;
 };
 
 // Le tour GitHub seul de la box pour un projet de la liste, ou pourquoi il ne
@@ -192,8 +193,11 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
     if (base === null) throw new Error(`its integration branch cannot be read from its clone ${clone}${lue.problemes.length === 0 ? "" : ` (${lue.problemes.join("; ")})`}`);
     const tour = ouvrirLeTour({ depot, nom, clone, worktrees, base });
     if ("refus" in tour) throw new Error(tour.refus);
-    // Un fait du pass (une livraison, un verdict, un merge) presse le tour suivant.
-    tour.presser = () => service.presser?.();
+    // Un fait du pass (une livraison, un verdict, un merge) presse le tour
+    // suivant ; celui qui libère une place, une zone ou une dépendance le veut
+    // tout de suite (#2802), et le dit par `maintenant` : sans lui, ici, le
+    // ticket qu'il rendait prenable attendait sa prise 30 s de plus (#2832).
+    tour.presser = (maintenant) => service.presser?.(maintenant);
     dit(`serves ${depot} from GitHub only, under its own name — it takes, cooks, reviews and merges its tickets (clone ${clone}, branch ${base})`);
     return tour;
   };
@@ -262,14 +266,19 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
 
 // Le service et sa boucle : un tour tout de suite, puis un toutes les
 // `intervalleMs` ; après un fait du pass, le suivant vient dans les 30 s, comme
-// sur la box (#2333).
+// sur la box (#2333) — tout de suite quand ce fait rend un ticket prenable
+// (#2802), comme sur la box aussi : la station de l'ordinateur ne tenait que
+// les 30 s, et chaque merge, livraison ou cook rendu y laissait le ticket
+// suivant attendre sa prise jusqu'à 30 s de plus, après la fin du tour en
+// cours si le fait tombait pendant lui (#2832).
 export function servirLesProjetsChoisis(options: OptionsDuService): ServiceDeLOrdinateur {
   const service = ouvrirLeService(options);
   const intervalleMs = options.intervalleMs ?? INTERVALLE_MS;
   const presseeMs = Math.min(ATTENTE_PRESSEE_MS, intervalleMs);
   let arrete = false;
   let enTour = false;
-  let presse = false;
+  // Le délai qu'un fait arrivé pendant le tour demande au suivant ; sans fait, l'intervalle.
+  let demande: number | undefined;
   let minuterie: NodeJS.Timeout | undefined;
   let echeance = 0;
   const programmer = (delai: number) => {
@@ -279,15 +288,16 @@ export function servirLesProjetsChoisis(options: OptionsDuService): ServiceDeLOr
   };
   const boucle = async () => {
     enTour = true;
-    presse = false;
+    demande = undefined;
     await service.tourner();
     enTour = false;
-    if (!arrete) programmer(presse ? presseeMs : intervalleMs);
+    if (!arrete) programmer(demande ?? intervalleMs);
   };
-  service.presser = () => {
+  service.presser = (maintenant = false) => {
     if (arrete) return;
-    if (enTour) presse = true;
-    else if (echeance - Date.now() > presseeMs) programmer(presseeMs);
+    const delai = maintenant ? 0 : presseeMs;
+    if (enTour) demande = Math.min(demande ?? delai, delai);
+    else if (echeance - Date.now() > delai) programmer(delai);
   };
   void boucle();
   return {
