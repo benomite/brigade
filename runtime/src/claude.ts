@@ -216,6 +216,9 @@ export type Lecture = {
   // là-dessus (`stop_reason: refusal`). `categorie` : ce que l'API dit du
   // refus, si le flux le donne.
   refus: { categorie: string | null } | null;
+  // Le premier fichier dont le bac à sable a refusé l'écriture au cook
+  // (`permission_denials` du résultat), s'il y en a un (#2738).
+  ecritureRefusee: string | null;
 };
 
 type EtatQuota = { retour: Date | null; fenetre: string | null };
@@ -235,10 +238,12 @@ const texteDe = (contenu: unknown): string | null => {
   return textes.length === 0 ? null : textes.join("\n");
 };
 
+const OUTILS_D_ECRITURE = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
+
 // Lit le flux brut d'un cook, ligne à ligne. Une ligne illisible est ignorée :
 // le flux d'un process tué s'arrête n'importe où.
 export function lireFlux(contenu: string): Lecture {
-  const lecture: Lecture = { resultat: null, message: null, jetonsDuMessage: null, quota: null, deconnecte: false, refus: null };
+  const lecture: Lecture = { resultat: null, message: null, jetonsDuMessage: null, quota: null, deconnecte: false, refus: null, ecritureRefusee: null };
   let categorie: string | null = null;
   let rejete: EtatQuota | null = null;
   let dernierEtat: EtatQuota | null = null;
@@ -282,6 +287,14 @@ export function lireFlux(contenu: string): Lecture {
       // Seul le résultat tranche : un refus en cours de route, que la session
       // a surmonté, n'est pas la fin du lancement.
       lecture.refus = evenement.stop_reason === "refusal" ? { categorie } : null;
+      const refuses: unknown[] = Array.isArray(evenement.permission_denials) ? evenement.permission_denials : [];
+      for (const refuse of refuses as { tool_name?: unknown; tool_input?: { file_path?: unknown } }[]) {
+        const chemin = refuse?.tool_input?.file_path;
+        if (typeof refuse?.tool_name === "string" && OUTILS_D_ECRITURE.has(refuse.tool_name) && typeof chemin === "string" && chemin !== "") {
+          lecture.ecritureRefusee = chemin;
+          break;
+        }
+      }
       if (typeof evenement.result === "string" && evenement.result !== "") lecture.message = evenement.result;
     }
   }

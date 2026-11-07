@@ -1670,6 +1670,53 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
   assert.equal(corps.filter((c) => c.includes("brigade:attente")).length, 3);
 });
 
+test("a cook refused a write to a file of its ticket ends with a named reason carrying the path, not a plain echec: three such refusals do not set the ticket aside (#2738)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(77);
+  let heure = Date.parse("2026-11-07T10:00:00Z");
+  const refus = { tool_name: "Write", tool_input: { file_path: "runtime/src/x.ts", content: "x" } };
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "I could not write", permission_denials: [refus] })}\n`);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 4, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: join(repertoire, run), branche: "cook/77-github" }),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 0,
+      changes: () => [],
+      diff: () => "",
+      tete: () => "a".repeat(40),
+    },
+    ...reglagesDuFauxClaude(repertoire, lancer),
+    maintenant: () => new Date(heure),
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  for (let i = 0; i < 4; i += 1) {
+    await station.tour();
+    await station.calme();
+    heure += 24 * 3_600_000;
+  }
+  const corps = (faux.commentaires.get(77) ?? []).map((c) => c.body);
+  assert.ok(corps.filter((c) => /write refused by sandbox: runtime\/src\/x\.ts/.test(c)).length >= 3);
+  assert.equal(corps.filter((c) => c.includes("brigade:echec")).length, 0);
+  assert.doesNotMatch(corps.join("\n"), /the cook committed nothing \(/);
+  assert.equal(faux.ticket(77).labels.has("hors-cuisine"), false);
+});
+
 test("a cook that stops in its first turns after a send-back, adding nothing, has not worked on the review: the try is not counted (#2508)", async (t) => {
   const faux = await repriseQui(t, false, false, 1);
   const corps = (faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n");
