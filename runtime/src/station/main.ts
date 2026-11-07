@@ -28,13 +28,8 @@ import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-o
 import { machineDe } from "../projets/preparer.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { DemandeInvalide, repertoireDuRegistre } from "../enrolement/enrolement.ts";
+import { DemandeInvalide } from "../enrolement/enrolement.ts";
 import { tenirEnregistrement } from "../enregistrement-station/enregistrer.ts";
-import { ouvrirTelephones } from "../telephone/appairage.ts";
-import { configGuichet, ouvrirGuichet } from "../telephone/guichet.ts";
-import { gestesDeLaStation } from "../telephone/gestes.ts";
-import { projetsDeLaStation } from "../telephone/projets.ts";
-import { secondsDeLaStation } from "../telephone/second.ts";
 import { CONFIGURATION, lieuxDuProjet, worktreesDeLaStation } from "./configuration.ts";
 import { nomDeLaStation } from "./nom.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
@@ -58,9 +53,6 @@ let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
 // Les portes que tient `brigade-station-porte` : celle de la station, et
 // celle de chaque projet.
 let portes: string | null;
-// Le guichet des téléphones, s'il en a un : l'adresse où il écoute, et le
-// registre des stations où un téléphone appairé entre.
-let guichet: { hote: string; port: number; registre: string } | null = null;
 try {
   fichiersDeLaConnexion = configVeille(process.env, racine);
   // Le seuil de l'étage commun, lu ici pour qu'une valeur mal écrite refuse
@@ -74,8 +66,6 @@ try {
   const porte = configReseau(process.env);
   if (porte !== null && portes !== null) refuser(`BRIGADE_PROXY_PORT et ${VARIABLE_PORTES} sont définis ensemble : sous les portes de la station, la sienne est celle qu'elles ouvrent`);
   if (porte !== null) passerParLaPorte(porte);
-  const adresse = configGuichet(process.env);
-  if (adresse !== null) guichet = { ...adresse, registre: repertoireDuRegistre(process.env) };
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DemandeInvalide) refuser(erreur.message);
   throw erreur;
@@ -226,36 +216,8 @@ const projetsDeLApp = tenirProjetsDeLApp({
   dire,
 });
 
-// Le guichet où le téléphone du chef s'appaire, sans terminal, puis lit les
-// stations, les projets de celle-ci et la file de chacun, y fait les gestes de
-// la file et parle au second de chaque projet (telephone/guichet.ts,
-// telephone/projets.ts, telephone/gestes.ts, telephone/second.ts) :
-// le code se tire par sa commande
-// (telephone/appairage-cli.ts), dans le même registre.
-let fermerLeGuichet = async () => {};
-if (guichet !== null) {
-  const telephones = ouvrirTelephones(guichet.registre);
-  try {
-    const projets = projetsDeLaStation({ racine, env: process.env, station });
-    const gestes = gestesDeLaStation({ racine, env: process.env });
-    const seconds = secondsDeLaStation({ racine, env: process.env });
-    const ouvert = await ouvrirGuichet({ telephones, projets, gestes, seconds, hote: guichet.hote, port: guichet.port });
-    dire(`brigade : guichet des téléphones à l'écoute sur ${guichet.hote}:${ouvert.port} — registre ${guichet.registre}`);
-    fermerLeGuichet = async () => {
-      seconds.arreter();
-      await ouvert.fermer();
-      telephones.fermer();
-    };
-  } catch (erreur) {
-    // Les projets servis n'en dépendent pas : la station cuit sans guichet, et le dit.
-    telephones.fermer();
-    console.error(`brigade : le guichet des téléphones n'a pu écouter sur ${guichet.hote}:${guichet.port}, aucun téléphone ne s'y appaire — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
-  }
-}
-
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
-    void fermerLeGuichet();
     cacheEtag.arreter();
     projetsDeLApp.arreter();
     void projetsChoisis.arreter();

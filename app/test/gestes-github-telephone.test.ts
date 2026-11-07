@@ -347,14 +347,13 @@ const laVuePosee = () =>
     poserLaVue(demarrage, join(POSEE, "www"));
     return join(POSEE, "www");
   }));
-const STATION = "http://192.168.1.20:7010";
 type AppelNatif = { plugin: string; methode: string; options: Record<string, unknown> };
 
 // Le pont sur ce GitHub, une fois le rail et TODO de parade lus : la barre posée et « All projects » affiché, comme la vue
 // les demande à l'ouverture.
 async function pontDeLAPK(monde: ReturnType<typeof github>) {
   const natifs: AppelNatif[] = [];
-  const stockage = new Map([["brigade.github", "chef"], ["brigade.telephone", JSON.stringify({ station: "atelier", adresse: STATION, jeton: "brgt_secret" })]]);
+  const stockage = new Map([["brigade.github", "chef"]]);
   const window: Record<string, unknown> = {
     location: { href: pathToFileURL(join(await laVuePosee(), "src", "vue", "index.html")).href },
     localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
@@ -421,7 +420,6 @@ async function parLePont<R>(duDesktop: (client: ReturnType<typeof desktop>) => P
   const http = natifs.filter(({ plugin }) => plugin === "CapacitorHttp");
   assert.deepEqual(http.filter(({ options }) => !String(options.url).startsWith(API)), []);
   assert.ok(http.every(({ options }) => (options.headers as Record<string, string>).Authorization === `Bearer ${JETON}`));
-  assert.ok(!JSON.stringify(natifs).includes(STATION));
   // Une écriture que GitHub a prise relance la lecture : le rail relu la montre.
   const relues = auTelephone.recues.slice(avant).filter(({ methode, url }) => methode === "GET" && LECTURE.test(url));
   return { ecrites, dit: ditAuTelephone, relues };
@@ -461,7 +459,7 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
     assert.ok("fait" in dit);
   });
 
-  test("la fiche, sur le téléphone, propose les gestes qu'il écrit sur GitHub — plus ceux du guichet d'une station", async () => {
+  test("la fiche, sur le téléphone, propose les gestes qu'il écrit sur GitHub — rien d'une station", async () => {
     const { pont } = await pontDeLAPK(github());
     assert.deepEqual(json(await pont.gestesDeFiche!({ ticket: 22, etat: "en attente", ouvrable: true, attendu: false })).map(({ id }: { id: string }) => id), ["retirer"]);
     assert.deepEqual(json(await pont.gesteDeFiche!(PROJET, "merger", 22)), { refus: SANS_FAIT.merger, detail: "" });

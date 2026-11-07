@@ -3,8 +3,7 @@
 // ligne. C'est la lecture de `status`, autrement dite — et un contrat :
 // docs/runtime/etat-et-mesures.md, « Les faits, pour un programme ».
 //
-// La lecture se fait aussi sans process (`lireLesFaits`) : le guichet des
-// téléphones rend au téléphone ces faits mêmes (`telephone/projets.ts`).
+// La lecture se fait aussi sans process (`lireLesFaits`).
 import { cadenceDeLaCuisine } from "./activite-cuisine/cadence.ts";
 import { activiteDeLaCuisine } from "./activite-cuisine/comptes.ts";
 import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";

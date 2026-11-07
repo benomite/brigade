@@ -171,22 +171,19 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
 }
 
 // Les modules que le pont charge — la lecture des projets sur GitHub (#2501, `src/lecture-github-telephone.js`), et ce
-// qui joint la station d'un téléphone appairé avant le ticket 2500 (#1414, `android/lecture.js`) —, et ce qu'ils importent
-// d'app/src/, de proche en proche : la WebView ne lit pas le TypeScript, chacun est posé dans `www` sans ses types
+// qu'elle importe d'app/src/, de proche en proche : la WebView ne lit pas le TypeScript, chacun est posé dans `www` sans ses types
 // (`stripTypeScriptTypes`, la lecture même de Node), à `src/<chemin>.js` pour les modules de l'app — à côté de la vue,
 // comme dans l'app —, ses imports réécrits vers ces fichiers. Les modules de Node qu'ils importent pour le
 // desktop (un `ssh`, un fichier) n'existent pas dans la WebView : chacun est remplacé par un module inerte, aux mêmes
 // noms, que rien n'appelle sur le téléphone — le pont n'en lit que ce qui calcule. Un module du runtime que l'app
 // partage avec lui (le lecteur du tableau de la cuisine, runtime/src/tableau/rendu/bloc.ts) est posé à
 // `runtime/src/<chemin>.js` : à côté de l'app, comme dans le paquet du desktop. Rend les fichiers posés, relatifs à `www`.
-export const LECTURE = join(ANDROID, "web", "lecture.ts");
 export const LECTURE_GITHUB = join(APP, "src", "lecture-github-telephone.ts");
-export function poserLesModules(www = WWW, app = APP, entrees: string | readonly string[] = [LECTURE_GITHUB, LECTURE]): string[] {
+export function poserLesModules(www = WWW, app = APP, entrees: string | readonly string[] = [LECTURE_GITHUB]): string[] {
   const posee = (source: string): string => {
     const relatif = relative(app, source).split(sep).join("/");
     if (relatif.startsWith("src/")) return relatif.replace(/\.ts$/, ".js");
     if (relatif.startsWith("../runtime/src/")) return relatif.slice("../".length).replace(/\.ts$/, ".js");
-    if (source === LECTURE) return "android/lecture.js";
     return echouer(`the phone's reading imports ${relatif}, outside app/src/ and runtime/src/: the WebView cannot load it`);
   };
   const inertes = new Map<string, Set<string>>();

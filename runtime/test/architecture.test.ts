@@ -35,7 +35,6 @@ const VERS = {
   "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
   "station-update/releases.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station de l'ordinateur",
-  "telephone/guichet.ts": "n'ouvre rien : il écoute — le téléphone du chef le joint pour s'appairer, puis lire les stations, les projets et leur file, y faire les gestes de la file et parler au second de chaque projet",
 };
 
 test("la déclaration d'une station distante ne porte aucune adresse : la box ne sait pas où elle est, elle ne peut donc pas la joindre", () => {

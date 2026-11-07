@@ -37,10 +37,9 @@ export async function enProcess(commande: Commande): Promise<void> {
   }
 }
 
-// Ce que lève une lecture faite pour une commande, jouée hors d'elle — par le
-// guichet des téléphones, qui lit `facts` et `status` sans lancer de process
-// (`telephone/projets.ts`) : ce que la commande dirait, et son code de sortie.
-// La commande le dit et sort avec ce code ; le guichet le rend au téléphone.
+// Ce que lève une lecture faite pour une commande, jouée hors d'elle, sans
+// lancer de process : ce que la commande dirait, et son code de sortie.
+// La commande le dit et sort avec ce code.
 export class LectureImpossible extends Error {
   readonly code: number;
 

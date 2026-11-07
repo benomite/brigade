@@ -98,9 +98,8 @@ export function reprendre(journal: Journal, projet: string, ticket: number): Tic
 }
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
-// TODO, de WAITING. Le chef le fait par son téléphone (telephone/gestes.ts),
-// qui joue `renvoyerEnCuisine` ; depuis l'ordinateur, l'app retire le label
-// `waiting` de l'issue (app/src/gestes-github.ts, #2061).
+// TODO, de WAITING. Depuis l'ordinateur comme depuis le téléphone, l'app
+// retire le label `waiting` de l'issue (app/src/gestes-github.ts, #2061).
 export function cestArrive(journal: Journal, projet: string, ticket: number): TicketRail {
   return journal.base.transaction(() => {
     exigerWaiting(journal, ticket);

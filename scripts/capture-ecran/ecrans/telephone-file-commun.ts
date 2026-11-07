@@ -6,7 +6,6 @@ import type { Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Etape, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { FACTS, STATUS } from "./file-ou-cuit.ts";
-import { ADRESSE } from "./telephone-commun.ts";
 
 // La case de `parade` dans la barre, en haut sur un téléphone : son espace s'ouvre sur Rail.
 export const OUVRIR_PARADE: Etape = { cliquer: '#projets > button[title^="parade — "]' };
@@ -20,7 +19,7 @@ export function donneesDeLaFile(): Donnees {
   return {
     maintenant: MAINTENANT,
     reponses: {
-      demarrage: { ...tout, configuration: { ...tout.configuration, chemin: "no projects file on this phone" }, code: undefined, stations: undefined, projetsDesStations: undefined, telephone: { appaire: true, station: "box", adresse: ADRESSE } },
+      demarrage: { ...tout, configuration: { ...tout.configuration, chemin: "no projects file on this phone" }, code: undefined, stations: undefined, projetsDesStations: undefined, telephone: { github: { compte: "chef" } } },
       espace: [],
     },
     envois: cuisine({ ...RENDUS, parade: { ...(RENDUS.parade as Rendu), facts: FAITS, status: STATUS } }),
