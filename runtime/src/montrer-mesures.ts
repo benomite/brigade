@@ -18,7 +18,7 @@ import { causesDesTemps, parcoursDesTemps, qualiteLue } from "./qualite-github.t
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { direLeReleveGitHub, releveGitHubDeLaStation } from "./mesures-github.ts";
 import { seuilsEnVigueur } from "./projections/measures.ts";
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "./sans-invite.ts";
 import { join } from "node:path";
 import { coutsDesFlux, ticketDuMerge, type MergeDuClone } from "./closer-github-passe/derive-github.ts";
 import { describeCallsPerTicket, measureCallsPerTicket, type PerTicket } from "./mesures/appels-par-ticket.ts";
