@@ -16,6 +16,7 @@
 // l'autre ne touche `document` : la vue leur donne une fabrique (briques.js).
 
 import { lectureIndisponible, survol } from "../briques.js";
+import { rangee } from "../identites-github.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ depots: string[] } | { refus: string }} LectureDesProjetsServis */
@@ -137,25 +138,6 @@ function cree(doc, balise, texte) {
   const element = doc.createElement(balise);
   if (texte !== undefined) element.textContent = texte;
   return element;
-}
-
-// Une ligne de réglage, la même que les autres de Settings : son nom, sa valeur, son contrôle — puis, sous elle, ce
-// que le contrôle a rendu.
-/** @param {Fabrique} doc @param {any[]} nom @param {any[]} valeur @param {any[]} controle @param {any[]} [dessous] */
-function rangee(doc, nom, valeur, controle, dessous = []) {
-  const racine = cree(doc, "div");
-  racine.className = "reglage";
-  const nomme = cree(doc, "span");
-  nomme.className = "nom";
-  nomme.append(...nom);
-  const vaut = cree(doc, "p");
-  vaut.className = "valeur";
-  vaut.append(...valeur);
-  const champ = cree(doc, "div");
-  champ.className = "champ";
-  champ.append(...controle);
-  racine.append(nomme, vaut, champ, ...dessous);
-  return racine;
 }
 
 // L'écran : la ligne d'en-tête — ce que sert cet ordinateur, ou qu'il n'en sert aucun —, puis une ligne par projet.

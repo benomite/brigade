@@ -225,7 +225,7 @@ function erreurSous(doc, texte) {
 // Une ligne de réglage, la même que les autres de Settings : son nom, sa valeur, son contrôle — puis, sous elle, ce
 // que le contrôle a rendu.
 /** @param {Fabrique} doc @param {any[]} nom @param {any[]} valeur @param {any[]} controle @param {any[]} [dessous] */
-function rangee(doc, nom, valeur, controle, dessous = []) {
+export function rangee(doc, nom, valeur, controle, dessous = []) {
   const racine = cree(doc, "div");
   racine.className = "reglage";
   const nomme = cree(doc, "span");
