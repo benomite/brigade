@@ -8,6 +8,7 @@ import { DEBUT, FIN } from "../../src/epique.ts";
 import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
+import { INERTIE_MINUTES } from "../../src/guerison/cuisine-inerte.ts";
 import { HORS_CUISINE } from "../../src/github.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -160,4 +161,20 @@ test("a gesture that throws does not stop the others, and its error is logged", 
   assert.ok(commentairesDe(p, CONFLIT).some((c) => c.startsWith("<!-- brigade:relance cause=conflict n=1")));
   assert.ok(commentairesDe(p, PRIS).some((c) => /released the claim/.test(c)));
   assert.ok(p.poses.some(([numero, label]) => numero === PRETE && label === "in-pass"));
+});
+
+test("a kitchen with a ticket to take and nothing at work for 90 minutes files one inertia bug, once", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  // Un ticket à prendre que la station ne prend pas : il attend un ticket ouvert.
+  p.faux.feu(30, [...CALIBRE, "waiting"], "Depends on #31");
+  p.faux.feu(31, []);
+  await p.passer();
+  assert.equal(p.faux.creations.length, 0);
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  await p.passer();
+  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
+  const [bug] = p.faux.creations;
+  assert.match(p.faux.ticket(bug as number).corps, /all-blocked[\s\S]*#30 waits on #31/);
+  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(all-blocked\) — bug #\d+ filed/.test(ligne)));
 });

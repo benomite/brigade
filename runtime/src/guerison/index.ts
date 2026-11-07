@@ -9,33 +9,36 @@
 //   (`pr-prete.ts`, #2752) ;
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
-// - le signalement d'une cuisine oisive : des tickets à prendre, et aucun cook
-//   ni aucune livraison depuis 30 min.
+// - le bug d'une cuisine inerte : des tickets à prendre, et rien n'avance
+//   depuis 90 min (`cuisine-inerte.ts`, #2755).
 // La lacune technique que le manager complète seul (#2753) est dans ses
 // instructions, pas ici.
 //
 // Un geste qui échoue ne retient pas les autres : son erreur va à `avertir`.
 // Rien n'est propre à un dépôt : le projet, sa base et sa station viennent de
 // l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims, celle
-// de l'oisiveté) vit dans l'objet que rend `ouvrirGuerison`, un par station.
+// de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
 import { brancheDuTicket } from "../brigade-github.ts";
-import { HORS_CUISINE, type GitHub, type Issue } from "../github.ts";
+import { HORS_CUISINE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict } from "../github-etat/fusion.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
-import { OISIVE_APRES_MS } from "../cuisine-oisive.ts";
 import { ouvrirClaimPerime } from "./claim-perime.ts";
+import { signalerInertie } from "./cuisine-inerte.ts";
 import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
 import { relancer, type GitHubDeLaGuerison } from "./relance.ts";
 
 // Ce que la guérison demande au client du tour, et rien de plus. `issue` :
-// absent, les épiques ne se ferment pas.
+// absent, les épiques ne se ferment pas. `issuesDepuis` : absent, le bug de
+// l'inertie ne se retrouve que s'il a été ouvert par cette station.
 export type GitHubDuProjet = GitHubDeLaGuerison &
   Pick<GitHub, "fermerIssue"> & {
     retraitsDeLabels(numero: number): Promise<RetraitDeLabel[]>;
+    dependancesOuvertes(issue: number): Promise<number[]>;
     issue?: GitHub["issue"];
+    issuesDepuis?: (instant: string) => Promise<(Pick<IssueOuverte, "number" | "body"> & Partial<Pick<IssueOuverte, "labels" | "state">>)[]>;
   };
 
 // Un ticket tel que le tour le lit.
@@ -52,7 +55,7 @@ export type OptionsDeLaGuerison = {
   maintenant?: () => number;
 };
 
-export type Geste = "relance" | "claim" | "in-pass" | "epique" | "oisive";
+export type Geste = "relance" | "claim" | "in-pass" | "epique" | "inertie";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
 // tels que la guérison les laisse — un ticket relancé sans `hors-cuisine`, un
@@ -65,7 +68,8 @@ export type BilanDeLaGuerison<T extends TicketDuTour = TicketDuTour> = {
   liberes: number[];
   enPass: number[];
   epiquesFermees: number[];
-  oisive: boolean;
+  // Le bug de la cuisine inerte, ouvert à ce tour.
+  inertie: number | null;
   echecs: { geste: Geste; message: string }[];
 };
 
@@ -75,14 +79,19 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const { github, station, base, avertir } = options;
   const maintenant = options.maintenant ?? Date.now;
   const claim = ouvrirClaimPerime({ github, maintenant });
-  // Depuis quand la cuisine est oisive, et si elle l'a déjà dit pour cette fois.
-  let oisiveDepuis: number | null = null;
-  let oisiveDite = false;
+  // La dernière fois que la station a vu la cuisine au travail (un cook ici,
+  // un ticket pris ou en pass) : le tour ne lit pas les merges, c'est d'elle
+  // que l'inertie compte. Au départ, l'ouverture de la guérison.
+  let auTravailLe = maintenant();
+  // Le bug d'inertie que cette station a ouvert, s'il en est un.
+  let bugOuvert: number | null = null;
+  // Une semaine : le bug d'inertie se cherche parmi les issues touchées depuis.
+  const SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
 
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
   // les tickets qu'un cook de cette station cuisine en ce moment.
   async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>): Promise<BilanDeLaGuerison<T>> {
-    const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], enPass: [], epiquesFermees: [], oisive: false, echecs: [] };
+    const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
       bilan.echecs.push({ geste, message: dit });
@@ -171,25 +180,38 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       }
     });
 
-    // Oisive : des tickets à prendre — ni de côté, ni en attente, ni pris, ni
-    // en pass, ni une épique —, et ni cook ici ni livraison en pass, 30 min
-    // durant. Dit une fois par épisode ; le premier cook ou la première
-    // livraison remet le compte à zéro.
-    await tache("oisive", async () => {
-      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_WAITING, LABEL_TAKEN, LABEL_IN_PASS].some((label) => t.labels.includes(label)));
-      const auTravail = enCuisine.size > 0 || tickets.some((t) => t.labels.includes(LABEL_TAKEN) || t.labels.includes(LABEL_IN_PASS));
-      if (aPrendre.length === 0 || auTravail) {
-        oisiveDepuis = null;
-        oisiveDite = false;
-        return;
-      }
+    // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni
+    // une épique —, et rien au travail depuis `INERTIE_MINUTES`. Un seul bug
+    // tant qu'il reste ouvert (#2755).
+    await tache("inertie", async () => {
       const instant = maintenant();
-      oisiveDepuis ??= instant;
-      if (instant - oisiveDepuis < OISIVE_APRES_MS) return;
-      bilan.oisive = true;
-      if (oisiveDite) return;
-      oisiveDite = true;
-      avertir(`brigade : idle kitchen on ${station} — ${aPrendre.map((t) => `#${t.number}`).join(", ")} wait on the rail and no cook has run for ${Math.round((instant - oisiveDepuis) / 60_000)} min`);
+      const auTravail = enCuisine.size > 0 || tickets.some((t) => t.labels.includes(LABEL_TAKEN) || t.labels.includes(LABEL_IN_PASS));
+      if (auTravail) auTravailLe = instant;
+      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS].some((label) => t.labels.includes(label)));
+      const fait = await signalerInertie({
+        maintenant: new Date(instant),
+        github: {
+          dernierMerge: async () => new Date(auTravailLe).toISOString(),
+          cuisinables: async () => Promise.all(aPrendre.map(async (t) => ({ number: t.number, title: t.title, attend: t.labels.includes(LABEL_WAITING) ? [...(await github.dependancesOuvertes(t.number))] : [] }))),
+          // Rien n'est pris quand l'inertie se lit : un ticket pris est du travail.
+          prises: async () => [],
+          prsEnPasse: async () => tickets.filter((t) => t.labels.includes(LABEL_IN_PASS)).length,
+          issuesOuvertes: async (label) => {
+            const lues = github.issuesDepuis === undefined ? [] : (await github.issuesDepuis(new Date(instant - SEMAINE_MS).toISOString())).filter((i) => i.state === "open" && i.labels?.includes(label) === true);
+            if (bugOuvert !== null && !lues.some((i) => i.number === bugOuvert)) {
+              const lue = await github.issue?.(bugOuvert);
+              if (lue?.state === "open") lues.push({ number: bugOuvert, body: lue.body ?? "", labels: lue.labels, state: lue.state });
+            }
+            return lues;
+          },
+          creerIssue: (issue) => github.creerIssue(issue),
+        },
+      });
+      if (fait.fait === "bug") {
+        bugOuvert = fait.bug;
+        bilan.inertie = fait.bug;
+        avertir(`brigade : idle kitchen on ${station} (${fait.cause}) — bug #${fait.bug} filed`);
+      }
     });
 
     const sans = (labels: readonly string[], label: string) => labels.filter((l) => l !== label);
