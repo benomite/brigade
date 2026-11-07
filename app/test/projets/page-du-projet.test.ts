@@ -327,7 +327,7 @@ test("confiée, la page nomme les stations qui font sa cuisine, et « + station 
   const ligne = bloc.children[0] ?? assert.fail("pas de ligne");
   assert.equal(ligne.textContent, "Cooks on parade-box");
   const station = ligne.dessous("button")[0] ?? assert.fail("la station ne s'ouvre pas");
-  assert.equal(station.ariaLabel, "parade-box — main — being prepared");
+  assert.equal(station.ariaLabel, "parade-box — being prepared");
   assert.match(station.title, /cloning benomite\/parade/);
 
   boutonSous(bloc, "+ station").click();

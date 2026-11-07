@@ -23,7 +23,7 @@ import type { VuDesStations } from "../../../src/stations/stations.ts";
 import type { TableauLu } from "../../../src/tableau/lecture.ts";
 import { ATTEINTE, AUCUNE, SIGNE_DE_VIE, SIGNES_ILLISIBLES } from "../../../src/vue/cooks/stations-github.js";
 import { avecLeRail, type RailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
-import { CHANGER_LA_PRINCIPALE, PAS_ANNONCEE, ROLES } from "../../../src/vue/stations-de-cuisson.js";
+import { CHANGER_LA_PRINCIPALE, PAS_ANNONCEE } from "../../../src/vue/stations-de-cuisson.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-05T10:00:00.000Z";
@@ -169,12 +169,12 @@ describe("l'onglet Cooks d'un projet sur GitHub seul : ses stations dites de Git
     const vue = await ouvrir();
     const rail = vue.element("rail");
     for (const pose of lignes(vue)) {
-      assert.equal(pose.dataset.role, "cuisson");
+      assert.equal(pose.dataset.role, undefined);
       // Ses seuls boutons sont ceux des cartes de ses tickets.
       assert.equal(pose.children.filter(({ className }) => className !== "cartes").flatMap((enfant) => enfant.dessous("button")).length, 0, `${pose.dataset.station} porte un bouton`);
       assert.deepEqual(pose.children.map(({ className }) => className), ["nom", "etat", pose.dataset.station === "macbook/claude" ? "cartes" : "aucun-cook"]);
     }
-    assert.equal(rail.textContent.includes(ROLES.principale.mot), false);
+    assert.equal(rail.textContent.includes("main station"), false);
     assert.equal(rail.textContent.includes(CHANGER_LA_PRINCIPALE.libelle), false);
   });
 

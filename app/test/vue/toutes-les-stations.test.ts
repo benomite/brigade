@@ -22,7 +22,7 @@ import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, 
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
 import { ABSENTE } from "../../src/cuisson.ts";
-import { ATTEINTE, CHANGER_LA_PRINCIPALE, FOURNIT_PAS_DIT, PAS_ANNONCEE, POSER_LE_PLAFOND, RELIRE, ROLES, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
+import { ATTEINTE, CHANGER_LA_PRINCIPALE, FOURNIT_PAS_DIT, PAS_ANNONCEE, POSER_LE_PLAFOND, RELIRE, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
 import { TITRE as TITRE_DES_DECLAREES } from "../../src/vue/stations-declarees.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -131,11 +131,10 @@ const retenue = (pose: Faux) => pose.dessous("p").find(({ className }) => classN
 const boutonDe = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de « ${texte} » sous ${pose.dataset.station}`);
 
 describe("« Its stations » liste toutes les stations du projet (#1786)", () => {
-  test("chacune une fois, la principale d'abord : celle de `facts`, celle que la box déclare sans qu'elle s'y soit annoncée, celle que l'app a ajoutée", async () => {
+  test("chacune une fois, sans rôle dit : celle de `facts`, celle que la box déclare sans qu'elle s'y soit annoncée, celle que l'app a ajoutée", async () => {
     const vue = await ouvrir();
     assert.deepEqual(lignes(vue).map(({ dataset }) => dataset.station), ["box/claude", "macbook/claude", "pc"]);
-    assert.deepEqual(lignes(vue).map(role), [ROLES.principale.mot, ROLES.cuisson.mot, ROLES.cuisson.mot]);
-    assert.match(ligne(vue, "box/claude").dessous("small").find(({ className }) => className === "role")?.title ?? "", /manager and its pass/);
+    assert.deepEqual(lignes(vue).map(role), [undefined, undefined, undefined]);
     // Atteinte ou non : la box l'est, le Mac aussi — la box le dit —, le PC ne l'est pas.
     assert.deepEqual(lignes(vue).map((pose) => [atteinte(pose)?.textContent, atteinte(pose)?.dataset.ton]), [
       [ATTEINTE.oui, "vert"],
@@ -173,10 +172,10 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     assert.equal(lignes(vue).filter(({ dataset }) => dataset.station === "macbook/claude").length, 1);
   });
 
-  test("la principale porte « move the kitchen » : il ouvre le choix de la machine, en tête de la page", async () => {
+  test("« move the kitchen » est sous le titre du bloc, non sur une ligne : il ouvre le choix de la machine, en tête de la page", async () => {
     const vue = await ouvrir();
-    assert.equal(ligne(vue, "macbook/claude").dessous("button").some(({ textContent }) => textContent === CHANGER_LA_PRINCIPALE.libelle), false);
-    const deplacer = boutonDe(ligne(vue, "box/claude"), CHANGER_LA_PRINCIPALE.libelle);
+    assert.equal(lignes(vue).some((pose) => pose.dessous("button").some(({ textContent }) => textContent === CHANGER_LA_PRINCIPALE.libelle)), false);
+    const deplacer = vue.element("rail").dessous("button").find(({ textContent }) => textContent === CHANGER_LA_PRINCIPALE.libelle) ?? assert.fail("pas de « move the kitchen »");
     assert.equal(deplacer.disabled, false);
     deplacer.click();
     await repos();
@@ -246,16 +245,16 @@ describe("les stations du bloc, rangées (#1786)", () => {
     assert.deepEqual(
       rangs.map(({ nom, principale, ligne, declaree: d, appairee: a }) => [nom, principale, ligne !== undefined, d !== undefined, a?.id]),
       [
-        ["box/claude", true, true, true, "g1"],
         ["mac-mini/claude", false, true, true, "g2"],
+        ["box/claude", true, true, true, "g1"],
         ["pc/claude", false, false, true, "g3"],
         ["atelier", false, false, false, "g4"],
       ],
     );
   });
 
-  test("sans station de la principale dans `facts` ni dans la déclaration, la principale de l'app a sa ligne, en tête", () => {
+  test("sans station de la principale dans `facts` ni dans la déclaration, la principale de l'app a sa ligne, après celles de `facts`", () => {
     const rangs = stationsDuBloc([ligneDe("mac/claude", true)], [], [app("g2", "mac", false), app("g1", "box", true)]);
-    assert.deepEqual(rangs.map(({ nom, principale }) => [nom, principale]), [["box", true], ["mac/claude", false]]);
+    assert.deepEqual(rangs.map(({ nom, principale }) => [nom, principale]), [["mac/claude", false], ["box", true]]);
   });
 });

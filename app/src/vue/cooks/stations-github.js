@@ -79,7 +79,6 @@ export function poserLesStationsSurGithub(doc, { cuisson, pastille, carte, tete 
       const pose = cree(doc, "li");
       pose.className = "station-de-cuisson";
       pose.dataset.station = ligne.station;
-      pose.dataset.role = "cuisson";
       pose.dataset.etat = ligne.etat;
       // Son nom, celui de ses prises.
       const nom = cree(doc, "span");

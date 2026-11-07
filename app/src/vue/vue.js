@@ -6535,7 +6535,6 @@ function poserProjets() {
 // déclare. Le détail — son dépôt, ce que la station en a dit, où est sa principale — est au survol.
 /** @param {string} nom @param {boolean} servi @param {{ projet: import("../projets/projets.ts").ProjetVu, ici: import("../projets/projets.ts").StationDuProjet } | undefined} demande */
 function ligneDeProjetDeStation(nom, servi, demande) {
-  const principale = servi || demande?.ici.principale === true;
   const etat = servi ? "servi" : (demande?.ici.etat ?? "attendu");
   const ailleurs = demande?.projet.stations.find((station) => station.principale && station.id !== stationOuverte)?.nom;
   const ton = etat === "servi" ? "vert" : etat === "a-autoriser" ? "jaune" : etat === "refuse" ? "rouge" : "gris";
@@ -6550,8 +6549,8 @@ function ligneDeProjetDeStation(nom, servi, demande) {
             ? "refused"
             : etat === "secondaire"
               ? ailleurs === undefined
-                ? "its manager and its pass run elsewhere"
-                : `its manager and its pass run on ${ailleurs}`
+                ? "served by another station"
+                : `served by ${ailleurs}`
               : "not read yet";
   const declare = projetDe(nom);
   const survolDit = [
@@ -6565,17 +6564,13 @@ function ligneDeProjetDeStation(nom, servi, demande) {
   cree.className = "ligne";
   cree.dataset.projet = nom;
   cree.title = survolDit.join("\n");
-  cree.ariaLabel = `${nom} — ${principale ? "main" : "secondary"} — ${dit}`;
+  cree.ariaLabel = `${nom} — ${dit}`;
   const appele = bloc("strong", nom);
   appele.className = "mono";
-  const marque = bloc("span", principale ? "main" : "secondary");
-  marque.className = "pilule";
-  marque.classList.toggle("principale", principale);
-  marque.title = principale ? "this station is its main station: it runs its manager and its pass" : "not its main station: this station runs neither its manager nor its pass";
   const suite = bloc("span", "›");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
-  cree.append(pastille(dit, ton), appele, marque, bloc("span", dit), suite);
+  cree.append(pastille(dit, ton), appele, bloc("span", dit), suite);
   cree.addEventListener("click", () => (declare === undefined ? ouvrirAjout() : void ouvrir(declare)));
   return cree;
 }
@@ -6755,8 +6750,8 @@ function etatDeLaCuisine(etat, atteinte) {
   if (etat === "a-autoriser") return { dit: "waiting for your authorization on GitHub", ton: "jaune" };
   if (etat === "en-preparation") return { dit: "being prepared", ton: "gris" };
   if (etat === "refuse") return { dit: "refused", ton: "rouge" };
-  if (etat === "secondaire" && atteinte !== undefined) return atteinte.oui ? { dit: "reached: it cooks with the main station", ton: "vert" } : { dit: "not reached", ton: "gris" };
-  if (etat === "secondaire") return { dit: "secondary", ton: "gris" };
+  if (etat === "secondaire" && atteinte !== undefined) return atteinte.oui ? { dit: "reached", ton: "vert" } : { dit: "not reached", ton: "gris" };
+  if (etat === "secondaire") return { dit: "not read yet", ton: "gris" };
   return { dit: "not read yet", ton: "gris" };
 }
 
@@ -6808,10 +6803,10 @@ function cuisineDe(projet) {
       id: appairee?.id ?? station.id,
       nom: station.name,
       principale: false,
-      ...(station.available ? { dit: "joined: it cooks with the main station", ton: "vert" } : { dit: "joined, offline: it cooks once it is back", ton: "gris" }),
+      ...(station.available ? { dit: "reached", ton: "vert" } : { dit: "offline: it cooks once it is back", ton: "gris" }),
       pourquoi: "",
       geste: "",
-      survol: `it joined the kitchen that ${principale} runs: it cooks there as one more station, and ${principale} keeps the manager and the pass`,
+      survol: `it cooks ${projet.nom} beside ${principale}`,
       autoriser: [],
       bloquee: false,
     });
@@ -6903,7 +6898,7 @@ function stationNommee(station, ici, projet) {
   nomme.title = [ceMac && nom !== "" ? `${nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
   const appele = bloc("strong", dit);
   appele.className = "mono";
-  nomme.ariaLabel = `${dit} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
+  nomme.ariaLabel = `${dit} — ${station.dit}`;
   nomme.append(pastille(station.dit, station.ton), appele);
 
   if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));

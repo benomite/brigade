@@ -93,7 +93,7 @@ test("sur la page d'une station, un projet que l'app lui a ajouté : sa ligne di
   const { jouee, section, bouton } = await laHome(PARADE);
   assert.equal(section().children[6]?.textContent, "Projects");
   const ligne = section().children[7]?.dessous("button").find(({ dataset }) => dataset.projet === "parade") ?? assert.fail("pas de ligne « parade »");
-  assert.equal(ligne.ariaLabel, "parade — main — waiting for your authorization on GitHub");
+  assert.equal(ligne.ariaLabel, "parade — waiting for your authorization on GitHub");
   // Son dépôt et ce que la station en dit sont au survol.
   assert.match(ligne.title, /benomite\/parade · main/);
   assert.match(ligne.title, /authorize brigade on benomite\/parade/);

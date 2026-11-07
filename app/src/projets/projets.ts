@@ -537,7 +537,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
           }
         }
       }
-      for (const projet of projets.values()) projet.stations.sort((a, b) => Number(b.principale) - Number(a.principale) || a.nom.localeCompare(b.nom));
+      for (const projet of projets.values()) projet.stations.sort((a, b) => a.nom.localeCompare(b.nom));
       const calibrage = calibrageRecommande(lus.flatMap(({ demande }) => demande ?? []));
       vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), locale: ici, ...choix(), calibrage };
       // Une station ajoutée avant que son appairage ne dise ce qu'elle fournit : sa demande le reprend.

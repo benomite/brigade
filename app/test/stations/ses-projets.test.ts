@@ -1,6 +1,6 @@
 // Les projets d'une station, sur sa page, la vue jouée (#878) : tous ceux qu'elle porte — ceux que sa
 // configuration sert, qu'ils viennent de l'app ou d'une ligne écrite à la main, et ceux que l'app lui
-// demande —, chacun marqué « main » ou « secondary ». Un clic ouvre le projet ; le vide ne se dit que
+// demande —, chacun sans marque de rôle. Un clic ouvre le projet ; le vide ne se dit que
 // s'il n'y a vraiment rien ; « + add a project » ouvre le parcours d'ajout. La liste vient de ce que
 // la station publie (stations/document.ts) : une station sert tous les projets de sa configuration,
 // et les publie tous (runtime/test/station/station.test.ts).
@@ -95,16 +95,13 @@ const lignes = (page: Faux) => {
   return (page.children[7] ?? assert.fail("pas de liste")).dessous("button").filter(({ className }) => className === "ligne");
 };
 const ligne = (page: Faux, projet: string) => lignes(page).find(({ dataset }) => dataset.projet === projet) ?? assert.fail(`pas de ligne « ${projet} »`);
-// La marque d'une ligne : « main » ou « secondary », sur la ligne même.
-const marque = (pose: Faux) => pose.children.find(({ className }) => className.split(" ").includes("pilule"))?.textContent;
 
-test("la box porte trois projets, dont deux installés hors de l'app : sa page les liste tous les trois, chacun marqué comme ayant la box pour principale", async () => {
+test("la box porte trois projets, dont deux installés hors de l'app : sa page les liste tous les trois, sans marque de rôle", async () => {
   const { page } = await laPage("box");
   assert.deepEqual(
     lignes(page).map(({ ariaLabel }) => ariaLabel),
-    ["brigade — main — served", "cantine — main — served", "parade — main — served"],
+    ["brigade — served", "cantine — served", "parade — served"],
   );
-  assert.deepEqual(lignes(page).map(marque), ["main", "main", "main"]);
   // Celui que l'app a ajouté se dit au survol, comme ceux écrits à la main.
   assert.match(ligne(page, "parade").title, /benomite\/parade · main/);
   assert.match(ligne(page, "parade").title, /served by box 1 min 12 s after/);
@@ -127,13 +124,12 @@ test("ses projets se lisent sans attendre la lecture de ce que l'app lui a deman
   assert.ok(page.dessous("button").some(({ textContent }) => textContent === "remove"));
 });
 
-test("une station secondaire : le projet est marqué « secondary » sur sa ligne, et dit où tourne sa principale", async () => {
+test("une station qui ne sert pas le projet : sa ligne le dit, sans marque de rôle", async () => {
   const { page } = await laPage("macbook");
   assert.deepEqual(
     lignes(page).map(({ ariaLabel }) => ariaLabel),
-    ["parade — secondary — its manager and its pass run on box"],
+    ["parade — served by box"],
   );
-  assert.equal(marque(ligne(page, "parade")), "secondary");
 });
 
 test("un projet que l'app demande et que la station ne sert pas encore est listé, avec ce qu'elle en dit", async () => {
@@ -155,7 +151,7 @@ test("un projet que l'app demande et que la station ne sert pas encore est list�
     lignes(page).map(({ dataset }) => dataset.projet),
     ["brigade", "cantine", "espace", "parade"],
   );
-  assert.equal(ligne(page, "espace").ariaLabel, "espace — main — waiting for your authorization on GitHub");
+  assert.equal(ligne(page, "espace").ariaLabel, "espace — waiting for your authorization on GitHub");
   assert.ok(page.dessous("button").some(({ textContent }) => textContent === "authorize on GitHub: brigade-cook"));
 });
 

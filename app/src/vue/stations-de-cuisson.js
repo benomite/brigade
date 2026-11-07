@@ -74,11 +74,6 @@ export const ROLES_EN_COURS = {
 };
 export const OUVRIR_COOKS = "open Cooks";
 
-// Le rôle d'une station (ticket 1786) : la principale tient le manager et la pass, les autres cuisent à côté. Au survol.
-export const ROLES = {
-  principale: { mot: "main station", survol: "it runs the project's manager and its pass, and cooks its tickets too" },
-  cuisson: { mot: "cooking station", survol: "it cooks the project's tickets beside the main station: it runs neither its manager nor its pass" },
-};
 // Atteinte ou non : ce que sa pastille dit. Une distante que rien ne dit atteinte ni perdue n'est pas dite verte.
 export const ATTEINTE = { oui: "reached", non: "not reached", inconnue: "no word", absente: "absent" };
 export const ATTEINTE_INCONNUE = "the main station does not say whether it reaches this station: it says so of the stations added from the app";
@@ -296,7 +291,7 @@ export function stationsDuBloc(lignes, declarees = [], appairees = []) {
     if (sienne !== undefined) sienne.appairee = appairee;
     else rangs.push({ nom: appairee.nom, principale: false, appairee });
   }
-  return [...rangs.filter((rang) => rang.principale), ...rangs.filter((rang) => !rang.principale)];
+  return rangs;
 }
 
 // Si une station est atteinte : ce que la principale en dit dans `facts` — sa cuisine se lit, une distante s'y est
@@ -443,7 +438,6 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
   section.ariaLabel = TITRE;
   if (carte !== undefined) section.dataset.cartes = "";
   const rangs = stationsDuBloc(lignes, declarees, appairees);
-  const premiere = rangs.find((rang) => rang.principale);
   const liste = cree(doc, "ol");
   liste.append(
     ...rangs.map((rang) => {
@@ -451,19 +445,13 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       const pose = cree(doc, "li");
       pose.className = "station-de-cuisson";
       pose.dataset.station = rang.nom;
-      // Une seule principale : une autre station de sa machine cuit à côté d'elle.
-      const sonRole = rang === premiere ? "principale" : "cuisson";
-      pose.dataset.role = sonRole;
-      // Son nom, son rôle, et où elle tourne.
+      // Son nom, et où elle tourne.
       const nom = cree(doc, "span");
       nom.className = "nom";
       const appele = cree(doc, "strong", rang.nom);
       appele.className = "mono";
-      const role = cree(doc, "small", ROLES[sonRole].mot);
-      role.className = "role";
-      role.title = ROLES[sonRole].survol;
       const ou = rang.declaree !== undefined && lieu !== undefined ? [motDuLieu(doc, rang.declaree, lieu)] : (ligne?.distante ?? !rang.principale) ? [cree(doc, "small", "remote")] : [];
-      nom.append(appele, role, ...ou);
+      nom.append(appele, ...ou);
       // Atteinte ou non, puis son mot, ce qu'il veut dire en quelques mots, et le reste au survol.
       const etat = cree(doc, "span");
       etat.className = "etat";
@@ -511,8 +499,6 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       // Pourquoi elle ne cuit pas, en une ligne.
       const retenue = retenueDe(rang);
       if (retenue !== undefined) pose.append(ligneDeRetenue(doc, rang, retenue, { ...(relire === undefined ? {} : { relire }), ...(autoriser === undefined ? {} : { autoriser }) }));
-      // La principale : le geste qui en change, une fois.
-      if (rang === premiere && deplacer !== undefined) pose.append(changerLaPrincipale(doc, deplacer));
       // Ce qu'elle fournit, puis ses cooks à la fois.
       if (lieu !== undefined) pose.append(...fournitDe(doc, rang, lieu, declarees.length));
       const cap = plafonds?.[rang.nom];
@@ -522,7 +508,7 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       return pose;
     }),
   );
-  section.append(cree(doc, "h3", TITRE), ...tete, liste);
+  section.append(cree(doc, "h3", TITRE), ...tete, ...(deplacer === undefined ? [] : [changerLaPrincipale(doc, deplacer)]), liste);
   return section;
 }
 

@@ -226,13 +226,13 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
     const { vue, cuissons } = await ouvrir();
     await taper(vue, "Cooks");
     // Celles de la principale d'abord (#1786).
-    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "atelier/claude", "mac/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "saturated", "stopped"]);
+    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "saturated"]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
     assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [RIEN_NE_TOURNE]);
     // Tout ce qui se clique dans l'onglet : un bouton par station, rien d'autre.
-    assert.deepEqual(gestes(vue.element("rail")).map((bouton) => bouton.ariaLabel), ["stop cooking on box/claude", "stop cooking on atelier/claude", "start cooking on mac/claude"]);
+    assert.deepEqual(gestes(vue.element("rail")).map((bouton) => bouton.ariaLabel), ["stop cooking on box/claude", "start cooking on mac/claude", "stop cooking on atelier/claude"]);
     assert.deepEqual(lignes(vue).map((li) => gestes(li).length), [1, 1, 1]);
     // Ni la carte du projet, ni Taken et Pass — leurs fiches ont leurs gestes —, ni les serveurs de livraison.
     assert.deepEqual(colonnes(vue), []);
@@ -283,7 +283,7 @@ describe("sur un écran large, rien ne change", () => {
     assert.equal(dansLeRail(vue, "lecture-cuisine"), true);
     assert.equal(lecture(vue), "cooks");
     assert.equal(vue.element("stations-du-projet").hidden, false);
-    assert.deepEqual(lignes(vue).map((li) => gestes(li)[0]?.textContent), [BOUTONS_DE_CUISSON.stop.libelle, BOUTONS_DE_CUISSON.stop.libelle, BOUTONS_DE_CUISSON.start.libelle]);
+    assert.deepEqual(lignes(vue).map((li) => gestes(li)[0]?.textContent), [BOUTONS_DE_CUISSON.stop.libelle, BOUTONS_DE_CUISSON.start.libelle, BOUTONS_DE_CUISSON.stop.libelle]);
   });
 
   test("la fenêtre qui se rétrécit passe à trois onglets, et qui s'élargit revient à deux, le second à droite", async () => {
