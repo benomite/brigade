@@ -11,17 +11,15 @@ import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
-import { avecListe, epiqueDe, reference, rendreListe, type LigneDeListe } from "./epique.ts";
+import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
-import { bilanDEpique } from "./bilan-epique.ts";
-import { creationsAnnoncees, decoupageDe, epiqueServie, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/splits.ts";
-import { communsDuRail, livresDepuis, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { creationsAnnoncees, decoupageDe, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
+import { communsDuRail } from "./projections/rail.ts";
 import { capacitesFournies } from "./projections/stations.ts";
-import { direAttentesLevees, direRetenue, nomAbandon, nomEtat } from "./rail.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
 // il n'a pas abouti, et reste à faire.
@@ -49,8 +47,10 @@ export type Atelier = {
 
 // L'horloge de GitHub n'est pas celle du runtime : un ticket se cherche à
 // partir d'un peu avant l'heure du découpage.
-// Le commentaire de fermeture d'une épique servie porte cette marque : s'il y
-// est déjà, il n'est pas reposé.
+// Le commentaire de fermeture d'une épique dont tous les tickets sont fermés
+// porte cette marque : s'il y est déjà, il n'est pas reposé. Celle d'avant
+// #2618, quand seule une épique toute servie se fermait, vaut aussi.
+const MARQUEUR_TERMINEE = "<!-- brigade:epique-terminee -->";
 const MARQUEUR_SERVIE = "<!-- brigade:epique-servie -->";
 
 const MARGE_MS = 600_000;
@@ -58,35 +58,23 @@ const MARGE_MS = 600_000;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const priorites = (labels: string[]) => labels.filter((label) => /^prio:[1-9]$/.test(label));
 
-// L'état d'un ticket tel que l'épique le montre. Aucune date : la liste ne se
-// réécrit que quand un état change.
-function ligne(journal: Journal, ticket: TicketDEpique): LigneDeListe {
-  const { base } = journal;
-  const sur = ticketDuRail(base, ticket.ticket);
-  const title = sur?.title ?? ticket.title;
-  if (sur) {
-    const etat =
-      sur.state === "taken"
-        ? "en cuisine"
-        : sur.waitingFor !== null
-          ? `WAITING — attend ${sur.waitingFor.who}`
-          : sur.state === "86"
-          ? `86 (${sur.reason})`
-          : (direRetenue(sur) ?? nomEtat(sur.state));
-    // Une attente que la cuisine a levée d'elle-même se dit aussi (#1834).
-    const levees = direAttentesLevees(sur);
-    return { ticket: ticket.ticket, title, state: levees === null ? etat : `${etat} — ${levees}`, served: sur.state === "served" };
-  }
-  const sort = sortDuTicket(base, ticket.ticket);
-  if (sort?.outcome === "served") return { ticket: ticket.ticket, title, state: "servi", served: true };
-  if (sort) return { ticket: ticket.ticket, title, state: `abandonné (${nomAbandon(sort.reason ?? "")})`, served: false };
-  // Le rail n'en sait rien : pas lancé, ou lancé depuis moins d'un sondage.
-  return { ticket: ticket.ticket, title, state: ticket.open ? "pas sur le rail" : "fermé", served: false };
-}
+// L'état d'un ticket tel que l'épique le montre, lu sur GitHub seul (#2618) :
+// ouvert, servi — fermé par une PR mergée —, ou abandonné — fermé sans. `pr` :
+// l'adresse de la PR qui l'a servi. Aucune date : la liste ne se réécrit que
+// quand un état change.
+type LigneLue = LigneDeListe & { ferme: boolean; pr: string | null };
+
+const ouvert = (ticket: number, title: string): LigneLue => ({ ticket, title, state: "ouvert", served: false, ferme: false, pr: null });
 
 export function ouvrirDecoupage(atelier: Atelier) {
   const { journal, github, noter, avertir, arrete } = atelier;
   const { base } = journal;
+  // Ce que GitHub a dit d'un ticket fermé, gardé tant qu'il ne rouvre pas : un
+  // ticket fermé ne se relit pas à chaque tour. Cache, pas état.
+  const fermes = new Map<number, LigneLue>();
+  // La liste que chaque épique porte, telle qu'écrite ou trouvée : une liste
+  // qui ne change pas ne relit pas l'épique.
+  const ecrits = new Map<number, string>();
 
   // Demande le découpage ; s'il rend des tickets que le code refuse (zone
   // d'un dossier de produit entier, attente entre zones disjointes), le
@@ -338,64 +326,124 @@ export function ouvrirDecoupage(atelier: Atelier) {
       }
     },
 
-    // Tient à jour, dans le corps de chaque épique découpée, la liste de ses
-    // tickets et de leur état — et ferme celle dont tous les tickets sont
-    // servis. Ne lit que le journal tant que rien n'a changé.
-    async suivre(): Promise<void> {
-      for (const connu of epiquesDecoupees(base)) {
-        if (arrete()) return;
-        if (!connu.done) continue;
-        const bloc = rendreListe(connu.epic, ticketsDEpique(base, connu.epic).map((ticket) => ligne(journal, ticket)));
-        const digest = createHash("sha256").update(bloc).digest("hex").slice(0, 16);
-        if (digest !== connu.listed) {
+    // Tient à jour, dans le corps de chaque épique ouverte, la liste de ses
+    // tickets et de leur état, lus sur GitHub seul (#2618) — et ferme celle
+    // dont tous les tickets sont fermés, servis ou abandonnés. Une épique est
+    // une issue dont le corps porte la liste, ou que ce manager a découpée.
+    // Ses tickets : ceux que la liste nomme, ceux que le découpage a fait
+    // naître, et les issues de confiance qui disent en venir. Un ticket ouvert
+    // ne coûte aucune lecture ; un ticket fermé se lit une fois par process.
+    // Rend les épiques fermées.
+    async suivre(ouvertes: IssueOuverte[]): Promise<Set<number>> {
+      const fermees = new Set<number>();
+      const parNumero = new Map(ouvertes.map((issue) => [issue.number, issue]));
+      for (const lu of [...fermes.keys()]) if (parNumero.has(lu)) fermes.delete(lu);
+      for (const epic of ouvertes) {
+        if (arrete()) return fermees;
+        const connu = decoupageDe(base, epic.number);
+        // Ses tickets naissent encore : `traiter` les finit avant.
+        if (connu?.state === "split" && !connu.done) continue;
+        if (!porteListe(epic.body) && connu?.state !== "split") continue;
+        const numeros = new Set([...ticketsDeLaListe(epic.body), ...ticketsDEpique(base, epic.number).map((ticket) => ticket.ticket)]);
+        for (const issue of ouvertes) if (epiqueDe(issue.body) === epic.number && DE_CONFIANCE.includes(issue.association)) numeros.add(issue.number);
+        numeros.delete(epic.number);
+        if (numeros.size === 0) continue;
+        let lignes: LigneLue[];
+        try {
+          lignes = [];
+          for (const numero of numeros) {
+            const ligne = await lireLigne(numero, parNumero.get(numero));
+            if (ligne) lignes.push(ligne);
+          }
+        } catch (erreur) {
+          if (!arrete()) avertir(`brigade : tickets de l'épique #${epic.number} non lus, elle reprendra au prochain tour — ${message(erreur)}`);
+          continue;
+        }
+        if (arrete()) return fermees;
+        if (lignes.length === 0) continue;
+        const bloc = rendreListe(epic.number, lignes);
+        if (ecrits.get(epic.number) !== bloc && avecListe(epic.body, bloc) !== epic.body) {
           try {
             // Relu juste avant d'écrire : le chef a pu l'éditer. Une épique
             // disparue n'a plus de corps où écrire.
-            const corps = (await github.issue(connu.epic))?.body;
-            if (corps !== undefined && avecListe(corps, bloc) !== corps) await github.ecrireCorps(connu.epic, avecListe(corps, bloc));
+            const corps = (await github.issue(epic.number))?.body;
+            if (corps !== undefined && avecListe(corps, bloc) !== corps) await github.ecrireCorps(epic.number, avecListe(corps, bloc));
           } catch (erreur) {
-            if (!arrete()) avertir(`brigade : liste des tickets non écrite dans l'épique #${connu.epic} — ${message(erreur)}`);
+            if (!arrete()) avertir(`brigade : liste des tickets non écrite dans l'épique #${epic.number} — ${message(erreur)}`);
             continue;
           }
-          if (arrete()) return;
-          noter(connu.epic, { type: "manager.split-listed", payload: { digest } });
+          if (arrete()) return fermees;
         }
-        if (!epiqueServie(base, connu.epic) && bilanDEpique(base, connu.epic).toutServi) await fermerServie(connu.epic);
+        ecrits.set(epic.number, bloc);
+        if (lignes.every((ligne) => ligne.ferme) && (await fermerTerminee(epic.number, lignes))) fermees.add(epic.number);
       }
+      return fermees;
     },
   };
 
-  // Tous les tickets de l'épique sont servis : elle se ferme, avec la liste de
-  // ses tickets et de leurs PR. Une épique que le chef a déjà fermée n'est pas
-  // commentée. Le commentaire ne se pose pas deux fois si la fermeture échoue.
-  async function fermerServie(epic: number): Promise<void> {
-    try {
-      const issue = await github.issue(epic);
-      if (arrete()) return;
-      if (issue?.state === "open") {
-        const commentaires = await github.commentaires(epic);
-        if (!commentaires.some((commentaire) => commentaire.body.includes(MARQUEUR_SERVIE))) await github.commenter(epic, direServie(epic));
-        if (arrete()) return;
-        await github.fermerIssue(epic);
-      }
-    } catch (erreur) {
-      if (!arrete()) avertir(`brigade : épique #${epic} non fermée, elle reprendra au prochain tour — ${message(erreur)}`);
-      return;
-    }
-    if (!arrete()) noter(epic, { type: "manager.split-served", payload: {} });
+  // Un ticket de l'épique, tel que GitHub le dit. Ouvert, la liste des issues
+  // ouvertes suffit ; fermé, son issue et la PR qui l'a fermée se lisent une
+  // fois, gardées tant qu'il ne rouvre pas. Un numéro que GitHub ne connaît
+  // pas n'est pas un ticket : null.
+  async function lireLigne(numero: number, ouverte: IssueOuverte | undefined): Promise<LigneLue | null> {
+    if (ouverte) return ouvert(numero, ouverte.title);
+    const connue = fermes.get(numero);
+    if (connue) return connue;
+    const lue = await github.issue(numero);
+    if (lue === null || lue.pr === true) return null;
+    if (lue.state === "open") return ouvert(numero, lue.title);
+    const pr = await github.prQuiFerme(numero);
+    const title = lue.title;
+    const ligne: LigneLue = pr?.merged ? { ticket: numero, title, state: "servi", served: true, ferme: true, pr: pr.url } : { ticket: numero, title, state: "abandonné", served: false, ferme: true, pr: null };
+    fermes.set(numero, ligne);
+    return ligne;
   }
 
-  function direServie(epic: number): string {
-    const livres = new Map(livresDepuis(base, "").map((livre) => [livre.ticket, livre]));
+  // Tous les tickets de l'épique sont fermés : elle se ferme, `completed`, avec
+  // un commentaire qui nomme ses tickets servis et ses tickets abandonnés —
+  // c'est lui que le second lit, ni label ni carte. Des abandons ne la
+  // retiennent pas ouverte. Une épique que le chef a déjà fermée n'est pas
+  // commentée ; le commentaire ne se pose pas deux fois si la fermeture
+  // échoue. Rend vrai si elle est fermée.
+  async function fermerTerminee(epic: number, lignes: LigneLue[]): Promise<boolean> {
+    try {
+      const issue = await github.issue(epic);
+      if (arrete()) return false;
+      if (issue?.state !== "open") return false;
+      const commentaires = await github.commentaires(epic);
+      if (!commentaires.some((commentaire) => commentaire.body.includes(MARQUEUR_TERMINEE) || commentaire.body.includes(MARQUEUR_SERVIE))) await github.commenter(epic, direTerminee(lignes));
+      if (arrete()) return false;
+      await github.fermerIssue(epic);
+    } catch (erreur) {
+      if (!arrete()) avertir(`brigade : épique #${epic} non fermée, elle reprendra au prochain tour — ${message(erreur)}`);
+      return false;
+    }
+    if (!arrete()) noter(epic, { type: "manager.split-served", payload: {} });
+    return true;
+  }
+
+  function direTerminee(lignes: LigneLue[]): string {
+    const servis = lignes.filter((ligne) => ligne.served);
+    const abandonnes = lignes.filter((ligne) => !ligne.served);
+    const nommer = (ligne: LigneLue) => `- #${ligne.ticket} ${ligne.title}${ligne.pr ? ` — ${ligne.pr}` : ""}`;
     return [
       MARQUEUR_MANAGER,
-      MARQUEUR_SERVIE,
-      `**Manager — épique servie, je la ferme.** Ses ${ticketsDEpique(base, epic).length} tickets sont servis :`,
-      "",
-      ...ticketsDEpique(base, epic).map((ticket) => {
-        const livre = livres.get(ticket.ticket);
-        return `- #${ticket.ticket} ${ticket.title}${livre?.pr ? ` — ${livre.pr}` : " — servi sans PR"}`;
-      }),
+      MARQUEUR_TERMINEE,
+      abandonnes.length === 0
+        ? `**Manager — épique servie, je la ferme.** Ses ${lignes.length} tickets sont servis :`
+        : `**Manager — épique terminée, je la ferme.** Ses ${lignes.length} tickets sont fermés, ${abandonnes.length} sans être servi${abandonnes.length > 1 ? "s" : ""}.`,
+      ...(abandonnes.length === 0
+        ? ["", ...servis.map(nommer)]
+        : [
+            "",
+            `**Servis** (${servis.length}) :`,
+            ...(servis.length === 0 ? ["- aucun"] : servis.map(nommer)),
+            "",
+            `**Abandonnés** (${abandonnes.length}), fermés sans PR mergée :`,
+            ...abandonnes.map(nommer),
+            "",
+            `⚠️ ${abandonnes.length > 1 ? "Ces tickets abandonnés n'ont rien livré" : "Ce ticket abandonné n'a rien livré"} : ce qu'il${abandonnes.length > 1 ? "s" : ""} devai${abandonnes.length > 1 ? "en" : ""}t faire de l'épique n'est pas fait. Elle se ferme quand même ; au second de dire s'il reste un ticket à ouvrir.`,
+          ]),
     ].join("\n");
   }
 }

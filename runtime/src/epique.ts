@@ -63,6 +63,22 @@ export function porteListe(corps: string): boolean {
   return bornes(corps) !== null;
 }
 
+// Les tickets que le bloc nomme, dans son ordre et sans doublon : le numéro en
+// tête de chaque ligne de son tableau, ou de chaque élément de liste quand le
+// chef l'a écrit à la main (`- #68`). Rien hors du bloc.
+const LIGNE_DE_TICKET = /^\s*(?:\|\s*|[-*+]\s+(?:\[[ xX]\]\s+)?)#([1-9]\d*)\b/;
+
+export function ticketsDeLaListe(corps: string): number[] {
+  const trouve = bornes(corps);
+  if (!trouve) return [];
+  const numeros = new Set<number>();
+  for (const { texte } of lignesHorsCode(corps.slice(trouve[0], trouve[1]))) {
+    const numero = Number(LIGNE_DE_TICKET.exec(texte)?.[1]);
+    if (Number.isSafeInteger(numero)) numeros.add(numero);
+  }
+  return [...numeros];
+}
+
 // Le corps sans son bloc : ce que l'humain a écrit.
 export function sansListe(corps: string): string {
   const trouve = bornes(corps);

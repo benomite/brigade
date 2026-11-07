@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { porteListe } from "../src/epique.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -130,7 +131,7 @@ export class FauxGitHub {
     return {
       fires: async () => {
         await noter("fires");
-        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state }));
+        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, ...(porteListe(t.corps) ? { epique: true as const } : {}) }));
       },
       dependancesOuvertes: async (issue) => {
         await noter("dependancesOuvertes");
