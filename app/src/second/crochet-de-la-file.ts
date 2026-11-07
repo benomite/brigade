@@ -12,11 +12,11 @@ export const MATCHER = "startup|resume|compact";
 const DELAI_DU_CROCHET_S = 45;
 
 // Le projet tel que la file se lit : son nom, et son dépôt GitHub quand le fichier des projets le donne — sinon
-// celui de l'`origin` du dossier de la session.
-export type Cible = { nom: string; depot?: string };
+// celui de l'`origin` du dossier de la session ; `base`, sa branche d'intégration, quand il la donne (crochet-du-role.ts).
+export type Cible = { nom: string; depot?: string; base?: string };
 
 // Citée pour le shell qui joue le crochet. Sous Windows, `claude` le joue par le `bash` de Git, qui lit `C:/…`.
-const cite1 = (mot: string, separateur: string) => `'${(separateur === "\\" ? mot.replaceAll("\\", "/") : mot).replaceAll("'", `'\\''`)}'`;
+export const cite1 = (mot: string, separateur: string) => `'${(separateur === "\\" ? mot.replaceAll("\\", "/") : mot).replaceAll("'", `'\\''`)}'`;
 
 // Le crochet des réglages du second : `node file.ts <nom> <depot> <gh>`.
 export function crochetsDeLaFile(options: { node: string; gh: string; cible: Cible; script?: string; separateur?: string }): Crochets {

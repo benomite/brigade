@@ -14,6 +14,7 @@ import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import { crochetsDeLaFile } from "./second/crochet-de-la-file.ts";
+import { crochetsDuRole } from "./second/crochet-du-role.ts";
 import { crochetsDuRefus } from "./second/refus.ts";
 import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
@@ -82,7 +83,7 @@ const manquants = (tools: readonly OutilVu[]): OutilManquant[] =>
 type Tenu = Terminal & {
   dossier: string;
   // Le projet tel que la file se lit : son nom, et son dépôt GitHub quand le fichier des projets le donne.
-  cible: { nom: string; depot?: string };
+  cible: { nom: string; depot?: string; base?: string };
   colonnes: number;
   lignes: number;
   lances: number;
@@ -155,7 +156,7 @@ export function ouvrirTerminaux(options: {
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
   function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
-    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.depot === undefined ? {} : { depot: projet.depot }) }, colonnes: 80, lignes: 24, lances: 0 };
+    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.depot === undefined ? {} : { depot: projet.depot }), ...(projet.base === undefined ? {} : { base: projet.base }) }, colonnes: 80, lignes: 24, lances: 0 };
     tenus.set(tenu.id, tenu);
     return tenu;
   }
@@ -251,6 +252,10 @@ export function ouvrirTerminaux(options: {
   // second/crochet-de-la-file.ts).
   const laFile = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDeLaFile({ node: options.node, gh: options.gh ?? "gh", cible: tenu.cible }));
 
+  // Le rôle redit au prompt qui suit le merge de l'init, quand la session est née sans les bindings
+  // (second/role-apres-init.ts, déclaré par second/crochet-du-role.ts).
+  const leRole = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDuRole({ node: options.node, gh: options.gh ?? "gh", cible: tenu.cible }));
+
   // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refus.ts).
   const lesRefus = (): Crochets => (options.node === undefined ? {} : crochetsDuRefus({ node: options.node }));
 
@@ -258,7 +263,7 @@ export function ouvrirTerminaux(options: {
     tenu.titre = TITRE_SECOND;
     if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
     else tenu.note = `new session: \`claude\`, ${ROLE}`;
-    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu), lesRefus()) }), (code) => {
+    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu), lesRefus(), leRole(tenu)) }), (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
         if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;

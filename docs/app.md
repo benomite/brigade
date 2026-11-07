@@ -2352,6 +2352,17 @@ reached or refusing, or the whole reading — lists, then comments, then label e
 hook's 45 s, so that `claude` never kills it silent) is said in that context, in one line starting `file non lue :`, and
 the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
+**The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
+bindings in its context: its role stops at "type `/brigade:init`, then merge the PR". So the launch settings also carry
+`app/src/second/role-apres-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
+`## Équipe multi-agents` section — what `claude` just loaded — in a file of the computer's temporary folder, per session.
+At each of your messages (`UserPromptSubmit`), for a session born without the section only, it reads `CLAUDE.md` on the
+project's integration branch (`base`, or the repository's default branch) with `gh api`. As soon as the section is there
+— the init's PR merged — that message carries, as additional context, the role's text, the section as read on GitHub, and
+the queue read fresh: the same session answers as the second, with nothing to type or invoke. Once only; a session born
+with the section costs its messages nothing — no `gh`, no output. The hook always exits 0. Neither the role nor the end
+of `/brigade:init` points to `/brigade:po` or any V1 role, and model and effort are left to the manager.
+
 **The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
 `PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refus.ts`. It denies any
 `gh pr merge` (with flags, after `&&` or `;`, in a subshell or a `bash -c`) and any read of the chef's
@@ -2434,7 +2445,8 @@ stations replace them.
   `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
   **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
   A project's second whose `CLAUDE.md` has no bindings block says so in its first message, with this one
-  gesture: type `/brigade:init` in its tab, then merge the PR. It leaves the plugin once adding a project sets
+  gesture: type `/brigade:init` in its tab, then merge the PR — at your next message, the same session takes its role
+  again (#2689). It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in

@@ -391,4 +391,4 @@ Quatre listes, franches :
 
 **La déclaration réseau tient toujours une ligne dans le résumé**, quelle que soit la liste où elle tombe : les hôtes proposés et pourquoi, « rien à ouvrir » ou « non déterminé ». Elle est écrite dans l'arbre de travail mais **n'est effective qu'une fois mergée sur la branche d'intégration** : sous « Reste à la main », tant que ce n'est pas fait.
 
-Termine par le verdict de l'étape 7 et la commande à taper pour démarrer (`/brigade:manager`, ou `/brigade:po` si le backlog est vide).
+Termine par le verdict de l'étape 7 et le geste qui reste : merger la PR, si l'init en a ouvert une. Aucune commande de rôle à taper ensuite : dans l'onglet Second de l'app, le second reprend son rôle dès le message suivant. Pas d'offre de priorités, de modèle ni d'effort — ils sont au manager.
