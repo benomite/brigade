@@ -31,7 +31,11 @@ No command to type, no file to edit. Every screen is described in **[docs/instal
 
 ## Where brigade is going
 
-**Autonomy.** You leave brigade running, it works through everything it can do, and it calls you only for a product or design choice. Next, a team: each human has their own role on each project, and brigade brings each question to the right one. The vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/superpowers/specs/2026-11-07-vision.md).
+1. **Autonomy now:** you leave brigade running and it calls you only for a product or design choice.
+2. **Humans as stations:** each human has their own role on each project, and brigade brings each question to the right one.
+3. **Any project run on its own, later:** you create a project, talk with the second, and development moves on without you.
+
+The full vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/superpowers/specs/2026-11-07-vision.md).
 
 ## Where to read next
 
