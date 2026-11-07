@@ -158,13 +158,34 @@ describe("temps-tickets.json and the 10-minute alert read this time", () => {
     assert.match(correction.corps, /from filing \(or `fire`\) to merge, is \*\*35 min\*\*/);
     assert.match(correction.corps, /\*\*failed cooks\*\*: 30 min of these tickets' time \(29%\), a median of 10 min per ticket/);
   });
+});
 
-  test("the summary's p75 is the nearest-rank one, its median the one the alert reads", () => {
-    const tickets = [10, 12, 14, 20, 47, 60].map((minutes, rang) => ({ ticket: rang + 1, depuis: hm(8, 0), claimedAt: hm(9, 0), mergedAt: hm(8, minutes), cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, attentePrise: minutes * 60 }));
-    const resume = resumer(tickets, 10);
-    assert.equal(resume.medianMin, 17);
+// Les 40 tickets servis du 6 et du 7 novembre, tels que GitHub les a gardés
+// (`fixtures/temps-tickets-40`) : ceux que l'épique #2659 a chiffrés.
+const ENREGISTRES = (JSON.parse(readFileSync(new URL("./fixtures/temps-tickets-40/historiques.json", import.meta.url), "utf8")) as { historiques: Historique[] }).historiques;
+
+describe("brigade's 40 tickets closed on 2026-11-06 and 07, replayed from their recorded history", () => {
+  const rejoues = rejouer(ENREGISTRES);
+
+  test("the epics and the issue closed without a merge are left out, the 40 sub-tickets measured", () => {
+    assert.equal(ENREGISTRES.length, 47);
+    assert.equal(rejoues.length, 40);
+    for (const absent of [2484, 2498, 2514, 2553, 2582, 2583, 2616]) assert.ok(!rejoues.some((t) => t.ticket === absent), `#${absent}`);
+  });
+
+  test("median 14 min, p75 47 min, and the slowest phase is the wait before the claim, not cooking", () => {
+    const resume = resumer(rejoues, 10);
+    assert.equal(resume.n, 40);
+    assert.equal(resume.medianMin, 14);
     assert.equal(resume.p75Min, 47);
-    assert.equal(medianeDesRecents(tickets), 17 * 60);
-    assert.equal(resume.phaseLaPlusLongue.nom, "claim wait");
+    assert.ok(["claim wait", "failed cooks"].includes(resume.phaseLaPlusLongue.nom), resume.phaseLaPlusLongue.nom);
+    assert.deepEqual(resume.phaseLaPlusLongue, { nom: "claim wait", medianMin: 5, partPct: 54 });
+  });
+
+  test("the correction ticket they open names that phase, with its median and share", () => {
+    const correction = ticketDeCorrection(rejoues, 10);
+    assert.ok(correction !== null);
+    assert.match(correction.titre, /median 14 min over the max of 10 min — claim wait is the slowest phase/);
+    assert.match(correction.corps, /\*\*claim wait\*\*: \d+ min of these tickets' time \(54%\), a median of 5 min per ticket/);
   });
 });

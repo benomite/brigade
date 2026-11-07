@@ -11,20 +11,25 @@ const DERNIERS = 10;
 const ROUGE = "\u001b[31m";
 const FIN_ROUGE = "\u001b[0m";
 
+// Les phases d'un ticket, dans l'ordre de sa vie, et leur nom : la seule
+// liste, que lisent aussi l'alerte et le ticket de correction (`../mesure.ts`).
 // `cuissonTests` est une part de `cuisson` : elle n'est pas une phase de plus.
-// Les phases d'avant la prise, des cooks ratés et des renvois manquent aux
-// enregistrements d'avant #2662 : elles y valent 0.
-const PHASES = [
+export const PHASES = [
   ["attenteQualification", "qualification wait"],
   ["attentePrise", "claim wait"],
   ["cuissonsRatees", "failed cooks"],
-  ["cuisson", "cook"],
+  ["cuisson", "cooking"],
   ["renvois", "send-backs"],
-  ["attentePasse", "pass"],
+  ["attentePasse", "pass wait"],
   ["revue", "review"],
   ["ci", "CI"],
   ["merge", "merge"],
 ] as const;
+export type Phase = (typeof PHASES)[number][0];
+
+// Le temps d'une phase du ticket, en secondes. Celles d'avant la prise, des
+// cooks ratés et des renvois manquent aux enregistrements d'avant #2662 : 0.
+export const secondesDe = (t: TempsTicket, phase: Phase): number => t[phase] ?? 0;
 
 const minutes = (secondes: number) => `${Math.round(secondes / 60)} min`;
 
@@ -34,12 +39,12 @@ const minutes = (secondes: number) => `${Math.round(secondes / 60)} min`;
 export function dureeDuTicket(t: TempsTicket): number {
   const de = Date.parse(t.depuis ?? t.claimedAt ?? "");
   const a = Date.parse(t.mergedAt ?? "");
-  return Number.isNaN(de) || Number.isNaN(a) || a < de ? PHASES.reduce((somme, [p]) => somme + (t[p] ?? 0), 0) : (a - de) / 1000;
+  return Number.isNaN(de) || Number.isNaN(a) || a < de ? PHASES.reduce((somme, [p]) => somme + secondesDe(t, p), 0) : (a - de) / 1000;
 }
 
 export function phaseLaPlusLente(t: TempsTicket): { nom: string; secondes: number } {
-  let lente: { nom: string; secondes: number } = { nom: PHASES[0][1], secondes: t[PHASES[0][0]] ?? 0 };
-  for (const [p, nom] of PHASES) if ((t[p] ?? 0) > lente.secondes) lente = { nom, secondes: t[p] ?? 0 };
+  let lente: { nom: string; secondes: number } = { nom: PHASES[0][1], secondes: secondesDe(t, PHASES[0][0]) };
+  for (const [p, nom] of PHASES) if (secondesDe(t, p) > lente.secondes) lente = { nom, secondes: secondesDe(t, p) };
   return lente;
 }
 

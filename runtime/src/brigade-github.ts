@@ -336,14 +336,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const ouvrirLaReparation = ouvreReparation({ github, base });
   // Le parcours de chaque ticket, de sa prise à son merge, phase par phase
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
-  // Illisible, le temps part de la prise.
+  // Illisible, le temps part de la prise, et la station le dit.
   const chrono = chronometre(options.maintenant);
   const servir = async (issue: number) => {
     if (options.clone === undefined) {
       chrono.oublier(issue);
       return;
     }
-    const depot = (await github.depotDuTicket?.(issue).catch(() => null)) ?? undefined;
+    const depot =
+      (await github.depotDuTicket?.(issue).catch((erreur) => {
+        avertir(`brigade : #${issue} sur ${nom} — filing of the ticket unreadable, its time runs from its claim: ${message(erreur)}`);
+        return null;
+      })) ?? undefined;
     const temps = chrono.servir(issue, depot);
     if (temps === null) return;
     try {
@@ -469,6 +473,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         } else {
           await github.commenter(issue, `Station \`${nom}\`: the cook added nothing, and the delivery still has work left — ${fait.reste}. The ticket is given back; this is not counted as a failed cook.`);
         }
+        // Sans livraison, ce cook compte au temps du ticket comme un cook raté (#2662).
+        chrono.rater(issue);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
         return;
       }

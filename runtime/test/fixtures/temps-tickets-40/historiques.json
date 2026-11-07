@@ -1,0 +1,5963 @@
+{
+ "source": "GitHub REST API of benomite/brigade, read 2026-11-07T08:10Z: every issue closed from #2577's merge (2026-11-06T12:10:36Z) to the filing of epic #2659 (2026-11-07T07:52:52Z). For each: its filing, its labels today, its label events (labeled/unlabeled), the station's comments (first line) on the issue and on its merged PR (`surLaPr`), and that PR's merge. Epics and the issue closed without a merge are kept: the replay leaves them out.",
+ "historiques": [
+  {
+   "ticket": 2577,
+   "createdAt": "2026-11-06T11:20:00Z",
+   "closedAt": "2026-11-06T12:10:36Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:high",
+    "prio:0"
+   ],
+   "pr": 2579,
+   "mergedAt": "2026-11-06T12:10:34Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:high",
+     "createdAt": "2026-11-06T11:20:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T11:20:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T11:20:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T11:20:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T11:21:04Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T11:59:08Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:01:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:02:31Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:03:28Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:04:31Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:05:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T12:09:15Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:09:16Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T12:10:37Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T11:21:03Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T11:59:07Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T12:01:17Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T12:02:29Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T12:02:30Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T12:03:26Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T12:04:29Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T12:04:31Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T12:05:36Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=0cb5f1f9520bf360560e5bb909436cac3ea433b7 -->",
+     "createdAt": "2026-11-06T12:09:50Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2580,
+   "createdAt": "2026-11-06T12:11:33Z",
+   "closedAt": "2026-11-06T12:19:58Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2581,
+   "mergedAt": "2026-11-06T12:19:56Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T12:11:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T12:11:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T12:11:36Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T12:11:36Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:12:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T12:17:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T12:17:51Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T12:12:34Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=e2179875626af5fdec2d7729f73d3db408528ba9 -->",
+     "createdAt": "2026-11-06T12:19:19Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2587,
+   "createdAt": "2026-11-06T14:00:53Z",
+   "closedAt": "2026-11-06T14:06:54Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium"
+   ],
+   "pr": 2596,
+   "mergedAt": "2026-11-06T14:06:53Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:00:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:00:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:00:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:02:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:05:20Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:05:22Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:06:57Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:00:54Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:02:36Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=eea791981b8212f1995de43afe93d1756e4c268c -->",
+     "createdAt": "2026-11-06T14:05:50Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2585,
+   "createdAt": "2026-11-06T14:00:46Z",
+   "closedAt": "2026-11-06T14:08:43Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2597,
+   "mergedAt": "2026-11-06T14:08:42Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:00:48Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:00:48Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T14:00:48Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:02:26Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:06:51Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:06:52Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:00:47Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:02:25Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=096018d3ad3c137c7aa5ce85cb5d81f44d789133 -->",
+     "createdAt": "2026-11-06T14:07:13Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2588,
+   "createdAt": "2026-11-06T14:00:58Z",
+   "closedAt": "2026-11-06T14:12:00Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2598,
+   "mergedAt": "2026-11-06T14:11:59Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:01:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:01:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:01:01Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:07:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:08:36Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:08:37Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:00:59Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:07:02Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=c8a0c5ab7c00583bb5bd931404f82d51b2504d97 -->",
+     "createdAt": "2026-11-06T14:08:57Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2595,
+   "createdAt": "2026-11-06T14:04:18Z",
+   "closedAt": "2026-11-06T14:12:57Z",
+   "labels": [
+    "product",
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2600,
+   "mergedAt": "2026-11-06T14:12:55Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T14:04:20Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:04:20Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T14:04:20Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T14:04:36Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:04:36Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:05:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:11:11Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:11:12Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=12a60c22775fd844 jeton=63f0952f fait -->",
+     "createdAt": "2026-11-06T14:04:26Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T14:04:38Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:05:35Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=4a30586fed1f416df8fe46b1efdbbc974283cd46 -->",
+     "createdAt": "2026-11-06T14:11:38Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2589,
+   "createdAt": "2026-11-06T14:01:01Z",
+   "closedAt": "2026-11-06T14:13:03Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2599,
+   "mergedAt": "2026-11-06T14:13:01Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:01:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:01:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:01:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:08:45Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:10:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:10:03Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:01:02Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:08:44Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=99095f64284828ce197d292d78f788d26f5c4dcd -->",
+     "createdAt": "2026-11-06T14:10:25Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2591,
+   "createdAt": "2026-11-06T14:02:31Z",
+   "closedAt": "2026-11-06T14:17:53Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2601,
+   "mergedAt": "2026-11-06T14:17:52Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:02:32Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:02:32Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:02:33Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:11:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:12:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:12:50Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:02:31Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:11:21Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=ad24a43b2b7b7aa0f88afa35b0ba02dfd1915e5a -->",
+     "createdAt": "2026-11-06T14:13:18Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2586,
+   "createdAt": "2026-11-06T14:00:50Z",
+   "closedAt": "2026-11-06T14:45:04Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2602,
+   "mergedAt": "2026-11-06T14:45:02Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T14:00:51Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:00:52Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:00:52Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:02:32Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:13:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:13:04Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:00:51Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:02:31Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=43ef551bfd989bdb65fb0e38014a0c2c720e30c9 -->",
+     "createdAt": "2026-11-06T14:13:43Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2590,
+   "createdAt": "2026-11-06T14:02:27Z",
+   "closedAt": "2026-11-06T14:45:08Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2603,
+   "mergedAt": "2026-11-06T14:45:07Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:02:29Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T14:02:29Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:02:30Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:10:12Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:14:00Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:14:02Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:02:28Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:10:11Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=f8d1e8d4febb39f6fe0d232e95fdf4fc140bfede -->",
+     "createdAt": "2026-11-06T14:14:29Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2593,
+   "createdAt": "2026-11-06T14:02:37Z",
+   "closedAt": "2026-11-06T14:49:45Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2605,
+   "mergedAt": "2026-11-06T14:49:44Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:02:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:02:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:02:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:13:15Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:45:04Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:46:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:46:07Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:46:08Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:46:19Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:47:06Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:48:03Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:48:04Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:02:37Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:13:14Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:45:03Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:45:59Z"
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=40034d396ab897c797d513b001072eb8a1290050 -->",
+     "createdAt": "2026-11-06T14:46:18Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:47:05Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=3c1e9fe39e13cb7841ab37c111ae49be25de044b -->",
+     "createdAt": "2026-11-06T14:48:43Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2592,
+   "createdAt": "2026-11-06T14:02:33Z",
+   "closedAt": "2026-11-06T14:49:49Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium"
+   ],
+   "pr": 2604,
+   "mergedAt": "2026-11-06T14:49:47Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:02:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:02:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T14:02:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:13:01Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:45:01Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:45:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:46:03Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:46:04Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:46:08Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:46:27Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:48:19Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:48:20Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:49:50Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:02:34Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:12:57Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:44:59Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:45:54Z"
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=222d6364784f254fbc5c85dc0be2f40cccb42664 -->",
+     "createdAt": "2026-11-06T14:46:07Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:46:26Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=3716b652a8fe1aea0671f83ea759b39476025a58 -->",
+     "createdAt": "2026-11-06T14:48:50Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2606,
+   "createdAt": "2026-11-06T14:47:45Z",
+   "closedAt": "2026-11-06T14:54:04Z",
+   "labels": [
+    "product",
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium"
+   ],
+   "pr": 2607,
+   "mergedAt": "2026-11-06T14:54:02Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T14:47:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T14:47:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:47:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:49:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:49:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:49:48Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:52:03Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:52:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T14:54:05Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=0f1af7521bb57966 jeton=4d07a3d7 fait -->",
+     "createdAt": "2026-11-06T14:48:50Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T14:49:04Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:49:46Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=19f15ce48810d907468d34d6f9758e4e08baab69 -->",
+     "createdAt": "2026-11-06T14:52:31Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2608,
+   "createdAt": "2026-11-06T14:56:40Z",
+   "closedAt": "2026-11-06T15:02:15Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2609,
+   "mergedAt": "2026-11-06T15:02:14Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T14:56:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:56:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T14:56:42Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:56:42Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:59:04Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T15:00:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:00:52Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:59:02Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=595757a5c78b950d80d552468e83b18fc62fc29e -->",
+     "createdAt": "2026-11-06T15:01:10Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2610,
+   "createdAt": "2026-11-06T16:40:33Z",
+   "closedAt": "2026-11-06T16:46:51Z",
+   "labels": [
+    "product",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2611,
+   "mergedAt": "2026-11-06T16:46:50Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T16:40:34Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T16:40:34Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T16:40:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T16:41:11Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T16:41:11Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:42:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T16:45:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:45:11Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=a3f04ac5f49af1b6 jeton=985cf255 fait -->",
+     "createdAt": "2026-11-06T16:41:03Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T16:41:12Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:42:21Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=73267960782e49df2a6a8cf4c4d20cfb17ccb6f3 -->",
+     "createdAt": "2026-11-06T16:45:48Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2557,
+   "createdAt": "2026-11-06T06:45:40Z",
+   "closedAt": "2026-11-06T16:47:38Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design",
+    "in-pass"
+   ],
+   "pr": 2561,
+   "mergedAt": "2026-11-06T16:47:36Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T06:45:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T06:45:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T06:45:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T06:45:42Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:50:45Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:53:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:53:19Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:54:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:54:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:55:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:55:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:55:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:56:33Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:59:52Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:00:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:01:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:03:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T07:04:42Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:04:45Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T16:40:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:45:27Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:46:21Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:47:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T16:47:31Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:47:32Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T06:45:41Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:50:44Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=ca8cd6ac50d0f346bb4ba56fae35baa1cf3e998b -->",
+     "createdAt": "2026-11-06T06:53:41Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=ca8cd6ac50d0f346bb4ba56fae35baa1cf3e998b -->",
+     "createdAt": "2026-11-06T06:54:22Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:54:57Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:56:32Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T06:59:50Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:59:52Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T07:00:04Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T07:01:52Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T07:01:53Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T07:03:36Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=3 -->",
+     "createdAt": "2026-11-06T07:04:42Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T07:04:44Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T07:05:19Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:45:26Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T16:46:18Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:46:20Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:46:58Z"
+    },
+    {
+     "body": "<!-- brigade:reponse-cook sha=a2f27b1566e45d7204372c6f878a479acc44d84f -->",
+     "createdAt": "2026-11-06T16:47:29Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2558,
+   "createdAt": "2026-11-06T06:45:42Z",
+   "closedAt": "2026-11-06T16:54:05Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2562,
+   "mergedAt": "2026-11-06T16:54:03Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T06:45:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T06:45:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T06:45:44Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:51:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:54:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:54:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:54:39Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:55:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:56:59Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:57:00Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:57:31Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:00:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:00:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:01:23Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:02:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:05:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T07:11:15Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T07:11:16Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T07:11:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T07:11:51Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T16:40:25Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:47:45Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:51:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T16:51:50Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T06:45:43Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:51:23Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=3e42a7d4200690a18ff0360e6aa151f16114465a -->",
+     "createdAt": "2026-11-06T06:54:35Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=3e42a7d4200690a18ff0360e6aa151f16114465a -->",
+     "createdAt": "2026-11-06T06:54:38Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:55:17Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=558acb1c2c53d2a2167227a0fcdb1d30157aa317 -->",
+     "createdAt": "2026-11-06T06:57:26Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=558acb1c2c53d2a2167227a0fcdb1d30157aa317 -->",
+     "createdAt": "2026-11-06T06:57:30Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T07:00:09Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T07:00:52Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T07:00:54Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T07:01:20Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T07:02:07Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T07:02:08Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T07:05:22Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=f8b89987fa9c0e49cfa7a15b1c5c3b1599e14894 -->",
+     "createdAt": "2026-11-06T07:11:45Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=3 sha=f8b89987fa9c0e49cfa7a15b1c5c3b1599e14894 -->",
+     "createdAt": "2026-11-06T07:11:48Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T07:12:27Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:47:43Z"
+    },
+    {
+     "body": "<!-- brigade:reponse-cook sha=6cdab3d5bc19283b0fa0377f2fef5bfa1c45d837 -->",
+     "createdAt": "2026-11-06T16:51:47Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=6cdab3d5bc19283b0fa0377f2fef5bfa1c45d837 -->",
+     "createdAt": "2026-11-06T16:52:13Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2464,
+   "createdAt": "2026-11-05T18:57:16Z",
+   "closedAt": "2026-11-06T16:59:42Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:opus",
+    "effort:high"
+   ],
+   "pr": 2513,
+   "mergedAt": "2026-11-06T16:59:40Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-05T18:57:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-05T18:57:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-05T18:57:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:high",
+     "createdAt": "2026-11-05T18:57:19Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T18:58:29Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T19:48:05Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T19:57:56Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T20:26:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T20:29:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:08:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:09:11Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:37:05Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:42:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T22:16:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T22:16:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T22:17:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T22:18:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T22:50:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T23:03:06Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T23:14:06Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T23:22:34Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T00:22:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T00:23:01Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T00:29:51Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T01:01:32Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T01:04:19Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T01:35:57Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T01:40:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T02:10:21Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T02:15:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T02:18:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T03:00:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T03:30:53Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T03:46:45Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T04:16:57Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T04:32:07Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T05:02:19Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T05:26:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T05:27:24Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:01:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:02:22Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:12:19Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:12:20Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:13:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:16:32Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:26:56Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:26:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T06:29:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:29:11Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T16:40:31Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:42:29Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T16:57:51Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:57:52Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T16:59:43Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-05T18:57:17Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T18:58:28Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T19:48:04Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T19:57:54Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T20:26:43Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T20:29:04Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-05T21:08:39Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:08:40Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:09:10Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:37:05Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:42:21Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=8fe9b620f9ea5bc226f6f20ac6df67516d04ead5 -->",
+     "createdAt": "2026-11-05T22:17:09Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=8fe9b620f9ea5bc226f6f20ac6df67516d04ead5 -->",
+     "createdAt": "2026-11-05T22:17:12Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T22:18:04Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T22:50:24Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T23:03:05Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T23:14:05Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T23:22:32Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T00:22:41Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T00:22:43Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T00:23:00Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793926788997 -->",
+     "createdAt": "2026-11-06T00:29:49Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T00:29:50Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T01:01:30Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793928857199 -->",
+     "createdAt": "2026-11-06T01:04:17Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T01:04:18Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T01:35:55Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793931006675 -->",
+     "createdAt": "2026-11-06T01:40:07Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T01:40:08Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T02:10:18Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T02:15:49Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T02:18:00Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793935837543 -->",
+     "createdAt": "2026-11-06T03:00:38Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T03:00:39Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T03:30:51Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793938603484 -->",
+     "createdAt": "2026-11-06T03:46:43Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T03:46:45Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T04:16:55Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793941324543 -->",
+     "createdAt": "2026-11-06T04:32:05Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T04:32:06Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T05:02:18Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T05:26:39Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T05:27:23Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:01:37Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:02:21Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=9c8fdc8b391ac4bddd3942cc84dd3e52bd61d5eb -->",
+     "createdAt": "2026-11-06T06:13:55Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=9c8fdc8b391ac4bddd3942cc84dd3e52bd61d5eb -->",
+     "createdAt": "2026-11-06T06:13:58Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:16:30Z"
+    },
+    {
+     "body": "<!-- brigade:renvoi n=3 sha=e748336c35063df3edf4f4e7f9b0245abb9ffd4c -->",
+     "createdAt": "2026-11-06T06:29:09Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T06:29:48Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:42:27Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2594,
+   "createdAt": "2026-11-06T14:02:39Z",
+   "closedAt": "2026-11-06T17:03:48Z",
+   "labels": [
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2612,
+   "mergedAt": "2026-11-06T17:03:46Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T14:02:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T14:02:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T14:02:42Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:14:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:14:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:15:21Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:15:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:16:37Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:17:12Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:45:12Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:45:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:46:15Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:46:21Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:47:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:47:44Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:48:13Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:48:26Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:49:06Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:49:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:50:29Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:51:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:51:44Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:52:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:52:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:53:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:54:06Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:54:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:55:22Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:55:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:56:54Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T14:58:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:01:01Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:01:36Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:02:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:02:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:03:34Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:04:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:04:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:06:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:09:07Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:11:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:13:25Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:15:31Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:17:43Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:19:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:22:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:46:10Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:48:22Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:50:28Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:52:41Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:54:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:56:59Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T15:59:06Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:01:19Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:03:25Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:05:38Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:07:44Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:09:57Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:12:04Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:14:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:16:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:18:35Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:20:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:22:54Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:25:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:27:13Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:29:19Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:31:32Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:33:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:35:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:37:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:40:09Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:42:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:47:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:48:26Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:49:21Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:49:58Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:52:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:52:36Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:53:27Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:54:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:54:56Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:55:30Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:56:23Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:56:58Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:58:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:00:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:00:20Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:00:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:01:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:02:38Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:02:40Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T14:02:40Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:14:09Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T14:14:41Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:14:42Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:15:19Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:15:54Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:16:35Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:17:11Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:45:11Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:45:46Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:46:13Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:46:21Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:47:09Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:47:43Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:48:11Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:48:25Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:49:04Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:49:42Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:50:27Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:51:02Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:51:42Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:52:08Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:52:47Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:53:23Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:54:04Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:54:40Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:55:21Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:55:56Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T14:56:53Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T14:58:58Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:00:59Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:01:35Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:02:16Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:02:53Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:03:33Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:04:08Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:04:48Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:06:54Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:09:06Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:11:12Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:13:24Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:15:30Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:17:42Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:19:49Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:22:00Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:46:09Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:48:20Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:50:27Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:52:39Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:54:46Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T15:56:58Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T15:59:05Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:01:17Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:03:24Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:05:36Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:07:43Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:09:55Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:12:03Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:14:15Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:16:22Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:18:34Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:20:40Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:22:53Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:25:00Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:27:12Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:29:18Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:31:31Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:33:37Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:35:49Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:37:55Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:40:08Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:42:17Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:47:49Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:48:25Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:49:19Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:49:57Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:52:01Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:52:35Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:53:26Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:54:01Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:54:54Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:55:29Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:56:22Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:56:57Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:58:23Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=6e0f96288ce6c43e3cfa9561d23eb730af8fb73b -->",
+     "createdAt": "2026-11-06T17:00:55Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=6e0f96288ce6c43e3cfa9561d23eb730af8fb73b -->",
+     "createdAt": "2026-11-06T17:00:58Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:01:37Z"
+    },
+    {
+     "body": "<!-- brigade:reponse-cook sha=2f552f10e4be37b5d620069a6a9896566e709e77 -->",
+     "createdAt": "2026-11-06T17:02:34Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=2f552f10e4be37b5d620069a6a9896566e709e77 -->",
+     "createdAt": "2026-11-06T17:03:15Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2479,
+   "createdAt": "2026-11-05T20:27:55Z",
+   "closedAt": "2026-11-06T17:06:23Z",
+   "labels": [
+    "prio:2",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2613,
+   "mergedAt": "2026-11-06T17:06:21Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-05T20:27:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-05T20:27:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-05T20:27:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-05T20:27:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:23:08Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:24:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:26:09Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:27:29Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:37:15Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-05T21:37:59Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:38:01Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-05T21:47:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:2",
+     "createdAt": "2026-11-05T21:47:14Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T06:09:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:26:03Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:26:52Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:27:06Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:28:07Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:28:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T06:29:16Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:29:19Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T16:40:29Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:45:20Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:46:06Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:46:53Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:47:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:48:34Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:49:10Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:50:06Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:51:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:52:42Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:53:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:54:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:54:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:55:37Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:56:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:57:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:57:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:58:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:02:01Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:02:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:02:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:03:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:05:07Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:05:08Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-05T20:27:56Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:23:07Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-05T21:24:35Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:24:36Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:26:08Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-05T21:27:26Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:27:28Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:37:13Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=3 -->",
+     "createdAt": "2026-11-05T21:37:58Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:38:00Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-05T21:38:42Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:26:02Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T06:26:49Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:26:50Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:27:05Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T06:28:05Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:28:07Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:28:12Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=3 -->",
+     "createdAt": "2026-11-06T06:29:16Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:29:18Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:45:19Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:46:05Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:46:52Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:47:34Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:48:32Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:49:09Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:50:04Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:51:53Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:52:40Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:53:17Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:54:09Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:54:46Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:55:36Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:56:12Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:57:04Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:57:55Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:58:16Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=a03647711fadc5658c6a5f65a5122ac4e5e72b83 -->",
+     "createdAt": "2026-11-06T17:02:24Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=a03647711fadc5658c6a5f65a5122ac4e5e72b83 -->",
+     "createdAt": "2026-11-06T17:02:42Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:03:07Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2614,
+   "createdAt": "2026-11-06T17:02:54Z",
+   "closedAt": "2026-11-06T17:10:53Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2615,
+   "mergedAt": "2026-11-06T17:10:51Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T17:02:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T17:02:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T17:02:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T17:02:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:03:48Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:09:14Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:09:15Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:03:47Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=e72efc5dd4bf19a30aee8bd1fc736ed2aaa909e0 -->",
+     "createdAt": "2026-11-06T17:10:28Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2616,
+   "createdAt": "2026-11-06T17:09:25Z",
+   "closedAt": "2026-11-06T17:14:47Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T17:09:27Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T17:09:27Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T17:09:28Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T17:09:28Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:10:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:11:48Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:11:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:11:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:12:32Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:13:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:13:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:14:40Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:14:41Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:10:12Z"
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=2228e1bf46585776912a1204fb52ebb910c7dce8 -->",
+     "createdAt": "2026-11-06T17:11:52Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:12:31Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T17:13:09Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:13:45Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2619,
+   "createdAt": "2026-11-06T17:43:00Z",
+   "closedAt": "2026-11-06T17:49:14Z",
+   "labels": [
+    "product",
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2620,
+   "mergedAt": "2026-11-06T17:49:12Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T17:43:01Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T17:43:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T17:43:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T17:43:34Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T17:43:34Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:45:11Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:47:44Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:47:45Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=1bfe68d1dbb2cf1b jeton=84dbe6b7 fait -->",
+     "createdAt": "2026-11-06T17:43:23Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T17:43:35Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:45:10Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=dda7c35056ad174c3362ad7a46577e03577c8828 -->",
+     "createdAt": "2026-11-06T17:48:15Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2621,
+   "createdAt": "2026-11-06T17:51:45Z",
+   "closedAt": "2026-11-06T18:03:55Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2624,
+   "mergedAt": "2026-11-06T18:03:53Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T17:51:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T17:51:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T17:51:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T17:51:47Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:54:01Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:02:34Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:02:35Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:54:00Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=d75d1191b15cfafcc0a27a89b4ca9417809872d8 -->",
+     "createdAt": "2026-11-06T18:03:00Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2478,
+   "createdAt": "2026-11-05T20:27:52Z",
+   "closedAt": "2026-11-06T18:04:29Z",
+   "labels": [
+    "prio:2",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design",
+    "in-pass"
+   ],
+   "pr": 2499,
+   "mergedAt": "2026-11-06T18:04:27Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-05T20:27:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-05T20:27:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-05T20:27:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-05T20:27:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-05T20:27:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:21:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T21:22:59Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:23:00Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T21:23:39Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:24:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:37:11Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:46:36Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-05T21:47:11Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:2",
+     "createdAt": "2026-11-05T21:47:11Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:47:33Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:54:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T21:55:12Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:55:13Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T21:55:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T21:58:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T22:00:15Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-05T22:00:16Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-05T22:00:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-05T22:00:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T06:09:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:24:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:25:55Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:25:56Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:26:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:27:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:28:29Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:28:30Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T06:32:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:33:15Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:45:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:47:32Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:48:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:49:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:50:32Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:50:39Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T06:51:16Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T06:51:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T16:40:27Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:42:34Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:43:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:44:45Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:45:16Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:46:11Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T16:46:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:16:45Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:17:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:47:24Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:47:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:48:32Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:49:00Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:49:14Z"
+    },
+    {
+     "event": "labeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T17:49:45Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:49:47Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "hors-cuisine",
+     "createdAt": "2026-11-06T17:52:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:52:02Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-05T20:27:53Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:21:45Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=d7b927328363c4545e502dab828995d634449b59 -->",
+     "createdAt": "2026-11-05T21:23:35Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=d7b927328363c4545e502dab828995d634449b59 -->",
+     "createdAt": "2026-11-05T21:23:38Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:24:49Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:37:10Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:46:34Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-05T21:47:31Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-05T21:47:32Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:54:17Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=5c11b320207ae544e54f244a0953e51823fb01ae -->",
+     "createdAt": "2026-11-05T21:55:37Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=5c11b320207ae544e54f244a0953e51823fb01ae -->",
+     "createdAt": "2026-11-05T21:55:40Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-05T21:58:52Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=f23d3c6d64ff078f07f6c182e0f0385c2f3b6407 -->",
+     "createdAt": "2026-11-05T22:00:44Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=3 sha=f23d3c6d64ff078f07f6c182e0f0385c2f3b6407 -->",
+     "createdAt": "2026-11-05T22:00:48Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-05T22:01:46Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:24:56Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=8095a0096bf3b732a69705b201b7028addbe7933 -->",
+     "createdAt": "2026-11-06T06:26:19Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=8095a0096bf3b732a69705b201b7028addbe7933 -->",
+     "createdAt": "2026-11-06T06:26:22Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:27:01Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=6e4a953c956a28815cdf353f898ae4863ebbd36b -->",
+     "createdAt": "2026-11-06T06:28:56Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=6e4a953c956a28815cdf353f898ae4863ebbd36b -->",
+     "createdAt": "2026-11-06T06:32:36Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:33:14Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:45:23Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:47:31Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T06:47:58Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:47:59Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:49:49Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T06:50:30Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:50:31Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T06:50:38Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=3 -->",
+     "createdAt": "2026-11-06T06:51:15Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T06:51:17Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:42:33Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T16:43:06Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:43:08Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:44:43Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T16:45:14Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:45:15Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T16:46:10Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793985394416 court -->",
+     "createdAt": "2026-11-06T16:46:35Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T16:46:36Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:16:44Z"
+    },
+    {
+     "body": "<!-- brigade:attente until=1793987235827 court -->",
+     "createdAt": "2026-11-06T17:17:16Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T17:17:17Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:47:23Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=3 -->",
+     "createdAt": "2026-11-06T17:47:53Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T17:47:54Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:48:30Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=4 -->",
+     "createdAt": "2026-11-06T17:48:58Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T17:48:59Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:49:13Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=5 -->",
+     "createdAt": "2026-11-06T17:49:44Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T17:49:46Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2622,
+   "createdAt": "2026-11-06T17:52:06Z",
+   "closedAt": "2026-11-06T18:04:32Z",
+   "labels": [
+    "product",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "prio:0",
+    "in-pass"
+   ],
+   "pr": 2623,
+   "mergedAt": "2026-11-06T18:04:30Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T17:52:08Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T17:52:08Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T17:52:08Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T17:53:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T17:53:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:54:05Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T17:57:41Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T17:57:42Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=d7926bb3b3cc94e1 jeton=5b46564a fait -->",
+     "createdAt": "2026-11-06T17:53:09Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T17:53:19Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T17:54:04Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=3ea4ddb51e4b2f727b56525a7d9e3b0abb2fa7ad -->",
+     "createdAt": "2026-11-06T17:58:09Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2626,
+   "createdAt": "2026-11-06T18:16:51Z",
+   "closedAt": "2026-11-06T18:22:49Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2630,
+   "mergedAt": "2026-11-06T18:22:48Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T18:16:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:16:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T18:16:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T18:16:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:18:13Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:21:28Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:21:29Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T18:16:52Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:18:12Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=666db665d8efc2fe578ed62ce0212d7c83f12d27 -->",
+     "createdAt": "2026-11-06T18:22:09Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2625,
+   "createdAt": "2026-11-06T18:15:39Z",
+   "closedAt": "2026-11-06T18:25:00Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0"
+   ],
+   "pr": 2631,
+   "mergedAt": "2026-11-06T18:24:59Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T18:15:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T18:15:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:15:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T18:15:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:18:07Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:23:30Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:23:31Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:25:03Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:18:05Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=258e026e4db8596a7df47c48d6c8386a19c44ff9 -->",
+     "createdAt": "2026-11-06T18:24:01Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2629,
+   "createdAt": "2026-11-06T18:17:00Z",
+   "closedAt": "2026-11-06T18:27:44Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "in-pass"
+   ],
+   "pr": 2633,
+   "mergedAt": "2026-11-06T18:27:42Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T18:17:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:17:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T18:17:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T18:17:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:23:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:25:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:25:06Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T18:17:01Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:23:42Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=492e4afbe2ee0a66114ab2d3f8e77bbfebe0a526 -->",
+     "createdAt": "2026-11-06T18:25:35Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2628,
+   "createdAt": "2026-11-06T18:16:57Z",
+   "closedAt": "2026-11-06T18:29:10Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design"
+   ],
+   "pr": 2635,
+   "mergedAt": "2026-11-06T18:29:08Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T18:16:58Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T18:16:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T18:16:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:16:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T18:16:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:21:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:26:57Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:26:58Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:29:11Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T18:16:58Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:21:39Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=bc8d12d1b48adb7dae5ef509d77c8fbeff782317 -->",
+     "createdAt": "2026-11-06T18:27:35Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2636,
+   "createdAt": "2026-11-06T18:37:01Z",
+   "closedAt": "2026-11-06T18:42:52Z",
+   "labels": [
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "prio:0"
+   ],
+   "pr": 2637,
+   "mergedAt": "2026-11-06T18:42:50Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T18:37:02Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T18:37:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:37:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T18:37:03Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:37:59Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:41:11Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:41:12Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:42:54Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:37:57Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=75256a7dc96f854597142224b2a7c1c1a6186124 -->",
+     "createdAt": "2026-11-06T18:41:31Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2578,
+   "createdAt": "2026-11-06T11:22:25Z",
+   "closedAt": "2026-11-06T18:47:25Z",
+   "labels": [
+    "product",
+    "prio:2",
+    "fire",
+    "model:sonnet",
+    "effort:medium"
+   ],
+   "pr": 2634,
+   "mergedAt": "2026-11-06T18:47:24Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:2",
+     "createdAt": "2026-11-06T13:46:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T13:46:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T13:46:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T18:17:21Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:17:21Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:24:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:25:26Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:25:27Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:27:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:28:30Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:35:28Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:35:30Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:43:33Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:44:21Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:45:58Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:45:59Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:47:28Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=7170683a60f1d920 jeton=8d9fddb2 fait -->",
+     "createdAt": "2026-11-06T18:17:08Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T18:17:23Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:24:21Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=af9033a9ee2e2d5c89f39d4743efcc8a7283b3fb -->",
+     "createdAt": "2026-11-06T18:25:51Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=af9033a9ee2e2d5c89f39d4743efcc8a7283b3fb -->",
+     "createdAt": "2026-11-06T18:27:42Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:28:29Z"
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=9c8fc102beca32461ebda78f9b34890b3dc896a6 -->",
+     "createdAt": "2026-11-06T18:43:33Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:44:20Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2627,
+   "createdAt": "2026-11-06T18:16:55Z",
+   "closedAt": "2026-11-06T18:51:10Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "cook:design",
+    "in-pass"
+   ],
+   "pr": 2632,
+   "mergedAt": "2026-11-06T18:51:08Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T18:16:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T18:16:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T18:16:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T18:16:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T18:16:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:18:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:24:09Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:24:10Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:25:05Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:25:18Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:40:46Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:40:47Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:41:17Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:42:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T18:48:21Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T18:48:22Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T18:16:56Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:18:17Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=130c35bdcd6ab9a8db3fedd49c919afe60e5537c -->",
+     "createdAt": "2026-11-06T18:24:59Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=130c35bdcd6ab9a8db3fedd49c919afe60e5537c -->",
+     "createdAt": "2026-11-06T18:25:04Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:25:16Z"
+    },
+    {
+     "body": "<!-- brigade:reponse-cook sha=ea4259b4498fa67e45b231680a2de8db7243608e -->",
+     "createdAt": "2026-11-06T18:40:41Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=ea4259b4498fa67e45b231680a2de8db7243608e -->",
+     "createdAt": "2026-11-06T18:41:16Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=ea4259b4498fa67e45b231680a2de8db7243608e -->",
+     "createdAt": "2026-11-06T18:41:31Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T18:42:08Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2639,
+   "createdAt": "2026-11-06T20:12:36Z",
+   "closedAt": "2026-11-06T20:25:21Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design"
+   ],
+   "pr": 2647,
+   "mergedAt": "2026-11-06T20:25:19Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T20:12:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:38Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:14:11Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:15:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:15:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:16:25Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:16:55Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:20:49Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:20:50Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:21:39Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:22:17Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:23:47Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:23:48Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:25:22Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:36Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:14:10Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=0b77770c0f30aaf63434c85d4b2a162cb9ae63d1 -->",
+     "createdAt": "2026-11-06T20:16:21Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=0b77770c0f30aaf63434c85d4b2a162cb9ae63d1 -->",
+     "createdAt": "2026-11-06T20:16:24Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:16:53Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=dda4a85b493a93bb9ac9c60496d2c3a023782230 -->",
+     "createdAt": "2026-11-06T20:21:35Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=dda4a85b493a93bb9ac9c60496d2c3a023782230 -->",
+     "createdAt": "2026-11-06T20:21:38Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:22:16Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=28b838b6a7e5d6d38f4f8ef658ed711297f0fd40 -->",
+     "createdAt": "2026-11-06T20:24:15Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2641,
+   "createdAt": "2026-11-06T20:12:41Z",
+   "closedAt": "2026-11-06T20:25:53Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "cook:design"
+   ],
+   "pr": 2648,
+   "mergedAt": "2026-11-06T20:25:52Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T20:12:42Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:42Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:43Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:16:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:18:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:18:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:18:58Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:19:23Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:24:24Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:24:25Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:25:54Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:42Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:16:08Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=2f509018aab442296407b5c1e300f38bee27a89c -->",
+     "createdAt": "2026-11-06T20:18:54Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=2f509018aab442296407b5c1e300f38bee27a89c -->",
+     "createdAt": "2026-11-06T20:18:57Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:19:22Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=308dcf1e52ce20473dc5ed5dfdff09eb074ba859 -->",
+     "createdAt": "2026-11-06T20:24:49Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2642,
+   "createdAt": "2026-11-06T20:12:44Z",
+   "closedAt": "2026-11-06T20:30:36Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design"
+   ],
+   "pr": 2651,
+   "mergedAt": "2026-11-06T20:30:34Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:45Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:45Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T20:12:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:24:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:28:04Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:28:05Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:30:37Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:44Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:24:39Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=5c831846059b1271aa3ae7f630a139768700773d -->",
+     "createdAt": "2026-11-06T20:29:08Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2640,
+   "createdAt": "2026-11-06T20:12:39Z",
+   "closedAt": "2026-11-06T20:31:18Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design",
+    "in-pass"
+   ],
+   "pr": 2650,
+   "mergedAt": "2026-11-06T20:31:16Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T20:12:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:40Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:14:16Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:14:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:16:04Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:16:32Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:18:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:22:01Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:22:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:22:34Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:24:04Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:27:02Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:27:03Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:27:49Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:28:17Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:29:08Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:29:09Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:39Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:14:15Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=1 -->",
+     "createdAt": "2026-11-06T20:14:52Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T20:14:54Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:16:03Z"
+    },
+    {
+     "body": "<!-- brigade:echec n=2 -->",
+     "createdAt": "2026-11-06T20:16:29Z"
+    },
+    {
+     "body": "<!-- brigade:lache station=box/claude -->",
+     "createdAt": "2026-11-06T20:16:31Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:18:35Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=59a5a0873bc966d776d1ee66b596dce86df27884 -->",
+     "createdAt": "2026-11-06T20:22:30Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=59a5a0873bc966d776d1ee66b596dce86df27884 -->",
+     "createdAt": "2026-11-06T20:22:33Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:24:02Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=91a177a784febbd05dc6355c7be18c50e3cb5694 -->",
+     "createdAt": "2026-11-06T20:27:32Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=91a177a784febbd05dc6355c7be18c50e3cb5694 -->",
+     "createdAt": "2026-11-06T20:27:48Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:28:16Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2645,
+   "createdAt": "2026-11-06T20:12:52Z",
+   "closedAt": "2026-11-06T20:35:44Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design",
+    "in-pass"
+   ],
+   "pr": 2653,
+   "mergedAt": "2026-11-06T20:35:43Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:53Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T20:12:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:30:41Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:32:25Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:32:26Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:53Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:30:40Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=e0481e3df9c3a6f3779fcf322837aa7605e3ca2c -->",
+     "createdAt": "2026-11-06T20:32:53Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2646,
+   "createdAt": "2026-11-06T20:12:55Z",
+   "closedAt": "2026-11-06T20:37:08Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design"
+   ],
+   "pr": 2655,
+   "mergedAt": "2026-11-06T20:37:07Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T20:12:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:56Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:57Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:32:46Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:34:42Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:34:43Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:37:10Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:56Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:32:45Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=ee322761554b714a7a23feee7b830601884c65cf -->",
+     "createdAt": "2026-11-06T20:35:20Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2638,
+   "createdAt": "2026-11-06T20:12:33Z",
+   "closedAt": "2026-11-06T20:41:30Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:opus",
+    "effort:medium",
+    "cook:design",
+    "in-pass"
+   ],
+   "pr": 2649,
+   "mergedAt": "2026-11-06T20:41:29Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:34Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:opus",
+     "createdAt": "2026-11-06T20:12:35Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:14:07Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:19:12Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:19:13Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:19:58Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:21:05Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:32:25Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:32:26Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:32:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:33:52Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:36:13Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:36:14Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:34Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:14:05Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=fcc59195d9794d58c87573e8f9ea159b09ecefa1 -->",
+     "createdAt": "2026-11-06T20:19:54Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=fcc59195d9794d58c87573e8f9ea159b09ecefa1 -->",
+     "createdAt": "2026-11-06T20:19:57Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:21:03Z"
+    },
+    {
+     "body": "<!-- brigade:reponse-cook sha=642e6f814c7d21f4bd93d654fc900489c521f94f -->",
+     "createdAt": "2026-11-06T20:32:21Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=2 sha=642e6f814c7d21f4bd93d654fc900489c521f94f -->",
+     "createdAt": "2026-11-06T20:32:49Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=642e6f814c7d21f4bd93d654fc900489c521f94f -->",
+     "createdAt": "2026-11-06T20:33:02Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:33:51Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2644,
+   "createdAt": "2026-11-06T20:12:49Z",
+   "closedAt": "2026-11-06T20:41:34Z",
+   "labels": [
+    "prio:1",
+    "fire",
+    "model:sonnet",
+    "effort:medium",
+    "cook:design"
+   ],
+   "pr": 2654,
+   "mergedAt": "2026-11-06T20:41:32Z",
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:1",
+     "createdAt": "2026-11-06T20:12:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "cook:design",
+     "createdAt": "2026-11-06T20:12:51Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T20:12:51Z"
+    },
+    {
+     "event": "labeled",
+     "label": "effort:medium",
+     "createdAt": "2026-11-06T20:12:51Z"
+    },
+    {
+     "event": "labeled",
+     "label": "model:sonnet",
+     "createdAt": "2026-11-06T20:12:51Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:29:21Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:33:37Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:33:39Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:34:10Z"
+    },
+    {
+     "event": "labeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:34:50Z"
+    },
+    {
+     "event": "labeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:37:17Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "taken",
+     "createdAt": "2026-11-06T20:37:18Z"
+    },
+    {
+     "event": "unlabeled",
+     "label": "in-pass",
+     "createdAt": "2026-11-06T20:41:35Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:fiche -->",
+     "createdAt": "2026-11-06T20:12:50Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:29:19Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=request-changes sha=e433d7be7cf54b58ce0513efa8e6aef5a3d936fc -->",
+     "createdAt": "2026-11-06T20:34:06Z",
+     "surLaPr": true
+    },
+    {
+     "body": "<!-- brigade:renvoi n=1 sha=e433d7be7cf54b58ce0513efa8e6aef5a3d936fc -->",
+     "createdAt": "2026-11-06T20:34:09Z"
+    },
+    {
+     "body": "<!-- brigade:prise station=box/claude -->",
+     "createdAt": "2026-11-06T20:34:49Z"
+    },
+    {
+     "body": "<!-- brigade:verdict station=box/claude verdict=approve sha=c8f88c80b1c341516afdafb0ffa4bcaa59dd3cca -->",
+     "createdAt": "2026-11-06T20:37:48Z",
+     "surLaPr": true
+    }
+   ]
+  },
+  {
+   "ticket": 2583,
+   "createdAt": "2026-11-06T13:41:20Z",
+   "closedAt": "2026-11-07T07:44:37Z",
+   "labels": [
+    "product",
+    "fire",
+    "prio:0"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T13:41:22Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T13:41:22Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T13:41:22Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=19216bfff43a8dba jeton=ccb0bf2c fait -->",
+     "createdAt": "2026-11-06T14:01:07Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T14:02:42Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2582,
+   "createdAt": "2026-11-06T13:41:18Z",
+   "closedAt": "2026-11-07T07:44:39Z",
+   "labels": [
+    "product",
+    "fire",
+    "prio:0"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T13:41:19Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T13:41:19Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T13:41:19Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager-prise station=box/claude etat=470ff9c4b462f04c jeton=94637cbe fait -->",
+     "createdAt": "2026-11-06T13:59:26Z"
+    },
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T14:01:04Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2553,
+   "createdAt": "2026-11-06T06:40:07Z",
+   "closedAt": "2026-11-07T07:44:42Z",
+   "labels": [
+    "product",
+    "fire",
+    "prio:0"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-06T06:40:08Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-06T06:40:09Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-06T06:40:09Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-06T06:45:48Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2514,
+   "createdAt": "2026-11-05T22:24:24Z",
+   "closedAt": "2026-11-07T07:44:44Z",
+   "labels": [
+    "product",
+    "fire",
+    "prio:0"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-05T22:24:24Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:0",
+     "createdAt": "2026-11-05T22:24:25Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-05T22:24:25Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-05T22:52:17Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2498,
+   "createdAt": "2026-11-05T21:22:53Z",
+   "closedAt": "2026-11-07T07:44:47Z",
+   "labels": [
+    "product",
+    "prio:2",
+    "fire"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-05T21:22:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "prio:2",
+     "createdAt": "2026-11-05T21:22:54Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-05T21:22:54Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-05T21:25:15Z"
+    }
+   ]
+  },
+  {
+   "ticket": 2484,
+   "createdAt": "2026-11-05T21:03:36Z",
+   "closedAt": "2026-11-07T07:44:50Z",
+   "labels": [
+    "product",
+    "prio:2",
+    "fire"
+   ],
+   "pr": null,
+   "mergedAt": null,
+   "evenements": [
+    {
+     "event": "labeled",
+     "label": "prio:2",
+     "createdAt": "2026-11-05T21:03:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "product",
+     "createdAt": "2026-11-05T21:03:37Z"
+    },
+    {
+     "event": "labeled",
+     "label": "fire",
+     "createdAt": "2026-11-05T21:03:38Z"
+    }
+   ],
+   "commentaires": [
+    {
+     "body": "<!-- brigade:manager -->",
+     "createdAt": "2026-11-05T21:06:22Z"
+    }
+   ]
+  }
+ ]
+}

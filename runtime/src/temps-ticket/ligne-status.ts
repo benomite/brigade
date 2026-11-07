@@ -6,28 +6,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dureeDuTicket as duree, MAX_PAR_DEFAUT_MIN, maxDuProjet } from "../temps-max/mesure.ts";
 import { ticketsDuFichier } from "./mesure.ts";
+import type { EnregistrementTemps } from "./synthese.ts";
 
 const DERNIERS = 10;
 
-// `depuis` et les phases d'avant la prise, des cooks ratés et des renvois :
-// depuis #2662 (`mesure.ts`), absents des enregistrements d'avant.
-export type TempsTicket = {
-  ticket: number;
-  depuis?: string;
-  attenteQualification?: number;
-  attentePrise?: number;
-  cuissonsRatees?: number;
-  renvois?: number;
-  phases?: { nom: string; minutes: number }[];
-  claimedAt?: string;
-  mergedAt?: string;
-  cuisson: number;
-  cuissonTests: number;
-  attentePasse: number;
-  revue: number;
-  ci: number;
-  merge: number;
-};
+// Un enregistrement de `temps-tickets.json` (`synthese.ts`) tel que l'écran le
+// lit : ses dates peuvent manquer.
+export type TempsTicket = Omit<EnregistrementTemps, "claimedAt" | "mergedAt"> & Partial<Pick<EnregistrementTemps, "claimedAt" | "mergedAt">>;
 
 const PHASES = ["cuisson", "attentePasse", "revue", "ci", "merge"] as const;
 
@@ -40,7 +25,6 @@ function mediane(valeurs: number[]): number {
   const m = tri.length >> 1;
   return tri.length % 2 === 1 ? (tri[m] ?? 0) : ((tri[m - 1] ?? 0) + (tri[m] ?? 0)) / 2;
 }
-
 
 export function direLesTempsDesTickets(enregistrements: TempsTicket[], maxMin: number = MAX_PAR_DEFAUT_MIN): string {
   if (enregistrements.length === 0) return "tickets: no measured ticket yet";

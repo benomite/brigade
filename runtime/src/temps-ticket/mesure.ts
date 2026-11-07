@@ -125,10 +125,13 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
   };
 }
 
-// Le centile `p` (0 à 1) de valeurs, au rang le plus proche ; 0 sans valeur.
+// Le centile `p` (0 à 1) de valeurs, la valeur au rang ⌈p·(n−1)⌉ (la méthode
+// « higher » de numpy) : sur 40 tickets, le p75 est le 31e. C'est le p75 de
+// 47 min que l'épique #2659 lit sur les 40 tickets du 6 et du 7 novembre
+// (`test/fixtures/temps-tickets-40`). 0 sans valeur.
 export function centile(valeurs: readonly number[], p: number): number {
   const triees = [...valeurs].sort((x, y) => x - y);
-  return triees[Math.max(0, Math.ceil(p * triees.length) - 1)] ?? 0;
+  return triees[Math.max(0, Math.ceil(p * (triees.length - 1)))] ?? 0;
 }
 
 export type Resume = { n: number; medianMin: number; p75Min: number; maxMin: number; phaseLaPlusLongue: { nom: string; medianMin: number; partPct: number } };
@@ -136,6 +139,7 @@ export type Resume = { n: number; medianMin: number; p75Min: number; maxMin: num
 // Le résumé des tickets récents (`temps-max/mesure.ts`), du dépôt au merge :
 // combien, leur médiane, leur 75e centile, le max du projet, et la phase où ils
 // ont passé le plus de temps, avec sa médiane par ticket et sa part du tout.
+// Les minutes y sont entières, comme l'alerte les dit.
 export function resumer(enregistrements: readonly EnregistrementTemps[], maxMin: number): Resume {
   const recents = ticketsRecents(enregistrements);
   const durees = recents.map(dureeDuTicket);
@@ -145,10 +149,10 @@ export function resumer(enregistrements: readonly EnregistrementTemps[], maxMin:
   const mediane = triees.length === 0 ? 0 : triees.length % 2 === 1 ? (triees[milieu] ?? 0) : ((triees[milieu - 1] ?? 0) + (triees[milieu] ?? 0)) / 2;
   return {
     n: recents.length,
-    medianMin: minutes(mediane),
-    p75Min: minutes(centile(durees, 0.75)),
+    medianMin: Math.round(mediane / 60),
+    p75Min: Math.round(centile(durees, 0.75) / 60),
     maxMin,
-    phaseLaPlusLongue: { nom: lente.nom, medianMin: minutes(lente.mediane), partPct: Math.round(lente.part * 100) },
+    phaseLaPlusLongue: { nom: lente.nom, medianMin: Math.round(lente.mediane / 60), partPct: Math.round(lente.part * 100) },
   };
 }
 
@@ -208,10 +212,12 @@ export type Chronometre = {
 };
 
 // Un cook sans livraison : sa dernière cuisson devient un cook raté, suivi de l'attente d'une prise.
+// Rien hors d'une cuisson : un ticket déjà livré n'attend pas de prise.
 function rater(marques: Marque[], at: string): void {
   const derniere = marques.at(-1);
-  if (derniere?.etape === "cuisson") derniere.etape = "cuissonRatee";
-  if (derniere !== undefined && derniere.etape !== "attentePrise") marques.push({ etape: "attentePrise", at });
+  if (derniere?.etape !== "cuisson") return;
+  derniere.etape = "cuissonRatee";
+  marques.push({ etape: "attentePrise", at });
 }
 
 export function chronometre(maintenant: () => Date = () => new Date()): Chronometre {
@@ -261,8 +267,9 @@ export type Historique = {
 export const LABEL_EPIQUE = "epic";
 
 // Les marques que la station a laissées sur GitHub, dans l'ordre : sa prise
-// (`brigade:prise`) ouvre une cuisson, son échec (`brigade:echec`) en fait un
-// cook raté, `in-pass` posé ouvre l'attente de la pass, le verdict qui approuve
+// (`brigade:prise`) ouvre une cuisson, son échec (`brigade:echec`) ou son
+// lâcher sans livraison (`brigade:lache`, un arrêt que le cook n'a pas causé
+// compris) en fait un cook raté, `in-pass` posé ouvre l'attente de la pass, le verdict qui approuve
 // (`brigade:verdict … approve`) ouvre la CI, le renvoi (`brigade:renvoi`)
 // l'attente du cook suivant. La pass ne dit pas sur GitHub quand sa relecture
 // commence : elle compte dans l'attente de la pass.
@@ -273,7 +280,7 @@ export function parcoursDeLHistorique(h: Historique): { parcours: Parcours; depo
     ...h.evenements.map((e) => ({ at: e.createdAt, quoi: e.event === "labeled" && e.label === LABEL_IN_PASS ? "passe" : "" })),
     ...h.commentaires.map((c) => ({
       at: c.createdAt,
-      quoi: c.body.startsWith("<!-- brigade:prise ") ? "prise" : c.body.startsWith("<!-- brigade:echec") ? "echec" : c.body.startsWith("<!-- brigade:renvoi") ? "renvoi" : /^<!-- brigade:verdict [^>]*verdict=approve /.test(c.body) ? "approuve" : "",
+      quoi: c.body.startsWith("<!-- brigade:prise ") ? "prise" : c.body.startsWith("<!-- brigade:echec") || c.body.startsWith("<!-- brigade:lache ") ? "echec" : c.body.startsWith("<!-- brigade:renvoi") ? "renvoi" : /^<!-- brigade:verdict [^>]*verdict=approve /.test(c.body) ? "approuve" : "",
     })),
   ]
     .filter((f) => f.quoi !== "" && !Number.isNaN(Date.parse(f.at)))

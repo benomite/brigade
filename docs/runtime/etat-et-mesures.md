@@ -458,25 +458,31 @@ At the merge, the record goes to `.claude/brigade/temps-tickets.json` in the pro
 renvois, attentePasse, revue, ci, merge, phases}`: timestamps are ISO, durations whole seconds, and `phases` the
 ticket's phases in the order it went through them, `{nom, minutes}` (one decimal), each cook on its own line.
 `resume` sums up the recent tickets (below): `{n, medianMin, p75Min, maxMin, phaseLaPlusLongue: {nom, medianMin,
-partPct}}` — their count, median and nearest-rank 75th percentile from filing to merge, the project's max, and
-the phase they spent the most time in, with its median per ticket and its share of their total. A ticket
+partPct}}` — their count, median and 75th percentile from filing to merge in whole minutes, the project's max,
+and the phase they spent the most time in, with its median per ticket and its share of their total. The 75th
+percentile is the value at rank ⌈0.75·(n−1)⌉ (numpy's `higher`): of 40 tickets, the 31st. A ticket
 recorded again replaces its earlier record; a file still in the bare-array shape of before #2662 is read, and
 rewritten as the object at the next merge. Records of before #2662 have no `depuis`: they count from the claim.
 
 Each phase runs from the moment it starts to the next one, the last to the merge, so they add up to the
-filing-to-merge time: `attenteQualification` (`qualification wait`) from the filing to `fire`;
+filing-to-merge time (from `fire` for an issue put on the rail more than an hour after its filing: a threshold
+of the station's own, `RAIL_PLUS_TARD_MS`): `attenteQualification` (`qualification wait`) from the filing to `fire`;
 `attentePrise` (`claim wait`) until a station claims it — a free place, a dependency, a held zone —, and again
 after each cook that delivered nothing; `cuissonsRatees` (`failed cook`) the cooks that stopped without a
-delivery; `cuisson` (`cooking`) the cook that delivered, of which `cuissonTests` is what the cook's tests and
+delivery, a stop the cook did not cause (quota, station restarted, a wait) included; `cuisson` (`cooking`) the cook that delivered, of which `cuissonTests` is what the cook's tests and
 gates took when its cooker says it — 0 for the station's own cooks, whose gates no launcher measures since the
 old path went (#2061) —; `renvois` (`send-back`) from a send-back to the next cook; `attentePasse` until the
 review starts; `revue` until its verdict; `ci` until the merge is asked of GitHub, a branch update included;
 `merge` until GitHub merged it. The station keeps its marks in memory: a phase it did not see — another station
 reviewed it, or the runtime restarted — is 0, never estimated, and the time between the filing and the first
 phase it saw is claim wait. The same measure replays a ticket from its recorded GitHub history (`rejouer`): its
-claims, failures, send-backs (`brigade:prise`, `brigade:echec`, `brigade:renvoi`), `in-pass` set and the
-approving verdict (`brigade:verdict … approve`) mark its phases, the review inside the pass wait and the merge
-request inside the CI.
+claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`, `brigade:lache`, `brigade:renvoi`),
+`in-pass` set and the approving verdict (`brigade:verdict … approve`, on the PR) mark its phases, the review
+inside the pass wait — GitHub does not record when a review starts — and the merge request inside the CI. When
+the filing cannot be read from GitHub at the merge, the time runs from the claim and the station warns of it.
+`runtime/test/fixtures/temps-tickets-40` holds the recorded history of brigade's 40 tickets served on
+2026-11-06 and 07 (with the epics and the issue closed unmerged of that span, which the replay leaves out):
+replayed, median 14 min, p75 47 min, and claim wait the slowest phase (54 %, a median of 5 min per ticket).
 
 **Over the max, a correction ticket** (`runtime/src/temps-max/`, #2515). The project's max is
 `tempsMaxTicketMin` in `.claude/brigade/projet.json`, in minutes, **10 by default**. At each turn, the
