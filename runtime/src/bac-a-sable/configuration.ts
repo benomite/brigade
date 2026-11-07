@@ -141,6 +141,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
     const touche = interdits.find((interdit) => sous(interdit, lieu) || sous(lieu, interdit));
     if (touche !== undefined) throw new BacASableInvalide(`${lieu} : un cook n'y écrirait pas sans toucher à ${touche}, qu'il ne doit pas même lire`);
   }
+  const brigade = posix.join(ecrits[0]!, ".claude/brigade");
   const lus = unique((cook.lit ?? []).map((fichier) => chemin(fichier, home, "fichier remis au cook")));
   for (const fichier of lus) {
     const touche = interdits.find((interdit) => sous(interdit, fichier));
@@ -180,6 +181,11 @@ export function configurer(cook: Cook): ConfigDeBacASable {
       permissions: {
         allow: unique([
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
+          // `claude` garde `.claude/` de toute écriture sous sa propre règle :
+          // la livraison d'un ticket peut n'être que `.claude/brigade/` (gates,
+          // setup du worktree). Une règle nommée l'ouvre, dans le seul worktree
+          // du cook.
+          ...[`Edit`, `Write`].map((outil) => `${outil}(/${brigade}/**)`),
           // Le ticket que la station remet en fichier : les outils de `claude`
           // ne lisent hors du worktree que ce qu'une règle autorise.
           ...lus.map((fichier) => `Read(/${fichier})`),
