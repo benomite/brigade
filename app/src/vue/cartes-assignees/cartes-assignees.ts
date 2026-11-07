@@ -1,4 +1,4 @@
-// Les cartes de TODO de la personne connectée (#2761, épique #2748) : le compte GitHub que le `gh` de cet ordinateur tient
+// Les cartes de TODO de la personne connectée (ticket 2761, épique 2748) : le compte GitHub que le `gh` de cet ordinateur tient
 // voit les cartes qui lui sont assignées sur GitHub, et y répond par les gestes mêmes du chef — la carte reste celle que
 // la lecture de GitHub donne (tableau/attente-du-chef.ts), seule la liste change. La règle :
 //   - le chef — `chef` de `.claude/brigade/projet.json` sur la branche par défaut du dépôt, ou, sans lui, le propriétaire du
