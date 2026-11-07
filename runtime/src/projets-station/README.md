@@ -59,9 +59,9 @@ and its registration there. It never writes `brigade-selection.json`.
   (French until the runtime is translated). Its tracking in the gist lists no project.
 - **A station paired by code** (`appairage/`) that has no selection keeps serving what the app asks
   through its pairing gist (`brigade-projets.json`), as before. Once the app writes a selection, the
-  selection decides what the station is the main station of; the projects added to it from a
-  project's page ("+ station": a line of the pairing request that does not call it the main
-  station) are still read there, and the station joins their kitchen (#1830, `projets/rejoindre.ts`).
+  selection replaces the lines checked on the station's page; the projects added to it from a
+  project's page ("+ station") are still read there (#1830). Every project the station serves opens
+  its kitchen there, whatever other stations serve it (#2713).
 - **A station not registered yet** (its `gh` not signed in) changes nothing until its registration
   exists.
 - **An unreadable selection** (not JSON, a format this station does not read) changes nothing to what

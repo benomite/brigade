@@ -10,9 +10,11 @@
 // que le statut de son service le montre toujours.
 //
 // Un projet que le chef lui ajoute depuis la page du projet (« + station ») est
-// une ligne de la demande de son appairage qui ne la dit pas principale : elle
-// en rejoint la cuisine (`projets/rejoindre.ts`), sélection écrite ou non — la
-// sélection ne nomme que ce que sa page à elle coche (#1830).
+// une ligne de la demande de son appairage : elle le sert comme un projet
+// choisi, sélection écrite ou non — la sélection ne nomme que ce que sa page à
+// elle coche (#1830), et toute station qui sert un projet en ouvre la cuisine
+// (#2713). Une ligne cochée sur la page de la station, elle, vient de l'ancien
+// appairage : la sélection la remplace.
 import type { Canal } from "../appairage/canal.ts";
 import { FICHIER_SELECTION, selectionLue } from "../enregistrement-station/contrat.ts";
 import type { ProjetDemande } from "../projets/demande.ts";
@@ -47,9 +49,12 @@ export const AUCUN_PROJET =
   "brigade : station — aucun projet n'est choisi pour elle dans l'app : elle n'en sert aucun. Coche ceux qu'elle doit servir dans l'app, connectée au même compte GitHub que cette machine";
 
 // Les projets ajoutés depuis la page d'un projet, dans ce que l'appairage
-// demande : ni principale, ni remise en cours — et pas déjà choisis.
+// demande — ceux que l'app y écrit sans les cocher sur la page de la station
+// (le champ `principale` à faux de `projets/demande.ts`, qui le retire, #2712) —,
+// sans remise en cours, et pas déjà choisis.
+const ajouteDepuisLeProjet = (projet: ProjetDemande) => projet.principale === false;
 function ajoutesDepuisLeProjet(appairee: DemandeLue | null, choisis: readonly ProjetDemande[]): ProjetDemande[] {
-  return (appairee?.demande?.projets ?? []).filter((projet) => !projet.principale && (projet.remise ?? null) === null && !choisis.some(({ nom }) => nom === projet.nom));
+  return (appairee?.demande?.projets ?? []).filter((projet) => ajouteDepuisLeProjet(projet) && (projet.remise ?? null) === null && !choisis.some(({ nom }) => nom === projet.nom));
 }
 
 export function sourceDesProjets(options: OptionsSource): () => Promise<DemandeLue | null> {

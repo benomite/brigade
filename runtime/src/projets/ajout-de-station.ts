@@ -14,7 +14,7 @@
 //     machine est regardée, rien ne s'y lance (`installation/besoins/fourni.ts`) ;
 //   - `ajouterUneStation` : la ligne de la demande que l'app écrit dans le
 //     gist de la station (`demande.ts`), faite de la saisie du chef — ses
-//     cooks, ses capacités, si elle est la principale — et de ce que le clone
+//     cooks, ses capacités — et de ce que le clone
 //     dit du projet. Un ancien appel qui nomme encore le dépôt et la branche
 //     est pris tel quel.
 //
@@ -122,7 +122,7 @@ export async function defautsDeStation(options: OptionsDesDefauts): Promise<Defa
 }
 
 // Les champs que l'ajout refuse, chacun avec sa raison.
-export type ChampDeStation = "nom" | "depot" | "base" | "principale" | "cooks" | "capacites" | "manager" | "reviewer";
+export type ChampDeStation = "nom" | "depot" | "base" | "cooks" | "capacites" | "manager" | "reviewer";
 export type RefusDeStation = Partial<Record<ChampDeStation, string>>;
 
 // `projet` : la ligne à écrire dans la demande de la station. `resolu` : le
@@ -147,8 +147,7 @@ function calibreLu(lu: unknown): Calibre | null | undefined {
 // Ajoute une station au projet cloné en `dossier` (null : aucun clone ici —
 // l'appel doit alors nommer le dépôt et la branche, comme avant). `saisie` :
 // ce que la vue envoie, rien n'y est cru sur parole — `cooks` (un entier, 1
-// ou plus), `principale` (vrai si elle fait tourner son manager et sa pass),
-// `capacites` (les noms cochés) ; et, d'un ancien appel, `nom`, `depot`,
+// ou plus), `capacites` (les noms cochés) ; et, d'un ancien appel, `nom`, `depot`,
 // `base`, `manager`, `reviewer`, `ouvertLe`, `demandeLe`.
 export async function ajouterUneStation(dossier: string | null, saisie: unknown): Promise<AjoutDeStation> {
   const lu = (saisie ?? {}) as Record<string, unknown>;
@@ -178,7 +177,6 @@ export async function ajouterUneStation(dossier: string | null, saisie: unknown)
     if (nom === null) refus.nom = "This repository's name gives no project name: letters, digits and dashes.";
   }
 
-  if (typeof lu.principale !== "boolean") refus.principale = "Say whether this station is the project's main one: the one that runs its manager and its pass.";
   if (typeof lu.cooks !== "number" || !Number.isSafeInteger(lu.cooks) || lu.cooks < 1) refus.cooks = "The number of cooks at once on this machine is a whole number, 1 or more.";
   const { capacites, illisibles } = capacitesLues(lu.capacites);
   if (illisibles > 0) refus.capacites = "A capability is letters, digits and dashes (navigateur-headless, android).";
@@ -194,7 +192,9 @@ export async function ajouterUneStation(dossier: string | null, saisie: unknown)
       nom,
       depot,
       base,
-      principale: lu.principale as boolean,
+      // Toute station qui sert le projet ouvre sa cuisine (#2713) : la ligne ne
+      // dit plus autre chose, tant que la demande porte encore le champ.
+      principale: true,
       cooks: lu.cooks as number,
       manager: manager ?? null,
       reviewer: reviewer ?? null,

@@ -88,7 +88,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
 
   test("a repository without the settings file: the branch is the one its CLAUDE.md declares", async (t) => {
     const { clone } = espace(t, { claudeMd: "- **Branche d'intégration** : `main`\n", parDefaut: "main" });
-    const ajout = await ajouterUneStation(clone, { cooks: 1, principale: false });
+    const ajout = await ajouterUneStation(clone, { cooks: 1 });
     assert.ok("projet" in ajout, JSON.stringify(ajout));
     assert.equal(ajout.projet.base, null);
     assert.equal(ajout.projet.fournit, undefined);
@@ -119,7 +119,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     // Une saisie de la station illisible.
     const illisible = await ajouterUneStation(clone, { base: "v2", cooks: 0, capacites: ["pas une capacité"], manager: { modele: "gpt", effort: "high" } });
     assert.ok("refus" in illisible, JSON.stringify(illisible));
-    assert.deepEqual(Object.keys(illisible.refus).sort(), ["capacites", "cooks", "manager", "principale"]);
+    assert.deepEqual(Object.keys(illisible.refus).sort(), ["capacites", "cooks", "manager"]);
   });
 
   test("nothing from the station's fields is written into the project's repository: the clone stays clean", async (t) => {

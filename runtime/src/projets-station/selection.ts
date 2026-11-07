@@ -45,8 +45,8 @@ export type OptionsDemande = {
   base: (nom: string) => string | null;
 };
 
-// La demande que la sélection fait à la station : un projet par dépôt, dont
-// elle est la principale. Son nom est celui que l'app tire du dépôt
+// La demande que la sélection fait à la station : un projet par dépôt, qu'elle
+// sert. Son nom est celui que l'app tire du dépôt
 // (`nomDuDepot`). Deux dépôts du même nom : le premier de la liste le garde,
 // l'autre n'est pas servi, et c'est dit.
 export function demandeDeLaSelection(selection: Selection, options: OptionsDemande): Demande {

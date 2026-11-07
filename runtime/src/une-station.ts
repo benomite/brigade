@@ -8,9 +8,7 @@
 //   - la box, où la déclaration est une décision du chef au journal du projet
 //     (`BRIGADE_STATIONS`, `decisions.ts`) : `stationsDuProjet` la lit,
 //     `changerUneStation` y pose la déclaration où seule une entrée a changé.
-//     `installation stations` les joue (`declarer-stations.ts`) ; la station
-//     principale y tient, par `tenirUneStation`, chaque station que l'app lui
-//     appaire en secondaire (`projets/secondaires.ts`) ;
+//     `installation stations` les joue (`declarer-stations.ts`) ;
 //   - le poste du chef, où l'app lit dans `app.json` les stations qu'il joue
 //     pour un projet (app/src/config.ts, `stations`) : `jouerIci` y ajoute une
 //     station, `nePlusJouerIci` l'en retire, et l'app la joue — ou cesse — sans
