@@ -24,6 +24,8 @@ import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./cali
 import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
+import { poserALaMain } from "./blocages-sans-question.ts";
+import { lireBlocage } from "./livrable.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
@@ -172,7 +174,9 @@ export const secoupent = (a: string, b: string): boolean => {
 // le sait pas, aucun lanceur ne mesure les gates de ses cooks.
 // `reste` : le cook n'a rien ajouté, mais la PR qu'il aurait livrée est en
 // conflit ou rouge (#2454) : ce n'est pas un échec, il reste du travail.
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+// `bloque` : le cook s'est déclaré bloqué (`<bloque>` dans son dernier message), avec
+// la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string } | { bloque: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -579,6 +583,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         fait = { echec: refusee };
       }
+      // Bloqué n'est pas livré (#2073) : la question du cook va au chef, écrite
+      // sur la carte, et le ticket est retenu par `blocked-on-human` jusqu'à sa
+      // réponse. Relue, sa livraison partielle revenait rouge à un cook qui se
+      // déclarait bloqué à son tour : 6 des 13 relectures bloquantes de
+      // BOBL-tech/espace (#798 quatre fois, #755 deux fois) (#2805).
+      if ("bloque" in fait) {
+        const citee = fait.bloque.split("\n").map((ligne) => `> ${ligne}`).join("\n");
+        avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked: the ticket goes to the chef, not to review`);
+        const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, `Station \`${nom}\`: the cook stopped, blocked — nothing it did goes to review. Its question:\n\n${citee}\n\nAnswer it on this issue, then remove \`${A_LA_MAIN}\`: a cook resumes the ticket from its branch.`);
+        if (!pose.pose) avertir(`brigade : ${pose.echec}`);
+        chrono.rater(issue);
+        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        return;
+      }
       // Un cook qui s'arrête dans ses premiers tours après un renvoi, sans rien
       // ajouter, n'a pas travaillé sur les remarques : ce n'est pas un essai,
       // mais sans progrès il ne boucle pas sans fin — au-delà de `ECHECS_MAX`
@@ -966,7 +984,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
-      if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN)) libres.push(ticket);
+      // `blocked-on-human` le retient : il attend la réponse du chef (#2805).
+      if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN) && !ticket.labels.includes(A_LA_MAIN)) libres.push(ticket);
       // Au premier tour, un `taken` sans cook ici est peut-être une prise
       // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
       if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);
@@ -1110,12 +1129,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Tous ses fichiers sont sous `.claude/brigade/` : la session d'un cook y
       // refuse l'écriture, il va au second ou au chef sans cook (#2729).
       try {
+        // Un ticket qui porte déjà `blocked-on-human` n'est pas libre : il n'arrive ici qu'une fois.
         if (neLivreQueSousBrigade(await github.corpsDuTicket(ticket.number))) {
-          if (!ticket.labels.includes(A_LA_MAIN)) {
-            avertir(`brigade : #${ticket.number} sur ${nom} — every file it delivers is under \`${SOUS_BRIGADE}\`; not launched to a cook`);
-            await github.commenter(ticket.number, `Station \`${nom}\`: every file this ticket delivers is under \`${SOUS_BRIGADE}\`, where a cook's session refuses writes, so it is not launched to a cook.\n\nQuestion for the second or the chef: deliver it from a local worktree, or give the cook a way to write there?`);
-            await github.labelliser(ticket.number, [A_LA_MAIN]);
-          }
+          avertir(`brigade : #${ticket.number} sur ${nom} — every file it delivers is under \`${SOUS_BRIGADE}\`; not launched to a cook`);
+          await github.commenter(ticket.number, `Station \`${nom}\`: every file this ticket delivers is under \`${SOUS_BRIGADE}\`, where a cook's session refuses writes, so it is not launched to a cook.\n\nQuestion for the second or the chef: deliver it from a local worktree, or give the cook a way to write there?`);
+          await github.labelliser(ticket.number, [A_LA_MAIN]);
           continue;
         }
       } catch (erreur) {
@@ -1627,7 +1645,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Une tête qui sauve le travail d'un cook coupé par une relance n'est pas
     // une livraison : un cook la reprend (#2586).
     const sauvee = reprise && estUneSauvegarde(depot.sujet?.(branche));
-    if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket was interrupted when its station restarted for an update. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
+    if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
     if (sansPR && !sauvee && avant !== null && depot.livree !== undefined) {
       const livree = depot.livree(branche);
       // `livree` rend la branche locale quand l'origine n'a pas la sienne
@@ -1681,6 +1699,32 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
     }
     const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
+    // Le cook déclare la décision ou la condition qui lui manque (#2073) : ce
+    // qu'il a commité n'est pas une livraison, et ne part pas en pass (#2805).
+    // Lu dans tout son dernier message : sur #755, un cook l'a écrit après son
+    // `</livrable>`. Sans PR, sa branche garde la marque de travail sauvé
+    // (#2586) : le cook qui reprend le ticket en repart, au lieu que la pass la
+    // juge telle quelle (#2577).
+    const question = lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null);
+    if (question !== null) {
+      if (prOuverte === null && depot.recolter !== undefined) {
+        try {
+          depot.recolter(worktree, branche);
+          if (depot.commits(branche) > 0 && !estUneSauvegarde(depot.sujet?.(branche))) depot.recolter(worktree, branche, SUJET_DE_SAUVEGARDE, true);
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work could not be marked as saved on \`${branche}\`: ${message(erreur)}`);
+        }
+      }
+      await depot.ranger(worktree, branche);
+      if (depot.commits(branche) > 0) {
+        try {
+          depot.pousser(branche);
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work stays only in the clone, \`${branche}\` could not be pushed: ${message(erreur)}`);
+        }
+      }
+      return { bloque: question };
+    }
     await depot.ranger(worktree, branche);
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
     // motif nommé, qui ne compte pas vers `hors-cuisine` (#2738).
