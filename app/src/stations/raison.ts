@@ -3,7 +3,8 @@
 // bouton est un geste que l'app fait — relire GitHub, ouvrir la page de la station, ouvrir l'ajout d'un projet —,
 // et ce que le chef fait ailleurs (démarrer Brigade sur l'autre ordinateur) se lit au survol.
 // Hors ligne, illisible, sans projet : c'est l'app qui les lit sur la station. Une station ajoutée à un projet mais
-// pas atteinte, c'est la principale du projet qui le dit, avec son geste (runtime/src/projets/secondaires.ts).
+// pas atteinte, c'est la principale du projet qui le dit, avec son geste (l'ancien runtime/src/projets/secondaires.ts,
+// retiré par #2713 : aucun runtime ne le publie plus).
 export type GesteDeRaison = "relire" | "ouvrir-la-page" | "ajouter-un-projet";
 export type RaisonDeStation = { cle: "hors-ligne" | "illisible" | "sans-projet"; phrase: string; survol: string; bouton: { libelle: string; geste: GesteDeRaison } };
 

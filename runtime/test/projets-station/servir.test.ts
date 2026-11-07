@@ -222,7 +222,7 @@ test("une sélection illisible ne change rien à ce qu'elle sert, et c'est dit u
   );
 });
 
-test("appairée par code et sans sélection, elle sert ce que l'app lui demande par l'appairage ; la sélection écrite, c'est elle qu'elle sert", async (t) => {
+test("appairée par code et sans sélection, elle sert ce que l'app lui demande par l'appairage ; la sélection écrite, elle la sert à côté de ce que l'appairage demande encore — une ligne qu'elle dit principale aussi (#2713)", async (t) => {
   const station = uneStation(t, { appairee: true, declarent: ["acme/shop", "acme/site"] });
   (station.gists[APPAIRAGE] as Fichiers)[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: [{ nom: "shop", depot: "acme/shop", base: null, principale: true, cooks: 2 }] });
   await station.projets.relire();
@@ -234,8 +234,8 @@ test("appairée par code et sans sélection, elle sert ce que l'app lui demande 
 
   station.choisir("acme/site");
   await station.projets.relire();
-  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\n${FIN}\n`);
-  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi"]);
+  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\nshop acme/shop\n${FIN}\n`);
+  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi", "shop servi"]);
 });
 
 test("sa sélection écrite, elle sert aussi les projets que le chef lui ajoute depuis la page d'un projet (« + station ») : la ligne que `ajouterUneStation` écrit dans la demande de son appairage, et leur cuisine s'ouvre ici (#2713)", async (t) => {

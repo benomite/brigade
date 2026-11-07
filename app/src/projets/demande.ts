@@ -97,11 +97,11 @@ export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | 
 // `chiffres` : les quatre chiffres du projet que la station publie (#2672, runtime/src/chiffres-du-projet.ts), relayés tels quels.
 export type TempsPublie = { enregistrements: unknown[]; lostTimeMaxMin: number; resume?: unknown; chiffres?: unknown };
 // `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
-// tient (#1756, runtime/src/projets/secondaires.ts) — déclarées à son journal, chacune par son gist, avec ce qu'elle
+// tient (#1756, l'ancien runtime/src/projets/secondaires.ts, retiré par #2713 : plus publiées) — déclarées à son journal, chacune par son gist, avec ce qu'elle
 // fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
 export type SecondaireTenue = { nom: string; station: string; gist: string; cooks: number; fournit: string[]; atteinte: boolean; dit: string; geste?: string };
 // `rejoindre` : le chef a ajouté le projet à cette station alors qu'une autre le servait déjà (#1789,
-// runtime/src/projets/rejoindre.ts) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
+// l'ancien runtime/src/projets/rejoindre.ts, retiré par #2713 : plus écrit) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
 // en une phrase (`phrase`), sans en ouvrir une seconde. Absent quand aucune autre station ne le sert.
 export type Rejoindre = { issue: "rejointe"; principale: string } | { issue: "refusee"; phrase: string };
 export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; temps?: TempsPublie; choix?: Choix[]; secondaires?: SecondaireTenue[]; rejoindre?: Rejoindre; depot: string | null; base: string | null; cooks: number | null };
