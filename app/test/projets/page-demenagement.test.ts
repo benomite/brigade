@@ -71,7 +71,7 @@ async function laPage(vu: VuDesProjets, demenager: (nom: string, vers: string) =
 
 test("un projet qui cuit sur sa box : « Cooks on parade-box », sans rien dire de l'app qu'on ferme", async () => {
   const { bloc } = await laPage(vuDes(SUR_LA_BOX));
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
   assert.doesNotMatch(bloc.textContent, /stops when you close the app/);
   const sienne = ligne(bloc).dessous("button")[0] ?? assert.fail();
   assert.equal(sienne.ariaLabel, "parade-box — main — served");
@@ -81,12 +81,12 @@ test("la station ajoutée en plus de la principale : pastille verte quand la pri
   const avec = (atteinte?: { oui: boolean; dit: string }) => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, { ...SUR_LA_BOX.stations[1]!, ...(atteinte === undefined ? {} : { atteinte }) }] });
   const leMac = async (vu: VuDesProjets) => {
     const { bloc } = await laPage(vu);
-    assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
+    assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
     const sienne = ligne(bloc).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
     return { ton: sienne.children[0]?.dataset.ton, aria: sienne.ariaLabel, survol: sienne.title };
   };
-  assert.deepEqual(await leMac(avec({ oui: true, dit: "reached: it is online on GitHub" })), { ton: "vert", aria: "macbook — secondary — reached: it cooks with the main station", survol: "reached: it cooks with the main station\nit is online on GitHub" });
-  assert.deepEqual(await leMac(avec({ oui: false, dit: "not reached: it stopped at 2026-10-20T09:50:00.000Z" })), { ton: "gris", aria: "macbook — secondary — not reached", survol: "not reached\nit stopped at 2026-10-20T09:50:00.000Z" });
+  assert.deepEqual(await leMac(avec({ oui: true, dit: "reached: it is online on GitHub" })), { ton: "vert", aria: "macbook (this computer) — secondary — reached: it cooks with the main station", survol: "macbook, this computer's station\nreached: it cooks with the main station\nit is online on GitHub" });
+  assert.deepEqual(await leMac(avec({ oui: false, dit: "not reached: it stopped at 2026-10-20T09:50:00.000Z" })), { ton: "gris", aria: "macbook (this computer) — secondary — not reached", survol: "macbook, this computer's station\nnot reached\nit stopped at 2026-10-20T09:50:00.000Z" });
   // La principale n'en dit rien encore : grise, comme avant.
   assert.equal((await leMac(avec())).ton, "gris");
 });
@@ -94,22 +94,22 @@ test("la station ajoutée en plus de la principale : pastille verte quand la pri
 test("la station ajoutée depuis l'app qui ne sert rien n'est pas une « second station » : la ligne dit où elle en est, avec de quoi relire (#1774)", async () => {
   const bloquee = (etat: "attendu" | "a-autoriser" | "refuse", dit = "") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", false, etat, dit)] });
   const attendue = (await laPage(bloquee("attendu"))).bloc;
-  assert.equal(ligne(attendue).textContent, "Cooks on parade-box · macbooknot received by the stationcheck again");
+  assert.equal(ligne(attendue).textContent, "Cooks on parade-box · macbook (this computer)not received by the stationcheck again");
   assert.doesNotMatch(attendue.textContent, /second station/);
   const sienne = ligne(attendue).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
   assert.equal(sienne.children[0]?.dataset.ton, "gris");
   assert.match(ligne(attendue).dessous("span").find(({ className }) => className === "pourquoi")?.title ?? "", /open Brigade on macbook's computer/);
   bouton(attendue, "check again");
   const refusee = (await laPage(bloquee("refuse", "refused: no sandbox"))).bloc;
-  assert.match(ligne(refusee).textContent, /macbookrefusedcheck again/);
+  assert.match(ligne(refusee).textContent, /macbook \(this computer\)refusedcheck again/);
   assert.doesNotMatch(refusee.textContent, /second station/);
   const autorisation = (await laPage(bloquee("a-autoriser"))).bloc;
-  assert.match(ligne(autorisation).textContent, /macbookwaiting for your authorization on GitHub/);
+  assert.match(ligne(autorisation).textContent, /macbook \(this computer\)waiting for your authorization on GitHub/);
 });
 
-test("un projet qui cuit sur ce Mac : « Cooks on this Mac », et sa cuisine s'arrête quand on ferme l'app", async () => {
+test("un projet qui cuit sur ce Mac : « Cooks on macbook (this computer) », et sa cuisine s'arrête quand on ferme l'app", async () => {
   const { bloc } = await laPage(vuDes(SUR_LE_MAC));
-  assert.equal(ligne(bloc).textContent, "Cooks on this Mac · its kitchen stops when you close the app · parade-box (second station)");
+  assert.equal(ligne(bloc).textContent, "Cooks on macbook (this computer) · its kitchen stops when you close the app · parade-box");
   const sienne = ligne(bloc).dessous("button")[0] ?? assert.fail();
   assert.match(sienne.title, /^macbook, this computer's station/);
 });
@@ -120,7 +120,7 @@ test("un projet que la station de ce Mac sert sans l'app (#1122) se dit de même
   (ici.element("projets").children.at(1) ?? assert.fail()).click();
   await repos();
   const sienne = ici.element("stations-du-projet");
-  assert.equal(ligne(sienne).textContent, "Cooks on this Mac · its kitchen stops when you close the app");
+  assert.equal(ligne(sienne).textContent, "Cooks on macbook (this computer) · its kitchen stops when you close the app");
   assert.equal(boutons(sienne).some(({ textContent }) => textContent === "move the kitchen"), false, "rien ne part d'une station que l'app ne connaît pas");
 });
 
@@ -131,19 +131,19 @@ test("un seul geste l'emmène sur ce Mac : le choix dit d'où, vers où, et son 
   const ouvert = choix(bloc);
   assert.equal(ouvert.hidden, false);
   assert.equal(ouvert.dessous("p")[0]?.textContent, "Move parade's kitchen from parade-box to:");
-  assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["this Mac", "cancel"]);
-  assert.equal(bouton(ouvert, "this Mac").title, "stops when you close the app on this computer");
+  assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["macbook", "cancel"]);
+  assert.equal(bouton(ouvert, "macbook").title, "stops when you close the app on this computer");
   assert.equal(ouvert.dessous("p").filter(({ className }) => className === "prix").map(({ textContent }) => textContent).join(), "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.");
   assert.equal(boutons(bloc).some(({ textContent }) => textContent === "move the kitchen"), false, "le geste ouvert ne se rouvre pas");
 
-  bouton(ouvert, "this Mac").click();
+  bouton(ouvert, "macbook").click();
   await repos();
   assert.deepEqual(jouee.dernier("demenagerLaCuisine"), ["parade", "gmac"]);
   assert.equal(ouvert.hidden, true);
-  assert.equal(dit(bloc).textContent, "parade's kitchen moves to this Mac: parade-box hands it over as soon as this Mac is ready — until then it cooks on parade-box");
+  assert.equal(dit(bloc).textContent, "parade's kitchen moves to macbook: parade-box hands it over as soon as macbook is ready — until then it cooks on parade-box");
   assert.equal(dit(bloc).classList.contains("refus"), false);
   // La ligne dit où il cuit, tel que les stations le publient : toujours la box, tant qu'elle n'a pas remis.
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
 });
 
 test("le même geste le ramène sur sa box — recommandée, toujours allumée — ou sur une autre station", async () => {
@@ -151,7 +151,7 @@ test("le même geste le ramène sur sa box — recommandée, toujours allumée �
   bouton(bloc, "move the kitchen").click();
   await repos();
   const ouvert = choix(bloc);
-  assert.equal(ouvert.dessous("p")[0]?.textContent, "Move parade's kitchen from this Mac to:");
+  assert.equal(ouvert.dessous("p")[0]?.textContent, "Move parade's kitchen from macbook to:");
   const box = bouton(ouvert, "parade-box");
   assert.equal(box.className, "recommande");
   assert.equal(box.title, "always on: it keeps cooking while your computer sleeps");
@@ -167,12 +167,12 @@ test("refusé — pas de bac à sable sur ce Mac —, la raison se lit en une ph
   const { bloc } = await laPage(vuDes(SUR_LA_BOX), () => ({ refus: said }));
   bouton(bloc, "move the kitchen").click();
   await repos();
-  bouton(choix(bloc), "this Mac").click();
+  bouton(choix(bloc), "macbook").click();
   await repos();
   assert.equal(dit(bloc).hidden, false);
   assert.equal(dit(bloc).textContent, `parade stays on parade-box: ${said}`);
   assert.ok(dit(bloc).classList.contains("refus"));
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
   assert.equal(choix(bloc).hidden, true);
   // Le geste reste offert : on peut réessayer une fois le bac à sable posé.
   bouton(bloc, "move the kitchen");
@@ -182,7 +182,7 @@ test("un refus sans phrase du runtime — GitHub injoignable — se dit en une l
   const { bloc } = await laPage(vuDes(SUR_LA_BOX), () => ({ refus: "GitHub could not be read or written: nothing was changed", detail: "brigade : … HTTP 502" }));
   bouton(bloc, "move the kitchen").click();
   await repos();
-  bouton(choix(bloc), "this Mac").click();
+  bouton(choix(bloc), "macbook").click();
   await repos();
   assert.equal(dit(bloc).textContent.startsWith("parade stays on parade-box: GitHub could not be read or written: nothing was changed"), true);
   assert.doesNotMatch(dit(bloc).textContent, /HTTP 502/);
@@ -198,7 +198,7 @@ test("refusé par ce Mac après coup, la page dit pourquoi, la ligne reste sur l
   };
   const { jouee, bloc } = await laPage(vuDes(refuse));
   assert.match(ligne(bloc).textContent, /^Cooks on parade-box/);
-  assert.equal(dit(bloc).textContent, `parade stays on parade-box: this Mac refused to take it over — ${raison}`);
+  assert.equal(dit(bloc).textContent, `parade stays on parade-box: macbook refused to take it over — ${raison}`);
   bouton(bloc, "move the kitchen").click();
   await repos();
   bouton(choix(bloc), "keep it on parade-box").click();
@@ -210,6 +210,19 @@ test("refusé par ce Mac après coup, la page dit pourquoi, la ligne reste sur l
 test("accepté, le déménagement va à son terme : la ligne dit qu'il part, et aucun autre ne se demande", async () => {
   const enRoute: ProjetVu = { ...SUR_LA_BOX, demenagement: { de: "parade-box", vers: "macbook", demandeLe: A, etape: "acceptee", dit: "ready to take it over from parade-box" } };
   const { bloc } = await laPage(vuDes(enRoute));
-  assert.match(ligne(bloc).textContent, /^Cooks on parade-box · moving to this Mac…/);
+  assert.match(ligne(bloc).textContent, /^Cooks on parade-box · moving to macbook…/);
   assert.equal(boutons(bloc).some(({ textContent }) => textContent === "move the kitchen"), false);
+});
+
+test("le Mac de la box ne sert qu'un autre projet : même nom que sur cet autre projet, ni « first » ni « second », et pourquoi il ne cuit pas ici (#2705)", async () => {
+  const mac = { ...MAC, projets: ["baloo"] };
+  const vu = { ...vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", false)] }) };
+  const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage([PARADE], vu), stations: { a: A, stations: [BOX, mac] } }), espace: () => [] });
+  (jouee.element("projets").children.at(1) ?? assert.fail()).click();
+  await repos();
+  const bloc = jouee.element("stations-du-projet");
+  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)does not serve this project");
+  assert.doesNotMatch(bloc.textContent, /first station|second station|keeps the manager/);
+  const pourquoi = ligne(bloc).dessous("span").find(({ className }) => className === "pourquoi") ?? assert.fail("pas de raison");
+  assert.equal(pourquoi.title, "tick it in its projects");
 });

@@ -174,7 +174,8 @@ describe("rejoint : l'ordinateur ajouté est une station de plus de la cuisine q
     // Une station de cuisson, pas la principale : parade-box garde le manager et la pass.
     assert.match(ligne.textContent, /^macbookcooking station/);
     // En tête : il cuit sur parade-box, le Mac en renfort.
-    assert.match(bloc.textContent, /^Cooks on parade-box · macbook \(second station\)/);
+    assert.match(bloc.textContent, /^Cooks on parade-box · macbook/);
+    assert.doesNotMatch(bloc.textContent, /first station|second station/);
     assert.doesNotMatch(bloc.textContent, /its kitchen stops when you close the app/);
     assert.doesNotMatch(bloc.textContent, /was not added/);
   });
