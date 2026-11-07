@@ -12,8 +12,8 @@
 //     label `waiting` retiré, le ticket revient sur le rail (gestes-github.ts, `retirerLeLabel`) ;
 //   - mettre en suspens (« put on hold ») — « remove from the rail » sur la fiche : le label `fire` retiré, plus aucune station ne le prend ;
 //     le reposer le ramène.
-// Ce que le desktop ne fait pas de l'app, le téléphone non plus, et la même phrase le dit : merger la livraison se fait
-// sur sa PR (`SANS_FAIT.merger`) ; « waiting for… » et « resume » de WAITING sont des commandes de la station.
+// Ce que le desktop ne fait pas de l'app, le téléphone non plus : merger la livraison se fait sur sa PR ;
+// « waiting for… » et « resume » de WAITING sont des commandes de la station.
 //
 // Une écriture que GitHub refuse, ou qui ne le joint pas, se dit en une ligne, ce que GitHub en a dit au survol, et rien
 // ne la tient pour faite : la lecture n'est relancée qu'après une écriture que GitHub a prise (`ecrit`), comme le desktop
@@ -80,9 +80,8 @@ export function ouvrirLesGestesGitHub(options: Options) {
     // Les gestes de la fiche de cette carte que le téléphone joue.
     gestesDeFiche: (carte: unknown): Propose[] => gestesDeCarte(carte, ACTIONS_DU_TELEPHONE),
 
-    // Un geste de la fiche : « remove from the rail » ou « back to the kitchen », sur GitHub. Merger se fait sur la PR.
+    // Un geste de la fiche : « remove from the rail » ou « back to the kitchen », sur GitHub.
     async geste(projet: string, id: unknown, ticket: unknown): Promise<Ecrit> {
-      if (id === "merger") return { refus: SANS_FAIT.merger, detail: "" };
       if (!surGithub(id)) return { refus: "nothing was sent: this phone does not play this action", detail: `“${String(id)}” is not a gesture this phone writes on GitHub` };
       return retirer(projet, id, ticket);
     },

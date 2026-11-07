@@ -580,22 +580,10 @@ formulaireDAjout.append(
 const retourALAccueil = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
 retourALAccueil.type = "button";
 retourALAccueil.className = "retour";
-// Le plafond de cooks, sous l'en-tête : ce que `status` en dit, ce qui retient la station, et de quoi le régler.
+// Le plafond de cooks, sous l'en-tête : ce que `status` en dit, et ce qui retient la station.
 const plafondDeStation = document.createElement("div");
 plafondDeStation.className = "plafond-de-station";
 plafondDeStation.ariaLive = "polite";
-// Le champ vit d'un rendu à l'autre : une page redessinée par une lecture ne lui reprend pas ce que le chef tape.
-const plafondChoisi = /** @type {HTMLInputElement} */ (document.createElement("input"));
-plafondChoisi.type = "number";
-plafondChoisi.min = "0";
-plafondChoisi.step = "1";
-plafondChoisi.ariaLabel = "cooks at once, at most";
-plafondChoisi.placeholder = "cooks at once";
-// La station dont le champ porte une saisie, et ce que le dernier réglage a rendu pour elle.
-/** @type {string | undefined} */
-let plafondSaisiPour;
-/** @type {Map<string, { refus: string, detail?: string }>} */
-const plafondsRefuses = new Map();
 // La ligne de mise à jour, sous l'en-tête ; et, au bas de la page, « remove the station » et sa confirmation.
 const versionDeStation = document.createElement("p");
 versionDeStation.className = "version-de-station";
@@ -1109,19 +1097,6 @@ function marquerLecture(projet) {
   if (enLecture.has(projet.nom) && seLit(projet) && projet.sansStation !== true) rail.dataset.lecture = "";
   else delete rail.dataset.lecture;
 }
-// Les clics sur le bouton d'une station qui attendent leur réponse, et ce que le dernier de chacune a rendu
-// (ticket 1185) — par projet et station.
-/** @type {Map<string, import("../cuisson.ts").GesteDeCuisson>} */
-const cuissonsEnCours = new Map();
-/** @type {Map<string, import("./stations-de-cuisson.js").Dit>} */
-const cuissonsDites = new Map();
-// Le plafond d'une station du projet (ticket 1292), même clé : « en cours » tant que le réglage attend sa réponse,
-// puis ce qu'il a rendu ; et ce que le chef a tapé dans le champ, que la relecture ne perd pas.
-/** @type {Map<string, import("./stations-de-cuisson.js").DitDuPlafond | "en cours">} */
-const plafondsDeCuisson = new Map();
-/** @type {Map<string, string>} */
-const plafondsSaisis = new Map();
-const cleDeCuisson = (/** @type {string} */ projet, /** @type {string} */ station) => `${projet}\u0000${station}`;
 // Le plafond de calibrage de chaque projet (ticket 1284) : ce que le chef a choisi dans ses listes sans l'envoyer,
 // le clic qui attend sa réponse, et ce que le dernier a rendu.
 /** @type {Map<string, { modele: string, effort: string }>} */
@@ -4852,7 +4827,6 @@ const STATION_ARRETEE = "this computer's station is not running";
 function poserCuisson(projet, posees = new Map()) {
   const tenu = tenus.get(projet.nom);
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
-  const siens = (/** @type {Map<string, any>} */ ou) => new Map([...ou].flatMap(([cle, valeur]) => (cle.startsWith(cleDeCuisson(projet.nom, "")) ? [[cle.slice(cleDeCuisson(projet.nom, "").length), valeur]] : [])));
   const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(projet, tenu.tableau, heureDe(tenu.a)) : [];
   // Sur un écran large, chaque cook en cours est la carte de son ticket ; sur l'écran étroit, une ligne.
   const carte =
@@ -4869,15 +4843,9 @@ function poserCuisson(projet, posees = new Map()) {
   const surGithub = poserLesStationsSurGithub(document, { cuisson: stations, pastille, ...(carte === undefined ? {} : { carte }), tete: laCuisine });
   const pose = surGithub ?? stationsDeCuisson(document, {
     lignes: stations?.lignes,
-    enCours: siens(cuissonsEnCours),
-    dits: siens(cuissonsDites),
-    jouer: (station, geste) => void cuire(projet.nom, station, geste),
     pastille,
     ...(carte === undefined ? {} : { carte }),
     plafonds: accueilVu?.plafonds?.[projet.nom],
-    plafondsDits: siens(plafondsDeCuisson),
-    saisies: { lire: (station) => plafondsSaisis.get(cleDeCuisson(projet.nom, station)) ?? "", ecrire: (station, valeur) => void plafondsSaisis.set(cleDeCuisson(projet.nom, station), valeur) },
-    regler: (station, valeur) => void reglerLePlafondDuProjet(projet.nom, station, valeur),
     tete: laCuisine,
     // Toutes ses stations, chacune une fois (ticket 1786) : ce que le journal déclare, ce que l'app sait de chacune par
     // GitHub, toutes de la même façon. L'écran étroit les lit sans rien y régler (ticket 1186).
@@ -5010,50 +4978,6 @@ async function reglerPlafondDeCalibrage(projet, choix) {
     lireLesFaits();
   }
   if (courant?.nom === projet) poserPlafondDeCalibrage(courant);
-}
-
-// Le bouton d'une station : le geste part par le process principal (cuisson.ts), et le bouton dit qu'il s'y met.
-// Fait, la box est relue tout de suite : la ligne prend l'état neuf de la station sans attendre la lecture suivante.
-/** @param {string} projet @param {string} station @param {import("../cuisson.ts").GesteDeCuisson} geste */
-async function cuire(projet, station, geste) {
-  const cle = cleDeCuisson(projet, station);
-  if (cuissonsEnCours.has(cle)) return;
-  const tenu = tenus.get(projet);
-  const etat = (tenu !== undefined && "tableau" in tenu ? tenu.tableau.stations?.lignes.find((ligne) => ligne.station === station)?.etat : undefined) ?? "";
-  cuissonsEnCours.set(cle, geste);
-  cuissonsDites.delete(cle);
-  if (courant?.nom === projet) poserCuisson(courant);
-  /** @type {import("../cuisson.ts").RenduDeCuisson} */
-  let rendu;
-  try {
-    rendu = (await brigade.cuireSurLaStation(projet, station, geste)) ?? { refus: `${station}: nothing was sent — nothing was changed`, detail: SANS_PONT };
-  } catch (erreur) {
-    rendu = { refus: `${station}: nothing was sent — nothing was changed`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  cuissonsEnCours.delete(cle);
-  cuissonsDites.set(cle, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "", etat });
-  if ("fait" in rendu) lireLesFaits();
-  if (courant?.nom === projet) poserCuisson(courant);
-}
-
-// Le plafond de cooks du projet sur une station, réglé depuis sa ligne (ticket 1292) : la commande part sur la box de ce
-// projet seul ; le plafond neuf arrive par l'accueil, quand sa box a été relue.
-/** @param {string} projet @param {string} station @param {string} valeur */
-async function reglerLePlafondDuProjet(projet, station, valeur) {
-  const cle = cleDeCuisson(projet, station);
-  if (plafondsDeCuisson.get(cle) === "en cours") return;
-  plafondsDeCuisson.set(cle, "en cours");
-  if (courant?.nom === projet) poserCuisson(courant);
-  /** @type {{ fait: string, detail?: string } | { refus: string, detail?: string }} */
-  let rendu;
-  try {
-    rendu = (await brigade.reglerLePlafond(station, valeur, projet)) ?? { refus: "the cap was not changed", detail: SANS_PONT };
-  } catch (erreur) {
-    rendu = { refus: "the cap was not changed", detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  plafondsDeCuisson.set(cle, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "" });
-  if ("fait" in rendu) plafondsSaisis.delete(cle);
-  if (courant?.nom === projet) poserCuisson(courant);
 }
 
 // L'onglet Cooks d'un écran étroit (ticket 1186), en lecture seule : les lignes des stations — leur état, leurs cooks —
@@ -6196,7 +6120,7 @@ function poserPageDeStation() {
     // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
     const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
     enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]), poserLesAppels(document, ligne?.appels));
-    poserPlafond(station.nom, ligne);
+    poserPlafond(ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station, panne)));
     poserLesSectionsDeStation({ id: station.id, nom: station.nom });
@@ -6284,19 +6208,13 @@ function poserLesProjetsChoisis() {
   if (champ !== null && reprise.debut !== null && reprise.fin !== null) champ.setSelectionRange?.(reprise.debut, reprise.fin);
 }
 
-// Le seul réglage que la page d'une station montre est son plafond de cooks, étiqueté ci-dessous : le dossier des
-// espaces de travail et les capacités ne se règlent qu'à l'ajout d'une station (son formulaire, étiqueté lui aussi).
 // Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
 // replaces 3 (8 cores)` — ; quand elle retient des tickets, ce qui la retient, avec ce que chaque ressource a et ce
-// qu'il lui faut ; et le réglage : un nombre, ou « default » pour que le plafond des cœurs revienne. Le plafond
-// neuf se lit au rendu suivant, quand la box a répondu. Une station dont aucun projet lu ne dit le plafond n'a rien de tout cela.
-/** @param {string} nom @param {import("../accueil.ts").LigneDeStation | undefined} ligne */
-function poserPlafond(nom, ligne) {
+// qu'il lui faut. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
+// se change sur sa machine. Une station dont aucun projet lu ne dit le plafond n'a rien de tout cela.
+/** @param {import("../accueil.ts").LigneDeStation | undefined} ligne */
+function poserPlafond(ligne) {
   if (ligne?.plafond === undefined) return plafondDeStation.replaceChildren();
-  if (plafondSaisiPour !== nom) {
-    plafondSaisiPour = nom;
-    plafondChoisi.value = "";
-  }
   const { plafond, retenue } = ligne;
   const lignes = [];
   const dit = bloc("p", `Cooks at once: ${plafond.dit}`);
@@ -6309,42 +6227,7 @@ function poserPlafond(nom, ligne) {
     retient.append(survol(document, `no ticket is taken for ${retenue.depuis}, as long as it lasts; the running cooks carry on`));
     lignes.push(retient);
   }
-  const regle = document.createElement("p");
-  regle.className = "regle-le-plafond";
-  const regler = /** @type {HTMLButtonElement[]} */ ([]);
-  /** @param {string} libelle @param {() => string} valeur @param {boolean} recommande @param {string} prix */
-  const geste = (libelle, valeur, recommande, prix) => {
-    const groupe = boutonAction(document, libelle, () => void reglerLePlafond(nom, valeur(), regler), { recommande, prix });
-    regler.push(groupe.querySelector("button"));
-    return groupe;
-  };
-  regle.append(
-    plafondChoisi,
-    geste("set the cap", () => plafondChoisi.value.trim(), true, "no running cook is stopped; the station launches no more while it is above — 0 lifts the limit"),
-    ...(plafond.parLeChef ? [geste("back to the default", () => "auto", false, "withdraws your cap: the one derived from the machine's cores returns")] : []),
-  );
-  lignes.push(regle);
-  const refus = plafondsRefuses.get(nom);
-  if (refus !== undefined) lignes.push(lectureIndisponible(document, refus.refus, refus.detail ?? ""));
   plafondDeStation.replaceChildren(...lignes);
-}
-
-/** @param {string} nom @param {string} valeur @param {HTMLButtonElement[]} boutons */
-async function reglerLePlafond(nom, valeur, boutons) {
-  for (const bouton of boutons) bouton.disabled = true;
-  /** @type {{ fait: string } | { refus: string, detail?: string }} */
-  let rendu;
-  try {
-    rendu = await brigade.reglerLePlafond(nom, valeur);
-  } catch (erreur) {
-    rendu = { refus: "the cap was not changed", detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  if ("refus" in rendu) plafondsRefuses.set(nom, rendu);
-  else {
-    plafondsRefuses.delete(nom);
-    plafondChoisi.value = "";
-  }
-  poserPageDeStation();
 }
 
 // La station dont « remove the station » demande confirmation, par son gist.

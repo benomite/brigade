@@ -58,13 +58,13 @@ describe("une station distante que la principale ne voit pas (#1830)", () => {
     ]);
     const lignes = tableau.stations?.lignes ?? assert.fail("pas de stations");
     assert.deepEqual(
-      lignes.map(({ station: nom, etat, ton, geste, fournit, presente, vueLe }) => ({ nom, etat, ton, geste, fournit, presente, vueLe })),
+      lignes.map(({ station: nom, etat, ton, fournit, presente, vueLe }) => ({ nom, etat, ton, fournit, presente, vueLe })),
       [
-        { nom: "box/claude", etat: "cooking", ton: "vert", geste: "stop", fournit: ["code"], presente: true, vueLe: null },
-        { nom: "mac/claude", etat: ABSENTE.etat, ton: "gris", geste: "stop", fournit: ["code", "macos"], presente: false, vueLe: null },
-        { nom: "pc/claude", etat: "stopped", ton: "gris", geste: "start", fournit: undefined, presente: false, vueLe: "2026-10-20T09:00:00.000Z" },
-        { nom: "mini/claude", etat: "cooking", ton: "vert", geste: "stop", fournit: undefined, presente: true, vueLe: "2026-10-20T10:04:00.000Z" },
-        { nom: "vieux/claude", etat: "cooking", ton: "vert", geste: "stop", fournit: undefined, presente: undefined, vueLe: undefined },
+        { nom: "box/claude", etat: "cooking", ton: "vert", fournit: ["code"], presente: true, vueLe: null },
+        { nom: "mac/claude", etat: ABSENTE.etat, ton: "gris", fournit: ["code", "macos"], presente: false, vueLe: null },
+        { nom: "pc/claude", etat: "stopped", ton: "gris", fournit: undefined, presente: false, vueLe: "2026-10-20T09:00:00.000Z" },
+        { nom: "mini/claude", etat: "cooking", ton: "vert", fournit: undefined, presente: true, vueLe: "2026-10-20T10:04:00.000Z" },
+        { nom: "vieux/claude", etat: "cooking", ton: "vert", fournit: undefined, presente: undefined, vueLe: undefined },
       ],
     );
     assert.match(lignes[1]?.survol ?? "", /does not see it: it takes no ticket until it shows itself/);
@@ -80,11 +80,11 @@ describe("les stations du projet, ligne par ligne", () => {
     ]);
     const lignes = tableau.stations?.lignes ?? assert.fail("pas de stations");
     assert.deepEqual(
-      lignes.map(({ station: nom, distante, etat, ton, dit, cooks, geste }) => ({ nom, distante, etat, ton, dit, cooks: cooks.map(({ ticket, station: sienne }) => `#${ticket} ${sienne}`), geste })),
+      lignes.map(({ station: nom, distante, etat, ton, dit, cooks }) => ({ nom, distante, etat, ton, dit, cooks: cooks.map(({ ticket, station: sienne }) => `#${ticket} ${sienne}`) })),
       [
-        { nom: "box/claude", distante: false, etat: "cooking", ton: "vert", dit: "", cooks: ["#14 box/claude"], geste: "stop" },
-        { nom: "mac/claude", distante: true, etat: "stopped", ton: "gris", dit: "by you, for 3 min · 1 cook finishing", cooks: ["#15 mac/claude"], geste: "start" },
-        { nom: "atelier/claude", distante: false, etat: "saturated", ton: "jaune", dit: "its machine has no room", cooks: [], geste: "stop" },
+        { nom: "box/claude", distante: false, etat: "cooking", ton: "vert", dit: "", cooks: ["#14 box/claude"] },
+        { nom: "mac/claude", distante: true, etat: "stopped", ton: "gris", dit: "by you, for 3 min · 1 cook finishing", cooks: ["#15 mac/claude"] },
+        { nom: "atelier/claude", distante: false, etat: "saturated", ton: "jaune", dit: "its machine has no room", cooks: [] },
       ],
     );
   });
@@ -95,21 +95,18 @@ describe("les stations du projet, ligne par ligne", () => {
     assert.equal(ligne?.ton, "rouge");
     assert.equal(ligne?.dit, REFUS.message);
     assert.equal(ligne?.survol, REFUS.action);
-    assert.equal(ligne?.geste, null);
   });
 
   test("arrêtée par le « stop » de toute la cuisine : ce n'est pas d'elle que l'arrêt vient — pas de bouton, la reprise est sur la bannière", () => {
     const [ligne] = lues([station("box/claude", { cuisson: "stopped", arreteeDepuis: null, cooks: [COOK_14] })]).tableau.stations?.lignes ?? [];
     assert.equal(ligne?.etat, "stopped");
     assert.equal(ligne?.dit, "the whole kitchen is stopped · 1 cook finishing");
-    assert.equal(ligne?.geste, null);
   });
 
   test("d'un runtime d'avant `cuisson` : l'état n'est pas dit, aucun bouton, et ses cooks viennent de `facts.cooks`", () => {
     const ancienne: StationDesFaits = { station: "mac/claude", distante: true, plafond: 2, ordinaires: true, bacASable: null, prendOrdinaires: true };
     const { lignes } = cuissonDe([ancienne], [COOK_14, COOK_15], LU);
     assert.equal(lignes[0]?.etat, "not given");
-    assert.equal(lignes[0]?.geste, null);
     assert.deepEqual(lignes[0]?.cooks, [COOK_15]);
     // Et la forme d'avant se lit toujours : rien n'y manque.
     const { tableau } = lues([{ ...station("box/claude") }].map(({ cuisson: _c, arreteeDepuis: _a, refus: _r, cooks: _k, ...avant }) => avant as DuRuntime));
@@ -120,7 +117,6 @@ describe("les stations du projet, ligne par ligne", () => {
     const [ligne] = cuissonDe([{ ...station("box/claude"), cuisson: "drained" }], [], LU).lignes;
     assert.equal(ligne?.etat, "drained");
     assert.equal(ligne?.ton, undefined);
-    assert.equal(ligne?.geste, null);
   });
 
   test("un runtime qui ne donne pas les stations : rien n'est posé", () => {

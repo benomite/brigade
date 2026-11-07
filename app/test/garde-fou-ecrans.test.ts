@@ -327,14 +327,13 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     assert.equal(vue.element("espace").textContent, "parade", "le clic n'ouvre pas le projet");
   });
 
-  test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, le recommandé en tête", async () => {
+  test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, dans l'ordre de la table", async () => {
     const { racine } = await ficheEnAttente();
     const proposes = gestesDeCarte(carte);
-    assert.ok(proposes.some(({ id }) => id === "merger"), "la décision attendue est de merger : le geste manque à la table");
+    assert.ok(proposes.length > 0, "la table du chef propose des gestes pour cette carte");
     const boutonsDeLaFiche = boutons(racine).map(({ textContent }) => textContent);
     for (const { libelle, id } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
     const [premier] = proposes;
-    assert.equal(premier?.recommande, true);
     const gestes = racine.dessous("section").find(({ className }) => className === "gestes-fiche") ?? assert.fail("pas de gestes sur la fiche");
     assert.equal(boutons(gestes)[0]?.textContent, premier?.libelle);
     // Aucun geste n'est une ligne de texte : chaque ligne de geste porte son bouton.

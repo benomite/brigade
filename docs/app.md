@@ -89,11 +89,9 @@ hover), the station's tag (its short name, the full name on hover), its ticket a
 A runtime from before `agents` gives the pass alone, read from the rail's tickets in pass. A station that runs nothing at
 all says `nothing running` in one line; one that runs only a pass or the manager shows its cards, and no such line. The
 cards follow the next read: a pass that ends leaves the block. On the narrow screen, one line per agent above the cooks'.
-Nothing in a block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
-when you have stopped it. Since #2061 nothing leaves the app: the line under the station says ``nothing was sent: a
-station is no longer stopped or started from the app — stop its runtime on its machine, or remove `fire` from the
-tickets it should not take`` (`SANS_FAIT` in `app/src/gestes-github.ts`). A station
-stopped by your "stop" of the whole kitchen, or that refuses the project, has no button: the resume is on the
+Nothing in a block is command output. A block has **no button to stop or start the station**: a station takes as many tickets as it declares places,
+and it is stopped on its own machine (stop its runtime there), or by removing `fire` from the tickets it should not take.
+A station stopped by your "stop" of the whole kitchen, or that refuses the project: the resume is on the
 banner, the action for a refusal in the block under the stations line. **On Rail, a single line at the top** says
 what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
@@ -176,8 +174,7 @@ module is `app/src/vue/roles-cuisine.js`.
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
 moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks — one line each, not
-their cards —, and on each one its
-only button, `stop cooking` or `start cooking` — no project tile, no Taken and Pass, no stations
+their cards — no project tile, no Taken and Pass, no stations
 line to set up (`+ station`, `move the kitchen`, the sandbox), no reading of `station` and its cap: cooks are set up
 where there is a computer. Rail shows the same columns and cards as on a wide screen, `open Cooks` line included, but
 **stacked, full width, with TODO — what waits for you — first** (#1163): the page scrolls down, never sideways. A
@@ -608,13 +605,13 @@ from GitHub — a TODO column and the raw `status` sections, with `use the direc
 and the phone. The gestures of the card and the sheet that have a fact on GitHub are written there by the app itself
 (`app/src/gestes-github.ts`): `remove from the rail` removes the `fire` label from the issue; `back to the kitchen` and
 `it arrived` after WAITING remove `waiting` (#1740, below); the chef's comment is posted on the issue (see "A rail
-card's history and discussion"). The others send nothing and say where to act instead (`SANS_FAIT`): `merge the PR`
-says `merge the delivery's PR on GitHub, or let the station's pass merge it`; a TODO card's choice or text has nowhere to go. Since #2076, this is true of
+card's history and discussion"). The others send nothing and say where to act instead (`SANS_FAIT`): a delivery is merged on its PR on GitHub, or
+by the station's pass, and the app has no button for it; a TODO card's choice or text has nowhere to go. Since #2076, this is true of
 every project, whichever station serves it: the repository of a project served by another station is read too, and its
 rail is this same view, in the same order — the rail a station publishes in its gist only says why GitHub is not read
 yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
-sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
+sheet of a TODO ticket whose decision is known, offering its gestures).
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
@@ -661,7 +658,7 @@ the project's repository alone — nothing comes from a box —, every 30 second
   `blocked-on-human` delivery keeps `in-pass`: it is not in Pass); with `waiting` as well, the chef moved it to a third
   party: it is in Waiting. Then:
   - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
-    "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the sheet offers `merge the PR`.
+    "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the merge is done on GitHub.
   - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
     is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
     (**On the rail**, `86`), with its reason line as before ("off the kitchen after 2 sends back — the CI is red on
@@ -701,7 +698,7 @@ question. On the repository's open issues, read with the token of this computer'
 
 | GitHub fact | its line: the question, then the gesture |
 |---|---|
-| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — merge PR #N with merge the PR on its Todo card, or on GitHub` |
+| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — merge PR #N on GitHub` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
 | `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the box's words: `set aside by the manager, it carries question — to decide: answer it then remove the label, the manager judges it; or close the issue` |
@@ -764,7 +761,7 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 with choices, a click on each gesture against a fake GitHub).*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
-is the question "Merge PR #N by hand? It changes what judges it." with the PR link and `merge the PR`; a technical
+is the question "Merge PR #N by hand? It changes what judges it." with the PR link, to merge on GitHub; a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
 carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:
@@ -1443,14 +1440,14 @@ and nothing on it scrolls sideways at phone width. Screens: `telephone-file`, `t
 `telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`).
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
-`merge the PR`, `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
+`remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
 call the same bridge action, `gesteDeFiche` (the project, the gesture, the ticket — never a command), confirmed
-first when they cost; on Cooks, each station's `stop cooking` or `start cooking` calls `cuireSurLaStation`. A phone
-has no second to write a command into: there, `gesteDeFiche` answers like `cuireSurLaStation`, `{ fait }` — what
+first when they cost. A phone
+has no second to write a command into: there, `gesteDeFiche` answers `{ fait }` — what
 the station did — or `{ refus }`, each with the station's answer in `detail` (`app/src/vue/pont.d.ts`). The sheet
 says it in one line under its buttons, the station's answer on hover, and the box is read again at once: the card
-leaves TODO with that reading (a merged ticket moves to Served, a removed one leaves the rail). While the answer has
-not come, the line says `merge the PR: sent, waiting for the answer…` and the sheet's buttons are inactive —
+leaves TODO with that reading (a removed ticket leaves the rail). While the answer has
+not come, the line says `remove from the rail: sent, waiting for the answer…` and the sheet's buttons are inactive —
 nothing goes twice. A refusal, or a bridge that fails or carries nothing (`nothing was sent — nothing was changed`, the reason on
 hover), does not read the box again: the queue stays as it was, and the gesture can be played again. On a
 narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
@@ -1496,12 +1493,9 @@ tests `app/test/vue-station-version/`; screens: `docs/captures/2191/` (`scripts/
 one sentence (#877); below, its faults with their button, the projects the app added to it and the
 "add a project" flow (see "Add a project to your stations, without a terminal").
 Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
-`status`), what holds tickets back when it is saturated (memory, processor, value and threshold), a field
-and "set the cap" to set it, "back to the default" to remove it. Since #2061 the setting sends nothing: the page says
-`nothing was changed: a station takes as many tickets as it declares places — change its declaration on its machine`
-(`SANS_FAIT` in `app/src/gestes-github.ts`).
-#1292: the same cap is on each station's line in the Cooks tab — `Cooks at once: 3 at most — 8 cores`,
-a field and "set the cap", which answers the same. When the station is saturated, one sentence says what holds it (`Saturated on CPU —
+`status`), what holds tickets back when it is saturated (memory, processor, value and threshold), no
+field to change it: a station takes as many tickets as it declares places, and its declaration is changed on its machine.
+#1292: the same cap is on each station's line in the Cooks tab — `Cooks at once: 3 at most — 8 cores`, read only. When the station is saturated, one sentence says what holds it (`Saturated on CPU —
 load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
 "‹ All projects" takes you back to the home screen, like the **T** square.
 Under its faults, its sections (#2641, epic #2497), in this order, each under its heading: Identity, Connections,

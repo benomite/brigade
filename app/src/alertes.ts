@@ -218,7 +218,7 @@ function desRetenues(faits: Faits | Sans): Alerte[] {
 
 // --- L'interrupteur GitHub seul refusé ----------------------------------------------
 //
-// L'interrupteur est allumé dans les réglages du projet et le runtime l'a refusé : il garde l'ancien chemin, et
+// Le projet est servi sur GitHub seul et le runtime a refusé cet état : il ne cuit rien tant que la raison tient, et
 // ne le dit que dans son log. `facts` porte la raison (`githubSeul`, ticket 2161) ; la ligne la redit, en tête.
 function duRefusDeGitHubSeul(faits: Faits | Sans): Alerte[] {
   if ("sans" in faits || faits.githubSeulRefuse === undefined) return [];
@@ -228,8 +228,8 @@ function duRefusDeGitHubSeul(faits: Faits | Sans): Alerte[] {
       sujet: "cuisine",
       verifie: true,
       ton: "jaune",
-      dit: `GitHub-only state refused: ${reason} — the old path is kept`,
-      pourquoi: "the setting is on in the project, but this runtime cannot serve it, so it runs the old state path",
+      dit: `GitHub-only state refused: ${reason} — nothing is cooked for this project`,
+      pourquoi: "the project's state lives on GitHub only, and this runtime refuses to serve it, so it takes no ticket",
       geste: "lift what the runtime refuses, then restart it",
       prix: AUCUN,
     },

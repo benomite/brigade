@@ -116,7 +116,7 @@ describe("l'interrupteur GitHub seul refusé par le runtime (ticket 2161)", () =
       return bandes.manager(lecture("manager", rendu.manager)).alertes;
     };
     const ligne = enPanne(avec({ etat: "refused", reason: "the station name \"a/b\" cannot sign a claim or a verdict", since: `${JOUR}T09:00:00.000Z` }), "cuisine");
-    assert.match(ligne.dit, /^GitHub-only state refused: the station name .* cannot sign a claim or a verdict — the old path is kept$/);
+    assert.match(ligne.dit, /^GitHub-only state refused: the station name .* cannot sign a claim or a verdict — nothing is cooked for this project$/);
     assert.deepEqual(avec({ etat: "accepted", since: `${JOUR}T09:00:00.000Z` }), []);
     assert.deepEqual(avec(undefined), []);
   });

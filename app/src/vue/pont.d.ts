@@ -141,7 +141,7 @@ export type Pont = {
   gestesDeFiche(carte: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: import("../decision.ts").Decision; pr?: boolean }): Promise<import("../gestes-fiche.ts").Propose[]>;
   // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Là où il n'y a pas de
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
-  // comme `cuireSurLaStation` : `fait`, une phrase, et ce que la station a répondu en `detail`.
+  // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
@@ -297,12 +297,6 @@ export type Pont = {
   // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la
   // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
   panne(id: string, cle: string): Promise<RenduDePanne>;
-  // Le bouton d'une station du projet, sur l'onglet Cooks (ticket 1185) : arrête ou relance la cuisine du projet sur
-  // cette station (cuisson.ts). Rend ce qui est fait, ou pourquoi rien — ce que le runtime a dit, en `detail`.
-  cuireSurLaStation(projet: string, station: string, geste: import("../cuisson.ts").GesteDeCuisson): Promise<import("../cuisson.ts").RenduDeCuisson>;
-  // Le plafond de cooks d'une station, réglé depuis sa page : un nombre (0 : sans limite) ou « auto » (le plafond de
-  // ses cœurs revient). Part sur la box de chaque projet qui nomme la station — ou du seul `projet`, depuis sa ligne de station (ticket 1292) (plafond.ts) ; le plafond neuf arrive par `surAccueil`.
-  reglerLePlafond(station: string, valeur: string, projet?: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
   // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : un modèle et un effort, ou « defaut »
   // — le retour au défaut. Part là où sa cuisine tourne (plafond-de-calibrage.ts) ; le plafond neuf arrive par la relecture.
   reglerLePlafondDeCalibrage(projet: string, choix: import("../plafond-de-calibrage.ts").ChoixDuPlafond): Promise<import("../plafond-de-calibrage.ts").RenduDuPlafond>;

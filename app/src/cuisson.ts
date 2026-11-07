@@ -1,8 +1,6 @@
 // La cuisine d'un projet, station par station (#1185) : ce que chaque station déclarée fait du projet —
-// elle cuit, elle est arrêtée, saturée, ou elle le refuse —, ses cooks en cours, et le geste qui la lance
-// ou l'arrête. Tout vient de `facts`, champ `stations` (runtime/src/etat.ts, `cuisson`, #1183) : un mot
-// lu, que l'app ne déduit jamais. Le geste qui la lançait ou l'arrêtait ne part plus de l'app (#2061) : aucune box ne
-// lit plus de tableau de la cuisine.
+// elle cuit, elle est arrêtée, saturée, ou elle le refuse —, ses cooks en cours. Tout vient de
+// `facts`, champ `stations` (runtime/src/etat.ts, `cuisson`, #1183) : un mot lu, que l'app ne déduit jamais.
 // Ce qui demande un geste au chef — une station saturée, ou qui refuse le projet — tient en une ligne, que
 // l'onglet Rail pose avec de quoi ouvrir Cooks.
 // Une station distante que la principale ne voit pas (`presente`, #1830) ne cuit pas, quel que soit son mot : elle ne
@@ -21,23 +19,17 @@ const TONS = new Map([
   ["refused", "rouge"],
 ]);
 
-// Le geste d'une ligne : la station cuit — saturée, elle cuit encore ce qu'elle a —, elle s'arrête ;
-// arrêtée par le chef, elle se relance.
-export type GesteDeCuisson = "start" | "stop";
-export const GESTES_DE_CUISSON: readonly GesteDeCuisson[] = ["start", "stop"];
-
 // Ce qu'une station fait tourner hors des cooks de ticket (#1971) : la pass qui juge une livraison, le manager qui juge
 // ou découpe une issue, le triage, le closer qui nettoie le projet — son rôle, son ticket et le titre que le rail lui
 // donne (vide hors du rail, et pour le closer, qui n'en a pas), ce qu'il fait, depuis quand, et cette durée à la lecture.
 export type AgentDeStation = { role: string; ticket: number | null; titre: string; fait: string; depuis: string; pour: string };
 
 // Une station sur l'onglet Cooks : son nom ; distante ou de la box ; son mot, sa couleur ; ce qu'il veut dire
-// en quelques mots, et au survol ; ses cooks en cours ; le geste que son bouton fait — aucun quand ce n'est
-// pas d'elle que vient l'arrêt, qu'elle refuse le projet, ou que son runtime ne dit pas son état. Et ce que la principale
+// en quelques mots, et au survol ; ses cooks en cours ; et ce que la principale
 // sait d'elle, quand son runtime le dit : ce qu'elle fournit, si elle la voit, sa dernière demande. `agents` : ce
 // qu'elle fait tourner à côté de ses cooks (#1971) — vide quand rien ne tourne.
 // `ordinaires` : la station prend aussi les tickets ordinaires, comme `facts` le dit (l'onglet Stations le montre, #2488).
-export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; geste: GesteDeCuisson | null; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string };
+export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string };
 // `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
 // `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/cooks/stations-github.js, #2358) —
 // `illisible`, pourquoi leurs signes de vie ne se lisent pas.
@@ -65,26 +57,26 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
     ...(station.retenue === undefined ? {} : { retenue: station.retenue }),
   };
   const etat = station.cuisson;
-  if (etat === undefined) return { ...base, etat: PAS_DIT, dit: "", survol: PAS_DIT_SURVOL, geste: null };
+  if (etat === undefined) return { ...base, etat: PAS_DIT, dit: "", survol: PAS_DIT_SURVOL };
   const ton = TONS.get(etat);
   const colore = ton === undefined ? {} : { ton };
-  if (etat === "cooking" && station.distante && station.presente === false) return { ...base, ...ABSENTE, ton: "gris", dit: "", geste: "stop" };
-  if (etat === "cooking") return { ...base, etat, ...colore, dit: "", survol: "it takes the project's tickets", geste: "stop" };
-  if (etat === "idle") return { ...base, etat, ...colore, dit: "", survol: "it holds no ticket of the project: it takes the next one it can cook", geste: null };
-  if (etat === "silent") return { ...base, etat, ...colore, dit: "", survol: "it has not signed on GitHub for a while: it takes no ticket until it is back", geste: null };
-  if (etat === "saturated") return { ...base, etat, ...colore, dit: "its machine has no room", survol: "its machine has no room left: it takes no ticket until it has, its running cooks go on", geste: "stop" };
+  if (etat === "cooking" && station.distante && station.presente === false) return { ...base, ...ABSENTE, ton: "gris", dit: "" };
+  if (etat === "cooking") return { ...base, etat, ...colore, dit: "", survol: "it takes the project's tickets" };
+  if (etat === "idle") return { ...base, etat, ...colore, dit: "", survol: "it holds no ticket of the project: it takes the next one it can cook" };
+  if (etat === "silent") return { ...base, etat, ...colore, dit: "", survol: "it has not signed on GitHub for a while: it takes no ticket until it is back" };
+  if (etat === "saturated") return { ...base, etat, ...colore, dit: "its machine has no room", survol: "its machine has no room left: it takes no ticket until it has, its running cooks go on" };
   if (etat === "refused") {
     const refus = station.refus ?? null;
-    return { ...base, etat, ...colore, dit: refus?.message ?? "the station refuses the project", survol: refus?.action ?? "the station does not say why", geste: null };
+    return { ...base, etat, ...colore, dit: refus?.message ?? "the station refuses the project", survol: refus?.action ?? "the station does not say why" };
   }
   if (etat === "stopped") {
     const finissent = siens.length === 0 ? "" : ` · ${cooksDit(siens.length)} finishing`;
     const depuis = station.arreteeDepuis ?? null;
     // Arrêtée par le « stop » de toute la cuisine : c'est elle qui se reprend, sur sa bannière.
-    if (depuis === null) return { ...base, etat, ...colore, dit: `the whole kitchen is stopped${finissent}`, survol: "your “stop” holds the whole kitchen: “resume” on its banner starts it again, on every station", geste: null };
-    return { ...base, etat, ...colore, dit: `by you, for ${duree(Date.parse(lu) - Date.parse(depuis))}${finissent}`, survol: "it takes no more tickets of this project; its running cooks finish — delivered, or their ticket goes back to the rail", geste: "start" };
+    if (depuis === null) return { ...base, etat, ...colore, dit: `the whole kitchen is stopped${finissent}`, survol: "your “stop” holds the whole kitchen: “resume” on its banner starts it again, on every station" };
+    return { ...base, etat, ...colore, dit: `by you, for ${duree(Date.parse(lu) - Date.parse(depuis))}${finissent}`, survol: "it takes no more tickets of this project; its running cooks finish — delivered, or their ticket goes back to the rail" };
   }
-  return { ...base, etat, dit: "", survol: `“${etat}”: a word this app does not know yet`, geste: null };
+  return { ...base, etat, dit: "", survol: `“${etat}”: a word this app does not know yet` };
 }
 
 // Ce qu'une station qui demande un geste au chef dit de son état, dans la ligne d'alerte.
@@ -126,6 +118,3 @@ export function cuissonDe(stations: readonly StationDesFaits[], cooks: readonly 
   const autres = dites.length - 1;
   return { lignes, alerte: premiere === undefined ? null : autres === 0 ? premiere : `${premiere} — and ${autres} more station${autres > 1 ? "s" : ""}` };
 }
-
-// Ce que le bouton d'une station reçoit (vue/pont.d.ts) : il ne part plus de l'app (#2061, gestes-github.ts, `SANS_FAIT`).
-export type RenduDeCuisson = { fait: string; detail?: string } | { refus: string; detail?: string };

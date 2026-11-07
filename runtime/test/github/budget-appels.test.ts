@@ -56,21 +56,21 @@ test("des appels de deux projets dans plusieurs catégories : le registre donne 
   appeler(limite, etiquetteDe(["repos/o/alpha/issues/12/comments"], { projet: "alpha" }), 2);
   appeler(limite, etiquetteDe(["-X", "POST", "repos/o/alpha/issues/12/comments", "-f", "body=x"], { projet: "alpha" }), 1);
   appeler(limite, etiquetteDe(["repos/o/alpha/commits/abc/check-runs"], { projet: "alpha" }), 4);
-  appeler(limite, { projet: "alpha", lecture: "board" }, 1);
-  appeler(limite, { projet: "alpha", lecture: "board", ecriture: true }, 1);
+  appeler(limite, { projet: "alpha", lecture: "issues" }, 1);
+  appeler(limite, { projet: "alpha", lecture: "issues", ecriture: true }, 1);
   appeler(limite, etiquetteDe(["repos/o/beta/pulls/3"], { projet: "beta" }), 2);
   appeler(limite, etiquetteDe(["-X", "PUT", "repos/o/beta/pulls/3/merge"], { projet: "beta", usage: "geste" }), 1, "geste");
   appeler(limite, etiquetteDe(["repos/o/beta/issues/40"], { projet: "beta" }), 1);
   appeler(limite, { projet: "station", lecture: "gist", ecriture: true }, 1);
 
-  const vide = { board: 0, issues: 0, gists: 0, PRs: 0, checks: 0 };
+  const vide = { issues: 0, gists: 0, PRs: 0, checks: 0 };
   const budget = { reads: BUDGET_PAR_HEURE, writes: BUDGET_PAR_HEURE };
   assert.deepEqual(limite.budget(), {
     windowStart: "2026-11-03T10:00:00.000Z",
     projects: {
       alpha: {
-        reads: { total: 10, byCategory: { ...vide, board: 1, issues: 5, checks: 4 } },
-        writes: { total: 2, byCategory: { ...vide, board: 1, issues: 1 } },
+        reads: { total: 10, byCategory: { ...vide, issues: 6, checks: 4 } },
+        writes: { total: 2, byCategory: { ...vide, issues: 2 } },
         budget,
         overBudget: false,
       },
@@ -105,7 +105,7 @@ test("un projet qui passe son budget de lectures donne une seule alerte dans l'h
   appeler(limite, etiquetteDe(["repos/o/beta/issues"], { projet: "beta" }), 10, "cuisine", avancer);
   appeler(limite, etiquetteDe(["repos/o/alpha/commits/abc/check-runs"], { projet: "alpha" }), 100, "cuisine", avancer);
   appeler(limite, etiquetteDe(["repos/o/alpha/issues?state=open"], { projet: "alpha" }), 300, "cuisine", avancer);
-  appeler(limite, { projet: "alpha", lecture: "board" }, 20, "cuisine", avancer);
+  appeler(limite, { projet: "alpha", lecture: "issues" }, 20, "cuisine", avancer);
   appeler(limite, etiquetteDe(["repos/o/alpha/pulls/3"], { projet: "alpha" }), 180, "cuisine", avancer);
   assert.equal(limite.budget().projects.alpha?.reads.total, BUDGET_PAR_HEURE);
   assert.deepEqual(alertes, [], "à 600 lectures, le budget est tenu, pas passé");
@@ -117,10 +117,9 @@ test("un projet qui passe son budget de lectures donne une seule alerte dans l'h
       windowStart: "2026-11-03T10:00:00.000Z",
       depasses: ["reads"],
       categories: [
-        { categorie: "issues", appels: 300 },
+        { categorie: "issues", appels: 320 },
         { categorie: "PRs", appels: 181 },
         { categorie: "checks", appels: 100 },
-        { categorie: "board", appels: 20 },
       ],
     },
   ]);
