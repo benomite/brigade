@@ -161,6 +161,17 @@ check of its own next to #2755's inertia bug (#2757), a second read of `projet.j
 project settings (#2759), a claim-wait bound that rewrote the time measure's rule without its
 conditions (#2784).
 
+The same instruction tells the cook to write the failure path of every read its diff adds — GitHub,
+a file, a model reply, a clone, a setting: what the code does when the read fails, is missing or
+cannot be parsed, with a test that plays that case. A failure that brings down the whole turn, or a
+default that decides in its place — an unreadable file read as empty then overwritten, an unreadable
+reply that closes, an invented value shown — is blocking. Blocking review was still the first
+send-back reason after #2797 (#2803: 23 over 69 merged tickets), and the second commits not covered by
+the three rules above most often wrote that failure path the first had left out: comments GitHub does
+not give failed the whole tick (#2741), an unreadable completion closed the follow-up (#2692), a
+corrupted settings file was read as empty and would be overwritten while another station showed
+invented values (#2644), a station with no clone kept a ticket's clock (#2662).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
