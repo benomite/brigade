@@ -18,6 +18,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { EFFORTS, MODELES, type Calibrage } from "../calibrage.ts";
+import { HumainsInvalides, humainsDe, type Humain } from "../humains/humains.ts";
+import { LOGIN } from "../humains/login.ts";
 import { execFile } from "../sans-invite.ts";
 import { refusEn } from "../zones.ts";
 import { nomPrive, valeurPrivee, type Prive } from "./prive.ts";
@@ -118,6 +120,8 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // que d'autres ouvrent sur le dépôt, auxquelles le rôle produit répond
   // (`produit/externes/`).
   chef?: string;
+  // Les humains du projet et leurs rôles (#2759, `humains/humains.ts`).
+  humans?: Humain[];
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -134,6 +138,7 @@ export type ReglagesLus = {
   closer: ReglagesDuCloser;
   commonPaths?: string[];
   chef?: string;
+  humans?: Humain[];
 } & SeuilsDuProjet;
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
@@ -160,12 +165,8 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
-
-// Un compte GitHub tel que GitHub en accepte : lettres, chiffres et tirets
-// isolés, 39 caractères au plus, sans tiret au bord.
-export const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 
@@ -307,6 +308,15 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (typeof objet.chef !== "string" || !LOGIN.test(objet.chef)) throw invalide("chef", "must be the chef's GitHub login");
     reglages.chef = objet.chef;
   }
+  if (objet.humans !== undefined) {
+    try {
+      const humains = humainsDe(objet.humans);
+      if (humains.length > 0) reglages.humans = humains;
+    } catch (erreur) {
+      if (erreur instanceof HumainsInvalides) throw new ReglageRefuse("invalide", erreur.cle, erreur.message);
+      throw erreur;
+    }
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -325,7 +335,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -349,6 +359,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(duCloser.length === 0 ? {} : { closer: Object.fromEntries(duCloser) }),
       ...(commonPaths === undefined || commonPaths.length === 0 ? {} : { commonPaths }),
       ...(chef === undefined ? {} : { chef }),
+      ...(humans === undefined || humans.length === 0 ? {} : { humans: humans.map(({ login, roles }) => ({ login, roles })) }),
       ...Object.fromEntries(desSeuils),
     },
     null,
@@ -443,6 +454,7 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     closer: reglages.closer ?? {},
     ...(reglages.commonPaths === undefined ? {} : { commonPaths: reglages.commonPaths }),
     ...(reglages.chef === undefined ? {} : { chef: reglages.chef }),
+    ...(reglages.humans === undefined ? {} : { humans: reglages.humans }),
     ...seuilsDuProjet(reglages),
   };
 }

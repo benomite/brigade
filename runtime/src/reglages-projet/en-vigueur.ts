@@ -18,6 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Calibrage } from "../calibrage.ts";
 import { lireALaBase } from "../depot.ts";
+import { direHumains } from "../humains/humains.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
 
@@ -155,9 +156,11 @@ export function direReglagesDuDepot(branche: BrancheDuProjet, reglages: Reglages
 }
 
 // Les seuils que le fichier fixe, nommés ; ce qu'il tait est celui de la box.
+// Puis ses humains, rôle par rôle (#2759) : tus s'il n'en déclare pas.
 function direSeuils(reglages: ReglagesProjet): string {
   const noms = [...FAMILLES_DE_SEUILS.flatMap((famille) => Object.entries(reglages[famille] ?? {}).map(([nom]) => `${famille}.${nom}`)), ...(reglages.commonPaths === undefined ? [] : ["commonPaths"])];
-  return noms.length === 0 ? "" : `, thresholds ${noms.join(" ")}`;
+  const humains = direHumains(reglages.humans ?? []);
+  return `${noms.length === 0 ? "" : `, thresholds ${noms.join(" ")}`}${humains === "" ? "" : `, ${humains}`}`;
 }
 
 // L'environnement d'un projet, sa branche d'intégration résolue par son
