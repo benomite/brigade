@@ -451,7 +451,8 @@ export type Options = {
   // où le chef ne l'a pas posé, par défaut.
   // `station` : le nom sous lequel il prend son travail sur GitHub (#2568) ;
   // sans lui, il se croit seul.
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string };
+  // `surLeRail` : appelé quand le manager rend un ticket prenable (#2796).
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -550,6 +551,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         maintenant: heure.maintenant,
         avertir: (message) => void avertissements.push(message),
         station: options.manager.station ?? null,
+        ...(options.manager.surLeRail === undefined ? {} : { surLeRail: options.manager.surLeRail }),
       })
     : garde;
   aArreter = runtime;

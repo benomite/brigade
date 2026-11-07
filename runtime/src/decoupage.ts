@@ -47,6 +47,8 @@ export type Atelier = {
   avertir: (message: string) => void;
   // Ce qu'un jugement a coûté, tel qu'il se signe sur l'issue.
   signature: (run: string | null, verbe: string) => string;
+  // Un ticket du découpage vient d'être lancé : la station le prend sans attendre son tour suivant (#2796).
+  surLeRail?: () => void;
 };
 
 // L'horloge de GitHub n'est pas celle du runtime : un ticket se cherche à
@@ -232,6 +234,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       if (!fichee) await github.commenter(numero, ficheDuTicket(prevu, numeroDe));
       await github.labelliser(numero, [LABEL]);
       if (arrete()) return false;
+      atelier.surLeRail?.();
       noter(numero, { type: "manager.split-fired", payload: { epic: epic.number, index: rang } });
     }
     noter(epic.number, { type: "manager.split-done", payload: {} });

@@ -126,6 +126,11 @@ export type OptionsManager = ConfigManager & {
   // à chaque jugement, et le plafond à chaque réaction — le chef a pu les
   // changer sans redémarrer.
   decisions?: Pick<Decisions, "manager" | "plafond">;
+  // Un ticket que le manager vient de rendre prenable — `fire` ou son
+  // calibrage posés, un ticket de découpage lancé — : la station le prend à
+  // son tour tout de suite, pas à son tour suivant, jusqu'à deux minutes plus
+  // loin (#2796).
+  surLeRail?: () => void;
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -478,6 +483,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           ];
           if (aPoser.length > 0) await github.labelliser(issue.number, aPoser);
           if (arrete) return false;
+          if (aPoser.length > 0) options.surLeRail?.();
           noter(issue.number, { type: "manager.labeled", payload: { labels: aPoser } });
         }
       } catch (erreur) {
@@ -630,6 +636,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     eteint: () => !managerAllume(base),
     avertir,
     signature,
+    ...(options.surLeRail === undefined ? {} : { surLeRail: options.surLeRail }),
   });
 
   const requalification = ouvrirRequalification({

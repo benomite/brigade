@@ -80,6 +80,15 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     ]);
   });
 
+  test("chaque ticket lancé du découpage presse le tour de la station, une fois `fire` posé (#2796)", async (t) => {
+    const pressions: number[] = [];
+    const c = brigade(t, { issues: [issue(30, ["epic"])], manager: { jugement: "decoupe-tickets", surLeRail: () => void pressions.push(c.gh.labellisations.length) } });
+    epique(c);
+    await c.decoupee(30);
+
+    assert.deepEqual(pressions, [1, 2, 3]);
+  });
+
   test("le découpage pose sur la fiche les capacités que chaque ticket demande, devant celles que les stations du projet fournissent", async (t) => {
     const c = brigade(t, { decoupage: "decoupe-capacites", issues: [issue(30, ["epic"])] });
     // Les stations que le projet a annoncées au journal.

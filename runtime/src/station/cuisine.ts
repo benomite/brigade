@@ -237,7 +237,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
     // La retenue de la cuisine : rien de servi depuis 30 min alors que des
     // tickets attendent, sa cause et son geste entrent une fois dans la file
     // du chef, et en sortent quand la cuisine sert de nouveau.
