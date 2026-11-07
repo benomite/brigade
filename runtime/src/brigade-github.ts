@@ -55,7 +55,7 @@ import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
-import { correctionDuTemps, ticketDeCorrection, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
+import { correctionDuTemps, ticketDeCorrection } from "./temps-max/correction.ts";
 import { routerLeTempsPerdu, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
 import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
