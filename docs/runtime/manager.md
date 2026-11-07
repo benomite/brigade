@@ -193,8 +193,11 @@ question**.
 on (see "A ticket's card", in `station.md`).
 
 **An interface ticket goes to the design cook** (`agents/cook-design.md`): its zone touches the app's view
-(`app/src/vue/` or a folder containing it like `app/src`), or the split says so (`"cook": "design"`, only
-in a repository that defines the design cook). It carries `cook:design`, a "Cook design" paragraph at
+(`app/src/vue/` or a path under it, or a folder containing it like `app/src` when the repository has a view —
+a file under `app/src/vue/` in its plan), or the split says so (`"cook": "design"`, only in a repository that
+defines the design cook). A folder containing the view in a repository without one is not an interface zone:
+on BOBL-tech/espace, `app/src/` is the server, and its server tickets were sent back for screen captures no
+screen could give (#2800). It carries `cook:design`, a "Cook design" paragraph at
 the head of its body, and `· cook design` in the split comment's "Calibrage" column. Calibration is
 unchanged.
 
