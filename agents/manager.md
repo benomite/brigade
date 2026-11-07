@@ -41,3 +41,16 @@ Un module de `runtime/` livré, testé et fusionné mais jamais appelé depuis l
 2. **Un critère que la livraison porte un test qui passe par ce point d'entrée** (`ouvrirStation` ou `ouvrirCuisine`), pas seulement un test du module.
 
 Le fichier du point d'entrée entre dans la `zone` du ticket, au même titre que le module. Un ticket qui ne fait que de la doc, de l'app ou du plugin n'est pas concerné.
+
+## Le temps de cuisson attendu : un label `time:<minutes>`
+
+La durée d'une cuisson suit la taille du ticket. À partir de la même analyse de périmètre qui te fait choisir modèle et effort, tu poses sur **chaque ticket que tu qualifies ou découpes exactement un label `time:<minutes>`** : `time:` en minuscules, suivi d'un entier strictement positif, sans unité ni espace (`time:25`, jamais `time:25min`, `Time:25` ni `time:0`). Tu le mets dans les labels du ticket, à côté du calibrage.
+
+Règle de pouce, à ajuster au périmètre réel (nombre de fichiers, tests à écrire, doc à tenir à jour) :
+
+- `time:10` — un fichier de doc ou de prompt, un renommage, une correction d'une ligne ;
+- `time:25` — un `fix` ou un `tech` sur quelques fichiers, avec son test ;
+- `time:45` — une `feature` sur un module, avec tests et doc ;
+- `time:60` et plus — une `feature` qui traverse plusieurs modules ; si elle dépasse largement, c'est le signe qu'il faut la découper.
+
+**Un ticket que tu ne sais pas dimensionner n'a pas de label `time:`** : jamais un chiffre deviné. Une estimation inventée est pire que pas d'estimation, la station sait traiter l'absence.
