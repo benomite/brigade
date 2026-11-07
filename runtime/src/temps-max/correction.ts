@@ -25,10 +25,16 @@
 // onze des 60 tickets récents, chacun `prio:0` devant tout le rail, à chercher
 // une cause que la précédente venait de corriger.
 //
+// Devant elle, la porte de qualité (#2680) : quand les tickets récents ne
+// passent plus du premier coup ou cassent trop souvent la base, rien ne
+// s'ouvre ici, et un seul ticket de qualité s'ouvre à la place.
+//
 // L'appel vient du tour de la station (`brigade-github.ts`), qui lit les temps
 // dans le clone du projet.
 import { DE_CONFIANCE } from "../alimenter.ts";
+import { porteDeQualite, type DecisionDeQualite } from "../alerte-qualite.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
+import { mesurerQualite, type QualiteDuTicket } from "../mesure-qualite.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, tempsPerdu, ticketsRecents, totauxParPerte } from "./mesure.ts";
 
@@ -111,12 +117,17 @@ export type DecisionDeCorrection =
   // l'essai : un ticket récent au moins a été pris avant son merge.
   | { issue: "a-l-essai"; numero: number; servie: string; mediane: number; seuilMin: number }
   | { issue: "deja-ouverte"; numero: number; mediane: number; seuilMin: number }
-  | { issue: "ouverte"; numero: number; mediane: number; seuilMin: number };
+  | { issue: "ouverte"; numero: number; mediane: number; seuilMin: number }
+  // La qualité passe avant le temps (#2680) : le ticket de qualité est ouvert, aucun de temps.
+  | { issue: "qualite"; qualite: DecisionDeQualite };
 
 export type OptionsDeLaCorrection = {
   github: GitHubDeLaCorrection;
   // Les temps du projet et son seuil du temps perdu, lus à chaque appel.
-  lire: () => { enregistrements: TempsTicket[]; lostTimeMaxMin: number };
+  // `qualites` : ce que le journal sait de la qualité des tickets, et `projet`
+  // le contenu de projet.json (son seuil du premier coup) ; sans `qualites`,
+  // pas de porte.
+  lire: () => { enregistrements: TempsTicket[]; lostTimeMaxMin: number; qualites?: ReadonlyMap<number, QualiteDuTicket>; projet?: unknown };
   maintenant?: () => Date;
 };
 
@@ -146,6 +157,7 @@ export function derniereCorrectionServie(fermees: readonly number[], enregistrem
 export function correctionDuTemps({ github, lire, maintenant = () => new Date() }: OptionsDeLaCorrection) {
   let connue: number | null = null;
   let aLEssai: { numero: number; servie: number } | null = null;
+  const porte = porteDeQualite({ github, maintenant });
 
   // Les tickets de correction, ouverts et fermés, chacun du plus ancien au plus
   // récent. Le début de la fenêtre tombe à minuit (UTC) : la même requête toute la journée.
@@ -159,7 +171,9 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
   const ouverts = async () => (await corrections()).ouverts;
 
   return async (ouvertes?: readonly number[]): Promise<DecisionDeCorrection> => {
-    const { enregistrements, lostTimeMaxMin: seuilMin } = lire();
+    const { enregistrements, lostTimeMaxMin: seuilMin, qualites, projet } = lire();
+    const qualite = qualites === undefined ? null : await porte(mesurerQualite(enregistrements, qualites, projet), ouvertes);
+    if (qualite !== null) return { issue: "qualite", qualite };
     const ticket = ticketDeCorrection(enregistrements, seuilMin);
     const mediane = medianePerdueDesRecents(enregistrements);
     if (ticket === null || mediane === null) return { issue: "sous-le-seuil", mediane, seuilMin };
