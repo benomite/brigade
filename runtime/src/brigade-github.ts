@@ -153,6 +153,22 @@ export function fichiersDuCorps(corps: string): string[] {
   return [...sans.matchAll(/(?<![\w./-])((?:\.?[\w-]+\/)+[\w.-]*[\w-]|[\w-]+\.[a-z]{1,5})(?![\w/-])/gi)].map((m) => normalise(m[1]!));
 }
 
+// Les chemins d'un corps qui nomment le dépôt : un fichier ou un dossier
+// suivi de la base, ou un fichier neuf dans un dossier suivi. Le corps d'un
+// ticket est du texte : `e.g`, `i.e`, `and/or`, `Node.js` y ont la forme d'un
+// chemin. Gardés pour sa zone, deux tickets qui disaient « e.g. » se tenaient
+// l'un l'autre à la porte de prise, et le second attendait toute la cuisson
+// du premier : de l'attente d'une prise, pour rien (#2826).
+export function cheminsDuDepot(chemins: readonly string[], suivis: readonly string[]): string[] {
+  const fichiers = new Set(suivis.map(normalise));
+  const dossiers = new Set<string>();
+  for (const fichier of fichiers) for (let fin = fichier.lastIndexOf("/"); fin > 0; fin = fichier.lastIndexOf("/", fin - 1)) dossiers.add(fichier.slice(0, fin));
+  return chemins.filter((chemin) => {
+    const parent = chemin.includes("/") ? chemin.slice(0, chemin.lastIndexOf("/")) : null;
+    return fichiers.has(chemin) || dossiers.has(chemin) || (parent !== null && dossiers.has(parent));
+  });
+}
+
 const SOUS_BRIGADE = ".claude/brigade/";
 // Tous ses fichiers sont sous `.claude/brigade/`, où la session d'un cook ne peut pas écrire (#2729).
 // Un ticket que la station a ouvert (corps à marque) y écrit par conception : il part.
@@ -238,6 +254,10 @@ export type OptionsDeStation = {
   // Les tickets `hors-cuisine` du tour, que le redépôt reprend sans humain
   // (`refile-hors-cuisine.ts`, #2786). Absent, rien ne les reprend.
   redeposer?: (tickets: readonly TicketLu[]) => Promise<unknown>;
+  // Les fichiers suivis de la base (#2826) : la zone d'un ticket sans zone
+  // déclarée ne garde que les chemins de son corps qui nomment le dépôt
+  // (`cheminsDuDepot`). Absents ou illisibles, elle les garde tous.
+  fichiersSuivis?: () => string[];
 };
 
 // Le préfixe du label par lequel un ticket demande une capacité.
@@ -1025,6 +1045,22 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // marque) nomme aussi ce qu'il ne doit pas toucher, et une fiche illisible
     // ne possède rien : ni l'un ni l'autre n'en tient.
     const zones = new Map<number, Promise<string[]>>();
+    // Les fichiers suivis de la base, lus au premier besoin, une fois par tour.
+    // Illisibles, la zone garde tous les chemins du corps, comme avant #2826 :
+    // elle tient trop, elle ne laisse pas partir deux cooks sur un même fichier.
+    let suivisDuTour: string[] | null | undefined;
+    const fichiersSuivisDuTour = (): string[] | null => {
+      if (suivisDuTour !== undefined) return suivisDuTour;
+      try {
+        // Une base sans un fichier suivi n'est pas lue : elle ne garderait aucun chemin.
+        const lus = options.fichiersSuivis?.() ?? [];
+        suivisDuTour = lus.length === 0 ? null : lus;
+      } catch (erreur) {
+        suivisDuTour = null;
+        avertir(`brigade : the base's tracked files could not be read on ${nom} — a ticket with no declared zone holds every path its body names this turn: ${message(erreur)}`);
+      }
+      return suivisDuTour;
+    };
     // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
     const prisCeTour = new Set<number>();
     const zoneDuTicket = (numero: number): Promise<string[]> => {
@@ -1035,7 +1071,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const laFiche = fiche(commentaires.map(({ body }) => body));
         const declaree = [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
         if (declaree.length > 0 || (laFiche?.problems.length ?? 0) > 0 || corps.startsWith("<!-- brigade:")) return declaree;
-        return [...new Set(fichiersDuCorps(corps))];
+        const nommes = [...new Set(fichiersDuCorps(corps))];
+        const suivis = fichiersSuivisDuTour();
+        return suivis === null ? nommes : cheminsDuDepot(nommes, suivis);
       })();
       zones.set(numero, lue);
       return lue;
@@ -1813,7 +1851,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
