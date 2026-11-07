@@ -10,15 +10,15 @@
 // déposée et mise sur le rail, le parcours se mesure (`mesurer`) et s'ajoute à
 // `.claude/brigade/temps-tickets.json` du projet (`enregistrerTemps`), avec le
 // résumé des tickets récents (`resume`) : le contrat que lisent la synthèse,
-// l'alerte des 10 minutes (`temps-max/`) et l'app.
+// l'alerte du temps perdu (`temps-max/`, #2670) et l'app.
 //
 // Une phase dure de sa marque à la marque suivante, la dernière jusqu'au
 // merge : leur somme est le temps du dépôt au merge. Une phase que la station
 // n'a pas vue passer vaut 0 — rien n'est estimé à sa place.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { maxDuProjet, phaseLaPlusLenteDesTickets, ticketsRecents, dureeDuTicket } from "../temps-max/mesure.ts";
-import type { EnregistrementTemps } from "./synthese.ts";
+import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, phaseLaPlusLenteDesTickets, seuilDuProjet, ticketsRecents } from "../temps-max/mesure.ts";
+import type { EnregistrementTemps, Pertes } from "./synthese.ts";
 
 export const FICHIER_DES_TEMPS = ".claude/brigade/temps-tickets.json";
 
@@ -88,6 +88,11 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
   const seconde = (instant: number) => Math.round((Math.min(Math.max(instant, debut), fin) - debut) / 1000);
   const durees = Object.fromEntries(ETAPES.map((e) => [e, 0])) as Record<Etape, number>;
   const phases: { nom: string; minutes: number }[] = [];
+  // Le temps perdu (#2670) : tout sauf le cook qui a livré — la dernière
+  // cuisson — et ce qui la suit. Avant elle, une cuisson, une pass ou une CI
+  // sont celles d'une livraison renvoyée : un renvoi.
+  const livree = marques.map((m) => m.etape).lastIndexOf("cuisson");
+  const perdu: Pertes = { attente: 0, ratees: 0, renvois: 0 };
   let derniere: { etape: Etape; secondes: number } | null = null;
   const fermer = () => {
     if (derniere !== null && derniere.secondes > 0) phases.push({ nom: NOMS_DES_ETAPES[derniere.etape], minutes: minutes(derniere.secondes) });
@@ -96,6 +101,9 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
     const suivante = marques[rang + 1];
     const secondes = seconde(suivante === undefined ? fin : Date.parse(suivante.at)) - seconde(Date.parse(marque.at));
     durees[marque.etape] += secondes;
+    if (marque.etape === "attenteQualification" || marque.etape === "attentePrise") perdu.attente += secondes;
+    else if (marque.etape === "cuissonRatee") perdu.ratees += secondes;
+    else if (marque.etape === "renvoi" || rang < livree) perdu.renvois += secondes;
     if (derniere?.etape === marque.etape) derniere.secondes += secondes;
     else {
       fermer();
@@ -120,6 +128,7 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
     ci: durees.ci,
     merge: durees.merge,
     phases,
+    perdu,
   };
 }
 
@@ -132,16 +141,20 @@ export function centile(valeurs: readonly number[], p: number): number {
   return triees[Math.max(0, Math.ceil(p * (triees.length - 1)))] ?? 0;
 }
 
-export type Resume = { n: number; medianMin: number; p75Min: number; maxMin: number; phaseLaPlusLongue: { nom: string; medianMin: number; partPct: number } };
+type PhaseResumee = { nom: string; medianMin: number; partPct: number };
+export type Resume = { n: number; medianMin: number; p75Min: number; perduMedianMin: number; lostTimeMaxMin: number; phaseLaPlusLongue: PhaseResumee; perteLaPlusLourde: PhaseResumee | null };
 
 // Le résumé des tickets récents (`temps-max/mesure.ts`), du dépôt au merge :
-// combien, leur médiane, leur 75e centile, le max du projet, et la phase où ils
-// ont passé le plus de temps, avec sa médiane par ticket et sa part du tout.
-// Les minutes y sont entières, comme l'alerte les dit.
-export function resumer(enregistrements: readonly EnregistrementTemps[], maxMin: number): Resume {
+// combien, leur médiane, leur 75e centile, la phase où ils ont passé le plus de
+// temps, avec sa médiane par ticket et sa part du tout ; leur temps perdu
+// médian contre le seuil du projet (#2670), et la perte qui pèse le plus
+// (null sans temps perdu), sa part du temps perdu. Les minutes y sont
+// entières, sauf le temps perdu, au dixième : son seuil est de 2 min.
+export function resumer(enregistrements: readonly EnregistrementTemps[], lostTimeMaxMin: number): Resume {
   const recents = ticketsRecents(enregistrements);
   const durees = recents.map(dureeDuTicket);
   const lente = phaseLaPlusLenteDesTickets(recents);
+  const lourde = perteLaPlusLourde(recents);
   const triees = [...durees].sort((x, y) => x - y);
   const milieu = triees.length >> 1;
   const mediane = triees.length === 0 ? 0 : triees.length % 2 === 1 ? (triees[milieu] ?? 0) : ((triees[milieu - 1] ?? 0) + (triees[milieu] ?? 0)) / 2;
@@ -149,8 +162,10 @@ export function resumer(enregistrements: readonly EnregistrementTemps[], maxMin:
     n: recents.length,
     medianMin: Math.round(mediane / 60),
     p75Min: Math.round(centile(durees, 0.75) / 60),
-    maxMin,
+    perduMedianMin: Math.round((medianePerdueDesRecents(recents) ?? 0) / 6) / 10,
+    lostTimeMaxMin,
     phaseLaPlusLongue: { nom: lente.nom, medianMin: Math.round(lente.mediane / 60), partPct: Math.round(lente.part * 100) },
+    perteLaPlusLourde: lourde === null ? null : { nom: lourde.nom, medianMin: Math.round(lourde.mediane / 6) / 10, partPct: Math.round(lourde.part * 100) },
   };
 }
 
@@ -163,7 +178,8 @@ export function ticketsDuFichier(contenu: unknown): unknown[] | null {
 }
 
 // Ajoute l'enregistrement au fichier du projet dont `dossier` est la racine,
-// et y récrit le résumé des tickets récents, sur le max de son projet.json.
+// et y récrit le résumé des tickets récents, sur le seuil du temps perdu de
+// son projet.json.
 // Le même ticket n'y est qu'une fois : un enregistrement plus ancien du ticket
 // est remplacé. Un fichier illisible n'est pas écrasé : l'appel lève. Le
 // tableau d'avant #2662 se lit, et se récrit en objet.
@@ -186,7 +202,7 @@ export function enregistrerTemps(dossier: string, enregistrement: Enregistrement
   const mesures = tickets.filter((t): t is EnregistrementTemps => typeof t === "object" && t !== null && typeof (t as { ticket?: unknown }).ticket === "number");
   mkdirSync(dirname(fichier), { recursive: true });
   const provisoire = `${fichier}.${process.pid}.tmp`;
-  writeFileSync(provisoire, `${JSON.stringify({ resume: resumer(mesures, maxDuProjet(projet)), tickets }, null, 2)}\n`);
+  writeFileSync(provisoire, `${JSON.stringify({ resume: resumer(mesures, seuilDuProjet(projet)), tickets }, null, 2)}\n`);
   renameSync(provisoire, fichier);
 }
 

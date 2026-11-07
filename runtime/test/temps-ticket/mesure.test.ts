@@ -16,9 +16,9 @@ const marques = (...liste: Array<[Etape, number]>): Marque[] => liste.map(([etap
 const complet = marques(["cuisson", 0], ["attentePasse", 100], ["revue", 150], ["ci", 180], ["merge", 200]);
 
 const total = (e: EnregistrementTemps) => (e.attenteQualification ?? 0) + (e.attentePrise ?? 0) + (e.cuissonsRatees ?? 0) + e.cuisson + (e.renvois ?? 0) + e.attentePasse + e.revue + e.ci + e.merge;
-// Les phases d'avant la prise, des cooks ratés et des renvois, quand la station n'en a vu aucune (#2662).
+// Les phases d'avant la prise, des cooks ratés et des renvois, quand la station n'en a vu aucune (#2662) ; le temps perdu (#2670) se vérifie dans `temps-tickets.test.ts`.
 const sansAvant = { attenteQualification: 0, attentePrise: 0, cuissonsRatees: 0, renvois: 0 };
-const sansPhases = ({ phases: _phases, depuis: _depuis, ...reste }: EnregistrementTemps) => reste;
+const sansPhases = ({ phases: _phases, depuis: _depuis, perdu: _perdu, ...reste }: EnregistrementTemps) => reste;
 const tenu = (e: EnregistrementTemps) => {
   assert.ok(Math.abs(total(e) - (Date.parse(e.mergedAt) - Date.parse(e.claimedAt)) / 1000) <= 1, `sum ${total(e)} off the claim-to-merge time`);
   assert.ok(e.cuissonTests <= e.cuisson);

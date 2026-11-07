@@ -1,10 +1,15 @@
-// Le ticket de correction du temps des tickets (#2515, épique #2514) : quand la
-// médiane des tickets récents du projet dépasse son max (`tempsMaxTicketMin`,
-// 10 min par défaut), la station ouvre sur le rail un ticket `prio:0` qu'un
-// cook prend tout de suite. Son corps donne la médiane, les tickets les plus
-// lents et la phase la plus lente — attente de la qualification ou d'une prise,
-// cooks ratés, cuisson, renvois, attente de la pass, relecture, CI ou merge —
-// avec sa médiane et sa part du temps, du dépôt (ou de `fire`) au merge (#2662).
+// Le ticket de correction du temps perdu (#2670 ; d'abord du temps des
+// tickets, #2515, épique #2514) : quand le temps perdu médian des tickets
+// récents du projet dépasse son seuil (`lostTimeMaxMin`, 2 min par défaut), la
+// station ouvre sur le rail un ticket `prio:0` qu'un cook prend tout de suite.
+// Son corps nomme la perte qui pèse le plus — l'attente avant la prise, les
+// cooks ratés ou les renvois — avec ses chiffres, et les tickets qui l'ont
+// subie. Le temps perdu d'un ticket est tout son temps, du dépôt (ou de
+// `fire`) au merge (#2662), sauf le cook qui a livré et la pass, la CI et le
+// merge de la livraison mergée : un ticket n'a pas de taille fixe, ce qu'il
+// perd est du gaspillage quelle que soit sa taille. Il remplace le max d'un
+// ticket (`tempsMaxTicketMin`, 10 min), trop court pour refaire la moitié
+// d'une base, bien trop long pour recentrer un titre.
 //
 // Un seul ouvert à la fois, quels que soient les tours ou les stations : avant
 // d'ouvrir, la station cherche sur GitHub une issue ouverte, d'un auteur de
@@ -12,7 +17,7 @@
 // trouve une. Ce que la station garde en mémoire n'est qu'un cache : le numéro
 // du ticket ouvert, qu'elle ne croit que tant qu'il est parmi les issues
 // ouvertes que le tour vient de lire. Une fois le ticket fermé, la médiane
-// encore au-dessus du max en ouvre un autre — mais pas avant que les tickets
+// encore au-dessus du seuil en ouvre un autre — mais pas avant que les tickets
 // récents soient tous pris après le merge de la dernière correction servie
 // (#2577) : jusque-là, la médiane est celle des tickets d'avant elle, et elle
 // n'en dit rien. Rouverte deux minutes après chaque merge, sur la même fenêtre
@@ -25,7 +30,7 @@
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
-import { dureeDuTicket, medianeDesRecents, phaseLaPlusLenteDesTickets, phaseLaPlusLenteDuTicket, ticketsLesPlusLents, ticketsRecents, totauxParPhase } from "./mesure.ts";
+import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, tempsPerdu, ticketsRecents, totauxParPerte } from "./mesure.ts";
 
 export const PRIO_CORRECTION = "prio:0";
 // Son calibrage : `opus` / `medium`, comme la table du manager (#2575). En
@@ -34,8 +39,8 @@ export const PRIO_CORRECTION = "prio:0";
 // devait ramener. Une correction qui ne passe pas monte au renvoi.
 export const LABELS_CORRECTION = [LABEL, PRIO_CORRECTION, "model:opus", "effort:medium"];
 export const MARQUE_CORRECTION = "<!-- brigade:temps-max -->";
-// Combien de tickets lents le corps nomme.
-export const LENTS_NOMMES = 5;
+// Combien de tickets concernés le corps nomme, ceux qui ont le plus perdu.
+export const CONCERNES_NOMMES = 10;
 // Jusqu'où, sur GitHub, on cherche un ticket de correction encore ouvert.
 export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -47,45 +52,51 @@ export type GitHubDeLaCorrection = {
   fermerIssue(numero: number): Promise<void>;
 };
 
-const min = (secondes: number) => `${Math.round(secondes / 60)} min`;
+// Au dixième de minute sous 10 min — le seuil est de 2 min —, entières au-delà.
+const min = (secondes: number) => `${secondes < 600 ? Math.round(secondes / 6) / 10 : Math.round(secondes / 60)} min`;
 const pourcent = (part: number) => `${Math.round(part * 100)}%`;
 
-// Le ticket de correction des temps, ou null quand la médiane des tickets
-// récents est au max ou en dessous (ou qu'aucun ticket n'est mesuré).
-export function ticketDeCorrection(enregistrements: readonly TempsTicket[], maxMin: number): { titre: string; corps: string } | null {
-  const med = medianeDesRecents(enregistrements);
-  if (med === null || med <= maxMin * 60) return null;
+// Le ticket de correction du temps perdu, ou null quand le temps perdu médian
+// des tickets récents est au seuil ou en dessous (ou qu'aucun ticket n'est mesuré).
+export function ticketDeCorrection(enregistrements: readonly TempsTicket[], seuilMin: number): { titre: string; corps: string } | null {
+  const med = medianePerdueDesRecents(enregistrements);
+  if (med === null || med <= seuilMin * 60) return null;
   const recents = ticketsRecents(enregistrements);
-  const lente = phaseLaPlusLenteDesTickets(recents);
+  const lourde = perteLaPlusLourde(recents);
+  if (lourde === null) return null;
+  const perdu = recents.reduce((somme, t) => somme + tempsPerdu(t), 0);
   const total = recents.reduce((somme, t) => somme + dureeDuTicket(t), 0);
-  const lents = ticketsLesPlusLents(recents, LENTS_NOMMES).map((t) => {
-    const sienne = phaseLaPlusLenteDuTicket(t);
-    return `- #${t.ticket}: ${min(dureeDuTicket(t))} — slowest phase: ${sienne.nom} ${min(sienne.secondes)}`;
-  });
-  const titre = `Tickets take too long: median ${min(med)} over the max of ${maxMin} min — ${lente.nom} is the slowest phase`;
+  const concernes = recents
+    .map((t, rang) => ({ t, rang, secondes: pertesDuTicket(t)[lourde.perte] }))
+    .filter(({ secondes }) => secondes > 0)
+    .sort((x, y) => y.secondes - x.secondes || x.rang - y.rang);
+  const nommes = concernes.slice(0, CONCERNES_NOMMES).map(({ t, secondes }) => `- #${t.ticket}: ${min(secondes)} of ${lourde.nom} — ${min(tempsPerdu(t))} lost of ${min(dureeDuTicket(t))}`);
+  const autres = concernes.length - nommes.length;
+  const titre = `Tickets lose too much time: median ${min(med)} lost over the threshold of ${seuilMin} min — ${lourde.nom} weighs most`;
   const corps = [
     MARQUE_CORRECTION,
     "",
     "## Context",
     "",
-    `The median time of the project's ${recents.length} recent tickets, from filing (or \`fire\`) to merge, is **${min(med)}**: over the project's max of ${maxMin} min (\`tempsMaxTicketMin\` in \`.claude/brigade/projet.json\`). These tickets took ${min(total)} in all.`,
+    `The median lost time of the project's ${recents.length} recent tickets is **${min(med)}**: over the project's threshold of ${seuilMin} min (\`lostTimeMaxMin\` in \`.claude/brigade/projet.json\`). A ticket's lost time is all of its time from filing (or \`fire\`) to merge, except the cook that delivered and the pass, CI and merge of the merged delivery. These tickets lost ${min(perdu)} of their ${min(total)}.`,
     "",
-    "## Slowest phase",
+    "## Heaviest loss",
     "",
-    `**${lente.nom}**: ${min(lente.secondes)} of these tickets' time (${pourcent(lente.part)}), a median of ${min(lente.mediane)} per ticket.`,
+    `**${lourde.nom}**: ${min(lourde.secondes)} of these tickets' lost time (${pourcent(lourde.part)}), a median of ${min(lourde.mediane)} per ticket, in ${lourde.tickets} of the ${recents.length} tickets.`,
     "",
-    "Every phase, over these tickets:",
+    "Every loss, over these tickets:",
     "",
-    ...totauxParPhase(recents).map((p) => `- ${p.nom}: ${min(p.secondes)} (${pourcent(p.part)}), median ${min(p.mediane)} per ticket`),
+    ...totauxParPerte(recents).map((p) => `- ${p.nom}: ${min(p.secondes)} (${pourcent(p.part)}), median ${min(p.mediane)} per ticket, in ${p.tickets} tickets`),
     "",
-    "## Slowest tickets",
+    "## Tickets concerned",
     "",
-    ...lents,
+    ...nommes,
+    ...(autres > 0 ? [`- and ${autres} more`] : []),
     "",
     "## Acceptance criteria",
     "",
-    `- The cause that makes ${lente.nom} the slowest phase is found in these tickets, and corrected at its cause.`,
-    `- The median of the recent tickets goes back to ${maxMin} min or under; no measure is removed or weakened to get there.`,
+    `- The cause that makes ${lourde.nom} the heaviest loss is found in these tickets, and corrected at its cause.`,
+    `- The median lost time of the recent tickets goes back to ${seuilMin} min or under; no measure is removed or weakened to get there.`,
     "",
     "---",
     "",
@@ -95,17 +106,17 @@ export function ticketDeCorrection(enregistrements: readonly TempsTicket[], maxM
 }
 
 export type DecisionDeCorrection =
-  | { issue: "sous-le-max"; mediane: number | null; maxMin: number }
+  | { issue: "sous-le-seuil"; mediane: number | null; seuilMin: number }
   // La dernière correction servie (`numero`, mergée à `servie`) est encore à
   // l'essai : un ticket récent au moins a été pris avant son merge.
-  | { issue: "a-l-essai"; numero: number; servie: string; mediane: number; maxMin: number }
-  | { issue: "deja-ouverte"; numero: number; mediane: number; maxMin: number }
-  | { issue: "ouverte"; numero: number; mediane: number; maxMin: number };
+  | { issue: "a-l-essai"; numero: number; servie: string; mediane: number; seuilMin: number }
+  | { issue: "deja-ouverte"; numero: number; mediane: number; seuilMin: number }
+  | { issue: "ouverte"; numero: number; mediane: number; seuilMin: number };
 
 export type OptionsDeLaCorrection = {
   github: GitHubDeLaCorrection;
-  // Les temps du projet et son max, lus à chaque appel.
-  lire: () => { enregistrements: TempsTicket[]; tempsMaxTicketMin: number };
+  // Les temps du projet et son seuil du temps perdu, lus à chaque appel.
+  lire: () => { enregistrements: TempsTicket[]; lostTimeMaxMin: number };
   maintenant?: () => Date;
 };
 
@@ -128,7 +139,7 @@ export function derniereCorrectionServie(fermees: readonly number[], enregistrem
 }
 
 // La règle, liée au GitHub du projet. Chaque appel lit les temps ; au-dessus
-// du max, il trouve le ticket ouvert, attend que la dernière correction servie
+// du seuil, il trouve le ticket ouvert, attend que la dernière correction servie
 // ait des tickets récents à elle, ou en ouvre un. `ouvertes` : les issues
 // ouvertes que l'appelant vient de lire, s'il en a — le ticket déjà connu qui y
 // est ne coûte aucune lecture de GitHub, ni la correction à l'essai déjà connue.
@@ -148,19 +159,19 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
   const ouverts = async () => (await corrections()).ouverts;
 
   return async (ouvertes?: readonly number[]): Promise<DecisionDeCorrection> => {
-    const { enregistrements, tempsMaxTicketMin: maxMin } = lire();
-    const ticket = ticketDeCorrection(enregistrements, maxMin);
-    const mediane = medianeDesRecents(enregistrements);
-    if (ticket === null || mediane === null) return { issue: "sous-le-max", mediane, maxMin };
-    if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, mediane, maxMin };
+    const { enregistrements, lostTimeMaxMin: seuilMin } = lire();
+    const ticket = ticketDeCorrection(enregistrements, seuilMin);
+    const mediane = medianePerdueDesRecents(enregistrements);
+    if (ticket === null || mediane === null) return { issue: "sous-le-seuil", mediane, seuilMin };
+    if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, mediane, seuilMin };
     const premiere = premierePriseDesRecents(enregistrements);
-    const essai = (numero: number, servie: number) => ({ issue: "a-l-essai" as const, numero, servie: new Date(servie).toISOString(), mediane, maxMin });
+    const essai = (numero: number, servie: number) => ({ issue: "a-l-essai" as const, numero, servie: new Date(servie).toISOString(), mediane, seuilMin });
     if (aLEssai !== null && premiere < aLEssai.servie) return essai(aLEssai.numero, aLEssai.servie);
     const lues = await corrections();
     const [deja] = lues.ouverts;
     if (deja !== undefined) {
       connue = deja;
-      return { issue: "deja-ouverte", numero: deja, mediane, maxMin };
+      return { issue: "deja-ouverte", numero: deja, mediane, seuilMin };
     }
     aLEssai = derniereCorrectionServie(lues.fermes, enregistrements);
     if (aLEssai !== null && premiere < aLEssai.servie) return essai(aLEssai.numero, aLEssai.servie);
@@ -169,6 +180,6 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
     const [premier = creee] = await ouverts();
     if (premier < creee) await github.fermerIssue(creee);
     connue = Math.min(premier, creee);
-    return { issue: premier < creee ? "deja-ouverte" : "ouverte", numero: connue, mediane, maxMin };
+    return { issue: premier < creee ? "deja-ouverte" : "ouverte", numero: connue, mediane, seuilMin };
   };
 }

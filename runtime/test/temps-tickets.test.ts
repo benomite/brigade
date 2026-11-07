@@ -1,11 +1,11 @@
-// Le temps d'un ticket du dépôt (ou de `fire`) au merge, phase par phase, et
-// l'alerte des 10 minutes qui le lit (#2662, épique #2659).
+// Le temps d'un ticket du dépôt (ou de `fire`) au merge, phase par phase (#2662,
+// épique #2659), son temps perdu, et l'alerte qui le lit (#2670).
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ticketDeCorrection } from "../src/temps-max/correction.ts";
-import { medianeDesRecents } from "../src/temps-max/mesure.ts";
+import { medianeDesRecents, medianePerdueDesRecents, tempsPerdu } from "../src/temps-max/mesure.ts";
 import { chronometre, enregistrerTemps, FICHIER_DES_TEMPS, resumer } from "../src/temps-ticket/mesure.ts";
 import { lesTempsDesTickets } from "../src/temps-ticket/ligne-status.ts";
 import { repertoireTemporaire } from "./outils.ts";
@@ -76,6 +76,9 @@ describe("a ticket's time runs from its filing to its merge", () => {
     assert.equal(temps.cuissonsRatees, 600);
     assert.equal(temps.attentePrise, 480);
     assert.equal(medianeDesRecents([temps]), 35 * 60);
+    // Perdu : tout sauf le cook qui a livré, sa pass, sa CI et son merge — 20 des 35 min.
+    assert.deepEqual(temps.perdu, { attente: 600, ratees: 600, renvois: 0 });
+    assert.equal(medianePerdueDesRecents([temps]), 20 * 60);
   });
 
   test("the same ticket replayed from its GitHub history gives the same 35 min and phases, the merge request inside the CI", () => {
@@ -118,6 +121,8 @@ describe("a ticket's time runs from its filing to its merge", () => {
       { nom: "pass wait", minutes: 5 },
       { nom: "CI", minutes: 5 },
     ]);
+    // La livraison renvoyée — sa cuisson, sa pass — et le renvoi sont perdus ; la livraison mergée ne l'est pas.
+    assert.deepEqual(temps?.perdu, { attente: 0, ratees: 0, renvois: 18 * 60 });
   });
 
   test("epics are absent from the measure, their sub-tickets present; an issue closed without a merge is not measured", () => {
@@ -129,14 +134,23 @@ describe("a ticket's time runs from its filing to its merge", () => {
   });
 });
 
-describe("temps-tickets.json and the 10-minute alert read this time", () => {
+describe("temps-tickets.json and the lost-time alert read this time", () => {
   test("the file carries the summary of the recent tickets and each ticket's phases", (tc) => {
     const depot = repertoireTemporaire(tc);
     mkdirSync(join(depot, ".claude", "brigade"), { recursive: true });
     writeFileSync(join(depot, ".claude", "brigade", "projet.json"), "{}");
     for (const temps of rejouer([DU_TICKET])) enregistrerTemps(depot, temps);
     const lu = JSON.parse(readFileSync(join(depot, FICHIER_DES_TEMPS), "utf8")) as { resume: unknown; tickets: { phases: unknown[] }[] };
-    assert.deepEqual(lu.resume, { n: 1, medianMin: 35, p75Min: 35, maxMin: 10, phaseLaPlusLongue: { nom: "failed cooks", medianMin: 10, partPct: 29 } });
+    assert.deepEqual(lu.resume, {
+      n: 1,
+      medianMin: 35,
+      p75Min: 35,
+      perduMedianMin: 20,
+      lostTimeMaxMin: 2,
+      phaseLaPlusLongue: { nom: "failed cooks", medianMin: 10, partPct: 29 },
+      // À égalité avec les cooks ratés, la perte la plus tôt dans la vie du ticket.
+      perteLaPlusLourde: { nom: "waiting for a claim", medianMin: 10, partPct: 50 },
+    });
     assert.equal(lu.tickets[0]?.phases.length, 7);
     assert.equal(lesTempsDesTickets(depot).enregistrements.length, 1);
   });
@@ -151,13 +165,25 @@ describe("temps-tickets.json and the 10-minute alert read this time", () => {
     assert.deepEqual(lesTempsDesTickets(depot).enregistrements.map((t) => t.ticket), [1, 42]);
   });
 
-  test("over the max, the correction ticket counts from filing and names the slowest phase with its median and share", () => {
+  test("the project's threshold is lostTimeMaxMin of projet.json, 2 min without it", (tc) => {
+    const depot = repertoireTemporaire(tc);
+    mkdirSync(join(depot, ".claude", "brigade"), { recursive: true });
+    assert.equal(lesTempsDesTickets(depot).lostTimeMaxMin, 2);
+    writeFileSync(join(depot, ".claude", "brigade", "projet.json"), JSON.stringify({ lostTimeMaxMin: 5, tempsMaxTicketMin: 30 }));
+    assert.equal(lesTempsDesTickets(depot).lostTimeMaxMin, 5);
+    assert.ok(!("tempsMaxTicketMin" in lesTempsDesTickets(depot)));
+    for (const temps of rejouer([DU_TICKET])) enregistrerTemps(depot, temps);
+    assert.equal((JSON.parse(readFileSync(join(depot, FICHIER_DES_TEMPS), "utf8")) as { resume: { lostTimeMaxMin: number } }).resume.lostTimeMaxMin, 5);
+  });
+
+  test("over the threshold, the correction ticket counts the lost time and names the loss that weighs most", () => {
     const tickets = rejouer([DU_TICKET, { ...DU_TICKET, ticket: 43 }, { ...DU_TICKET, ticket: 44 }]);
-    const correction = ticketDeCorrection(tickets, 10);
+    const correction = ticketDeCorrection(tickets, 2);
     assert.ok(correction !== null);
-    assert.match(correction.titre, /median 35 min over the max of 10 min — failed cooks is the slowest phase/);
-    assert.match(correction.corps, /from filing \(or `fire`\) to merge, is \*\*35 min\*\*/);
-    assert.match(correction.corps, /\*\*failed cooks\*\*: 30 min of these tickets' time \(29%\), a median of 10 min per ticket/);
+    assert.equal(correction.titre, "Tickets lose too much time: median 20 min lost over the threshold of 2 min — waiting for a claim weighs most");
+    assert.match(correction.corps, /These tickets lost 60 min of their 105 min\./);
+    assert.match(correction.corps, /\*\*waiting for a claim\*\*: 30 min of these tickets' lost time \(50%\), a median of 10 min per ticket, in 3 of the 3 tickets/);
+    assert.match(correction.corps, /^- #42: 10 min of waiting for a claim — 20 min lost of 35 min$/m);
   });
 });
 
@@ -183,10 +209,25 @@ describe("brigade's 40 tickets closed on 2026-11-06 and 07, replayed from their 
     assert.deepEqual(resume.phaseLaPlusLongue, { nom: "claim wait", medianMin: 5, partPct: 54 });
   });
 
-  test("the correction ticket they open names that phase, with its median and share", () => {
-    const correction = ticketDeCorrection(rejoues, 10);
+  // #2670 : le temps perdu de ces tickets, contre le seuil de 2 min.
+  test("their median lost time is over 2 min, and most of it is waiting before the claim", () => {
+    const resume = resumer(rejoues, 2);
+    assert.ok(resume.perduMedianMin > 2, String(resume.perduMedianMin));
+    assert.equal(resume.perduMedianMin, 7.7);
+    assert.deepEqual(resume.perteLaPlusLourde, { nom: "waiting for a claim", medianMin: 4.8, partPct: 57 });
+    // Le cook qui a livré et sa pass ne sont jamais perdus : chaque ticket perd moins que tout son temps.
+    for (const t of rejoues) assert.ok(tempsPerdu(t) < (Date.parse(t.mergedAt) - Date.parse(t.depuis ?? t.claimedAt)) / 1000, `#${t.ticket}`);
+  });
+
+  test("the correction ticket they open names waiting before the claim, with its figures and the tickets concerned", () => {
+    const correction = ticketDeCorrection(rejoues, 2);
     assert.ok(correction !== null);
-    assert.match(correction.titre, /median 14 min over the max of 10 min — claim wait is the slowest phase/);
-    assert.match(correction.corps, /\*\*claim wait\*\*: \d+ min of these tickets' time \(54%\), a median of 5 min per ticket/);
+    const [, perte] = /— (.+) weighs most$/.exec(correction.titre) ?? [];
+    assert.ok(["waiting for a claim", "failed cooks"].includes(perte ?? ""), correction.titre);
+    assert.equal(correction.titre, "Tickets lose too much time: median 7.7 min lost over the threshold of 2 min — waiting for a claim weighs most");
+    assert.match(correction.corps, /\*\*waiting for a claim\*\*: 3329 min of these tickets' lost time \(57%\), a median of 4\.8 min per ticket, in 40 of the 40 tickets\./);
+    assert.match(correction.corps, /^- failed cooks: 633 min \(11%\), median 0 min per ticket, in 10 tickets$/m);
+    assert.match(correction.corps, /## Tickets concerned\n\n- #2479: 1217 min of waiting for a claim — 1235 min lost of 1238 min\n/);
+    assert.match(correction.corps, /^- and 30 more$/m);
   });
 });

@@ -126,8 +126,8 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
 }
 
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
-// Les temps des tickets que la principale publie : aucun fichier dans le clone, aucun enregistrement et le plafond par défaut (#2346).
-const SANS_TEMPS = { enregistrements: [], tempsMaxTicketMin: 10 };
+// Les temps des tickets que la principale publie : aucun fichier dans le clone, aucun enregistrement et le seuil du temps perdu par défaut (#2346, #2670).
+const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2 };
 const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -728,5 +728,5 @@ test("la boîte du 2026-11-06 : une ligne écrite à la main, aucune station pri
 
   const temps = station.suivi()?.[0]?.temps;
   assert.equal(temps?.enregistrements.length, 13);
-  assert.equal(temps?.tempsMaxTicketMin, 10);
+  assert.equal(temps?.lostTimeMaxMin, 2);
 });
