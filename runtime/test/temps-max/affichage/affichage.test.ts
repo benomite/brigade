@@ -34,5 +34,5 @@ test("TODO: just under twice the max, or exactly twice, says nothing, even with 
 
 test("TODO: the line sits in the informative part of the awaiting block and counts for no decision", () => {
   const bloc = decrireAttentes([], () => "1 min", null, null, null, lignesDeTicketsTropLongs([t(7, 25)], 10));
-  assert.match(bloc.join("\n"), /nothing awaits the chef\n  ticket #7 took 25 min, over twice the max of 10 min — slowest phase: cook 25 min\n/);
+  assert.match(bloc.join("\n"), /nothing awaits the chef\n  ticket #7 took 25 min, over twice the max of 10 min — slowest phase: cooking 25 min\n/);
 });

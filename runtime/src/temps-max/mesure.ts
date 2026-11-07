@@ -5,11 +5,11 @@
 //
 // Les enregistrements sont ceux de `temps-tickets.json` (#2342), dans l'ordre
 // où la station les ajoute — celui des merges —, leurs phases en secondes.
-import { dureeDuTicket } from "./affichage/affichage.ts";
+import { dureeDuTicket, type Phase, PHASES, secondesDe } from "./affichage/affichage.ts";
 import { mediane } from "../temps-ticket/synthese.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 
-export { dureeDuTicket };
+export { dureeDuTicket, type Phase, PHASES };
 
 // Le max d'un ticket, en minutes, sans `tempsMaxTicketMin` dans projet.json.
 export const MAX_PAR_DEFAUT_MIN = 10;
@@ -34,22 +34,11 @@ export function ticketsRecents(enregistrements: readonly TempsTicket[]): TempsTi
   return enregistrements.slice(debut);
 }
 
-// La médiane des tickets récents, de la prise au merge, en secondes ; null sans ticket mesuré.
+// La médiane des tickets récents, du dépôt (ou de `fire`) au merge (#2662), en secondes ; null sans ticket mesuré.
 export function medianeDesRecents(enregistrements: readonly TempsTicket[]): number | null {
   const recents = ticketsRecents(enregistrements);
   return recents.length === 0 ? null : mediane(recents.map(dureeDuTicket));
 }
-
-// Les phases d'un ticket, dans l'ordre de sa vie, et leur nom. `cuissonTests`
-// est une part de `cuisson`, pas une phase de plus.
-export const PHASES = [
-  ["cuisson", "cooking"],
-  ["attentePasse", "pass wait"],
-  ["revue", "review"],
-  ["ci", "CI"],
-  ["merge", "merge"],
-] as const;
-export type Phase = (typeof PHASES)[number][0];
 
 export type PhaseLente = { phase: Phase; nom: string; secondes: number };
 
@@ -67,11 +56,11 @@ export function phaseLaPlusLenteDesTickets(tickets: readonly TempsTicket[]): Pha
 // Chaque phase sur des tickets : son temps total, sa médiane par ticket, et sa
 // part (0 à 1) du temps de toutes les phases.
 export function totauxParPhase(tickets: readonly TempsTicket[]): (PhaseLente & { mediane: number; part: number })[] {
-  const sommes = PHASES.map(([phase]) => tickets.reduce((somme, t) => somme + t[phase], 0));
+  const sommes = PHASES.map(([phase]) => tickets.reduce((somme, t) => somme + secondesDe(t, phase), 0));
   const tout = sommes.reduce((a, b) => a + b, 0);
   return PHASES.map(([phase, nom], rang) => {
     const secondes = sommes[rang] ?? 0;
-    return { phase, nom, secondes, mediane: mediane(tickets.map((t) => t[phase])), part: tout === 0 ? 0 : secondes / tout };
+    return { phase, nom, secondes, mediane: mediane(tickets.map((t) => secondesDe(t, phase))), part: tout === 0 ? 0 : secondes / tout };
   });
 }
 

@@ -86,7 +86,7 @@ test("brigade's 13 tickets of 2026-11-05: median 18 min against a max of 10, and
   assert.ok(ouverte.labels.includes("prio:0") && ouverte.labels.includes("fire"));
   assert.equal(ouverte.titre, "Tickets take too long: median 18 min over the max of 10 min — cooking is the slowest phase");
   assert.ok(ouverte.corps.startsWith(MARQUE_CORRECTION));
-  assert.match(ouverte.corps, /recent tickets, from claim to merge, is \*\*18 min\*\*: over the project's max of 10 min/);
+  assert.match(ouverte.corps, /recent tickets, from filing \(or `fire`\) to merge, is \*\*18 min\*\*: over the project's max of 10 min/);
   // La phase la plus lente et ses chiffres.
   assert.match(ouverte.corps, /\*\*cooking\*\*: 304 min of these tickets' time \(74%\), a median of 12 min per ticket\./);
   assert.match(ouverte.corps, /^- pass wait: 24 min \(6%\), median 1 min per ticket$/m);

@@ -1,45 +1,22 @@
 // The ticket-times line of `status`: median and slowest of the last 10 measured
-// tickets, the split by phase, and the project's max. Reads the two files of
+// tickets (from filing, or fire, to merge since #2662), the split by phase, and the project's max. Reads the two files of
 // `.claude/brigade/` directly — nothing written, and a missing or unreadable
 // file reads as "no measured ticket yet".
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_PAR_DEFAUT_MIN, maxDuProjet } from "../temps-max/mesure.ts";
+import { dureeDuTicket as duree, MAX_PAR_DEFAUT_MIN, maxDuProjet, PHASES } from "../temps-max/mesure.ts";
+import { ticketsDuFichier } from "./mesure.ts";
+import { type EnregistrementTemps, mediane, PHASES as PHASES_REQUISES } from "./synthese.ts";
 
 const DERNIERS = 10;
 
-export type TempsTicket = {
-  ticket: number;
-  claimedAt?: string;
-  mergedAt?: string;
-  cuisson: number;
-  cuissonTests: number;
-  attentePasse: number;
-  revue: number;
-  ci: number;
-  merge: number;
-};
-
-const PHASES = ["cuisson", "attentePasse", "revue", "ci", "merge"] as const;
+// Un enregistrement de `temps-tickets.json` (`synthese.ts`) tel que l'écran le
+// lit : ses dates peuvent manquer.
+export type TempsTicket = Omit<EnregistrementTemps, "claimedAt" | "mergedAt"> & Partial<Pick<EnregistrementTemps, "claimedAt" | "mergedAt">>;
 
 const entier = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 const minutes = (secondes: number) => `${Math.round(secondes / 60)}m`;
-
-function mediane(valeurs: number[]): number {
-  const tri = [...valeurs].sort((a, b) => a - b);
-  const m = tri.length >> 1;
-  return tri.length % 2 === 1 ? (tri[m] ?? 0) : ((tri[m - 1] ?? 0) + (tri[m] ?? 0)) / 2;
-}
-
-const total = (t: TempsTicket) => PHASES.reduce((somme, p) => somme + t[p], 0);
-
-// The ticket's duration: claim to merge when both dates are there, else its phases summed.
-function duree(t: TempsTicket): number {
-  const de = Date.parse(t.claimedAt ?? "");
-  const a = Date.parse(t.mergedAt ?? "");
-  return Number.isNaN(de) || Number.isNaN(a) || a < de ? total(t) : (a - de) / 1000;
-}
 
 export function direLesTempsDesTickets(enregistrements: TempsTicket[], maxMin: number = MAX_PAR_DEFAUT_MIN): string {
   if (enregistrements.length === 0) return "tickets: no measured ticket yet";
@@ -74,10 +51,12 @@ function lireJson(chemin: string): unknown {
 export function lesTempsDesTickets(repertoireDepot: string | undefined): { enregistrements: TempsTicket[]; tempsMaxTicketMin: number } {
   if (!repertoireDepot) return { enregistrements: [], tempsMaxTicketMin: MAX_PAR_DEFAUT_MIN };
   const dossier = join(repertoireDepot, ".claude", "brigade");
-  const brut = lireJson(join(dossier, "temps-tickets.json"));
-  const liste = Array.isArray(brut) ? brut : [];
+  // Lu tel quel : chaque entrée est vérifiée ci-dessous — les phases de tout
+  // enregistrement y sont, celles d'avant la prise, des cooks ratés et des
+  // renvois seulement depuis #2662.
+  const liste = (ticketsDuFichier(lireJson(join(dossier, "temps-tickets.json"))) ?? []) as TempsTicket[];
   const enregistrements = liste.filter(
-    (r): r is TempsTicket => typeof r === "object" && r !== null && Number.isInteger(r.ticket) && PHASES.every((p) => entier(r[p])) && entier(r.cuissonTests),
+    (r): r is TempsTicket => typeof r === "object" && r !== null && Number.isInteger(r.ticket) && PHASES_REQUISES.every((p) => entier(r[p])) && PHASES.every(([p]) => r[p] === undefined || entier(r[p])),
   );
   return { enregistrements, tempsMaxTicketMin: maxDuProjet(lireJson(join(dossier, "projet.json"))) };
 }

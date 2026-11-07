@@ -55,7 +55,7 @@ import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/att
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
+import { chronometre, type DepotDuTicket, enregistrerTemps } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -92,6 +92,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
   GitHubDeLaFermeture & {
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
+    // Quand l'issue a été déposée et mise sur le rail : d'où part le temps du
+    // ticket servi (#2662). Absent ou null, il part de la prise.
+    depotDuTicket?(numero: number): Promise<DepotDuTicket | null>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
     // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui
@@ -333,11 +336,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   const ouvrirLaReparation = ouvreReparation({ github, base });
-  // Le parcours de chaque ticket, de sa prise à son merge, phase par phase (#2342).
+  // Le parcours de chaque ticket, de sa prise à son merge, phase par phase
+  // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
+  // Illisible, le temps part de la prise, et la station le dit.
   const chrono = chronometre(options.maintenant);
-  const servir = (issue: number) => {
-    const temps = chrono.servir(issue);
-    if (temps === null || options.clone === undefined) return;
+  const servir = async (issue: number) => {
+    if (options.clone === undefined) {
+      chrono.oublier(issue);
+      return;
+    }
+    if (github.depotDuTicket === undefined) avertir(`brigade : #${issue} sur ${nom} — this client does not read the filing of a ticket, its time runs from its claim`);
+    const depot =
+      (await github.depotDuTicket?.(issue).catch((erreur) => {
+        avertir(`brigade : #${issue} sur ${nom} — filing of the ticket unreadable, its time runs from its claim: ${message(erreur)}`);
+        return null;
+      })) ?? undefined;
+    const temps = chrono.servir(issue, depot);
+    if (temps === null) return;
     try {
       enregistrerTemps(options.clone, temps);
     } catch (erreur) {
@@ -461,6 +476,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         } else {
           await github.commenter(issue, `Station \`${nom}\`: the cook added nothing, and the delivery still has work left — ${fait.reste}. The ticket is given back; this is not counted as a failed cook.`);
         }
+        // Sans livraison, ce cook compte au temps du ticket comme un cook raté (#2662).
+        chrono.rater(issue);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
         return;
       }
@@ -475,6 +492,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const sortie = horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
       await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${sortie ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
+      chrono.rater(issue);
       if (sortie) {
         chrono.oublier(issue);
         await github.labelliser(issue, [HORS_CUISINE]);
@@ -518,8 +536,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
-    // De retour en cuisine : le temps jusqu'au cook suivant est de la cuisson.
-    if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "cuisson");
+    // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
+    if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "renvoi");
   };
 
   // Le second juge de la tête d'une livraison qui touche à ce qui la juge
@@ -732,7 +750,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             const attendue = fusion.issue === "ci-attendue" || fusion.issue === "gates-a-jouer";
             if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
             if (fusion.issue === "mergee") {
-              servir(ticket.number);
+              await servir(ticket.number);
               await cloreLeServi(ticket);
             }
             // Hors de la série des merges : des gates de plusieurs minutes ne retiennent pas les autres.
@@ -1074,6 +1092,12 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
     },
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
+    depotDuTicket: async (issue) => {
+      const lue = await github.issue(issue);
+      if (lue === null) return null;
+      const [fireAt = null] = (await github.posesDeFire?.(issue)) ?? [];
+      return { deposeAt: lue.createdAt, fireAt };
+    },
     // Des PR ou des fichiers que la requête a tronqués ou mal rendus (un renommage
     // perd son ancien chemin) : tout se relit en REST, pour ne rien juger de moins.
     prsOuvertes: async () => (instantane !== null && !instantane.prsTronquees && !instantane.prs.some((pr) => pr.fichiersIncomplets) ? instantane.prs.map(({ branche, fichiers }) => ({ branche, fichiers })) : (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers }))),
