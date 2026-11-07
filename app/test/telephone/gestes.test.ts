@@ -1,6 +1,7 @@
-// Les gestes de la file sur le téléphone (ticket 1164) : trancher une carte. La vue est celle du desktop, sur un écran étroit (#1186), et ses gestes appellent
-// les mêmes actions du pont que sur le desktop : `gesteDeFiche` — le geste, le ticket, jamais une commande.
-// Sur le téléphone, il n'y a pas de second où écrire la commande : le pont rend ce que la station
+// Les gestes de la file sur le téléphone (ticket 1164) : trancher une carte (merger se fait sur la PR, sur GitHub), arrêter
+// ou relancer la cuisine d'un projet. La vue est celle du desktop, sur un écran étroit (#1186), et ses gestes appellent
+// les mêmes actions du pont que sur le desktop : `gesteDeFiche` — le geste, le ticket, jamais une commande — et
+// `cuireSurLaStation`. Sur le téléphone, il n'y a pas de second où écrire la commande : le pont rend ce que la station
 // a fait (`fait`), comme pour une station sur Cooks. La fiche le dit, la box est relue tout de suite, et la carte quitte
 // la file à la lecture qui suit. Un geste refusé, ou un pont qui lève, le dit en une ligne, son détail au survol, et la
 // file reste ce qu'elle était.
@@ -136,7 +137,7 @@ async function confirmer(vue: Jouee, id: string): Promise<void> {
 // Ce que la fiche dit sous ses gestes : sa ligne, sa classe, et son survol.
 const issueDuGeste = (vue: Jouee) => gestes(vue).children.filter((pose) => pose.balise === "p").map((pose) => ({ classe: pose.className, dit: pose.textContent, survol: pose.title }));
 
-describe("depuis le téléphone, un geste qui attend la réponse de la station", () => {
+describe("depuis le téléphone, un geste en vol", () => {
   test("tant que la station n'a pas répondu, la fiche le dit et ses gestes attendent : rien ne part deux fois", async () => {
     let rendre: (rendu: { fait: string }) => void = () => {};
     const vue = await ouvrir({ gesteDeFiche: () => new Promise((resoudre) => (rendre = resoudre)) as never });
@@ -150,15 +151,6 @@ describe("depuis le téléphone, un geste qui attend la réponse de la station",
     assert.deepEqual(issueDuGeste(vue).map(({ dit }) => dit), ["#31 left the rail"]);
     assert.equal(geste(vue, "retirer").disabled, false);
     assert.equal(vue.appels.filter(({ geste: nom }) => nom === "gesteDeFiche").length, 1);
-  });
-});
-
-describe("sur une fenêtre étroite du desktop, le geste part dans le second, que l'écran ne montre pas à côté de la fiche", () => {
-  test("la fiche dit où lire sa réponse : l'onglet Second", async () => {
-    const vue = await ouvrir({ gesteDeFiche: () => ({ id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "written in the second", arrete: false }) });
-    await toucherLaCarte(vue, 31);
-    await confirmer(vue, "retirer");
-    assert.deepEqual(issueDuGeste(vue), [{ classe: "dit", dit: "sent to the second: its answer is in the Second tab", survol: "" }]);
   });
 });
 
@@ -179,7 +171,7 @@ describe("depuis le téléphone, trancher une carte", () => {
 
 describe("depuis le téléphone, un geste qui échoue le dit et laisse la file telle quelle", () => {
   for (const [cas, gesteDeFiche, dit, survol] of [
-    ["refusé par la station", () => ({ refus: "#31 was not removed: GitHub refused the write", detail: "brigade : #31: write refused" }), "#31 was not removed: GitHub refused the write", "brigade : #31: write refused"],
+    ["refusé par la station", () => ({ refus: "#31 was not removed: GitHub refused the change", detail: "brigade : #31: remove refused — label not found" }), "#31 was not removed: GitHub refused the change", "brigade : #31: remove refused — label not found"],
     ["la station injoignable : le pont lève", () => Promise.reject(new Error("connect ETIMEDOUT 192.168.1.20:7010")), "nothing was sent — nothing was changed", "connect ETIMEDOUT 192.168.1.20:7010"],
     // Le pont Android d'aujourd'hui (app/android/web/pont.js) : un geste qu'il ne connaît pas ne rend rien.
     ["le pont ne porte pas l'action : il ne rend rien", () => undefined, "nothing was sent — nothing was changed", "this app does not carry this action to the station yet"],
