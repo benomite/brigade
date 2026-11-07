@@ -16,6 +16,10 @@ export function accepterLaMesure(mesure: EnregistrementTemps): EnregistrementTem
   const ouverture = Date.parse(mesure.depuis ?? "");
   const prise = Date.parse(mesure.priseAt ?? "");
   if (Number.isNaN(ouverture) || Number.isNaN(prise)) return mesure;
-  const borne = Math.max(0, (prise - ouverture) / 1000);
+  // Une prise lue avant le début de l'attente d'une prise, ou après la première
+  // phase vue par la station, n'est pas retenue par la mesure : pas de borne.
+  const debutAttente = ouverture + (mesure.attenteQualification ?? 0) * 1000;
+  if (prise < debutAttente || prise > Date.parse(mesure.claimedAt ?? "")) return mesure;
+  const borne = (prise - ouverture) / 1000;
   return (mesure.attentePrise ?? 0) > borne + JEU_S ? null : mesure;
 }

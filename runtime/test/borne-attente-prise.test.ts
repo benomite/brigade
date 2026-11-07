@@ -46,7 +46,7 @@ describe("borne de l'attente d'une prise", () => {
     };
     assert.equal(servir({ deposeAt: a(0), priseAt: a(2 * MIN) })?.attentePrise, 2 * MIN);
     assert.equal(servir({ deposeAt: a(0) })?.attentePrise, COMMIT_S);
-    // A first prise dated before the opening leaves no interval to wait in: the 4 min of wait are over the bound.
-    assert.equal(servir({ deposeAt: a(0), priseAt: a(-MIN) }), null);
+    // A prise dated before the opening is not one the measure keeps: no bound.
+    assert.equal(servir({ deposeAt: a(0), priseAt: a(-MIN) })?.attentePrise, COMMIT_S);
   });
 });
