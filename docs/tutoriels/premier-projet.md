@@ -42,14 +42,14 @@ The pass runs the gates and the review on the pull request and writes its verdic
 
 **Do not merge by hand unless the pass stops.** The project switch being on enables the `merge` grant (`docs/runtime/exploitation.md`, "The project switch"), so a green delivery is merged by the pass itself.
 
-A delivery waits for you, in **TODO** with the buttons `merge the PR` (recommended), `send back to the kitchen` and `remove from the rail`, only when:
+A delivery waits for you, in **TODO** with the buttons `send back to the kitchen` and `remove from the rail`, only when:
 
 - the pass escalates it (a verdict it cannot settle alone);
 - the project switch is off (`project off`) or you revoked the grant. Switch it back on and waiting deliveries are merged.
 
 ## 6. The PR is merged
 
-For a green delivery the pass merges. Otherwise click `merge the PR` on the **TODO** line: the station plays the gesture at its next tick and answers under it.
+For a green delivery the pass merges. Otherwise merge the pull request on GitHub yourself.
 
 **You see**: the card in **Served**; on GitHub, the pull request merged and the issue closed.
 

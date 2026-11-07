@@ -10,7 +10,7 @@
 // vie — ne sont retenus qu'à la réserve des gestes (un dixième du quota) : au-dessus,
 // rien ne les retient ; à la réserve, ils attendent la fin de la fenêtre, puis
 // reprennent seuls. Ceux d'un geste du
-// chef — merge, retrait du rail, priorité, réponse à une carte, commentaire de
+// chef — retrait du rail, priorité, réponse à une carte, commentaire de
 // la pass — ne sont jamais retenus par la box : ils partent, et n'échouent que
 // si GitHub lui-même refuse.
 //

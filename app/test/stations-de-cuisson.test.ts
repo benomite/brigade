@@ -1,5 +1,5 @@
 // L'onglet Cooks couvre chaque station du projet (#1185) : chaque cook avec sa station, une ligne par station — son
-// état, ses cooks en cours, un bouton qui la lance ou l'arrête, pour la box comme pour le Mac ou un autre
+// état, ses cooks en cours, pour la box comme pour le Mac ou un autre
 // ordinateur —, et la ligne mise à jour par la lecture qui suit le clic, sans recharger la page. Chaque station y est
 // un bloc, et ses cooks en cours les cartes de leurs tickets — celles du kanban de Rail, qui ouvrent la même fiche,
 // et seulement les siennes (#1270). Sur l'onglet Rail,

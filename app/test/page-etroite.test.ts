@@ -1,6 +1,6 @@
 // La page d'un projet sur un écran étroit — le téléphone (#1186) : trois onglets, Rail, Cooks et la conversation avec le
 // second, qui prend la place du panneau de droite. Cooks y est en lecture seule : les lignes des stations, leur état,
-// leurs cooks, et sur chacune le seul bouton qui la lance ou l'arrête — ni les stations à régler, ni le plafond, ni le
+// leurs cooks, sans bouton — ni les stations à régler, ni le plafond, ni le
 // bac à sable. Rail y est celui d'un écran large ; le dernier onglet ouvert est retenu. Sur un écran large, rien ne
 // change : deux onglets, et le second à droite.
 // La vue est jouée telle qu'elle est, devant un faux document et un faux écran (aides/fausse-vue.ts).

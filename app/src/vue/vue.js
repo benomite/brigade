@@ -345,8 +345,7 @@ const carte = document.createElement("section");
 carte.id = "carte";
 carte.className = "carte";
 carte.hidden = true;
-// Les stations du projet, en tête de Cooks (tickets 1185, 1456) : une ligne chacune, son état, ses cooks, son bouton qui la
-// lance ou l'arrête ; et, en tête de l'onglet Rail, la ligne qui dit ce qui, du côté des cooks, demande un geste —
+// Les stations du projet, en tête de Cooks (tickets 1185, 1456) : une ligne chacune, son état, ses cooks ; et, en tête de l'onglet Rail, la ligne qui dit ce qui, du côté des cooks, demande un geste —
 // avec de quoi ouvrir Cooks. poserCuisson les remplit ; poserRail les pose.
 const cuissonDuProjet = document.createElement("div");
 cuissonDuProjet.id = "cuisson-du-projet";
@@ -4981,7 +4980,7 @@ async function reglerPlafondDeCalibrage(projet, choix) {
 }
 
 // L'onglet Cooks d'un écran étroit (ticket 1186), en lecture seule : les lignes des stations — leur état, leurs cooks —
-// et, sur chacune, son seul bouton, qui la lance ou l'arrête. Ni la carte du projet, ni Taken et Pass — leurs fiches ont
+// sans bouton. Ni la carte du projet, ni Taken et Pass — leurs fiches ont
 // leurs gestes —, ni les serveurs de livraison, ni la lecture de `station` et son plafond. Sans lignes, une phrase dit
 // pourquoi.
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */

@@ -35,7 +35,7 @@ export const ECARTS = {
   [BLOCKED_ON_HUMAN]: "held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
 } as const;
 
-// La décision de merge d'une PR qui touche à ce qui la juge : le geste `merge the PR` de sa carte (decision.ts).
+// La décision de merge d'une PR qui touche à ce qui la juge : à faire sur GitHub (decision.ts).
 export type DecisionDeMerge = { quoi: "merge"; motif: "review-required"; cause: null; pr: string };
 // Une entrée : son ticket, depuis quand elle attend, sa ligne — sa question, puis son geste —, et ce que sa carte de TODO
 // en fait. `quoi` : d'où elle vient — une issue mise de côté, une carte `chef-todo`, un écart du manager.
@@ -74,7 +74,7 @@ function ligneDeLaCarte({ sorte, texte: dit }: CarteDuChef): string {
 // La ligne d'un ticket mis de côté au chef : la PR à merger à la main, la question de produit, ou ce qui le retient.
 function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
   if (miseDeCote.chef !== undefined) return ligneDeLaCarte(miseDeCote.chef);
-  if (miseDeCote.pr != null) return `${miseDeCote.raison ?? `Merge PR #${miseDeCote.pr.numero} by hand?`} — merge PR #${miseDeCote.pr.numero} with \`merge the PR\` on its Todo card, or on GitHub`;
+  if (miseDeCote.pr != null) return `${miseDeCote.raison ?? `Merge PR #${miseDeCote.pr.numero} by hand?`} — merge PR #${miseDeCote.pr.numero} on GitHub`;
   return `${miseDeCote.raison === null ? "" : `${miseDeCote.raison} — `}${ECARTS[BLOCKED_ON_HUMAN]}`;
 }
 
