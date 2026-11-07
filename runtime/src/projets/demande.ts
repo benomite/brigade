@@ -125,8 +125,6 @@ import { selectionsLues, type Choix, type Selections } from "../installation/bes
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
 import type { Refus } from "./refus.ts";
-import type { Rejoindre } from "./rejoindre.ts";
-import type { StationSecondaire } from "./secondaires.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -208,11 +206,6 @@ export type SuiviDuProjet = {
   // Les temps des derniers tickets mesurés du projet et le seuil de leur temps perdu (`temps-ticket/ligne-status.ts`).
   temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number; chiffres?: Chiffre[] };
   choix?: Choix[];
-  // Les stations que l'app lui appaire en plus de la principale (`secondaires.ts`).
-  secondaires?: StationSecondaire[];
-  // Une autre station le servait déjà : celle-ci en a rejoint la cuisine, ou
-  // refuse en une phrase (`rejoindre.ts`).
-  rejoindre?: Rejoindre;
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];

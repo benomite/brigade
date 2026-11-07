@@ -10,9 +10,11 @@
 // que le statut de son service le montre toujours.
 //
 // Un projet que le chef lui ajoute depuis la page du projet (« + station ») est
-// une ligne de la demande de son appairage qui ne la dit pas principale : elle
-// en rejoint la cuisine (`projets/rejoindre.ts`), sélection écrite ou non — la
-// sélection ne nomme que ce que sa page à elle coche (#1830).
+// une ligne de la demande de son appairage : elle le sert comme un projet
+// choisi, sélection écrite ou non — la sélection ne nomme que ce que sa page à
+// elle coche (#1830), et toute station qui sert un projet en ouvre la cuisine
+// (#2713). Toute ligne de l'appairage que la sélection ne nomme pas est donc
+// servie, quoi qu'elle dise d'autre.
 import type { Canal } from "../appairage/canal.ts";
 import { FICHIER_SELECTION, selectionLue } from "../enregistrement-station/contrat.ts";
 import type { ProjetDemande } from "../projets/demande.ts";
@@ -46,10 +48,10 @@ type Etat = { choisis: string[] } | "appairage" | "aucun";
 export const AUCUN_PROJET =
   "brigade : station — aucun projet n'est choisi pour elle dans l'app : elle n'en sert aucun. Coche ceux qu'elle doit servir dans l'app, connectée au même compte GitHub que cette machine";
 
-// Les projets ajoutés depuis la page d'un projet, dans ce que l'appairage
-// demande : ni principale, ni remise en cours — et pas déjà choisis.
+// Les projets ajoutés depuis la page d'un projet : ce que l'appairage demande
+// et que la sélection ne nomme pas, sans remise en cours.
 function ajoutesDepuisLeProjet(appairee: DemandeLue | null, choisis: readonly ProjetDemande[]): ProjetDemande[] {
-  return (appairee?.demande?.projets ?? []).filter((projet) => !projet.principale && (projet.remise ?? null) === null && !choisis.some(({ nom }) => nom === projet.nom));
+  return (appairee?.demande?.projets ?? []).filter((projet) => (projet.remise ?? null) === null && !choisis.some(({ nom }) => nom === projet.nom));
 }
 
 export function sourceDesProjets(options: OptionsSource): () => Promise<DemandeLue | null> {

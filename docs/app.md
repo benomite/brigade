@@ -1611,8 +1611,9 @@ computer's projects cooking on it): "not added to any project" and **add a proje
 another computer ("start Brigade on *name*'s computer") is the hover of the words. The wording lives in
 `app/src/stations/raison.ts`, and a test fails when a grey station line has no reason and button. A station added
 to a project that its main station cannot reach is the same on the project's Cooks tab: its main station
-publishes the reason key and the gesture (`raison`, `geste` of `secondaires` in its tracking,
-`runtime/src/projets/secondaires.ts`: `arretee`, `muette`, `gist-illisible`); the line reads "not reached" with
+published the reason key and the gesture (`raison`, `geste` of `secondaires` in its tracking: `arretee`, `muette`,
+`gist-illisible`); since #2713 no runtime publishes them (every station that serves a project opens its kitchen), and
+the line reads "not reached" with
 **check again**, the gesture on hover.
 
 ### Your stations under your GitHub account, and the projects each serves (#1706)
@@ -1657,9 +1658,9 @@ project's Stations tab, they are in the list of stations** (#1778, #2638), read 
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
   it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
   line says so under the boxes, the detail on hover, and nothing changes.
-- **A repository another station already serves** (#1790, epic #1785): the ticked station does not open a second
-  kitchen — it joins the one that runs, or refuses in one sentence (`runtime/src/projets/rejoindre.ts`), and says
-  which in its tracking (`brigade-projets-suivi.json` of the same gist, `rejoindre`). The app reads it there with the
+- **A repository another station already serves** (#1790, epic #1785; changed by #2713): the ticked station opens its
+  own kitchen and cooks there, like every station that serves the project. Before #2713 it joined the one that ran,
+  or refused in one sentence, and said which in its tracking (`brigade-projets-suivi.json` of the same gist, `rejoindre`). The app reads it there with the
   account's stations (`avecLeursAjouts`, `app/src/stations-du-compte.ts`; one more read per station that has a
   selection). Just ticked, the box says "asked: the station answers within a minute", and the account's stations are
   read again every 15 s (8 times at most) until the station has answered. Joined, the box says "cooks in box's
@@ -1813,7 +1814,7 @@ station takes them from the first station, or from what the app asked before, or
 clone on this computer (its `origin`, and the branch its repository declares), and the calibration
 already requested. `Add <station> to the kitchen` with nothing touched adds it: its request carries its
 own cooks and its ticked capabilities (`fournit`), which the station declares in its own journal, never in
-the repository. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **It has the same effect as ticking the project on the station's page** (#1830): the station joins the kitchen that runs and takes the tickets it can cook — a ticket only that computer can cook leaves for it on its own; there is no second gesture (`runtime/src/projets/tenir.ts`, `rejoindre.ts`). **A value nobody says** — neither the first
+the repository. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **It has the same effect as ticking the project on the station's page** (#1830): the station opens the project's kitchen on its computer and takes the tickets it can cook, whatever other stations serve it (#2713) — a ticket only that computer can cook leaves for it on its own; there is no second gesture (`runtime/src/projets/tenir.ts`). **A value nobody says** — neither the first
 station nor the clone — is read in one sentence above the button; no field appears after the click.
 
 **The flow of a new project** (#1111), under that line, in place of the empty space: the four steps

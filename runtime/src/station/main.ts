@@ -14,7 +14,6 @@ import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { lireCaches, PLATEFORME_LOCALE, verifier } from "../bac-a-sable/local.ts";
 import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
-import { lireLesStationsEtLeursGists } from "../appairage/stations-du-chef.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
 import { installerLimite, journaliserLaPause, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
@@ -206,9 +205,6 @@ const projetsDeLApp = tenirProjetsDeLApp({
   // Les projets choisis pour elle dans l'app, lus dans le gist de son
   // enregistrement — à défaut, ce que l'app demande par l'appairage (projets-station/).
   source: sourceDesProjets({ racine, canal, gist: () => enregistrement.gist(), env: process.env, dire }),
-  // Les stations que l'app appaire à ses projets en plus d'elle, lues dans les
-  // gists appairés du compte de son `gh` (projets/secondaires.ts).
-  lireLesAppairees: () => lireLesStationsEtLeursGists({ gh: process.env.BRIGADE_GH_BIN || "gh" }),
   apresEcriture: () => {
     station.relire();
     void presence.publier();

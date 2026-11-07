@@ -260,14 +260,10 @@ request in the gist of each station he chose, and the station reads it there (`r
   French until translated.
 - **Removed from the app**, the project leaves the request: the station removes its line from the block
   and no longer serves it; state and clone stay.
-- **A station that is not the main one** of a project writes no line for it and says it `secondaire`.
-  The project's kitchen lets a second station cook alongside the first once it is declared
-  `distante+ensemble` and works through GitHub alone ("A second station of the project, which cooks
-  alongside the first" in [`station-distante.md`](station-distante.md)): the main station declares it
-  that way when it reads its paired gist, and takes its cooks from there. The secondary station joins
-  the kitchen of the station serving the project, as a ticked project would (#1830): it publishes it in
-  `brigade-cuisines-rejointes.json` and claims its tickets, or refuses in one sentence when that station
-  is not reached. While none serves it, it waits.
+- **Every station that serves a project** writes its line and opens its kitchen (#2713), whatever
+  other stations serve it: none is the main one, none joins another's kitchen, and each claims, cooks,
+  reviews and merges its tickets through GitHub. The state `secondaire` is left only to a project
+  handed over to another station (`remise`), whose kitchen is closed here.
 
 ### The blocked access
 

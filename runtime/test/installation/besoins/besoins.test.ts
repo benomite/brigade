@@ -219,11 +219,11 @@ test("la station a le besoin — sur sa machine, ou déclaré pour une station d
   assert.equal(choixDesBesoins(besoins, { ...station, sonde: BOX, fournit: ["code", "postgres"] }).length, 0);
 });
 
-test("la station principale tient le choix au journal du projet, avec le blocage qui l'attend ; elle a le besoin, rien ne s'écrit", (t) => {
+test("la station qui sert le projet tient le choix au journal du projet, avec le blocage qui l'attend ; elle a le besoin, rien ne s'écrit", (t) => {
   const clone = unDepot(t, DEPOT_A_BESOINS);
   const { repertoireEtat, journal } = unProjet(t);
   poserDecision(journal, { projet: "widgets", nom: "BRIGADE_STATIONS", valeur: "box/claude:2:code+raisonnement", auteur: "chef" });
-  const projet = { nom: "widgets", principale: true };
+  const projet = { nom: "widgets" };
 
   const choix = suivreLesBesoins({ station: "box", sonde: BOX }).tenir(projet, { repertoireEtat, clone });
   assert.deepEqual(choix.map(({ id, status }) => [id, status]), [["need:postgres", "pending"]]);
@@ -237,10 +237,6 @@ test("la station principale tient le choix au journal du projet, avec le blocage
   const autre = unProjet(t);
   assert.equal(suivreLesBesoins({ station: "box", sonde: AVEC_POSTGRES() }).tenir(projet, { repertoireEtat: autre.repertoireEtat, clone }).length, 0);
   assert.equal(autre.journal.dernierSeq(), 0);
-  // Et une station qui n'en est pas la principale ne détecte rien.
-  const secondaire = unProjet(t);
-  assert.equal(suivreLesBesoins({ station: "box", sonde: BOX }).tenir({ ...projet, principale: false }, { repertoireEtat: secondaire.repertoireEtat, clone }).length, 0);
-  assert.equal(secondaire.journal.dernierSeq(), 0);
 });
 
 test("retenir une issue la garde au journal du projet : le choix n'est plus en attente, son blocage est levé — et la station Postgres installée, il quitte la liste", (t) => {

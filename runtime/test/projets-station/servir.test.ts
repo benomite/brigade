@@ -14,7 +14,8 @@ import { decisionsPosees } from "../../src/decisions.ts";
 import { FICHIER_ENREGISTREMENT, FICHIER_SELECTION } from "../../src/enregistrement-station/contrat.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
-import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
+import { ajouterUneStation } from "../../src/projets/ajout-de-station.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import { ENQUETE_MUETTE } from "../../src/projets/echec-du-clone.ts";
 import { CADENCE_MS, tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
 import { AUCUN_PROJET, RAPPEL_MS, sourceDesProjets } from "../../src/projets-station/source.ts";
@@ -221,7 +222,7 @@ test("une sélection illisible ne change rien à ce qu'elle sert, et c'est dit u
   );
 });
 
-test("appairée par code et sans sélection, elle sert ce que l'app lui demande par l'appairage ; la sélection écrite, c'est elle qu'elle sert", async (t) => {
+test("appairée par code et sans sélection, elle sert ce que l'app lui demande par l'appairage ; la sélection écrite, elle la sert à côté de ce que l'appairage demande encore — une ligne qu'elle dit principale aussi (#2713)", async (t) => {
   const station = uneStation(t, { appairee: true, declarent: ["acme/shop", "acme/site"] });
   (station.gists[APPAIRAGE] as Fichiers)[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: [{ nom: "shop", depot: "acme/shop", base: null, principale: true, cooks: 2 }] });
   await station.projets.relire();
@@ -233,27 +234,37 @@ test("appairée par code et sans sélection, elle sert ce que l'app lui demande 
 
   station.choisir("acme/site");
   await station.projets.relire();
-  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\n${FIN}\n`);
-  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi"]);
+  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\nshop acme/shop\n${FIN}\n`);
+  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi", "shop servi"]);
 });
 
-test("sa sélection écrite, elle tient aussi les projets que le chef lui ajoute depuis la page d'un projet (« + station ») : la demande de son appairage les porte, sans la dire principale", async (t) => {
-  const station = uneStation(t, { appairee: true, declarent: ["acme/site"] });
+test("sa sélection écrite, elle sert aussi les projets que le chef lui ajoute depuis la page d'un projet (« + station ») : la ligne que `ajouterUneStation` écrit dans la demande de son appairage, et leur cuisine s'ouvre ici (#2713)", async (t) => {
+  const station = uneStation(t, { appairee: true, declarent: ["acme/site", "acme/shop"] });
   station.choisir("acme/site");
-  const ajoute = { nom: "shop", depot: "acme/shop", base: null, principale: false, cooks: 2, fournit: ["macos"] };
-  // Une ligne principale de l'appairage reste ignorée : la sélection dit ce dont elle est la principale.
-  const autre = { nom: "blog", depot: "acme/blog", base: null, principale: true, cooks: 1 };
-  (station.gists[APPAIRAGE] as Fichiers)[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: [ajoute, autre] });
+  const ajout = await ajouterUneStation(null, { nom: "shop", depot: "acme/shop", base: "main", cooks: 2, capacites: ["macos"] });
+  assert.ok("projet" in ajout, JSON.stringify(ajout));
+  (station.gists[APPAIRAGE] as Fichiers)[FICHIER_PROJETS] = documentDeDemande([ajout.projet]);
   await station.projets.relire();
-  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\n${FIN}\n`);
-  assert.deepEqual(station.clones, ["acme/site"], "rien n'est cloné pour le projet ajouté : elle n'en ouvre pas la cuisine");
-  // Aucune station ne le sert encore ici : elle attend sa principale (`projets/rejoindre.ts`).
-  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi", "shop secondaire"]);
+  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\nshop acme/shop main\n${FIN}\n`);
+  assert.deepEqual(station.clones, ["acme/site", "acme/shop"]);
+  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi", "shop servi"]);
 
   // Coché aussi sur sa page : la sélection le porte, une seule fois.
   station.choisir("acme/site", "acme/shop");
   await station.projets.relire();
   assert.deepEqual(station.suivi()?.map(({ nom }) => nom), ["site", "shop"]);
+});
+
+test("à côté de la sélection, toute ligne de l'appairage qu'elle ne nomme pas est servie, quoi que la ligne dise de la station (#2713)", async (t) => {
+  const station = uneStation(t, { appairee: true, declarent: ["acme/site", "acme/shop", "acme/blog"] });
+  station.choisir("acme/site");
+  const lignes = [
+    { nom: "shop", depot: "acme/shop", base: null, principale: false, cooks: 2 },
+    { nom: "blog", depot: "acme/blog", base: null, principale: true, cooks: 1 },
+  ];
+  (station.gists[APPAIRAGE] as Fichiers)[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: lignes });
+  await station.projets.relire();
+  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\nshop acme/shop\nblog acme/blog\n${FIN}\n`);
 });
 
 test("deux dépôts choisis du même nom : le premier est servi, l'autre est dit une fois", async (t) => {

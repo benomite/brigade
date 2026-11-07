@@ -103,7 +103,7 @@ export const etatDit = (station) => (station.heldUntil ? RETENUE(station.heldUnt
 // Le ton de sa pastille : vert en ligne, jaune retenue, gris hors ligne.
 /** @param {Pick<StationEnregistree, "available" | "heldUntil">} station */
 export const tonDe = (station) => (station.heldUntil ? "jaune" : station.available ? "vert" : "gris");
-// Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, runtime/src/projets/rejoindre.ts),
+// Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, l'ancien runtime/src/projets/rejoindre.ts, retiré par le ticket 2713),
 // sous sa case : elle cuit dans la cuisine qui tourne, ou elle refuse — sa phrase dessous, en entier. Tant qu'elle ne l'a pas
 // lu, la case dit qu'elle va répondre.
 /** @param {string} principale */

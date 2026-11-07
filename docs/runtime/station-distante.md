@@ -19,9 +19,9 @@ lent to the chef's workstation when the box is saturated, no second station whos
 station's pass, and no claim relay through the stations' gists and the Kitchen board. Those events may remain in an
 old log, unread.
 
-**A station paired through the app** and added to a project joins the kitchen of that project on its own computer
-(`runtime/src/projets/rejoindre.ts`) and publishes it in `brigade-cuisines-rejointes.json` of its paired gist; it
-cooks there through GitHub. While no station serves the project, it opens no kitchen and joins at the next reading.
+**A station paired through the app** and added to a project opens that project's kitchen on its own computer and
+cooks there through GitHub, whatever other stations serve it (#2713): no station is the main one, none joins another's
+kitchen, and `brigade-cuisines-rejointes.json` is no longer written.
 
 **What it says when it cannot cook yet.** A station installed from the app and cooking nothing says why on its line
 of the home screen, with the gesture: `not reached` (stopped or silent on GitHub: start Brigade on its computer,

@@ -3,19 +3,9 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import type { StationAppairee, StationsDuChef } from "../../runtime/src/appairage/stations-du-chef.ts";
-import { jusqua, repertoireTemporaire, fauxGh, aArreter } from "../../runtime/test/outils.ts";
-import { lectureDesAppairees } from "../../runtime/test/aides/appairees.ts";
-import { FICHIER_LOCAL } from "../../runtime/src/appairage/presence.ts";
-import type { Canal, Fichiers } from "../../runtime/src/appairage/canal.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, type ProjetDemande, type SuiviDuProjet } from "../../runtime/src/projets/demande.ts";
-import { FICHIER_REJOINTES, rejointesLues } from "../../runtime/src/projets/rejoindre.ts";
-import { DEBUT, FIN } from "../../runtime/src/projets/bloc.ts";
-import { tenirProjetsDeLApp } from "../../runtime/src/projets/tenir.ts";
-import { servisPar } from "../src/poste/cuisine-ici.ts";
-import { SANS_POSIX } from "./aides/posix.ts";
+import { jusqua, repertoireTemporaire } from "../../runtime/test/outils.ts";
 import { tenirStationLocale } from "../src/poste/station.ts";
 import { garderUneSeuleCuisine } from "../src/station-embarquee-cuisine-unique.ts";
 
@@ -105,61 +95,4 @@ test("l'autre station ne sert plus le projet : sa ligne est remise telle quelle 
   assert.equal(readFileSync(join(ordi.racine, "projets"), "utf8").match(/# held-back/g)?.length, 1);
   await garder(lues(station("box1", "box", [])));
   assert.equal(readFileSync(join(ordi.racine, "projets"), "utf8"), CONFIGURATION);
-});
-
-// La vraie préparation des projets de la station (runtime/src/projets/tenir.ts), sur la configuration que le
-// garde de l'app a laissée : la ligne du bloc d'un projet qu'une autre station sert n'y est plus, la station
-// en rejoint donc la cuisine — elle y cuit —, et n'en ouvre aucune.
-const MAINTENANT = Date.parse("2026-11-03T08:00:00Z");
-const BRIGADE: ProjetDemande = { nom: "brigade", depot: "acme/brigade", base: "main", principale: true, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "sonnet", effort: "medium" }, ouvertLe: null, demandeLe: null };
-const BOX = { id: "gistbox", nom: "box", sert: { brigade: "acme/brigade" } };
-const MAC = { id: "gistmac", nom: "ordi" };
-
-async function reprise(t: TestContext, autres: Parameters<typeof lectureDesAppairees>[1][]) {
-  const racine = repertoireTemporaire(t);
-  const gh = fauxGh(t);
-  writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: MAC.id, appairee: true, code: null, expireLe: null, echus: [] }));
-  // Le bloc d'une ouverture d'avant : la cuisine de brigade s'ouvrirait ici à la relecture, sans cette garde.
-  writeFileSync(join(racine, "projets"), `${DEBUT}\nbrigade acme/brigade main\n${FIN}\n`);
-  const lecture = lectureDesAppairees(MAINTENANT, ...autres, MAC);
-  const lignes: string[] = [];
-  await garderUneSeuleCuisine({ racine, lire: async () => lecture.etat, soi: () => ({ gist: MAC.id, nom: "ordi" }), dire: (ligne) => lignes.push(ligne) });
-  const gist: Fichiers = { [FICHIER_PROJETS]: documentDeDemande([BRIGADE]) };
-  const canal: Canal = { creer: async () => assert.fail("aucun gist créé"), ecrire: async (_id, ecrits) => (Object.assign(gist, ecrits), "ecrit"), lire: async (id) => (id === MAC.id ? { ...gist } : null) };
-  const projets = tenirProjetsDeLApp({
-    racine,
-    canal,
-    station: "ordi",
-    env: { BRIGADE_GH_BIN: gh.bin, HOME: repertoireTemporaire(t) },
-    servis: { projets: () => [], refus: () => null },
-    apresEcriture: () => {},
-    dire: () => {},
-    cadenceMs: 3_600_000,
-    maintenant: () => MAINTENANT,
-    lireLesAppairees: async () => lecture,
-    cadenceDesAppareesMs: 0,
-    plateforme: "darwin",
-  });
-  aArreter(t, () => projets.arreter());
-  await projets.relire();
-  const suivi = (JSON.parse(gist[FICHIER_SUIVI] ?? "null") as { projets: SuiviDuProjet[] } | null)?.projets ?? [];
-  return { racine, gh, gist, suivi, lignes };
-}
-
-test("un projet que la box sert : la vraie station de cet ordinateur n'ouvre ni cuisine ni tableau pour lui, et en rejoint la cuisine — l'ordinateur y cuit, déclaré comme cook", { skip: SANS_POSIX }, async (t) => {
-  const ordi = await reprise(t, [BOX]);
-  assert.deepEqual(servisPar(ordi.racine), [], "aucune ligne servie ici");
-  assert.equal(existsSync(join(ordi.racine, "etat", "brigade")), false, "ni état ni journal");
-  assert.equal(existsSync(join(ordi.racine, "clones", "brigade")), false, "ni clone");
-  assert.deepEqual(ordi.gh.appels(), [], "rien sur GitHub, donc aucun tableau publié");
-  assert.equal(ordi.suivi[0]?.etat, "secondaire");
-  assert.equal(ordi.suivi[0]?.cuitSur, "box");
-  assert.deepEqual(rejointesLues(ordi.gist[FICHIER_REJOINTES]), [{ nom: "brigade", depot: "acme/brigade", principale: "box", cooks: 2, fournit: ["code", "raisonnement", "macos"] }]);
-  assert.ok(ordi.lignes.some((ligne) => ligne.includes("already served by box")));
-});
-
-test("sans autre station qui le serve : la même préparation garde la ligne du bloc, la cuisine s'ouvre ici comme avant", { skip: SANS_POSIX }, async (t) => {
-  const ordi = await reprise(t, []);
-  assert.deepEqual(servisPar(ordi.racine), ["brigade"]);
-  assert.equal(ordi.suivi[0]?.cuitSur ?? null, null);
 });

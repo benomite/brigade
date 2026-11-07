@@ -6,7 +6,8 @@
 // fichier-là — l'enregistrement est à la station seule, et un `PATCH` ne touche que les fichiers qu'il nomme.
 //
 // Et ce que chaque station a fait d'un dépôt choisi pour elle (#1790, épique #1785) : quand une autre station le servait
-// déjà, elle en a rejoint la cuisine, ou elle refuse en une phrase (runtime/src/projets/rejoindre.ts). Elle l'écrit dans
+// déjà, elle en a rejoint la cuisine, ou elle refuse en une phrase (l'ancien runtime/src/projets/rejoindre.ts, retiré
+// par #2713 : aucun runtime ne l'écrit plus, toute station qui sert un projet en ouvre la cuisine). Elle l'écrit dans
 // le suivi de ce même gist (`brigade-projets-suivi.json`, `rejoindre`) : l'app l'y lit, pour chaque station à qui un dépôt
 // est choisi, et le joint à ce que le runtime en a lu (`ajouts`).
 import type { StationEnregistree as Enregistree, StationsDuCompte as DuCompte } from "../../runtime/src/enregistrement-station/stations-du-compte.ts";

@@ -20,10 +20,7 @@ import type { Onboarding } from "../../src/onboarding/etat.ts";
 import { ENQUETE_MUETTE, PAGE_DES_JETONS_FINS, type Enquete } from "../../src/projets/echec-du-clone.ts";
 import { CloneEnEchec, type Autorisation } from "../../src/projets/preparer.ts";
 import { refus } from "../../src/projets/refus.ts";
-import type { LectureDesAppairees } from "../../src/projets/secondaires.ts";
-import { documentDesRejointes, FICHIER_REJOINTES } from "../../src/projets/rejoindre.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
-import { lectureDesAppairees } from "../aides/appairees.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { aArreter, BASE, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -46,10 +43,8 @@ const SHOP = {
 // `remote` : le clone est un vrai clone d'une origine nue, et ce rappel en
 // règle le remote ; l'accès est alors vérifié par un vrai git — sans
 // configuration globale, donc sans credential helper.
-// `appairees` : les gists appairés du compte, où elle lit les stations que
-// l'app appaire à ses projets en plus d'elle — relus à chaque cycle.
 // `gists` : ceux des autres stations du compte, que son canal lit aussi.
-function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; appairees?: () => Promise<LectureDesAppairees>; gists?: Record<string, Fichiers>; clonesServis?: Record<string, string> } = {}) {
+function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; gists?: Record<string, Fichiers>; clonesServis?: Record<string, string> } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: GIST, appairee: options.appairee ?? true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -115,7 +110,6 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
       preparations.push(`${projet.depot} ${projet.base} → ${repertoireEtat} ${clone}`);
       return { ticket: 7, ouvert: preparations.length === 1 };
     },
-    ...(options.appairees === undefined ? {} : { lireLesAppairees: options.appairees, cadenceDesAppareesMs: 0 }),
   });
   aArreter(t, () => projets.arreter());
   // Ce que l'app écrit : les projets que le chef demande à cette station.
@@ -127,7 +121,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
 }
 
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
-// Les temps des tickets que la principale publie : aucun fichier dans le clone, aucun enregistrement et le seuil du temps perdu par défaut (#2346, #2670).
+// Les temps des tickets que la station publie : aucun fichier dans le clone, aucun enregistrement et le seuil du temps perdu par défaut (#2346, #2670).
 // Avec les quatre chiffres du projet (#2672), qui n'ont rien à dire.
 const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2, chiffres: chiffresDuProjet({ enregistrements: [], qualites: new Map(), ratios: [], projet: null }) };
 const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
@@ -163,133 +157,6 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   assert.equal(station.clones.length, 1);
   assert.equal(station.relectures(), 1);
   assert.equal(station.ecritures.length, ecritures);
-});
-
-test("une station que l'app appaire au projet sans en faire la principale : la principale la déclare au journal du projet avec ce qu'elle fournit, sans commande du chef, et son suivi la dit atteinte — puis plus atteinte, et pourquoi", async (t) => {
-  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
-  const SECONDAIRE = { ...SHOP, principale: false, cooks: 1, manager: null, reviewer: null, fournit: ["macos"] };
-  let lue: () => LectureDesAppairees = () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", projets: [SHOP] }, { id: "gistmac", nom: "mac", projets: [SECONDAIRE] });
-  const station = uneStation(t, { appairees: async () => lue() });
-  station.demander(SHOP);
-  await station.projets.relire();
-
-  const declaree = () => {
-    const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
-    try {
-      return decisionsPosees(journal.base).BRIGADE_STATIONS;
-    } finally {
-      journal.fermer();
-    }
-  };
-  // La station de la box, posée par le parcours, reste telle quelle ; le Mac s'ajoute.
-  assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos:distante+ensemble");
-  const MAC = { nom: "mac", station: "mac/claude", gist: "gistmac", cooks: 1, fournit: ["code", "raisonnement", "macos"] };
-  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: true, dit: "reached: it is online on GitHub" }]);
-  assert.equal(station.suivi()?.[0]?.etat, "servi");
-  assert.ok(station.lignes.includes("brigade : station — shop : mac/claude déclarée au journal, appairée par l'app en plus de box — 1 cook(s) au plus, fournit : code, raisonnement, macos ; elle tire son travail"));
-  assert.ok(station.lignes.includes("brigade : station — shop : mac/claude atteinte (reached: it is online on GitHub)"));
-
-  // Relu sans changement : rien n'est réécrit, ni au journal, ni dans le suivi.
-  const [ecritures, lignes] = [station.ecritures.length, station.lignes.length];
-  await station.projets.relire();
-  assert.equal(station.ecritures.length, ecritures);
-  assert.equal(station.lignes.length, lignes);
-
-  // Le Mac s'arrête : il n'est plus atteint, et son suivi dit pourquoi ; sa déclaration reste.
-  lue = () => lectureDesAppairees(MAINTENANT, { id: "gistmac", nom: "mac", projets: [SECONDAIRE], signe: 3, arretee: true });
-  await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:59:00.000Z", raison: "arretee", geste: "start Brigade on that computer again" }]);
-  assert.ok(station.lignes.includes("brigade : station — shop : mac/claude pas atteinte (not reached: it stopped at 2026-10-15T11:59:00.000Z)"));
-
-  // GitHub ne répond pas : le Mac reste dit, non atteint, avec la raison — et rien n'est retiré du journal.
-  lue = () => {
-    throw new Error("gh: could not resolve api.github.com");
-  };
-  await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: its gist could not be read on GitHub — gh: could not resolve api.github.com", raison: "gist-illisible", geste: "check your GitHub connection in the app, the next reading tries again" }]);
-  assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos:distante+ensemble");
-
-  // L'app lui coche une capacité de plus : son entrée seule est réécrite.
-  lue = () => lectureDesAppairees(MAINTENANT, { id: "gistmac", nom: "mac", projets: [{ ...SECONDAIRE, fournit: ["macos", "enregistrement-ecran"] }] });
-  await station.projets.relire();
-  assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos+enregistrement-ecran:distante+ensemble");
-  assert.equal(station.suivi()?.[0]?.secondaires?.[0]?.atteinte, true);
-});
-
-test("un ordinateur ajouté au projet alors qu'elle le servait, qui en a rejoint la cuisine (#1789) : la principale le déclare au journal comme une station de plus, et garde son manager et sa pass", async (t) => {
-  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
-  // Ce que le Mac publie dans son gist d'appairage (`rejoindre.ts`) : l'app ne
-  // l'y dit pas secondaire — sa demande n'est pas dans ce gist.
-  const gistmac: Fichiers = { [FICHIER_REJOINTES]: documentDesRejointes([{ nom: "shop", depot: "acme/shop", principale: "box", cooks: 2, fournit: ["code", "raisonnement", "macos"] }]) };
-  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", sert: { shop: "acme/shop" } }, { id: "gistmac", nom: "mac", fichiers: gistmac }), gists: { gistmac } });
-  station.demander(SHOP);
-  await station.projets.relire();
-
-  const journal = () => ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
-  const lu = journal();
-  try {
-    const decisions = decisionsPosees(lu.base);
-    assert.equal(decisions.BRIGADE_STATIONS, "box/claude:2:code+raisonnement,mac/claude:2:code+raisonnement+macos:distante+ensemble");
-    // Une seule cuisine : le calibrage du manager et du reviewer est le sien.
-    assert.equal(decisions.BRIGADE_MANAGER_MODEL, "sonnet");
-    assert.equal(lu.tout().filter((evenement) => evenement.type === "project.added").length, 1);
-  } finally {
-    lu.fermer();
-  }
-  assert.equal(station.suivi()?.[0]?.etat, "servi");
-  assert.equal(station.suivi()?.[0]?.rejoindre, undefined);
-  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ nom: "mac", station: "mac/claude", gist: "gistmac", cooks: 2, fournit: ["code", "raisonnement", "macos"], atteinte: true, dit: "reached: it is online on GitHub" }]);
-});
-
-test("la même jonction pour tous les projets qu'elle sert : un projet de sa configuration, écrit à la main et que l'app ne lui demande pas, voit la station rejointe comme celui que l'app lui demande (#1923)", async (t) => {
-  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
-  const rejointe = (nom: string, depot: string) => ({ nom, depot, principale: "box", cooks: 1, fournit: ["code", "raisonnement", "macos"] });
-  const gistmac: Fichiers = { [FICHIER_REJOINTES]: documentDesRejointes([rejointe("shop", "acme/shop"), rejointe("brigade", "acme/brigade")]) };
-  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", sert: { shop: "acme/shop", brigade: "acme/brigade" } }, { id: "gistmac", nom: "mac", fichiers: gistmac }), gists: { gistmac } });
-  // `shop` vient de l'app ; `brigade` est une ligne de la configuration, écrite à la main.
-  // Sa cuisine a ouvert son journal en démarrant.
-  mkdirSync(join(station.racine, "etat/brigade"), { recursive: true });
-  writeFileSync(join(station.racine, "projets"), "brigade acme/brigade main\n");
-  station.demander(SHOP);
-  await station.projets.relire();
-
-  for (const nom of ["shop", "brigade"]) {
-    const journal = ouvrirJournal(join(station.racine, "etat", nom), { lectureSeule: true });
-    try {
-      assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS?.split(",").includes("mac/claude:1:code+raisonnement+macos:distante+ensemble"), true, nom);
-    } finally {
-      journal.fermer();
-    }
-  }
-});
-
-test("la même jonction quand l'app ne lui demande rien : la station rejointe d'un projet qu'elle sert est déclarée (#1923)", async (t) => {
-  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
-  const gistmac: Fichiers = { [FICHIER_REJOINTES]: documentDesRejointes([{ nom: "brigade", depot: "acme/brigade", principale: "box", cooks: 1, fournit: ["code", "raisonnement", "macos"] }]) };
-  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", sert: { brigade: "acme/brigade" } }, { id: "gistmac", nom: "mac", fichiers: gistmac }), gists: { gistmac } });
-  writeFileSync(join(station.racine, "projets"), "brigade acme/brigade main\n");
-  // Sa cuisine a ouvert son journal en démarrant.
-  mkdirSync(join(station.racine, "etat/brigade"), { recursive: true });
-  await station.projets.relire();
-  const journal = ouvrirJournal(join(station.racine, "etat/brigade"), { lectureSeule: true });
-  try {
-    assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "mac/claude:1:code+raisonnement+macos:distante+ensemble");
-  } finally {
-    journal.fermer();
-  }
-});
-
-test("sans station appairée en plus d'elle, ni le journal ni le suivi n'en disent rien", async (t) => {
-  const station = uneStation(t, { appairees: async () => lectureDesAppairees(Date.parse("2026-10-15T12:02:00Z"), { id: GIST, nom: "box", projets: [SHOP] }) });
-  station.demander(SHOP);
-  await station.projets.relire();
-  const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
-  try {
-    assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "box/claude:2:code+raisonnement");
-  } finally {
-    journal.fermer();
-  }
-  assert.equal(station.suivi()?.[0]?.secondaires, undefined);
 });
 
 test("une demande sans branche ni calibrage : le dépôt cloné les déclare — la ligne n'écrit pas de branche, seule la station est posée au journal", async (t) => {
@@ -448,20 +315,20 @@ test("un clone en échec se dit en clair : la cause, le compte GitHub de la stat
   assert.equal(station.onboarding()?.widgets?.etapes.find(({ etape }) => etape === "depot")?.etat, "faite");
 });
 
-test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une ligne écrite à la main garde la main, et sert le projet", async (t) => {
+test("une ligne de la demande qui ne la dit pas principale (« + station ») est préparée et servie comme toute autre (#2713) ; une ligne écrite à la main garde la main, et sert le projet", async (t) => {
   const station = uneStation(t);
   writeFileSync(join(station.racine, "projets"), "espace acme/espace main\n");
   station.demander({ ...SHOP, principale: false }, { ...SHOP, nom: "espace", depot: "acme/espace" });
   await station.projets.relire();
-  assert.equal(station.configuration(), "espace acme/espace main\n");
+  assert.equal(station.configuration(), `espace acme/espace main\n\n${DEBUT}\nshop acme/shop main\n${FIN}\n`);
   assert.deepEqual(
     station.suivi()?.map(({ nom, etat }) => [nom, etat]),
     [
-      ["shop", "secondaire"],
+      ["shop", "servi"],
       ["espace", "servi"],
     ],
   );
-  assert.deepEqual(station.clones, []);
+  assert.deepEqual(station.clones, [`acme/shop → ${join(station.racine, "clones/shop")}`]);
 });
 
 test("refusé par la station, le suivi dit pourquoi", async (t) => {
@@ -718,7 +585,7 @@ test("le délai de l'ajout au premier ticket servi est publié, exact et figé :
   assert.deepEqual(station.suivi()?.[0]?.delai, fige);
 });
 
-test("la boîte du 2026-11-06 : une ligne écrite à la main, aucune station principale, 13 enregistrements dans le clone qu'elle sert — le suivi les porte (#2567)", async (t) => {
+test("la boîte du 2026-11-06 : une ligne écrite à la main, 13 enregistrements dans le clone qu'elle sert — le suivi les porte (#2567)", async (t) => {
   const clone = repertoireTemporaire(t);
   mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
   const enregistrements = Array.from({ length: 13 }, (_, i) => ({ ticket: 2535 + i, claimedAt: "2026-11-06T07:00:00.000Z", mergedAt: `2026-11-06T07:${String(10 + i).padStart(2, "0")}:00.000Z`, cuisson: 300, cuissonTests: 60, attentePasse: 60, revue: 120, ci: 90, merge: 30 }));

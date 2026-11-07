@@ -402,7 +402,7 @@ function empreinteDuClone(clone: string): string | null {
   }
 }
 
-export type ProjetSuivi = { nom: string; principale: boolean; choix?: Selections };
+export type ProjetSuivi = { nom: string; choix?: Selections };
 
 export type SuiviDesBesoins = {
   // Tient les choix du projet à son journal, et rend ceux que son suivi publie.
@@ -410,8 +410,8 @@ export type SuiviDesBesoins = {
 };
 
 // Ce que la station tient des besoins de ses projets, d'une lecture à
-// l'autre : seule la station principale d'un projet le détecte, sur son
-// clone ; le dépôt n'est relu que quand son clone a changé de commit, la
+// l'autre : toute station qui sert un projet le détecte, sur son clone
+// (#2713) ; le dépôt n'est relu que quand son clone a changé de commit, la
 // machine à chaque lecture — le chef qui y installe ce qui manque voit le
 // choix disparaître à la suivante.
 export function suivreLesBesoins(options: { station: string; sonde?: Sonde; avertir?: (ligne: string) => void }): SuiviDesBesoins {
@@ -434,7 +434,7 @@ export function suivreLesBesoins(options: { station: string; sonde?: Sonde; aver
   };
   return {
     tenir(projet, { repertoireEtat, clone }) {
-      if (!projet.principale || !existsSync(join(clone, ".git"))) return lireChoix(repertoireEtat);
+      if (!existsSync(join(clone, ".git"))) return lireChoix(repertoireEtat);
       try {
         const declarees = stationsDuProjet(repertoireEtat);
         const stations: Stations = { projet: projet.nom, sonde, fournit: declarees.ici.flatMap(({ fournit }) => fournit), ailleurs: declarees.ailleurs };

@@ -2,7 +2,7 @@
 // la station de sa machine (poste/station.ts) l'écrit dans son appairage (document.ts), et le
 // reprend dans la demande de chaque projet où la station est ajoutée (projets/projets.ts). La station
 // principale du projet le lit là, et la déclare à son journal avec ces capacités
-// (runtime/src/projets/secondaires.ts) — sans une commande du chef.
+// (l'ancien runtime/src/projets/secondaires.ts, retiré par #2713) — sans une commande du chef.
 //
 // Un Mac fournit toujours `macos` : c'est le système même. S'y ajoute chaque capacité que le runtime
 // détecte sur la machine (runtime/src/projets/ajout-de-station.ts, `capacitesDeLaMachine`) — Chrome,
