@@ -1,5 +1,5 @@
 // @ts-check
-// Le temps d'un ticket tel que la mesure le résume (#2664, épique #2659) : l'objet `resume` de `temps-tickets.json`
+// Le temps d'un ticket tel que la mesure le résume (ticket 2664, épique 2659) : l'objet `resume` de `temps-tickets.json`
 // — `n`, `medianMin`, `p75Min`, `maxMin`, `phaseLaPlusLongue` (`{ nom, medianMin }`) —, lu tel quel, jamais recalculé. La bande du
 // rail et l'onglet Health le disent des mêmes chiffres et des mêmes mots : ce module les leur donne. Il ne touche pas `document`.
 

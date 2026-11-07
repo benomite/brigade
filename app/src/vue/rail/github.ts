@@ -5,7 +5,7 @@
 // Ce qui se lit, à chaque lecture — toutes conditionnelles (`If-None-Match`) : un 304 ne coûte rien :
 //   - ses issues ouvertes au label `fire` et ses PR ouvertes, page après page : le rail est chaque issue au label, son
 //     état tiré de ses labels, de sa PR et de la base (`etatDuTicket`) — sans aucun des quatre, il est en attente ; une
-//     épique, dont le corps liste les tickets, n'y est pas (#2618) ;
+//     épique, dont le corps liste les tickets, n'y est pas (ticket 2618) ;
 //   - pour un ticket pris ou en pass, les commentaires et les événements de son issue : la station qui le tient
 //     (vue/cooks/prises.ts). Ce sont les cooks de l'onglet Cooks, chacun sous sa station, avec sa PR quand il en a une.
 // Et, pour les stations de l'onglet Cooks (ticket 2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
@@ -130,7 +130,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     if (issue.pull_request !== undefined || typeof issue.number !== "number") return [];
     const labels = liste(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
     // Une épique dont le corps liste les tickets garde `fire` et sa `prio:` : elle se sert par ses tickets, jamais ne se
-    // prend, et n'est pas sur le rail (#2618).
+    // prend, et n'est pas sur le rail (ticket 2618).
     if (labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE) || porteListe(texte(issue.body))) return [];
     return [{ numero: issue.number, titre: texte(issue.title), url: texte(issue.html_url), creeLe: texte(issue.created_at), labels }];
   });
