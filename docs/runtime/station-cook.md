@@ -143,6 +143,14 @@ names. A blocking review was the first send-back reason (#2770: 20 send-backs ov
 tickets), and its second commits most often wired the new code where the station launches it
 (#2627, #2640, #2676, #2680, #2681, #2694) or read data from where it is still written (#2707).
 
+The same instruction tells the cook that a ticket removing, replacing or moving something is finished
+only when nothing points at the old thing any more: it searches the old name across the whole repo —
+code, CSS, tests, docs, screen captures, comments — and removes or fixes each remnant. Blocking review
+was still the first send-back reason after #2770 (#2789: 26 over 63 merged tickets), and its second
+commits most often finished such a removal: dead code and CSS rules left behind (#2638, #2639, #2664),
+the replaced figure still shown (#2672), tests, tutorial and docs pointing at a removed button or role
+(#2711, #2713, #2715).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
