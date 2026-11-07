@@ -480,6 +480,14 @@ most over their estimate, the most frequent send-back reasons and broken checks)
 show them from those values. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
 
+The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
+again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent
+tickets it counted (`brigade:qualite-comptes`), and while the window holds no other, nothing opens (`deja-servie`).
+A quality ticket opened before that marker existed counted every such ticket merged before it was opened (#2813):
+#2805, served, had #2813 opened on the very 13 send-backs of BOBL-tech/espace it had counted, all cooked on
+2026-11-05 and 06, before the cook's instruction learned the reviewer's blocking rules (#2770, #2789, #2797, #2803)
+and before a blocked cook went to the chef (#2805).
+
 ## The daily report of the decisions brigade told about
 
 Every decision taken under `brigade decides and tells me` writes an entry (`autonomy.reported`).
