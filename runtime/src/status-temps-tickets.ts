@@ -1,5 +1,4 @@
-// The "Ticket time" line of `brigade <projet> status`: median and p75, the median
-// lost time against the project's threshold (#2670), and the slowest phase. Reads the `resume` object of the measure's
+// The "Ticket time" line of `brigade <projet> status`: median and p75 and the slowest phase (no max: the figures against a threshold are `chiffres-du-projet.ts`, #2672). Reads the `resume` object of the measure's
 // `.claude/brigade/temps-tickets.json` and nothing else — the time is never
 // computed here. A missing file or `resume` reads as "no measure yet".
 import { readFileSync } from "node:fs";
@@ -14,10 +13,8 @@ export function direLeTempsDesTickets(brut: unknown): string {
   const resume = typeof brut === "object" && brut !== null && !Array.isArray(brut) ? (brut as { resume?: unknown }).resume : undefined;
   if (typeof resume !== "object" || resume === null) return SANS_MESURE;
   const r = resume as Record<string, unknown>;
-  if (!nombre(r.n) || r.n === 0 || !nombre(r.medianMin) || !nombre(r.p75Min) || !nombre(r.perduMedianMin) || !nombre(r.lostTimeMaxMin)) return SANS_MESURE;
-  const lourde = r.perteLaPlusLourde as { nom?: unknown } | null | undefined;
-  const perdu = `lost ${minutes(r.perduMedianMin)}, max ${minutes(r.lostTimeMaxMin)}${typeof lourde?.nom === "string" ? `, mostly ${lourde.nom}` : ""}`;
-  const ligne = `Ticket time: median ${minutes(r.medianMin)}, p75 ${minutes(r.p75Min)} (${perdu})`;
+  if (!nombre(r.n) || r.n === 0 || !nombre(r.medianMin) || !nombre(r.p75Min)) return SANS_MESURE;
+  const ligne = `Ticket time: median ${minutes(r.medianMin)}, p75 ${minutes(r.p75Min)}`;
   const phase = r.phaseLaPlusLongue;
   if (typeof phase === "string" && phase !== "") return `${ligne}, slowest phase ${phase}`;
   if (typeof phase === "object" && phase !== null) {

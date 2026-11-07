@@ -2830,20 +2830,14 @@ main > header,
 #rail .bande-rail .bande-doux {
   color: var(--texte-doux);
 }
-/* Passé le plafond, la médiane et le plafond virent au rouge ; un ticket au-delà du double du plafond est cerclé de rouge avec sa phase la plus longue. */
+/* Un des quatre chiffres du projet passé son seuil vire au rouge (#2672) ; la médiane et le p75 du temps n'ont pas de plafond. */
 #rail .bande-rail .bande-chiffre {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
 }
-#rail .bande-rail .bande-chiffre[data-depasse="oui"] .bande-valeur,
-#rail .bande-rail .bande-depasse {
+#rail .bande-rail .bande-chiffre[data-depasse="oui"] .bande-valeur {
   color: var(--rouge-clair);
-}
-#rail .bande-rail .bande-depasse {
-  padding: 0 6px;
-  border: 1px solid var(--rouge);
-  border-radius: var(--rayon-bouton);
 }
 /* L'âge du rail, au bout de la bande. */
 #rail .bande-rail .age-du-rail {
@@ -8169,9 +8163,6 @@ button.recommande {
 }
 [data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur {
   font-weight: 700;
-}
-[data-bloc="temps-tickets"] .temps-depasse {
-  color: var(--rouge-clair);
 }
 [data-bloc="temps-tickets"] .temps-phase-lente {
   color: var(--texte-doux);

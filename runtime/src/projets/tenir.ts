@@ -64,6 +64,7 @@ import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
+import { chiffresDuClone, qualitesDuRepertoire } from "../chiffres-du-projet.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
@@ -662,7 +663,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const delai = lireDelai(etatDe(dit.nom));
       // Les temps des derniers tickets, lus dans le clone que la station sert (#2346) : toute station qui sert le projet les publie,
       // l'app fusionne ceux des stations (une ligne écrite à la main peut poser son propre clone).
-      const temps = !horsCuisine.has(projet.nom) ? lesTempsDesTickets(servis.clones?.()[projet.nom] ?? cloneDe(dit.nom)) : undefined;
+      // Avec eux, les quatre chiffres du projet (`chiffres-du-projet.ts`, #2672) : l'app les relaie, ne les recalcule pas.
+      const cloneServi = servis.clones?.()[projet.nom] ?? cloneDe(dit.nom);
+      const temps = !horsCuisine.has(projet.nom) ? { ...lesTempsDesTickets(cloneServi), chiffres: chiffresDuClone(cloneServi, qualitesDuRepertoire(etatDe(dit.nom))) } : undefined;
       return { ...dit, ...(delai === null ? {} : { delai }), ...(temps === undefined ? {} : { temps }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Les stations que l'app appaire au projet en plus de celle-ci : déclarées

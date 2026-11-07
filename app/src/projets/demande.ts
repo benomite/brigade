@@ -94,7 +94,8 @@ export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | 
 // runtime/src/temps-ticket/) : les enregistrements (secondes entières ; la vue écarte les illisibles) et le seuil du temps
 // perdu par ticket en minutes (`lostTimeMaxMin`, #2670 : la médiane du temps perdu des tickets récents ; le temps total n'a pas de plafond).
 // `resume` : le résumé que la mesure écrit dans `temps-tickets.json` (#2659), relayé tel quel — la vue ne le recalcule pas.
-export type TempsPublie = { enregistrements: unknown[]; lostTimeMaxMin: number; resume?: unknown };
+// `chiffres` : les quatre chiffres du projet que la station publie (#2672, runtime/src/chiffres-du-projet.ts), relayés tels quels.
+export type TempsPublie = { enregistrements: unknown[]; lostTimeMaxMin: number; resume?: unknown; chiffres?: unknown };
 // `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
 // tient (#1756, runtime/src/projets/secondaires.ts) — déclarées à son journal, chacune par son gist, avec ce qu'elle
 // fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
@@ -258,13 +259,15 @@ function lireDelai(lu: unknown): Delai | null {
 
 // Les temps publiés d'un projet. Absents ou illisibles : rien — la vue dit alors que la station ne les publie pas.
 function lireTemps(lu: unknown): TempsPublie | null {
-  const { enregistrements, lostTimeMaxMin, resume } = (lu ?? {}) as Record<string, unknown>;
+  const { enregistrements, lostTimeMaxMin, resume, chiffres } = (lu ?? {}) as Record<string, unknown>;
+  const avecChiffres = Array.isArray(chiffres);
   const avecResume = typeof resume === "object" && resume !== null;
-  if (!Array.isArray(enregistrements) && !avecResume) return null;
+  if (!Array.isArray(enregistrements) && !avecResume && !avecChiffres) return null;
   return {
     enregistrements: Array.isArray(enregistrements) ? enregistrements : [],
     lostTimeMaxMin: typeof lostTimeMaxMin === "number" && Number.isFinite(lostTimeMaxMin) && lostTimeMaxMin > 0 ? lostTimeMaxMin : 2,
     ...(avecResume ? { resume } : {}),
+    ...(avecChiffres ? { chiffres } : {}),
   };
 }
 
