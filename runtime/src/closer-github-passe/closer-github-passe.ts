@@ -91,6 +91,9 @@ export type OptionsCloserGithub = {
   // The tickets' times the station recorded at each merge (`temps-ticket/mesure.ts`), read at each
   // pass. Absent, the times are not read.
   temps?: () => TempsTicket[];
+  // The quality of the same recent tickets (`mesure-qualite.ts`, #2678), as lines, read at each
+  // pass. Absent, the quality is not said.
+  qualite?: () => string[];
   // The status the closer reads: a `blockedWithoutQuestion` above zero is a defect to fix, not a clean close.
   // Absent, or `null`, nothing is read.
   statut?: () => StatutDeCloture | null | Promise<StatutDeCloture | null>;
@@ -169,8 +172,8 @@ export async function releverLesTemps(project: string, enregistrements: TempsTic
   return [trouvaille.sentence, "", `Correction ticket #${fait.number} ${quoi}.`];
 }
 
-export function corpsDeLaFermeture(pour: { base: string; sha: string; merges: number; pente: ReturnType<typeof mesurerRatio>; proposes: Candidat[]; ecartes: number; zone: string[]; retraits: number; temps?: string[] }): string {
-  const { base, sha, merges, pente, proposes, ecartes, zone, retraits, temps } = pour;
+export function corpsDeLaFermeture(pour: { base: string; sha: string; merges: number; pente: ReturnType<typeof mesurerRatio>; proposes: Candidat[]; ecartes: number; zone: string[]; retraits: number; temps?: string[]; qualite?: string[] }): string {
+  const { base, sha, merges, pente, proposes, ecartes, zone, retraits, temps, qualite } = pour;
   return [
     marqueDeFermeture(sha),
     "",
@@ -185,6 +188,7 @@ export function corpsDeLaFermeture(pour: { base: string; sha: string; merges: nu
     ...pente.filter(({ merges: n }) => n > 0).map(({ fenetre, merges: n, ajoute, retire }) => `- last ${Math.min(fenetre, n)} merges: ${signe(ajoute, "+")} / ${signe(retire, "−")} (${direRatio({ ajoute, retire })})`),
     "",
     ...(temps === undefined ? [] : ["## Times", "", ...temps, ""]),
+    ...(qualite === undefined ? [] : ["## Quality", "", ...qualite, ""]),
     "## Candidates",
     "",
     `What the observation spots on \`${sha}\`. Candidates, not verdicts: text compared with text. An export a framework reads by convention is named by nobody and lives anyway; two identical passages are not always to be joined.`,
@@ -261,6 +265,15 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     }
   };
 
+  const laQualite = (lire: () => string[]): string[] => {
+    try {
+      return lire();
+    } catch (erreur) {
+      avertir(`brigade : quality not read — ${message(erreur)}`);
+      return [`Quality not read: ${message(erreur)}.`];
+    }
+  };
+
   // A project with blocked-on-human tickets that ask no question is not closed clean: one defect names the
   // count, opened once per count, whether the last one is still open or already fixed. A status that cannot be read stops neither the pass nor the issue.
   const blocages = async (lire: NonNullable<OptionsCloserGithub["statut"]>, calibration: { model: string; effort: string }) => {
@@ -299,7 +312,8 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     // Read again before writing: another station may have opened it meanwhile.
     if (((await passes()).at(-1)?.number ?? null) !== (derniere?.number ?? null) || arrete) return;
     const temps = options.temps === undefined ? undefined : await lesTemps(options.temps, derniere);
-    const corps = corpsDeLaFermeture({ base, sha: observation.sha, merges: due.merges, pente: mesurerRatio(observation.merges), proposes, ecartes: ecartes.length, zone, retraits: removedLines, ...(temps === undefined ? {} : { temps }) });
+    const qualite = options.qualite === undefined ? undefined : laQualite(options.qualite);
+    const corps = corpsDeLaFermeture({ base, sha: observation.sha, merges: due.merges, pente: mesurerRatio(observation.merges), proposes, ecartes: ecartes.length, zone, retraits: removedLines, ...(temps === undefined ? {} : { temps }), ...(qualite === undefined ? {} : { qualite }) });
     const creee = await github.creerIssue({ titre: titreDeLaFermeture(base), corps, labels: [LABEL, `model:${calibration.model}`, `effort:${calibration.effort}`] });
     // Two stations that opened one together: the oldest stays.
     const premiere = (await passes()).find(({ number }) => number > (derniere?.number ?? 0))?.number ?? creee;

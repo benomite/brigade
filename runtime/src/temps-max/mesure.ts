@@ -27,7 +27,8 @@ export function maxDuProjet(projet: unknown): number {
 export const DERNIERS = 10;
 export const JOURNEE_MS = 24 * 60 * 60 * 1000;
 
-export function ticketsRecents(enregistrements: readonly TempsTicket[]): TempsTicket[] {
+// La même fenêtre sert la qualité (`mesure-qualite.ts`, #2678) : elle ne lit que `mergedAt`.
+export function ticketsRecents<T extends { mergedAt?: string }>(enregistrements: readonly T[]): T[] {
   const fin = Date.parse(enregistrements.at(-1)?.mergedAt ?? "");
   let debut = Math.max(0, enregistrements.length - DERNIERS);
   while (debut > 0 && Date.parse(enregistrements[debut - 1]?.mergedAt ?? "") >= fin - JOURNEE_MS) debut--;
