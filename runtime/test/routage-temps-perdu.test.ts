@@ -84,8 +84,45 @@ test("#2809: a correction served on benomite/brigade is tried on the served proj
   assert.equal(brigade.issues.length, 1);
 
   // Les tickets récents du projet sont tous pris après elle, et toujours au-dessus du seuil : la suivante s'ouvre.
-  enregistrements = [...enregistrements, ...pris(20, 10, debut + 30 * 60 * 60_000)];
+  // La mesure a changé depuis le merge (#2833) : 8 min perdues au lieu de 5.
+  enregistrements = [...enregistrements, ...pris(20, 10, debut + 30 * 60 * 60_000).map((t) => ({ ...t, attentePrise: 480 }))];
   assert.equal((await corriger([])).issue, "ouverte");
   assert.equal(brigade.issues.length, 2);
   assert.equal(projet.issues.length, 0);
+});
+
+// #2833 : la boucle des tickets « Quality before time » / « Tickets lose too much time » redéposés après chaque merge.
+const deposer = (brigade: ReturnType<typeof fauxDepot>, servi: string, titre: string, maintenant = () => new Date()) =>
+  routerLeTempsPerdu({ github: fauxDepot().github, servi, brigade: brigade.github, maintenant }).creerIssue({ titre, corps: "body", labels: [] });
+
+test("#2833: a second filing for the same metric and repository returns the ticket already covering it, whatever the number or the parenthesis", async () => {
+  const brigade = fauxDepot();
+  const premier = await deposer(brigade, "BOBL-tech/espace", "Quality before time: first-try rate 40% under the 70% threshold");
+  assert.equal(brigade.issues.length, 1);
+  assert.equal(await deposer(brigade, "BOBL-tech/espace", "Quality before time: first-try rate 53% under the 70% threshold (measured on BOBL-tech/espace)"), premier);
+  assert.equal(await deposer(brigade, "BOBL-tech/espace", "Quality before time: first-try rate 48% under the 70% threshold (measured on BOBL-tech/mirrorscreen)"), premier);
+  assert.equal(brigade.issues.length, 1);
+  // Une autre mesure, ou un autre dépôt mesuré, est une autre famille.
+  assert.notEqual(await deposer(brigade, "BOBL-tech/espace", "Tickets lose too much time: median 6.3 min lost"), premier);
+  assert.notEqual(await deposer(brigade, "BOBL-tech/mirrorscreen", "Quality before time: first-try rate 40% under the 70% threshold"), premier);
+  assert.equal(brigade.issues.length, 3);
+});
+
+test("#2833: after a merge, an unchanged metric files nothing; a changed one files once the delay has passed", async () => {
+  const brigade = fauxDepot();
+  const fermee = new Date(Date.UTC(2026, 10, 7, 20, 0)).toISOString();
+  const lue: typeof brigade.github = { ...brigade.github, issuesDepuis: async (i) => (await brigade.github.issuesDepuis(i)).map((issue) => (issue.state === "closed" ? { ...issue, closedAt: fermee } as typeof issue : issue)) };
+  const apres = (heures: number) => () => new Date(Date.parse(fermee) + heures * 3600_000);
+  const titre = "Tickets lose too much time: median 3.8 min lost over the threshold of 2 min — attente weighs most";
+  const depose = (servi: string, t: string, h: number) => routerLeTempsPerdu({ github: fauxDepot().github, servi, brigade: lue, maintenant: apres(h) }).creerIssue({ titre: t, corps: "b", labels: [] });
+  const premier = await depose("BOBL-tech/espace", titre, 0);
+  await brigade.github.fermerIssue(premier);
+  // Mergé depuis moins de 6 h : rien, même si la mesure a changé.
+  assert.equal(await depose("BOBL-tech/espace", titre.replace("3.8", "9"), 1), premier);
+  // Plus tard, la mesure inchangée ne dépose rien.
+  assert.equal(await depose("BOBL-tech/espace", `${titre} (measured on BOBL-tech/espace)`, 48), premier);
+  assert.equal(brigade.issues.length, 1);
+  // La mesure a changé après le merge : un nouveau ticket.
+  assert.notEqual(await depose("BOBL-tech/espace", titre.replace("3.8", "9"), 48), premier);
+  assert.equal(brigade.issues.length, 2);
 });
