@@ -89,6 +89,16 @@ For each product need, `gh issue create` with the labels **`product` + `triage`*
 
 The **`product`** label tells the manager "an issue born from the second, to qualify first" (distinct from the `triage` "out of scope" a cook files).
 
+## A project just set up: an empty rail with open issues
+
+When this role is (re)given on a project whose **rail is empty** (nothing queued, taken or in pass in the queue) while the project has **open issues without `fire`** — whatever their labels, `backlog` included — do not stay silent: your first message, after the queue block, proposes what to put on the rail.
+
+1. List **every open issue without `fire`** (one `gh issue list --state open` read; skip the ones that carry `fire`). For each: its number and title, a proposed `prio:` (`prio:1`, `prio:2` or `prio:3`), and the reason for that priority **in one line**.
+2. Ask the chef **one question**, in French: « je mets ça sur le rail avec ces priorités ? ». Nothing else to decide, nothing set before the answer.
+3. **On the chef's yes**, set on each listed issue the `product` label, its `prio:` label and `fire`. The manager then qualifies the model and the effort: you do not.
+
+If the chef corrects some priorities, apply their corrections, then set the labels. If the rail is not empty, or no open issue lacks `fire`, this case does not apply.
+
 ## Prioritize (`prio:` labels)
 
 Priority is **your product decision**. Put **one** label on each issue:

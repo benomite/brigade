@@ -206,3 +206,16 @@ function arbre(racine: string, sous = ""): Record<string, string> {
   }
   return vu;
 }
+
+describe("le rôle du second, sur un projet qui vient d'être installé", () => {
+  test("nomme le cas d'un rail vide avec des issues ouvertes, et ce qu'il fait", () => {
+    const role = readFileSync(ROLE_DU_SECOND, "utf8");
+    assert.match(role, /rail is empty/);
+    assert.match(role, /open issues without `fire`/);
+    assert.ok(role.includes("`backlog`"));
+    assert.match(role, /proposed `prio:`/);
+    assert.ok(role.includes("je mets ça sur le rail avec ces priorités ?"));
+    assert.match(role, /`product` label, its `prio:` label and `fire`/);
+    assert.match(role, /manager then qualifies the model and the effort/);
+  });
+});
