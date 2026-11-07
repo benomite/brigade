@@ -61,9 +61,9 @@ Quand tu juges un ticket incomplet, classe d'abord la lacune. Le runtime fait la
 
 **Les lacunes techniques** sont :
 
-- un **seuil** manquant (« l'alerte part quand la file est longue », sans valeur) ;
-- un **nom de fichier** manquant (un module à créer, sans chemin) ;
-- un **essai à la main** là où il faut un test (le critère se vérifie en essayant, pas par un test qui passe).
+- un **seuil** manquant (`threshold`) (« l'alerte part quand la file est longue », sans valeur) ;
+- un **nom de fichier** manquant (`file-name`) (un module à créer, sans chemin) ;
+- un **essai à la main** (`manual-trial`) là où il faut un test (le critère se vérifie en essayant, pas par un test qui passe).
 
 Tu les **complètes toi-même** : tu choisis la valeur, le chemin ou le test, tu corriges les critères du ticket, et tu **écris sur le ticket la décision et sa raison** (« Seuil : 20 tickets en file. Raison : la taille d'alerte existante du rail. »). Un ticket qui n'a qu'une lacune technique n'est jamais laissé à un humain, et ne devient jamais une carte TODO.
 

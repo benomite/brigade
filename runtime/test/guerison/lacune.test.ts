@@ -15,11 +15,9 @@ for (const lacune of TECHNIQUES) {
   test(`une lacune ${lacune.sorte} est technique et le manager la complète lui-même`, () => {
     assert.equal(classerLacune(lacune), "technical");
     const route = routerLacune(lacune);
-    assert.equal(route.voie, "completer");
-    if (route.voie !== "completer") return;
-    assert.match(route.commentaire, new RegExp(lacune.decision!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.match(route.commentaire, /Reason: /);
-    assert.match(route.commentaire, new RegExp(lacune.raison!.slice(0, 10)));
+    assert.ok(route.voie === "completer");
+    assert.ok(route.commentaire.includes(lacune.decision!));
+    assert.ok(route.commentaire.includes(`Reason: ${lacune.raison}`));
   });
 }
 
@@ -33,8 +31,7 @@ for (const sorte of ["product", "design"] as const) {
     const lacune: Lacune = { sorte, detail: "The ticket does not say who sees the list.", question: "Should the list be per project?", choix: ["Per project.", "For all projects."] };
     assert.equal(classerLacune(lacune), "product-design");
     const route = routerLacune(lacune);
-    assert.equal(route.voie, "todo");
-    if (route.voie !== "todo") return;
+    assert.ok(route.voie === "todo");
     assert.equal(route.carte.type, sorte);
     assert.equal(route.carte.enonce, "Should the list be per project?");
     assert.equal(route.carte.enonce?.split("?").length, 2);
