@@ -531,13 +531,13 @@ const ouvrirLAjout = async (jouee: Jouee) => {
   return { bloc, formulaire };
 };
 
-test("la page et le formulaire disent que la première station garde le manager et la passe, et que toutes cuisent — sans plus parler de « backup machine »", async () => {
+test("le formulaire dit que toutes les stations cuisent, sans « première station » ni phrase sur le manager et la passe — sans plus parler de « backup machine »", async () => {
   const jouee = await avantLApp(() => ({ ajoute: "parade" }));
   const { bloc, formulaire } = await ouvrirLAjout(jouee);
   assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
-  const phrase = "The first station keeps the manager and the pass; all the stations cook.";
+  const phrase = "Every station cooks, takes, reviews and merges.";
   assert.equal(formulaire.dessous("p").filter(({ textContent }) => textContent === phrase).length, 1);
-  assert.equal(bloc.children.filter(({ textContent, hidden }) => textContent === phrase && !hidden).length, 1);
+  assert.equal(bloc.children.filter(({ textContent, hidden }) => /keeps the manager/.test(textContent) && !hidden).length, 0);
   assert.doesNotMatch(bloc.textContent, /backup/i);
   const source = readFileSync(join(import.meta.dirname, "../../src/vue/vue.js"), "utf8");
   assert.doesNotMatch(source, /backup machine/i);

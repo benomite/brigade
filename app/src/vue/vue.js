@@ -728,8 +728,6 @@ const choixDuProjet = element("choix-du-projet");
 const choixRetenus = new Map();
 const ligneDesStationsDuProjet = document.createElement("p");
 ligneDesStationsDuProjet.ariaLive = "polite";
-const sensDesStations = bloc("p", "The first station keeps the manager and the pass; all the stations cook.");
-sensDesStations.className = "aide";
 const ouvrirLaConfiance = /** @type {HTMLButtonElement} */ (bloc("button", ""));
 ouvrirLaConfiance.type = "button";
 ouvrirLaConfiance.className = "ajout-de-station";
@@ -866,7 +864,7 @@ parcoursDuProjet.ariaLive = "polite";
 // impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
 const depotRetenu = document.createElement("div");
 depotRetenu.hidden = true;
-stationsDuProjet.append(ligneDesStationsDuProjet, sensDesStations, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, rejointeRefusee, depotRetenu, confianceDite, parcoursDuProjet);
+stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, rejointeRefusee, depotRetenu, confianceDite, parcoursDuProjet);
 
 // La lecture brute de `station` sur l'onglet Cooks (ticket 1184), en bas : la machine — saturée ou non —, le quota.
 // Elle était sous Settings → Cooks ; elle se lit de même, seule, toutes les trente secondes tant que l'onglet est montré.
@@ -6764,6 +6762,9 @@ function blocageDeLaStation(station) {
   return { pourquoi: "not received by the station", geste: `open Brigade on ${station.nom}'s computer: it reads what this app asked within a minute; if it stays so, remove it from its page and add it again` };
 }
 
+// Une station déclarée par le projet qui n'en sert pas le dépôt : ce n'est pas qu'elle est hors ligne.
+const NE_SERT_PAS = "does not serve this project";
+
 // Les stations qui font la cuisine d'un projet de l'app : celles qui le servent — qu'il leur ait été
 // confié d'ici ou non, elles le publient (stations/document.ts) —, puis celles à qui l'app l'a demandé
 // et qui ne le servent pas encore. `demande` : l'app en a déjà demandé la cuisine — une station de plus
@@ -6781,8 +6782,11 @@ function cuisineDe(projet) {
       .map((station) => {
         // Une station ajoutée en plus de la principale ne sert le projet que lorsqu'elle l'a lu et s'en dit secondaire ;
         // avant, elle est bloquée, et la ligne dit où.
-        const bloquee = !station.principale && station.etat !== "secondaire" && station.etat !== "servi";
-        const sans = bloquee ? blocageDeLaStation(station) : undefined;
+        const lue = (stationsVues?.stations ?? []).find(({ id }) => id === station.id);
+        // Déclarée par le projet, mais la station en sert d'autres et pas celui-ci : elle n'y cuit pas, et ce n'est pas qu'elle est hors ligne.
+        const nonServie = !station.principale && station.atteinte?.oui !== true && lue !== undefined && lue.projets.length > 0 && !lue.projets.includes(projet.nom);
+        const bloquee = nonServie || (!station.principale && station.etat !== "secondaire" && station.etat !== "servi");
+        const sans = nonServie ? { pourquoi: NE_SERT_PAS, geste: "tick it in its projects" } : bloquee ? blocageDeLaStation(station) : undefined;
         return { id: station.id, nom: station.nom, ...(station.atteinte?.station === undefined ? {} : { station: station.atteinte.station }), principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: sans?.pourquoi ?? station.atteinte?.pourquoi ?? "", geste: sans?.geste ?? station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser, bloquee };
       }),
   ];
@@ -6872,23 +6876,27 @@ function ouCuit(projet, stations) {
 // Le nom d'une station tel que la page d'un projet le dit : « this Mac » (« this PC » sous Windows) pour celle de cet ordinateur.
 /** @param {string} nom */
 function nomDit(nom) {
-  const locale = projetsVus?.locale ?? null;
-  const sienne = (stationsVues?.stations ?? []).find(({ id }) => id === locale);
-  return sienne !== undefined && sienne.nom === nom ? POSTE.nom : nom;
+  return nom;
 }
 
 // Une station du projet, sur sa ligne : sa pastille et son nom — « this Mac » pour cet ordinateur —,
 // ce qu'elle en dit au survol ; un clic ouvre sa page. `renfort` : nommée après celle où il cuit.
-/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {string} [rang] @param {Projet} [projet] le projet dont c'est la ligne : une station rouge y porte « report to brigade » */
-function stationNommee(station, ici, rang = "", projet) {
+/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {Projet} [projet] le projet dont c'est la ligne : une station rouge y porte « report to brigade » */
+function stationNommee(station, ici, projet) {
+  // Une station a un seul nom, le sien, sur tous les écrans ; celle de cet ordinateur le dit en plus.
+  const locale = projetsVus?.locale ?? null;
+  const sienne = (stationsVues?.stations ?? []).find(({ id }) => id === locale);
+  const ceMac = ici || (station.id !== "" && station.id === locale);
+  const nom = station.nom !== "" ? station.nom : ceMac ? (sienne?.nom ?? POSTE.nom) : "";
+  const dit = ceMac ? `${nom} (this computer)` : nom;
   const nomme = document.createElement("button");
   nomme.type = "button";
   nomme.className = "station-du-projet";
-  nomme.title = [ici && station.nom !== "" ? `${station.nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
-  const appele = bloc("strong", ici ? POSTE.nom : station.nom);
-  appele.className = ici ? "" : "mono";
-  nomme.ariaLabel = `${ici ? POSTE.nom : station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
-  nomme.append(pastille(station.dit, station.ton), appele, ...(rang !== "" && !station.principale ? [bloc("span", ` (${rang})`)] : []));
+  nomme.title = [ceMac && nom !== "" ? `${nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
+  const appele = bloc("strong", dit);
+  appele.className = "mono";
+  nomme.ariaLabel = `${dit} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
+  nomme.append(pastille(station.dit, station.ton), appele);
 
   if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));
   else nomme.disabled = true;
@@ -6911,7 +6919,7 @@ function stationNommee(station, ici, rang = "", projet) {
     relire.disabled = true;
     void brigade.panne(station.id, "relire-la-station").finally(() => (relire.disabled = false));
   });
-  pose.append(nomme, ...(station.pourquoi === "" ? [] : [pourquoi, relire]), ...autoriser);
+  pose.append(nomme, ...(station.pourquoi === "" ? [] : station.pourquoi === NE_SERT_PAS ? [pourquoi] : [pourquoi, relire]), ...autoriser);
   // Rouge — refusée, injoignable — : « report to brigade » à la suite (ticket 1977).
   if (station.ton === "rouge" && projet !== undefined) pose.append(...signalement.poser({ projet: projet.nom, reference: { station: station.nom }, panne: `station ${station.nom}, cooking ${projet.nom}: ${[station.dit, station.survol].filter((morceau) => morceau !== "").join(" — ")}` }));
   return pose;
@@ -7004,14 +7012,14 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   demenagementDit.hidden = dit === "";
 
   if (demenagement === undefined || ou === undefined) return;
-  const depuis = ou.ici ? POSTE.nom : ou.nom;
+  const depuis = ou.ici && ou.nom === "" ? POSTE.nom : ou.nom;
   const recommandee = projetsVus?.recommandee ?? null;
   const vise = demenagement;
   // Chaque machine est un bouton ; celle que l'app recommande — toujours allumée — se distingue. Ce que
   // la choisir implique est au survol.
   const machines = destinations.map((station) => {
     const garder = station.id === ou.id;
-    const nomme = station.id === projetsVus?.locale ? POSTE.nom : station.nom;
+    const nomme = station.nom;
     const bouton = /** @type {HTMLButtonElement} */ (bloc("button", garder ? `keep it on ${nomme}` : nomme));
     bouton.type = "button";
     bouton.className = !garder && station.id === recommandee ? "recommande" : "";
@@ -7155,25 +7163,21 @@ function poserStationsDuProjet() {
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
-  sensDesStations.hidden = false;
   if (stations.length > 0 || ou !== undefined) {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
-    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [], bloquee: false }, ou.ici, "", projet)];
+    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [], bloquee: false }, ou.ici, projet)];
     ligneDesStationsDuProjet.replaceChildren(
       bloc("span", ou === undefined ? "Cooked by " : "Cooks on "),
       ...tete,
       ...(ou?.ici === true ? [sArrete()] : []),
       ...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []),
       ...autres.flatMap((station, i) => {
-        // Le rang ne se compte que parmi celles qui servent le projet : une station bloquée n'en est pas une.
-        const rang = autres.slice(0, i).filter(({ bloquee }) => !bloquee).length;
-        return [...(i === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined || station.bloquee === true ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`, projet)];
+        return [...(i === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, projet)];
       }),
     );
   } else {
-    sensDesStations.hidden = stations.length === 0;
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
   poserLeDemenagement(projet, ou, enCours, lues);
@@ -7682,7 +7686,7 @@ function poserLaConfiance(vise, projet, { exclues, demande, principale: aSaPrinc
   titreDeConfiance.textContent = avecPrincipale ? `Choose the machine that runs ${projet.nom}'s kitchen.` : `Add a station to ${projet.nom}'s kitchen.`;
   sensDeConfiance.textContent = avecPrincipale
     ? "Its main machine runs the manager, which judges and splits the tickets, and the pass, which reviews and merges what is delivered — and it cooks. Everything below is set to what is recommended: change what you like, or start as it is."
-    : "The first station keeps the manager and the pass; all the stations cook.";
+    : "Every station cooks, takes, reviews and merges.";
   // Un projet ajouté depuis l'app connaît son dépôt et sa branche ; un projet écrit à la main les choisit ici.
   const connu = projet.depot !== undefined && projet.base !== undefined;
   // Une station de plus ne les demande jamais (ticket 1307) : la première les sert, ou le clone du projet les dit.
