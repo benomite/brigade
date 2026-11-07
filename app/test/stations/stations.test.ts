@@ -122,7 +122,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     const ecrit = JSON.parse(github.gist("box1").files[FICHIER_APPAIRAGE]?.content ?? "null") as { appaireeLe: string; empreinte: string };
     assert.equal(ecrit.empreinte, empreinte(CODE));
     assert.equal(ecrit.appaireeLe, new Date(MAINTENANT).toISOString());
-    assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null, versionDit: "up to date" }]);
+    assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null, maxDepuis: null, versionDit: "up to date" }]);
     assert.deepEqual(lectures.at(-1), stations.vu());
   });
 

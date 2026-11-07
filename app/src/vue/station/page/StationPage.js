@@ -23,7 +23,7 @@ import { niveauReglage } from "./NiveauReglage.js";
 /**
  * Ce que chaque section reçoit : la station, si elle est celle de cet ordinateur, si elle se montre sans se régler, et
  * la marque du niveau d'un réglage, par sa clé de niveaux.js.
- * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: Port }} Contexte
+ * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} Contexte
  */
 /** @typedef {import("./sections/dossiers-et-bac-a-sable.js").Port} Port */
 /** @typedef {{ poserSection(doc: Fabrique, contexte: Contexte): any }} Section */
@@ -40,7 +40,7 @@ export const SECTIONS = /** @type {const} */ ([
 
 // Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
 /** @type {ReadonlySet<string>} */
-export const LIVREES = new Set(["dossiers-et-bac-a-sable"]);
+export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions"]);
 
 export const PAS_ENCORE = "not shown yet";
 export const INDISPONIBLE = "this section is unavailable";
@@ -55,8 +55,8 @@ export function estCetOrdinateur(station, locale) {
 const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(`./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
-/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port }} ouverte */
-export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages }) {
+/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} ouverte */
+export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages, connexions }) {
   const ici = estCetOrdinateur(station, locale);
   /** @type {Contexte} */
   const contexte = {
@@ -64,6 +64,7 @@ export async function poserPageDeStation(doc, { station, locale, charger = depui
     ici,
     lectureSeule: !ici,
     reglages,
+    connexions,
     niveau(cle) {
       const niveau = NIVEAUX[cle];
       if (niveau === undefined) throw new Error(`setting "${cle}" has no level in niveaux.js`);
