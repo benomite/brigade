@@ -2,8 +2,9 @@
 // médiane des tickets récents du projet dépasse son max (`tempsMaxTicketMin`,
 // 10 min par défaut), la station ouvre sur le rail un ticket `prio:0` qu'un
 // cook prend tout de suite. Son corps donne la médiane, les tickets les plus
-// lents et la phase la plus lente — cuisson, attente de la pass, relecture, CI
-// ou merge — avec ses chiffres.
+// lents et la phase la plus lente — attente de la qualification ou d'une prise,
+// cooks ratés, cuisson, renvois, attente de la pass, relecture, CI ou merge —
+// avec sa médiane et sa part du temps, du dépôt (ou de `fire`) au merge (#2662).
 //
 // Un seul ouvert à la fois, quels que soient les tours ou les stations : avant
 // d'ouvrir, la station cherche sur GitHub une issue ouverte, d'un auteur de
@@ -67,7 +68,7 @@ export function ticketDeCorrection(enregistrements: readonly TempsTicket[], maxM
     "",
     "## Context",
     "",
-    `The median time of the project's ${recents.length} recent tickets, from claim to merge, is **${min(med)}**: over the project's max of ${maxMin} min (\`tempsMaxTicketMin\` in \`.claude/brigade/projet.json\`). These tickets took ${min(total)} in all.`,
+    `The median time of the project's ${recents.length} recent tickets, from filing (or \`fire\`) to merge, is **${min(med)}**: over the project's max of ${maxMin} min (\`tempsMaxTicketMin\` in \`.claude/brigade/projet.json\`). These tickets took ${min(total)} in all.`,
     "",
     "## Slowest phase",
     "",

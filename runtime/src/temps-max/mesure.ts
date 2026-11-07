@@ -34,16 +34,21 @@ export function ticketsRecents(enregistrements: readonly TempsTicket[]): TempsTi
   return enregistrements.slice(debut);
 }
 
-// La médiane des tickets récents, de la prise au merge, en secondes ; null sans ticket mesuré.
+// La médiane des tickets récents, du dépôt (ou de `fire`) au merge (#2662), en secondes ; null sans ticket mesuré.
 export function medianeDesRecents(enregistrements: readonly TempsTicket[]): number | null {
   const recents = ticketsRecents(enregistrements);
   return recents.length === 0 ? null : mediane(recents.map(dureeDuTicket));
 }
 
 // Les phases d'un ticket, dans l'ordre de sa vie, et leur nom. `cuissonTests`
-// est une part de `cuisson`, pas une phase de plus.
+// est une part de `cuisson`, pas une phase de plus. Celles d'avant la prise,
+// des cooks ratés et des renvois (#2662) valent 0 dans un enregistrement d'avant.
 export const PHASES = [
+  ["attenteQualification", "qualification wait"],
+  ["attentePrise", "claim wait"],
+  ["cuissonsRatees", "failed cooks"],
   ["cuisson", "cooking"],
+  ["renvois", "send-backs"],
   ["attentePasse", "pass wait"],
   ["revue", "review"],
   ["ci", "CI"],
@@ -67,11 +72,11 @@ export function phaseLaPlusLenteDesTickets(tickets: readonly TempsTicket[]): Pha
 // Chaque phase sur des tickets : son temps total, sa médiane par ticket, et sa
 // part (0 à 1) du temps de toutes les phases.
 export function totauxParPhase(tickets: readonly TempsTicket[]): (PhaseLente & { mediane: number; part: number })[] {
-  const sommes = PHASES.map(([phase]) => tickets.reduce((somme, t) => somme + t[phase], 0));
+  const sommes = PHASES.map(([phase]) => tickets.reduce((somme, t) => somme + (t[phase] ?? 0), 0));
   const tout = sommes.reduce((a, b) => a + b, 0);
   return PHASES.map(([phase, nom], rang) => {
     const secondes = sommes[rang] ?? 0;
-    return { phase, nom, secondes, mediane: mediane(tickets.map((t) => t[phase])), part: tout === 0 ? 0 : secondes / tout };
+    return { phase, nom, secondes, mediane: mediane(tickets.map((t) => t[phase] ?? 0)), part: tout === 0 ? 0 : secondes / tout };
   });
 }
 

@@ -12,8 +12,14 @@ const ROUGE = "\u001b[31m";
 const FIN_ROUGE = "\u001b[0m";
 
 // `cuissonTests` est une part de `cuisson` : elle n'est pas une phase de plus.
+// Les phases d'avant la prise, des cooks ratés et des renvois manquent aux
+// enregistrements d'avant #2662 : elles y valent 0.
 const PHASES = [
+  ["attenteQualification", "qualification wait"],
+  ["attentePrise", "claim wait"],
+  ["cuissonsRatees", "failed cooks"],
   ["cuisson", "cook"],
+  ["renvois", "send-backs"],
   ["attentePasse", "pass"],
   ["revue", "review"],
   ["ci", "CI"],
@@ -22,16 +28,18 @@ const PHASES = [
 
 const minutes = (secondes: number) => `${Math.round(secondes / 60)} min`;
 
-// De la prise au merge quand les deux dates y sont, sinon la somme des phases.
+// Du dépôt (ou de `fire`) au merge (#2662) — de la prise au merge pour un
+// enregistrement d'avant, qui n'a pas `depuis` — quand les deux dates y sont,
+// sinon la somme des phases.
 export function dureeDuTicket(t: TempsTicket): number {
-  const de = Date.parse(t.claimedAt ?? "");
+  const de = Date.parse(t.depuis ?? t.claimedAt ?? "");
   const a = Date.parse(t.mergedAt ?? "");
-  return Number.isNaN(de) || Number.isNaN(a) || a < de ? PHASES.reduce((somme, [p]) => somme + t[p], 0) : (a - de) / 1000;
+  return Number.isNaN(de) || Number.isNaN(a) || a < de ? PHASES.reduce((somme, [p]) => somme + (t[p] ?? 0), 0) : (a - de) / 1000;
 }
 
 export function phaseLaPlusLente(t: TempsTicket): { nom: string; secondes: number } {
-  let lente: { nom: string; secondes: number } = { nom: PHASES[0][1], secondes: t[PHASES[0][0]] };
-  for (const [p, nom] of PHASES) if (t[p] > lente.secondes) lente = { nom, secondes: t[p] };
+  let lente: { nom: string; secondes: number } = { nom: PHASES[0][1], secondes: t[PHASES[0][0]] ?? 0 };
+  for (const [p, nom] of PHASES) if ((t[p] ?? 0) > lente.secondes) lente = { nom, secondes: t[p] ?? 0 };
   return lente;
 }
 

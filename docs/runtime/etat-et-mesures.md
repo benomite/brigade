@@ -445,29 +445,49 @@ null when none, or when the last was seen closed.
 
 ### The time of each served ticket
 
-On the GitHub-only state, the station times each ticket it merges, from its claim to its merge
-(`runtime/src/temps-ticket/mesure.ts`, #2342). At the merge, one record goes to
-`.claude/brigade/temps-tickets.json` in the project's clone (`BRIGADE_REPO_DIR`), a JSON array of
-`{ticket, claimedAt, mergedAt, cuisson, cuissonTests, attentePasse, revue, ci, merge}`: timestamps are ISO,
-durations whole seconds. A ticket recorded again replaces its earlier record.
+On the GitHub-only state, the station times each ticket it merges, **from the issue's filing to its merge**
+(`runtime/src/temps-ticket/mesure.ts`, #2342, from the claim until #2662). The start is the issue's
+`createdAt`, read on GitHub at the merge with the first time `fire` was set: when `fire` came more than an
+hour after the filing (`RAIL_PLUS_TARD_MS`), the issue was filed earlier and put on the rail later, and the
+time starts at `fire`, with no qualification wait. GitHub unreadable at the merge, it starts at the claim, as
+before. Epics are never merged, so never measured; their sub-tickets are.
 
-Each phase runs from the moment the station enters it to the next one, the last to the merge, so the five
-add up to the claim-to-merge time: `cuisson` from the claim (or a send-back) to the cook's delivery, of which
-`cuissonTests` is what the cook's tests and gates took when its cooker says it — 0 for the station's own
-cooks, whose gates no launcher measures since the old path went (#2061) —; `attentePasse` until the review starts; `revue` until its verdict; `ci` until the merge is asked of
-GitHub, a branch update included; `merge` until GitHub merged it. The station keeps these marks in memory: a
-phase it did not see — another station reviewed it, or the runtime restarted — is 0, never estimated, and a
-claim it did not see starts the record at the first phase it saw.
+At the merge, the record goes to `.claude/brigade/temps-tickets.json` in the project's clone
+(`BRIGADE_REPO_DIR`), an object `{resume, tickets}`. `tickets` holds one record per ticket,
+`{ticket, depuis, claimedAt, mergedAt, attenteQualification, attentePrise, cuissonsRatees, cuisson, cuissonTests,
+renvois, attentePasse, revue, ci, merge, phases}`: timestamps are ISO, durations whole seconds, and `phases` the
+ticket's phases in the order it went through them, `{nom, minutes}` (one decimal), each cook on its own line.
+`resume` sums up the recent tickets (below): `{n, medianMin, p75Min, maxMin, phaseLaPlusLongue: {nom, medianMin,
+partPct}}` — their count, median and nearest-rank 75th percentile from filing to merge, the project's max, and
+the phase they spent the most time in, with its median per ticket and its share of their total. A ticket
+recorded again replaces its earlier record; a file still in the bare-array shape of before #2662 is read, and
+rewritten as the object at the next merge. Records of before #2662 have no `depuis`: they count from the claim.
+
+Each phase runs from the moment it starts to the next one, the last to the merge, so they add up to the
+filing-to-merge time: `attenteQualification` (`qualification wait`) from the filing to `fire`;
+`attentePrise` (`claim wait`) until a station claims it — a free place, a dependency, a held zone —, and again
+after each cook that delivered nothing; `cuissonsRatees` (`failed cook`) the cooks that stopped without a
+delivery; `cuisson` (`cooking`) the cook that delivered, of which `cuissonTests` is what the cook's tests and
+gates took when its cooker says it — 0 for the station's own cooks, whose gates no launcher measures since the
+old path went (#2061) —; `renvois` (`send-back`) from a send-back to the next cook; `attentePasse` until the
+review starts; `revue` until its verdict; `ci` until the merge is asked of GitHub, a branch update included;
+`merge` until GitHub merged it. The station keeps its marks in memory: a phase it did not see — another station
+reviewed it, or the runtime restarted — is 0, never estimated, and the time between the filing and the first
+phase it saw is claim wait. The same measure replays a ticket from its recorded GitHub history (`rejouer`): its
+claims, failures, send-backs (`brigade:prise`, `brigade:echec`, `brigade:renvoi`), `in-pass` set and the
+approving verdict (`brigade:verdict … approve`) mark its phases, the review inside the pass wait and the merge
+request inside the CI.
 
 **Over the max, a correction ticket** (`runtime/src/temps-max/`, #2515). The project's max is
 `tempsMaxTicketMin` in `.claude/brigade/projet.json`, in minutes, **10 by default**. At each turn, the
 GitHub-only station reads these records in its clone and takes the median of the recent tickets — the last
-10 merged, and every one merged in the 24 h before the last —, claim to merge. Over the max, it opens one
+10 merged, and every one merged in the 24 h before the last —, from filing (or `fire`) to merge. Over the max, it opens one
 issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:medium` (`high` until
 #2575: the ten corrections #2535 to #2573 cooked a median 10.9 min each, so each one added to the recent
 tickets a ticket over the max it was there to bring down), with the
-median, the five slowest tickets with their slowest phase, and the slowest phase (cooking, pass wait, review,
-CI or merge: the one these tickets spent the most time in) with its total, its share and its median per
+median, the five slowest tickets with their slowest phase, and the slowest phase (qualification wait, claim
+wait, failed cooks, cooking, send-backs, pass wait, review, CI or merge: the one these tickets spent the most
+time in) with its total, its share and its median per
 ticket. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
 GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
 the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest

@@ -5,7 +5,18 @@
 export const PHASES = ["cuisson", "cuissonTests", "attentePasse", "revue", "ci", "merge"] as const;
 export type Phase = (typeof PHASES)[number];
 
-export type EnregistrementTemps = { ticket: number; claimedAt: string; mergedAt: string } & Record<Phase, number>;
+// Depuis #2662, un enregistrement part aussi de `depuis` (le dépôt de l'issue,
+// ou `fire`) et porte les phases d'avant la prise et des cooks ratés ou
+// renvoyés, en secondes, et `phases` : chaque phase dans l'ordre de la vie du
+// ticket, en minutes. Ceux d'avant n'en ont pas : ils vont de la prise au merge.
+export type EnregistrementTemps = { ticket: number; claimedAt: string; mergedAt: string } & Record<Phase, number> & {
+    depuis?: string;
+    attenteQualification?: number;
+    attentePrise?: number;
+    cuissonsRatees?: number;
+    renvois?: number;
+    phases?: { nom: string; minutes: number }[];
+  };
 
 export type SyntheseTemps = {
   mediane: number;
@@ -18,7 +29,7 @@ export type SyntheseTemps = {
 export const NOMBRE_DE_TICKETS_RECENTS = 10;
 
 export function totalDuTicket(e: EnregistrementTemps): number {
-  return PHASES.reduce((somme, phase) => somme + e[phase], 0);
+  return PHASES.reduce((somme, phase) => somme + e[phase], 0) + (e.attenteQualification ?? 0) + (e.attentePrise ?? 0) + (e.cuissonsRatees ?? 0) + (e.renvois ?? 0);
 }
 
 export function mediane(valeurs: number[]): number {
@@ -29,8 +40,9 @@ export function mediane(valeurs: number[]): number {
   return triees.length % 2 === 1 ? haut : (bas + haut) / 2;
 }
 
-// Le contenu du fichier des enregistrements : un tableau, sinon rien. Les
-// entrées qui n'ont pas la forme attendue sont écartées.
+// Le contenu du fichier des enregistrements : un tableau (avant #2662) ou
+// `tickets` de son objet, sinon rien. Les entrées qui n'ont pas la forme
+// attendue sont écartées.
 export function enregistrementsDuTexte(texte: string | undefined): EnregistrementTemps[] {
   if (texte === undefined) return [];
   let brut: unknown;
@@ -39,8 +51,9 @@ export function enregistrementsDuTexte(texte: string | undefined): Enregistremen
   } catch {
     return [];
   }
-  if (!Array.isArray(brut)) return [];
-  return brut.filter(estUnEnregistrement);
+  if (Array.isArray(brut)) return brut.filter(estUnEnregistrement);
+  const tickets = typeof brut === "object" && brut !== null ? (brut as { tickets?: unknown }).tickets : undefined;
+  return Array.isArray(tickets) ? tickets.filter(estUnEnregistrement) : [];
 }
 
 function estUnEnregistrement(x: unknown): x is EnregistrementTemps {

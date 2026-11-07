@@ -15,7 +15,10 @@ const marques = (...liste: Array<[Etape, number]>): Marque[] => liste.map(([etap
 // Un parcours complet : prise à 0, livrée à 100, relue de 150 à 180, CI jusqu'au merge demandé à 200, mergée à 205.
 const complet = marques(["cuisson", 0], ["attentePasse", 100], ["revue", 150], ["ci", 180], ["merge", 200]);
 
-const total = (e: EnregistrementTemps) => e.cuisson + e.attentePasse + e.revue + e.ci + e.merge;
+const total = (e: EnregistrementTemps) => (e.attenteQualification ?? 0) + (e.attentePrise ?? 0) + (e.cuissonsRatees ?? 0) + e.cuisson + (e.renvois ?? 0) + e.attentePasse + e.revue + e.ci + e.merge;
+// Les phases d'avant la prise, des cooks ratés et des renvois, quand la station n'en a vu aucune (#2662).
+const sansAvant = { attenteQualification: 0, attentePrise: 0, cuissonsRatees: 0, renvois: 0 };
+const sansPhases = ({ phases: _phases, depuis: _depuis, ...reste }: EnregistrementTemps) => reste;
 const tenu = (e: EnregistrementTemps) => {
   assert.ok(Math.abs(total(e) - (Date.parse(e.mergedAt) - Date.parse(e.claimedAt)) / 1000) <= 1, `sum ${total(e)} off the claim-to-merge time`);
   assert.ok(e.cuissonTests <= e.cuisson);
@@ -57,20 +60,21 @@ describe("the time of a served ticket, split into its phases", () => {
 
   test("a phase the station did not see is 0, and the others still add up", () => {
     const sansRevue = mesurer({ ticket: 7, marques: marques(["cuisson", 0], ["attentePasse", 100], ["ci", 180], ["merge", 200]), testsMs: 0 }, a(205));
-    assert.deepEqual({ ...sansRevue }, { ticket: 7, claimedAt: a(0), mergedAt: a(205), cuisson: 100, cuissonTests: 0, attentePasse: 80, revue: 0, ci: 20, merge: 5 });
+    assert.deepEqual(sansPhases(sansRevue), { ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 0, attentePasse: 80, revue: 0, ci: 20, merge: 5 });
     tenu(sansRevue);
   });
 
   test("an unseen claim starts the record at the first phase seen, nothing before it is made up", () => {
     const vuEnPass = mesurer({ ticket: 7, marques: marques(["ci", 180], ["merge", 200]), testsMs: 0 }, a(205));
-    assert.deepEqual({ ...vuEnPass }, { ticket: 7, claimedAt: a(180), mergedAt: a(205), cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 20, merge: 5 });
+    assert.deepEqual(sansPhases(vuEnPass), { ticket: 7, claimedAt: a(180), mergedAt: a(205), ...sansAvant, cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 20, merge: 5 });
   });
 
-  test("a ticket sent back adds its second cooking to the first", () => {
-    const renvoye = mesurer({ ticket: 7, marques: marques(["cuisson", 0], ["attentePasse", 100], ["revue", 150], ["cuisson", 180], ["attentePasse", 300], ["revue", 310], ["ci", 320], ["merge", 330]), testsMs: 0 }, a(331));
+  test("a ticket sent back adds its second cooking to the first, and its wait for it is the send-back", () => {
+    const renvoye = mesurer({ ticket: 7, marques: marques(["cuisson", 0], ["attentePasse", 100], ["revue", 150], ["renvoi", 170], ["cuisson", 180], ["attentePasse", 300], ["revue", 310], ["ci", 320], ["merge", 330]), testsMs: 0 }, a(331));
     assert.equal(renvoye.cuisson, 220);
+    assert.equal(renvoye.renvois, 10);
     assert.equal(renvoye.attentePasse, 60);
-    assert.equal(renvoye.revue, 40);
+    assert.equal(renvoye.revue, 30);
     tenu(renvoye);
   });
 
@@ -94,7 +98,7 @@ describe("the file of ticket times", () => {
     const d = dossier(t);
     enregistrerTemps(d, e(1, 10));
     enregistrerTemps(d, e(2, 20));
-    const lus = JSON.parse(readFileSync(join(d, FICHIER_DES_TEMPS), "utf8")) as EnregistrementTemps[];
+    const lus = (JSON.parse(readFileSync(join(d, FICHIER_DES_TEMPS), "utf8")) as { tickets: EnregistrementTemps[] }).tickets;
     assert.deepEqual(lus, [e(1, 10), e(2, 20)]);
     assert.deepEqual(Object.keys(lus[0] ?? {}), ["ticket", "claimedAt", "mergedAt", "cuisson", "cuissonTests", "attentePasse", "revue", "ci", "merge"]);
     assert.deepEqual(enregistrementsDuTexte(readFileSync(join(d, FICHIER_DES_TEMPS), "utf8")), lus);
@@ -105,7 +109,7 @@ describe("the file of ticket times", () => {
     enregistrerTemps(d, e(1, 10));
     enregistrerTemps(d, e(2, 20));
     enregistrerTemps(d, e(1, 15));
-    const lus = JSON.parse(readFileSync(join(d, FICHIER_DES_TEMPS), "utf8")) as EnregistrementTemps[];
+    const lus = (JSON.parse(readFileSync(join(d, FICHIER_DES_TEMPS), "utf8")) as { tickets: EnregistrementTemps[] }).tickets;
     assert.deepEqual(lus, [e(2, 20), e(1, 15)]);
   });
 
@@ -216,5 +220,5 @@ test("after the station merges a ticket, the project's file holds its record, ph
   assert.equal(faux.pr?.merged, true);
 
   const lus = enregistrementsDuTexte(readFileSync(join(clone, FICHIER_DES_TEMPS), "utf8"));
-  assert.deepEqual(lus, [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5 }]);
+  assert.deepEqual(lus.map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5 }]);
 });
