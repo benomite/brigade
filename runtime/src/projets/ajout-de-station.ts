@@ -192,9 +192,6 @@ export async function ajouterUneStation(dossier: string | null, saisie: unknown)
       nom,
       depot,
       base,
-      // Toute station qui sert le projet ouvre sa cuisine (#2713) : la ligne ne
-      // dit plus autre chose, tant que la demande porte encore le champ.
-      principale: true,
       cooks: lu.cooks as number,
       manager: manager ?? null,
       reviewer: reviewer ?? null,

@@ -7,14 +7,14 @@
 //   - `brigade-projets.json`, écrit par l'app seule — les projets que le chef
 //     demande à cette station :
 //       { "brigade": "projets", "format": 1, "projets": [
-//         { "nom": "shop", "depot": "acme/shop", "base": "main",
-//           "principale": true, "cooks": 2,
+//         { "nom": "shop", "depot": "acme/shop", "base": "main", "cooks": 2,
 //           "manager": { "modele": "sonnet", "effort": "medium" },
 //           "reviewer": { "modele": "sonnet", "effort": "medium" },
 //           "ouvertLe": "<ISO>", "demandeLe": "<ISO>" } ] }
-//     `principale` : cette station fait tourner son manager et sa pass. Le
-//     calibrage et le plafond de cooks sont les décisions du chef, prises dans
-//     le parcours : la station les pose au journal du projet, sans défaut.
+//     Toute station dont la demande porte un projet le sert, et en ouvre la
+//     cuisine (#2713) ; ce qu'une app plus ancienne y écrit encore pour
+//     désigner une station maîtresse n'est pas lu. Le calibrage et le plafond de cooks sont les
+//     décisions du chef, prises dans le parcours : la station les pose au journal du projet, sans défaut.
 //     `base`, `manager` et `reviewer` peuvent manquer (ou valoir null) : le
 //     dépôt du projet les déclare (`reglages-projet/en-vigueur.ts`), et passe
 //     de toute façon avant eux.
@@ -27,11 +27,11 @@
 //     qu'il a fallu pour que le projet soit servi.
 //     Un déménagement de sa cuisine (`demenagement/`) ajoute, sur la station
 //     qu'il quitte, `"remise": { "vers": "<station>", "gist": "<son gist>",
-//     "demandeLe": "<ISO>" }` (avec `principale: false`), et sur celle qui le
+//     "demandeLe": "<ISO>" }` — elle ne le sert plus —, et sur celle qui le
 //     reprend `"reprise": { "de": "<station>", "gist": "<son gist>",
-//     "demandeLe": "<ISO>" }` (avec `principale: true`). L'app doit les garder
-//     tels quels quand elle réécrit la demande : sans eux, le déménagement en
-//     cours n'est plus qu'un changement de principale.
+//     "demandeLe": "<ISO>" }`. L'app doit les garder tels quels quand elle
+//     réécrit la demande : sans eux, le déménagement en cours se perd, et les
+//     deux stations le servent.
 //   - `brigade-projets-suivi.json`, écrit par la station seule — où en est
 //     chaque projet demandé, et où il cuit :
 //       { "brigade": "projets-suivi", "format": 1, "a": "<ISO>",
@@ -79,7 +79,7 @@
 //     `duree` (millisecondes entre les deux, null tant qu'aucun n'est servi ;
 //     figée ensuite, un second ticket servi n'y change rien).
 //     `choix` (absent tant qu'aucun n'est posé) : ce qui manque à la station
-//     principale pour les tests du projet (`installation/besoins/`), un choix
+//     pour les tests du projet (`installation/besoins/`), un choix
 //     par besoin — `id` (`need:<besoin>`, celui du blocage qui l'attend),
 //     `need`, `message` et `cause` en une phrase chacun, `options` (les quatre
 //     issues : `id`, `label`, `consequence`, et `recommended` sur celle que la
@@ -88,29 +88,12 @@
 //     ouvert sur le projet, quand il le laisse à son setup).
 //     Le chef choisit dans l'app, qui l'écrit dans la demande du projet :
 //     `"choix": { "need:postgres": "provide-here" }`.
-//     `secondaires` (absent tant qu'il n'y en a aucune) : pour un projet servi
-//     dont elle est la principale, les stations que l'app lui appaire en plus
-//     d'elle (`principale: false` dans leur gist), qu'elle déclare au journal
-//     du projet (`secondaires.ts`) — pour chacune, `nom` (le sien), `station`
-//     (celui que le projet déclare : `<machine>/claude`), `gist`, `cooks`,
-//     `fournit`, `atteinte` (son gist s'est lu, et elle y donne signe de vie)
-//     et `dit`, en une phrase, pourquoi elle l'est ou ne l'est pas ; pas atteinte, `raison`
-//     (la clé : `arretee`, `muette`, `gist-illisible`) et `geste`, le geste du chef qui y remédie.
-//     `rejoindre` (absent quand aucune autre station ne le sert) : le chef l'a
-//     ajouté à cette station alors qu'une autre le servait déjà (`rejoindre.ts`).
-//     `{ "issue": "rejointe", "principale": "<station>" }` : elle en a rejoint
-//     la cuisine, comme une station de plus — l'état est alors `secondaire`, et
-//     `cuitSur` nomme la principale, qui garde son manager et sa pass ;
-//     `{ "issue": "refusee", "phrase": "…" }` : elle ne peut pas la rejoindre,
-//     et n'en ouvre pas une seconde — l'état est `refuse`, `dit` porte la même
-//     phrase, et `refus` le code `kitchen-not-joinable`. Rien n'est alors créé
-//     pour ce projet sur la station : ni clone, ni journal, ni ligne.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
 //     celle-ci, et c'est l'ordinateur du chef.
-//     `onboarding` (absent s'il est vide) : pour chaque projet dont la station
-//     est la principale, par son nom, où il en est de son ajout à son premier
+//     `onboarding` (absent s'il est vide) : pour chaque projet que la station
+//     sert, par son nom, où il en est de son ajout à son premier
 //     ticket — ses quatre étapes, la courante, le geste attendu du chef, le
 //     ticket de préparation (`onboarding/etat.ts`, `Onboarding`).
 import { EFFORTS, MODELES } from "../calibrage.ts";
@@ -150,7 +133,6 @@ export type ProjetDemande = {
   // Null : l'app ne la nomme pas, le dépôt du projet la déclare
   // (`reglages-projet/en-vigueur.ts`). De même pour les calibrages.
   base: string | null;
-  principale: boolean;
   cooks: number;
   manager: Calibre | null;
   reviewer: Calibre | null;
@@ -172,8 +154,8 @@ export type Demande = { projets: ProjetDemande[]; problemes: string[] };
 // - `en-preparation` : la station clone le dépôt et pose ses décisions ;
 // - `refuse` : la station ne peut pas le servir, `dit` dit pourquoi — et
 //   `acces`, quand c'est qu'elle ne peut pas récupérer son dépôt ou y pousser ;
-// - `secondaire` : la station n'en est pas la principale — elle ne lui fait
-//   tourner ni manager ni pass.
+// - `secondaire` : la station ne le sert pas — elle en a remis la cuisine à une
+//   autre (`demenagement/`).
 export type EtatDuProjet = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
 
 // Où en est un déménagement, vu de cette station :
@@ -258,14 +240,13 @@ export function lireDemande(brut: string): Demande | null {
   const projets: ProjetDemande[] = [];
   const problemes: string[] = [];
   for (const brut of lu.projets as unknown[]) {
-    const { nom, depot, base, principale, cooks, fournit, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, cooks, fournit, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
     const dit = texte(nom) ? `« ${nom.slice(0, 40)} »` : "sans nom";
     const refuser = (pourquoi: string) => void problemes.push(`projet ${dit} demandé par l'app : ${pourquoi}`);
     if (!texte(nom) || !NOM_DE_PROJET.test(nom)) refuser("nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets");
     else if (projets.some((projet) => projet.nom === nom)) refuser("demandé deux fois");
     else if (!texte(depot) || !DEPOT.test(depot)) refuser("dépôt invalide — attendu <owner>/<repo>");
     else if (!absent(base) && (!texte(base) || !BRANCHE.test(base))) refuser("branche d'intégration invalide");
-    else if (typeof principale !== "boolean") refuser("on ne sait pas si cette station en est la principale");
     else if (typeof cooks !== "number" || !Number.isSafeInteger(cooks) || cooks < 1) refuser("plafond de cooks invalide — attendu un entier, 1 ou plus");
     else {
       const [pourManager, pourReviewer] = [absent(manager) ? null : calibre(manager), absent(reviewer) ? null : calibre(reviewer)];
@@ -283,17 +264,15 @@ export function lireDemande(brut: string): Demande | null {
           nom,
           depot,
           base: absent(base) ? null : (base as string),
-          principale,
           cooks,
           manager: pourManager,
           reviewer: pourReviewer,
           ouvertLe: date(ouvertLe),
           demandeLe: date(demandeLe),
           ...(capacites.length === 0 ? {} : { fournit: capacites }),
-          // Une remise ne se fait que depuis une station qui n'en est plus la
-          // principale ; une reprise, que vers celle qui l'est.
-          ...(laRemise !== null && !principale ? { remise: laRemise } : {}),
-          ...(laReprise !== null && principale ? { reprise: laReprise } : {}),
+          // Une remise l'emporte sur une reprise : la station l'a reçu, puis remis.
+          ...(laRemise !== null ? { remise: laRemise } : {}),
+          ...(laReprise !== null && laRemise === null ? { reprise: laReprise } : {}),
           ...(Object.keys(selectionsLues(choix)).length === 0 ? {} : { choix: selectionsLues(choix) }),
         });
       }
@@ -330,7 +309,7 @@ export function suiviDe(brut: string | undefined, nom: string): (Pick<SuiviDuPro
 
 // Ce que la station écrit de ses projets demandés. `station` : son nom, et si
 // elle est celle de l'ordinateur du chef. `onboarding` : où en est chaque
-// projet dont elle est la principale, de son ajout à son premier ticket
+// projet qu'elle sert, de son ajout à son premier ticket
 // (`onboarding/`), par son nom — absent s'il n'y en a aucun.
 export function documentDeSuivi(projets: SuiviDuProjet[], instant: number, station?: { nom: string; locale: boolean }, onboarding: Record<string, Onboarding> = {}): string {
   const avecOnboarding = Object.keys(onboarding).length === 0 ? {} : { onboarding };

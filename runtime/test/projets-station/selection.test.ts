@@ -13,14 +13,14 @@ const rienNeReste = temporaireDuFichier();
 
 const selection = (...repositories: string[]): Selection => ({ brigade: "station-selection", format: 1, repositories, updatedAt: "2026-10-26T09:45:00.000Z" });
 
-test("chaque dépôt choisi est un projet dont la station est la principale, nommé comme l'app le nomme, avec le plafond de cooks de la machine et le calibrage de départ", () => {
+test("chaque dépôt choisi est un projet que la station sert, nommé comme l'app le nomme, avec le plafond de cooks de la machine et le calibrage de départ", () => {
   const bases: string[] = [];
   const demande = demandeDeLaSelection(selection("acme/Shop.git", "acme/site"), { cooks: 3, base: (nom) => (bases.push(nom), nom === "site" ? "main" : null) });
   assert.deepEqual(demande.problemes, []);
   assert.deepEqual(bases, ["shop", "site"]);
   assert.deepEqual(demande.projets, [
-    { nom: "shop", depot: "acme/Shop.git", base: null, principale: true, cooks: 3, manager: CALIBRAGE_DE_DEPART, reviewer: CALIBRAGE_DE_DEPART, ouvertLe: null, demandeLe: null },
-    { nom: "site", depot: "acme/site", base: "main", principale: true, cooks: 3, manager: CALIBRAGE_DE_DEPART, reviewer: CALIBRAGE_DE_DEPART, ouvertLe: null, demandeLe: null },
+    { nom: "shop", depot: "acme/Shop.git", base: null, cooks: 3, manager: CALIBRAGE_DE_DEPART, reviewer: CALIBRAGE_DE_DEPART, ouvertLe: null, demandeLe: null },
+    { nom: "site", depot: "acme/site", base: "main", cooks: 3, manager: CALIBRAGE_DE_DEPART, reviewer: CALIBRAGE_DE_DEPART, ouvertLe: null, demandeLe: null },
   ]);
   assert.deepEqual(CALIBRAGE_DE_DEPART, { modele: "sonnet", effort: "medium" });
 });

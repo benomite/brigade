@@ -63,7 +63,7 @@ export function demandeDeLaSelection(selection: Selection, options: OptionsDeman
       problemes.push(`${depot}, choisi dans l'app, n'est pas servi : ${deja.depot} sert déjà sous le nom de projet « ${nom} »`);
       continue;
     }
-    projets.push({ nom, depot, base: options.base(nom), principale: true, cooks: options.cooks, manager: CALIBRAGE_DE_DEPART, reviewer: CALIBRAGE_DE_DEPART, ouvertLe: null, demandeLe: null });
+    projets.push({ nom, depot, base: options.base(nom), cooks: options.cooks, manager: CALIBRAGE_DE_DEPART, reviewer: CALIBRAGE_DE_DEPART, ouvertLe: null, demandeLe: null });
   }
   return { projets, problemes };
 }

@@ -76,7 +76,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     const { clone } = espace(t);
     const ajout = await ajouterUneStation(clone, { cooks: 2, principale: true, capacites: ["navigateur-headless", "android"] });
     assert.ok("projet" in ajout, JSON.stringify(ajout));
-    assert.deepEqual(ajout.projet, { nom: "espace", depot: "acme/espace", base: null, principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null, fournit: ["navigateur-headless", "android"] });
+    assert.deepEqual(ajout.projet, { nom: "espace", depot: "acme/espace", base: null, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null, fournit: ["navigateur-headless", "android"] });
     // La demande ne nomme pas la branche : la station la relit dans le dépôt.
     assert.deepEqual(ajout.resolu, { depot: "acme/espace", base: "v2", depuis: { depot: "clone", base: "projet.json" } });
 
@@ -146,7 +146,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
 });
 
 test("the station reads the capabilities of its demand; an unreadable one is only ignored, and said", () => {
-  const projet: ProjetDemande = { nom: "espace", depot: "acme/espace", base: null, principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null };
+  const projet: ProjetDemande = { nom: "espace", depot: "acme/espace", base: null, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null };
   const lu = lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [{ ...projet, fournit: ["android", "android", "pas une capacité", 3] }] }));
   assert.deepEqual(lu?.projets, [{ ...projet, fournit: ["android"] }]);
   assert.deepEqual(lu?.problemes, ["projet « espace » demandé par l'app : 2 capacités illisibles sont ignorées — attendu des lettres, des chiffres et des tirets"]);
