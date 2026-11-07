@@ -133,6 +133,16 @@ two calls and 27 % the tools; the opus cooks — 405 of the 497 min — spent 65
 the repo, one call per turn in 95 % of turns, 82 % of them in runs of 3 to 42 reads: 140 min, the
 first item of cooking, ahead of the tests (92 min).
 
+**The cook rereads its diff as the reviewer will, before committing.** Its instructions
+(`CONSIGNE_DE_RELECTURE`, both the first cook's and the resuming cook's) name what the reviewer holds
+as blocking: what the ticket asks and the diff does not do, a criterion the ticket writes out and the
+diff does not hold to the letter, a bug, a swallowed error case, a test that tests nothing, and new
+code nothing reaches in production — an export only its tests call, data read where nothing writes it
+any more. The cook walks each new export's callers up to the entry point the repo's `CLAUDE.md`
+names. A blocking review was the first send-back reason (#2770: 20 send-backs over 45 merged
+tickets), and its second commits most often wired the new code where the station launches it
+(#2627, #2640, #2676, #2680, #2681, #2694) or read data from where it is still written (#2707).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
