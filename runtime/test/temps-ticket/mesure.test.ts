@@ -6,7 +6,7 @@ import { describe, test, type TestContext } from "node:test";
 import { corpsDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
-import { chronometre, enregistrerTemps, FICHIER_DES_TEMPS, mesurer, type Etape, type Marque } from "../../src/temps-ticket/mesure.ts";
+import { chronometre, completerLesTemps, enregistrerTemps, FICHIER_DES_TEMPS, mesurer, type Etape, type Marque } from "../../src/temps-ticket/mesure.ts";
 import { enregistrementsDuTexte, type EnregistrementTemps } from "../../src/temps-ticket/synthese.ts";
 
 const T0 = Date.UTC(2026, 10, 5, 8);
@@ -158,6 +158,10 @@ test("after the station merges a ticket, the project's file holds its record, ph
   // réparation de la base ; le 6, renvoyé une fois pour une CI rouge).
   const anciens = [{ id: 9, body: `<!-- brigade:renvoi n=1 sha=${"d".repeat(40)} -->\nStation \`B\`: sent back to a cook (1/2) — the CI is red on \`ddddddd\`: tests runtime (3/16)`, association: "OWNER", createdAt: a(-2000) }];
   for (const [ticket, mergedAt] of [[5, a(-1000)], [6, a(-900)]] as const) enregistrerTemps(clone, { ticket, claimedAt: a(-1500), mergedAt, cuisson: 1, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 });
+  // Le 6, mesuré avant #2732 : pris à -1580 par une autre station, il ne fut vu qu'à -1500, et ces
+  // 80 s passaient pour l'attente d'une prise. Le merge du 7 lui donne sa prise (#2734) : ils sont une
+  // cuisson, renvoyée — la station en a vu une autre ensuite.
+  completerLesTemps(clone, new Map([[6, { depuis: a(-1600), attentePrise: 100, phases: [{ nom: "claim wait", minutes: 1.7 }], perdu: { attente: 100, ratees: 0, renvois: 0 } }]]));
   // Tenue dans un objet : mutée par les fermetures du faux, une variable serait réduite à `null` par le contrôle de types.
   const faux: { pr: { number: number; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean } | null } = { pr: null };
   let ciEnCours = true;
@@ -181,7 +185,7 @@ test("after the station merges a ticket, the project's file holds its record, ph
       faux.pr = { number: 70, sha: "a".repeat(40), state: "open", merged: false, enRetard: false };
       return "https://github.com/faux/depot/pull/70";
     },
-    depotDuTicket: async () => null,
+    depotDuTicket: async (numero: number) => (numero === 6 ? { deposeAt: a(-1600), priseAt: a(-1580) } : null),
     mettreAJour: async () => assert.fail("the branch is up to date"),
     fermerIssue: async () => {
       labels.delete(LABEL_IN_PASS);
@@ -239,4 +243,11 @@ test("after the station merges a ticket, the project's file holds its record, ph
     { ticket: 5, qualite: { renvois: [], cooksRates: 0, reparation: ["types (app)"] } },
     { ticket: 6, qualite: { renvois: ["red gates: runtime tests"], cooksRates: 0 } },
   ]);
+  assert.deepEqual(
+    lus.slice(0, 2).map(({ ticket, attentePrise, cuisson, perdu, phases, priseAt }) => ({ ticket, attentePrise, cuisson, perdu, phases, priseAt })),
+    [
+      { ticket: 5, attentePrise: undefined, cuisson: 1, perdu: undefined, phases: undefined, priseAt: undefined },
+      { ticket: 6, attentePrise: 20, cuisson: 81, perdu: { attente: 20, ratees: 0, renvois: 80 }, phases: [{ nom: "claim wait", minutes: 0.4 }, { nom: "cooking", minutes: 1.3 }], priseAt: a(-1580) },
+    ],
+  );
 });

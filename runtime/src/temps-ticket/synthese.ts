@@ -21,6 +21,9 @@ export type EnregistrementTemps = { ticket: number; claimedAt: string; mergedAt:
     perdu?: Pertes;
     // Depuis #2707, sa qualité, lue sur GitHub au merge (`qualite-github.ts`).
     qualite?: QualiteDuTicket;
+    // Depuis #2734, sa première prise lue sur GitHub au merge (#2732), null sans
+    // prise lisible ; absente, il a été mesuré avant, et la station la rattrape.
+    priseAt?: string | null;
   };
 
 // Le temps perdu d'un ticket, en secondes : l'attente avant sa prise, ses

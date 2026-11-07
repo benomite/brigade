@@ -420,7 +420,10 @@ reviewed it, or the runtime restarted — is 0, never estimated. Its claim, thou
 with the filing: the first claim comment (`brigade:prise`, by the repo, any station) posted since `fire`. Claim wait
 ends there, and the time from that claim to the first phase the station saw is cooking. Before #2732 that whole time
 was claim wait: any station merges, so a ticket cooked by another station, or before a restart, lost hours it had
-spent cooking. With no claim readable, the time from the filing to the first phase seen stays claim wait. When the filing cannot be read from GitHub at the merge, the time runs from the
+spent cooking. With no claim readable, the time from the filing to the first phase seen stays claim wait. The record keeps that claim (`priseAt`, null when none is readable). A recent record without it was measured
+before #2732: after each merge the station reads its claim from GitHub and corrects it the same way, a few at a
+time (#2734) — #2709, merged eight minutes before #2732, kept 309 of its 310 min as claim wait and opened a
+correction on its own. When the filing cannot be read from GitHub at the merge, the time runs from the
 claim and the station warns of it. The station replays nothing: only the tests replay a ticket from its
 recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`) and the
 same failed-cook rule (`rater`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,

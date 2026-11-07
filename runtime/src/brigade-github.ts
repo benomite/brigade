@@ -59,10 +59,11 @@ import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
+import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
-import { chronometre, completerLesTemps, type DepotDuTicket } from "./temps-ticket/mesure.ts";
+import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -396,6 +397,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
     }
     await rattraperLesQualites(options.clone);
+    await rattraperLesPrises(options.clone);
   };
   // Les tickets récents mergés sans leur qualité — avant #2707, ou GitHub muet
   // à leur merge — la reçoivent après un merge, quelques-uns à la fois : les
@@ -420,6 +422,33 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       completerLesTemps(dossier, ajouts);
     } catch (erreur) {
       avertir(`brigade : the quality of ${[...ajouts.keys()].map((n) => `#${n}`).join(", ")} could not be recorded on ${nom} — ${message(erreur)}`);
+    }
+  };
+  // Les tickets récents mesurés avant #2732 — leur attente d'une prise courait
+  // jusqu'à la première phase que la station a vue — reçoivent après un merge
+  // la prise que leur issue porte, quelques-uns à la fois (#2734) : sans elle,
+  // un ticket cuit par une autre station ou avant un redémarrage gardait des
+  // heures de cuisson pour l'attente d'une prise, une journée durant.
+  const rattraperLesPrises = async (dossier: string) => {
+    const lire = github.depotDuTicket;
+    if (lire === undefined) return;
+    const manquants = ticketsRecents(lesTempsDesTickets(dossier).enregistrements)
+      .filter((t): t is EnregistrementTemps => t.priseAt === undefined && typeof t.claimedAt === "string" && typeof t.mergedAt === "string")
+      .slice(-RATTRAPAGE_PAR_MERGE);
+    const ajouts = new Map<number, EnregistrementTemps>();
+    for (const t of manquants) {
+      try {
+        const depot = await lire(t.ticket);
+        if (depot !== null) ajouts.set(t.ticket, rattraperLaPrise(t, depot.priseAt ?? null));
+      } catch (erreur) {
+        if (erreur instanceof LimiteGitHubAtteinte) break;
+      }
+    }
+    if (ajouts.size === 0) return;
+    try {
+      completerLesTemps(dossier, ajouts);
+    } catch (erreur) {
+      avertir(`brigade : the claim of ${[...ajouts.keys()].map((n) => `#${n}`).join(", ")} could not be recorded on ${nom} — ${message(erreur)}`);
     }
   };
   const fermerLaReparation = fermeReparation({ github, base });
