@@ -1,9 +1,8 @@
 // Confier la cuisine d'un projet à ses stations, depuis l'app, sans terminal : le chef choisit le
-// dépôt GitHub, les stations qui le servent et sa principale — celle qui fait tourner son manager et
-// sa pass —, et valide. L'app écrit la demande dans le gist de chaque station choisie (demande.ts) ;
-// chaque station la lit là, prépare le projet et l'ajoute à sa configuration (runtime/src/projets/). La
-// principale recommandée est une station serveur, toujours allumée ; choisir l'app d'un ordinateur se
-// dit au moment du choix : la cuisine s'arrête quand on la ferme.
+// dépôt GitHub et les stations qui le servent, et valide. L'app écrit la demande dans le gist de chaque
+// station choisie (demande.ts) ; chaque station la lit là, prépare le projet et l'ajoute à sa
+// configuration (runtime/src/projets/). La station recommandée est une station serveur, toujours allumée ;
+// choisir seulement l'app d'un ordinateur se dit au moment du choix : la cuisine s'arrête quand on la ferme.
 //
 // Deux portes y mènent : « + add a project », sur la page d'une station (`ajouter`), et la page d'un
 // projet de l'app (#983, `confier`) — qui le confie à une première station, ou à une de plus. Ajouter
@@ -11,7 +10,7 @@
 // sur une station.
 //
 // Le calibrage et le plafond de cooks sont les décisions du chef, mais elles ne commencent pas vides
-// (#425, #1107) : l'app propose le nombre de cooks que les cœurs de la principale permettent, et le
+// (#425, #1107) : l'app propose le nombre de cooks que les cœurs de la station permettent, et le
 // calibrage qui tourne déjà sur ses autres projets — ou la valeur de départ mesurée —, chacun avec
 // d'où il vient. Ce qui manque est signalé champ par champ, sans rien écrire. Une station de plus
 // reprend le dépôt, la branche et le calibrage que la première sert — ou que le clone du projet sur cet
@@ -24,11 +23,10 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet, type TempsPublie } from "./demande.ts";
+import { avecLeSuivi, capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, porteLeSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet, type TempsPublie } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
-import { gesteDePasAtteinte, PAS_ATTEINTE } from "./pas-atteinte.ts";
 
 // Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
 export const MODELES = ["opus", "sonnet", "haiku"] as const;
@@ -37,9 +35,8 @@ export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type SaisieDuProjet = {
   depot: string;
   base: string;
-  // Les gists des stations choisies, et celui de la principale.
+  // Les gists des stations choisies.
   stations: string[];
-  principale: string;
   cooks: string;
   manager: Calibre;
   reviewer: Calibre;
@@ -48,14 +45,12 @@ export type SaisieDuProjet = {
   // Ce que la machine ajoutée sait faire en plus de coder, coché par le chef (#1307) : sa demande le porte.
   capacites: string[];
 };
-export type Champ = "nom" | "depot" | "base" | "stations" | "principale" | "cooks" | "capacites" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
+export type Champ = "nom" | "depot" | "base" | "stations" | "cooks" | "capacites" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
 export type Signales = Partial<Record<Champ, string>>;
 
-// Une station d'un projet, telle que la home la montre. `atteinte` : pour une station ajoutée en plus de la
-// principale, si la principale la dit atteinte, et pourquoi en une phrase (#1756) — absent tant qu'elle n'en dit rien ;
-// `pourquoi` : pas atteinte, les mots de sa ligne, et `geste`, ce que le chef fait pour y remédier (pas-atteinte.ts, #1758) ;
-// `station` : le nom sous lequel la principale la déclare (`<machine>/claude`), celui de sa ligne dans `facts` (#1786).
-export type StationDuProjet = { id: string; nom: string; principale: boolean; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[]; atteinte?: { oui: boolean; dit: string; pourquoi?: string; geste?: string; station?: string } };
+// Une station d'un projet, telle que la home la montre : toutes de la même façon, ce qu'elle en dit et les autorisations
+// GitHub qu'elle attend.
+export type StationDuProjet = { id: string; nom: string; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[] };
 // Où cuit un projet : la station qui le sert — son gist quand elle est appairée —, et si c'est
 // celle de cet ordinateur.
 export type CuitSur = { id: string | null; nom: string; ici: boolean };
@@ -66,16 +61,18 @@ export type ProjetVu = {
   depot: string;
   base: string;
   stations: StationDuProjet[];
-  // Du parcours ouvert au projet servi par sa principale — la mesure que la spec borne à dix minutes.
+  // La station dont le gist porte le suivi du projet — son onboarding, son refus, ses choix — ; absente tant qu'aucune ne le porte.
+  suiviPar?: { id: string; nom: string };
+  // Du parcours ouvert au projet servi par cette station — la mesure que la spec borne à dix minutes.
   servi: string | null;
   // Où il cuit, tel que ses stations le disent ; nul tant qu'aucune ne le dit.
   cuitSur?: CuitSur | null;
   // Son déménagement, tant qu'il n'est pas fini.
   demenagement?: DemenagementEnCours | null;
-  // Où il en est de son ajout à son premier ticket, tel que sa principale le publie (#1110) ; nul
+  // Où il en est de son ajout à son premier ticket, tel que le suivi le publie (#1110) ; nul
   // tant qu'elle n'en dit rien.
   onboarding?: Onboarding | null;
-  // Ce qui retient sa cuisine, tel que sa principale le publie (#1117, #1118) : l'accès au dépôt refusé,
+  // Ce qui retient sa cuisine, tel que le suivi le publie (#1117, #1118) : l'accès au dépôt refusé,
   // avec son geste ; un worktree impossible à préparer, avec sa raison et l'heure du prochain essai.
   // Nuls (ou absents) quand rien ne retient.
   acces?: AccesBloque | null;
@@ -85,27 +82,27 @@ export type ProjetVu = {
   // Le clone du dépôt en échec, en clair : la cause, le compte GitHub de la station, le geste (#1390).
   // Absent quand le clone n'échoue pas.
   clone?: EchecDuClone;
-  // Ce qui bloque le projet, tel que sa principale le publie (#1394) : une ligne chacun sur sa page (#1399).
+  // Ce qui bloque le projet, tel que le suivi le publie (#1394) : une ligne chacun sur sa page (#1399).
   // Absent quand rien ne bloque.
   blocages?: Blocage[];
-  // Le temps de son ajout à son premier ticket servi, tel que sa principale le publie (#1401). Absent sans délai publié.
+  // Le temps de son ajout à son premier ticket servi, tel que le suivi le publie (#1401). Absent sans délai publié.
   delai?: Delai;
-  // Les temps de ses derniers tickets et son plafond, tels que sa principale les publie (#2346). Absent sans temps publiés.
+  // Les temps de ses derniers tickets et son plafond, tels que le suivi les publie (#2346). Absent sans temps publiés.
   temps?: TempsPublie;
-  // Ce qui manque à sa principale pour ses tests, un choix par besoin, tel qu'elle le publie (#1398) — et les
+  // Ce qui manque à la station pour ses tests, un choix par besoin, tel qu'elle le publie (#1398) — et les
   // issues que l'app a écrites dans sa demande, que la station n'a peut-être pas encore lues (#1400). Absents quand
   // il n'y en a pas.
   choix?: Choix[];
   choisis?: Selections;
 };
-// Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
+// Ce que l'app propose pour une station choisie (#1107) : ce que ce choix implique —
 // toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
 // ses cœurs permettent, avec d'où il vient.
 export type MachineProposee = { toujoursAllumee: boolean; implique: string; cooks: number; cooksDit: string };
 // Le calibrage que l'app propose pour un projet qui prend sa première station, et d'où il vient.
 export type CalibrageRecommande = { manager: Calibre; reviewer: Calibre; dit: string };
-// `recommandee` : la principale que l'app propose d'office — une station serveur ; `avertissements` :
-// ce qui se dit quand le chef choisit telle station pour principale ; `machines` : ce que l'écran de
+// `recommandee` : la station que l'app propose d'office — une serveur ; `avertissements` :
+// ce qui se dit quand le chef choisit telle station ; `machines` : ce que l'écran de
 // confiance dit de chaque station, et `calibrage`, ce qu'il propose.
 // `locale` : le gist de la station de cet ordinateur, nul quand l'app n'en a pas.
 export type VuDesProjets = {
@@ -145,13 +142,12 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 
 // Ce que la vue envoie, ramené à des textes : rien n'y est cru sur parole.
 export function lireSaisie(recu: unknown): SaisieDuProjet {
-  const { depot, base, stations, principale, cooks, manager, reviewer, ouvertLe, capacites } = (recu ?? {}) as Record<string, unknown>;
+  const { depot, base, stations, cooks, manager, reviewer, ouvertLe, capacites } = (recu ?? {}) as Record<string, unknown>;
   const calibre = (lu: unknown): Calibre => ({ modele: texte((lu as Calibre | undefined)?.modele), effort: texte((lu as Calibre | undefined)?.effort) });
   return {
     depot: texte(depot),
     base: texte(base),
     stations: Array.isArray(stations) ? [...new Set(stations.map(texte).filter((id) => id !== ""))] : [],
-    principale: texte(principale),
     cooks: texte(cooks),
     manager: calibre(manager),
     reviewer: calibre(reviewer),
@@ -173,7 +169,7 @@ export function nomDuProjet(depot: string): string {
 // un Linux est tenu pour un serveur, allumé en permanence.
 export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macOS|Windows)\b/.test(station.machine);
 
-// La principale que l'app recommande : une station serveur, en ligne d'abord.
+// La station que l'app recommande : un serveur, en ligne d'abord.
 // Les temps de deux stations d'un même projet : un ticket n'est compté qu'une fois (le plus récent des deux enregistrements),
 // le seuil du temps perdu est celui de la première station.
 export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): TempsPublie {
@@ -195,9 +191,14 @@ export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): T
   return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }), ...(chiffres === undefined ? {} : { chiffres }) };
 }
 
-export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {
+export function stationRecommandee(stations: readonly StationVue[]): string | undefined {
   const serveurs = stations.filter((station) => station.etat !== "illisible" && station.cuisine !== false && !estUnOrdinateur(station));
   return (serveurs.find((station) => station.etat === "en-ligne") ?? serveurs[0])?.id;
+}
+
+// Celle des stations choisies dont le gist porte le suivi du projet : la recommandée si elle en est, sinon la première.
+export function porteurDuSuivi(choisies: readonly string[], recommandee: string | undefined): string {
+  return choisies.find((id) => id === recommandee) ?? choisies[0] ?? "";
 }
 
 // Le nombre de cooks que les cœurs d'une machine permettent : celui même que la station en dérive
@@ -207,7 +208,7 @@ export const cooksDesCoeurs = (coeurs: number): number => Math.max(1, Math.floor
 // Une station qui ne publie pas encore ses cœurs : un départ prudent.
 export const COOKS_SANS_COEURS = 2;
 
-// Ce que choisir cette station pour principale implique, et ses cooks.
+// Ce que choisir cette station implique, et ses cooks.
 export function machineProposee(station: Pick<StationVue, "nom" | "machine" | "coeurs">): MachineProposee {
   const toujoursAllumee = !estUnOrdinateur(station);
   const { coeurs } = station;
@@ -237,7 +238,7 @@ export function calibrageRecommande(demandes: readonly ProjetDemande[]): Calibra
   return { manager: CALIBRAGE_MESURE, reviewer: CALIBRAGE_MESURE, dit: "the starting value measured on brigade's own box, for lack of another project on your stations" };
 }
 
-// Ce que l'app dit au moment où le chef choisit cette principale.
+// Ce que l'app dit au moment où le chef choisit cette station.
 export function avertissement(station: Pick<StationVue, "nom" | "machine"> | undefined): string | undefined {
   if (station === undefined || !estUnOrdinateur(station)) return undefined;
   return `${station.nom} is a computer's app: this project's kitchen stops whenever you close the app there. A server station, always on, is recommended.`;
@@ -266,7 +267,6 @@ export function refusDeSaisie(saisie: SaisieDuProjet, stations: readonly Station
   const connues = new Set(stations.map(({ id }) => id));
   const sansCuisine = stations.filter(({ id, cuisine }) => cuisine === false && saisie.stations.includes(id)).map(({ nom }) => nom);
   signaler("stations", saisie.stations.length === 0 ? "Choose at least one station to serve this project." : saisie.stations.some((id) => !connues.has(id)) ? "A chosen station is no longer paired with this app." : sansCuisine.length > 0 ? `${sansCuisine.join(", ")} does not cook: choose a station that does.` : undefined);
-  signaler("principale", saisie.principale === "" ? "Choose its main station: the one that runs its manager and its pass." : saisie.stations.includes(saisie.principale) ? undefined : "The main station must be one of the chosen stations.");
   return { ...signales, ...refusDesDecisions(saisie) };
 }
 
@@ -276,7 +276,7 @@ function refusDesDecisions(saisie: Pick<SaisieDuProjet, "cooks" | "manager" | "r
   const signaler = (champ: Champ, raison: string | undefined) => {
     if (raison !== undefined) signales[champ] = raison;
   };
-  signaler("cooks", saisie.cooks === "" ? "How many cooks may the main station run at once for this project?" : /^[1-9][0-9]{0,2}$/.test(saisie.cooks) ? undefined : "The number of cooks is a whole number, 1 or more.");
+  signaler("cooks", saisie.cooks === "" ? "How many cooks may a station run at once for this project?" : /^[1-9][0-9]{0,2}$/.test(saisie.cooks) ? undefined : "The number of cooks is a whole number, 1 or more.");
   for (const role of ["manager", "reviewer"] as const) {
     const { modele, effort } = saisie[role];
     signaler(`${role}-modele`, (MODELES as readonly string[]).includes(modele) ? undefined : `Choose the ${role}'s model.`);
@@ -293,12 +293,11 @@ export function lireConfiance(recu: unknown): SaisieDeConfiance {
 }
 
 // Ce que les stations font déjà d'un projet : celles qui le portent — que l'app le leur ait demandé,
-// ou qu'elles le servent sans elle —, s'il a déjà sa principale, et ce que l'app en a demandé.
-export type DejaTenu = { portee: string[]; principale: boolean; demande?: ProjetDemande };
+// ou qu'elles le servent sans elle —, si une station en porte déjà le suivi, et ce que l'app en a demandé.
+export type DejaTenu = { portee: string[]; suivi: boolean; demande?: ProjetDemande };
 
 // Les champs qui empêchent de confier le projet à ces stations, chacun avec sa raison. Une station
-// qui le porte déjà ne se choisit pas une seconde fois ; un projet qui a sa principale n'en prend pas
-// d'autre ; une station de plus reprend le calibrage déjà demandé, et n'a que ses cooks à dire.
+// qui le porte déjà ne se choisit pas une seconde fois ; un projet dont le suivi est porté n'en change pas ; une station de plus reprend le calibrage déjà demandé, et n'a que ses cooks à dire.
 export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly StationVue[], tenu: DejaTenu): Signales {
   const signales: Signales = {};
   const signaler = (champ: Champ, raison: string | undefined) => {
@@ -325,15 +324,13 @@ export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly S
           ? `${deja.join(", ")} already cook${deja.length > 1 ? "" : "s"} it: choose another station.`
           : undefined,
   );
-  if (tenu.principale) signaler("principale", saisie.principale === "" ? undefined : "It already has its main station: the stations you add run neither its manager nor its pass.");
-  else signaler("principale", saisie.principale === "" ? "Choose its main station: the one that runs its manager and its pass." : saisie.stations.includes(saisie.principale) ? undefined : "The main station must be one of the chosen stations.");
   if (tenu.demande === undefined) return { ...signales, ...refusDesDecisions(saisie) };
   if (saisie.cooks !== "" && !/^[1-9][0-9]{0,2}$/.test(saisie.cooks)) signales.cooks = "The number of cooks is a whole number, 1 or more.";
   return signales;
 }
 
 // Ce que la demande d'un projet porte pour une station : ce que son appairage dit qu'elle fournit (#1757,
-// stations/document.ts), en plus de ce que le chef a coché — c'est par là que la principale du projet l'apprend.
+// stations/document.ts), en plus de ce que le chef a coché — c'est par là que le suivi du projet l'apprend.
 export function avecCeQuElleFournit(station: Pick<StationVue, "fournit">, projet: ProjetDemande): ProjetDemande {
   const fournit = capacitesLues([...(projet.fournit ?? []), ...(station.fournit ?? [])]);
   return fournit.length === 0 || fournit.join("+") === (projet.fournit ?? []).join("+") ? projet : { ...projet, fournit };
@@ -431,11 +428,11 @@ export type Projets = {
   demenager(nom: unknown, vers: unknown): Promise<Demenagement>;
   // Le chef continue sans bac à sable sur la station du projet : sa décision est notée, la retenue du rail se lève.
   continuerSansBac(nom: unknown): Promise<DecisionSansBac>;
-  // Lève le refus que la principale du projet publie, par le remède qu'il offre (#1205) : la station le
+  // Lève le refus que le suivi du projet publie, par le remède qu'il offre (#1205) : la station le
   // joue, puis dit si le refus tient. Les projets sont relus avant que la réponse ne parte.
   remedier(nom: unknown, refus: unknown, remede: unknown): Promise<IssueDuRemede>;
-  // Retient une issue d'un choix que la principale du projet attend (#1400) : elle s'écrit dans la demande de la
-  // principale, qui la pose à son journal à sa lecture suivante (runtime/src/installation/besoins/).
+  // Retient une issue d'un choix que le suivi du projet attend (#1400) : elle s'écrit dans la demande de la
+  // station qui le porte, qui la pose à son journal à sa lecture suivante (runtime/src/installation/besoins/).
   choisir(nom: unknown, choix: unknown, issue: unknown): Promise<Choisi>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
@@ -476,7 +473,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
   const choix = () => {
     const stations = appairees();
     return {
-      recommandee: principaleRecommandee(stations) ?? null,
+      recommandee: stationRecommandee(stations) ?? null,
       avertissements: Object.fromEntries(stations.flatMap((station) => {
         const dit = avertissement(station);
         return dit === undefined ? [] : [[station.id, dit]];
@@ -497,12 +494,14 @@ export function tenirProjets(options: OptionsProjets): Projets {
         for (const projet of demande ?? []) {
           const siens = dits.get(projet.nom) ?? [];
           const vu: ProjetVu = projets.get(projet.nom) ?? { nom: projet.nom, depot: projet.depot, base: projet.base, stations: [], servi: null, cuitSur: cuitSurDe(siens, ici), demenagement: demenagementDe(siens) };
-          // L'onboarding, seule la principale le publie.
-          const sien = projet.principale ? onboarding[projet.nom] : undefined;
+          // L'onboarding, seule la station qui porte le suivi le publie.
+          const porte = porteLeSuivi(projet);
+          const sien = porte ? onboarding[projet.nom] : undefined;
           if (sien !== undefined) vu.onboarding = sien;
           const dit = suivi.find(({ nom }) => nom === projet.nom);
-          // Ce qui retient la cuisine, seule la principale le dit ; relu à chaque lecture, il s'efface quand elle ne le dit plus.
-          if (projet.principale) {
+          // Ce qui retient la cuisine, seule cette station le dit ; relu à chaque lecture, il s'efface quand elle ne le dit plus.
+          if (porte) {
+            vu.suiviPar ??= { id: station.id, nom: station.nom };
             vu.acces = dit?.acces ?? null;
             vu.refus = dit?.refus ?? null;
             vu.worktree = dit?.worktree ?? null;
@@ -519,22 +518,12 @@ export function tenirProjets(options: OptionsProjets): Projets {
           }
           // Les temps, toute station qui sert le projet les publie : l'app fusionne leurs enregistrements.
           if (dit?.temps !== undefined) vu.temps = fusionnerLesTemps(vu.temps, dit.temps);
-          vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
-          if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
+          vu.stations.push({ id: station.id, nom: station.nom, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
+          if (porte && dit?.etat === "servi" && dit.serviLe !== null) {
             const depuis = projet.ouvertLe ?? projet.demandeLe;
             vu.servi = depuis === null ? null : `served by ${station.nom} ${duree(Date.parse(dit.serviLe) - Date.parse(depuis))} after “add a project” was opened`;
           }
           projets.set(projet.nom, vu);
-        }
-      }
-      // Les stations ajoutées en plus de la principale : atteintes ou non, c'est la principale qui le dit (#1756),
-      // chacune par son gist.
-      for (const { suivi } of lus) {
-        for (const { nom, secondaires } of suivi) {
-          for (const tenue of secondaires ?? []) {
-            const sienne = projets.get(nom)?.stations.find(({ id, principale }) => id === tenue.gist && !principale);
-            if (sienne !== undefined) sienne.atteinte = { oui: tenue.atteinte, dit: tenue.dit, station: tenue.station, ...(tenue.atteinte ? {} : { pourquoi: PAS_ATTEINTE, geste: gesteDePasAtteinte(tenue.geste) }) };
-          }
         }
       }
       for (const projet of projets.values()) projet.stations.sort((a, b) => a.nom.localeCompare(b.nom));
@@ -588,19 +577,19 @@ export function tenirProjets(options: OptionsProjets): Projets {
       if (Object.keys(signales).length > 0) return { signales };
       const nom = nomDuProjet(saisie.depot);
       const instant = new Date(maintenant()).toISOString();
-      const projet = (principale: boolean): ProjetDemande => ({
+      const porteur = porteurDuSuivi(saisie.stations, stationRecommandee(stations));
+      const projet = (suivi: boolean): ProjetDemande => avecLeSuivi({
         nom,
         depot: saisie.depot,
         base: saisie.base,
-        principale,
         cooks: Number(saisie.cooks),
         manager: saisie.manager,
         reviewer: saisie.reviewer,
         ouvertLe: Number.isNaN(Date.parse(saisie.ouvertLe)) ? null : new Date(saisie.ouvertLe).toISOString(),
         demandeLe: instant,
-      });
+      }, suivi);
       try {
-        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== nom), avecCeQuElleFournit(station, projet(station.id === saisie.principale))] : avant));
+        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== nom), avecCeQuElleFournit(station, projet(station.id === porteur))] : avant));
       } catch (erreur) {
         await relire();
         return { refus: `${nom} was not added: GitHub could not be read or written — ${message(erreur)}` };
@@ -609,7 +598,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
       return { ajoute: nom };
     });
 
-  // La page d'un projet le confie à des stations : à une première — il prend alors sa principale,
+  // La page d'un projet le confie à des stations : à une première — il prend alors son suivi,
   // son plafond et son calibrage —, ou à une de plus, qui reprend ce que l'app en a déjà demandé.
   const confier = (recu: unknown): Promise<Ajout> =>
     enFile(async () => {
@@ -625,8 +614,8 @@ export function tenirProjets(options: OptionsProjets): Projets {
       const servie = stations.filter((station) => station.projets.includes(saisie.nom));
       const tenu: DejaTenu = {
         portee: [...new Set([...demandes.map(({ station }) => station.id), ...servie.map(({ id }) => id)])],
-        principale: servie.length > 0 || demandes.some(({ projet }) => projet.principale),
-        ...(demandes[0] === undefined ? {} : { demande: demandes.find(({ projet }) => projet.principale)?.projet ?? demandes[0].projet }),
+        suivi: servie.length > 0 || demandes.some(({ projet }) => porteLeSuivi(projet)),
+        ...(demandes[0] === undefined ? {} : { demande: demandes.find(({ projet }) => porteLeSuivi(projet))?.projet ?? demandes[0].projet }),
       };
       // Une station de plus sert ce que la première sert déjà : son dépôt, sa branche et son plafond, tels
       // qu'elle les publie, puis tels que l'app les lui a demandés ; le chef ne les redit pas.
@@ -636,8 +625,8 @@ export function tenirProjets(options: OptionsProjets): Projets {
       // Ce que ni la première ni la demande ne disent, le clone du projet sur cet ordinateur le dit (#1307). Les
       // cooks sont ceux de la machine ajoutée, tels que le chef les envoie : ceux de la première, à défaut.
       const [depotConnu, baseConnue] = [premiere("depot") ?? repris?.depot, premiere("base") ?? repris?.base];
-      const clone = tenu.principale && (depotConnu === undefined || baseConnue === undefined) ? await lireLeClone(saisie.nom) : null;
-      const reprise = tenu.principale
+      const clone = tenu.suivi && (depotConnu === undefined || baseConnue === undefined) ? await lireLeClone(saisie.nom) : null;
+      const reprise = tenu.suivi
         ? {
             depot: depotConnu ?? clone?.depot ?? saisie.depot,
             base: baseConnue ?? clone?.base ?? saisie.base,
@@ -646,30 +635,30 @@ export function tenirProjets(options: OptionsProjets): Projets {
         : { depot: saisie.depot, base: saisie.base, cooks: Number(saisie.cooks) };
       const effective: SaisieDeConfiance = { ...saisie, depot: reprise.depot, base: reprise.base, cooks: reprise.cooks === undefined ? "" : String(reprise.cooks) };
       const signales = refusDeConfiance(effective, stations, tenu);
-      const premiereStation = (dits[0]?.station ?? stations.find(({ id }) => tenu.portee.includes(id)))?.nom ?? "the first station";
-      const manque: Manquant[] = tenu.principale ? (["depot", "base", "cooks"] as const).filter((champ) => effective[champ] === "") : [];
+      const stationDuDepot = (dits[0]?.station ?? stations.find(({ id }) => tenu.portee.includes(id)))?.nom ?? "the station that cooks it";
+      const manque: Manquant[] = tenu.suivi ? (["depot", "base", "cooks"] as const).filter((champ) => effective[champ] === "") : [];
       for (const champ of manque) {
         signales[champ] =
           champ === "cooks"
-            ? `${premiereStation} does not say how many cooks it may run at once for ${saisie.nom}: give the cook cap.`
-            : `${premiereStation} does not say ${champ === "depot" ? "which GitHub repository it serves" : "which integration branch it delivers to"} for ${saisie.nom}, and neither does its folder on this computer.`;
+            ? `${stationDuDepot} does not say how many cooks it may run at once for ${saisie.nom}: give the cook cap.`
+            : `${stationDuDepot} does not say ${champ === "depot" ? "which GitHub repository it serves" : "which integration branch it delivers to"} for ${saisie.nom}, and neither does its folder on this computer.`;
       }
       if (Object.keys(signales).length > 0) return manque.length > 0 ? { signales, manque } : { signales };
       const instant = new Date(maintenant()).toISOString();
-      const projet = (principale: boolean): ProjetDemande => ({
+      const porteur = porteurDuSuivi(saisie.stations, stationRecommandee(stations));
+      const projet = (suivi: boolean): ProjetDemande => avecLeSuivi({
         nom: saisie.nom,
         depot: effective.depot,
         base: effective.base,
-        principale,
         cooks: Number(effective.cooks),
         manager: repris?.manager ?? saisie.manager,
         reviewer: repris?.reviewer ?? saisie.reviewer,
         ouvertLe: Number.isNaN(Date.parse(saisie.ouvertLe)) ? null : new Date(saisie.ouvertLe).toISOString(),
         demandeLe: instant,
         ...(saisie.capacites.length === 0 ? {} : { fournit: saisie.capacites }),
-      });
+      }, suivi);
       try {
-        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== saisie.nom), avecCeQuElleFournit(station, projet(!tenu.principale && station.id === saisie.principale))] : avant));
+        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== saisie.nom), avecCeQuElleFournit(station, projet(!tenu.suivi && station.id === porteur))] : avant));
       } catch (erreur) {
         await relire();
         return { refus: `${saisie.nom} was not entrusted to a station: GitHub could not be read or written — ${message(erreur)}` };
@@ -709,7 +698,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
       return rendu;
     });
 
-  // Lever un refus : la demande part vers la principale du projet, par son gist — l'ordinateur du chef ou une
+  // Lever un refus : la demande part vers la station qui porte le suivi du projet, par son gist — l'ordinateur du chef ou une
   // station distante, de la même façon. Deux demandes vers le même gist se suivent : chacune y réécrit le
   // fichier des remèdes. Le refus doit être celui que la page montre, et offrir ce remède : sinon rien ne part.
   const remedesEnCours = new Map<string, Promise<IssueDuRemede>>();
@@ -719,48 +708,48 @@ export function tenirProjets(options: OptionsProjets): Projets {
     const remede = texte(recuRemede);
     if (nom === "") return { outcome: "error", error: "which project? none was named: nothing was done" };
     const projet = vu?.projets.find((un) => un.nom === nom);
-    const principale = projet?.stations.find(({ principale: oui }) => oui);
-    if (projet === undefined || principale === undefined) return { outcome: "error", error: `${nom} cooks on none of your stations: nothing was done` };
+    const porteuse = projet?.suiviPar;
+    if (projet === undefined || porteuse === undefined) return { outcome: "error", error: `${nom} cooks on none of your stations: nothing was done` };
     const refus = projet.refus ?? null;
-    if (refus === null) return { outcome: "error", error: `${principale.nom} no longer refuses ${nom}: nothing was done` };
-    if (refus.code !== code || refus.remedy?.id !== remede) return { outcome: "error", error: `${principale.nom} no longer offers this action for ${nom}: nothing was done` };
+    if (refus === null) return { outcome: "error", error: `${porteuse.nom} no longer refuses ${nom}: nothing was done` };
+    if (refus.code !== code || refus.remedy?.id !== remede) return { outcome: "error", error: `${porteuse.nom} no longer offers this action for ${nom}: nothing was done` };
     const demander = options.demanderLeRemede;
     if (demander === undefined) return { outcome: "error", error: "this app has no runtime beside it to ask for this action: nothing was done" };
     const jouer = async (): Promise<IssueDuRemede> => {
       try {
-        return pourLaPage(await demander({ canal: canalDesGists(github), gist: principale.id, demande: { project: nom, refusal: code, remedy: remede } }));
+        return pourLaPage(await demander({ canal: canalDesGists(github), gist: porteuse.id, demande: { project: nom, refusal: code, remedy: remede } }));
       } catch (erreur) {
         return { outcome: "error", error: `GitHub could not be read or written, so nothing is known to have been done — ${message(erreur)}` };
       }
     };
-    const chaine = (remedesEnCours.get(principale.id) ?? Promise.resolve()).then(jouer);
-    remedesEnCours.set(principale.id, chaine);
+    const chaine = (remedesEnCours.get(porteuse.id) ?? Promise.resolve()).then(jouer);
+    remedesEnCours.set(porteuse.id, chaine);
     const issue = await chaine;
-    if (remedesEnCours.get(principale.id) === chaine) remedesEnCours.delete(principale.id);
+    if (remedesEnCours.get(porteuse.id) === chaine) remedesEnCours.delete(porteuse.id);
     // La station a réécrit son suivi avant de répondre : relu, le refus levé n'y est plus.
     await relire();
     return issue;
   };
 
   // Continuer sans bac à sable : la décision s'écrit dans l'état du projet, sur la station de cet
-  // ordinateur — la seule que l'app atteigne ; une principale ailleurs dit qui peut la prendre.
+  // ordinateur — la seule que l'app atteigne ; une autre station dit qui peut la prendre.
   const continuerSansBac = async (recuNom: unknown): Promise<DecisionSansBac> => {
     const nom = texte(recuNom);
     if (nom === "") return { refus: "which project? none was named" };
-    const principale = vu?.projets.find((projet) => projet.nom === nom)?.stations.find(({ principale: oui }) => oui);
-    if (principale === undefined) return { refus: `${nom} cooks on none of your stations: nothing was changed` };
+    const porteuse = vu?.projets.find((projet) => projet.nom === nom)?.suiviPar;
+    if (porteuse === undefined) return { refus: `${nom} cooks on none of your stations: nothing was changed` };
     if (options.accepterSansBac === undefined || locale() === null) return { refus: "this app has no runtime beside it to record this choice: nothing was changed" };
-    if (principale.id !== locale()) return { refus: `${principale.nom} cooks ${nom}, not this computer: the choice can only be recorded from ${principale.nom}'s own computer — or choose another station: nothing was changed` };
+    if (porteuse.id !== locale()) return { refus: `${porteuse.nom} cooks ${nom}, not this computer: the choice can only be recorded from ${porteuse.nom}'s own computer — or choose another station: nothing was changed` };
     try {
-      await options.accepterSansBac(nom, principale.nom);
+      await options.accepterSansBac(nom, porteuse.nom);
     } catch (erreur) {
       return { refus: "the choice could not be recorded: nothing was changed", detail: message(erreur) };
     }
-    return { fait: `continuing without a sandbox on ${principale.nom}: ${nom} starts on its next turn` };
+    return { fait: `continuing without a sandbox on ${porteuse.nom}: ${nom} starts on its next turn` };
   };
 
   // Choisir une issue : le choix doit être celui que la page montre, en attente, et offrir cette issue — sinon rien
-  // ne s'écrit. Seule la demande de la principale change : c'est elle qui tient le choix. À la suite des autres écritures.
+  // ne s'écrit. Seule la demande de la station qui porte le suivi change : c'est elle qui tient le choix. À la suite des autres écritures.
   const choisir = (recuNom: unknown, recuChoix: unknown, recuIssue: unknown): Promise<Choisi> =>
     enFile(async () => {
       const nom = texte(recuNom);
@@ -768,20 +757,20 @@ export function tenirProjets(options: OptionsProjets): Projets {
       const issue = texte(recuIssue);
       if (nom === "") return { refus: "which project? none was named: nothing was recorded" };
       const projet = vu?.projets.find((un) => un.nom === nom);
-      const principale = projet?.stations.find(({ principale: oui }) => oui);
-      if (projet === undefined || principale === undefined) return { refus: `${nom} cooks on none of your stations: nothing was recorded` };
+      const porteuse = projet?.suiviPar;
+      if (projet === undefined || porteuse === undefined) return { refus: `${nom} cooks on none of your stations: nothing was recorded` };
       const choix = projet.choix?.find((un) => un.id === id);
-      if (choix === undefined || choix.status !== "pending") return { refus: `${principale.nom} no longer waits for this choice: nothing was recorded` };
+      if (choix === undefined || choix.status !== "pending") return { refus: `${porteuse.nom} no longer waits for this choice: nothing was recorded` };
       const retenue = choix.options.find((option) => option.id === issue);
-      if (retenue === undefined) return { refus: `${principale.nom} no longer offers this option: nothing was recorded` };
+      if (retenue === undefined) return { refus: `${porteuse.nom} no longer offers this option: nothing was recorded` };
       try {
-        const ecrits = await reecrire((station, avant) => (station.id === principale.id ? avant.map((un) => (un.nom === nom && un.principale ? { ...un, choix: { ...un.choix, [id]: issue } } : un)) : avant));
-        if (ecrits.length === 0) return { refus: `${nom} is no longer asked of ${principale.nom}: nothing was recorded` };
+        const ecrits = await reecrire((station, avant) => (station.id === porteuse.id ? avant.map((un) => (un.nom === nom && porteLeSuivi(un) ? { ...un, choix: { ...un.choix, [id]: issue } } : un)) : avant));
+        if (ecrits.length === 0) return { refus: `${nom} is no longer asked of ${porteuse.nom}: nothing was recorded` };
       } catch (erreur) {
         return { refus: "the choice could not be recorded: GitHub could not be read or written", detail: message(erreur) };
       }
       await relire();
-      return { fait: `“${retenue.label}” is recorded: ${principale.nom} applies it at its next read` };
+      return { fait: `“${retenue.label}” is recorded: ${porteuse.nom} applies it at its next read` };
     });
 
   return {

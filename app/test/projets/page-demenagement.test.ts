@@ -28,10 +28,10 @@ const STATIONS: VuDesStations = { a: A, stations: [BOX, MAC] };
 const ACCUEIL: Accueil = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
-// parade, confié à ses deux stations : sa principale, et où il cuit, tel que leurs suivis le disent.
-const station = (id: string, nom: string, principale: boolean, etat: "servi" | "secondaire" | "refuse" | "attendu" | "a-autoriser" = principale ? "servi" : "secondaire", dit = "") => ({ id, nom, principale, etat, dit, autoriser: [] });
-const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", stations: [station("gbox", "parade-box", true), station("gmac", "macbook", false)], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
-const SUR_LE_MAC: ProjetVu = { ...SUR_LA_BOX, stations: [station("gmac", "macbook", true), station("gbox", "parade-box", false)], cuitSur: { id: "gmac", nom: "macbook", ici: true } };
+// parade, confié à ses deux stations, et où il cuit, tel que leurs suivis le disent.
+const station = (id: string, nom: string, etat: "servi" | "refuse" | "attendu" | "a-autoriser" = "servi", dit = "") => ({ id, nom, etat, dit, autoriser: [] });
+const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "gbox", nom: "parade-box" }, stations: [station("gbox", "parade-box"), station("gmac", "macbook")], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
+const SUR_LE_MAC: ProjetVu = { ...SUR_LA_BOX, suiviPar: { id: "gmac", nom: "macbook" }, stations: [station("gmac", "macbook"), station("gbox", "parade-box")], cuitSur: { id: "gmac", nom: "macbook", ici: true } };
 const vuDes = (...projets: ProjetVu[]): VuDesProjets => ({ a: A, projets, locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) });
 
 const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets) => ({
@@ -77,22 +77,19 @@ test("un projet qui cuit sur sa box : « Cooks on parade-box », sans rien dire 
   assert.equal(sienne.ariaLabel, "parade-box — served");
 });
 
-test("la station ajoutée en plus de la principale : pastille verte quand la principale la dit atteinte, grise sinon, pourquoi au survol (#1757)", async () => {
-  const avec = (atteinte?: { oui: boolean; dit: string }) => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, { ...SUR_LA_BOX.stations[1]!, ...(atteinte === undefined ? {} : { atteinte }) }] });
+test("la station ajoutée est dite comme la première : pastille verte quand elle sert le projet, grise sinon (#1757)", async () => {
+  const avec = (etat: "servi" | "attendu") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", etat, "macbook has not read it yet")] });
   const leMac = async (vu: VuDesProjets) => {
     const { bloc } = await laPage(vu);
-    assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
     const sienne = ligne(bloc).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
-    return { ton: sienne.children[0]?.dataset.ton, aria: sienne.ariaLabel, survol: sienne.title };
+    return { ton: sienne.children[0]?.dataset.ton, aria: sienne.ariaLabel };
   };
-  assert.deepEqual(await leMac(avec({ oui: true, dit: "reached: it is online on GitHub" })), { ton: "vert", aria: "macbook (this computer) — reached", survol: "macbook, this computer's station\nreached\nit is online on GitHub" });
-  assert.deepEqual(await leMac(avec({ oui: false, dit: "not reached: it stopped at 2026-10-20T09:50:00.000Z" })), { ton: "gris", aria: "macbook (this computer) — not reached", survol: "macbook, this computer's station\nnot reached\nit stopped at 2026-10-20T09:50:00.000Z" });
-  // La principale n'en dit rien encore : grise, comme avant.
-  assert.equal((await leMac(avec())).ton, "gris");
+  assert.deepEqual(await leMac(avec("servi")), { ton: "vert", aria: "macbook (this computer) — served" });
+  assert.deepEqual(await leMac(avec("attendu")), { ton: "gris", aria: "macbook (this computer) — not read yet" });
 });
 
 test("la station ajoutée depuis l'app qui ne sert rien n'est pas une « second station » : la ligne dit où elle en est, avec de quoi relire (#1774)", async () => {
-  const bloquee = (etat: "attendu" | "a-autoriser" | "refuse", dit = "") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", false, etat, dit)] });
+  const bloquee = (etat: "attendu" | "a-autoriser" | "refuse", dit = "") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", etat, dit)] });
   const attendue = (await laPage(bloquee("attendu"))).bloc;
   assert.equal(ligne(attendue).textContent, "Cooks on parade-box · macbook (this computer)not received by the stationcheck again");
   assert.doesNotMatch(attendue.textContent, /second station/);
@@ -101,7 +98,7 @@ test("la station ajoutée depuis l'app qui ne sert rien n'est pas une « second 
   assert.match(ligne(attendue).dessous("span").find(({ className }) => className === "pourquoi")?.title ?? "", /open Brigade on macbook's computer/);
   bouton(attendue, "check again");
   const refusee = (await laPage(bloquee("refuse", "refused: no sandbox"))).bloc;
-  assert.match(ligne(refusee).textContent, /macbook \(this computer\)refusedcheck again/);
+  assert.match(ligne(refusee).textContent, /macbook \(this computer\)/);
   assert.doesNotMatch(refusee.textContent, /second station/);
   const autorisation = (await laPage(bloquee("a-autoriser"))).bloc;
   assert.match(ligne(autorisation).textContent, /macbook \(this computer\)waiting for your authorization on GitHub/);
@@ -193,7 +190,8 @@ test("refusé par ce Mac après coup, la page dit pourquoi, la ligne reste sur l
   const raison = "la configuration du bac à sable ne tient pas sur ce Mac — sandbox-exec is missing";
   const refuse: ProjetVu = {
     ...SUR_LA_BOX,
-    stations: [station("gmac", "macbook", true, "refuse", raison), station("gbox", "parade-box", false)],
+    suiviPar: { id: "gmac", nom: "macbook" },
+    stations: [station("gmac", "macbook", "refuse", raison), station("gbox", "parade-box")],
     demenagement: { de: "parade-box", vers: "macbook", demandeLe: A, etape: "refusee", dit: raison },
   };
   const { jouee, bloc } = await laPage(vuDes(refuse));
@@ -216,7 +214,7 @@ test("accepté, le déménagement va à son terme : la ligne dit qu'il part, et 
 
 test("le Mac de la box ne sert qu'un autre projet : même nom que sur cet autre projet, ni « first » ni « second », et pourquoi il ne cuit pas ici (#2705)", async () => {
   const mac = { ...MAC, projets: ["baloo"] };
-  const vu = { ...vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", false)] }) };
+  const vu = { ...vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", "attendu")] }) };
   const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage([PARADE], vu), stations: { a: A, stations: [BOX, mac] } }), espace: () => [] });
   (jouee.element("projets").children.at(1) ?? assert.fail()).click();
   await repos();

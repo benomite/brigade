@@ -394,7 +394,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
   const ACCES = { bloque: "fetch" as const, raison: "parade-box cannot fetch from benomite/parade: github.com asks for a username (git: fatal: could not read Username).", geste: "Run `gh auth setup-git` on parade-box." };
   const vus = (acces: typeof ACCES | null): VuDesProjets => ({
     a: A,
-    projets: [{ nom: PARADE, depot: "benomite/parade", base: "main", stations: [{ id: "g1", nom: "parade-box", principale: true, etat: "servi", dit: "", autoriser: [] }], servi: null, acces, refus: null, worktree: null }],
+    projets: [{ nom: PARADE, depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "parade-box" }, stations: [{ id: "g1", nom: "parade-box", etat: "servi", dit: "", autoriser: [] }], servi: null, acces, refus: null, worktree: null }],
     recommandee: "g1",
     avertissements: {},
     machines: {},

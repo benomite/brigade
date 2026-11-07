@@ -13,7 +13,7 @@ import { depotsDuChef } from "../../src/projets/github.ts";
 import { plafondDesCoeurs } from "../../../runtime/src/projections/stations.ts";
 import { projetDuClone } from "../../../runtime/src/projets/ajout-de-station.ts";
 import type { ProjetDemande } from "../../src/projets/demande.ts";
-import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, fusionnerLesTemps, lireConfiance, lireSaisie, machineProposee, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type OptionsProjets, type VuDesProjets } from "../../src/projets/projets.ts";
+import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, fusionnerLesTemps, lireConfiance, lireSaisie, machineProposee, nomDuProjet, stationRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type OptionsProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
@@ -32,7 +32,6 @@ const SAISIE = {
   depot: "benomite/parade",
   base: "main",
   stations: ["g1", "g2"],
-  principale: "g1",
   cooks: "2",
   manager: { modele: "sonnet", effort: "medium" },
   reviewer: { modele: "opus", effort: "high" },
@@ -68,10 +67,10 @@ function unGitHub(t: TestContext, stations: StationVue[] = [BOX, MAC], plus: Par
   return { repertoire, projets, lectures, demande, suivre, gist, depots: (liste: object[]) => writeFileSync(join(repertoire, "depots"), JSON.stringify(liste)), panne: () => writeFileSync(join(repertoire, "panne"), "") };
 }
 
-test("la principale recommandée est une station serveur, en ligne d'abord ; un ordinateur choisi se dit au moment du choix", () => {
-  assert.equal(principaleRecommandee([MAC, ETEINTE, BOX]), "g1");
-  assert.equal(principaleRecommandee([MAC, ETEINTE]), "g3");
-  assert.equal(principaleRecommandee([MAC]), undefined);
+test("la station recommandée est un serveur, en ligne d'abord ; un ordinateur choisi se dit au moment du choix", () => {
+  assert.equal(stationRecommandee([MAC, ETEINTE, BOX]), "g1");
+  assert.equal(stationRecommandee([MAC, ETEINTE]), "g3");
+  assert.equal(stationRecommandee([MAC]), undefined);
   assert.equal(estUnOrdinateur(MAC), true);
   assert.equal(estUnOrdinateur({ machine: "Windows 10.0.26100" }), true);
   assert.equal(avertissement(BOX), undefined);
@@ -81,13 +80,13 @@ test("la principale recommandée est une station serveur, en ligne d'abord ; un 
 const TELEPHONE: StationVue = { id: "g4", nom: "pixel", machine: "Android 15", cuisine: false, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
 
 test("un téléphone ne cuit rien : jamais recommandé, et refusé de toute saisie qui le choisit", () => {
-  assert.equal(principaleRecommandee([TELEPHONE]), undefined);
-  assert.equal(principaleRecommandee([TELEPHONE, BOX]), "g1");
+  assert.equal(stationRecommandee([TELEPHONE]), undefined);
+  assert.equal(stationRecommandee([TELEPHONE, BOX]), "g1");
   const stations = [BOX, MAC, TELEPHONE];
   assert.equal(refusDeSaisie({ ...SAISIE, stations: ["g1", "g4"] }, stations, []).stations, "pixel does not cook: choose a station that does.");
   assert.equal(refusDeSaisie(SAISIE, stations, []).stations, undefined);
   const confiance = { ...SAISIE, nom: "parade", stations: ["g4"] };
-  assert.equal(refusDeConfiance(confiance, stations, { portee: [], principale: false }).stations, "pixel does not cook: choose a station that does.");
+  assert.equal(refusDeConfiance(confiance, stations, { portee: [], suivi: false }).stations, "pixel does not cook: choose a station that does.");
 });
 
 test("les cooks proposés sont ceux que les cœurs de la machine permettent — le plafond même que la station en dérive", () => {
@@ -117,16 +116,14 @@ test("le nom du projet vient de son dépôt ; ce qui manque est signalé champ p
     depot: "Choose the project's GitHub repository — `<owner>/<name>`.",
     base: "The integration branch is missing: the branch the kitchen delivers to.",
     stations: "Choose at least one station to serve this project.",
-    principale: "Choose its main station: the one that runs its manager and its pass.",
-    cooks: "How many cooks may the main station run at once for this project?",
+    cooks: "How many cooks may a station run at once for this project?",
     "manager-modele": "Choose the manager's model.",
     "manager-effort": "Choose the manager's effort.",
     "reviewer-modele": "Choose the reviewer's model.",
     "reviewer-effort": "Choose the reviewer's effort.",
   });
-  assert.deepEqual(refusDeSaisie(lireSaisie({ ...SAISIE, depot: "parade", principale: "g9", cooks: "0" }), [BOX, MAC], []), {
+  assert.deepEqual(refusDeSaisie(lireSaisie({ ...SAISIE, depot: "parade", cooks: "0" }), [BOX, MAC], []), {
     depot: "“parade” is not a GitHub repository: expected `<owner>/<name>`.",
-    principale: "The main station must be one of the chosen stations.",
     cooks: "The number of cooks is a whole number, 1 or more.",
   });
   assert.deepEqual(refusDeSaisie(lireSaisie({ ...SAISIE, stations: ["g1", "g7"] }), [BOX, MAC], ["parade"]), {
@@ -150,7 +147,7 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
   test("une saisie incomplète n'écrit rien ; GitHub muet, le refus le dit en une ligne", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande, panne } = unGitHub(t);
     const rendu = await projets.ajouter({ ...SAISIE, cooks: "" });
-    assert.deepEqual(rendu, { signales: { cooks: "How many cooks may the main station run at once for this project?" } });
+    assert.deepEqual(rendu, { signales: { cooks: "How many cooks may a station run at once for this project?" } });
     assert.equal(demande("g1"), undefined);
     panne();
     const refuse = await projets.ajouter(SAISIE);
@@ -162,10 +159,10 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     await projets.ajouter(SAISIE);
     const avant = await projets.relire();
     assert.deepEqual(
-      avant.projets[0]?.stations.map(({ nom, principale, etat }) => [nom, principale, etat]),
+      avant.projets[0]?.stations.map(({ nom, etat }) => [nom, etat]),
       [
-        ["box", true, "attendu"],
-        ["macbook", false, "attendu"],
+        ["box", "attendu"],
+        ["macbook", "attendu"],
       ],
     );
     assert.equal(avant.recommandee, "g1");
@@ -291,14 +288,14 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     const { projets, demande } = unGitHub(t, [BOX]);
     assert.deepEqual(await projets.confier({ ...CONFIANCE, nom: "mon-parade" }), { ajoute: "mon-parade" });
     assert.equal(demande("g1")?.[0]?.nom, "mon-parade");
-    assert.deepEqual(refusDeConfiance(lireConfiance({ ...CONFIANCE, nom: "Mon Parade" }), [BOX], { portee: [], principale: false }).nom, "“Mon Parade” cannot be a project's name on a station: lowercase letters, digits and dashes.");
+    assert.deepEqual(refusDeConfiance(lireConfiance({ ...CONFIANCE, nom: "Mon Parade" }), [BOX], { portee: [], suivi: false }).nom, "“Mon Parade” cannot be a project's name on a station: lowercase letters, digits and dashes.");
   });
 
   test("une station de plus reprend ce que l'app a déjà demandé, sans principale : ni plafond ni calibrage à redire, et celle d'avant ne bouge pas", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande } = unGitHub(t, [BOX, MAC]);
     await projets.confier(CONFIANCE);
     const avant = demande("g1");
-    const ajout = { nom: "parade", depot: "benomite/parade", base: "main", stations: ["g2"], principale: "", cooks: "", manager: { modele: "", effort: "" }, reviewer: { modele: "", effort: "" }, ouvertLe: OUVERT };
+    const ajout = { nom: "parade", depot: "benomite/parade", base: "main", stations: ["g2"], cooks: "", manager: { modele: "", effort: "" }, reviewer: { modele: "", effort: "" }, ouvertLe: OUVERT };
     assert.deepEqual(await projets.confier(ajout), { ajoute: "parade" });
     assert.deepEqual(demande("g2"), [{ ...ATTENDU, principale: false }]);
     assert.deepEqual(demande("g1"), avant);
@@ -307,10 +304,9 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
   test("une station qui porte déjà le projet ne se choisit pas une seconde fois, et un projet qui a sa principale n'en prend pas d'autre", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande } = unGitHub(t, [BOX, MAC]);
     await projets.confier(CONFIANCE);
-    assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: ["g1", "g2"], principale: "g2" }), {
+    assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: ["g1", "g2"] }), {
       signales: {
         stations: "box already cooks it: choose another station.",
-        principale: "It already has its main station: the stations you add run neither its manager nor its pass.",
       },
     });
     assert.equal(demande("g2"), undefined);
@@ -319,7 +315,7 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
   test("un projet qu'une station sert sans l'app a déjà sa principale : une station de plus est secondaire, et dit son plafond et son calibrage", { skip: SANS_POSIX }, async (t) => {
     const SERT: StationVue = { ...BOX, projets: ["parade"] };
     const { projets, demande } = unGitHub(t, [SERT, MAC]);
-    const ajout = { ...CONFIANCE, stations: ["g2"], principale: "" };
+    const ajout = { ...CONFIANCE, stations: ["g2"] };
     assert.deepEqual(await projets.confier({ ...ajout, cooks: "" }), { signales: { cooks: "box does not say how many cooks it may run at once for parade: give the cook cap." }, manque: ["cooks"] });
     assert.deepEqual(await projets.confier({ ...ajout, stations: ["g1"] }), { signales: { stations: "box already cooks it: choose another station." } });
     assert.deepEqual(await projets.confier(ajout), { ajoute: "parade" });
@@ -327,7 +323,7 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal(demande("g1"), undefined);
   });
 
-  const SANS_RIEN = { nom: "parade", depot: "", base: "", stations: ["g2"], principale: "", cooks: "", manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: OUVERT };
+  const SANS_RIEN = { nom: "parade", depot: "", base: "", stations: ["g2"], cooks: "", manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: OUVERT };
   const SERVI = { nom: "parade", etat: "servi", dit: "", autoriser: [], serviLe: "2026-10-15T11:30:00Z" };
 
   test("une station de plus d'un projet que la première sert sans l'app reprend son dépôt, sa branche et son plafond : le chef n'en dit aucun", { skip: SANS_POSIX }, async (t) => {
@@ -412,7 +408,7 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal(demande("g2")?.[0]?.cooks, 5);
     assert.equal("fournit" in (demande("g1")?.[0] ?? {}), false);
     // Un autre projet confié à la même station réécrit sa demande : ce que parade y déclare reste.
-    assert.deepEqual(await projets.confier({ ...CONFIANCE, nom: "cantine", depot: "benomite/cantine", stations: ["g2"], principale: "g2" }), { ajoute: "cantine" });
+    assert.deepEqual(await projets.confier({ ...CONFIANCE, nom: "cantine", depot: "benomite/cantine", stations: ["g2"] }), { ajoute: "cantine" });
     assert.deepEqual(demande("g2")?.find(({ nom }) => nom === "parade")?.fournit, ["navigateur-headless", "android"]);
   });
 
@@ -441,31 +437,10 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal("fournit" in (demande("g1")?.[0] ?? {}), false);
   });
 
-  test("la station ajoutée est dite atteinte, ou pas et pourquoi, telle que la principale la tient (#1756, #1757)", { skip: SANS_POSIX }, async (t) => {
-    const { projets, suivre } = unGitHub(t);
-    await projets.confier(CONFIANCE);
-    await projets.confier({ ...SANS_RIEN, depot: "benomite/parade", base: "main", cooks: "3" });
-    suivre("g2", [{ nom: "parade", etat: "secondaire", dit: "not its main station", autoriser: [], serviLe: null }]);
-    const lue = async () => (await projets.relire()).projets[0]?.stations.find(({ id }) => id === "g2");
-    assert.equal((await lue())?.atteinte, undefined, "la principale n'en dit rien encore");
-    const tenue = { nom: "macbook", station: "macbook/claude", gist: "g2", cooks: 3, fournit: ["code", "raisonnement", "macos"] };
-    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: true, dit: "reached: it is online on GitHub" }] }]);
-    // Elle porte le nom sous lequel la principale la déclare : celui de sa ligne sur Cooks (#1786).
-    assert.deepEqual((await lue())?.atteinte, { oui: true, dit: "reached: it is online on GitHub", station: "macbook/claude" });
-    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z" }] }]);
-    assert.deepEqual((await lue())?.atteinte, { oui: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", station: "macbook/claude", pourquoi: "not reached", geste: "open Brigade on that computer" });
-    // Le geste que la principale publie (#1758) est celui de la phrase.
-    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", raison: "arretee", geste: "start Brigade on that computer again" }] }]);
-    assert.deepEqual([(await lue())?.atteinte?.pourquoi, (await lue())?.atteinte?.geste], ["not reached", "start Brigade on that computer again"]);
-    // Une secondaire illisible, ou celle d'une autre station, ne dit rien de celle-ci.
-    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, gist: "g9", atteinte: true, dit: "reached" }, { ...tenue, atteinte: "oui", dit: "reached" }] }]);
-    assert.equal((await lue())?.atteinte, undefined);
-  });
-
   test("rien de choisi, rien d'écrit ; GitHub muet, le refus le dit en une ligne", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande, panne } = unGitHub(t, [BOX]);
-    assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: [], principale: "" }), {
-      signales: { stations: "Choose at least one station to cook parade.", principale: "Choose its main station: the one that runs its manager and its pass." },
+    assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: [] }), {
+      signales: { stations: "Choose at least one station to cook parade." },
     });
     assert.equal(demande("g1"), undefined);
     panne();

@@ -10,10 +10,10 @@ export const AUCUNE_STATION = "the rail is not read: no station is known to serv
 
 /**
  * @param {{ servi?: true, ici?: true, sansStation?: true }} projet
- * @param {readonly { principale: boolean, bloquee: boolean }[]} stations celles que la ligne « Cooks on » montre pour ce projet
+ * @param {readonly { bloquee: boolean }[]} stations celles que la ligne « Cooks on » montre pour ce projet
  */
 export function aucuneStationNeSert(projet, stations) {
   if (projet.sansStation === true) return false;
   if (projet.servi === true || projet.ici === true) return false;
-  return !stations.some(({ principale, bloquee }) => principale && !bloquee);
+  return !stations.some(({ bloquee }) => !bloquee);
 }

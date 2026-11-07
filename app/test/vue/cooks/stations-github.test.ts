@@ -23,7 +23,7 @@ import type { VuDesStations } from "../../../src/stations/stations.ts";
 import type { TableauLu } from "../../../src/tableau/lecture.ts";
 import { ATTEINTE, AUCUNE, SIGNE_DE_VIE, SIGNES_ILLISIBLES } from "../../../src/vue/cooks/stations-github.js";
 import { avecLeRail, type RailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
-import { CHANGER_LA_PRINCIPALE, PAS_ANNONCEE } from "../../../src/vue/stations-de-cuisson.js";
+import { PAS_ANNONCEE } from "../../../src/vue/stations-de-cuisson.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-05T10:00:00.000Z";
@@ -41,9 +41,10 @@ const SUR_LA_BOX: ProjetVu = {
   nom: PARADE,
   depot: DEPOT,
   base: "main",
+  suiviPar: { id: "gbox", nom: "box" },
   stations: [
-    { id: "gbox", nom: "box", principale: true, etat: "servi", dit: "served by box", autoriser: [] },
-    { id: "gmac", nom: "macbook", principale: false, etat: "secondaire", dit: "not its main station", autoriser: [], atteinte: { oui: false, dit: "not reached: no sign of life", station: "macbook/claude" } },
+    { id: "gbox", nom: "box", etat: "servi", dit: "served by box", autoriser: [] },
+    { id: "gmac", nom: "macbook", etat: "servi", dit: "served by macbook", autoriser: [] },
   ],
   servi: null,
   cuitSur: { id: "gbox", nom: "box", ici: false },
@@ -169,13 +170,11 @@ describe("l'onglet Cooks d'un projet sur GitHub seul : ses stations dites de Git
     const vue = await ouvrir();
     const rail = vue.element("rail");
     for (const pose of lignes(vue)) {
-      assert.equal(pose.dataset.role, undefined);
       // Ses seuls boutons sont ceux des cartes de ses tickets.
       assert.equal(pose.children.filter(({ className }) => className !== "cartes").flatMap((enfant) => enfant.dessous("button")).length, 0, `${pose.dataset.station} porte un bouton`);
       assert.deepEqual(pose.children.map(({ className }) => className), ["nom", "etat", pose.dataset.station === "macbook/claude" ? "cartes" : "aucun-cook"]);
     }
-    assert.equal(rail.textContent.includes("main station"), false);
-    assert.equal(rail.textContent.includes(CHANGER_LA_PRINCIPALE.libelle), false);
+    assert.equal(rail.textContent.includes("move the kitchen"), false);
   });
 
   test("la box qui prend un ticket se dit en cuisine à la lecture suivante, avec ce ticket", async () => {

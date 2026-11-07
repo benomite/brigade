@@ -6,9 +6,9 @@ import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 const [box, mac] = SUR_LA_BOX.stations;
 
 export const ecran: Ecran = {
-  dit: "L'onglet Cooks de « parade », cuisant sur la box, ce Mac ajouté à sa cuisine mais pas atteint : sa pastille grise, pourquoi au survol (#1757)",
+  dit: "L'onglet Cooks de « parade », cuisant sur la box, ce Mac ajouté à sa cuisine mais qui n'a pas encore lu la demande : sa pastille grise, pourquoi sur sa ligne (#1757)",
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
-  donnees: () => donnees({ ...SUR_LA_BOX, stations: [box!, { ...mac!, atteinte: { oui: false, dit: "not reached: no sign of life on GitHub since 2026-10-16T09:41:00.000Z", pourquoi: "not reached", geste: "open Brigade on that computer" } }] }),
+  donnees: () => donnees({ ...SUR_LA_BOX, stations: [box!, { ...mac!, etat: "attendu" as const, dit: "macbook has not read it yet" }] }),
 };

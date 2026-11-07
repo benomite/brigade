@@ -39,9 +39,10 @@ const PARADE: VuDesProjets = {
       nom: "parade",
       depot: "benomite/parade",
       base: "main",
+      suiviPar: { id: "g1", nom: "box" },
       stations: [
-        { id: "g1", nom: "box", principale: true, etat: "servi", dit: "served by box", autoriser: [] },
-        { id: "g2", nom: "macbook", principale: false, etat: "secondaire", dit: "not its main station: it runs neither its manager nor its pass", autoriser: [] },
+        { id: "g1", nom: "box", etat: "servi", dit: "served by box", autoriser: [] },
+        { id: "g2", nom: "macbook", etat: "attendu", dit: "macbook has not read it yet", autoriser: [] },
       ],
       servi: "served by box 1 min 12 s after “add a project” was opened",
     },
@@ -128,7 +129,7 @@ test("une station qui ne sert pas le projet : sa ligne le dit, sans marque de r�
   const { page } = await laPage("macbook");
   assert.deepEqual(
     lignes(page).map(({ ariaLabel }) => ariaLabel),
-    ["parade — served by box"],
+    ["parade — not read yet"],
   );
 });
 
@@ -141,7 +142,8 @@ test("un projet que l'app demande et que la station ne sert pas encore est list�
         nom: "espace",
         depot: "benomite/espace",
         base: "main",
-        stations: [{ id: "g1", nom: "box", principale: true, etat: "a-autoriser", dit: "authorize brigade on benomite/espace, on GitHub: one click per page", autoriser: ["https://github.com/apps/brigade-cook/installations/new"] }],
+        suiviPar: { id: "g1", nom: "box" },
+        stations: [{ id: "g1", nom: "box", etat: "a-autoriser", dit: "authorize brigade on benomite/espace, on GitHub: one click per page", autoriser: ["https://github.com/apps/brigade-cook/installations/new"] }],
         servi: null,
       },
     ],

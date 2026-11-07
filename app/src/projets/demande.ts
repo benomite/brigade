@@ -23,6 +23,11 @@ export const FORMAT = 1;
 
 export type Calibre = { modele: string; effort: string };
 
+// Le fil entre l'app et les stations garde sa clé historique `principale` : la station dont le gist porte le suivi du
+// projet (son onboarding, son refus, ses choix). L'app ne le lit et ne l'écrit que par ces deux gestes.
+export const porteLeSuivi = (projet: Pick<ProjetDemande, "principale">): boolean => projet.principale;
+export const avecLeSuivi = (projet: Omit<ProjetDemande, "principale">, suivi: boolean): ProjetDemande => ({ ...projet, principale: suivi });
+
 export type ProjetDemande = {
   nom: string;
   depot: string;

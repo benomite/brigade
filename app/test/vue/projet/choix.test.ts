@@ -227,7 +227,7 @@ describe("sur la page du projet", () => {
       nom: "parade",
       depot: "benomite/parade",
       base: "main",
-      stations: [{ id: "g1", nom: "box", principale: true, etat: "servi", dit: "", autoriser: [] }],
+      suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat: "servi", dit: "", autoriser: [] }],
       servi: null,
       cuitSur: { id: "g1", nom: "box", ici: false },
       ...(lu?.choix === undefined ? {} : { choix: lu.choix }),
