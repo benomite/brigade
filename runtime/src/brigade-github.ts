@@ -43,6 +43,7 @@ import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
+import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -117,6 +118,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     corpsDuTicket(issue: number): Promise<string>;
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
     prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
+    // L'issue, son état et son corps : ce qu'il faut pour fermer une épique
+    // finie (#2757). Absente, la guérison ne ferme aucune épique.
+    issue?: GitHub["issue"];
   } & GitHubDeLaRelance;
 
 const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
@@ -452,6 +456,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
   };
   const fermerLaReparation = fermeReparation({ github, base });
+  // Les gestes de guérison du projet (#2757), joués à chaque tour.
+  const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
   // La médiane des tickets récents au-dessus du max du projet ouvre son ticket
   // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
@@ -770,7 +776,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Rouge après sa relance, la base a son ticket de réparation : un seul par commit (#2339).
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
-    const lus = await github.fires();
+    // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
+    // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
+    const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()));
     await Promise.all([
       corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
       alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
@@ -1295,6 +1303,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
     },
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
+    issue: (numero) => github.issue(numero),
     depotDuTicket: async (issue) => {
       const lue = await github.issue(issue);
       if (lue === null) return null;
