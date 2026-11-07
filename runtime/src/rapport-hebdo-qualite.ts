@@ -1,0 +1,151 @@
+// Le rapport hebdomadaire de qualité du second au chef (épique #2673) : la part
+// des tickets récents dans leurs seuils de temps, la part livrée du premier
+// coup et les réparations de la base par PR mergée ; et, si les seuils ne
+// tiennent qu'en baissant la qualité, une proposition de seuils qui ne
+// s'appuient pas dessus.
+//
+// « Ne tenir qu'en baissant la qualité » : la part dans les seuils a monté ou
+// reste haute, alors que le premier coup ou les réparations ont empiré sur les
+// mêmes semaines (la semaine d'avant et celle-ci). Sinon, aucune proposition.
+//
+// Un rapport par semaine ISO (UTC) : le fichier `rapport-hebdo-qualite.json` de
+// `.claude/brigade/` garde la semaine du dernier envoi et les chiffres des
+// dernières semaines. Rien n'est écrit si l'envoi échoue, le rapport repart
+// alors au prochain passage. `brancherRapportHebdo` l'appelle à chaque
+// réveil du runtime ; `envoyer` est ce qui porte le texte au chef (un fait du journal).
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { seuilDuProjet, tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
+import { mesurerQualite, partDansLesSeuils, projetDuClone, qualitesDuJournal, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { lesTempsDesTickets, type TempsTicket } from "./temps-ticket/ligne-status.ts";
+import type { Runtime } from "./runtime.ts";
+
+export const FICHIER_DU_RAPPORT = ".claude/brigade/rapport-hebdo-qualite.json";
+export const SEMAINES_GARDEES = 8;
+// La part dans les seuils qui compte comme haute.
+export const PART_HAUTE = 0.8;
+// De combien le premier coup (points de part) ou les réparations par merge doivent empirer pour compter.
+export const BAISSE_DU_PREMIER_COUP = 0.05;
+export const HAUSSE_DES_REPARATIONS = 0.05;
+
+export type ChiffresDeSemaine = { semaine: string; dansLesSeuils: number | null; premierCoup: number | null; reparationsParMerge: number | null };
+type Etat = { semaine: string; historique: ChiffresDeSemaine[] };
+
+// La semaine ISO (lundi à dimanche, UTC) de l'instant : « 2026-W45 ».
+export function semaineDe(instant: Date): string {
+  const jour = new Date(Date.UTC(instant.getUTCFullYear(), instant.getUTCMonth(), instant.getUTCDate()));
+  jour.setUTCDate(jour.getUTCDate() + 4 - (jour.getUTCDay() || 7));
+  const debut = Date.UTC(jour.getUTCFullYear(), 0, 1);
+  const numero = Math.ceil(((jour.getTime() - debut) / 86_400_000 + 1) / 7);
+  return `${jour.getUTCFullYear()}-W${String(numero).padStart(2, "0")}`;
+}
+
+const pour100 = (x: number | null) => (x === null ? "unknown" : `${Math.round(x * 100)}%`);
+
+// Les seuils ne tiennent qu'en baissant la qualité : comparés à la
+// semaine précédente du fichier d'historique, la part dans les seuils a monté ou reste haute, et
+// le premier coup ou les réparations ont empiré. Faux sans chiffre à comparer.
+export function seuilsTenusEnBaissantLaQualite(avant: ChiffresDeSemaine | undefined, maintenant: ChiffresDeSemaine): string[] {
+  if (avant === undefined || maintenant.dansLesSeuils === null) return [];
+  const tient = maintenant.dansLesSeuils >= PART_HAUTE || (avant.dansLesSeuils !== null && maintenant.dansLesSeuils >= avant.dansLesSeuils);
+  if (!tient) return [];
+  const pires: string[] = [];
+  if (avant.premierCoup !== null && maintenant.premierCoup !== null && avant.premierCoup - maintenant.premierCoup >= BAISSE_DU_PREMIER_COUP) {
+    pires.push(`the first-try rate fell from ${pour100(avant.premierCoup)} to ${pour100(maintenant.premierCoup)}`);
+  }
+  if (avant.reparationsParMerge !== null && maintenant.reparationsParMerge !== null && maintenant.reparationsParMerge - avant.reparationsParMerge >= HAUSSE_DES_REPARATIONS) {
+    pires.push(`repairs of main per merged PR rose from ${avant.reparationsParMerge.toFixed(2)} to ${maintenant.reparationsParMerge.toFixed(2)}`);
+  }
+  return pires;
+}
+
+function propositionDeSeuils(temps: readonly TempsTicket[], maxMin: number, avant: ChiffresDeSemaine, maintenant: ChiffresDeSemaine, pires: string[]): string[] {
+  const plusLent = Math.max(0, ...ticketsRecents(temps).map((t) => tempsPerdu(t) / 60));
+  const lignes = [
+    "",
+    "Threshold proposal",
+    `Why: ${pour100(maintenant.dansLesSeuils)} of recent tickets are within their time threshold (${pour100(avant.dansLesSeuils)} before), but ${pires.join(" and ")} over the same weeks: the time thresholds only hold by lowering quality.`,
+    `Proposed: raise lostTimeMaxMin from ${maxMin} to ${Math.max(maxMin, Math.ceil(plusLent))} min (the most time lost on a recent ticket), so no ticket is rushed to fit, and hold the quality floors where they were:`,
+  ];
+  if (avant.premierCoup !== null) lignes.push(`- premierCoupMinPourcent: ${Math.floor((avant.premierCoup * 100) / 5) * 5}`);
+  if (avant.reparationsParMerge !== null) lignes.push(`- repairs of main per merged PR: at most ${Math.max(avant.reparationsParMerge, 0.1).toFixed(2)}`);
+  return lignes;
+}
+
+export function texteDuRapport(semaine: string, temps: readonly TempsTicket[], qualites: ReadonlyMap<number, QualiteDuTicket>, projet: unknown, historique: readonly ChiffresDeSemaine[]): { texte: string; chiffres: ChiffresDeSemaine } {
+  const maxMin = seuilDuProjet(projet);
+  const q = mesurerQualite(temps, qualites, projet);
+  const chiffres: ChiffresDeSemaine = { semaine, dansLesSeuils: partDansLesSeuils(temps, maxMin), premierCoup: q.premierCoup, reparationsParMerge: q.reparationsParMerge };
+  const lignes = [
+    `Weekly quality report — ${semaine}`,
+    `- Tickets within their time thresholds (lost time max ${maxMin} min): ${pour100(chiffres.dansLesSeuils)} of the ${q.tickets.length} recent tickets`,
+    `- First-try rate: ${pour100(q.premierCoup)} (floor ${q.seuilPremierCoup}%)`,
+    `- Repairs of main per merged PR: ${q.reparationsParMerge === null ? "unknown" : q.reparationsParMerge.toFixed(2)}`,
+  ];
+  const avant = historique.at(-1);
+  const pires = seuilsTenusEnBaissantLaQualite(avant, chiffres);
+  if (pires.length > 0 && avant !== undefined) lignes.push(...propositionDeSeuils(temps, maxMin, avant, chiffres, pires));
+  return { texte: lignes.join("\n"), chiffres };
+}
+
+function lireEtat(fichier: string): Etat | null {
+  try {
+    const brut: unknown = JSON.parse(readFileSync(fichier, "utf8"));
+    const e = brut as Partial<Etat> | null;
+    return typeof e?.semaine === "string" && Array.isArray(e.historique) ? { semaine: e.semaine, historique: e.historique } : null;
+  } catch {
+    return null;
+  }
+}
+
+export type EntreesDuRapport = {
+  dossier: string;
+  temps: readonly TempsTicket[];
+  qualites: ReadonlyMap<number, QualiteDuTicket>;
+  projet?: unknown;
+  maintenant: Date;
+  envoyer: (texte: string) => void;
+};
+
+// Envoie le rapport de la semaine s'il n'est pas déjà parti cette semaine.
+// Rend le texte envoyé, ou null (déjà envoyé).
+export function rapportHebdomadaire({ dossier, temps, qualites, projet, maintenant, envoyer }: EntreesDuRapport): string | null {
+  const fichier = join(dossier, FICHIER_DU_RAPPORT);
+  const semaine = semaineDe(maintenant);
+  const etat = lireEtat(fichier);
+  if (etat?.semaine === semaine) return null;
+  const historique = (etat?.historique ?? []).filter((h) => h.semaine !== semaine);
+  const { texte, chiffres } = texteDuRapport(semaine, temps, qualites, projet, historique);
+  envoyer(texte);
+  mkdirSync(dirname(fichier), { recursive: true });
+  const provisoire = `${fichier}.${process.pid}.tmp`;
+  writeFileSync(provisoire, `${JSON.stringify({ semaine, historique: [...historique, chiffres].slice(-SEMAINES_GARDEES) }, null, 2)}\n`);
+  renameSync(provisoire, fichier);
+  return texte;
+}
+
+// Branche le rapport au runtime : une passe d'emblée, puis à chaque réveil. Le
+// texte part au chef en fait `quality.reported` du journal ; `rapportHebdomadaire`
+// ne l'envoie qu'une fois par semaine, et la clé du fait empêche un doublon si l'état n'a pu s'écrire.
+export function brancherRapportHebdo<R extends Runtime>(runtime: R, { clone, repertoireEtat, maintenant = () => new Date() }: { clone: string; repertoireEtat: string; maintenant?: () => Date }): R {
+  const passer = () => {
+    try {
+      const date = maintenant();
+      rapportHebdomadaire({
+        dossier: repertoireEtat,
+        temps: lesTempsDesTickets(clone).enregistrements,
+        qualites: qualitesDuJournal(runtime.journal.base),
+        projet: projetDuClone(clone),
+        maintenant: date,
+        envoyer: (text) => {
+          runtime.journal.ajouter({ project: runtime.projet, ticket: null, author: "runtime", type: "quality.reported", payload: { week: semaineDe(date), text }, dedupKey: `quality.reported:${semaineDe(date)}` });
+        },
+      });
+    } catch (erreur) {
+      console.error(`brigade : rapport hebdomadaire de qualité non produit — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
+  passer();
+  runtime.surReveil(passer);
+  return runtime;
+}
