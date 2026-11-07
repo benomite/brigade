@@ -46,6 +46,8 @@ Omets `--install` si le projet n'installe rien. Les valeurs sont en anglais (ell
 
 - les labels posés ;
 - ce qui a été écrit, et ce qui était déjà là ;
-- **l'URL de la PR, à merger** : le projet n'est prêt qu'une fois qu'elle est sur la branche d'intégration. Ensuite, le second du projet le voit dès sa prochaine session.
+- **l'URL de la PR, à merger** : le projet n'est prêt qu'une fois qu'elle est sur la branche d'intégration. Une fois mergée, le second de l'onglet Second reprend son rôle dès le message suivant, sans rien taper ni invoquer.
+
+Rien d'autre en fin de message : aucune commande de rôle à lancer, aucune offre de priorités, de modèle ni d'effort — ils sont au manager.
 
 Ne merge jamais la PR toi-même.
