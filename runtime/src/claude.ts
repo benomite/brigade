@@ -116,7 +116,11 @@ export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fi
 // ses seconds commits disent le plus souvent ce qui manquait : le code neuf
 // branché là où la station le lance (#2627, #2640, #2676, #2680, #2681,
 // #2694), une donnée lue là où plus rien ne l'écrit (#2707).
-export const CONSIGNE_DE_RELECTURE = "Avant de commiter, relis ton diff comme le reviewer le relira : un seul constat bloquant renvoie le ticket à un cook entier. Il bloque sur ce que le ticket demande et que le diff ne fait pas, ou fait de travers ; sur un critère que le ticket écrit en toutes lettres ou chiffre et que tu n'as pas tenu à la lettre ; sur un bug, un cas d'erreur avalé, un test qui ne teste rien ; et sur le code neuf que rien n'atteint en production — une fonction exportée que seuls ses tests appellent, une donnée lue là où plus rien ne l'écrit. Remonte les appelants de chaque nouvel export jusqu'au point d'entrée que le dépôt lance (son `CLAUDE.md` le nomme), et branche-le s'il n'y arrive pas.";
+// Second motif de ces renvois (#2789) : un ticket qui retire, remplace ou
+// déplace quelque chose, et dont le premier commit laisse des restes qui
+// pointent encore vers l'ancien — code mort, règle CSS, test, doc, capture,
+// commentaire (#2638, #2639, #2664, #2672, #2711, #2713, #2715).
+export const CONSIGNE_DE_RELECTURE = "Avant de commiter, relis ton diff comme le reviewer le relira : un seul constat bloquant renvoie le ticket à un cook entier. Il bloque sur ce que le ticket demande et que le diff ne fait pas, ou fait de travers ; sur un critère que le ticket écrit en toutes lettres ou chiffre et que tu n'as pas tenu à la lettre ; sur un bug, un cas d'erreur avalé, un test qui ne teste rien ; et sur le code neuf que rien n'atteint en production — une fonction exportée que seuls ses tests appellent, une donnée lue là où plus rien ne l'écrit. Remonte les appelants de chaque nouvel export jusqu'au point d'entrée que le dépôt lance (son `CLAUDE.md` le nomme), et branche-le s'il n'y arrive pas. Quand le ticket retire, remplace ou déplace quelque chose, cherche son nom dans tout le dépôt — code, CSS, tests, doc, captures d'écran, commentaires — et retire ou corrige chaque reste : un reste qui pointe encore vers l'ancien, ou du code que plus rien n'atteint, est un constat bloquant.";
 
 // Comment un cook lit le dépôt. Lu dans les sessions des cooks de #2486 à
 // #2571 (#2573) : 73 % de la cuisson est le modèle entre deux appels, 27 % ce
