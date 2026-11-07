@@ -372,7 +372,9 @@ after the deadline, as before. **The computer's station waits the same way** (#2
 `runtime/src/station-update/`): a ready release no longer stops its claims until its last cook ends —
 it keeps taking tickets and restarts at the first moment with no cook in flight or, at the latest, an
 hour later, its cooks' work saved; drained at nearly every release, it made claim wait the whole lost
-time of BOBL-tech/mirrorscreen's tickets. After a send back, "added
+time of BOBL-tech/mirrorscreen's tickets. A restart it asked for and the app did not play (a refused
+release, a missing runtime) no longer holds its claims for good: still running 5 minutes after its
+request, it takes its tickets again and waits for a newer release (#2820). After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
 stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does

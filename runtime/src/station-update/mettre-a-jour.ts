@@ -23,6 +23,15 @@
 // relancée, à son premier tour — ce que fait déjà celle de la box après sa mise
 // à jour (`brigade-github.ts`) : rien n'est réinventé ici.
 //
+// Une demande que personne ne joue ne retient pas la station pour toujours
+// (#2820) : l'app refuse une release qui n'a pas démarré à son essai, un
+// runtime qu'elle ne trouve pas, un point d'entrée qu'elle ne tient pas — et
+// le process qui a demandé tourne encore. Retenu, il ne prenait plus aucun
+// ticket, et ne regardait plus les releases : ses projets attendaient leur
+// prise jusqu'à ce que quelqu'un relance l'app. `SANS_SUITE_MS` après sa
+// demande, la station encore là la tient pour refusée : elle reprend ses
+// tickets, et ne redemande plus cette release — la suivante, oui.
+//
 // Un regard ou un téléchargement qui rate laisse la station telle quelle : ni
 // vidée, ni relancée. Le statut le dit, et le regard suivant réessaie.
 import { mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
@@ -57,6 +66,10 @@ const PAS_DU_DRAIN_MS = 5_000;
 // Le plus long qu'une release prête attend un moment sans cook en vol : celui
 // de la box entre deux lots (`../mise-a-jour/lot/fenetre.ts`), une heure.
 export const ECHEANCE_MS = INTERVALLE_DES_LOTS_MS;
+// Le plus long que la station, sa relance demandée, attend que l'app la
+// relance : celle-ci arrête le process dès qu'elle lit la demande. Encore là
+// passé ce délai, la demande n'a pas été jouée (#2820).
+export const SANS_SUITE_MS = 5 * 60_000;
 
 // Une version de la station, telle que sa publication la donne
 // (`runtime/paquet/construire.ts`) : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`. Le
@@ -84,6 +97,8 @@ export type OptionsDeLaMiseAJour = {
   sauver?: () => Promise<number[]>;
   // Le plus long qu'une release prête attend un moment sans cook en vol.
   echeanceMs?: number;
+  // Le plus long qu'une relance demandée attend d'être jouée.
+  sansSuiteMs?: number;
   // Ce que fait la station de sa demande de relance. Nul : personne ne la
   // relance sur une autre release — elle regarde et dit son retard, sans rien
   // télécharger ni se vider.
@@ -116,6 +131,9 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
   const maintenant = options.maintenant ?? (() => new Date());
   const pasDuDrainMs = options.pasDuDrainMs ?? PAS_DU_DRAIN_MS;
   const echeanceMs = options.echeanceMs ?? ECHEANCE_MS;
+  const sansSuiteMs = options.sansSuiteMs ?? SANS_SUITE_MS;
+  // La release dont la relance, demandée, n'a pas été jouée : plus redemandée.
+  let sansSuite: string | null = null;
   const attente = attendreLaRelance({ enVol: options.enVol, sauver: options.sauver ?? (async () => []), maintenant: () => maintenant().getTime(), dire });
   const releases = join(dossierDe(racine), RELEASES);
 
@@ -193,7 +211,19 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
     }
   };
 
+  // La relance demandée n'est pas venue : la station reprend ses tickets et
+  // ses regards, sur la version qui tourne.
+  const sansRelance = (demande: DemandeDeRelance) => {
+    sansSuite = demande.version;
+    statut.restart = null;
+    statut.draining = null;
+    attente.veiller(null);
+    effacerDemande(racine);
+    dire(`brigade: station update — the restart on release ${demande.version} asked at ${demande.at} did not come: the station takes its tickets again on ${version}, and waits for a newer release`);
+  };
+
   const regarder = async (): Promise<StatutDeLaStation> => {
+    if (statut.restart !== null && maintenant().getTime() - Date.parse(statut.restart.at) >= sansSuiteMs) sansRelance(statut.restart);
     if (statut.restart !== null || statut.draining !== null) return statut;
     statut.checkedAt = maintenant().toISOString();
     let liste: Release[];
@@ -214,6 +244,11 @@ export function miseAJourDeLaStation(options: OptionsDeLaMiseAJour): MiseAJourDe
       return statut;
     }
     const visee = plusRecente.version;
+    if (visee === sansSuite) {
+      statut.held = `the restart on ${visee} was asked and did not come: the station keeps running ${version}, and waits for a newer release`;
+      ecrire();
+      return statut;
+    }
     if (options.relancer === null) {
       statut.held = `nothing restarts this station on another release: ${visee} waits (the station keeps running ${version})`;
       ecrire();
@@ -279,8 +314,10 @@ export function retenirLaPrise(prise: Prise, retenue: () => boolean): Prise {
 
 // Les regards, à la cadence de la box : le premier `premierMs` après le
 // démarrage, puis `intervalleMs` après la fin de chacun, à une minute près.
-// Plus aucun une fois la relance demandée. Rend de quoi arrêter.
-export function tenirLaMiseAJour(miseAJour: MiseAJourDeLaStation, cadence: { premierMs?: number; intervalleMs?: number; aleaMs?: number } = {}): () => void {
+// La relance demandée, le suivant vient `sansSuiteMs` après : la station encore
+// là, sa demande n'a pas été jouée, et elle reprend ses tickets (#2820). Rend
+// de quoi arrêter.
+export function tenirLaMiseAJour(miseAJour: MiseAJourDeLaStation, cadence: { premierMs?: number; intervalleMs?: number; aleaMs?: number; sansSuiteMs?: number } = {}): () => void {
   const alea = () => Math.floor(Math.random() * (cadence.aleaMs ?? ALEA_MS));
   let minuterie: NodeJS.Timeout | undefined;
   let arretee = false;
@@ -291,7 +328,8 @@ export function tenirLaMiseAJour(miseAJour: MiseAJourDeLaStation, cadence: { pre
         .passer()
         .catch(() => null)
         .then((statut) => {
-          if (statut === null || statut.restart === null) plusTard((cadence.intervalleMs ?? INTERVALLE_MS) + alea());
+          const demandee = statut !== null && statut.restart !== null;
+          plusTard((demandee ? (cadence.sansSuiteMs ?? SANS_SUITE_MS) : (cadence.intervalleMs ?? INTERVALLE_MS)) + alea());
         });
     }, ms);
     minuterie.unref();
