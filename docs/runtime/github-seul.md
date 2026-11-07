@@ -20,6 +20,14 @@ base, the stale-branch pruning).
   Without one the label is not applied, the station warns, and the case is counted — a failure, not a step. The count is
   never reset; `status` shows it (`blocked w/o q`) and `facts` carries it as the integer `blockedWithoutQuestion`
   (#2556).
+- **A blocked cook goes to the chef, not to review.** A cook that writes `<bloque>…</bloque>` in its deliverable —
+  the decision or condition it lacks: a ticket it depends on not merged yet, an access, a machine — has its ticket
+  escalated, with or without commits: its question is quoted on the issue (`poserALaMain`), `blocked-on-human` is set,
+  `taken` is released, and no station takes a ticket carrying `blocked-on-human` until the chef removes it. What it
+  committed stays on its branch, pushed; with no PR yet, the branch head is marked as saved work (#2586), so the cook
+  that resumes after the answer starts from it instead of the pass judging it as a delivery. Since #2061 the station
+  never read `<bloque>`: the partial work of a blocked cook went to review, came back red, and the next cook blocked
+  again — 6 of the 13 blocking reviews on BOBL-tech/espace (#798 four times, #755 twice) (#2805).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

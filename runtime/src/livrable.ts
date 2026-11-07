@@ -53,9 +53,9 @@ export function lireLivrable(message: string | null): Livrable {
 }
 
 // Le blocage qu'un cook déclare : dans son livrable, entre `<bloque>` et
-// `</bloque>`, la décision ou la condition qui lui manque. Un ticket sans diff
-// dont le cook se déclare bloqué n'est pas servi : la pass le remonte au chef
-// avec cette question. Même lecture que le livrable : une balise citée n'en est
+// `</bloque>`, la décision ou la condition qui lui manque. Le ticket d'un cook
+// qui se déclare bloqué, avec ou sans commit, ne part pas en relecture : la
+// station le remonte au chef avec cette question (`brigade-github.ts`, #2805). Même lecture que le livrable : une balise citée n'en est
 // pas une, la dernière délimitation fermée l'emporte, une délimitation vide ou
 // jamais fermée ne déclare rien.
 export const OUVERTURE_BLOCAGE = "<bloque>";
@@ -75,7 +75,7 @@ export function lireBlocage(livrable: string | null): string | null {
 
 // Ce que la consigne d'un cook dit de son livrable, à la fin de son dernier
 // point : la même pour un premier cook et pour un cook renvoyé.
-export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois. Écris ces deux balises nues, ni entre backticks ni dans un bloc de code : citées, elles ne délimitent rien. Seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi. Si, de plus, tu n'as rien commité parce que tu es bloqué, écris dans ce passage la décision ou la condition qui te manque entre \`${OUVERTURE_BLOCAGE}\` et \`${FERMETURE_BLOCAGE}\` : ton ticket ne sera pas clos comme servi, il remontera au chef avec cette question. N'utilise pas ces balises si le ticket n'appelle vraiment aucun changement.`;
+export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois. Écris ces deux balises nues, ni entre backticks ni dans un bloc de code : citées, elles ne délimitent rien. Seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi. Si tu ne peux pas finir le ticket parce qu'une décision ou une condition hors de ta portée te manque — un ticket dont il dépend pas encore mergé, un accès, une machine que tu n'as pas —, écris-la dans ce passage entre \`${OUVERTURE_BLOCAGE}\` et \`${FERMETURE_BLOCAGE}\`, que tu aies commité ou non : ce que tu as commité ne part pas en relecture, ton ticket remonte au chef avec cette question, et le cook qui le reprendra après sa réponse repartira de ta branche. Sans ces balises, ta moitié de ticket, ton gabarit vide ou ton « à faire » part en relecture, qui le renvoie à un cook. N'utilise pas ces balises si le ticket n'appelle vraiment aucun changement.`;
 
 // Le défaut, tel qu'il se lit sur l'issue et dans le renvoi d'un cook.
 export const direDefaut = (defaut: Defaut | null): string =>
