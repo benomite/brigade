@@ -254,6 +254,40 @@ const avecLesGestes = async (faire, sans) => {
   const ouverte = await laLectureGitHub();
   return ouverte === undefined ? sans : faire(ouverte.gestes);
 };
+// Les notifications des cartes de TODO (le ticket 2747). Le sondage qui les montre est celui d'Android, toutes les quinze
+// minutes, app ouverte ou non (SondeWorker.java, android/sonde.html) ; ici, ce qui tient à l'app ouverte :
+//   - répondre à une carte retire sa notification (app/src/notifications-todo.ts, `carteRepondue`), sur la mémoire que le
+//     natif garde (Pont.java) ;
+//   - toucher une notification ouvre la carte : le natif garde la carte touchée (`carteDemandee`), et la vue en est
+//     prévenue par `surOuvrirCarte`, au démarrage, à chaque retour de l'app au premier plan et quand le natif le dit.
+/** @param {string} projet @param {number} ticket */
+async function retirerLaNotification(projet, ticket) {
+  try {
+    const { carteRepondue } = await import(new URL("../src/notifications-todo.js", window.location.href).href);
+    await carteRepondue(
+      {
+        memoire: { lire: async () => JSON.parse((await natif("Pont", "gardees", {})).valeur || "{}"), ecrire: (/** @type {unknown} */ notifiees) => natif("Pont", "garder", { valeur: JSON.stringify(notifiees) }) },
+        notifier: { montrer: async () => undefined, retirer: (/** @type {number} */ id) => natif("Pont", "retirer", { id }) },
+      },
+      projet,
+      ticket,
+    );
+  } catch {
+    // La notification reste jusqu'au sondage suivant, qui la retire : la réponse, elle, est partie.
+  }
+}
+async function ouvrirLaCarteTouchee() {
+  try {
+    const { projet, ticket } = await natif("Pont", "carteDemandee", {});
+    if (typeof projet === "string" && typeof ticket === "number") dire("surOuvrirCarte", projet, ticket);
+  } catch {
+    // Pas de natif, pas de notification touchée.
+  }
+}
+window.addEventListener?.("brigade-carte", () => void ouvrirLaCarteTouchee());
+globalThis.document?.addEventListener?.("visibilitychange", () => {
+  if (document.visibilityState === "visible") void ouvrirLaCarteTouchee();
+});
 // Pas connecté, la vue s'ouvre sur l'écran de connexion à GitHub, sans projet ; connecté, sur les projets de la dernière
 // liste lue sur GitHub, que la lecture relit.
 async function demarrage() {
@@ -292,7 +326,12 @@ const connus = {
   gestesDeFiche: (/** @type {unknown} */ carte) => avecLesGestes((gestes) => gestes.gestesDeFiche(carte), []),
   gesteDeFiche: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.geste(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
   attente: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.attente(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
-  repondreCarte: (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ reponse) => avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }),
+  repondreCarte: async (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ reponse) => {
+    const rendu = /** @type {any} */ (await avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }));
+    // Répondue dans l'app : sa notification disparaît tout de suite (le ticket 2747).
+    if (rendu?.repondue === true) void retirerLaNotification(projet, ticket);
+    return rendu;
+  },
   // La connexion à GitHub oubliée — le jeton du coffre, le compte et ses projets. La vue revient à l'écran de
   // connexion à GitHub.
   oublierLeTelephone: async () => {
@@ -303,7 +342,11 @@ const connus = {
 };
 const rien = async () => undefined;
 /** @param {string} nom */
-const abonner = (nom) => (/** @type {(...args: any[]) => void} */ recevoir) => void abonnes.set(nom, [...(abonnes.get(nom) ?? []), recevoir]);
+const abonner = (nom) => (/** @type {(...args: any[]) => void} */ recevoir) => {
+  abonnes.set(nom, [...(abonnes.get(nom) ?? []), recevoir]);
+  // La vue est prête à ouvrir une carte : celle d'une notification touchée au lancement de l'app lui est dite.
+  if (nom === "surOuvrirCarte") void ouvrirLaCarteTouchee();
+};
 const pont = new Proxy(
   {},
   {

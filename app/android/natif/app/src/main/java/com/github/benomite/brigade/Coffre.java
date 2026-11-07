@@ -32,6 +32,8 @@ public class Coffre extends Plugin {
     static final String PREFERENCES = "brigade.coffre";
     static final String CHIFFRE = "AES/GCM/NoPadding";
     static final int ETIQUETTE_BITS = 128;
+    // La clé sous laquelle le pont garde le jeton GitHub (app/android/web/pont.js, `CLE_GITHUB`).
+    static final String CLE_GITHUB = "github";
 
     private SharedPreferences preferences() {
         return getContext().getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
@@ -52,6 +54,21 @@ public class Coffre extends Plugin {
                 .build()
         );
         return generateur.generateKey();
+    }
+
+    // Le jeton GitHub du coffre, pour le sondage d'arrière-plan (SondeWorker) qui n'a pas la WebView : nul sans lui.
+    static String jeton(Context contexte) {
+        String garde = contexte.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(CLE_GITHUB, null);
+        if (garde == null) return null;
+        try {
+            String[] parts = garde.split(":", 2);
+            if (parts.length != 2) return null;
+            Cipher chiffre = Cipher.getInstance(CHIFFRE);
+            chiffre.init(Cipher.DECRYPT_MODE, cle(), new GCMParameterSpec(ETIQUETTE_BITS, Base64.decode(parts[0], Base64.NO_WRAP)));
+            return new String(chiffre.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8);
+        } catch (GeneralSecurityException | IOException | IllegalArgumentException erreur) {
+            return null;
+        }
     }
 
     // Garde `valeur` sous `cle`, à la place de ce qui y était.

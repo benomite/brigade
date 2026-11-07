@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Brigade — the cards poll</title>
+<!-- La page que SondeWorker.java joue dans une WebView sans écran, toutes les quinze minutes (le ticket 2747) : le sondage de
+     app/src/notifications-todo.ts, sur GitHub seul, avec le jeton du coffre. `BrigadeSonde` est ce que le téléphone lui donne. -->
+<script type="module">
+  import { sonder } from "../src/notifications-todo.js";
+  import { clientGitHub, parFetch } from "../src/tableau/client.js";
+  const telephone = window.BrigadeSonde;
+  try {
+    const fait = await sonder({
+      appeler: clientGitHub({ jeton: async () => telephone.jeton() || null, envoyer: parFetch() }),
+      memoire: { lire: () => JSON.parse(telephone.gardees() || "{}"), ecrire: (notifiees) => telephone.garder(JSON.stringify(notifiees)) },
+      notifier: { montrer: ({ id, titre, texte, projet, ticket }) => telephone.montrer(id, titre, texte, projet, ticket), retirer: (id) => telephone.retirer(id) },
+    });
+    telephone.fini(fait.lu ? "" : fait.raison);
+  } catch (erreur) {
+    telephone.fini(erreur instanceof Error ? erreur.message : String(erreur));
+  }
+</script>
