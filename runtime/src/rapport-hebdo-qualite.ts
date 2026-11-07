@@ -15,12 +15,10 @@
 // réveil du runtime ; `envoyer` est ce qui porte le texte au chef (un fait du journal).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { maxDuProjet, dureeDuTicket, ticketsRecents } from "./temps-max/mesure.ts";
-import { mesurerQualite, partDansLesSeuils, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { seuilDuProjet, tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
+import { mesurerQualite, partDansLesSeuils, projetDuClone, qualitesDuJournal, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { lesTempsDesTickets, type TempsTicket } from "./temps-ticket/ligne-status.ts";
-import type { Base } from "./base.ts";
 import type { Runtime } from "./runtime.ts";
-import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 
 export const FICHIER_DU_RAPPORT = ".claude/brigade/rapport-hebdo-qualite.json";
 export const SEMAINES_GARDEES = 8;
@@ -62,12 +60,12 @@ export function seuilsTenusEnBaissantLaQualite(avant: ChiffresDeSemaine | undefi
 }
 
 function propositionDeSeuils(temps: readonly TempsTicket[], maxMin: number, avant: ChiffresDeSemaine, maintenant: ChiffresDeSemaine, pires: string[]): string[] {
-  const plusLent = Math.max(0, ...ticketsRecents(temps).map((t) => dureeDuTicket(t) / 60));
+  const plusLent = Math.max(0, ...ticketsRecents(temps).map((t) => tempsPerdu(t) / 60));
   const lignes = [
     "",
     "Threshold proposal",
     `Why: ${pour100(maintenant.dansLesSeuils)} of recent tickets are within their time threshold (${pour100(avant.dansLesSeuils)} before), but ${pires.join(" and ")} over the same weeks: the time thresholds only hold by lowering quality.`,
-    `Proposed: raise tempsMaxTicketMin from ${maxMin} to ${Math.max(maxMin, Math.ceil(plusLent))} min (the slowest recent ticket), so no ticket is rushed to fit, and hold the quality floors where they were:`,
+    `Proposed: raise lostTimeMaxMin from ${maxMin} to ${Math.max(maxMin, Math.ceil(plusLent))} min (the most time lost on a recent ticket), so no ticket is rushed to fit, and hold the quality floors where they were:`,
   ];
   if (avant.premierCoup !== null) lignes.push(`- premierCoupMinPourcent: ${Math.floor((avant.premierCoup * 100) / 5) * 5}`);
   if (avant.reparationsParMerge !== null) lignes.push(`- repairs of main per merged PR: at most ${Math.max(avant.reparationsParMerge, 0.1).toFixed(2)}`);
@@ -75,12 +73,12 @@ function propositionDeSeuils(temps: readonly TempsTicket[], maxMin: number, avan
 }
 
 export function texteDuRapport(semaine: string, temps: readonly TempsTicket[], qualites: ReadonlyMap<number, QualiteDuTicket>, projet: unknown, historique: readonly ChiffresDeSemaine[]): { texte: string; chiffres: ChiffresDeSemaine } {
-  const maxMin = maxDuProjet(projet);
+  const maxMin = seuilDuProjet(projet);
   const q = mesurerQualite(temps, qualites, projet);
   const chiffres: ChiffresDeSemaine = { semaine, dansLesSeuils: partDansLesSeuils(temps, maxMin), premierCoup: q.premierCoup, reparationsParMerge: q.reparationsParMerge };
   const lignes = [
     `Weekly quality report — ${semaine}`,
-    `- Tickets within their time thresholds (max ${maxMin} min): ${pour100(chiffres.dansLesSeuils)} of the ${q.tickets.length} recent tickets`,
+    `- Tickets within their time thresholds (lost time max ${maxMin} min): ${pour100(chiffres.dansLesSeuils)} of the ${q.tickets.length} recent tickets`,
     `- First-try rate: ${pour100(q.premierCoup)} (floor ${q.seuilPremierCoup}%)`,
     `- Repairs of main per merged PR: ${q.reparationsParMerge === null ? "unknown" : q.reparationsParMerge.toFixed(2)}`,
   ];
@@ -126,33 +124,6 @@ export function rapportHebdomadaire({ dossier, temps, qualites, projet, maintena
   return texte;
 }
 
-const REPARATION = /^Réparer la base `[^`]*`, rouge sur \S+ : (.+?)(?: \(et \d+ autres?\))?$/;
-
-// Ce que le journal sait de la qualité de chaque ticket mergé : un essai de plus
-// que le premier est un renvoi ou un cook raté ; un ticket de réparation de la
-// base (son titre, `reparation.ts`) porte le check qui avait cassé.
-export function qualitesDuJournal(base: Base): Map<number, QualiteDuTicket> {
-  const titres = new Map<number, string>();
-  for (const { ticket, title } of base.lire<{ ticket: number; title: string | null }>("SELECT ticket, json_extract(payload, '$.title') AS title FROM events WHERE ticket IS NOT NULL AND type IN ('ticket.arrived', 'ticket.changed') ORDER BY seq")) {
-    if (title !== null) titres.set(ticket, title);
-  }
-  const qualites = new Map<number, QualiteDuTicket>();
-  for (const { ticket, end, attempts } of parcoursDesTickets(base)) {
-    if (end?.kind !== "merged") continue;
-    const check = REPARATION.exec(titres.get(ticket) ?? "")?.[1];
-    qualites.set(ticket, { renvois: Array.from({ length: Math.max(0, attempts.length - 1) }, () => "send-back"), cooksRates: 0, ...(check === undefined ? {} : { reparation: [check] }) });
-  }
-  return qualites;
-}
-
-function lireProjet(clone: string): unknown {
-  try {
-    return JSON.parse(readFileSync(join(clone, ".claude", "brigade", "projet.json"), "utf8"));
-  } catch {
-    return undefined;
-  }
-}
-
 // Branche le rapport au runtime : une passe d'emblée, puis à chaque réveil. Le
 // texte part au chef en fait `quality.reported` du journal ; `rapportHebdomadaire`
 // ne l'envoie qu'une fois par semaine, et la clé du fait empêche un doublon si l'état n'a pu s'écrire.
@@ -164,7 +135,7 @@ export function brancherRapportHebdo<R extends Runtime>(runtime: R, { clone, rep
         dossier: repertoireEtat,
         temps: lesTempsDesTickets(clone).enregistrements,
         qualites: qualitesDuJournal(runtime.journal.base),
-        projet: lireProjet(clone),
+        projet: projetDuClone(clone),
         maintenant: date,
         envoyer: (text) => {
           runtime.journal.ajouter({ project: runtime.projet, ticket: null, author: "runtime", type: "quality.reported", payload: { week: semaineDe(date), text }, dedupKey: `quality.reported:${semaineDe(date)}` });

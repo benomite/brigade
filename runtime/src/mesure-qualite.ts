@@ -14,7 +14,7 @@ import { join } from "node:path";
 import type { Base } from "./base.ts";
 import { CAUSES, classerEssai, SANS_SIGNAUX } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
-import { dureeDuTicket, ticketsRecents } from "./temps-max/mesure.ts";
+import { tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
 import type { TempsTicket } from "./temps-ticket/ligne-status.ts";
 
 // Le seuil du premier coup, en %, sans `premierCoupMinPourcent` dans projet.json.
@@ -154,9 +154,10 @@ export function projetDuClone(clone: string): unknown {
   }
 }
 
-// La part des tickets récents (même fenêtre) mergés dans leur seuil de temps — `maxMin`,
-// le max du projet, en minutes —, entre 0 et 1 ; null sans ticket. Pile au seuil, c'est dedans.
-export function partDansLesSeuils(temps: readonly TempsTicket[], maxMin: number): number | null {
+// La part des tickets récents (même fenêtre) dont le temps perdu tient dans leur seuil de
+// temps — `seuilMin`, `lostTimeMaxMin` du projet, en minutes —, entre 0 et 1 ; null sans
+// ticket. Pile au seuil, c'est dedans.
+export function partDansLesSeuils(temps: readonly TempsTicket[], seuilMin: number): number | null {
   const recents = ticketsRecents(temps);
-  return recents.length === 0 ? null : recents.filter((t) => dureeDuTicket(t) <= maxMin * 60).length / recents.length;
+  return recents.length === 0 ? null : recents.filter((t) => tempsPerdu(t) <= seuilMin * 60).length / recents.length;
 }

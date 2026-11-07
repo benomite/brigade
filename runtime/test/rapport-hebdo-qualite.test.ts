@@ -4,15 +4,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import type { Runtime } from "../src/runtime.ts";
 import { partDansLesSeuils, type QualiteDuTicket } from "../src/mesure-qualite.ts";
-import { brancherRapportHebdo, FICHIER_DU_RAPPORT, qualitesDuJournal, rapportHebdomadaire, semaineDe } from "../src/rapport-hebdo-qualite.ts";
+import { brancherRapportHebdo, FICHIER_DU_RAPPORT, rapportHebdomadaire, semaineDe } from "../src/rapport-hebdo-qualite.ts";
 import type { TempsTicket } from "../src/temps-ticket/ligne-status.ts";
 
-// Dix tickets, `lents` d'entre eux au-delà du max de 10 min.
-const temps = (lents: number): TempsTicket[] => Array.from({ length: 10 }, (_, i) => ({ ticket: i + 1, cuisson: i < lents ? 900 : 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }));
+// Dix tickets, `lents` d'entre eux au-delà du seuil de 2 min de temps perdu.
+const temps = (lents: number): TempsTicket[] => Array.from({ length: 10 }, (_, i) => ({ ticket: i + 1, cuisson: 300, perdu: { attente: i < lents ? 900 : 0, ratees: 0, renvois: 0 }, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }));
 // Dix tickets dont `premiers` livrés du premier coup.
 const qualites = (premiers: number, reparations = 0) =>
   new Map<number, QualiteDuTicket>(Array.from({ length: 10 }, (_, i) => [i + 1, { renvois: i < premiers ? [] : ["tests missing"], cooksRates: 0, ...(i < reparations ? { reparation: ["ci"] } : {}) }]));
@@ -21,8 +20,8 @@ const lundi1 = new Date("2026-11-02T09:00:00Z");
 const lundi2 = new Date("2026-11-09T09:00:00Z");
 
 test("the share within thresholds counts the recent tickets at or under the max", () => {
-  assert.equal(partDansLesSeuils(temps(1), 10), 0.9);
-  assert.equal(partDansLesSeuils([], 10), null);
+  assert.equal(partDansLesSeuils(temps(1), 2), 0.9);
+  assert.equal(partDansLesSeuils([], 2), null);
 });
 
 test("the report gives the share within thresholds, the first-try rate and the repairs per merged PR", () => {
@@ -88,23 +87,6 @@ test("only the week before counts: a slow slide over two months proposes nothing
   writeFileSync(join(dossier, FICHIER_DU_RAPPORT), JSON.stringify({ semaine: "2026-W43", historique: semaines }));
   const texte = rapportHebdomadaire({ dossier, temps: temps(1), qualites: qualites(6), maintenant: lundi2, envoyer: () => {} }) ?? "";
   assert.doesNotMatch(texte, /Threshold proposal/);
-});
-
-test("the journal's quality: a ticket taken twice is not first-try, a repair ticket names its check", () => {
-  const base = mkdtempSync(join(tmpdir(), "journal-"));
-  const journal = ouvrirJournal(base);
-  const noter = (ticket: number, fait: Fait) => journal.ajouter({ project: "p", ticket, author: "runtime", ...fait });
-  const limits = { durationMs: 1, tokens: 1, idleMs: 1 };
-  for (const [ticket, essais, titre] of [[1, 1, "Ticket"], [2, 2, "Réparer la base `main`, rouge sur abc1234 : tests (app)"]] as const) {
-    noter(ticket, { type: "ticket.arrived", payload: { title: titre, priority: null, createdAt: "2026-11-01T00:00:00Z", url: "u" } });
-    noter(ticket, { type: "ticket.taken", payload: { station: "s", leaseUntil: "2026-12-01T00:00:00.000Z" } });
-    for (let i = 0; i < essais; i++) noter(ticket, { type: "cook.launched", payload: { run: `${ticket}-${i}`, limits, stream: "x", branch: "b", worktree: "w" } });
-    noter(ticket, { type: "merge.done", payload: { pr: "p", sha: "s", by: "pass", reconciled: true } });
-  }
-  const q = qualitesDuJournal(journal.base);
-  journal.fermer();
-  assert.deepEqual(q.get(1), { renvois: [], cooksRates: 0 });
-  assert.deepEqual(q.get(2), { renvois: ["send-back"], cooksRates: 0, reparation: ["tests (app)"] });
 });
 
 test("the second's pass is wired: a runtime wake-up writes the report to the journal once a week", () => {
