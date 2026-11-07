@@ -189,7 +189,9 @@ export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): T
     const deja = parTicket.get(ticket) as { mergedAt?: unknown } | undefined;
     if (deja === undefined || Date.parse(String((e as { mergedAt?: unknown }).mergedAt)) > Date.parse(String(deja.mergedAt))) parTicket.set(ticket, e);
   }
-  return { enregistrements: [...parTicket.values(), ...fusion], tempsMaxTicketMin: a.tempsMaxTicketMin };
+  // Le résumé est celui de la première station qui en publie un, comme le plafond.
+  const resume = a.resume ?? b.resume;
+  return { enregistrements: [...parTicket.values(), ...fusion], tempsMaxTicketMin: a.tempsMaxTicketMin, ...(resume === undefined ? {} : { resume }) };
 }
 
 export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {

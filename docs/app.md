@@ -2055,6 +2055,14 @@ project tracking, next to `delai`; the app relays it on the project's view. A st
 (an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
 Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
 
+**Median and p75 against the max** (#2664, epic #2659): the rail band and the Health tab say the ticket time from the
+`resume` object of `temps-tickets.json` that the measure publishes (`n`, `medianMin`, `p75Min`, `maxMin`,
+`phaseLaPlusLongue` as `{ nom, medianMin }`), relayed as `temps.resume` — the app reads it, it does not recompute it
+(`app/src/vue/temps-ticket/resume.js`). Rail band: « median 14 min / p75 47 min vs 10 min max », the figure over the max
+in red with « over the max » (`data-temps="depasse"`); the slowest phase is on hover. Health: the same median, p75 and
+max, the phase named with its median (« Slowest phase: review, median 9 min »), then the chart and the list when the
+records are there. With no `resume`, both say « no measure yet » (never a blank or a zero). Screenshots: `docs/captures/2664/`.
+
 **Kitchen > Health: ticket time and duration caps** (#2490, epic #2484). Two blocks, then the closer's.
 **Ticket time** reads the same measures as the Ticket times card (`temps` of the project's view): a ticket's time runs
 from its claim to its merge, its **pass** is the wait for the pass plus the review (`attentePasse + revue`). At the head,

@@ -19,6 +19,7 @@ import { CLES as CLES_DES_REGLAGES } from "../../../src/reglages-du-projet.ts";
 import { poserBlocBloqueSansQuestion } from "../../../src/vue/projet/cuisine/sante/BloqueSansQuestion.js";
 import { poserBlocCloser } from "../../../src/vue/projet/cuisine/sante/Closer.js";
 import { poserBlocPlafondsDuree } from "../../../src/vue/projet/cuisine/sante/PlafondsDuree.js";
+import { tempsDeLaBande } from "../../../src/vue/projet/rail/bande-rail.js";
 import { lireLesTemps, poserBlocTempsTickets } from "../../../src/vue/projet/cuisine/sante/TempsTickets.js";
 import { Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee } from "../../aides/fausse-vue.ts";
 
@@ -37,7 +38,9 @@ const ticket = (n: number, total: number, pass: number, jour = n - 100) => ({
   ci: (total - pass) * MIN * 0.05,
   merge: (total - pass) * MIN * 0.05,
 });
-const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], tempsMaxTicketMin: 15 };
+// Le résumé de la mesure (`resume` de temps-tickets.json) : la bande du rail et Health le lisent sans le recalculer.
+const RESUME = { n: 3, medianMin: 10, p75Min: 14, maxMin: 15, phaseLaPlusLongue: { nom: "cooking", medianMin: 6 } };
+const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], tempsMaxTicketMin: 15, resume: RESUME };
 
 const texte = (racine: Faux) => racine.textContent;
 const parClasse = (racine: Faux, classe: string) => [...racine.descendants()].filter((pose) => pose.className.split(" ").includes(classe));
@@ -56,7 +59,8 @@ describe("le temps des tickets, sur Health", () => {
 
     const bloc: Faux = poserBlocTempsTickets(doc, TEMPS);
     assert.equal(bloc.dataset.temps, "normal");
-    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), ["10 minticket, median of the last 3 tickets", "3 minpass, median of the last 3 tickets", "15 minmax of a ticket"]);
+    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), ["10 minmedian of the last 3 measured tickets", "14 minp75 of the last 3 measured tickets", "15 minmax of a ticket"]);
+    assert.equal(parClasse(bloc, "temps-phase-lente").map(texte)[0], "Slowest phase: cooking, median 6 min");
     const colonnes = parClasse(bloc, "temps-colonne");
     assert.deepEqual(colonnes.map(({ title }) => title), ["#101 · Oct 1 · 10 min, pass 2 min", "#102 · Oct 2 · 20 min, pass 6 min", "#103 · Oct 3 · 9 min, pass 3 min"]);
     assert.deepEqual(colonnes.map(({ dataset }) => dataset.depasse), [undefined, "oui", undefined], "le ticket au-delà du plafond est marqué");
@@ -68,16 +72,31 @@ describe("le temps des tickets, sur Health", () => {
     ]);
   });
 
-  test("la médiane au-delà du plafond passe le bloc en « depasse »", () => {
-    assert.equal(poserBlocTempsTickets(doc, { ...TEMPS, tempsMaxTicketMin: 5 }).dataset.temps, "depasse");
+  test("la médiane ou le p75 au-delà du plafond passent le bloc en « depasse », en rouge, sans changer les autres chiffres", () => {
+    const sur = (resume: object) => poserBlocTempsTickets(doc, { ...TEMPS, resume });
+    const lent = sur({ ...RESUME, medianMin: 14, p75Min: 47, maxMin: 10 });
+    assert.equal(lent.dataset.temps, "depasse");
+    assert.deepEqual(parClasse(lent, "temps-chiffre").map(({ dataset }) => dataset.depasse), ["oui", "oui", undefined]);
+    assert.match(texte(lent), /Over the max of 10 min/);
+    const p75 = sur({ ...RESUME, medianMin: 9, p75Min: 16 });
+    assert.equal(p75.dataset.temps, "depasse");
+    assert.deepEqual(parClasse(p75, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, "oui", undefined]);
   });
 
-  test("jamais un blanc ni un zéro : aucun ticket mesuré, ou une station qui ne publie pas encore ses temps", () => {
-    const vide = poserBlocTempsTickets(doc, { enregistrements: [], tempsMaxTicketMin: 15 });
-    assert.equal(vide.dataset.temps, "vide");
-    assert.match(texte(vide), /No ticket measured yet/);
-    const muet = poserBlocTempsTickets(doc, undefined);
-    assert.match(texte(muet), /Ticket times not available yet/);
+  test("les chiffres sont ceux du résumé, les mêmes que ceux de la bande du rail", () => {
+    const bloc = poserBlocTempsTickets(doc, TEMPS);
+    const bande = tempsDeLaBande(doc, TEMPS);
+    assert.equal(texte(bande), "Ticket time" + "median" + "10 min" + "/" + "p75" + "14 min" + "vs 15 min max");
+    assert.deepEqual(parClasse(bloc, "temps-valeur").map(texte), ["10 min", "14 min", "15 min"]);
+  });
+
+  test("jamais un blanc ni un zéro : sans mesure, « no measure yet » — la phase, le plafond et les figures ne s'inventent pas", () => {
+    for (const temps of [undefined, { enregistrements: [], tempsMaxTicketMin: 15 }]) {
+      const vide = poserBlocTempsTickets(doc, temps);
+      assert.equal(vide.dataset.temps, "vide");
+      assert.match(texte(vide), /no measure yet/);
+      assert.equal(parClasse(vide, "temps-chiffre").length, 0);
+    }
   });
 });
 

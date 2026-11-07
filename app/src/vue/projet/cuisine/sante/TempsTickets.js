@@ -7,6 +7,7 @@
 // `document` : il reçoit de quoi créer un élément (briques.js) et rend le bloc.
 
 import { survol } from "../../../briques.js";
+import { depasse, enMinutes, estDepasse, lireLeResume, SANS_MESURE, SANS_MESURE_DETAIL, surCombien } from "../../../temps-ticket/resume.js";
 import { dureeEnClair, MAX_PAR_DEFAUT_MIN, mediane, total } from "../../../temps-ticket/temps-ticket.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
@@ -73,8 +74,10 @@ function chiffre(doc, valeur, legende, depasse = false) {
 }
 
 // Le bloc à poser sur Health : toujours un bloc, jamais un blanc ni un zéro. Trois états — `data-temps` : « normal »,
-// « depasse » (la médiane du ticket passe le plafond) et « vide » (aucun ticket mesuré, ou une station qui ne publie
-// pas encore ses temps, qui le dit : ce n'est pas un compte de zéro).
+// « depasse » (la médiane ou le p75 du résumé de la mesure passe le plafond) et « vide » (la mesure n'a rien publié :
+// « no measure yet », qui n'est pas un compte de zéro). En tête, les mêmes chiffres que la bande du rail, lus du
+// résumé sans les recalculer (resume.js), et la phase la plus longue avec sa médiane ; dessous, la courbe et la liste
+// des tickets, quand les enregistrements sont là.
 /** @param {Fabrique} doc @param {TempsDuProjet} [temps] */
 export function poserBlocTempsTickets(doc, temps) {
   const bloc = doc.createElement("section");
@@ -85,20 +88,24 @@ export function poserBlocTempsTickets(doc, temps) {
   titre.textContent = TITRE;
   titre.append(survol(doc, AIDE));
   bloc.append(titre);
-  const lu = temps === undefined ? null : lireLesTemps(temps);
-  if (lu === null) {
+  const resume = lireLeResume(temps);
+  if (resume === null) {
     bloc.dataset.temps = "vide";
-    const vide = noeud(doc, "p", "temps-vide", temps === undefined ? "Ticket times not available yet" : "No ticket measured yet");
-    vide.append(survol(doc, temps === undefined ? "The project's station does not publish its ticket times yet: this is not a count of zero tickets" : "The times appear once a ticket is merged"));
+    const vide = noeud(doc, "p", "temps-vide", SANS_MESURE);
+    vide.append(survol(doc, SANS_MESURE_DETAIL));
     bloc.append(vide);
-    return bloc;
+  } else {
+    const trop = depasse(resume);
+    bloc.dataset.temps = estDepasse(resume) ? "depasse" : "normal";
+    const sur = surCombien(resume);
+    const chiffres = noeud(doc, "div", "temps-chiffres");
+    chiffres.append(chiffre(doc, enMinutes(resume.medianMin), `median of ${sur}`, trop.mediane), chiffre(doc, enMinutes(resume.p75Min), `p75 of ${sur}`, trop.p75), chiffre(doc, enMinutes(resume.maxMin), "max of a ticket"));
+    bloc.append(chiffres);
+    if (estDepasse(resume)) bloc.append(noeud(doc, "p", "temps-depasse", `Over the max of ${enMinutes(resume.maxMin)}`));
+    if (resume.phaseLaPlusLongue !== null) bloc.append(noeud(doc, "p", "temps-phase-lente", `Slowest phase: ${resume.phaseLaPlusLongue.nom}, median ${enMinutes(resume.phaseLaPlusLongue.medianMin)}`));
   }
-  const depasse = lu.mediane > lu.max * 60;
-  bloc.dataset.temps = depasse ? "depasse" : "normal";
-  const sur = lu.nombre === 1 ? "of the only measured ticket" : `of the last ${lu.nombre} tickets`;
-  const chiffres = noeud(doc, "div", "temps-chiffres");
-  chiffres.append(chiffre(doc, dureeEnClair(lu.mediane), `ticket, median ${sur}`, depasse), chiffre(doc, dureeEnClair(lu.medianePasse), `pass, median ${sur}`), chiffre(doc, `${lu.max} min`, "max of a ticket"));
-  bloc.append(chiffres);
+  const lu = temps === undefined ? null : lireLesTemps(temps);
+  if (lu === null) return bloc;
 
   // Dans le temps : une colonne par ticket, du plus ancien au plus récent, sa pass en bas ; le plafond en trait.
   const echelle = Math.max(lu.max * 60, ...lu.dansLeTemps.map((t) => t.total), 1);

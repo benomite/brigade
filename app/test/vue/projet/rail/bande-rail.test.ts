@@ -34,11 +34,11 @@ const ticket = (n: number, minutes: number) => ({
   ci: minutes * MIN * 0.1,
   merge: minutes * MIN * 0.1,
 });
-const NORMAL = { enregistrements: [9, 11, 8, 12, 10, 14, 9, 13, 11, 18].map((m, i) => ticket(2331 + i, m)), tempsMaxTicketMin: 15 };
-const LENT = { enregistrements: [19, 22, 17, 25, 21, 30, 18, 24, 20, 28].map((m, i) => ticket(2331 + i, m)), tempsMaxTicketMin: 15 };
-
-// 13 tickets de brigade au 2026-11-05 ; la bande lit les 10 derniers : médiane 18 min, le plus lent 26 min.
-const BRIGADE_13 = [9, 30, 11, 14, 16, 17, 18, 18, 18, 19, 20, 22, 26].map((m, i) => ticket(2331 + i, m));
+// Le résumé de la mesure (`resume` de temps-tickets.json), tel qu'elle le publie : la vue le lit, elle ne le recalcule pas.
+const RESUME_NORMAL = { n: 10, medianMin: 11, p75Min: 13, maxMin: 15, phaseLaPlusLongue: { nom: "review", medianMin: 2 } };
+const RESUME_LENT = { n: 10, medianMin: 14, p75Min: 47, maxMin: 10, phaseLaPlusLongue: { nom: "review", medianMin: 9 } };
+const NORMAL = { enregistrements: [9, 11, 8, 12, 10, 14, 9, 13, 11, 18].map((m, i) => ticket(2331 + i, m)), tempsMaxTicketMin: 15, resume: RESUME_NORMAL };
+const LENT = { enregistrements: [19, 22, 17, 25, 21, 30, 18, 24, 20, 28].map((m, i) => ticket(2331 + i, m)), tempsMaxTicketMin: 10, resume: RESUME_LENT };
 
 // La part elle-même, sous l'enveloppe de son survol quand elle en a une.
 const laPart = (pose: Faux): Faux => (pose.className === "survol" ? (pose.children[0] ?? assert.fail("survol sans part")) : pose);
@@ -54,62 +54,51 @@ function auSurvol(pose: Faux): string {
 }
 
 describe("le temps d'un ticket, dans la bande", () => {
-  test("sous le plafond : la médiane en clair et le plafond ; le plus lent et les cinq phases au survol", () => {
+  test("sous le plafond : la médiane et le p75 contre le plafond, sans rouge ; la phase la plus longue au survol", () => {
     const pose = tempsDeLaBande(doc, NORMAL);
     assert.equal(laPart(pose).className, "bande-part bande-temps");
     assert.equal(laPart(pose).dataset.temps, "normal");
-    assert.equal(pose.textContent, "Ticket time" + "11 min" + "/ 15 min");
+    assert.equal(pose.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + "vs 15 min max");
+    assert.equal(laPart(pose).dessous("span").some(({ dataset }) => dataset.depasse === "oui"), false);
     // Le détail n'est écrit nulle part hors survol ; la part prend le clavier pour le dire.
     assert.equal(Reflect.get(laPart(pose), "tabIndex"), 0);
-    assert.equal(
-      auSurvol(pose),
-      "Median of the last 10 tickets, from claim to merge. Slowest: #2340 — 18 min. Cooking 6 min (its tests 1 min) · Waiting for the pass 1 min · Review 2 min · CI 1 min · Merge 1 min",
-    );
+    assert.equal(auSurvol(pose), "Median and p75 of the last 10 measured tickets, from claim to merge, against the max of 15 min. Slowest phase: review, median 2 min.");
     assert.equal(laPart(pose).ariaLabel, auSurvol(pose));
   });
 
-  test("passé le plafond : la médiane contre le plafond, en rouge", () => {
+  test("14 min / 47 min contre 10 min : la médiane et le p75 passent le plafond, les deux en rouge, avec « over the max »", () => {
     const pose = tempsDeLaBande(doc, LENT);
     assert.equal(laPart(pose).dataset.temps, "depasse");
-    assert.equal(laPart(pose).dessous("strong")[0]?.textContent, "22 min");
-    assert.equal(laPart(pose).dessous("span").find(({ className }) => className === "bande-depasse")?.textContent, "/ 15 min");
+    assert.equal(pose.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + "vs 10 min max" + "over the max");
+    const rouges = laPart(pose).dessous("span").filter(({ dataset }) => dataset.depasse === "oui");
+    assert.deepEqual(rouges.map((c) => c.textContent), ["median" + "14 min", "p75" + "47 min"]);
+    assert.ok(laPart(pose).dessous("span").some(({ className }) => className === "bande-depasse"));
   });
 
-  test("sans plafond dans les réglages : 10 min ; avec 20 : 20 min", () => {
-    const sans = { enregistrements: NORMAL.enregistrements };
-    assert.equal(tempsDeLaBande(doc, sans).textContent, "Ticket time" + "11 min" + "/ 10 min");
-    assert.equal(tempsDeLaBande(doc, { ...sans, tempsMaxTicketMin: 20 }).textContent, "Ticket time" + "11 min" + "/ 20 min");
-  });
-
-  test("13 tickets des mesures de brigade du 2026-11-05 (médiane 18 min) : « 18 min » contre « 10 min », en rouge", () => {
-    const pose = tempsDeLaBande(doc, { enregistrements: BRIGADE_13, tempsMaxTicketMin: 10 });
+  test("seul le p75 passe le plafond : lui seul est en rouge, l'état est « depasse »", () => {
+    const pose = tempsDeLaBande(doc, { enregistrements: [], resume: { ...RESUME_NORMAL, medianMin: 9, p75Min: 16 } });
     assert.equal(laPart(pose).dataset.temps, "depasse");
-    assert.equal(laPart(pose).dessous("strong")[0]?.textContent, "18 min");
-    assert.equal(laPart(pose).dessous("span").find(({ className }) => className === "bande-depasse")?.textContent, "/ 10 min");
+    assert.deepEqual(laPart(pose).dessous("span").filter(({ dataset }) => dataset.depasse === "oui").map((c) => c.textContent), ["p75" + "16 min"]);
   });
 
-  test("médiane au plafond ou dessous : pas rouge", () => {
-    const pose = tempsDeLaBande(doc, { enregistrements: BRIGADE_13, tempsMaxTicketMin: 18 });
+  test("au plafond ou dessous : pas rouge", () => {
+    const pose = tempsDeLaBande(doc, { enregistrements: [], resume: { ...RESUME_NORMAL, medianMin: 15, p75Min: 15 } });
     assert.equal(laPart(pose).dataset.temps, "normal");
     assert.equal(laPart(pose).dessous("span").some(({ className }) => className === "bande-depasse"), false);
   });
 
-  test("un ticket au-delà du double du plafond est signalé avec sa phase la plus lente ; au double ou dessous, non", () => {
-    const signale = tempsDeLaBande(doc, { enregistrements: BRIGADE_13, tempsMaxTicketMin: 12 });
-    assert.equal(laPart(signale).dessous("span").find(({ className }) => className === "bande-lent")?.textContent, "#2343 over twice the max — slowest phase: Cooking");
-    const au_double = tempsDeLaBande(doc, { enregistrements: BRIGADE_13, tempsMaxTicketMin: 13 });
-    assert.equal(laPart(au_double).dessous("span").some(({ className }) => className === "bande-lent"), false);
+  test("les chiffres sont ceux du résumé, jamais recalculés des enregistrements", () => {
+    const pose = tempsDeLaBande(doc, { ...LENT, resume: { ...RESUME_LENT, medianMin: 3, p75Min: 4 } });
+    assert.equal(pose.textContent, "Ticket time" + "median" + "3 min" + "/" + "p75" + "4 min" + "vs 10 min max");
   });
 
-  test("ni blanc ni zéro : une station qui ne publie pas ses temps le dit, comme un projet sans ticket mesuré", () => {
-    const nonPublie = tempsDeLaBande(doc, undefined);
-    assert.equal(laPart(nonPublie).dataset.temps, "vide");
-    assert.equal(nonPublie.textContent, "Ticket time" + "not available yet");
-    assert.match(auSurvol(nonPublie), /does not publish its ticket times yet: this is not a count of zero tickets$/);
-
-    const aucun = tempsDeLaBande(doc, { enregistrements: [] });
-    assert.equal(aucun.textContent, "Ticket time" + "no ticket measured yet");
-    assert.match(auSurvol(aucun), /^The time appears once a ticket is merged/);
+  test("sans mesure : « no measure yet », neutre — ni blanc ni zéro, qu'il manque le temps, le résumé ou qu'il soit illisible", () => {
+    for (const temps of [undefined, { enregistrements: [] }, { enregistrements: LENT.enregistrements }, { enregistrements: [], resume: { n: 0, medianMin: 0, p75Min: 0, maxMin: 10 } }, { enregistrements: [], resume: "x" }]) {
+      const pose = tempsDeLaBande(doc, temps);
+      assert.equal(laPart(pose).dataset.temps, "vide");
+      assert.equal(pose.textContent, "Ticket time" + "no measure yet");
+      assert.match(auSurvol(pose), /not a count of zero tickets$/);
+    }
   });
 });
 
@@ -223,7 +212,7 @@ describe("sur l'onglet Rail", () => {
   test("une bande en tête du rail dit le temps d'un ticket et les cooks en cours ; le bloc des temps n'est plus sur Rail", async () => {
     const vue = await ouvrir(NORMAL);
     const [temps, cooks] = parts(vue);
-    assert.equal(temps?.textContent, "Ticket time" + "11 min" + "/ 15 min");
+    assert.equal(temps?.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + "vs 15 min max");
     assert.equal(cooks?.textContent, "Cooks" + "2" + "running");
     // Avant les colonnes, et aucun bloc séparé des temps ni des cooks sur Rail.
     const enfants = vue.element("rail").children.map(({ className }) => className);
@@ -244,9 +233,9 @@ describe("sur l'onglet Rail", () => {
 
   test("des temps publiés après le rail : la bande les dit sans attendre la lecture suivante du rail", async () => {
     const vue = await ouvrir(undefined);
-    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "not available yet");
+    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "no measure yet");
     vue.dire("surProjetsDesStations", projets(LENT));
     await repos();
-    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "22 min" + "/ 15 min");
+    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + "vs 10 min max" + "over the max");
   });
 });

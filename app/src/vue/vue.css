@@ -2831,9 +2831,19 @@ main > header,
   color: var(--texte-doux);
 }
 /* Passé le plafond, la médiane et le plafond virent au rouge ; un ticket au-delà du double du plafond est cerclé de rouge avec sa phase la plus longue. */
-#rail .bande-rail .bande-temps[data-temps="depasse"] .bande-valeur,
+#rail .bande-rail .bande-chiffre {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+#rail .bande-rail .bande-chiffre[data-depasse="oui"] .bande-valeur,
 #rail .bande-rail .bande-depasse {
   color: var(--rouge-clair);
+}
+#rail .bande-rail .bande-depasse {
+  padding: 0 6px;
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
 }
 #rail .bande-rail .bande-lent {
   padding: 0 6px;
@@ -8165,6 +8175,12 @@ button.recommande {
 }
 [data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur {
   font-weight: 700;
+}
+[data-bloc="temps-tickets"] .temps-depasse {
+  color: var(--rouge-clair);
+}
+[data-bloc="temps-tickets"] .temps-phase-lente {
+  color: var(--texte-doux);
 }
 [data-bloc="temps-tickets"] .temps-legende {
   color: var(--texte-doux);
