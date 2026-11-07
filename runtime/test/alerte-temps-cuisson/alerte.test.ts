@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { alerteTempsCuisson, LABELS_CORRECTION, lireSeuil, MARQUE_CORRECTION, medianeDesRatios, type GitHubDeLAlerte, type RatioServi } from "../../src/alerte-temps-cuisson/alerte.ts";
+import { alerteTempsCuisson, FICHIER_DES_RATIOS, LABELS_CORRECTION, lireRatios, lireSeuil, MARQUE_CORRECTION, medianeDesRatios, type GitHubDeLAlerte, type RatioServi } from "../../src/alerte-temps-cuisson/alerte.ts";
 
 type Issue = { number: number; titre: string; corps: string; labels: string[]; state: "open" | "closed"; association: string };
 
@@ -112,4 +112,35 @@ test("a second run while the correction ticket is open opens no other, even from
   depot.issues.push({ number: 2650, titre: "copie", corps: MARQUE_CORRECTION, labels: [], state: "open", association: "NONE" });
   assert.equal((await alerter()).issue, "ouverte");
   assert.equal(depot.issues.filter((i) => i.state === "open" && i.association === "OWNER").length, 1);
+});
+
+test("a malformed projet.json, or a cookingOverEstimateMax that is not a number over 0, falls back to 1.5 and says so", (t) => {
+  const dossier = projetAvec({});
+  t.after(() => rmSync(dossier, { recursive: true, force: true }));
+  const fichier = join(dossier, ".claude/brigade/projet.json");
+  for (const contenu of ["{ not json", JSON.stringify({ cookingOverEstimateMax: 0 }), JSON.stringify({ cookingOverEstimateMax: -2 }), JSON.stringify({ cookingOverEstimateMax: "2" })]) {
+    writeFileSync(fichier, contenu);
+    const avertis: string[] = [];
+    assert.equal(lireSeuil(dossier, (texte) => avertis.push(texte)), 1.5);
+    assert.equal(avertis.length, 1, contenu);
+    assert.match(avertis[0] ?? "", /falls back to 1\.5/);
+  }
+  // Absent, ou sans la clé : le défaut, en silence.
+  const avertis: string[] = [];
+  writeFileSync(fichier, JSON.stringify({ version: 1 }));
+  assert.equal(lireSeuil(dossier, (texte) => avertis.push(texte)), 1.5);
+  assert.equal(lireSeuil(join(dossier, "ailleurs"), (texte) => avertis.push(texte)), 1.5);
+  assert.deepEqual(avertis, []);
+});
+
+test("the recorded ratios are read as #2675 writes them, the most recent first, at most ten", (t) => {
+  const dossier = projetAvec({});
+  t.after(() => rmSync(dossier, { recursive: true, force: true }));
+  assert.deepEqual(lireRatios(dossier), []);
+  const ecrits = Array.from({ length: 12 }, (_, rang) => ({ ticket: 2600 + rang, servedAt: new Date(Date.UTC(2026, 10, 7, rang)).toISOString(), attendu: 10, reel: 10 + rang, ratio: (10 + rang) / 10 }));
+  writeFileSync(join(dossier, FICHIER_DES_RATIOS), JSON.stringify([...ecrits, { ticket: "x" }, null]));
+  const lus = lireRatios(dossier);
+  assert.equal(lus.length, 10);
+  assert.deepEqual(lus[0], { ticket: 2611, attendu: 10, reel: 21 });
+  assert.equal(lus.at(-1)?.ticket, 2602);
 });

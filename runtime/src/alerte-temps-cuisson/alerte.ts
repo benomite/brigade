@@ -6,8 +6,10 @@
 // rapport —, le plus au-dessus d'abord.
 //
 // Les rapports sont ceux qu'enregistre le service d'un ticket (#2675,
-// `temps-cuisson/`). Un ticket sans estimation (sans label `time:` valide) n'a
-// pas de rapport : il n'entre pas dans la médiane.
+// `temps-cuisson/ratio.ts`) dans `.claude/brigade/ratios-cuisson.json` du
+// clone ; `lireRatios` les relit sans importer ce module. Un ticket sans
+// estimation (sans label `time:` valide) n'a pas de rapport : il n'entre pas
+// dans la médiane.
 //
 // Un seul ouvert à la fois : avant d'ouvrir, l'alerte cherche sur GitHub une
 // issue ouverte, d'un auteur de confiance, qui porte la marque cachée du
@@ -28,6 +30,10 @@ export const MARQUE_CORRECTION = "<!-- brigade:temps-cuisson -->";
 export const DEPASSEMENTS_NOMMES = 5;
 // Jusqu'où, sur GitHub, on cherche un ticket de correction encore ouvert.
 export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
+// Le fichier où le service d'un ticket écrit son rapport (#2675), et combien
+// des plus récents la médiane compte.
+export const FICHIER_DES_RATIOS = ".claude/brigade/ratios-cuisson.json";
+export const RATIOS_RECENTS = 10;
 
 // Le rapport d'un ticket servi, tel que `temps-cuisson/` l'écrit : les minutes
 // attendues (null ou absentes : pas d'estimation), les minutes réelles.
@@ -42,14 +48,51 @@ export function seuilDuProjet(projet: unknown): number {
   return typeof valeur === "number" && Number.isFinite(valeur) && valeur > 0 ? valeur : SEUIL_PAR_DEFAUT;
 }
 
-// Le seuil du projet dont `dossier` est la racine. Un projet.json absent ou
-// illisible donne le défaut.
-export function lireSeuil(dossier: string): number {
+// Le seuil du projet dont `dossier` est la racine. Un projet.json absent, ou
+// sans la clé, donne le défaut en silence ; illisible, mal formé, ou une
+// valeur qui n'est pas un nombre plus grand que 0, le défaut aussi, mais
+// `avertir` le dit : un seuil personnalisé ne disparaît pas sans signal.
+export function lireSeuil(dossier: string, avertir: (texte: string) => void = () => {}): number {
+  const fichier = join(dossier, FICHIER_DU_PROJET);
+  let projet: unknown;
   try {
-    return seuilDuProjet(JSON.parse(readFileSync(join(dossier, FICHIER_DU_PROJET), "utf8")));
-  } catch {
+    projet = JSON.parse(readFileSync(fichier, "utf8"));
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "ENOENT") avertir(`brigade : ${fichier} could not be read (${erreur instanceof Error ? erreur.message : String(erreur)}): cookingOverEstimateMax falls back to ${SEUIL_PAR_DEFAUT}`);
     return SEUIL_PAR_DEFAUT;
   }
+  const valeur = typeof projet === "object" && projet !== null ? (projet as Record<string, unknown>).cookingOverEstimateMax : undefined;
+  const seuil = seuilDuProjet(projet);
+  if (valeur !== undefined && seuil !== valeur) avertir(`brigade : cookingOverEstimateMax in ${fichier} is ${JSON.stringify(valeur)}, not a number over 0: it falls back to ${SEUIL_PAR_DEFAUT}`);
+  return seuil;
+}
+
+// Les rapports des `combien` derniers tickets servis du projet dont `dossier`
+// est la racine, du plus récent au plus ancien (par `servedAt`), tels que #2675
+// les écrit : `{ ticket, servedAt, attendu, reel, ratio }`. Sans fichier : aucun.
+// Une entrée d'une autre forme est écartée ; un fichier illisible lève.
+export function lireRatios(dossier: string, combien: number = RATIOS_RECENTS): RatioServi[] {
+  let texte: string;
+  try {
+    texte = readFileSync(join(dossier, FICHIER_DES_RATIOS), "utf8");
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw erreur;
+  }
+  if (texte.trim() === "") return [];
+  const lus: unknown = JSON.parse(texte);
+  if (!Array.isArray(lus)) throw new Error(`${FICHIER_DES_RATIOS} is not a JSON array`);
+  const nombre = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  return lus
+    .flatMap((lu: unknown) => {
+      if (typeof lu !== "object" || lu === null) return [];
+      const { ticket, servedAt, attendu, reel } = lu as Record<string, unknown>;
+      const instant = typeof servedAt === "string" ? Date.parse(servedAt) : Number.NaN;
+      return nombre(ticket) && !Number.isNaN(instant) && (attendu === null || nombre(attendu)) && nombre(reel) ? [{ instant, ratio: { ticket, attendu, reel } }] : [];
+    })
+    .sort((a, b) => b.instant - a.instant)
+    .slice(0, Math.max(0, combien))
+    .map(({ ratio }) => ratio);
 }
 
 // Les rapports qui ont une estimation (un attendu plus grand que 0) et une
@@ -153,4 +196,17 @@ export function alerteTempsCuisson({ github, lire, maintenant = () => new Date()
     if (premier < creee) await github.fermerIssue(creee);
     return { issue: premier < creee ? "deja-ouverte" : "ouverte", numero: Math.min(premier, creee), mediane, seuil };
   };
+}
+
+// L'alerte d'un clone : ses rapports récents et son seuil, relus à chaque
+// appel. Un même avertissement sur projet.json n'est dit qu'une fois, pas à
+// chaque tour.
+export function alerteDuClone(clone: string, { github, avertir, maintenant }: { github: GitHubDeLAlerte; avertir: (texte: string) => void; maintenant?: () => Date }) {
+  const dits = new Set<string>();
+  const avertirUneFois = (texte: string) => {
+    if (dits.has(texte)) return;
+    dits.add(texte);
+    avertir(texte);
+  };
+  return alerteTempsCuisson({ github, lire: () => ({ ratios: lireRatios(clone), seuil: lireSeuil(clone, avertirUneFois) }), ...(maintenant === undefined ? {} : { maintenant }) });
 }
