@@ -132,6 +132,24 @@ export function zoneDuCorps(corps: string): string[] {
     .filter((morceau) => morceau !== "" && !/\s/.test(morceau));
 }
 
+// Les fichiers que dit un ticket : sa zone, sinon les chemins de son corps (un
+// mot à barre oblique ou à extension, hors lien). Sans chemin, aucun.
+export function fichiersDuCorps(corps: string): string[] {
+  const zone = zoneDuCorps(corps);
+  if (zone.length > 0) return zone;
+  const sans = corps.replace(/https?:\/\/\S+/g, " ");
+  return [...sans.matchAll(/(?<![\w./-])((?:\.?[\w-]+\/)+[\w.-]*[\w-]|[\w-]+\.[a-z]{1,5})(?![\w/-])/gi)].map((m) => normalise(m[1]!));
+}
+
+const SOUS_BRIGADE = ".claude/brigade/";
+// Tous ses fichiers sont sous `.claude/brigade/`, où la session d'un cook ne peut pas écrire (#2729).
+// Un ticket que la station a ouvert (corps à marque) y écrit par conception : il part.
+export const neLivreQueSousBrigade = (corps: string): boolean => {
+  if (corps.startsWith("<!-- brigade:")) return false;
+  const fichiers = fichiersDuCorps(corps);
+  return fichiers.length > 0 && fichiers.every((f) => `${f}/`.startsWith(SOUS_BRIGADE));
+};
+
 // Deux chemins se recoupent s'ils sont égaux, ou si l'un contient l'autre.
 export const secoupent = (a: string, b: string): boolean => {
   const [x, y] = [normalise(a), normalise(b)];
@@ -508,7 +526,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
       const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
       const echecs = precedents.length + 1;
-      // Hors cuisine seulement si le même motif revient `ECHECS_MAX` fois de suite (#2593).
+      // Hors cuisine après `ECHECS_MAX` arrêts de suite, ou dès que deux de suite ont le même motif (#2729).
       const motifDe = (corps: string) => corps.match(/ — ([^\n]*)/)?.[1] ?? "";
       const sortie = horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
@@ -944,6 +962,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Un arrêt subi l'a mis en attente : il n'est pas repris avant son terme (#2508).
       if (await enAttente(ticket)) continue;
+      // Tous ses fichiers sont sous `.claude/brigade/` : la session d'un cook y
+      // refuse l'écriture, il va au second ou au chef sans cook (#2729).
+      try {
+        if (neLivreQueSousBrigade(await github.corpsDuTicket(ticket.number))) {
+          if (!ticket.labels.includes(A_LA_MAIN)) {
+            avertir(`brigade : #${ticket.number} sur ${nom} — every file it delivers is under \`${SOUS_BRIGADE}\`; not launched to a cook`);
+            await github.commenter(ticket.number, `Station \`${nom}\`: every file this ticket delivers is under \`${SOUS_BRIGADE}\`, where a cook's session refuses writes, so it is not launched to a cook.\n\nQuestion for the second or the chef: deliver it from a local worktree, or give the cook a way to write there?`);
+            await github.labelliser(ticket.number, [A_LA_MAIN]);
+          }
+          continue;
+        }
+      } catch (erreur) {
+        avertir(`brigade : corps de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+      }
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       const tenant = await tenue(ticket);
       if (tenant !== null) {
