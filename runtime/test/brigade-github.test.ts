@@ -727,6 +727,7 @@ test("a delivery that conflicts with the base goes back to a cook to merge the b
   const pr = faux.prs.find((p) => p.issue === 36);
   assert.ok(pr);
   pr.enConflit = true;
+  pr.conflitDeContenu = true;
   for (let i = 0; i < 6; i += 1) {
     await a.tour();
     await a.calme();
@@ -734,6 +735,48 @@ test("a delivery that conflicts with the base goes back to a cook to merge the b
   const renvoi = (faux.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"));
   assert.match(renvoi?.body ?? "", /conflicts with the base/);
   assert.equal(faux.mergee(36)?.mergeePar, "A");
+});
+
+test("a delivery whose only blocker is a mechanical conflict is synced by the station, no send back, no budget spent (#2726)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(36);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.enConflit = true;
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const corps = (faux.commentaires.get(36) ?? []).map((c) => c.body);
+  assert.equal(corps.filter((b) => b.startsWith("<!-- brigade:renvoi")).length, 0);
+  assert.ok(!faux.ticket(36).labels.has("hors-cuisine"));
+  assert.equal(faux.mergee(36)?.mergeePar, "A");
+});
+
+test("a real content conflict is sent back without spending the review budget, then set aside naming the reason (#2726)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(36);
+  const a = faux.station("A", { avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.conflitDeContenu = true;
+  for (let i = 0; i < 12 && !faux.ticket(36).labels.has("hors-cuisine"); i += 1) {
+    // La base bouge de nouveau sous la PR après chaque cook.
+    pr.enConflit = true;
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(36) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.ok(faux.ticket(36).labels.has("hors-cuisine"));
+  assert.equal(renvois.length, 3);
+  assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2, conflicts\)/);
+  assert.match(renvois[2]?.body ?? "", /^.*\n.*\n\nBlocking reason: conflict\n/s);
+  assert.match(renvois[2]?.body ?? "", /Taken off the kitchen/);
 });
 
 test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping (#2209)", async () => {
