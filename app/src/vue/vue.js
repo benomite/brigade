@@ -86,7 +86,6 @@ import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
-import { poserReculs } from "./recul.js";
 import { poserTriageDeCooks } from "./triage.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, stationAOuvrir } from "./stations-declarees.js";
 import { auClic, lireLaSaisie, poserLeCloud, saisieDe } from "./stations-cloud/stations-cloud.js";
@@ -96,8 +95,6 @@ import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATI
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
-import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
-import { poserProfils } from "./profil/carte.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
@@ -1025,11 +1022,6 @@ const reglagesDuCloser = new Map();
 // confirmation ouverte, la demande partie et la relecture qui la montrera. Absent : rien n'est en route.
 /** @type {Map<string, import("./closer/lancement/lancement.js").Etat>} */
 const lancementsDuCloser = new Map();
-// La réponse du chef en route sur une correction proposée (correction/carte.js), par projet et
-// proposition (`<projet>#<numéro>`). Absente : la carte attend. Elle tient tant que les faits lus portent la
-// proposition — tranchée, la carte reste hors de la file jusqu'à la lecture qui ne la porte plus.
-/** @type {Map<string, import("./correction/carte.js").Etat>} */
-const reponsesAuxCorrections = new Map();
 // La réponse du chef en route sur une carte de TODO (carte-todo.js), par projet et ticket
 // (`<projet>#<numéro>`), avec la question à laquelle elle répond. Absente : la carte dit ce que le tableau
 // de la cuisine montre de sa dernière réponse. Postée, la carte reste, envoyée et en attente de la cuisine,
@@ -1050,9 +1042,6 @@ const questionsDesBrouillons = new Map();
 // lecture ne porte plus le dit à côté de son texte. `bon` : la carte posée ; `carte` : sa partie de TODO.
 /** @type {{ projet: string, ticket: number, question: string | null | undefined, bon: HTMLElement, carte: HTMLElement, gele: boolean } | undefined} */
 let carteEnMain;
-// La réponse du chef en route sur un profil de cook proposé (profil/carte.js), tenue de même.
-/** @type {Map<string, import("./correction/carte.js").Etat>} */
-const reponsesAuxProfils = new Map();
 // Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
@@ -5381,7 +5370,7 @@ function poserLeRail(projet) {
       return colonne;
     }),
   );
-  // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail, ni les corrections.
+  // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail.
   if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [bandeDuRail(projet), grille]));
   // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail », en tête de la rangée (ticket 2093).
   if (!cuisine) {
@@ -5419,8 +5408,6 @@ function poserLeRail(projet) {
           ...panneDuRail(projet, tenu.tableau),
           ...teteDuRail(projet),
           bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
-          ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
-          ...poserLesProfils(projet, tenu.tableau.rail.profils),
         ]),
     ...(cuisine ? [] : [grille]),
     ...(cuisine || hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors)]),
@@ -5739,64 +5726,6 @@ async function reprendreLeDisjoncteur(projet) {
   poser(apresLaReprise(rendu));
 }
 
-// Les corrections proposées des consignes du projet, chacune une carte de la file, au-dessus des
-// colonnes : ce qu'on attend du chef y est dit en tête, et ses deux réponses sont des boutons. Le
-// « yes » ou le « no » part par le process principal, sur le tableau de la cuisine (tableau-gestes/rail.ts) ;
-// posté, la carte le dit, et le tableau est relu tout de suite — elle quitte la file à la lecture qui ne la
-// porte plus. Une réponse que les faits lus ne portent plus est oubliée.
-/** @param {Projet} projet @param {import("../correction.ts").CarteDeCorrection[] | undefined} corrections */
-function poserLesCorrections(projet, corrections) {
-  const { etatDe, gestes } = gestesDeLaFile(projet, corrections, reponsesAuxCorrections, (proposition, reponse) => brigade.corriger(projet.nom, proposition, reponse));
-  return poserCorrections(document, corrections, etatDe, gestes);
-}
-
-// Les profils de cook proposés (ticket 1053), chacun une carte de la file, sous les corrections : le même
-// geste, par le même chemin (tableau-gestes/rail.ts) — le « yes », joué par la box, écrit la définition du profil
-// dans le dépôt du projet.
-/** @param {Projet} projet @param {import("../profil.ts").CarteDeProfil[] | undefined} profils */
-function poserLesProfils(projet, profils) {
-  const { etatDe, gestes } = gestesDeLaFile(projet, profils, reponsesAuxProfils, (proposition, reponse) => brigade.trancherLeProfil(projet.nom, proposition, reponse));
-  return poserProfils(document, profils, etatDe, gestes);
-}
-
-// Ce qu'une carte de la file que le chef tranche d'un « yes » ou d'un « no » reçoit : l'état de son geste,
-// tenu dans `reponses` par projet et proposition, et ce que ses boutons appellent — `trancher`, le geste
-// posté sur le tableau de la cuisine. Une réponse que les faits lus ne portent plus est oubliée.
-/**
- * @param {Projet} projet
- * @param {{ proposition: number }[] | undefined} cartes
- * @param {Map<string, import("./correction/carte.js").Etat>} reponses
- * @param {(proposition: number, reponse: import("../correction.ts").Reponse) => Promise<import("../correction.ts").Rendu | undefined>} trancher
- */
-function gestesDeLaFile(projet, cartes, reponses, trancher) {
-  const portees = new Set((cartes ?? []).map(({ proposition }) => `${projet.nom}#${proposition}`));
-  for (const cle of reponses.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) reponses.delete(cle);
-  /** @param {number} proposition @param {import("./correction/carte.js").Etat} etat */
-  const poser = (proposition, etat) => {
-    reponses.set(`${projet.nom}#${proposition}`, etat);
-    if (courant?.nom === projet.nom) poserRail(projet);
-  };
-  return {
-    etatDe: (/** @type {number} */ proposition) => reponses.get(`${projet.nom}#${proposition}`) ?? CORRECTION_AU_REPOS,
-    gestes: {
-      ouvrir: (/** @type {number} */ ticket) => void ouvrirIssue(projet, ticket),
-      repondre: async (/** @type {number} */ proposition, /** @type {import("../correction.ts").Reponse} */ reponse) => {
-        poser(proposition, { etape: "envoi", reponse });
-        /** @type {import("../correction.ts").Rendu | undefined} */
-        let rendu;
-        try {
-          rendu = await trancher(proposition, reponse);
-        } catch (erreur) {
-          rendu = { refus: SANS_ENVOI, detail: erreur instanceof Error ? erreur.message : String(erreur) };
-        }
-        const suite = apresLaCorrection(reponse, rendu);
-        poser(proposition, suite);
-        if (suite.etape === "postee") lireLesFaits();
-      },
-    },
-  };
-}
-
 // Un instant que la box a écrit, à l'heure de ce poste — tel quel, s'il n'en est pas un.
 /** @param {string} instant */
 const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : dateHeure(instant));
@@ -5892,7 +5821,7 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
 
 // La fiabilité des cooks du projet affiché, en section de l'onglet Cooks sous ses tickets (fiabilite.js, ticket 1699) :
 // trois chiffres face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa
-// fiche. Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001).
+// fiche.
 // Ce que le projet a coûté n'y est pas : la page des coûts de l'app le dit, projet par projet (ticket 1022).
 function poserLaFiabilite() {
   const projet = courant;
@@ -5900,11 +5829,7 @@ function poserLaFiabilite() {
   const vu = fiabiliteVue?.projet === projet.nom ? fiabiliteVue : undefined;
   /** @param {number} ticket @param {HTMLElement} retour */
   const ouvrir = (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour);
-  // Les corrections acceptées de ses consignes, et ce qu'elles ont fait de leur cause (recul.js) : lues
-  // dans `facts`, pas dans cette lecture — une box pas jointe garde la dernière.
-  const tenu = tenus.get(projet.nom);
-  const reculs = tenu !== undefined && "tableau" in tenu ? tenu.tableau.reculs : undefined;
-  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir));
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir));
 }
 
 // La partie « closer » du projet affiché, en section de l'onglet Cooks sous ses gates (closer/section.js, ticket 1699) : les quatre chiffres
@@ -8988,8 +8913,6 @@ brigade.surFaits((recue) => {
   if (courant?.nom === recue.projet) {
     dessiner();
     void poserOrdinaires(courant);
-    // La fiabilité, sur Cooks, pose aussi ce que `facts` dit des corrections acceptées.
-    poserLaFiabilite();
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme

@@ -620,8 +620,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/porte.test.ts", test: "la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process" },
   { file: "test/preparation-depot/ouvrir.test.ts", test: "le ticket dit, pour chaque fichier, ce que la branche d'intégration en porte déjà" },
   { file: "test/produit/usage/box.test.ts", test: "un dépôt est brigade quand sa branche d'intégration porte le runtime de brigade" },
-  { file: "test/profils/domaines.test.ts", test: "le type du ticket n'a aucun effet : les mêmes tickets, de types différents, donnent le même relevé" },
-  { file: "test/profils/domaines.test.ts", test: "chacun des trois seuils, réglé dans l'environnement du projet, change le relevé" },
   { file: "test/projections.test.ts", test: "effacer les projections et rejouer le journal redonne le même état" },
   { file: "test/projections.test.ts", test: "des projections perdues se retrouvent en rejouant le journal" },
   { file: "test/projets-station/selection.test.ts", test: "la branche de la ligne : aucune si le dépôt en déclare une, sinon sa branche par défaut — aucune tant qu'il n'est pas cloné" },

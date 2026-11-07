@@ -18,11 +18,8 @@ import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllis
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
-import { carteDeCorrection, correctionsLues, estInforme, type CarteDeCorrection, type CorrectionLue } from "./correction.ts";
 import { triageDe, triageLu, type JourDeTriage, type JourLu } from "./triage.ts";
-import { reculDe, reculInforme, reculsLus, type Recul, type ReculLu } from "./recul.ts";
 import { apprentissageDe, apprentissageInforme, apprentissageLu, ligneOuvrable, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
-import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type ProfilLu } from "./profil.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
@@ -402,15 +399,6 @@ export type Faits = {
   coutDesGates?: CoutDesGates;
   // Le budget d'appels GitHub de chaque projet, lectures et écritures (ticket 2197) ; absent d'un runtime d'avant ce champ.
   budgetDesAppels?: BudgetDesAppels;
-  // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
-  // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
-  corrections?: CorrectionLue[];
-  // Ce que chaque correction acceptée a fait de sa cause, avant et après son merge (recul.ts) : absent
-  // quand aucune n'a été acceptée, et d'un runtime d'avant ce champ.
-  reculs?: ReculLu[];
-  // Les profils de cook proposés, que le chef tranche (profil.ts) : absent quand il n'y en a aucun, et
-  // d'un runtime d'avant ce champ.
-  profils?: ProfilLu[];
   // Ce que les cooks ont appris au projet, ses leçons et ses profils (apprentissage.ts) : absent quand il
   // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
   apprentissage?: ApprentissageLu;
@@ -465,14 +453,9 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 // `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
 // ligne `rail` de `status` n'a pas été lue. `aucunTicket` : aucune carte, hors Livré — rien à
 // cuire, rien en cuisson, rien qui t'attende : c'est là que se dit ce qui est en amont (amont.ts).
-// `corrections` : les corrections proposées des consignes du projet, chacune une carte de la file que
-// le chef tranche d'un « yes » ou d'un « no » (correction.ts), la plus ancienne d'abord — absent
-// quand il n'y en a aucune.
-// `profils` : les profils de cook proposés, chacun une carte de la file que le chef tranche de même
-// (profil.ts), le plus ancien d'abord — absent quand il n'y en a aucun.
 // `cadence` : l'histogramme des 24 dernières heures, servis et ratés (cadence.ts) — absent d'un runtime d'avant ce champ.
 // `plusieursStations` : les cartes nomment plus d'une station — la vue n'étiquette la station que dans ce cas.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; plusieursStations?: boolean; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[]; profils?: CarteDeProfil[]; cadence?: Histogramme };
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; plusieursStations?: boolean; aucunTicket?: true; attendLu?: string; railLu?: string; cadence?: Histogramme };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -513,9 +496,6 @@ export type Tableau = {
   coutDesGates?: CoutDesGates;
   // Le budget d'appels GitHub de chaque projet (ticket 2197) — absent d'un runtime qui ne le donne pas.
   budgetDesAppels?: BudgetDesAppels;
-  // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
-  // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
-  reculs?: Recul[];
   // Ce que les cooks ont appris au projet (apprentissage.ts) : ses leçons et ses profils, que la page
   // Reliability pose sous les causes corrigées — vides, elle le dit en une phrase.
   apprentissage: Apprentissage;
@@ -539,7 +519,7 @@ function sauf<T>(lu: Record<string, unknown>, lequel: string, rendre: () => T, s
   try {
     return rendre();
   } catch (erreur) {
-    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur) || profilInforme(erreur) || apprentissageInforme(erreur)) return sinon(base, erreur.message);
+    if (erreur instanceof Informe || apprentissageInforme(erreur)) return sinon(base, erreur.message);
     throw erreur;
   }
 }
@@ -738,8 +718,7 @@ function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: stri
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `corrections`, `reculs` et `profils`, absents quand il n'y en a aucun,
-// comme `apprentissage` quand le projet n'a ni leçon ni profil, et `github` quand GitHub ne limite pas le compte.
+// et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil, et `github` quand GitHub ne limite pas le compte.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -856,13 +835,10 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
-      ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
-      ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
-      ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
       ...(racine.apprentissage === undefined ? {} : { apprentissage: apprentissageLu(racine.apprentissage) }),
     };
   } catch (erreur) {
-    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur) || profilInforme(erreur) || apprentissageInforme(erreur)) return { informe: erreur.message };
+    if (erreur instanceof Informe || apprentissageInforme(erreur)) return { informe: erreur.message };
     throw erreur;
   }
 }
@@ -1322,8 +1298,6 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     ...(hors.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
-    ...(faits.corrections === undefined || faits.corrections.length === 0 ? {} : { corrections: faits.corrections.map(carteDeCorrection) }),
-    ...(faits.profils === undefined || faits.profils.length === 0 ? {} : { profils: faits.profils.map(carteDeProfil) }),
     ...(faits.cadence === undefined ? {} : { cadence: histogramme(faits.cadence) }),
   };
 }
@@ -1382,7 +1356,6 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
     ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
     ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
-    ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };
 }
@@ -1468,8 +1441,6 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ??
         donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url ??
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url ??
-        donnes?.corrections?.flatMap(({ tickets }) => tickets).find((candidat) => candidat.ticket === ticket)?.url ??
-        donnes?.profils?.flatMap(({ chiffres }) => chiffres.tickets).find((candidat) => candidat.ticket === ticket)?.url ??
         // Un `#N` de la ligne d'un ticket mis de côté (#2075) : une issue ou une PR du dépôt, que le rail ne porte pas.
         donnes?.attend?.flatMap(({ miseDeCote }) => miseDeCote?.liens ?? []).find((lien) => lien.numero === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
@@ -1517,16 +1488,6 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     dernier(projet: unknown): { faits: Faits; a: string } | undefined {
       const tenu = typeof projet === "string" ? tenus.get(projet) : undefined;
       return tenu === undefined ? undefined : { faits: tenu.faits, a: tenu.lecture.a };
-    },
-    // Les corrections proposées que les derniers faits lus d'un projet portent, par leur numéro : seules
-    // celles-là se tranchent depuis l'app (correction.ts).
-    corrections(projet: unknown): number[] {
-      return (typeof projet === "string" ? tenus.get(projet)?.faits.corrections : undefined)?.map(({ proposition }) => proposition) ?? [];
-    },
-    // Les profils proposés que les derniers faits lus d'un projet portent, par leur numéro : seuls
-    // ceux-là se tranchent depuis l'app (profil.ts).
-    profils(projet: unknown): number[] {
-      return (typeof projet === "string" ? tenus.get(projet)?.faits.profils : undefined)?.map(({ proposition }) => proposition) ?? [];
     },
     // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
     stations(projet: unknown): StationDesFaits[] | undefined {

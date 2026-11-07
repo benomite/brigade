@@ -7,8 +7,6 @@
 import { cadenceDeLaCuisine } from "./activite-cuisine/cadence.ts";
 import { activiteDeLaCuisine } from "./activite-cuisine/comptes.ts";
 import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
-import { cartesDeCorrection } from "./correctif/cartes.ts";
-import { reculDesCorrections } from "./correctif/recul.ts";
 import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
 import { lireGitHubSeul } from "./github-seul-etat.ts";
@@ -19,7 +17,6 @@ import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { apprentissageDuProjet } from "./apprentissage/projet.ts";
-import { cartesDeProfil } from "./profils/cartes.ts";
 import { decisionsPosees } from "./decisions.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
@@ -64,12 +61,6 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // les stations d'ici du projet sont alors `refused`.
     const refus = refusDuProjet(env.BRIGADE_STATION_DIR, env.BRIGADE_PROJECT);
     const forme = faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), refus, appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
-    // Les corrections proposées, ce que les acceptées ont fait de leur
-    // cause, et les profils proposés n'y sont que s'il y en a : la forme d'une
-    // cuisine qui n'en a aucun ne change pas.
-    const corrections = cartesDeCorrection(journal, env.BRIGADE_GITHUB_REPO);
-    const reculs = reculDesCorrections(journal);
-    const profils = cartesDeProfil(journal, env.BRIGADE_GITHUB_REPO);
     // Ce que les cooks ont appris : absent quand le projet n'a ni leçon ni profil, ou quand son
     // carnet ou une définition est illisible — un fichier du dépôt ne fait pas taire les faits.
     const projet = env.BRIGADE_PROJECT;
@@ -107,7 +98,7 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
     // L'interrupteur GitHub seul, quand il est allumé : accepté, ou refusé et pourquoi (`github-seul-etat.ts`).
     const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
-    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
+    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

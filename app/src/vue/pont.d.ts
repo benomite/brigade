@@ -372,18 +372,8 @@ export type Pont = {
   // du chef, devant ce qu'il coûte —, ou son annulation. Rend ce que le runtime a répondu, ou pourquoi
   // rien ne l'a été. Rien, pour un projet sans box.
   closer(projet: string, action: Action, oui?: true): Promise<RenduDuCloser | undefined>;
-  // Le « yes » ou le « no » du chef sur une correction proposée des consignes du projet
-  // (correction.ts), posté sur le tableau de la cuisine du projet : `/brigade correction yes|no
-  // <proposition>` (tableau-gestes/rail.ts). La vue nomme le projet et le numéro de la proposition, que la
-  // dernière lecture du tableau doit porter. Rend la réponse postée — la box la tranche à son tick, et la
-  // carte quitte la file à la lecture qui ne la porte plus —, ou pourquoi rien ne l'a été.
-  corriger(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
   // La réponse du chef à la carte de TODO d'un ticket (carte-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(projet: string, ticket: number, reponse: import("../carte-todo.ts").Reponse): Promise<import("../carte-todo.ts").Rendu | undefined>;
-  // Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin :
-  // `/brigade profile yes|no <proposition>` sur le tableau de la cuisine. Le « yes », joué par la box,
-  // écrit la définition du profil dans le dépôt du projet. Rend la réponse postée, ou pourquoi rien ne l'a été.
-  trancherLeProfil(projet: string, proposition: number, reponse: import("../correction.ts").Reponse): Promise<import("../correction.ts").Rendu | undefined>;
   // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
   // `brigade:breaker-open` du dépôt du projet. Rend la reprise demandée, ou pourquoi rien n'est parti ; rien pour un
   // projet que l'app ne connaît plus.

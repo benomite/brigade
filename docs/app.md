@@ -611,8 +611,7 @@ and the phone. The gestures of the card and the sheet that have a fact on GitHub
 (`app/src/gestes-github.ts`): `remove from the rail` removes the `fire` label from the issue; `back to the kitchen` and
 `it arrived` after WAITING remove `waiting` (#1740, below); the chef's comment is posted on the issue (see "A rail
 card's history and discussion"). The others send nothing and say where to act instead (`SANS_FAIT`): `merge the PR`
-says `merge the delivery's PR on GitHub, or let the station's pass merge it`; a TODO card's choice or text, and the
-"yes" or "no" on a proposed correction or cook profile, have nowhere to go (#1741, below). Since #2076, this is true of
+says `merge the delivery's PR on GitHub, or let the station's pass merge it`; a TODO card's choice or text has nowhere to go. Since #2076, this is true of
 every project, whichever station serves it: the repository of a project served by another station is read too, and its
 rail is this same view, in the same order — the rail a station publishes in its gist only says why GitHub is not read
 yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
@@ -2487,19 +2486,6 @@ whole is said once, by the tab's reading line, not again in the section.
 - **Not enough served tickets yet to measure, the section says so** —
   `not enough tickets served yet to measure: 6 of the 10 it takes`, or `none of the last 10 tickets
   served is merged yet` —, **never zeros**.
-- **Below, the causes a correction of the guidelines aimed at** (#1001, epic #994), under "corrected causes:
-  before and after the merge" — **one panel per accepted correction** (see "A proposed correction to the
-  project's guidelines"), oldest first: the cause, **the runtime's word at the top** — `recedes` in
-  green, `does not recede` in red —, the correction's PR and the day of its merge, then **side by side the share
-  of tickets the cause made fail before the merge, and after** (`30%`, `6 of 20 tickets failed because of
-  it`), each with its three latest tickets hit, a click on which opens the card. What each side
-  looks at is on hover over its name. **While there is nothing to compare, the panel says so in words, never by a
-  figure**: not merged yet (`not merged yet`, with no before or after), merged with no ticket finished since
-  (`nothing to compare yet` — the before, and `not yet` in place of the after), or that will not be (`not
-  merged`). **With no accepted correction, the section is not laid**, and nothing is said in its place. It comes
-  from `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, "Une correction mergée recule-t-elle sa cause ?"),
-  read alongside (`app/src/recul.ts`): the app judges nothing, "recedes" is the runtime's verdict; a box not
-  reached keeps the last reading.
 - **What the cooks taught the project** (#1058, epic #1034), under "what the cooks learned" — **now on the Cooks tab of the project, under the calibration ceiling (#1273), no longer on Reliability**, folded behind its line (#1456); same content, same actions, laid from `facts` once the box answers. **Its
   lessons**, provisional then promoted in `facts` order, one line each: the status as a dot
   (`provisional`, `promoted` in the accent's tone; its meaning on hovering the dot), the identifier in
@@ -3287,91 +3273,6 @@ section. With the section laid, `right now` is not repeated under it.
   rail scrolls within its own. A project that no station serves on this computer has no rail — nothing is read from it — and
   its terminal takes the full height.
 
-### A proposed correction of the project's guidance (#999)
-
-When the same cause of failure comes back on several recent tickets, the runtime proposes to correct
-the project's guidance — its `CLAUDE.md`, its team doc, its gates (`docs/runtime/etat-et-mesures.md`,
-"The proposed corrections"). `facts` carries it in `corrections`; **each proposal is a
-card of the queue, at the head of the rail, above the columns**, on the warm background of what awaits you.
-A wide card: the diff would not fit in a column. **With no proposal, no card**, and
-nothing is said in its place.
-
-```
-A failure cause keeps coming back: accept this correction of the project's guidance?
-[correction proposed]  red gates: app tests
-failed because of it:  #3  #5  #8
-Three cooks ran the app tests against the clock; the guidance never says …
-CLAUDE.md  +3  −1
-  @@ -21,7 +21,10 @@ Conventions
-   - Type check: `npm run typecheck`.
-  -- A test may wait a few seconds for the server to start.
-  +- A test never runs against the clock: it waits for a fact — …
-this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
-[yes, open it as a PR] ?   [no]
-```
-
-- **At the head, what is expected of you**, in one sentence; then the cause (its sentence, `titre`) and the
-  model's why (`motif`), when it gave one.
-- **Each ticket the cause made fail opens with a click** on its issue, at the address the
-  box gave for it (`corrections[].tickets[].url`); without an https address, its number is laid
-  alone.
-- **The correction is a diff, file by file**: the file name, its lines added
-  (`+3`, in green) and removed (`−1`, in red), then its lines as they are, in monospace —
-  an added line in green, a removed one in red, the head of a hunk (`@@ … @@`) in blue, each
-  with its sign: the color does not say it alone. The file heads (`diff --git`,
-  `index`, `---`, `+++`) are not repeated: the file name says them. A long correction
-  scrolls within its height.
-- **What the proposal cost is read on the card** (`cout.tokens`): it is already spent.
-- **"yes, open it as a PR"**, recommended, and **"no"**. The price of the "yes" is in its hover:
-  a PR that carries exactly this diff goes through the pass like a delivery — gates, review, CI —,
-  on your quota. The action goes out right away: the whole card is what you have to read before.
-- **Since #2061 the answer goes nowhere**: no reading carries proposals any more, and a click says `nothing was
-  posted: no station proposes corrections or profiles any more — the answer has nowhere to go` (`SANS_FAIT` in
-  `app/src/gestes-github.ts`).
-
-Captures: `docs/captures/1741/` — `correction-oui-avant.png` (the old path: the answer went to the box, and the card
-left the queue at once), `correction-oui-apres.png` (posted on the board, said on the card),
-`correction-refus-avant.png` (the old refusal: a station that did not know the gesture) and `correction-refus-apres.png`
-(GitHub refused the comment: the card stays and says why).
-
-### A proposed cook profile (#1053, epic #1033)
-
-When an area of the code comes back on enough recent tickets and is delivered on the first try far
-less often than the rest of the project, the runtime proposes to make it a cook profile
-(`runtime/src/profils/`). `facts` carries it in `profils`; **each proposal is a card of the
-queue, under those of the corrections, above the columns** — the same wide card, on the same background.
-**With no proposal, no card**, and nothing is said in its place.
-
-```
-One part of the code keeps needing more than one try: give it a cook profile of its own?
-[profile proposed]  app-src-vue  for app/src/vue
-6 of the last 20 tickets served touch it
-delivered on the first try: 33% here (2 of 6), against 75% for the whole project (15 of 20) — 42 points below ?
-its tickets:  #4  #7  #9  #11  #14  #17
-what the profile would hold
-  skills     none proposed ?
-  perimeter  app/src/vue
-  notebook   starts with 2 lessons of the project, born of this domain's tickets
-             L-007  A view change is judged on a screenshot, before and after …   from #9
-proposed 10/13/2026, 9:41:05 AM
-[yes, create the profile] ?   [no] ?
-```
-
-- **At the head, what is expected of you**, in one sentence; then the profile name and its domain.
-- **The figures that justify it**, each in one sentence (`app/src/profil.ts`, `carteDeProfil`):
-  how many of the latest served tickets touch the domain, and its share delivered on the first try against
-  the project's. The thresholds that made the proposal are on hover.
-- **Each ticket of the domain opens with a click** on its issue, at the address the box gave
-  (`profils[].chiffres.tickets[].url`); without an https address, its number is laid alone.
-- **What the profile would hold**: its skills (the measure proposes none — said, with the why
-  on hover), its perimeter, and its starting notebook, lesson by lesson with the retros that carry it.
-- **"yes, create the profile"**, recommended, and **"no"**; what each does is in its hover.
-  Like that of a correction, the answer goes nowhere since #2061: a click says the same `nothing was posted: no station
-  proposes corrections or profiles any more — the answer has nowhere to go`.
-
-Captures: `docs/captures/1741/` — `profil-oui-avant.png` (the old path: the answer went to the box, and the card left
-the queue at once) and `profil-oui-apres.png` (posted on the board, said on the card).
-
 ### The stop banner
 
 When the box says the kitchen is `stopped` — your "stop" —, the project's space says so at the top, above
@@ -3442,7 +3343,7 @@ failed reading does not set it.
 - **The project's pill** says the same thing in one word, `unreachable`, and the bar's box carries a `×`.
   The project's station ("Cooks on") is no longer green: it is red, `unreachable`.
 - **The rail's columns** show no "0": each carries `?` and says "not known while the
-  station is unreachable". Nothing else of the rail is laid down (neither upstream nor corrections). A reached box that does not
+  station is unreachable". Nothing else of the rail is laid down (not upstream). A reached box that does not
   return the shape of `facts` is not this case: the rail is not drawn, as above.
 - **The `fire` tickets are read on GitHub** (`feu.ts`): it is the workstation's `gh`, launched in the project's
   folder — never the box. They are **folded** under "the tickets in the kitchen according to GitHub, N";

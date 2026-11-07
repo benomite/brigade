@@ -4,10 +4,8 @@
 // clé par clé, et une box sans le fichier garde ses gestes `station`.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { lireReglagesDuCorrectif } from "../../src/correctif/reglages.ts";
 import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { lireReglagesDesProfils } from "../../src/profils/reglages.ts";
 import { lireLeDepot, variablesDuDepot } from "../../src/reglages-projet/en-vigueur.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier, validerReglagesProjet, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
@@ -63,16 +61,17 @@ test("an unknown or invalid threshold is refused, and named", () => {
   assert.equal(refus({ integrationBranch: "v2", drift: { apiToken: 5 } }).motif, "secret");
 });
 
-test("the readers of the runtime read the repository's thresholds over the box's, key by key, and fall back to the box without them", () => {
+test("the box's variables take the repository's thresholds over the box's, key by key, and fall back to the box without them", () => {
   const box = { BRIGADE_DRIFT_TESTS: "100", BRIGADE_DRIFT_MERGES: "3", BRIGADE_CORRECTION_THRESHOLD: "5", BRIGADE_PROFILE_WINDOW: "10" };
   const seul = { ...box, ...variablesDuDepot({ integrationBranch: "v2", drift: { tests: 5000 }, profile: { window: 40, gapPoints: 15 } }) };
   assert.equal(seul.BRIGADE_DRIFT_TESTS, "5000");
   assert.equal(seul.BRIGADE_DRIFT_MERGES, "3");
-  assert.equal(lireReglagesDuCorrectif(seul).seuil, 5);
-  assert.deepEqual(lireReglagesDesProfils(seul), { fenetre: 40, tickets: 5, ecart: 15 });
+  assert.equal(seul.BRIGADE_CORRECTION_THRESHOLD, "5");
+  assert.equal(seul.BRIGADE_PROFILE_WINDOW, "40");
+  assert.equal((seul as Record<string, string>).BRIGADE_PROFILE_GAP_POINTS, "15");
   // Sans le fichier, ce que la box tient.
   assert.deepEqual(variablesDuDepot(null), {});
-  assert.deepEqual(lireReglagesDuCorrectif({ ...box, ...variablesDuDepot(COMPLETS) }), { seuil: 4, fenetre: 30 });
+  assert.deepEqual([variablesDuDepot(COMPLETS).BRIGADE_CORRECTION_THRESHOLD, variablesDuDepot(COMPLETS).BRIGADE_CORRECTION_WINDOW], ["4", "30"]);
 });
 
 test("a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file", (t) => {
