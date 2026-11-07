@@ -51,9 +51,12 @@ export const CONCERNES_NOMMES = 10;
 export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Ce que la règle lit et écrit de GitHub. `state` absent : l'issue compte comme
-// ouverte — au pire rien ne s'ouvre, jamais deux.
+// ouverte — au pire rien ne s'ouvre, jamais deux. `servieLe` : la correction
+// est déposée hors du dépôt dont les temps sont lus — sur la brigade, pour un
+// projet servi (`routage-temps-perdu.ts`) — ; son merge n'est pas dans ces
+// temps, et elle est servie quand elle est fermée (null : fermée sans date lue).
 export type GitHubDeLaCorrection = {
-  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state">>)[]>;
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state">> & { servieLe?: string | null })[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
 };
@@ -139,13 +142,19 @@ export function premierePriseDesRecents(enregistrements: readonly TempsTicket[])
 
 // La dernière correction servie : celle, fermée, dont le merge est le plus
 // récent parmi les temps du projet. Une correction fermée sans merge n'a rien
-// changé à attendre.
-export function derniereCorrectionServie(fermees: readonly number[], enregistrements: readonly TempsTicket[]): { numero: number; servie: number } | null {
+// changé à attendre. Une correction déposée sur la brigade pour un projet
+// servi (`servieLe`) n'est jamais dans les temps du projet — un ticket du
+// projet au même numéro n'est pas elle — : elle est servie à sa fermeture,
+// celle du merge de sa PR sur la brigade. Sans cela, aucune correction d'un
+// projet servi n'était jamais à l'essai : chacune se rouvrait dès la
+// précédente fermée, sur les tickets pris avant son correctif (#2809).
+export function derniereCorrectionServie(fermees: readonly number[], enregistrements: readonly TempsTicket[], servieesAilleurs: ReadonlyMap<number, string | null> = new Map()): { numero: number; servie: number } | null {
   let derniere: { numero: number; servie: number } | null = null;
-  for (const t of enregistrements) {
-    const servie = Date.parse(t.mergedAt ?? "");
-    if (fermees.includes(t.ticket) && !Number.isNaN(servie) && (derniere === null || servie > derniere.servie)) derniere = { numero: t.ticket, servie };
-  }
+  const retenir = (numero: number, servie: number) => {
+    if (!Number.isNaN(servie) && (derniere === null || servie > derniere.servie)) derniere = { numero, servie };
+  };
+  for (const t of enregistrements) if (fermees.includes(t.ticket) && !servieesAilleurs.has(t.ticket)) retenir(t.ticket, Date.parse(t.mergedAt ?? ""));
+  for (const [numero, servie] of servieesAilleurs) if (fermees.includes(numero)) retenir(numero, Date.parse(servie ?? ""));
   return derniere;
 }
 
@@ -161,12 +170,13 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
 
   // Les tickets de correction, ouverts et fermés, chacun du plus ancien au plus
   // récent. Le début de la fenêtre tombe à minuit (UTC) : la même requête toute la journée.
-  const corrections = async (): Promise<{ ouverts: number[]; fermes: number[] }> => {
+  const corrections = async (): Promise<{ ouverts: number[]; fermes: number[]; ailleurs: Map<number, string | null> }> => {
     const debut = new Date(maintenant().getTime() - FENETRE_MS);
     debut.setUTCHours(0, 0, 0, 0);
     const marquees = (await github.issuesDepuis(debut.toISOString())).filter((issue) => DE_CONFIANCE.includes(issue.association) && issue.body.includes(MARQUE_CORRECTION));
     const numeros = (fermee: boolean) => marquees.filter((issue) => (issue.state === "closed") === fermee).map((issue) => issue.number).sort((x, y) => x - y);
-    return { ouverts: numeros(false), fermes: numeros(true) };
+    const ailleurs = new Map(marquees.flatMap((issue) => (issue.servieLe === undefined ? [] : [[issue.number, issue.servieLe] as const])));
+    return { ouverts: numeros(false), fermes: numeros(true), ailleurs };
   };
   const ouverts = async () => (await corrections()).ouverts;
 
@@ -187,7 +197,7 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
       connue = deja;
       return { issue: "deja-ouverte", numero: deja, mediane, seuilMin };
     }
-    aLEssai = derniereCorrectionServie(lues.fermes, enregistrements);
+    aLEssai = derniereCorrectionServie(lues.fermes, enregistrements, lues.ailleurs);
     if (aLEssai !== null && premiere < aLEssai.servie) return essai(aLEssai.numero, aLEssai.servie);
     const creee = await github.creerIssue({ titre: ticket.titre, corps: ticket.corps, labels: LABELS_CORRECTION });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.

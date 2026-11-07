@@ -56,7 +56,7 @@ import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/att
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps, ticketDeCorrection, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
-import { routerLeTempsPerdu } from "./routage-temps-perdu.ts";
+import { routerLeTempsPerdu, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
 import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
@@ -218,7 +218,7 @@ export type OptionsDeStation = {
   // Le dépôt du projet servi et le GitHub de la brigade : le ticket du temps
   // perdu se dépose sur la brigade (#2783). Absents, il reste sur le projet.
   depotServi?: string;
-  githubDeLaBrigade?: GitHubDeLaCorrection;
+  githubDeLaBrigade?: GitHubDeLaBrigade;
   // Le répertoire d'état du projet, où se compte un `blocked-on-human` sans
   // question (#2556). Absent, le cas est refusé mais pas compté.
   repertoireEtat?: string;
@@ -1370,7 +1370,7 @@ export type OptionsDuDepot = {
   // `owner/name` du projet.
   depotGitHub: string;
   // Le GitHub de la brigade, où va le ticket du temps perdu (#2783).
-  githubDeLaBrigade?: GitHubDeLaCorrection;
+  githubDeLaBrigade?: GitHubDeLaBrigade;
   // L'état du tour lu en une requête GraphQL (#2301) ; `false` : le REST
   // d'avant, ce que mesurent les tests du coût par ticket.
   graphql?: boolean;
