@@ -35,6 +35,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { porteDeQualite, type DecisionDeQualite } from "../alerte-qualite.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import { mesurerQualite, type QualiteDuTicket } from "../mesure-qualite.ts";
+import { avecLaPreuve, type SorteDeMesure } from "../preuve-mesure.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, tempsPerdu, ticketsRecents, totauxParPerte } from "./mesure.ts";
 
@@ -131,6 +132,9 @@ export type OptionsDeLaCorrection = {
   // le contenu de projet.json (son seuil du premier coup) ; sans `qualites`,
   // pas de porte.
   lire: () => { enregistrements: TempsTicket[]; lostTimeMaxMin: number; qualites?: ReadonlyMap<number, QualiteDuTicket>; projet?: unknown };
+  // La section « Evidence » du ticket de qualité ou de temps perdu qui s'ouvre,
+  // sur les temps et la qualité lus (`preuve-mesure.ts`, #2839). Absente, le corps n'en a pas.
+  preuve?: (sorte: SorteDeMesure, enregistrements: readonly TempsTicket[], qualites: ReadonlyMap<number, QualiteDuTicket>) => Promise<string>;
   maintenant?: () => Date;
 };
 
@@ -163,7 +167,7 @@ export function derniereCorrectionServie(fermees: readonly number[], enregistrem
 // ait des tickets récents à elle, ou en ouvre un. `ouvertes` : les issues
 // ouvertes que l'appelant vient de lire, s'il en a — le ticket déjà connu qui y
 // est ne coûte aucune lecture de GitHub, ni la correction à l'essai déjà connue.
-export function correctionDuTemps({ github, lire, maintenant = () => new Date() }: OptionsDeLaCorrection) {
+export function correctionDuTemps({ github, lire, preuve, maintenant = () => new Date() }: OptionsDeLaCorrection) {
   let connue: number | null = null;
   let aLEssai: { numero: number; servie: number } | null = null;
   const porte = porteDeQualite({ github, maintenant });
@@ -182,7 +186,7 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
 
   return async (ouvertes?: readonly number[]): Promise<DecisionDeCorrection> => {
     const { enregistrements, lostTimeMaxMin: seuilMin, qualites, projet } = lire();
-    const qualite = qualites === undefined ? null : await porte(mesurerQualite(enregistrements, qualites, projet), ouvertes);
+    const qualite = qualites === undefined ? null : await porte(mesurerQualite(enregistrements, qualites, projet), ouvertes, preuve && (() => preuve("qualite", enregistrements, qualites)));
     if (qualite !== null) return { issue: "qualite", qualite };
     const ticket = ticketDeCorrection(enregistrements, seuilMin);
     const mediane = medianePerdueDesRecents(enregistrements);
@@ -199,7 +203,8 @@ export function correctionDuTemps({ github, lire, maintenant = () => new Date() 
     }
     aLEssai = derniereCorrectionServie(lues.fermes, enregistrements, lues.ailleurs);
     if (aLEssai !== null && premiere < aLEssai.servie) return essai(aLEssai.numero, aLEssai.servie);
-    const creee = await github.creerIssue({ titre: ticket.titre, corps: ticket.corps, labels: LABELS_CORRECTION });
+    const corps = await avecLaPreuve(ticket.corps, preuve && (() => preuve("temps-perdu", enregistrements, qualites ?? new Map())));
+    const creee = await github.creerIssue({ titre: ticket.titre, corps, labels: LABELS_CORRECTION });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();
     if (premier < creee) await github.fermerIssue(creee);

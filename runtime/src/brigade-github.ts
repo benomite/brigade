@@ -59,6 +59,7 @@ import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps, ticketDeCorrection } from "./temps-max/correction.ts";
 import { routerLeTempsPerdu, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
+import { preuveDeMesure } from "./preuve-mesure.ts";
 import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
@@ -505,6 +506,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             const temps = lesTempsDesTickets(clone);
             return { ...temps, qualites: qualitesDesTemps(temps.enregistrements), projet: projetDuClone(clone) };
           },
+          // Sa preuve, lue sur le GitHub du projet mesuré et le journal de la station (#2839).
+          preuve: preuveDeMesure({ github, ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }) }),
           ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
         });
   // La médiane des rapports cuisson réelle / attendue au-dessus de

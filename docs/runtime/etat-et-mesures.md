@@ -497,6 +497,14 @@ them opens one. The cause they name, blocking review, is corrected in the cook's
 #2829 is the fifth, from the same station: no marker, and none of the measure's rule (#2824) in its body, while
 0.20261107.212204+g0cf609d, which holds #2804, #2813 and #2819, was still draining in. Nothing to correct on main.
 
+A quality or lost-time ticket carries its evidence (`runtime/src/preuve-mesure.ts`, #2839): the cook that takes
+it reads neither the project's issues, nor its `temps-tickets.json`, nor the station's journal, and stopped
+blocked on #2832 and #2837. When it files one, the station appends an "Evidence" section, gathered from the
+project's GitHub and its own journal: every recent ticket measured, with the reason of each send-back and failed
+cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its loss,
+and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
+heartbeat), 40 at most. A read that fails is named on its line, with its error: the ticket is filed all the same.
+
 The rule each quality ticket carries (`runtime/src/garde-correction.ts`) also keeps its correction off the measure
 that opened it (#2824): a send-back the ticket did not count is never counted away, by its claim date, its age or its
 project. #2818 did just that — its cause already had its fix on main (#2812), and it made the gate count every

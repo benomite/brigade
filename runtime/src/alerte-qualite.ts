@@ -16,6 +16,7 @@ import { DE_CONFIANCE } from "./alimenter.ts";
 import { GARDES, REGLE_GARDE_CORRECTION, TITRE_SECTION } from "./garde-correction.ts";
 import { LABEL, type IssueOuverte } from "./github.ts";
 import { REPARATIONS_PAR_MERGE_MAX, type Compte, type Qualite } from "./mesure-qualite.ts";
+import { avecLaPreuve, type Preuve } from "./preuve-mesure.ts";
 
 export const MARQUE_QUALITE = "<!-- brigade:qualite -->";
 // Les tickets que ce ticket de qualité a comptés (#2804) : tant que la fenêtre
@@ -117,6 +118,7 @@ export type DecisionDeQualite = { issue: "ouverte" | "deja-ouverte" | "deja-serv
 // les alertes de temps décident comme avant. Sinon elle trouve le ticket de
 // qualité ouvert ou en ouvre un, et les alertes de temps n'ouvrent rien.
 // `ouvertes` : les issues ouvertes que l'appelant vient de lire, s'il en a.
+// `preuve` : la section « Evidence » ajoutée au corps du ticket qui s'ouvre (#2839).
 export function porteDeQualite({ github, maintenant = () => new Date() }: { github: GitHubDeLaQualite; maintenant?: () => Date }) {
   let connue: number | null = null;
 
@@ -130,7 +132,7 @@ export function porteDeQualite({ github, maintenant = () => new Date() }: { gith
   };
   const ouverts = async (): Promise<number[]> => (await lues()).filter((issue) => issue.state !== "closed").map((issue) => issue.number);
 
-  return async (qualite: Qualite, ouvertes?: readonly number[]): Promise<DecisionDeQualite | null> => {
+  return async (qualite: Qualite, ouvertes?: readonly number[], preuve?: Preuve): Promise<DecisionDeQualite | null> => {
     const ticket = ticketDeQualite(qualite);
     if (ticket === null) return null;
     const { causes } = ticket;
@@ -149,7 +151,7 @@ export function porteDeQualite({ github, maintenant = () => new Date() }: { gith
     const compte = (ticket: number) => comptes.has(ticket) || Date.parse(qualite.mergesDesFautifs.get(ticket) ?? "") <= ouvertureSansMarque;
     const derniere = toutes.at(-1);
     if (derniere !== undefined && qualite.fautifs.every(compte)) return { issue: "deja-servie", numero: derniere.number, causes };
-    const creee = await github.creerIssue({ titre: ticket.titre, corps: ticket.corps, labels: LABELS_QUALITE });
+    const creee = await github.creerIssue({ titre: ticket.titre, corps: await avecLaPreuve(ticket.corps, preuve), labels: LABELS_QUALITE });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();
     if (premier < creee) await github.fermerIssue(creee);
