@@ -80,16 +80,14 @@ export function observationDuJournal(base: Base, maintenant: Date): Observation 
   const [servi] = base.lire<{ at: string | null }>("SELECT max(at) AS at FROM events WHERE type = 'ticket.served'");
   const interrupteur = etatDeLInterrupteur(base);
   const ouverture = plusRecent([sessionEnCours(base)?.startedAt, interrupteur?.on === true ? interrupteur.since : null]);
-  const refusees = refusDeLaCuisine({ rail, refus: refusDuJournal(base), enAttente: enAttente.map(({ ticket }) => ticket), dernierService: servi?.at ?? null, ouverture }, maintenant);
   return {
-    refusees,
     eteinte: eteinteAuJournal(base),
     enAttente: enAttente.map(({ ticket }) => ticket),
     attenteDepuis: plusAncien(enAttente.map(({ since }) => since)),
     explications: explicationsDuRail(rail, attendentLeChef),
     dernierService: servi?.at ?? null,
     // L'ouverture : le démarrage du runtime, ou le projet rallumé depuis.
-    ouverture: plusRecent([sessionEnCours(base)?.startedAt, interrupteur?.on === true ? interrupteur.since : null]),
+    ouverture,
   };
 }
 
@@ -173,10 +171,14 @@ export type OptionsRetenue = {
 // Ce qu'une passe observe et lit, à `maintenant`.
 export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<OptionsRetenue, "station" | "tour">): { observation: Observation; signaux: () => Signaux } {
   const vue = options.tour?.vue() ?? null;
-  const observation: Observation =
+  const brute =
     vue === null
       ? observationDuJournal(base, maintenant)
       : { eteinte: eteinteAuJournal(base), enAttente: vue.enAttente, attenteDepuis: vue.attenteDepuis, explications: vue.explications, dernierService: vue.dernierService, ouverture: vue.ouverture };
+  // Les refus du manager se lisent au journal, que le tour GitHub observe ou non (#2694).
+  const refusees = refusDeLaCuisine({ rail: lireRail(base), refus: refusDuJournal(base), enAttente: brute.enAttente, dernierService: brute.dernierService, ouverture: brute.ouverture }, maintenant);
+  // Les lignes de refus passent par les explications : le diagnostic de `passer` les garde.
+  const observation: Observation = refusees === null ? brute : { ...brute, refusees, explications: [...(brute.explications ?? []), ...refusees.lines] };
   const signaux = (): Signaux => {
     const duJournal = signauxDuJournal(base);
     const baseRouge = vue === null ? duJournal.baseRouge : vue.checksRouges !== null && vue.checksRouges.length > 0 ? { sha: null, checks: vue.checksRouges } : null;

@@ -18,10 +18,11 @@ export type RefusesDeLaCuisine = { since: string; tickets: number[]; lines: stri
 
 export const direRefus = ({ ticket, manque }: RefusDuManager): string => `#${ticket} refused by the manager, gap: ${manque}`;
 
-// Les refus du manager sur les issues encore ouvertes, au journal.
+// Les refus du manager sur les issues encore ouvertes, au journal. Une épique
+// refusée n'est pas un `fire` : elle ne se compte pas.
 export function refusDuJournal(base: Base): RefusDuManager[] {
   return base
-    .lire<{ ticket: number; missing: string | null; reason: string; at: string }>("SELECT ticket, missing, reason, at FROM manager_issues WHERE decision = 'refused' AND closed = 0 ORDER BY ticket")
+    .lire<{ ticket: number; missing: string | null; reason: string; at: string }>("SELECT ticket, missing, reason, at FROM manager_issues WHERE decision = 'refused' AND closed = 0 AND kind IS NOT 'epic' ORDER BY ticket")
     .map(({ ticket, missing, reason, at }) => ({ ticket, manque: missing ?? reason, at }));
 }
 
