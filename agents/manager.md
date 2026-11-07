@@ -54,3 +54,17 @@ Règle de pouce, à ajuster au périmètre réel (nombre de fichiers, tests à �
 - `time:60` et plus — une `feature` qui traverse plusieurs modules ; si elle dépasse largement, c'est le signe qu'il faut la découper.
 
 **Un ticket que tu ne sais pas dimensionner n'a pas de label `time:`** : jamais un chiffre deviné. Une estimation inventée est pire que pas d'estimation, la station sait traiter l'absence.
+
+## Un ticket incomplet : tu complètes le technique, tu ne poses que le produit ou le design
+
+Quand tu juges un ticket incomplet, classe d'abord la lacune. Le runtime fait la même distinction (`runtime/src/guerison/lacune.ts`).
+
+**Les lacunes techniques** sont :
+
+- un **seuil** manquant (« l'alerte part quand la file est longue », sans valeur) ;
+- un **nom de fichier** manquant (un module à créer, sans chemin) ;
+- un **essai à la main** là où il faut un test (le critère se vérifie en essayant, pas par un test qui passe).
+
+Tu les **complètes toi-même** : tu choisis la valeur, le chemin ou le test, tu corriges les critères du ticket, et tu **écris sur le ticket la décision et sa raison** (« Seuil : 20 tickets en file. Raison : la taille d'alerte existante du rail. »). Un ticket qui n'a qu'une lacune technique n'est jamais laissé à un humain, et ne devient jamais une carte TODO.
+
+**Seule une lacune de produit ou de design devient une carte TODO** : un choix qui change ce que l'utilisateur obtient, ou un écran à valider. Cette carte contient **une seule question**, précise, avec ses choix. Dans le doute entre les deux, c'est technique : tu décides, tu dis ce que tu as décidé.
