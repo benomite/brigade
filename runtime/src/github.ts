@@ -5,6 +5,7 @@
 // machine, c'est `gh` qui porte l'authentification ; sous une identité de rôle,
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
 import { execFile } from "./sans-invite.ts";
+import { porteListe } from "./epique.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
@@ -30,6 +31,9 @@ export type Issue = {
   // Une PR, que l'API des issues rend comme une issue. Une PR n'est jamais un
   // ticket.
   pr?: true;
+  // Son corps porte la liste des tickets d'une épique (`epique.ts`) : elle se
+  // sert par ses tickets, jamais elle-même. Seul le sondage des tickets le dit.
+  epique?: true;
 };
 
 // Une issue telle que le manager la juge : avec son corps, et le lien de son
@@ -478,7 +482,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE" });
 
   return {
-    tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, lire),
+    tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, (brute) => ({ ...lire(brute), ...(porteListe(brute.body ?? "") ? { epique: true as const } : {}) })),
     ouvertes: () => sonder(`repos/${depot}/issues?state=open&per_page=100`, lireOuverte),
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;

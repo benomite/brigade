@@ -79,6 +79,12 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
     assert.equal(vu.panne, undefined);
   });
 
+  test("une épique dont le corps liste les tickets garde `fire` et sa `prio:`, et n'est pas sur le rail (#2618)", async () => {
+    const liste = "Split.\n\n<!-- brigade:tickets -->\n**0/2 servi.**\n\n| #11 | A | ouvert |\n<!-- /brigade:tickets -->";
+    const lu = await lireLeRailSurGithub({ depot: DEPOT, appeler: github({ issues: () => [issue(1, ["fire", "prio:2"]), issue(2583, ["fire", "prio:1", "model:opus", "effort:medium"], { body: liste })] }), maintenant: () => LU });
+    assert.deepEqual(lu.tickets.map(({ ticket }) => ticket), [1]);
+  });
+
   test("la cuisine est dite ouverte, et `status` dit le rail et ses cooks d'après GitHub", async () => {
     const lu = await lire(github());
     assert.ok(lu.lu);

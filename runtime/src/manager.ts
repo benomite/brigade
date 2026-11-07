@@ -738,14 +738,17 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   const tour = async () => {
     if (!managerAllume(base)) return;
-    // L'état d'un ticket change sans qu'aucune issue bouge.
-    await decoupage.suivre();
-    if (arrete) return;
     const sondage = await github.ouvertes();
+    // L'avancement de chaque épique se lit sur GitHub, à chaque tour, avant
+    // tout jugement : une épique dont tous les tickets sont fermés se ferme, et
+    // ce tour ne la sert plus (#2618).
+    const vues = sondage.inchange ? confirmees : sondage.issues;
+    const terminees = vues === null ? new Set<number>() : await decoupage.suivre(vues.filter(lisible));
+    if (arrete) return;
     // Rendre une issue ne la modifie pas : GitHub répond « inchangé », et la
     // liste confirmée se retrie telle quelle.
     if (sondage.inchange && (confirmees === null || remisesEnAttente(base).every((remise) => sansObjet.has(cle(remise))))) return;
-    const issues = sondage.inchange ? (confirmees ?? []) : sondage.issues;
+    const issues = (sondage.inchange ? (confirmees ?? []) : sondage.issues).filter((issue) => !terminees.has(issue.number));
     const presentes = new Set(issues.map((issue) => issue.number));
     requalification.suivre(issues);
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);

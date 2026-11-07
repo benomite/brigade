@@ -53,7 +53,7 @@ manager's work on an issue is **claimed on GitHub like a ticket** (`runtime/src/
 - What follows the decision (labels, comment, the split's tickets) is written by the station that decided, from
   its log: the others know nothing of it. `run manager` and `manager -- upstream` on a station describe its own
   log; GitHub, which the app reads, carries the result. The tickets of an epic are followed (`Tickets de
-  l'épique`, closing the served epic) by the station that split it.
+  l'épique`, closing the finished epic) from GitHub by every station, on every manager turn (#2618).
 
 The claim is taken under the name the project declares on this machine (`box/claude`); a runtime with no
 station declared here claims nothing.
@@ -75,8 +75,8 @@ equal priority. Each has `ticket`, `titre`, `url`, `priorite` (its `prio:` label
 - `sortie`: left the rail unserved (`fire` removed, `hors-cuisine` set), nothing decided since;
 - `servie`: served, its issue still open;
 - `decoupee`: a split epic; `dit` says how many tickets are served and names those that will not be
-  without the chef. An epic whose tickets are **all** served is no longer listed: the manager closes it,
-  with a comment listing its tickets and PRs (once);
+  without the chef. An epic whose tickets are **all** closed is no longer listed: the manager closes it,
+  with a comment listing its served tickets with their PRs and its dropped ones (once);
 - `epique`: an epic not split yet (judged to be one, or carrying `epic`), or being split;
 - `ecartee`: set aside by the manager (refused, or held by a label), with its reason;
 - `non-lue`: not judged, or handed back and not judged again.
@@ -199,13 +199,29 @@ with one of two stays a remark. The expected case is in `evals/relecture-capture
 between `<!-- brigade:tickets -->` and `<!-- /brigade:tickets -->`: a French heading `## Tickets de
 l'épique`, `**1/3 servi.**`, a `# | Ticket | État` table, and a note saying what is between the markers is
 rewritten, the rest is yours, and `Épique : #78` in a ticket's body makes it enter. **It is the only place
-in the body it rewrites.** A marker counts only **alone on its line, outside a code block**. States
-follow the rail: `pas sur le rail`, `en attente`, `attend #N`, `en cuisine`, `en pass`, `servi`,
-`86 (motif)`, `bloqué — #N abandonné (…)`, `abandonné (…)`, `fermé`. Off, the manager no longer keeps
-the list; turned back on, it catches up.
+in the body it rewrites.** A marker counts only **alone on its line, outside a code block**. **The tally
+is read from GitHub on every manager turn** (#2618), for every open issue whose body carries the block —
+split by the manager or by hand —: its tickets are the numbers that head a row of the table or an item
+of a hand-written list (`- #68`), the tickets the split created, and the trusted open issues that say
+`Épique : #N`. A ticket is `ouvert` while its issue is open, `servi` once closed by a merged PR,
+`abandonné` once closed without one; a number GitHub does not know as an issue is left out. An open
+ticket costs no read; a closed one is read once per process (`issue`, then `prQuiFerme`). Off, the
+manager no longer keeps the list; turned back on, it catches up.
+
+**An epic whose tickets are all closed is closed** (`completed`) by the manager in the same turn, with
+one comment (`brigade:epique-terminee`) listing the served tickets with their PR and the dropped ones.
+Dropped tickets do not keep it open: the comment says that what they were to do is not done, and the
+second reads it — no label, no TODO card. An epic the chef already closed is not commented, and the
+comment is not posted twice if the closing fails.
+
+**An epic is never a ticket.** An issue whose body carries the block keeps `fire` and its `prio:`, but
+no station claims it (`brigade-github.ts`), the held-kitchen diagnosis does not count it as waiting
+(`retenue/tour.ts`, and so `status` and the TODO line), and the app's rail does not show it
+(`app/src/vue/rail/github.ts`): the GraphQL snapshot and the REST poll of the `fire` issues mark it
+`epique`.
 
 **Your split is stronger than its own.** An epic is split **only once**. You **close** a ticket: it is not
-reborn (the list says `abandonné`, `bloqué` for its dependents: remove their `attend` line yourself); you
+reborn (the list says `abandonné`; remove the `attend` line of its dependents yourself); you
 **add** one by writing `Épique : #N` in its body; you **change** a criterion, card or calibration, or
 remove `fire`: nothing is rewritten; you **hold** the epic: creations in progress wait. **An epic split by hand: paste `<!-- brigade:tickets -->` into its body** before turning on
 (`already-split`). A **closed** epic is never split.

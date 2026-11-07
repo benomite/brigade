@@ -1,8 +1,7 @@
 // Le manager découpe une épique, sur un runtime dont il est allumé : le faux
 // `claude` rend le découpage, le GitHub de test reçoit les tickets, et le
-// manager tient leur liste dans l'épique. Ce que la cuisine en a fait — pris,
-// en pass, servis —, le test le pose au journal comme le rail d'avant
-// l'écrivait (aides/rail-du-journal.ts).
+// manager tient leur liste dans l'épique. Ce que la cuisine en a fait — servis
+// par une PR mergée, ou fermés sans —, le test le pose sur le GitHub de test.
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +15,6 @@ import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { decoupageDe, ticketsDEpique } from "../src/projections/splits.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
-import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 const EPIQUE = "Le chef veut voir, partout, combien de tickets attendent.";
@@ -44,32 +42,17 @@ function epique(c: { gh: ReturnType<typeof brigade>["gh"] }, numero = 30, body =
   c.gh.decrire(numero, { body });
 }
 
-// Les tickets nés du découpage, posés sur le rail du journal comme le sondage
-// d'avant les y mettait : leur titre et leur fiche. Rend ce rail, pour les y
-// faire avancer.
-function surLeRail(c: ReturnType<typeof brigade>, ...numeros: number[]) {
-  for (const numero of numeros) {
-    const lue = c.gh.lire(numero);
-    const card = fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte));
-    c.journal.ajouter({ project: "brigade", ticket: numero, author: "github", type: "ticket.arrived", payload: { title: lue?.title ?? "", priority: null, createdAt: lue?.createdAt ?? "", url: lue?.url ?? "", card } });
-  }
-  return ouvrirRail(c.journal, { projet: "brigade", dureeBailMs: 600_000 });
-}
-
-// Chaque ticket pris, passé en pass puis servi, l'un après l'autre.
-function servir(c: ReturnType<typeof brigade>, ...numeros: number[]) {
-  const rail = surLeRail(c, ...numeros);
-  for (const numero of numeros) {
-    assert.equal(rail.prendre("box/claude")?.ticket, numero);
-    rail.envoyerEnPass(numero, "box/claude");
-    rail.servir(numero);
-  }
-}
-
 const charge = (evenement: Evenement | undefined) => evenement?.payload as Record<string, unknown> | undefined;
 const fermer = (c: ReturnType<typeof brigade>, numero: number) => {
   const ouverte = c.gh.lire(numero);
   if (ouverte) c.gh.poser({ ...ouverte, state: "closed", updatedAt: "2026-10-08T12:00:00Z" });
+};
+// Le ticket fermé par le merge de sa PR (`Closes #n`) : servi, sur GitHub.
+const livrer = (c: ReturnType<typeof brigade>, ...numeros: number[]) => {
+  for (const numero of numeros) {
+    c.gh.fermeesParUnMerge.set(numero, { number: 900 + numero, url: `https://github.com/acme/kitchen/pull/${900 + numero}`, base: "main", sha: "s", state: "closed", merged: true, enRetard: false, mergeePar: null });
+    fermer(c, numero);
+  }
 };
 
 describe("le manager découpe une épique", { concurrency: 8 }, () => {
@@ -245,20 +228,15 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     }
   });
 
-  test("l'épique liste ses tickets avec leur état, et la liste suit le rail sans qu'aucune issue bouge", async (t) => {
+  test("l'épique liste ses tickets avec leur état, lu sur GitHub : ouverts tant qu'ils le sont", async (t) => {
     const c = brigade(t, { issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
-    await jusqua(() => /\| #501 \| Le rail compte ses tickets \| pas sur le rail \|/.test(c.liste(30)));
-
-    const rail = surLeRail(c, 501, 502, 503);
-    rail.prendre("box/claude");
-    rail.envoyerEnPass(501, "box/claude");
-    await jusqua(() => /\| #501 \| Le rail compte ses tickets \| en pass \|/.test(c.liste(30)));
+    await jusqua(() => /\| #501 \| Le rail compte ses tickets \| ouvert \|/.test(c.liste(30)));
 
     assert.match(c.liste(30), /\*\*0\/3 servi\.\*\*/);
-    assert.match(c.liste(30), /\| #502 \| La pass lit le compte \| attend #501 \|/);
-    assert.match(c.liste(30), /\| #503 \| La doc dit le compte \| attend #501, #502 \|/);
+    assert.match(c.liste(30), /\| #502 \| La pass lit le compte \| ouvert \|/);
+    assert.match(c.liste(30), /\| #503 \| La doc dit le compte \| ouvert \|/);
     // Ce que le chef a écrit de l'épique n'a pas bougé.
     assert.ok(c.gh.corpsDe(30).startsWith(`${EPIQUE}\n\n${DEBUT}`));
     assert.ok(c.gh.ecritures.every(([numero]) => numero === 30));
@@ -268,7 +246,9 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const c = brigade(t, { issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
-    servir(c, 501, 502, 503);
+    livrer(c, 501);
+    await jusqua(() => /\*\*1\/3 servi\.\*\*/.test(c.liste(30)) && /\| #501 \| [^|]+ \| servi \|/.test(c.liste(30)));
+    livrer(c, 502, 503);
 
     await jusqua(() => /\*\*3\/3 servis\.\*\*/.test(c.liste(30)));
 
@@ -284,24 +264,25 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const c = brigade(t, { issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
-    servir(c, 501, 502, 503);
+    livrer(c, 501, 502, 503);
 
     await jusqua(() => c.gh.lire(30)?.state === "closed" && c.faits(30).some((e) => e.type === "manager.split-served"));
 
     const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps));
     assert.equal(dit.length, 1);
-    // Aucune livraison au journal : chacun est dit servi sans PR.
-    for (const numero of [501, 502, 503]) assert.match(dit[0]?.[1] ?? "", new RegExp(`^- #${numero} .+ — servi sans PR$`, "m"));
+    // Chacun avec la PR qui l'a servi.
+    for (const numero of [501, 502, 503]) assert.match(dit[0]?.[1] ?? "", new RegExp(`^- #${numero} .+ — https://github.com/acme/kitchen/pull/${900 + numero}$`, "m"));
+    assert.doesNotMatch(dit[0]?.[1] ?? "", /Abandonnés/);
     await c.laisserTourner();
     assert.equal(c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps)).length, 1);
   });
 
-  test("un ticket fermé sans livraison : l'épique reste ouverte, et « upcoming » dit lequel manque", async (t) => {
+  test("un ticket fermé sans livraison est abandonné : l'épique attend les autres, puis se ferme quand même, et le dit", async (t) => {
     const c = brigade(t, { issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
     fermer(c, 502);
-    await jusqua(() => /\| #502 \| [^|]+ \| fermé \|/.test(c.liste(30)));
+    await jusqua(() => /\| #502 \| [^|]+ \| abandonné \|/.test(c.liste(30)));
     await c.laisserTourner();
 
     assert.equal(c.gh.lire(30)?.state, "open");
@@ -309,6 +290,16 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const amont = enAmont(c.journal.base, [issue(30, ["epic"])]);
     assert.equal(amont[0]?.etat, "decoupee");
     assert.match(amont[0]?.dit ?? "", /#502 closed without delivery/);
+
+    livrer(c, 501, 503);
+    await jusqua(() => c.gh.lire(30)?.state === "closed");
+    assert.deepEqual(c.gh.fermetures, [30]);
+    assert.match(c.liste(30), /\*\*2\/3 servis\.\*\*/);
+    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique terminée/.test(corps)).map(([, corps]) => corps);
+    assert.equal(dit.length, 1);
+    assert.match(dit[0] ?? "", /\*\*Servis\*\* \(2\) :\n- #501 .+\n- #503 /);
+    assert.match(dit[0] ?? "", /\*\*Abandonnés\*\* \(1\), fermés sans PR mergée :\n- #502 La pass lit le compte$/m);
+    assert.match(dit[0] ?? "", /n'a rien livré/);
   });
 
   test("devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse", async (t) => {
@@ -479,13 +470,13 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.equal(c.jugements().length, 1);
   });
 
-  test("le chef ferme un ticket du découpage : il ne renaît pas, et l'épique le dit fermé", async (t) => {
+  test("le chef ferme un ticket du découpage : il ne renaît pas, et l'épique le dit abandonné", async (t) => {
     const c = brigade(t, { issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
 
     fermer(c, 502);
-    await jusqua(() => /\| #502 \| [^|]+ \| fermé \|/.test(c.liste(30)));
+    await jusqua(() => /\| #502 \| [^|]+ \| abandonné \|/.test(c.liste(30)));
     await c.laisserTourner();
 
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
@@ -502,7 +493,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     c.gh.decrire(40, { body: "Épique : #30\n\nUn oubli du découpage." });
     c.gh.poser(issue(41, [], { title: "Un intrus" }));
     c.gh.decrire(41, { body: "Épique : #30", association: "NONE" });
-    await jusqua(() => /\| #40 \| Le compte dans status \| pas sur le rail \|/.test(c.liste(30)));
+    await jusqua(() => /\| #40 \| Le compte dans status \| ouvert \|/.test(c.liste(30)));
     await jusqua(() => c.dits(40).length === 1);
 
     assert.match(c.liste(30), /\*\*0\/4 servi\.\*\*/);
@@ -513,7 +504,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
 
     // Fermé sans avoir été lancé, il reste dans la liste, et le dit.
     fermer(c, 40);
-    await jusqua(() => /\| #40 \| Le compte dans status \| fermé \|/.test(c.liste(30)));
+    await jusqua(() => /\| #40 \| Le compte dans status \| abandonné \|/.test(c.liste(30)));
   });
 
   test("le chef change un critère, un calibrage ou retire `fire` d'un ticket du découpage : le manager n'y revient pas", async (t) => {

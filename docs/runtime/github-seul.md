@@ -88,6 +88,10 @@ base, the stale-branch pruning).
   split, set aside, requalify) is claimed on GitHub like a ticket, one state of the issue at a time: the first claim
   wins, the others leave the issue alone until it is said done or expires (#2568,
   [manager](manager.md#several-stations-on-one-project)).
+- **An epic is never a ticket** (#2618). An issue whose body carries `<!-- brigade:tickets -->` keeps `fire` and its
+  `prio:`, but the turn neither claims it nor counts it among its tickets, so the held-kitchen diagnosis never sees it
+  waiting; the manager rewrites its tally from GitHub on every turn and closes it once all its tickets are closed
+  ([manager](manager.md)).
 - **The chef's TODO** is facts on GitHub only: an issue labelled `chef-todo` with its marked comment
   (`github-seul/carte-todo/`), a PR awaiting the chef. The app reads them from GitHub; no runtime writes a board.
 

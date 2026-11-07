@@ -215,6 +215,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/cooks/prises.ts",
     "app/src/vue/rail/github.ts",
     "runtime/src/enregistrement-station/contrat.ts",
+    // La liste des tickets d'une épique, sans E/S : une épique n'est pas sur le rail (#2618).
+    "runtime/src/epique.ts",
     "runtime/src/github-etat/etats.ts",
     "runtime/src/stations-github/stations.ts",
   ]);

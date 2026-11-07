@@ -58,7 +58,9 @@ import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chronometre, enregistrerTemps } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
-export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state">;
+// `epique` : son corps porte la liste des tickets d'une épique — elle se sert
+// par eux, jamais ne se prend (#2618).
+export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state" | "epique">;
 
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
@@ -623,7 +625,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     await corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median ticket time is over the max but its correction ticket could not be opened on ${nom} — ${message(echec)}`));
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
-    const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
+    // Une épique découpée garde `fire` et sa `prio:` : ni elle ne se prend, ni
+    // elle ne compte parmi les tickets du tour (#2618).
+    const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE) && ticket.epique !== true);
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
     let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;

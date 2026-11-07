@@ -2,7 +2,7 @@
 // que le runtime réécrit.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { avecListe, DEBUT, epiqueDe, FIN, porteListe, rendreListe, sansListe } from "../src/epique.ts";
+import { avecListe, DEBUT, epiqueDe, FIN, porteListe, rendreListe, sansListe, ticketsDeLaListe } from "../src/epique.ts";
 
 const LIGNES = [
   { ticket: 501, title: "Le rail compte", state: "servi", served: true },
@@ -72,4 +72,11 @@ test("un ticket dit son épique par une ligne de son corps, où qu'elle soit et 
   assert.equal(epiqueDe("Fait partie de l'épique : #75"), null);
   assert.equal(epiqueDe("Épique : la refonte"), null);
   assert.equal(epiqueDe(""), null);
+});
+
+test("les tickets d'une épique se lisent dans son bloc : les lignes de son tableau, ou une liste écrite à la main — rien hors du bloc (#2618)", () => {
+  const corps = (bloc: string) => `Voir #7 et #8.\n\n${bloc}\n\n- #9 après le bloc`;
+  assert.deepEqual(ticketsDeLaListe(corps(rendreListe(30, LIGNES))), [501, 502]);
+  assert.deepEqual(ticketsDeLaListe(corps(`${DEBUT}\n- #68\n* [x] #69 fait\n- #68\nVoir #70\n${FIN}`)), [68, 69]);
+  assert.deepEqual(ticketsDeLaListe("Une épique sans liste, qui cite #12."), []);
 });

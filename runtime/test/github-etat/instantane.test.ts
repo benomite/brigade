@@ -82,6 +82,15 @@ const avecPR = (pr: Record<string, unknown>, pages: Record<string, unknown> = {}
   repository: { ...reponse.repository, pullRequests: { pageInfo: { hasNextPage: false }, nodes: [{ ...reponse.repository.pullRequests.nodes[0], ...pr }] }, ...pages },
 });
 
+test("the snapshot marks an issue whose body carries an epic's ticket list: it is an epic, never a ticket to claim (#2618)", () => {
+  const issues = { pageInfo: { hasNextPage: false }, nodes: [
+    { number: 2583, title: "Epic", body: "Split.\n\n<!-- brigade:tickets -->\n| #1 | A | ouvert |\n<!-- /brigade:tickets -->", labels: { nodes: [{ name: "fire" }] } },
+    { number: 13, title: "Thirteen", body: "Cites `<!-- brigade:tickets -->` in a sentence.", labels: { nodes: [{ name: "fire" }] } },
+  ] };
+  const lu = lireInstantane({ repository: { ...reponse.repository, issues } });
+  assert.deepEqual(lu.tickets.map(({ number, epique }) => [number, epique ?? false]), [[2583, true], [13, false]]);
+});
+
 test("the snapshot says what the query truncated or lost: PRs, files, renames, CI contexts", () => {
   assert.equal(lireInstantane(reponse).prsTronquees, false);
   assert.equal(lireInstantane(reponse).prs[0]?.fichiersIncomplets, false);
