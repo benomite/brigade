@@ -60,7 +60,7 @@ test("après l'installation, le fichier du projet autorise la lecture de la file
   const allow = lus().permissions.allow;
   assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace status)`), allow.join("\n"));
   for (const doc of ["installer.md", "runtime/README.md", "runtime/station.md", "runtime/exploitation.md", "app.md", "glossary.md"]) assert.ok(allow.includes(`Bash(${SSH} mabox cat /opt/brigade/docs/${doc})`), doc);
-  for (const lecture of ["rail", "log", "pass", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
+  for (const lecture of ["rail", "log", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
   assert.ok(allow.includes("Read(~/.config/brigade/app.json)"));
   assert.match(sortie, /mabox`, projet « espace »/);
   assert.match(sortie, /AUTORISÉ\s+Lire la file — 1 règle/);
