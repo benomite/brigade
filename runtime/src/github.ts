@@ -11,6 +11,7 @@ import { masquerIdentifiants } from "./identifiants.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -104,6 +105,7 @@ export type GitHub = {
   // Les labels que l'issue porte, posés par un compte qui a l'écriture sur le
   // dépôt (le chef, ou le second sous son compte) : ce que GitHub dit de qui a
   // posé le label, pas de qui a écrit l'issue (#2619).
+  // Vaut aussi le label d'un humain déclaré sur une carte qui lui est assignée (#2762).
   labelsPosesParDeConfiance?(numero: number): Promise<string[]>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
@@ -213,6 +215,9 @@ export type OptionsGitHub = {
   // Ce qui porte chaque appel jusqu'à GitHub. Par défaut, `gh api -i` ; un
   // test y met son faux GitHub, qui répond sans process ni réseau.
   transport?: Transport;
+  // Les humains que le projet déclare (`humans`) : leur réponse vaut sur une
+  // carte qui leur est assignée, même sans l'écriture (#2762).
+  humains?: readonly HumainDeclare[];
 };
 
 // Un appel tel qu'il part : les arguments de `gh api -i`, et ce que `gh` en
@@ -301,6 +306,7 @@ type IssueBrute = {
   body?: string | null;
   author_association?: string;
   user?: { login?: string } | null;
+  assignees?: Array<{ login?: string } | null> | null;
 };
 
 type CommentaireBrut = { id?: number; body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
@@ -554,13 +560,20 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         .filter((brut) => brut.event === "labeled" && typeof brut.label?.name === "string" && typeof brut.actor?.login === "string");
       const ecrivains = new Map<string, boolean>();
       const labels = new Set<string>();
+      let assignes: Promise<string[]> | undefined;
+      const fiche = `repos/${depot}/issues/${numero}`;
+      const lireAssignes = () =>
+        (assignes ??= lireSousCondition([fiche]).then((reponse) =>
+          ((JSON.parse(exiger(reponse, fiche).corps) as IssueBrute).assignees ?? []).flatMap((assigne) => (assigne?.login ? [assigne.login] : [])),
+        ));
       for (const brut of posees) {
         const login = brut.actor?.login as string;
         if (!ecrivains.has(login)) {
           const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
           const reponse = await lireSousCondition([chemin]);
           const permission = reponse.statut === 200 ? (JSON.parse(reponse.corps) as { permission?: string }).permission : undefined;
-          ecrivains.set(login, permission === "admin" || permission === "maintain" || permission === "write");
+          const ecrit = permission === "admin" || permission === "maintain" || permission === "write";
+          ecrivains.set(login, ecrit || (await reponseDUnHumainDeclare(login, options.humains ?? [], lireAssignes)));
         }
         if (ecrivains.get(login)) labels.add(brut.label?.name as string);
       }
