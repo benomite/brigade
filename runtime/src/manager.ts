@@ -59,6 +59,8 @@ const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 // jugement reconnaît une épique sans lui.
 const LABEL_EPIQUE = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
+// Dans chaque commentaire de station qui sort un ticket de la cuisine (renvois, échecs).
+const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`hors-cuisine`)";
 const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "hors-cuisine", ...LABELS_ECARTES];
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
@@ -347,7 +349,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return `_${verbe} par le manager${calibrage}${mesure}._`;
   };
 
-  const dire = (issue: IssueOuverte, connue: IssueDuManager): string => {
+  const dire = (issue: IssueOuverte, connue: IssueDuManager, parLaStation = false): string => {
     const fired = issue.labels.includes(LABEL);
     switch (connue.decision) {
       case "fire": {
@@ -396,7 +398,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           signature(connue.run),
         ].join("\n");
       case "aside": {
-        if (connue.reason !== ("chef-changed" satisfies Ecart)) return direEcart(connue);
+        if (connue.reason !== ("chef-changed" satisfies Ecart)) return direEcart(connue, parLaStation);
         const manque = connue.lacking ?? [];
         return [
           MARQUEUR_MANAGER,
@@ -410,9 +412,16 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
   };
 
-  const direEcart = (connue: IssueDuManager): string =>
+  const direEcart = (connue: IssueDuManager, parLaStation = false): string =>
     connue.reason === ("hors-cuisine" satisfies Ecart)
-      ? [
+      ? parLaStation
+        ? [
+            MARQUEUR_MANAGER,
+            `**Manager — \`hors-cuisine\` : la station a mis ce ticket de côté.**${connue.fired ? " `fire` y est posé, et `hors-cuisine` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} C'est le compteur d'échecs de la station, pas un ticket servi par une autre box : personne ne le sert.`,
+            "",
+            "Le pourquoi est dans le dernier commentaire de la station. Retire `hors-cuisine` pour relancer le ticket.",
+          ].join("\n")
+        : [
           MARQUEUR_MANAGER,
           `**Manager — \`hors-cuisine\` : ce ticket ne se sert pas sur cette box.**${connue.fired ? " `fire` y est posé, et `hors-cuisine` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} Le pourquoi est sur l'issue, de celui qui a posé le label.`,
           "",
@@ -485,7 +494,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Un écart se décide par le code, sur chaque station : une seule le dit.
     if (connue.decision === "aside" && !(await tenir(issue.number))) return false;
     try {
-      await github.commenter(issue.number, dire(issue, connue));
+      // `hors-cuisine` posé par le compteur de la station n'est pas un ticket servi ailleurs.
+      const parLaStation = connue.decision === "aside" && connue.reason === ("hors-cuisine" satisfies Ecart) && (await github.commentaires(issue.number)).some((c) => c.body.includes(MARQUE_STATION_HORS_CUISINE));
+      await github.commenter(issue.number, dire(issue, connue, parLaStation));
     } catch (erreur) {
       if (!arrete) avertir(`brigade : décision du manager non commentée sur l'issue #${issue.number} — ${message(erreur)}`);
       return false;

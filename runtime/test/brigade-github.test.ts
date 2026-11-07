@@ -756,7 +756,7 @@ test("a delivery whose only blocker is a mechanical conflict is synced by the st
   assert.equal(faux.mergee(36)?.mergeePar, "A");
 });
 
-test("a real content conflict is sent back without spending the review budget, then set aside naming the reason (#2726)", async () => {
+test("a conflict with the base is never set aside: a third conflict send-back relaunches the cook (#2728)", async () => {
   const faux = new FauxGitHub();
   faux.feu(36);
   const a = faux.station("A", { avertir: () => {} });
@@ -765,18 +765,19 @@ test("a real content conflict is sent back without spending the review budget, t
   const pr = faux.prs.find((p) => p.issue === 36);
   assert.ok(pr);
   pr.conflitDeContenu = true;
-  for (let i = 0; i < 12 && !faux.ticket(36).labels.has("hors-cuisine"); i += 1) {
+  const renvoisDe = () => (faux.commentaires.get(36) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  for (let i = 0; i < 12 && renvoisDe().length < 4; i += 1) {
     // La base bouge de nouveau sous la PR après chaque cook.
     pr.enConflit = true;
     await a.tour();
     await a.calme();
   }
-  const renvois = (faux.commentaires.get(36) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
-  assert.ok(faux.ticket(36).labels.has("hors-cuisine"));
-  assert.equal(renvois.length, 3);
-  assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2, conflicts\)/);
-  assert.match(renvois[2]?.body ?? "", /^.*\n.*\n\nBlocking reason: conflict\n/s);
-  assert.match(renvois[2]?.body ?? "", /Taken off the kitchen/);
+  const renvois = renvoisDe();
+  assert.ok(renvois.length >= 4);
+  assert.ok(!faux.ticket(36).labels.has("hors-cuisine"));
+  assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1, conflicts\)/);
+  assert.match(renvois[2]?.body ?? "", /sent back to a cook \(3, conflicts\)/);
+  assert.doesNotMatch(renvois.map((r) => r.body).join("\n"), /Taken off the kitchen/);
 });
 
 test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping (#2209)", async () => {

@@ -265,6 +265,16 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => labels(30).includes("fire"));
   });
 
+  test("`hors-cuisine` posé par le compteur de la station n'est pas dit « servi ailleurs » (#2728)", async (t) => {
+    const { dits, laisserTourner, gh } = brigade(t, { issues: [issue(30, ["fire", "model:haiku", "effort:low", "hors-cuisine"])] });
+    gh.repondre(30, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `A`: still not mergeable.\n\nTaken off the kitchen (`hors-cuisine`): a human decides.", "NONE");
+    await laisserTourner();
+
+    assert.equal(dits(30).length, 1);
+    assert.doesNotMatch(dits(30)[0] ?? "", /servi ailleurs/);
+    assert.match(dits(30)[0] ?? "", /la station a mis ce ticket de côté/);
+  });
+
   test("`hors-cuisine` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit", async (t) => {
     const { jugements, labels, dits, faits, journal, laisserTourner } = brigade(t, {
       issues: [issue(30, ["fire", "model:haiku", "effort:low", "hors-cuisine"]), issue(31, ["hors-cuisine"])],
