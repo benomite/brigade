@@ -966,7 +966,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // de sa fiche — où le découpage l'écrit. Lue du corps seul, la zone d'un
     // ticket né d'une épique n'était jamais tenue : deux cooks partaient sur
     // les mêmes fichiers, et le second livré revenait en conflit (#2741). Une
-    // fiche illisible ne fait pas foi.
+    // fiche illisible, ou des commentaires que GitHub ne donne pas, ne font
+    // pas foi : la zone est alors celle du corps.
     const zones = new Map<number, Promise<string[]>>();
     // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
     const prisCeTour = new Set<number>();
@@ -974,7 +975,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const deja = zones.get(numero);
       if (deja !== undefined) return deja;
       const lue = (async () => {
-        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero)]);
+        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
         const laFiche = fiche(commentaires.map(({ body }) => body));
         return [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
       })();
