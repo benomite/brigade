@@ -14,6 +14,8 @@ import { brancherJeton, configJeton, direJeton, masquerLaConsole } from "./jeton
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
+import { DEPOT_BRIGADE } from "./routage-temps-perdu.ts";
+import { ouvrirGitHub } from "./github.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherCloserGithub, lectureDuClone } from "./closer-github-passe/closer-github-passe.ts";
@@ -176,6 +178,7 @@ try {
             capacites: ici.fournit,
             base: station.base,
             depotGitHub: rail.depot,
+            githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
             github: githubs.pass,
             depot,
             // La prise de #2056, liée à la station et au client du tour.
