@@ -143,8 +143,11 @@ call to `claude`, and does one of two things:
   TODO card carrying exactly one question for you. Your answer on the issue changes it, and it is judged
   again.
 
-The follow-up is written to the log (`manager.completed`, outcome `completed`, `question` or `unreadable`)
-with the fingerprint of the verdict it follows: the same verdict is not followed twice.
+An answer that does not read is never the end of it: the manager then asks you itself, in the same kind of
+card, whether you complete the criteria on the issue — it does not ask the model again, each unreadable
+answer counting against the breaker. The follow-up is written to the log (`manager.completed`, outcome
+`completed`, `question` or `unreadable`) with the fingerprint of the verdict it follows: a verdict followed
+by a completion or a card is not followed twice.
 
 ### Handing it back
 

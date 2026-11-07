@@ -24,6 +24,26 @@ import type { IssueDuManager } from "../projections/manager.ts";
 
 export const QUESTION_PRODUIT = "product-question";
 const AUTEUR_DE_CARTE = "manager";
+// La première ligne de la consigne : ce qui distingue une complétion d'un
+// jugement, pour qui lit les lancements.
+export const MARQUE_DE_COMPLETION = "<!-- brigade:completion -->";
+// Les réponses illisibles qu'un même verdict supporte avant que le manager ne
+// pose sa question au chef : une complétion illisible ne clôt jamais le suivi.
+// Une seule : chacune compte au disjoncteur comme un échec, et un refus du
+// modèle est déjà redemandé par `demander` avant de se lire illisible.
+export const ESSAIS_DE_COMPLETION = 1;
+
+// La question que le manager pose quand il n'a pas su compléter le ticket :
+// combler le manque lui revient alors, au chef.
+export function questionDeRepli(illisible: string): Extract<Completion, { issue: "question" }> {
+  return {
+    issue: "question",
+    motif: `Le manager n'a pas su compléter ce ticket lui-même : sa réponse ne se lisait pas (${illisible}).`,
+    resume: "Le manager a jugé ce ticket incomplet et n'a pas su le compléter lui-même.",
+    question: "Complètes-tu toi-même les critères d'acceptation de ce ticket ?",
+    choix: ["Oui, je réécris ses critères sur l'issue", "Non, je ferme le ticket"],
+  };
+}
 
 export type Completion =
   | { issue: "complete"; motif: string; criteres: string[]; model: string; effort: string; calibration: string }
@@ -37,6 +57,7 @@ export function consigneDeCompletion(mission: {
 }): string {
   const { depot, issue, commentaires, verdict } = mission;
   return [
+    MARQUE_DE_COMPLETION,
     `Tu es le manager de la brigade sur le dépôt ${depot}. Tu as jugé cette issue \`incomplete\` : une unité de travail, à laquelle il manque de quoi partir. Un ticket qui reste bloqué sur un manque que tu sais combler est un échec de la cuisine : tu le comble toi-même, sauf si le manque demande au chef une décision de produit ou de design.`,
     "",
     "## Ton verdict",
@@ -170,20 +191,40 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDeVerdictIncomplet) {
     // suivant.
     async traiter(issue: IssueOuverte, commentaires: string[], verdict: IssueDuManager): Promise<"qualifie" | "question" | "attente"> {
       const suivi = verdict.fingerprint ?? empreinte(issue, commentaires);
-      if ((derniere(issue.number)?.payload as { fingerprint?: string } | undefined)?.fingerprint === suivi) return "question";
-      if (!atelier.peutJuger()) return "attente";
-      const reponse = await atelier.demander<Completion>(
-        { numero: issue.number, prefixe: "complete", nom: "complétion" },
-        consigneDeCompletion({ depot: atelier.depotGitHub, issue, commentaires, verdict }),
-        lireCompletion,
-      );
-      if (!reponse || arrete()) return "attente";
-      if (!("valeur" in reponse)) {
+      // Ce verdict, déjà suivi d'une carte ou d'une complétion, ne se relit
+      // plus ; ses réponses illisibles, elles, se comptent.
+      const suivis = journal.duTicket(issue.number).flatMap((evenement) => {
+        const payload = evenement.payload as { run: string; fingerprint?: string; outcome?: string; reason: string };
+        return evenement.type === "manager.completed" && payload.fingerprint === suivi ? [payload] : [];
+      });
+      if (suivis.some(({ outcome }) => outcome !== "unreadable")) return "question";
+      let illisibles = suivis.length;
+      const precedente = suivis.at(-1);
+      // Essais épuisés à un tour précédent, sans que la carte ait pu se poser.
+      let lue: { run: string; valeur: Completion } | null =
+        precedente && illisibles >= ESSAIS_DE_COMPLETION ? { run: precedente.run, valeur: questionDeRepli(precedente.reason) } : null;
+      while (lue === null) {
+        if (!atelier.peutJuger()) return "attente";
+        const reponse = await atelier.demander<Completion>(
+          { numero: issue.number, prefixe: "complete", nom: "complétion" },
+          consigneDeCompletion({ depot: atelier.depotGitHub, issue, commentaires, verdict }),
+          lireCompletion,
+        );
+        if (!reponse || arrete()) return "attente";
+        if ("valeur" in reponse) {
+          lue = reponse;
+          break;
+        }
         noter(issue.number, { type: "manager.completed", payload: { run: reponse.run, fingerprint: suivi, outcome: "unreadable", reason: reponse.illisible } });
-        avertir(`brigade : complétion illisible sur l'issue #${issue.number} (${reponse.illisible}) — elle reste incomplète`);
-        return "question";
+        illisibles += 1;
+        if (illisibles >= ESSAIS_DE_COMPLETION) {
+          // Les essais épuisés : la question passe au chef, jamais un
+          // avertissement seul.
+          avertir(`brigade : complétion illisible sur l'issue #${issue.number} (${reponse.illisible}), ${illisibles} fois — la question passe au chef`);
+          lue = { run: reponse.run, valeur: questionDeRepli(reponse.illisible) };
+        } else avertir(`brigade : complétion illisible sur l'issue #${issue.number} (${reponse.illisible}), essai ${illisibles}/${ESSAIS_DE_COMPLETION} — elle est redemandée`);
       }
-      const { run, valeur } = reponse;
+      const { run, valeur } = lue;
       const signature = atelier.signature(run, "Complété");
 
       if (valeur.issue === "question") {

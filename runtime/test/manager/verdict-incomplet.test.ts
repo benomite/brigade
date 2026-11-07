@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { cartesEnTodo } from "../../src/carte-todo.ts";
 import { empreinte, MARQUEUR_MANAGER } from "../../src/juger.ts";
-import { lireCompletion, reecrireCriteres } from "../../src/manager/verdict-incomplet.ts";
+import { lireCompletion, questionDeRepli, reecrireCriteres } from "../../src/manager/verdict-incomplet.ts";
 import { issueDuManager } from "../../src/projections/manager.ts";
 import { chef, cuisine, fauxGitHub, issue, montre } from "../aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
@@ -90,6 +90,50 @@ describe("un verdict incomplet", { concurrency: 8 }, () => {
     await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
     assert.equal(c.journal.duTicket(40).filter((e) => e.type === "manager.completed").length, 1);
     assert.equal(cartesEnTodo(c.journal.base).length, 1);
+  });
+
+  test("une complétion illisible ne clôt pas le suivi : la question passe au chef, en carte TODO, et rien ne se relance", async (t) => {
+    // La complétion reçoit un jugement : `issue` inconnue, la réponse ne se lit pas.
+    const c = cuisine(t, { manager: { suite: ["juge-incomplet", "juge-ticket"] }, issues: [issue(50, [])] });
+    chef(c.repertoire, "manager.enabled");
+    await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
+
+    const [carte] = cartesEnTodo(c.journal.base);
+    assert.equal(carte?.ticket, 50);
+    assert.equal(carte?.type, "product");
+    assert.equal(carte?.question, questionDeRepli("").question);
+    await jusqua(() => c.gh.lire(50)?.labels.includes("product-question") === true);
+    assert.equal(issueDuManager(c.journal.base, 50)?.decision, "refused");
+    assert.deepEqual(c.journal.duTicket(50).filter((e) => e.type === "manager.completed").map((e) => (e.payload as { outcome: string }).outcome), ["unreadable", "question"]);
+    await jusqua(() => c.gh.commentaires.some(([n, dit]) => n === 50 && /une question est posée au chef/.test(dit)));
+
+    const depart = c.gh.sondages.ouvertes;
+    await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
+    assert.equal(c.lancements().length, 2);
+    assert.equal(cartesEnTodo(c.journal.base).length, 1);
+  });
+
+  test("une complétion lue illisible à un tour précédent, sans carte : le tour suivant pose la carte sans relancer le modèle", async (t) => {
+    const gh = fauxGitHub(issue(60, []));
+    const c = cuisine(t, { lieux: { repertoire: repertoireTemporaire(t), origine: "", clone: "", gh, heure: montre("2026-11-07T10:00:00.000Z") }, manager: { jugement: "juge-ticket" } });
+    const lue = { number: 60, title: "Ticket 60", body: "", labels: [] };
+    const fingerprint = empreinte(lue, []);
+    c.journal.ajouter({
+      project: "brigade",
+      ticket: 60,
+      author: "manager",
+      type: "manager.judged",
+      payload: { run: "juge-60", fingerprint, verdict: "refused", kind: "incomplete", reason: "No criteria.", missing: "A criterion.", model: null, effort: null, calibration: null },
+    });
+    c.journal.ajouter({ project: "brigade", ticket: 60, author: "manager", type: "manager.completed", payload: { run: "complete-60", fingerprint, outcome: "unreadable", reason: "motif absent" } });
+
+    chef(c.repertoire, "manager.enabled");
+    await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
+
+    assert.equal(c.lancements().length, 0);
+    assert.equal(cartesEnTodo(c.journal.base)[0]?.ticket, 60);
+    assert.equal((c.dernier("manager.completed", 60) as { outcome: string }).outcome, "question");
+    await jusqua(() => gh.lire(60)?.labels.includes("product-question") === true);
   });
 });
 
