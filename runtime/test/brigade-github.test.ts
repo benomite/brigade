@@ -9,7 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type OptionsDuDepot, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import { ConsigneIllisible } from "../src/second-juge.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
@@ -1171,6 +1171,19 @@ test("a ticket goes from fire to merged, and the module imports neither the rela
 
 // Un flux de `claude` qui conclut sur `texte`.
 const fluxQuiConclut = (texte: string) => `${JSON.stringify({ type: "result", is_error: false, result: texte })}\n`;
+// Ce que les stations de ces tests partagent : la vraie prise, un `claude` que
+// `lancer` simule, ses plafonds, le calibrage du reviewer, ses flux sous `repertoire`.
+const reglagesDuFauxClaude = (repertoire: string, lancer: Lancer): Pick<OptionsDuDepot, "prise" | "claude" | "env" | "cloison" | "plafonds" | "graceMs" | "reviewer" | "flux" | "lancer"> => ({
+  prise: priseDeLaStation,
+  claude: "claude",
+  env: {},
+  cloison: null,
+  plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+  graceMs: 1,
+  reviewer: { model: "sonnet", effort: "medium" },
+  flux: repertoire,
+  lancer,
+});
 
 test("the station of this runtime: a ticket is cooked in the station's repository, reviewed by the reviewer and merged, through the real GitHub client", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
@@ -1211,15 +1224,7 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
       changes: () => ["a.ts"],
       diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...reglagesDuFauxClaude(repertoire, lancer),
     avertir: (texte) => assert.fail(texte),
   });
   assert.ok(!("refus" in station));
@@ -1282,15 +1287,7 @@ test("the station of this runtime: a delivery that changes what judges it is rev
       changes: () => [".github/workflows/tests.yml"],
       diff: () => "diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml\n+      - run: npm run lint\n",
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...reglagesDuFauxClaude(repertoire, lancer),
     avertir: (texte) => assert.fail(texte),
   });
   assert.ok(!("refus" in station));
@@ -1372,15 +1369,7 @@ test("the station of this runtime, on espace: reading its dispatch-only CI, it r
       fichiers: () => [".github/workflows/ci.yml", "src/app.ts"],
       lire: (_revision, chemin) => (chemin === ".github/workflows/ci.yml" ? "name: CI\non:\n  workflow_dispatch:\njobs:\n  test:\n    runs-on: ubuntu-latest\n" : null),
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...reglagesDuFauxClaude(repertoire, lancer),
     gates: { delaiMs: 2_000 },
     avertir: (texte) => assert.fail(texte),
   });
@@ -1435,15 +1424,7 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
       diff: () => "",
       tete: () => "a".repeat(40),
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...reglagesDuFauxClaude(repertoire, lancer),
     avertir: () => {},
   });
   assert.ok(!("refus" in station));
@@ -1488,15 +1469,7 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
       tete: () => tete,
       ...(poussee === "locale" ? { livree: (branche: string) => branche } : poussee ? { livree: (branche: string) => `origin/${branche}` } : {}),
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...reglagesDuFauxClaude(repertoire, lancer),
     maintenant,
     avertir: () => {},
   });
@@ -1586,15 +1559,7 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
       diff: () => "",
       tete: () => "a".repeat(40),
     },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: repertoire,
-    lancer,
+    ...reglagesDuFauxClaude(repertoire, lancer),
     maintenant: () => new Date(heure),
     avertir: (texte) => void journal.push(texte),
   });
@@ -1650,7 +1615,7 @@ test("a cook killed by a signal is not a failed cook: the ticket waits, and noth
   const station = stationDuDepot({
     nom: "box", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux),
     depot: { connait: () => false, preparer: async (run) => ({ worktree: join(repertoire, run), branche: "cook/78-github" }), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
-    prise: priseDeLaStation, claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {},
+    ...reglagesDuFauxClaude(repertoire, lancer), avertir: () => {},
   });
   assert.ok(!("refus" in station));
   if ("refus" in station) return;
@@ -1678,7 +1643,7 @@ test("a cook killed because its station stops does not hold its ticket: no wait,
   const options = {
     nom: "box", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux),
     depot: { connait: () => false, preparer: async (run: string) => ({ worktree: join(repertoire, run), branche: "cook/79-github" }), reprendre: async (run: string) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
-    prise: priseDeLaStation, claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" as const }, flux: repertoire, lancer, avertir: () => {},
+    ...reglagesDuFauxClaude(repertoire, lancer), avertir: () => {},
   };
   const station = stationDuDepot(options);
   assert.ok(!("refus" in station));
@@ -1771,7 +1736,7 @@ test("a cook that takes a ticket whose PR's CI is red is given what the red chec
       },
     },
     depot: { connait: (branche) => branche === "cook/14-github", preparer: async () => assert.fail("the branch is resumed"), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 1, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
-    prise: priseDeLaStation, claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {},
+    ...reglagesDuFauxClaude(repertoire, lancer), avertir: () => {},
   });
   assert.ok(!("refus" in station));
   if ("refus" in station) return;
@@ -1818,15 +1783,7 @@ for (const nom of ["box/claude", "macbook-air-de-benoit/claude"]) {
         changes: () => ["a.ts"],
         diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
       },
-      prise: priseDeLaStation,
-      claude: "claude",
-      env: {},
-      cloison: null,
-      plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-      graceMs: 1,
-      reviewer: { model: "sonnet", effort: "medium" },
-      flux: repertoire,
-      lancer,
+      ...reglagesDuFauxClaude(repertoire, lancer),
       avertir: (texte) => assert.fail(texte),
     });
     assert.ok(!("refus" in station), "refus" in station ? station.refus : "");
