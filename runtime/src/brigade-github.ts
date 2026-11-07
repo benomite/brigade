@@ -1166,8 +1166,9 @@ export type OptionsDuProjet = {
 };
 
 // Un projet ouvert : ses cooks, et son arrêt. `refus` : la station ne peut pas
-// le servir, et ne cuisine rien pour lui.
-export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; sauver?(): Promise<number[]>; refus?: string };
+// le servir, et ne cuisine rien pour lui. `presser` : un tour tout de suite,
+// quand le manager vient de rendre un ticket prenable (#2796).
+export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; sauver?(): Promise<number[]>; presser?(): void; refus?: string };
 
 // Ouvre le projet : un tour de la station, puis un autre l'intervalle passé,
 // jusqu'à l'arrêt.
@@ -1234,6 +1235,9 @@ export function brancherBrigadeGithub(options: OptionsDuProjet): ProjetOuvert {
     // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
     enCuisine: () => station.enCuisine(),
     sauver: async () => (await station.sauver?.()) ?? [],
+    // Le ticket que le manager vient de lancer se prend à ce tour, pas au
+    // suivant : sans lui, il attendait sa prise jusqu'à l'intervalle (#2796).
+    presser: () => station.presser?.(true),
     arreter: async () => {
       arrete = true;
       // Avant que le runtime ne tue les cooks : leur fin se lit comme celle de la station.

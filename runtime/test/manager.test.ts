@@ -113,6 +113,26 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.labeled", "manager.commented"]);
   });
 
+  test("le ticket qu'il lance ou calibre presse le tour de la station, une fois ses labels posés (#2796)", async (t) => {
+    // Les labellisations déjà faites à chaque pression : la station ne lit le ticket qu'une fois prenable.
+    const pressions: number[] = [];
+    const { gh, labels } = brigade(t, { issues: [issue(30, []), issue(31, ["fire"])], manager: { surLeRail: () => void pressions.push(gh.labellisations.length) } });
+
+    await jusqua(() => labels(30).includes("effort:low") && labels(31).includes("effort:low"));
+
+    assert.deepEqual(pressions, [1, 2]);
+  });
+
+  test("une issue écartée ne presse pas la station : rien n'y est prenable (#2796)", async (t) => {
+    let pressions = 0;
+    const { dits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "question"])], manager: { surLeRail: () => void pressions++ } });
+
+    await jusqua(() => dits(30).length === 1);
+    await laisserTourner();
+
+    assert.equal(pressions, 0);
+  });
+
   test("le calibrage posé est justifié sur l'issue, et le chef y lit comment le contester", async (t) => {
     const { dits } = brigade(t, { issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 1);

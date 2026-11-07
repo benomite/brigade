@@ -22,6 +22,9 @@ base, the stale-branch pruning).
   (#2556).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
+  A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
+  turn at once on the station that runs it (#2796): before, the ticket waited for its claim until the next interval, up
+  to 2 minutes of every manager-qualified ticket's lost time.
 - **At most 5 deliveries in pass** (`PASS_MAX`, #2300): while the project has 5 or more tickets `in-pass`, no station
   takes a new ticket. A ticket sent back from the pass to a cook leaves it in the very turn it is sent back.
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn

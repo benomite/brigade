@@ -207,7 +207,7 @@ try {
   brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
-  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,

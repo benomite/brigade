@@ -1125,6 +1125,33 @@ test("the loop: a press brings the next turn within 30 s, a delivery's at once, 
   assert.deepEqual(tours.slice(13), [930, 960, 990, 1020, 1050, 1170]);
 });
 
+test("the loop: a ticket the manager has just made claimable is taken at a turn at once, not at the next interval (#2796)", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const tours: number[] = [];
+  const station: StationGitHub = {
+    tour: async () => void tours.push(Date.now() / 1000),
+    enCuisine: () => [],
+    calme: async () => {},
+    relu: async () => {},
+  };
+  const ouvert = brancherBrigadeGithub({ station: () => station, intervalleMs: 120_000, avertir: () => {} });
+  t.after(() => ouvert.arreter());
+  const fini = async () => {
+    for (let i = 0; i < 10; i += 1) await new Promise<void>((resoudre) => queueMicrotask(resoudre));
+  };
+  t.mock.timers.tick(0);
+  await fini();
+  t.mock.timers.tick(10_000);
+  await fini();
+  assert.deepEqual(tours, [0]);
+  // Le manager pose `fire` à 10 s : le tour vient tout de suite, pas à 120 s.
+  assert.ok(ouvert.presser !== undefined, "the open project lets the manager press its turn");
+  ouvert.presser();
+  t.mock.timers.tick(0);
+  await fini();
+  assert.deepEqual(tours, [0, 10]);
+});
+
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);
