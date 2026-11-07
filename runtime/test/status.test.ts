@@ -70,6 +70,7 @@ test("la commande ne modifie ni le journal ni ses projections", async (t) => {
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^runtime    stopped \d+ s ago$/m);
+  assert.match(commande.sortie(), /^repairs     0 repairs of main \/ 0 merged PRs = n\/a \(recent tickets\)$/m);
   assert.deepEqual(lire(), avant);
 });
 
