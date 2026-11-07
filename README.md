@@ -29,6 +29,10 @@ You need two accounts:
 
 No command to type, no file to edit. Every screen is described in **[docs/installation.md](docs/installation.md)**.
 
+## Where brigade is going
+
+**Autonomy.** You leave brigade running, it works through everything it can do, and it calls you only for a product or design choice. Next, a team: each human has their own role on each project, and brigade brings each question to the right one. The vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/superpowers/specs/2026-11-07-vision.md).
+
 ## Where to read next
 
 - [`docs/index.md`](docs/index.md) — the documentation index, organized by what you want to do.
