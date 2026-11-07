@@ -1,5 +1,7 @@
 # Launch plan — Reddit and LinkedIn
 
+> **Superseded (2026-11-07)** by [`docs/marketing/launch-plan.md`](../marketing/launch-plan.md) for the angle ("you are no longer at your computer"), the posting order and the posts. Do not publish the drafts in this folder; they are kept only as history.
+
 Nothing in this folder posts anything. The chef reads, edits and posts personally, by hand. No file here holds a command, script or API call that publishes.
 
 Terms follow [`docs/glossary.md`](../glossary.md); the product is described by [`README.md`](../../README.md) and [`docs/`](../README.md).
