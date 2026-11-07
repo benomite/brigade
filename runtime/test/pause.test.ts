@@ -7,12 +7,10 @@ import { attentesDuChef } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
-import { mergerLaLivraison } from "../src/geste-ticket.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { demanderPause, leverPause, mergeRetenu, pauseAccordee, pauseEnCours, repondre } from "../src/pause/pause.ts";
+import { demanderPause, leverPause, pauseAccordee, pauseEnCours, repondre } from "../src/pause/pause.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { fauxGitHub } from "./aides/cuisine.ts";
 import { appeler, JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
@@ -86,7 +84,6 @@ describe("la carte de la pause", () => {
     demander();
 
     assert.equal(pauseAccordee(journal.base), null);
-    assert.equal(mergeRetenu(journal.base, 14), null);
     assert.deepEqual(repondre(journal, "brigade", "no").suite, "refusee");
     assert.equal(pauseEnCours(journal.base), null);
     assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)), []);
@@ -109,9 +106,6 @@ describe("la carte de la pause", () => {
     ]);
     assert.equal(statut().filter((ligne) => ligne.includes("paused for the code rename")).length, 1);
     assert.match(statut().join("\n"), /^kitchen +PAUSED for the code rename 5 min ago · /m);
-    // Seul le ticket du renommage passe.
-    assert.notEqual(mergeRetenu(journal.base, 14), null);
-    assert.equal(mergeRetenu(journal.base, 9), null);
     sansMotFrancais(bloc);
   });
 
@@ -122,7 +116,6 @@ describe("la carte de la pause", () => {
 
     assert.equal(leverPause(journal, "brigade", "the rename is merged", "runtime"), true);
     assert.equal(pauseEnCours(journal.base), null);
-    assert.equal(mergeRetenu(journal.base, 14), null);
     assert.equal(leverPause(journal, "brigade", "again", "runtime"), false);
     assert.doesNotMatch(statut().join("\n"), /paused for the code rename/);
 
@@ -144,18 +137,6 @@ describe("la carte de la pause", () => {
         ["pause.released", "chef"],
       ],
     );
-  });
-
-  test("après le « oui », le merge à la main de la file est refusé, et GitHub n'en reçoit aucun", async (t) => {
-    const { journal, demander } = journalEcrit(t);
-    demander();
-    repondre(journal, "brigade", "yes");
-    const gh = fauxGitHub();
-
-    const aLaMain = await mergerLaLivraison(journal, gh.github, 14);
-    assert.equal(aLaMain.done, false);
-    assert.match(aLaMain.done ? "" : aLaMain.reason, /^paused for the code rename since .*: no other merge until it ends/);
-    assert.deepEqual(gh.merges, []);
   });
 
   test("le chef répond par `guardrails pause yes` ou `pause no`, en anglais ; sans pause demandée, rien n'est écrit", async (t) => {

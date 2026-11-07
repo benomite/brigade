@@ -6,9 +6,8 @@
 // la pause :
 //
 // - aucun autre merge : la pass juge encore, mais une livraison verte attend
-//   (`pass.waiting`, motif `paused`) au lieu d'être mergée, et le merge à la
-//   main de la file (`rail merge`) est refusé — seuls le ticket du renommage
-//   lui-même, s'il en a un, et la PR que le renommage remet à la pass
+//   (`pass.waiting`, motif `paused`) au lieu d'être mergée — seuls le ticket du
+//   renommage lui-même, s'il en a un, et la PR que le renommage remet à la pass
 //   (`renommage.ts`) passent ;
 // - aucun cook neuf : les stations ne prennent plus de ticket (`paused`), sauf
 //   celui du renommage ; les cooks en vol finissent leur travail, et leur
@@ -82,13 +81,6 @@ export type PauseAccordee = Pause & { agreedAt: string };
 export function pauseAccordee(base: Base): PauseAccordee | null {
   const pause = pauseEnCours(base);
   return pause === null || pause.agreedAt === null ? null : { ...pause, agreedAt: pause.agreedAt };
-}
-
-// La pause qui retient le merge de ce ticket — nulle s'il n'y en a pas, ou si
-// c'est celui du renommage : son ticket, ou la PR qu'il a remise à la pass.
-export function mergeRetenu(base: Base, ticket: number): PauseAccordee | null {
-  const pause = pauseAccordee(base);
-  return pause === null || pause.ticket === ticket || pause.pr === ticket ? null : pause;
 }
 
 // La cause d'un `pass.escalated` sur la PR d'un renommage abandonné.

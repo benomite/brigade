@@ -9,14 +9,14 @@
 // La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `no-grant`…).
 export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null };
 
-// Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue — là où le chef répond, recalibre ou
-// corrige —, la renvoyer en cuisine. Merger la livraison se fait sur sa PR, sur GitHub : l'app n'a pas de bouton.
+// Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue
+// — là où le chef répond, recalibre ou corrige —, la renvoyer en cuisine.
 export type GesteAttendu = "retirer" | "issue" | "cuisine";
 export type Attendu = { phrase: string; gestes: GesteAttendu[] };
 
 export const SANS_DECISION = "This ticket waits for your decision — its issue says which.";
 
-// Une livraison verte que la pass ne merge pas elle-même : le geste est de la merger.
+// Une livraison verte que la pass ne merge pas elle-même : elle se merge sur sa PR, sur GitHub — aucun geste de l'app.
 const VERTE: Readonly<Record<string, string>> = {
   "no-grant": "Green, but the pass may not merge it without the merge grant: merge it yourself.",
   "review-required": "Green, but it touches what judges it or what the project opens: review it, then merge it.",
@@ -51,7 +51,7 @@ function remontee({ motif, cause, pr }: Decision): Attendu {
 
 export function attenduDe(decision: Decision | undefined): Attendu {
   if (decision === undefined) return { phrase: SANS_DECISION, gestes: [] };
-  const { quoi, motif, pr } = decision;
+  const { quoi, motif } = decision;
   switch (quoi) {
     case "merge":
       return { phrase: (motif === null ? undefined : VERTE[motif]) ?? "Green, but not merged: merge it yourself.", gestes: [] };

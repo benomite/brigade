@@ -113,10 +113,9 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
 
 describe("les gestes que l'app ne joue pas : aucun bouton n'est proposé puis refusé", () => {
   test("merger la livraison se fait sur sa PR, sur GitHub : le geste n'est branché nulle part, donc jamais proposé", () => {
-    assert.equal(ACTIONS.merger, undefined);
     const renonce: Decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
-    assert.ok(!ids(carte("86", { attendu: true, decision: renonce })).includes("merger"));
-    assert.ok(!ids(carte("86", { attendu: true, decision: { quoi: "verte", motif: null, cause: null, pr: "https://github.com/o/r/pull/8" } })).includes("merger"));
+    assert.ok(!ids(carte("86", { attendu: true, decision: renonce })).includes("merger" as never));
+    assert.ok(!ids(carte("86", { attendu: true, decision: { quoi: "verte", motif: null, cause: null, pr: "https://github.com/o/r/pull/8" } })).includes("merger" as never));
   });
 
   test("chaque action branchée se joue dans l'app : aucune ne part en commande de la box", () => {

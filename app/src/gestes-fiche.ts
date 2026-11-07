@@ -7,7 +7,7 @@
 //   - pris ou en pass : rien de plus — on ne touche pas à un ticket en cours ;
 //   - servi : en plus, le voir dans le navigateur (#620), s'il y a un écran ;
 //   - qui t'attend : d'abord, les gestes qui tranchent ce qu'on attend de toi (decision.ts) — le
-//     premier est le recommandé : merger la livraison, la sortir du rail, ouvrir l'issue, la
+//     premier est le recommandé : la sortir du rail, ouvrir l'issue, la
 //     renvoyer en cuisine. Jamais une commande à recopier ni à envoyer : un bouton, qui la joue.
 // Un geste n'apparaît que si son action est branchée (`ACTIONS`) : la table dit ce qui est
 // permis, le branchement ce qui se fait. Une action qui n'est pas livrée n'a pas de branchement,
