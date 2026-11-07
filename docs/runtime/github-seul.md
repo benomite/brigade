@@ -102,6 +102,12 @@ base, the stale-branch pruning).
   traffic (claims, send-backs, verdicts, merges) never mentions the chef. Without `chef`, nothing is mentioned and the
   station says so once (`runtime/src/mention-du-chef/`). Under a single GitHub identity that is the chef's own, GitHub
   does not notify the chef of their own comments: the per-role identities post as an app.
+- **A TODO card goes to the human whose role answers its question** (#2760). When the project settings declare
+  `humans` (a list of `{login, roles}`, roles among `product`, `design`, `review`, `client-contact`), a product choice
+  goes to the first declared `product` human, a design choice to the first `design` one, a delivery to review by hand
+  to the first `review` one: the issue is assigned to them on GitHub and the mention names them instead of the chef. A
+  card no role answers is assigned to the chef. Without `humans`, nothing changes: the chef is mentioned, no one is
+  assigned (`runtime/src/aiguillage-humains/`).
 
 ## What is gone (#2061)
 
