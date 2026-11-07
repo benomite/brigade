@@ -487,6 +487,13 @@ A quality ticket opened before that marker existed counted every such ticket mer
 #2805, served, had #2813 opened on the very 13 send-backs of BOBL-tech/espace it had counted, all cooked on
 2026-11-05 and 06, before the cook's instruction learned the reviewer's blocking rules (#2770, #2789, #2797, #2803)
 and before a blocked cook went to the chef (#2805).
+The rule holds only once the station runs it, like the time correction's (#2580): #2819, then #2825, opened
+on those same 13 send-backs from a station still on 0.20261107.201514+g8e64144, older than #2804 and #2813 —
+neither body carries the `brigade:qualite-comptes` marker. The station installs at most one version per 60 min,
+so each quality ticket served before the update reopened the next. On the code of #2813, the same window with
+#2805, #2813, #2819 and #2825 closed opens nothing (`deja-servie`), and a send-back merged after the last of
+them opens one. The cause they name, blocking review, is corrected in the cook's instruction (#2770, #2789,
+#2797, #2803, #2812, #2819) and by a blocked cook going to the chef (#2805); none of the 13 was cooked under it.
 
 ## The daily report of the decisions brigade told about
 
