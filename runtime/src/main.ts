@@ -229,7 +229,7 @@ try {
   brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
   runtime = brancherRepriseParGitHub(alertee, { github: githubs.rail });
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
-  brancherMentionDuChef(runtime, { github: githubs.station, chef: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef ?? null });
+  brancherMentionDuChef(runtime, { github: githubs.station, chef: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef ?? null, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

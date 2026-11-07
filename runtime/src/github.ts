@@ -111,6 +111,9 @@ export type GitHub = {
   labelliser(numero: number, labels: string[]): Promise<void>;
   // Retire un label d'une issue. Déjà absent, il n'y a rien à faire.
   delabelliser(numero: number, label: string): Promise<void>;
+  // Assigne l'issue à ces comptes, sans retirer ceux qui l'ont déjà (#2760).
+  // Facultatif : seul le client réel le porte.
+  assigner?(numero: number, logins: string[]): Promise<void>;
   // Crée une issue ; rend son numéro.
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, PR écartées,
@@ -584,6 +587,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async labelliser(numero, labels) {
       const chemin = `repos/${depot}/issues/${numero}/labels`;
       exiger(await appeler(["-X", "POST", ...labels.flatMap((label) => ["-f", `labels[]=${label}`]), chemin]), chemin);
+    },
+    async assigner(numero, logins) {
+      const chemin = `repos/${depot}/issues/${numero}/assignees`;
+      exiger(await appeler(["-X", "POST", ...logins.flatMap((login) => ["-f", `assignees[]=${login}`]), chemin]), chemin, 201);
     },
     async delabelliser(numero, label) {
       const chemin = `repos/${depot}/issues/${numero}/labels/${encodeURIComponent(label)}`;

@@ -25,13 +25,14 @@ import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { attentesDuChef, direAttenteEn, type AttenteDeTicket } from "../attend.ts";
 import type { Base } from "../base.ts";
+import { aiguiller, humainsDuProjet, type Humain } from "../aiguillage-humains/aiguillage.ts";
 import { attenteDeLaCarte, carteDeLAttente } from "../carte-todo/cartes.ts";
 import type { GitHub } from "../github.ts";
 import { lireRail } from "../projections/rail.ts";
 import type { CauseReveil, Runtime } from "../runtime.ts";
 
-// Une carte à mentionner : son ticket, ce qui la nomme, et sa ligne.
-export type CarteAMentionner = { ticket: number; cle: string; ligne: string };
+// Une carte à mentionner : son ticket, sa sorte, ce qui la nomme, et sa ligne.
+export type CarteAMentionner = { ticket: number; sorte: string; cle: string; ligne: string };
 
 const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
 
@@ -59,7 +60,7 @@ export function cartesAMentionner(base: Base, maintenant = new Date()): CarteAMe
     const attente = attenteDeLaCarte(attentes, ticket);
     if (attente === undefined) return [];
     const { sorte, ligne } = ligneDeLaCarte(attente);
-    return [{ ticket, cle: cleDeLaCarte(sorte, ligne), ligne }];
+    return [{ ticket, sorte, cle: cleDeLaCarte(sorte, ligne), ligne }];
   });
 }
 
@@ -72,14 +73,20 @@ export const corpsDeLaMention = (chef: string, { cle, ligne }: CarteAMentionner)
 // collaborateurs, ou l'un des comptes d'application de ses rôles.
 const deLaCuisine = ({ association, author }: { association: string; author: string }) => DE_CONFIANCE.includes(association) || author.endsWith("[bot]");
 
-export type GitHubDeLaMention = Pick<GitHub, "commentaires" | "commenter">;
+export type GitHubDeLaMention = Pick<GitHub, "commentaires" | "commenter" | "assigner">;
 
 // Mentionne le chef sur l'issue de la carte, sauf si elle porte déjà sa
-// marque. Rend vrai si le commentaire est posté.
-export async function mentionner(github: GitHubDeLaMention, chef: string, carte: CarteAMentionner): Promise<boolean> {
+// marque. Rend vrai si le commentaire est posté. Avec les humains du projet
+// (aiguillage-humains/), la carte va à celui dont le rôle répond à sa
+// question : il est assigné à l'issue, puis mentionné à la place du chef.
+export async function mentionner(github: GitHubDeLaMention, chef: string, carte: CarteAMentionner, humains: readonly Humain[] = []): Promise<boolean> {
   const deja = (await github.commentaires(carte.ticket)).some((commentaire) => deLaCuisine(commentaire) && commentaire.body.split(/\r?\n/).some((ligne) => ligne.trim() === marque(carte.cle)));
   if (deja) return false;
-  await github.commenter(carte.ticket, corpsDeLaMention(chef, carte));
+  const aiguillage = aiguiller(humains, carte.sorte);
+  const destinataire = aiguillage.vers === "humain" ? aiguillage.login : chef;
+  // Assignée avant le commentaire, qui fait foi : un arrêt entre les deux rejoue l'assignation, sans doubler.
+  if (aiguillage.vers === "humain" || aiguillage.assigner) await github.assigner?.(carte.ticket, [destinataire]);
+  await github.commenter(carte.ticket, corpsDeLaMention(destinataire, carte));
   return true;
 }
 
@@ -87,6 +94,8 @@ export type OptionsDeLaMention = {
   github: GitHubDeLaMention;
   // Le compte GitHub du chef, relu des réglages du projet ; nul s'ils n'en nomment aucun.
   chef: () => string | null;
+  // La configuration du projet, relue à chaque passe : ses humains (`humans`) reçoivent les cartes de leur rôle (#2760).
+  projet?: () => unknown;
   avertir?: (ligne: string) => void;
   maintenant?: () => Date;
 };
@@ -122,10 +131,16 @@ export function mentionneurDuChef(base: Base, options: OptionsDeLaMention) {
       return Promise.resolve();
     }
     const login = chef;
+    let humains: Humain[] = [];
+    try {
+      humains = humainsDuProjet(options.projet?.());
+    } catch (erreur) {
+      direUneFois(`brigade : TODO cards go to the chef — the project's humans do not read: ${message(erreur)}`);
+    }
     const courante = (async () => {
       for (const carte of cartes) {
         try {
-          await mentionner(options.github, login, carte);
+          await mentionner(options.github, login, carte, humains);
           vues.add(`${carte.ticket}:${carte.cle}`);
         } catch (erreur) {
           direUneFois(`brigade : chef not mentioned on #${carte.ticket} — ${message(erreur)}`);
