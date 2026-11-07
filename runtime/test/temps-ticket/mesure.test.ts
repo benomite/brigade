@@ -170,6 +170,7 @@ test("after the station merges a ticket, the project's file holds its record, ph
       faux.pr = { number: 70, sha: "a".repeat(40), state: "open", merged: false, enRetard: false };
       return "https://github.com/faux/depot/pull/70";
     },
+    depotDuTicket: async () => null,
     mettreAJour: async () => assert.fail("the branch is up to date"),
     fermerIssue: async () => {
       labels.delete(LABEL_IN_PASS);

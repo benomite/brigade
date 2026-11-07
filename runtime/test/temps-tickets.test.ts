@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ticketDeCorrection } from "../src/temps-max/correction.ts";
 import { medianeDesRecents } from "../src/temps-max/mesure.ts";
-import { chronometre, enregistrerTemps, FICHIER_DES_TEMPS, type Historique, rejouer, resumer } from "../src/temps-ticket/mesure.ts";
+import { chronometre, enregistrerTemps, FICHIER_DES_TEMPS, resumer } from "../src/temps-ticket/mesure.ts";
 import { lesTempsDesTickets } from "../src/temps-ticket/ligne-status.ts";
 import { repertoireTemporaire } from "./outils.ts";
+import { type Historique, rejouer } from "./temps-ticket/rejeu.ts";
 
 const JOUR = Date.UTC(2026, 10, 6);
 // `hm(10, 20)` : 10:20 UTC, le jour du ticket.

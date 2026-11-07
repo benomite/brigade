@@ -14,11 +14,9 @@
 //
 // Une phase dure de sa marque à la marque suivante, la dernière jusqu'au
 // merge : leur somme est le temps du dépôt au merge. Une phase que la station
-// n'a pas vue passer vaut 0 — rien n'est estimé à sa place. Un historique
-// enregistré de GitHub se mesure de la même façon (`parcoursDeLHistorique`).
+// n'a pas vue passer vaut 0 — rien n'est estimé à sa place.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { LABEL_IN_PASS } from "../github-etat/etats.ts";
 import { maxDuProjet, phaseLaPlusLenteDesTickets, ticketsRecents, dureeDuTicket } from "../temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./synthese.ts";
 
@@ -213,7 +211,7 @@ export type Chronometre = {
 
 // Un cook sans livraison : sa dernière cuisson devient un cook raté, suivi de l'attente d'une prise.
 // Rien hors d'une cuisson : un ticket déjà livré n'attend pas de prise.
-function rater(marques: Marque[], at: string): void {
+export function rater(marques: Marque[], at: string): void {
   const derniere = marques.at(-1);
   if (derniere?.etape !== "cuisson") return;
   derniere.etape = "cuissonRatee";
@@ -249,62 +247,4 @@ export function chronometre(maintenant: () => Date = () => new Date()): Chronome
       parcours.delete(ticket);
     },
   };
-}
-
-// L'historique d'un ticket tel que GitHub le garde, enregistré : l'issue
-// (son dépôt, ses labels d'aujourd'hui), les poses et retraits de ses labels,
-// les commentaires de l'issue et de sa PR, et le merge de sa PR (absent, il
-// n'a pas été servi).
-export type Historique = {
-  ticket: number;
-  createdAt: string;
-  labels: string[];
-  mergedAt?: string | null;
-  evenements: { event: "labeled" | "unlabeled"; label: string; createdAt: string }[];
-  commentaires: { body: string; createdAt: string }[];
-};
-
-export const LABEL_EPIQUE = "epic";
-
-// Les marques que la station a laissées sur GitHub, dans l'ordre : sa prise
-// (`brigade:prise`) ouvre une cuisson, son échec (`brigade:echec`) ou son
-// lâcher sans livraison (`brigade:lache`, un arrêt que le cook n'a pas causé
-// compris) en fait un cook raté, `in-pass` posé ouvre l'attente de la pass, le verdict qui approuve
-// (`brigade:verdict … approve`) ouvre la CI, le renvoi (`brigade:renvoi`)
-// l'attente du cook suivant. La pass ne dit pas sur GitHub quand sa relecture
-// commence : elle compte dans l'attente de la pass.
-export function parcoursDeLHistorique(h: Historique): { parcours: Parcours; depot: DepotDuTicket; mergedAt: string } | null {
-  if (h.mergedAt === undefined || h.mergedAt === null || Number.isNaN(Date.parse(h.mergedAt))) return null;
-  if (h.labels.includes(LABEL_EPIQUE) || h.evenements.some((e) => e.label === LABEL_EPIQUE)) return null;
-  const faits = [
-    ...h.evenements.map((e) => ({ at: e.createdAt, quoi: e.event === "labeled" && e.label === LABEL_IN_PASS ? "passe" : "" })),
-    ...h.commentaires.map((c) => ({
-      at: c.createdAt,
-      quoi: c.body.startsWith("<!-- brigade:prise ") ? "prise" : c.body.startsWith("<!-- brigade:echec") || c.body.startsWith("<!-- brigade:lache ") ? "echec" : c.body.startsWith("<!-- brigade:renvoi") ? "renvoi" : /^<!-- brigade:verdict [^>]*verdict=approve /.test(c.body) ? "approuve" : "",
-    })),
-  ]
-    .filter((f) => f.quoi !== "" && !Number.isNaN(Date.parse(f.at)))
-    .sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
-  const marques: Marque[] = [];
-  const marquer = (etape: Etape, at: string) => {
-    if (marques.at(-1)?.etape !== etape) marques.push({ etape, at });
-  };
-  for (const { at, quoi } of faits) {
-    if (quoi === "prise") marquer("cuisson", at);
-    else if (quoi === "echec") rater(marques, at);
-    else if (quoi === "passe") marquer("attentePasse", at);
-    else if (quoi === "approuve") marquer("ci", at);
-    else if (quoi === "renvoi") marquer("renvoi", at);
-  }
-  const fireAt = h.evenements.find((e) => e.event === "labeled" && e.label === "fire")?.createdAt ?? null;
-  return { parcours: { ticket: h.ticket, marques, testsMs: 0 }, depot: { deposeAt: h.createdAt, fireAt }, mergedAt: h.mergedAt };
-}
-
-// Les temps de tickets rejoués de leur historique : les tickets servis, sans les épiques.
-export function rejouer(historiques: readonly Historique[]): EnregistrementTemps[] {
-  return historiques
-    .map(parcoursDeLHistorique)
-    .filter((lu) => lu !== null)
-    .map(({ parcours, depot, mergedAt }) => mesurer(parcours, mergedAt, depot))
-    .sort((x, y) => Date.parse(x.mergedAt) - Date.parse(y.mergedAt));
 }

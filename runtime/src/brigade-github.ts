@@ -343,6 +343,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       chrono.oublier(issue);
       return;
     }
+    if (github.depotDuTicket === undefined) avertir(`brigade : #${issue} sur ${nom} — this client does not read the filing of a ticket, its time runs from its claim`);
     const depot =
       (await github.depotDuTicket?.(issue).catch((erreur) => {
         avertir(`brigade : #${issue} sur ${nom} — filing of the ticket unreadable, its time runs from its claim: ${message(erreur)}`);

@@ -4,9 +4,9 @@
 // file reads as "no measured ticket yet".
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { dureeDuTicket as duree, MAX_PAR_DEFAUT_MIN, maxDuProjet } from "../temps-max/mesure.ts";
+import { dureeDuTicket as duree, MAX_PAR_DEFAUT_MIN, maxDuProjet, PHASES } from "../temps-max/mesure.ts";
 import { ticketsDuFichier } from "./mesure.ts";
-import type { EnregistrementTemps } from "./synthese.ts";
+import { type EnregistrementTemps, mediane, PHASES as PHASES_REQUISES } from "./synthese.ts";
 
 const DERNIERS = 10;
 
@@ -14,17 +14,9 @@ const DERNIERS = 10;
 // lit : ses dates peuvent manquer.
 export type TempsTicket = Omit<EnregistrementTemps, "claimedAt" | "mergedAt"> & Partial<Pick<EnregistrementTemps, "claimedAt" | "mergedAt">>;
 
-const PHASES = ["cuisson", "attentePasse", "revue", "ci", "merge"] as const;
-
 const entier = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 const minutes = (secondes: number) => `${Math.round(secondes / 60)}m`;
-
-function mediane(valeurs: number[]): number {
-  const tri = [...valeurs].sort((a, b) => a - b);
-  const m = tri.length >> 1;
-  return tri.length % 2 === 1 ? (tri[m] ?? 0) : ((tri[m - 1] ?? 0) + (tri[m] ?? 0)) / 2;
-}
 
 export function direLesTempsDesTickets(enregistrements: TempsTicket[], maxMin: number = MAX_PAR_DEFAUT_MIN): string {
   if (enregistrements.length === 0) return "tickets: no measured ticket yet";
@@ -59,10 +51,12 @@ function lireJson(chemin: string): unknown {
 export function lesTempsDesTickets(repertoireDepot: string | undefined): { enregistrements: TempsTicket[]; tempsMaxTicketMin: number } {
   if (!repertoireDepot) return { enregistrements: [], tempsMaxTicketMin: MAX_PAR_DEFAUT_MIN };
   const dossier = join(repertoireDepot, ".claude", "brigade");
-  // Lu tel quel : chaque entrée est vérifiée ci-dessous.
+  // Lu tel quel : chaque entrée est vérifiée ci-dessous — les phases de tout
+  // enregistrement y sont, celles d'avant la prise, des cooks ratés et des
+  // renvois seulement depuis #2662.
   const liste = (ticketsDuFichier(lireJson(join(dossier, "temps-tickets.json"))) ?? []) as TempsTicket[];
   const enregistrements = liste.filter(
-    (r): r is TempsTicket => typeof r === "object" && r !== null && Number.isInteger(r.ticket) && PHASES.every((p) => entier(r[p])) && entier(r.cuissonTests),
+    (r): r is TempsTicket => typeof r === "object" && r !== null && Number.isInteger(r.ticket) && PHASES_REQUISES.every((p) => entier(r[p])) && PHASES.every(([p]) => r[p] === undefined || entier(r[p])),
   );
   return { enregistrements, tempsMaxTicketMin: maxDuProjet(lireJson(join(dossier, "projet.json"))) };
 }

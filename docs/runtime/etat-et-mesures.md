@@ -475,14 +475,16 @@ old path went (#2061) —; `renvois` (`send-back`) from a send-back to the next 
 review starts; `revue` until its verdict; `ci` until the merge is asked of GitHub, a branch update included;
 `merge` until GitHub merged it. The station keeps its marks in memory: a phase it did not see — another station
 reviewed it, or the runtime restarted — is 0, never estimated, and the time between the filing and the first
-phase it saw is claim wait. The same measure replays a ticket from its recorded GitHub history (`rejouer`): its
-claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`, `brigade:lache`, `brigade:renvoi`),
-`in-pass` set and the approving verdict (`brigade:verdict … approve`, on the PR) mark its phases, the review
-inside the pass wait — GitHub does not record when a review starts — and the merge request inside the CI. When
-the filing cannot be read from GitHub at the merge, the time runs from the claim and the station warns of it.
-`runtime/test/fixtures/temps-tickets-40` holds the recorded history of brigade's 40 tickets served on
-2026-11-06 and 07 (with the epics and the issue closed unmerged of that span, which the replay leaves out):
-replayed, median 14 min, p75 47 min, and claim wait the slowest phase (54 %, a median of 5 min per ticket).
+phase it saw is claim wait. When the filing cannot be read from GitHub at the merge, the time runs from the
+claim and the station warns of it. The station replays nothing: only the tests replay a ticket from its
+recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`) and the
+same failed-cook rule (`rater`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,
+`brigade:lache`, `brigade:renvoi`), `in-pass` set and the approving verdict (`brigade:verdict … approve`, on the
+PR) mark its phases, the review inside the pass wait — GitHub does not record when a review starts — and the
+merge request inside the CI. `runtime/test/fixtures/temps-tickets-40` holds the recorded history of brigade's 40
+tickets served on 2026-11-06 and 07 (with the epics and the issue closed unmerged of that span, which the replay
+leaves out): replayed, median 14 min, p75 47 min, and claim wait the slowest phase (54 %, a median of 5 min per
+ticket).
 
 **Over the max, a correction ticket** (`runtime/src/temps-max/`, #2515). The project's max is
 `tempsMaxTicketMin` in `.claude/brigade/projet.json`, in minutes, **10 by default**. At each turn, the
