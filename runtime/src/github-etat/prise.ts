@@ -91,6 +91,18 @@ export function tenant(commentaires: CommentaireDePrise[], retraits: RetraitDeLa
   return tient;
 }
 
+// L'instant de la première prise du ticket postée à `depuis` ou après (ISO),
+// quelle que soit la station, l'ait-elle gagnée ou non : la fin de son attente
+// d'une prise (#2732). Null sans prise lisible.
+export function premierePrise(commentaires: readonly Omit<CommentaireDePrise, "id">[], depuis: string): string | null {
+  const debut = Date.parse(depuis);
+  const instants = commentaires
+    .filter((c) => DE_CONFIANCE.includes(c.association) && MARQUE_DE_PRISE.test(c.body))
+    .map((c) => Date.parse(c.createdAt))
+    .filter((instant) => !Number.isNaN(instant) && !(instant < debut));
+  return instants.length === 0 ? null : new Date(Math.min(...instants)).toISOString();
+}
+
 // Qui tient le ticket, lu sur l'issue.
 export async function lireTenant(numero: number, github: GitHubDeLaPrise): Promise<Tenant | null> {
   const [commentaires, retraits] = await Promise.all([github.commentaires(numero), github.retraitsDeLabels(numero)]);

@@ -416,8 +416,11 @@ gates took when its cooker says it — 0 for the station's own cooks, whose gate
 old path went (#2061) —; `renvois` (`send-back`) from a send-back to the next cook; `attentePasse` until the
 review starts; `revue` until its verdict; `ci` until the merge is asked of GitHub, a branch update included;
 `merge` until GitHub merged it. The station keeps its marks in memory: a phase it did not see — another station
-reviewed it, or the runtime restarted — is 0, never estimated, and the time between the filing and the first
-phase it saw is claim wait. When the filing cannot be read from GitHub at the merge, the time runs from the
+reviewed it, or the runtime restarted — is 0, never estimated. Its claim, though, is read from GitHub at the merge
+with the filing: the first claim comment (`brigade:prise`, by the repo, any station) posted since `fire`. Claim wait
+ends there, and the time from that claim to the first phase the station saw is cooking. Before #2732 that whole time
+was claim wait: any station merges, so a ticket cooked by another station, or before a restart, lost hours it had
+spent cooking. With no claim readable, the time from the filing to the first phase seen stays claim wait. When the filing cannot be read from GitHub at the merge, the time runs from the
 claim and the station warns of it. The station replays nothing: only the tests replay a ticket from its
 recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`) and the
 same failed-cook rule (`rater`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,
