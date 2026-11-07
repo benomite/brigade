@@ -968,6 +968,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // les mêmes fichiers, et le second livré revenait en conflit (#2741). Une
     // fiche illisible, ou des commentaires que GitHub ne donne pas, ne font
     // pas foi : la zone est alors celle du corps.
+    // Sans zone ni fiche — tout ticket qui ne naît pas d'une épique —, la zone
+    // est faite des chemins que son corps nomme (`fichiersDuCorps`) : sans
+    // elle, il ne tenait ni n'attendait rien, et ces tickets revenaient en
+    // conflit avec la base (#2758). Un ticket que la station a ouvert (corps à
+    // marque) nomme aussi ce qu'il ne doit pas toucher, et une fiche illisible
+    // ne possède rien : ni l'un ni l'autre n'en tient.
     const zones = new Map<number, Promise<string[]>>();
     // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
     const prisCeTour = new Set<number>();
@@ -977,7 +983,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const lue = (async () => {
         const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
         const laFiche = fiche(commentaires.map(({ body }) => body));
-        return [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
+        const declaree = [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
+        if (declaree.length > 0 || (laFiche?.problems.length ?? 0) > 0 || corps.startsWith("<!-- brigade:")) return declaree;
+        return [...new Set(fichiersDuCorps(corps))];
       })();
       zones.set(numero, lue);
       return lue;
