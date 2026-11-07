@@ -505,6 +505,10 @@ tickets whose first commit came after #2812 merged (#2815, #2818, #2819), it is 
 is the blocking review #2824 counts on top of the 21 #2818 had counted. The measure is corrected
 only when it reopens on the send-backs a served quality ticket already counted (#2804, #2813). When the cause is
 already fixed on main and nothing was cooked since, the delivery says so with the evidence and changes nothing.
+#2835, on the brigade itself, counted 38 send-backs; all but one were already counted, since they merged before
+#2829 (unmarked) was opened. The one left is #2829's own: a docs-only delivery whose Windows tests went red on
+`arbre.test.ts`. Its cause is a failed PowerShell read of the process table that ended the kill of a cook's tree,
+and #2829 fixed it on main (`runtime/src/arbre.ts`). Nothing to correct on main.
 
 ## The daily report of the decisions brigade told about
 
