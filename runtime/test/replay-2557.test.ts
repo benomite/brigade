@@ -80,10 +80,13 @@ test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure 
 });
 
 test("#2557 on 2026-11-06: the same stop without a reply, with the same reason twice in a row, ends in hors-cuisine", async (t) => {
-  const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 8);
+  const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 16);
   const echecs = corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec"));
-  assert.equal(echecs.length, 2);
+  // Mis de côté, le ticket est relancé deux fois par la guérison (#2757) —
+  // la relecture de sa PR demande des changements — et pas une troisième.
+  assert.equal(echecs.length, 4);
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
   assert.match(echecs[1] ?? "", /Taken off the kitchen/);
+  assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 2);
   assert.ok(faux.ticket(TICKET).labels.has("hors-cuisine"));
 });
