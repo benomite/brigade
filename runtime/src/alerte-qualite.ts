@@ -39,12 +39,15 @@ export type CauseDeQualite = "premier-coup" | "base-cassee";
 // Les PR mergées par réparation que la base tolère : dix.
 export const MERGES_PAR_REPARATION = Math.round(1 / REPARATIONS_PAR_MERGE_MAX);
 
-// La base casse trop souvent dès une réparation par dizaine entière de PR
-// mergées : 7 pour 74 en est une (le cas de l'épique, #2673), 6 pour 74 non.
-// Le ratio brut de `mesure-qualite.ts` met 7 pour 74 juste sous la limite
-// (0,095) ; c'est le cas que l'épique veut voir, il compte ici.
+// La base casse trop souvent au-delà du ratio de `mesure-qualite.ts` (plus
+// d'une réparation par dix merges), ou dès une réparation par dizaine entière
+// de PR mergées : 7 pour 74 en est une (le cas de l'épique, #2673), 6 pour 74
+// non. Le ratio brut met 7 pour 74 juste sous la limite (0,095) ; c'est le cas
+// que l'épique veut voir, il compte ici. Sous dix PR mesurées, pas de dizaine
+// entière : seul le ratio décide, et une réparation sur neuf le dépasse déjà.
 export function baseTropCassee(q: Pick<Qualite, "reparations" | "mesures" | "tropDeReparations">): boolean {
-  return q.tropDeReparations === true || (q.reparations > 0 && q.reparations >= Math.floor(q.mesures / MERGES_PAR_REPARATION));
+  const dizaines = Math.floor(q.mesures / MERGES_PAR_REPARATION);
+  return q.tropDeReparations === true || (dizaines > 0 && q.reparations >= dizaines);
 }
 
 export function causesDeQualite(q: Qualite): CauseDeQualite[] {
