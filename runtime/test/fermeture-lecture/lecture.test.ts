@@ -14,6 +14,7 @@ import type { Evenement, Fait } from "../../src/evenements.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
 import { SANS_CLOSER, type LectureDeFermeture } from "../../src/fermeture-lecture/lecture.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { noterDeriveGithub } from "../../src/closer-github-passe/derive-github.ts";
 import { SANS_SEUIL } from "../../src/mesures.ts";
 import { PLAFONDS } from "../aides/cuisine.ts";
 import { ecrireHistoire, lignes } from "../closing/history.ts";
@@ -86,9 +87,11 @@ test("sans closer réglé, la réponse le dit et ne porte aucun champ de l'obser
   }
 });
 
-test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts — et les merges depuis la dernière fermeture", async (t) => {
+test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts — et les merges depuis la dernière fermeture, que la passe du closer a comptés sur le clone", async (t) => {
   const lieu = projet(t);
+  // Le journal ne voit plus un merge (#2061) : ceux qu'il porterait ne comptent pas (#2707).
   for (const ticket of [17, 18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
+  noterDeriveGithub(lieu.etat, { at: "2026-11-07T10:00:00.000Z", franchis: [], merges: 3 });
 
   const lue = await lire(lieu);
   assert.ok(lue.configured);
@@ -135,12 +138,14 @@ test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré a
 
   const lieu = projet(t);
   lieu.noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, merges: 2 } } });
-  lieu.noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/17", sha: "sha-17", by: "pass", reconciled: false } }, 17);
+  // Trois merges au journal ne franchissent rien : il ne voit plus un merge (#2061, #2707).
+  for (const ticket of [17, 18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
   const sous = await lire(lieu);
   assert.ok(sous.configured);
   assert.deepEqual(sous.drift, { declared: true, crossed: false, crossings: [] });
 
-  for (const ticket of [18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
+  // Ce que la passe du closer a relevé sur le clone, si.
+  noterDeriveGithub(lieu.etat, { at: "2026-11-07T10:00:00.000Z", franchis: [{ measure: "merges", observed: 3, limit: 2 }], merges: 3 });
   const franchi = await lire(lieu);
   assert.ok(franchi.configured);
   assert.deepEqual(franchi.drift, { declared: true, crossed: true, crossings: [{ measure: "merges", observed: 3, limit: 2, text: "3 merges since the last closing for a threshold of 2" }] });

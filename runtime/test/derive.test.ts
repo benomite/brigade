@@ -14,7 +14,7 @@ function cuisine(t: TestContext, repertoire = repertoireTemporaire(t)) {
   t.after(() => runtime.arreter("test"));
   const reveils: Array<() => void> = [];
   const avertissements: string[] = [];
-  const brancher = (seuils: Seuils) => brancherDerive({ ...runtime, surReveil: (ecouter) => (reveils.push(() => ecouter("log")), () => {}) }, seuils, (message) => avertissements.push(message));
+  const brancher = (seuils: Seuils | (() => Seuils)) => brancherDerive({ ...runtime, surReveil: (ecouter) => (reveils.push(() => ecouter("log")), () => {}) }, seuils, (message) => avertissements.push(message));
   const reveiller = () => {
     for (const ecouter of reveils) ecouter();
   };
@@ -76,71 +76,25 @@ test("les seuils entrent au journal quand le chef en déclare, et n'y sont réé
   ]);
 });
 
-test("un franchissement est signalé au merge qui le produit, une seule fois tant que la mesure reste au-delà, puis de nouveau après son retour", (t) => {
+test("un merge au journal ne fait plus rien franchir : le journal ne voit plus un merge depuis #2061, la passe du closer relève la dérive sur le clone (#2707)", (t) => {
   const { brancher, merger, derive, avertissements } = cuisine(t);
-  brancher({ ...SANS_SEUIL, tests: 500 });
+  const seuils = { ...SANS_SEUIL, tests: 500 };
+  brancher(seuils);
 
-  merger(1, 480);
-  assert.deepEqual(derive().slice(1), []);
+  merger(17, 622);
 
-  merger(2, 622);
-  merger(3, 640);
-  assert.deepEqual(derive().slice(1), [["drift.crossed", { measure: "tests", observed: 622, limit: 500 }]]);
-  assert.deepEqual(avertissements, ["brigade : dérive du projet « brigade » — tests 622 pour un seuil de 500 — voir : brigade <projet> measures"]);
-
-  merger(4, 410);
-  merger(5, 501);
-  assert.deepEqual(derive().slice(2), [
-    ["drift.cleared", { measure: "tests" }],
-    ["drift.crossed", { measure: "tests", observed: 501, limit: 500 }],
-  ]);
-});
-
-test("la durée des gates au-delà de son seuil par défaut est signalée comme les autres dérives, et rien en dessous", (t) => {
-  const { brancher, merger, derive, avertissements } = cuisine(t);
-  brancher(lireSeuils({}));
-
-  merger(1, 480, { gates_s: SEUIL_DUREE_GATES_PAR_DEFAUT });
-  assert.deepEqual(derive().slice(1), []);
+  assert.deepEqual(derive(), [["drift.configured", { limits: seuils }]]);
   assert.deepEqual(avertissements, []);
-
-  merger(2, 480, { gates_s: SEUIL_DUREE_GATES_PAR_DEFAUT + 1 });
-  assert.deepEqual(derive().slice(1), [["drift.crossed", { measure: "gates_s", observed: SEUIL_DUREE_GATES_PAR_DEFAUT + 1, limit: SEUIL_DUREE_GATES_PAR_DEFAUT }]]);
-  assert.deepEqual(avertissements, [`brigade : dérive du projet « brigade » — gates 101 s pour un seuil de 100 s — voir : brigade <projet> measures`]);
-
-  merger(3, 480, { gates_s: 85 });
-  assert.deepEqual(derive().slice(2), [["drift.cleared", { measure: "gates_s" }]]);
 });
 
-test("une livraison jugée avant le franchissement et mergée après, sans rejeu, ne le lève pas", (t) => {
-  const { runtime, brancher, merger, reveiller, derive } = cuisine(t);
-  brancher({ ...SANS_SEUIL, tests: 920 });
-  const gates = { outcome: "green" as const, code: 0, failures: [], tail: "", measures: { tests: 916 } };
-  runtime.journal.ajouter({ project: "brigade", ticket: 17, author: "pass", type: "pass.replayed", payload: { sha: "sha-17", base: "base-1", gates, findings: [] } });
-
-  merger(18, 930);
-  runtime.journal.ajouter({ project: "brigade", ticket: 17, author: "pass", type: "merge.done", payload: { pr: "https://exemple.test/pull/17", sha: "sha-17", by: "pass", reconciled: false } });
+test("des seuils changés sans redémarrer entrent au journal au réveil suivant", (t) => {
+  const { brancher, reveiller, derive } = cuisine(t);
+  let seuils: Seuils = { ...SANS_SEUIL, tests: 500 };
+  brancher(() => seuils);
+  seuils = { ...seuils, merges: 80 };
   reveiller();
-
-  assert.deepEqual(derive().slice(1), [["drift.crossed", { measure: "tests", observed: 930, limit: 920 }]]);
-});
-
-test("un franchissement déjà signalé ne l'est pas de nouveau au redémarrage ; un seuil retiré lève son signalement", (t) => {
-  const repertoire = repertoireTemporaire(t);
-  {
-    const { runtime, brancher, merger } = cuisine(t, repertoire);
-    brancher({ ...SANS_SEUIL, tests: 500 });
-    merger(1, 622);
-    runtime.arreter("test");
-  }
-  const { brancher, derive, avertissements } = cuisine(t, repertoire);
-
-  brancher({ ...SANS_SEUIL, tests: 500 });
-  assert.deepEqual([derive().length, avertissements], [2, []]);
-
-  brancher(SANS_SEUIL);
-  assert.deepEqual(derive().slice(2), [
-    ["drift.configured", { limits: SANS_SEUIL }],
-    ["drift.cleared", { measure: "tests" }],
+  assert.deepEqual(derive(), [
+    ["drift.configured", { limits: { ...SANS_SEUIL, tests: 500 } }],
+    ["drift.configured", { limits: { ...SANS_SEUIL, tests: 500, merges: 80 } }],
   ]);
 });

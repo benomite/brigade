@@ -28,10 +28,9 @@ export function seuilPremierCoup(projet: unknown): number {
 }
 
 // Ce que GitHub dit d'un ticket mergé. `renvois` : le motif de chacun de ses
-// renvois au cook. `cooksRates` : ses cooks qui n'ont rien livré, et `ratees`,
-// quand elle est connue, la cause de chacun. `reparation` : présent si le
+// renvois au cook. `cooksRates` : ses cooks qui n'ont rien livré. `reparation` : présent si le
 // ticket répare la base, avec les checks qui l'avaient cassée.
-export type QualiteDuTicket = { renvois: readonly string[]; cooksRates: number; ratees?: readonly string[]; reparation?: readonly string[] };
+export type QualiteDuTicket = { renvois: readonly string[]; cooksRates: number; reparation?: readonly string[] };
 
 export type Compte = { nom: string; fois: number };
 

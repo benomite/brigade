@@ -732,7 +732,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/superviseur.test.ts", test: "le motif est remis avant que le signal parte : le cook vit encore quand on le note" },
   { file: "test/superviseur.test.ts", test: "un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles" },
   { file: "test/superviseur.test.ts", test: "une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook" },
-  { file: "test/tests-rejoues.test.ts", test: "`measures` montre les tests verts seulement au rejeu, après les ratages" },
   { file: "test/tests-touches.test.ts", test: "sans souche pour lire ce qu'il était — ni --souche, ni branche d'intégration —, ou une souche qui ne l'a pas, le doute joue tout" },
   { file: "test/tests-touches.test.ts", test: "à la station, le script qui joue la suite changé : sa zone joue ses tests proches, où qu'ils soient" },
   { file: "test/tests-touches.test.ts", test: "à la station, une dépendance, un lockfile, un tsconfig ou le setup changés rejouent toujours tout" },

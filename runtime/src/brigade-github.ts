@@ -29,7 +29,7 @@ import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
-import { estUneReparation, ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
+import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -56,11 +56,13 @@ import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { mesurerQualite, projetDuClone } from "./mesure-qualite.ts";
-import { qualiteDeLIssue, qualitesDesTemps } from "./qualite-github.ts";
+import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
+import { ticketsRecents } from "./temps-max/mesure.ts";
+import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
-import { chronometre, type DepotDuTicket } from "./temps-ticket/mesure.ts";
+import { chronometre, completerLesTemps, type DepotDuTicket } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -282,7 +284,9 @@ const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
 
 // Combien de cooks sans livraison, pour un même ticket, avant qu'il sorte de la cuisine.
 export const ECHECS_MAX = 3;
-const MARQUE_D_ECHEC = "<!-- brigade:echec";
+
+// Au plus ce nombre de tickets récents reçoivent leur qualité à chaque merge (#2707).
+export const RATTRAPAGE_PAR_MERGE = 10;
 
 // Des gates qui n'ont pas pu se jouer sur une tête se retentent au plus tôt
 // après ce délai (#2456).
@@ -301,7 +305,6 @@ export const PASS_MAX = 5;
 // de renvoyer à un cook — la liste lue peut porter encore leur label.
 export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
-const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 // Posée sur un renvoi pour conflit avec la base : il ne compte pas dans le budget des renvois (#2726).
 const MARQUE_DE_CONFLIT = " conflit";
 
@@ -391,6 +394,32 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       servirLeTemps(options.clone, qualite === null ? temps : { ...temps, qualite }, labels);
     } catch (erreur) {
       avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
+    }
+    await rattraperLesQualites(options.clone);
+  };
+  // Les tickets récents mergés sans leur qualité — avant #2707, ou GitHub muet
+  // à leur merge — la reçoivent après un merge, quelques-uns à la fois : les
+  // chiffres de qualité ne restent pas vides jusqu'à ce que la fenêtre se
+  // renouvelle. Leurs labels ne se relisent pas ; une réparation de la base s'y
+  // reconnaît à la marque de commit rouge que la station seule écrit dans son corps.
+  const rattraperLesQualites = async (dossier: string) => {
+    const manquants = ticketsRecents(lesTempsDesTickets(dossier).enregistrements)
+      .filter(({ qualite }) => qualiteLue(qualite) === null)
+      .slice(-RATTRAPAGE_PAR_MERGE);
+    const ajouts = new Map<number, { qualite: QualiteDuTicket }>();
+    for (const { ticket } of manquants) {
+      try {
+        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(ticket), github.commentaires(ticket)]);
+        ajouts.set(ticket, { qualite: qualiteDeLIssue({ corps, labels: shaDeBaseRouge(corps) === null ? [] : [PRIO_REPARATION], commentaires }) });
+      } catch (erreur) {
+        if (erreur instanceof LimiteGitHubAtteinte) break;
+      }
+    }
+    if (ajouts.size === 0) return;
+    try {
+      completerLesTemps(dossier, ajouts);
+    } catch (erreur) {
+      avertir(`brigade : the quality of ${[...ajouts.keys()].map((n) => `#${n}`).join(", ")} could not be recorded on ${nom} — ${message(erreur)}`);
     }
   };
   const fermerLaReparation = fermeReparation({ github, base });
@@ -762,7 +791,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               continue;
             }
           }
-          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit", 1, "conflict", synchroniser);
+          await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.conflit}: merge the base into the branch, resolve the conflicts, run the gates, and commit`, 1, "conflict", synchroniser);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
@@ -813,7 +842,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             if (second === "sans-juge") return;
             if (second?.lance) bouge = true;
             if (second?.jugement.verdict === "request-changes") {
-              await renvoyer(ticket, pr.sha, `the second judge requested changes: ${second.jugement.motif}`, 1, "review");
+              await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.second}: ${second.jugement.motif}`, 1, "review");
               bouge = true;
               return;
             }
@@ -859,12 +888,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
-            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`, 1, "red CI");
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.ci} \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`, 1, "red CI");
           }
           // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
           if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) {
             const commentaires = await github.commentaires(pr.number);
-            await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(commentaires, rendu.commentaire)}`, renvoisDeLaTete(commentaires, pr.sha));
+            await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.relecture}: ${motifDuVerdict(commentaires, rendu.commentaire)}`, renvoisDeLaTete(commentaires, pr.sha));
           }
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);

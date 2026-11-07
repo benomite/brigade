@@ -2,12 +2,15 @@
 // livraison mergée par livraison mergée, et ce que le chef en lit. Le journal
 // est écrit à la main : aucune cuisine ne tourne ici.
 import assert from "node:assert/strict";
-import { existsSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { noterDeriveGithub } from "../src/closer-github-passe/derive-github.ts";
+import { noterGitHubSeul } from "../src/github-seul-etat.ts";
 import { principal as status } from "../src/status.ts";
 import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
 import { mergedDeliveries, seuilsEnVigueur, signalements, type Delivery } from "../src/projections/measures.ts";
@@ -279,23 +282,36 @@ test("un compteur franchi propose la fermeture, avec ce qu'il franchit ; tous so
   assert.doesNotMatch(sansSeuil.join("\n"), /proposed|closing {4}/);
 });
 
+// Un clone dont la branche d'intégration (`origin/main`) porte un merge par ticket, comme la station GitHub les
+// fait : `measures` y lit ses merges, le journal n'en voyant plus depuis #2061 (#2707).
+function cloneMerge(t: TestContext, tickets: number[]): string {
+  const clone = repertoireTemporaire(t);
+  const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: clone, env });
+  tickets.forEach((ticket, rang) =>
+    execFileSync("git", ["commit", "-q", "--allow-empty", "-m", `Merge pull request #${ticket} from o/cook/${ticket}-github`], { cwd: clone, env: { ...env, GIT_COMMITTER_DATE: `${JOUR_HORLOGE}T1${rang}:00:00Z` } }),
+  );
+  execFileSync("git", ["update-ref", "refs/remotes/origin/main", "HEAD"], { cwd: clone, env });
+  return clone;
+}
+
 test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", async (t) => {
-  const { repertoire, journal, noter, livrer } = cuisine(t);
-  noter({ type: "drift.configured", payload: { limits: seuils({ tests: 500 }) } });
-  livrer(1, { tests: 622 });
+  const { repertoire, journal, noter } = cuisine(t);
+  noter({ type: "drift.configured", payload: { limits: seuils({ merges: 2 }) } });
+  const clone = cloneMerge(t, [1, 2]);
   const avant = journal.dernierSeq();
   // Un faux `claude` qui laisse une trace s'il est lancé : la mesure ne doit rien démarrer.
   const trace = join(repertoire, "lance");
   const faux = join(repertoire, "faux-claude.sh");
   writeFileSync(faux, `#!/bin/sh\ntouch "${trace}"\n`, { mode: 0o755 });
-  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_CLAUDE_BIN: faux };
+  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_CLAUDE_BIN: faux, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "main" };
 
   const premiere = lancer(t, MESURES, [], env);
   assert.equal(await premiere.fin, 0);
   const seconde = lancer(t, MESURES, [], env);
   assert.equal(await seconde.fin, 0);
 
-  assert.match(premiere.sortie(), /\nclosing {4}proposed — tests 622 for a threshold of 500/);
+  assert.match(premiere.sortie(), /\nclosing {4}proposed — 2 merges since the last closing for a threshold of 2/);
   assert.equal(seconde.sortie(), premiere.sortie());
   assert.equal(journal.dernierSeq(), avant);
   assert.equal(existsSync(trace), false);
@@ -330,16 +346,21 @@ test("au-delà de douze tranches, seules les dernières sont montrées, et le re
 
 test("la commande montre le relevé sans rien écrire, et refuse un argument qu'elle ne connaît pas", async (t) => {
   const { repertoire, journal, livrer } = cuisine(t);
+  // Deux merges au journal, qui ne comptent plus (#2707) ; deux au clone, dont le second a un cook GitHub.
   livrer(1, { tests: 203 });
   livrer(2, { tests: 287 });
+  const clone = cloneMerge(t, [3, 4]);
+  mkdirSync(join(repertoire, "github-seul"));
+  writeFileSync(join(repertoire, "github-seul", "4-github.flux.jsonl"), [{ type: "system", subtype: "init", model: "opus" }, { type: "assistant", message: { id: "m1", usage: { input_tokens: 700, output_tokens: 300 } } }, { type: "result", is_error: false }].map((ligne) => JSON.stringify(ligne)).join("\n"));
   const avant = journal.dernierSeq();
 
-  const commande = lancer(t, MESURES, ["--by", "1"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = lancer(t, MESURES, ["--by", "1"], { BRIGADE_STATE_DIR: repertoire, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "main" });
   const refus = lancer(t, MESURES, ["--by", "zéro"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^report {5}brigade — 2 merges in the log, in slices of 1\n/);
-  assert.match(commande.sortie(), new RegExp(String.raw`\n2 {7}${JOUR_HORLOGE} {2}287 `));
+  assert.match(commande.sortie(), new RegExp(String.raw`\n2 {7}${JOUR_HORLOGE} {2}— `));
+  assert.match(commande.sortie(), /#4 1,000/);
   assert.equal(journal.dernierSeq(), avant);
   assert.equal(await refus.fin, 2);
   assert.match(refus.sortie(), /usage: BRIGADE_STATE_DIR=/);
@@ -439,13 +460,17 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
   const sans = await lire();
   assert.deepEqual(sans.lignes.filter(estDerive), []);
 
-  // Déclaré, non franchi : rien non plus.
+  // Déclaré, non franchi : rien non plus. Le journal ne voit plus un merge (#2061) : ce qui est franchi
+  // est ce que la passe du closer a relevé sur le clone (#2707), pas le merge du journal ci-dessus.
   noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 2000, lostTokens: 1000 } } });
+  noterGitHubSeul(repertoire, { etat: "accepted" }, new Date(`${JOUR_HORLOGE}T10:00:00.000Z`));
+  noterDeriveGithub(repertoire, { at: `${JOUR_HORLOGE}T10:00:00.000Z`, franchis: [], merges: 1 });
   const loin = await lire();
   assert.deepEqual(loin.lignes.filter(estDerive), []);
 
   // Franchi : nommé, avec sa valeur et son seuil — personne n'a lancé le relevé.
   noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 1500, lostTokens: 500 } } });
+  noterDeriveGithub(repertoire, { at: `${JOUR_HORLOGE}T10:05:00.000Z`, franchis: [{ measure: "tokens_ticket", observed: 2000, limit: 1500 }, { measure: "tokens_perdus", observed: 1000, limit: 500 }], merges: 1 });
   const franchi = await lire();
   assert.deepEqual(franchi.lignes.filter(estDerive), [
     "drift      tokens of the costliest ticket of the last 10 merges 2,000 for a threshold of 1,500 · tokens lost over the last 10 merges 1,000 for a threshold of 500 — `brigade <projet> measures`",

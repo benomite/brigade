@@ -125,9 +125,12 @@ function ouvrirEnLecture(repertoireEtat: string): Journal {
 
 function photographier(journal: Journal, env: Record<string, string | undefined>, jours: number, ageMaxSauvegardeMs: number, maintenant: Date, rouge = false): { lignes: string[]; dernierSeq: number } {
   let etat;
+  // Le journal ne voit plus de merge (#2061) : la dérive est celle que relève la passe du closer (#2361), quand
+  // la station GitHub seul tourne ; le premier coup, celui des temps du clone (#2707).
+  const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
   const temps = lesTempsDesTickets(env.BRIGADE_REPO_DIR);
   try {
-    etat = lireEtat(journal, maintenant, temps.enregistrements);
+    etat = lireEtat(journal, maintenant, { temps: temps.enregistrements, derive: githubSeul?.etat === "accepted" ? (lireDeriveGithub(env.BRIGADE_STATE_DIR)?.franchis ?? []) : [] });
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
@@ -136,10 +139,6 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     }
     throw erreur;
   }
-  // Le journal ne voit plus de merge : la dérive est celle que relève la passe du closer (#2361), quand la station GitHub seul tourne.
-  const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
-  const derive = githubSeul?.etat === "accepted" ? lireDeriveGithub(env.BRIGADE_STATE_DIR) : null;
-  if (derive !== null) etat = { ...etat, derive: derive.franchis };
   etat = { ...etat, tropLongs: lignesDeTicketsQuiPerdent(temps.enregistrements, temps.lostTimeMaxMin) };
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).

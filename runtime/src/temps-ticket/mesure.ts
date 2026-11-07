@@ -184,6 +184,23 @@ export function ticketsDuFichier(contenu: unknown): unknown[] | null {
 // est remplacé. Un fichier illisible n'est pas écrasé : l'appel lève. Le
 // tableau d'avant #2662 se lit, et se récrit en objet.
 export function enregistrerTemps(dossier: string, enregistrement: EnregistrementTemps): void {
+  recrireLesTemps(dossier, (lus) => [...lus.filter((lu) => typeof lu !== "object" || lu === null || (lu as { ticket?: unknown }).ticket !== enregistrement.ticket), enregistrement]);
+}
+
+// Ajoute à chaque enregistrement de ces tickets les champs donnés, à sa place
+// dans le fichier : l'ordre des merges ne bouge pas (#2707). Un ticket absent
+// du fichier est ignoré.
+export function completerLesTemps(dossier: string, ajouts: ReadonlyMap<number, Partial<EnregistrementTemps>>): void {
+  recrireLesTemps(dossier, (lus) =>
+    lus.map((lu) => {
+      const ticket = typeof lu === "object" && lu !== null ? (lu as { ticket?: unknown }).ticket : undefined;
+      const ajout = typeof ticket === "number" ? ajouts.get(ticket) : undefined;
+      return ajout === undefined ? lu : { ...(lu as object), ...ajout };
+    }),
+  );
+}
+
+function recrireLesTemps(dossier: string, changer: (lus: unknown[]) => unknown[]): void {
   const fichier = join(dossier, FICHIER_DES_TEMPS);
   let texte: string | undefined;
   try {
@@ -193,8 +210,7 @@ export function enregistrerTemps(dossier: string, enregistrement: Enregistrement
   }
   const lus = ticketsDuFichier(texte === undefined || texte.trim() === "" ? [] : JSON.parse(texte));
   if (lus === null) throw new Error(`${fichier} holds neither a JSON array nor { tickets }: it is left as is`);
-  const autres = lus.filter((lu) => typeof lu !== "object" || lu === null || (lu as { ticket?: unknown }).ticket !== enregistrement.ticket);
-  const tickets = [...autres, enregistrement];
+  const tickets = changer(lus);
   let projet: unknown = null;
   try {
     projet = JSON.parse(readFileSync(join(dirname(fichier), "projet.json"), "utf8"));

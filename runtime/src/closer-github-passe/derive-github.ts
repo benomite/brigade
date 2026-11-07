@@ -25,8 +25,10 @@ export type MergeDuClone = { at: string; ticket: number | null };
 // The cooks of a merged ticket, in launch order: what each spent and whether it delivered.
 export type CoutsDesCooks = (ticket: number) => CookMesure[];
 
-// What the pass leaves for `status`: the thresholds crossed, at the last reading.
-export type DeriveGithub = { at: string; franchis: Franchi[] };
+// What the pass leaves for `status` and `closing`: the thresholds crossed, at
+// the last reading, and the merges since the last closing pass (#2707) —
+// absent in a file written before.
+export type DeriveGithub = { at: string; franchis: Franchi[]; merges?: number };
 
 export const FICHIER_DERIVE_GITHUB = "derive-github.json";
 
@@ -116,10 +118,10 @@ export function lireDeriveGithub(repertoireEtat: string | undefined): DeriveGith
   try {
     const lu: unknown = JSON.parse(readFileSync(join(repertoireEtat, FICHIER_DERIVE_GITHUB), "utf8"));
     if (typeof lu !== "object" || lu === null) return null;
-    const { at, franchis: lus } = lu as Record<string, unknown>;
+    const { at, franchis: lus, merges } = lu as Record<string, unknown>;
     if (typeof at !== "string" || !Array.isArray(lus)) return null;
     const valides = lus.filter((f): f is Franchi => typeof f?.measure === "string" && typeof f?.observed === "number" && typeof f?.limit === "number");
-    return { at, franchis: valides };
+    return { at, franchis: valides, ...(Number.isSafeInteger(merges) && (merges as number) >= 0 ? { merges: merges as number } : {}) };
   } catch {
     return null;
   }

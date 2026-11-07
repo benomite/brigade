@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { corpsDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { chronometre, enregistrerTemps, FICHIER_DES_TEMPS, mesurer, type Etape, type Marque } from "../../src/temps-ticket/mesure.ts";
@@ -153,6 +154,10 @@ test("after the station merges a ticket, the project's file holds its record, ph
     { id: 2, body: `<!-- brigade:renvoi n=1 sha=${"b".repeat(40)} -->\nStation \`B\`: sent back to a cook (1/2) — the review requested changes: tests missing`, association: "OWNER", createdAt: a(-300) },
     { id: 3, body: `<!-- brigade:renvoi n=2 sha=${"c".repeat(40)} -->\nStation \`X\`: sent back to a cook (2/2) — the CI is red`, association: "NONE", createdAt: a(-200) },
   ];
+  // Deux tickets mergés avant #2707, sans leur qualité : le merge du 7 la leur donne, à leur place (le 5, une
+  // réparation de la base ; le 6, renvoyé une fois pour une CI rouge).
+  const anciens = [{ id: 9, body: `<!-- brigade:renvoi n=1 sha=${"d".repeat(40)} -->\nStation \`B\`: sent back to a cook (1/2) — the CI is red on \`ddddddd\`: tests runtime (3/16)`, association: "OWNER", createdAt: a(-2000) }];
+  for (const [ticket, mergedAt] of [[5, a(-1000)], [6, a(-900)]] as const) enregistrerTemps(clone, { ticket, claimedAt: a(-1500), mergedAt, cuisson: 1, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 });
   // Tenue dans un objet : mutée par les fermetures du faux, une variable serait réduite à `null` par le contrôle de types.
   const faux: { pr: { number: number; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean } | null } = { pr: null };
   let ciEnCours = true;
@@ -162,9 +167,9 @@ test("after the station merges a ticket, the project's file holds its record, ph
     dependancesOuvertes: async () => [],
     prDuTicket: async () => (faux.pr === null ? null : { ...faux.pr }),
     prsOuvertes: async () => (faux.pr?.state === "open" ? [{ branche: brancheDuTicket(7), fichiers: ["src/a.ts"] }] : []),
-    corpsDuTicket: async () => "",
+    corpsDuTicket: async (numero: number) => (numero === 5 ? corpsDeLaReparation("main", "4ddaa96", [{ nom: "types (app)", url: null, sortie: null }]) : ""),
     ci: async () => [{ name: "tests", outcome: ciEnCours ? ("pending" as const) : ("green" as const) }],
-    commentaires: async () => [...commentaires],
+    commentaires: async (numero: number) => (numero === 5 ? [] : numero === 6 ? [...anciens] : [...commentaires]),
     commenter: async (_numero: number, body: string) => {
       commentaires.push({ id: commentaires.length + 1, body, association: "OWNER", createdAt: new Date(horloge).toISOString() });
     },
@@ -228,5 +233,10 @@ test("after the station merges a ticket, the project's file holds its record, ph
 
   const lus = enregistrementsDuTexte(readFileSync(join(clone, FICHIER_DES_TEMPS), "utf8"));
   // Sa qualité, lue sur l'issue au merge (#2707) : une livraison renvoyée par la relecture, un cook sans livraison.
-  assert.deepEqual(lus.map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5, qualite: { renvois: ["blocking review"], cooksRates: 1, ratees: ["other"] } }]);
+  assert.deepEqual(lus.slice(2).map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5, qualite: { renvois: ["blocking review"], cooksRates: 1 } }]);
+  // Les deux d'avant ont reçu la leur, sans changer de place : l'ordre des merges tient.
+  assert.deepEqual(lus.slice(0, 2).map(({ ticket, qualite }) => ({ ticket, qualite })), [
+    { ticket: 5, qualite: { renvois: [], cooksRates: 0, reparation: ["types (app)"] } },
+    { ticket: 6, qualite: { renvois: ["red gates: runtime tests"], cooksRates: 0 } },
+  ]);
 });

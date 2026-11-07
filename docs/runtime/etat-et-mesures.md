@@ -220,19 +220,24 @@ is no longer refreshed and can be closed.
 The gates say "it works", never "it is getting heavy". The reading sets side by side, **over
 time**, what the log knows of the project's heaviness: the slope reveals a drift.
 
-`npm --prefix runtime run measures` shows them in slices of 10 merges; `-- --by 25`, of 25.
+`npm --prefix runtime run measures` shows them in slices of 10 merges; `-- --by 25`, of 25. Since #2707 the merges
+are the first-parent commits of the clone's integration branch (`BRIGADE_REPO_DIR`, `origin/BRIGADE_BASE_BRANCH`,
+the last 100, not fetched), and their cooks what the GitHub-only cooks' streams say (`<state>/github-seul/`): the
+log no longer sees a merge since #2061. A GitHub-only delivery declares no gates measure, so those columns stay empty.
 
 At the end, `measures` adds the CI duration of the last 10 merged PRs (`runtime/src/measures/ci-duration.ts`, from `BRIGADE_GITHUB_REPO`): per merge, the start of the first check of the merge commit to the end of the last, then the median beside the 60 s target, and the worst. A merge over target is marked `OVER TARGET`. With fewer than 10 merges, or a failed GitHub call, the section is one line saying so; nothing else changes.
 
-Between the tables and the `flaky` block, `measures` gives the `retries` and `failures` blocks of the last
+After the tables, `measures` gives the `retries` and `failures` blocks of the last
 merged tickets (`--last <n>`, 20 by default): the share delivered on the first try, the attempts per ticket, and
 the cause of each failed attempt. They are read from `.claude/brigade/temps-tickets.json` of the clone
 (`BRIGADE_REPO_DIR`), not from the log, which no longer sees a merge since #2061: at each merge the station reads
 the ticket's issue on GitHub and writes its quality with its time (`qualite`, `runtime/src/qualite-github.ts`,
-#2707) — a `brigade:renvoi` comment is a delivery sent back to a cook, with its reason, a `brigade:echec` comment
-a cook without a delivery, and a `prio:0` ticket with a `brigade:base-rouge` mark a repair of main, with the
-checks its body names. A ticket merged before #2707, or whose issue GitHub did not return at its merge, has no
-quality: it is not counted, never counted as a first try.
+#2707) — a `brigade:renvoi` comment is a delivery sent back to a cook, with its reason, classed by the words the
+station writes it with (`RAISONS_DE_RENVOI`, shared by both), a `brigade:echec` comment a cook without a delivery,
+whose free-text reason is not classed (`other`), and a `prio:0` ticket with a `brigade:base-rouge` mark a repair of
+main, with the checks its body names. After each merge, the station also gives their quality to up to 10 recent
+tickets recorded without one (merged before #2707, or whose issue GitHub did not return), in place; until then such
+a ticket is not counted, never counted as a first try.
 
 Before it, `measures` gives two lines on the GitHub account over the last 7 days (`runtime/src/mesures-github.ts`): the rate-limited minutes and the peak writes per minute. The GitHub call layer notes each write as it leaves, once the pause has passed, and each limit episode GitHub declares (every minute from `since` to `backAt` counts), in `<BRIGADE_STATION_DIR>/appels-github/minutes.db`, next to the counter. Nothing noted reads as 0 and 0; a minute older than 7 days is forgotten.
 
@@ -270,12 +275,8 @@ the number of passes, the share of tokens lost to the send-back, and the send-ba
   nothing of the project's state.
 - The `cap` line counts the whole log: the merged deliveries whose last gates
   crossed their duration ceiling. The pass does not judge it.
-- The `flaky` block, before the CI duration, lists **the tests green only on the CI rerun** over the last 10 merges
-  (`runtime/src/tests-rejoues.ts`): each test by its name, how many times a rerun passed with it
-  failing before, and its tickets — the most frequent first. A rerun counts for a merge when it is on
-  that ticket, before its merge and after its previous one. A job whose log named no test counts
-  under its job name (`job “runtime-windows” (no test named)`). From `pass.ci-rerun-passed` ("The
-  pass", [`pass.md`](pass.md)).
+- There is no `flaky` block any more (#2707): it counted the CI reruns of the log's pass
+  (`pass.ci-rerun-passed`), which nothing writes since #2061.
 
 ### What the gates declare
 
@@ -326,10 +327,11 @@ or while the window is not full, nothing. Set by gesture:
 `station seuil-renvois <percentage>` (50 by default) and `station fenetre-renvois <tickets>`
 (10 by default). It is only read, and writes neither `drift.crossed` nor a log line.
 
-Thresholds enter the log when they change (`drift.configured`). When a merge makes one
-cross, the runtime writes `drift.crossed` and a line in `journalctl -u brigade@<project>`,
-**once**; back under, or the threshold removed, `drift.cleared`. In between, the `drift` block
-of `status` reminds you. Nothing is stopped, no issue is opened.
+Thresholds enter the log when they change (`drift.configured`). Whether a merge makes one
+cross is no longer read from the log, which has not seen a merge since #2061: the closer's pass
+reads it on the clone and leaves it in `<state>/derive-github.json`, with the merges since the
+last closing (`closer-github-passe/derive-github.ts`); `status`, `closing` and its reading for the
+app read that file (#2707). Nothing is stopped, no issue is opened.
 
 ### The cost of the gates, and its budget
 

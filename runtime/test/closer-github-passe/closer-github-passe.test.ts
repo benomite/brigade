@@ -482,6 +482,8 @@ describe("the drift on the GitHub-only path", () => {
         { measure: "tokens_ticket", observed: 1_600, limit: 1_000 },
         { measure: "tokens_perdus", observed: 900, limit: 800 },
       ],
+      // The merges since the last pass, that `closing` and its reading for the app say (#2707).
+      merges: 5,
     });
     assert.deepEqual(k.avertissements, [
       "brigade : drift — 5 merges since the last closing for a threshold of 5",

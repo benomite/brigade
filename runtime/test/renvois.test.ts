@@ -164,7 +164,8 @@ test("`measures --last` mesure les renvois des N derniers tickets mergés, lus d
   const double = lancer(t, MESURES, ["--last", "2", "--last", "3"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
-  assert.match(commande.sortie(), /^report {5}brigade — 4 merges in the log, in slices of 2\n/);
+  // Le clone n'est pas un dépôt git : aucun merge à relever, et les renvois se mesurent quand même.
+  assert.match(commande.sortie(), /^report {5}brigade — no merge in the log: nothing to report\n/);
   assert.match(
     commande.sortie(),
     /\n\nretries {4}the last 4 served tickets \(N = 4\): 4 in the log, 4 kept, 0 set aside — not merged[^\n]*\n {11}delivered on the first try: 25% \(1 of 4\)\n {11}attempts per ticket: 2\.8 on average\n {11}from taking to merge: 30 min on average\n {11}from delivery to the cook's restart: [^\n]*\n\nfailures {3}7 failed attempts \(not ending in a merge\), each under one cause\n {11}blocking review: 6 \(86%\) — #4, #1\n/,

@@ -132,10 +132,11 @@ export function brancherRapportHebdo<R extends Runtime>(runtime: R, { clone, rep
   const passer = () => {
     try {
       const date = maintenant();
+      const { enregistrements } = lesTempsDesTickets(clone);
       rapportHebdomadaire({
         dossier: repertoireEtat,
-        temps: lesTempsDesTickets(clone).enregistrements,
-        qualites: qualitesDesTemps(lesTempsDesTickets(clone).enregistrements),
+        temps: enregistrements,
+        qualites: qualitesDesTemps(enregistrements),
         projet: projetDuClone(clone),
         maintenant: date,
         envoyer: (text) => {

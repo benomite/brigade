@@ -26,7 +26,7 @@ import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { direLaLimiteDuCompte, type LimiteDuCompte } from "./github-limite.ts";
 import { direLaLimite, direLaRetenue, direLesAppels, direLesEcrituresRetenues, type Repartition } from "./limite-github.ts";
-import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
+import { direJaugeEn, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
   activitesDesCooksEnCours,
   consommation,
@@ -41,7 +41,7 @@ import {
 } from "./projections/guardrails.ts";
 import { parcoursDesTemps } from "./qualite-github.ts";
 import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
-import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
+import { seuilsEnVigueur } from "./projections/measures.ts";
 import { direInterrupteur } from "./interrupteur.ts";
 import { etatDeLInterrupteur, type EtatInterrupteur } from "./projections/switch.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
@@ -201,9 +201,14 @@ export type EtatCuisine = {
 };
 
 // `maintenant` : l'heure jusqu'à laquelle les fenêtres du relevé se comptent.
-// `temps` : les enregistrements de `temps-tickets.json` du clone, où la qualité
-// de chaque ticket mergé est écrite (#2707) — le journal ne la sait plus.
-export function lireEtat(journal: Journal, maintenant = new Date(), temps: readonly { ticket: number; claimedAt?: string; mergedAt?: string; qualite?: unknown }[] = []): EtatCuisine {
+// Le journal ne voit plus un merge depuis #2061 : ce qui se mesure sur les
+// merges vient d'ailleurs, et l'appelant le lit (#2707). `temps` : les
+// enregistrements de `temps-tickets.json` du clone, où la qualité de chaque
+// ticket mergé est écrite ; `derive` : les seuils franchis que la passe du
+// closer a relevés (`lireDeriveGithub`). Absents, aucun.
+export type SourcesDesMesures = { temps?: readonly { ticket: number; claimedAt?: string; mergedAt?: string; qualite?: unknown }[]; derive?: readonly Franchi[] };
+
+export function lireEtat(journal: Journal, maintenant = new Date(), { temps = [], derive = [] }: SourcesDesMesures = {}): EtatCuisine {
   const { base } = journal;
   // Lu en premier : ce qui s'écrit pendant la lecture sera repris par le
   // suivi, au pire montré deux fois, jamais manqué.
@@ -265,7 +270,7 @@ export function lireEtat(journal: Journal, maintenant = new Date(), temps: reado
       enCours: consommation(base),
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
-    derive: franchis(mergedDeliveries(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
+    derive: [...derive],
     derivePremierCoup: derivePremierCoup(parcoursDesTemps(temps), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     coincees: livraisonsCoincees(base, maintenant),
