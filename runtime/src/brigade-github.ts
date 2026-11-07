@@ -55,7 +55,8 @@ import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/att
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { chronometre, type DepotDuTicket, enregistrerTemps } from "./temps-ticket/mesure.ts";
+import { servirLeTemps } from "./temps-cuisson/ratio.ts";
+import { chronometre, type DepotDuTicket } from "./temps-ticket/mesure.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -340,7 +341,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
   // Illisible, le temps part de la prise, et la station le dit.
   const chrono = chronometre(options.maintenant);
-  const servir = async (issue: number) => {
+  // Le rapport de sa cuisson à son label `time:` s'écrit à côté (#2675).
+  const servir = async (issue: number, labels: readonly string[]) => {
     if (options.clone === undefined) {
       chrono.oublier(issue);
       return;
@@ -354,7 +356,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const temps = chrono.servir(issue, depot);
     if (temps === null) return;
     try {
-      enregistrerTemps(options.clone, temps);
+      servirLeTemps(options.clone, temps, labels);
     } catch (erreur) {
       avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
     }
@@ -750,7 +752,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             const attendue = fusion.issue === "ci-attendue" || fusion.issue === "gates-a-jouer";
             if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
             if (fusion.issue === "mergee") {
-              await servir(ticket.number);
+              await servir(ticket.number, ticket.labels);
               await cloreLeServi(ticket);
             }
             // Hors de la série des merges : des gates de plusieurs minutes ne retiennent pas les autres.
