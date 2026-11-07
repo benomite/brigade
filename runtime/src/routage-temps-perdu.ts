@@ -8,7 +8,10 @@
 // sur un projet servi, tout passe par le dépôt de la brigade, et rien ne se crée
 // sur le projet. Le corps du ticket nomme le projet et la perte mesurée ; la
 // recherche du ticket déjà ouvert ne retient que ceux de ce projet, pour qu'un
-// projet n'en masque pas un autre. Sur la brigade elle-même, rien ne change.
+// projet n'en masque pas un autre. Le merge d'un ticket de la brigade n'est
+// pas dans les temps du projet : chacun dit quand il a été fermé (`servieLe`),
+// pour que la correction servie soit à l'essai sur le projet (#2809). Sur la
+// brigade elle-même, rien ne change.
 import type { GitHubDeLaCorrection } from "./temps-max/correction.ts";
 
 export const DEPOT_BRIGADE = "benomite/brigade";
@@ -16,11 +19,20 @@ export const DEPOT_BRIGADE = "benomite/brigade";
 // La marque cachée qui nomme le projet servi dans le ticket déposé sur la brigade.
 export const marqueDuProjet = (servi: string) => `<!-- brigade:projet=${servi} -->`;
 
-export function routerLeTempsPerdu({ github, servi, brigade }: { github: GitHubDeLaCorrection; servi: string; brigade?: GitHubDeLaCorrection }): GitHubDeLaCorrection {
+// Le GitHub de la brigade tel que le routage le lit : ses issues fermées
+// disent quand (`closedAt`), si GitHub le dit.
+export type GitHubDeLaBrigade = Omit<GitHubDeLaCorrection, "issuesDepuis"> & {
+  issuesDepuis(instant: string): Promise<(Awaited<ReturnType<GitHubDeLaCorrection["issuesDepuis"]>>[number] & { closedAt?: string })[]>;
+};
+
+export function routerLeTempsPerdu({ github, servi, brigade }: { github: GitHubDeLaCorrection; servi: string; brigade?: GitHubDeLaBrigade }): GitHubDeLaCorrection {
   if (brigade === undefined || servi.toLowerCase() === DEPOT_BRIGADE) return github;
   const marque = marqueDuProjet(servi);
   return {
-    issuesDepuis: async (instant) => (await brigade.issuesDepuis(instant)).filter((issue) => issue.body.includes(marque)),
+    issuesDepuis: async (instant) =>
+      (await brigade.issuesDepuis(instant))
+        .filter((issue) => issue.body.includes(marque))
+        .map(({ closedAt, ...issue }) => ({ ...issue, servieLe: issue.state === "closed" ? (closedAt ?? null) : null })),
     creerIssue: ({ titre, corps, labels }) =>
       brigade.creerIssue({
         titre: `${titre} (measured on ${servi})`,

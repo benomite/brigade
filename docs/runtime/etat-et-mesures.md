@@ -463,7 +463,10 @@ the tickets before it and says nothing of it, so nothing opens (`a-l-essai`; the
 again only once the window has turned). Reopened two minutes after each merge on the same 24 h window, the
 correction was opened twelve times in 9 h 30 (#2535 to #2577): eleven of the 60 recent tickets, each `prio:0`
 ahead of the whole rail, looking for a cause the previous one had just fixed. A correction closed without a
-merge holds nothing back. The rule holds only once the station runs it: #2580 opened two minutes after #2577
+merge holds nothing back. For a served project, the correction is filed on `benomite/brigade` (#2783) and its
+merge is never in the project's times: it is served when its issue on the brigade is closed (its `closed_at`),
+and a project ticket bearing the same number is not it (#2809) — before, no correction of a served project was
+ever on trial, and each one reopened as soon as the previous one closed, on the tickets claimed before its fix. The rule holds only once the station runs it: #2580 opened two minutes after #2577
 merged, from a station still on the code before it, whose update comes much later; the same turn on the
 code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
 and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that

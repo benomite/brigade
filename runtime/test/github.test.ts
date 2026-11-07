@@ -457,14 +457,14 @@ test("les issues modifiées depuis un instant se lisent ouvertes ou fermées, av
   const chemin = `repos/${DEPOT}/issues?state=all&since=2026-10-08T09:50:00.000Z&per_page=100`;
   gh.repondre(chemin, {
     corps: [
-      { ...issueGitHub(501, { state: "closed" }), body: "<!-- brigade:decoupage #30.1 -->", author_association: "OWNER" },
+      { ...issueGitHub(501, { state: "closed" }), closed_at: "2026-10-08T10:00:00Z", body: "<!-- brigade:decoupage #30.1 -->", author_association: "OWNER" },
       { ...issueGitHub(40, { pull_request: { url: "…" } }), body: "une PR" },
     ],
   });
 
   const issues = await github.issuesDepuis("2026-10-08T09:50:00.000Z");
 
-  assert.deepEqual(issues.map((issue) => [issue.number, issue.state, issue.body, issue.association]), [[501, "closed", "<!-- brigade:decoupage #30.1 -->", "OWNER"]]);
+  assert.deepEqual(issues.map((issue) => [issue.number, issue.state, issue.body, issue.association, issue.closedAt]), [[501, "closed", "<!-- brigade:decoupage #30.1 -->", "OWNER", "2026-10-08T10:00:00Z"]]);
 });
 
 test("sous une identité, chaque appel part avec le jeton du moment — dans l'environnement de gh, jamais dans ses arguments", async (t) => {

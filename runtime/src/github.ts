@@ -41,6 +41,10 @@ export type Issue = {
 // auteur avec le dépôt, tel que GitHub le nomme (`OWNER`, `MEMBER`, `NONE`…).
 export type IssueOuverte = Issue & { body: string; association: string };
 
+// Une issue lue parmi celles modifiées depuis un instant : fermée, avec quand
+// elle l'a été, si GitHub le dit.
+export type IssueDepuis = IssueOuverte & { closedAt?: string };
+
 export type Sondage<I extends Issue = Issue> =
   // GitHub répond que rien n'a changé depuis le dernier sondage confirmé.
   | { inchange: true }
@@ -120,7 +124,7 @@ export type GitHub = {
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, PR écartées,
   // avec leur corps.
-  issuesDepuis(instant: string): Promise<IssueOuverte[]>;
+  issuesDepuis(instant: string): Promise<IssueDepuis[]>;
   // Remplace le corps d'une issue.
   ecrireCorps(numero: number, corps: string): Promise<void>;
   // Ouvre une PR de `branche` vers `base` ; rend son adresse.
@@ -303,6 +307,7 @@ type IssueBrute = {
   updated_at: string;
   html_url: string;
   pull_request?: unknown;
+  closed_at?: string | null;
   body?: string | null;
   author_association?: string;
   user?: { login?: string } | null;
@@ -524,7 +529,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       return pages
         .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
         .filter((lue) => lue.pull_request === undefined)
-        .map(lireOuverte);
+        .map((brute) => ({ ...lireOuverte(brute), ...(typeof brute.closed_at === "string" ? { closedAt: brute.closed_at } : {}) }));
     },
     async commentaires(numero) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);
