@@ -25,6 +25,7 @@
 // encore, ou qui n'y a jamais démarré. Aucune : la cause est inconnue, et la
 // ligne le dit.
 import { ECRITURES_PAR_HEURE } from "../limite-github.ts";
+import type { RefusesDeLaCuisine } from "../cuisine-retenue-refus.ts";
 import type { CauseDeRetenue } from "./evenements.ts";
 
 export type { CauseDeRetenue };
@@ -47,6 +48,8 @@ export type Observation = {
   // Pourquoi des tickets qui n'avancent pas n'avancent pas, une phrase chacun :
   // une attente sur un ticket mis de côté, un saut de la porte de prise (#2429).
   explications?: string[];
+  // Une cuisine oisive dont tous les `fire` ouverts sont refusés par le manager (#2694).
+  refusees?: RefusesDeLaCuisine | null;
 };
 
 // Ce qui peut retenir la cuisine, lu à l'instant : chacun nul quand il ne
@@ -105,7 +108,11 @@ const plusRecent = (instants: Array<string | null>): string | null =>
 // La retenue à `maintenant`, ou null : la cuisine éteinte, aucun ticket qui
 // attend, ou moins de 30 min depuis le plus récent des repères.
 export function detecterRetenue(observation: Observation, signaux: Signaux, maintenant: Date): Retenue | null {
-  if (observation.eteinte || observation.enAttente.length === 0) return null;
+  if (observation.eteinte) return null;
+  // Rien ne attend la cuisine, mais tous les `fire` ouverts sont refusés : la ligne le dit (#2694).
+  const refusees = observation.enAttente.length === 0 ? observation.refusees : null;
+  if (refusees) return { since: refusees.since, tickets: refusees.tickets, ...diagnostiquer({ ...signaux, explications: refusees.lines }) };
+  if (observation.enAttente.length === 0) return null;
   const since = plusRecent([observation.dernierService, observation.ouverture, observation.attenteDepuis]);
   if (since === null || maintenant.getTime() - Date.parse(since) < RETENUE_APRES_MS) return null;
   return { since, tickets: [...observation.enAttente], ...diagnostiquer(signaux) };

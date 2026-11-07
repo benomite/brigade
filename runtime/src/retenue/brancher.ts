@@ -33,6 +33,7 @@ import type { FaitRetenue } from "./evenements.ts";
 import { retenueEnCours } from "./lire.ts";
 import { relanceDeLaRetenue, type PorteDeLaRelance } from "./relance-base.ts";
 import { cleDeCause, detecterRetenue, diagnostiquer, direAttenteSurMisDeCote, direCause, direSaut, SANS_SIGNAL, type Observation, type Retenue, type Signaux } from "./retenue.ts";
+import { refusDeLaCuisine, refusDuJournal } from "../cuisine-retenue-refus.ts";
 import type { SuiviDuTour } from "./tour.ts";
 
 // Une transition de la retenue, telle qu'elle vient de s'écrire.
@@ -78,7 +79,10 @@ export function observationDuJournal(base: Base, maintenant: Date): Observation 
   );
   const [servi] = base.lire<{ at: string | null }>("SELECT max(at) AS at FROM events WHERE type = 'ticket.served'");
   const interrupteur = etatDeLInterrupteur(base);
+  const ouverture = plusRecent([sessionEnCours(base)?.startedAt, interrupteur?.on === true ? interrupteur.since : null]);
+  const refusees = refusDeLaCuisine({ rail, refus: refusDuJournal(base), enAttente: enAttente.map(({ ticket }) => ticket), dernierService: servi?.at ?? null, ouverture }, maintenant);
   return {
+    refusees,
     eteinte: eteinteAuJournal(base),
     enAttente: enAttente.map(({ ticket }) => ticket),
     attenteDepuis: plusAncien(enAttente.map(({ since }) => since)),
