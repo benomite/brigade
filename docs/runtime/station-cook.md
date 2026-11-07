@@ -33,7 +33,12 @@ zone is the `Zone` section of its body **and** the `zone` line of its card (wher
 an unreadable card owns nothing), and it is held by an open PR that changes one of its paths, or by a
 ticket **taken** on any station — or claimed earlier in the same tick — whose zone overlaps, before
 that cook has opened its PR. Before #2741 only the body was read and only open PRs held: two cooks
-left on the same files, and the second delivered came back in conflict with the base.
+left on the same files, and the second delivered came back in conflict with the base. **A ticket with
+no declared zone** (no `Zone` section, no `zone` line on its card — every ticket not born of an
+epic) owns **the paths its body names** (`fichiersDuCorps`): before #2758 it held nothing and waited
+for nothing, and these tickets were the conflicts with the base that kept the first-try rate under
+its threshold. A ticket the station opened (body starting with a `<!-- brigade:` mark) also names
+what it must not touch, so it owns only its declared zone; so does a ticket with an unreadable card.
 
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
