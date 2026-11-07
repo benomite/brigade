@@ -487,4 +487,7 @@ test("les temps de deux stations d'un projet : un ticket n'est compté qu'une fo
   assert.deepEqual(fusion.enregistrements.map((e) => (e as { ticket: number }).ticket).sort(), [1, 2, 3]);
   assert.equal(fusion.tempsMaxTicketMin, 10);
   assert.deepEqual(fusionnerLesTemps(undefined, { enregistrements: [], tempsMaxTicketMin: 10 }), { enregistrements: [], tempsMaxTicketMin: 10 });
+  // Le résumé de la mesure (#2664) passe tel quel : celui de la première station qui en publie un.
+  const resume = { n: 3, medianMin: 14, p75Min: 47, maxMin: 10 };
+  assert.deepEqual(fusionnerLesTemps({ enregistrements: [], tempsMaxTicketMin: 10 }, { enregistrements: [], tempsMaxTicketMin: 10, resume }).resume, resume);
 });

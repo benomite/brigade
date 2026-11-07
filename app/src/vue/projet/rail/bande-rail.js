@@ -1,13 +1,13 @@
 // @ts-check
 // La bande du haut de l'onglet Rail (ticket 2486, épique 2484) : sur une seule ligne mince, le temps d'un ticket, les
-// cooks en cours et le backlog — à la place de leurs blocs séparés. Le temps d'un ticket est la médiane des derniers
-// tickets mesurés (temps-ticket.js), son détail au survol ; les cooks en cours se comptent, leurs tickets au survol ; le
+// cooks en cours et le backlog — à la place de leurs blocs séparés. Le temps d'un ticket est la médiane et le p75 contre le
+// plafond, tels que la mesure les résume (resume.js), son détail au survol ; les cooks en cours se comptent, leurs tickets au survol ; le
 // backlog est la barre empilée qui déplie sa colonne, avec l'histogramme des 24 heures (avant-le-rail.js, cadence.js),
 // que la vue pose et passe tels quels. Sous la bande, le rail prend toute la hauteur.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { survol } from "../../briques.js";
-import { dureeEnClair, NOMBRE_DE_TICKETS, synthese } from "../../temps-ticket/temps-ticket.js";
+import { depasse, enMinutes, estDepasse, lireLeResume, SANS_MESURE, SANS_MESURE_DETAIL, surCombien } from "../../temps-ticket/resume.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../temps-ticket/temps-ticket.js").TempsDuProjet} TempsDuProjet */
@@ -36,36 +36,29 @@ function part(doc, pose, titre, dit, detail) {
   return survol(doc, detail, pose);
 }
 
-// Le temps d'un ticket : la médiane contre le plafond (« 18 min / 10 min »), en rouge quand elle le passe ; le plus lent
-// des derniers tickets, s'il passe le double du plafond, est signalé avec sa phase la plus longue. Le plus lent et les cinq phases sont au survol. Jamais un blanc ni un zéro : une station qui
-// ne publie pas ses temps le dit, comme un projet sans ticket mesuré.
+// Le temps d'un ticket : la médiane et le p75 contre le plafond (« 14 min / 47 min vs 10 min »), tels que la mesure les
+// résume (temps-ticket/resume.js, jamais recalculés) ; en rouge celui qui passe le plafond, avec « over the max ». Les
+// phases sont au survol. Jamais un blanc ni un zéro : sans mesure, la part le dit (« no measure yet »).
 /** @param {Fabrique} doc @param {TempsDuProjet | undefined} temps */
 export function tempsDeLaBande(doc, temps) {
-  const lu = synthese(temps ?? { enregistrements: [] });
-  if (temps === undefined || lu === null) {
-    const pose = noeud(doc, "span", "bande-part bande-temps");
-    pose.dataset.temps = "vide";
-    return part(
-      doc,
-      pose,
-      "Ticket time",
-      [noeud(doc, "span", "bande-doux", temps === undefined ? "not available yet" : "no ticket measured yet")],
-      temps === undefined
-        ? "The project's station does not publish its ticket times yet: this is not a count of zero tickets"
-        : `The time appears once a ticket is merged: the median of the last ${NOMBRE_DE_TICKETS} measured tickets, from claim to merge`,
-    );
-  }
-  const valeur = noeud(doc, "strong", "bande-valeur", dureeEnClair(lu.mediane));
-  const plafond = lu.depasse ? noeud(doc, "span", "bande-depasse", `/ ${lu.max} min`) : noeud(doc, "span", "bande-doux", `/ ${lu.max} min`);
-  const lent = lu.plusLent.double ? noeud(doc, "span", "bande-lent", `#${lu.plusLent.ticket} over twice the max — slowest phase: ${lu.plusLent.phase}`) : undefined;
-  const detail = [
-    lu.nombre === 1 ? "The only measured ticket, from claim to merge." : `Median of the last ${lu.nombre} tickets, from claim to merge.`,
-    `Slowest: #${lu.plusLent.ticket} — ${dureeEnClair(lu.plusLent.total)}.`,
-    lu.phases.map(({ cle, libelle, duree }) => `${libelle} ${dureeEnClair(duree)}${cle === "cuisson" ? ` (its tests ${dureeEnClair(lu.testsMedians)})` : ""}`).join(" · "),
-  ].join(" ");
+  const lu = lireLeResume(temps);
   const pose = noeud(doc, "span", "bande-part bande-temps");
-  pose.dataset.temps = lu.depasse ? "depasse" : "normal";
-  return part(doc, pose, "Ticket time", lent === undefined ? [valeur, plafond] : [valeur, plafond, lent], detail);
+  if (lu === null) {
+    pose.dataset.temps = "vide";
+    return part(doc, pose, "Ticket time", [noeud(doc, "span", "bande-doux", SANS_MESURE)], SANS_MESURE_DETAIL);
+  }
+  const trop = depasse(lu);
+  const chiffre = (/** @type {string} */ legende, /** @type {number} */ minutes, /** @type {boolean} */ passe) => {
+    const c = noeud(doc, "span", "bande-chiffre");
+    if (passe) c.dataset.depasse = "oui";
+    c.append(noeud(doc, "span", "bande-doux", legende), noeud(doc, "strong", "bande-valeur", enMinutes(minutes)));
+    return c;
+  };
+  const dit = [chiffre("median", lu.medianMin, trop.mediane), noeud(doc, "span", "bande-doux", "/"), chiffre("p75", lu.p75Min, trop.p75), noeud(doc, "span", "bande-doux", `vs ${enMinutes(lu.maxMin)} max`)];
+  if (estDepasse(lu)) dit.push(noeud(doc, "span", "bande-depasse", "over the max"));
+  pose.dataset.temps = estDepasse(lu) ? "depasse" : "normal";
+  const detail = [`Median and p75 of ${surCombien(lu)}, from claim to merge, against the max of ${enMinutes(lu.maxMin)}.`, lu.phaseLaPlusLongue === null ? "" : `Slowest phase: ${lu.phaseLaPlusLongue.nom}, median ${enMinutes(lu.phaseLaPlusLongue.medianMin)}.`].join(" ").trim();
+  return part(doc, pose, "Ticket time", dit, detail);
 }
 
 // Les cooks en cours : leur nombre ; leurs tickets au survol, quand la lecture les nomme.

@@ -9,7 +9,7 @@ import { survol } from "../briques.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number, claimedAt: string, mergedAt: string, cuisson: number, cuissonTests: number, attentePasse: number, revue: number, ci: number, merge: number }} Enregistrement */
-/** @typedef {{ enregistrements: unknown[] | undefined, tempsMaxTicketMin?: number | undefined }} TempsDuProjet */
+/** @typedef {{ enregistrements: unknown[] | undefined, tempsMaxTicketMin?: number | undefined, resume?: unknown }} TempsDuProjet */
 
 export const MAX_PAR_DEFAUT_MIN = 10;
 export const NOMBRE_DE_TICKETS = 10;
