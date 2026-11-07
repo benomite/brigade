@@ -15,7 +15,6 @@
     "facts": "node src/faits.ts",
     "rail": "node src/montrer-rail.ts",
     "log": "node src/relire.ts",
-    "pass": "node src/montrer-pass.ts",
     "station": "node src/montrer-station.ts",
     "setting": "node src/reglage-cli.ts",
     "switch": "node src/interrupteur-cli.ts",

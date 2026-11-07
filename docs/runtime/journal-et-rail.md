@@ -146,23 +146,6 @@ The box has no command for it: change the issue's `prio:<n>` label on GitHub, or
 sheet in the app (`app/src/priorite.ts`, `docs/app.md`, "Changing a ticket's priority"); the box
 reads it at its next poll.
 
-### Sending a delivery back to a cook, saying why you corrected it
-
-```bash
-npm --prefix runtime run rail -- send-back <ticket> [reason…]
-npm --prefix runtime run rail -- correct <ticket> <reason…>
-```
-
-The reason is words without quotes, one line of at most 400 characters. `send-back` returns to a
-cook the delivery of a ticket the queue says awaits you (green and not merged, or escalated with its
-PR), as the pass does a red one: `pass.returned` (author `chef`, your reason as the finding) then
-`ticket.released` (reason `chef-sent-back`); the cook goes back to its branch, its PR stays open, the
-send-back counts among the ticket's. Without a reason, the cook re-reads the issue and the PR.
-`correct` touches nothing: you corrected a delivery yourself (delivered at least once) and say why;
-without a reason, it is refused. Neither talks to GitHub. With a reason, each makes a project
-**candidate lesson**, origin `chef-correction #<ticket>` (see [`carnet-lecons.md`](carnet-lecons.md),
-"A lesson born from a send-back").
-
 ### Answering a TODO card
 
 ```bash

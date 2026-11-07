@@ -284,7 +284,7 @@ impossible re-split counts as **passing up**. **The breaker has the last word**:
 manager passes up without relaunching or judging. Reactions are in the log (`manager.reacted`,
 `manager.raised`); `run manager` shows the last ten. A ticket whose calibration you change while the
 manager holds it goes back to yours; if you set the old label back in place of its own, the ticket
-waits, "rouge, au manager" in `run pass`: replace the label, or turn the manager off.
+waits, "rouge, au manager" on the rail: replace the label, or turn the manager off.
 
 #### The calibration ceiling
 

@@ -1,10 +1,9 @@
 // La rétro d'un ticket sur sa fiche (#1038) : la vue jouée, la fiche d'un ticket servi ouverte par sa
 // carte. Avec une rétro, ses leçons — chacune marquée provisoire, son sens au survol, son id et son
 // texte — puis ce que son cook a écrit ; sans, une phrase à la place, jamais une section vide ni cassée.
-// L'histoire est écrite dans la forme même du runtime (`HistoireDuTicket`) : l'app lit ce que la box écrit.
+// L'histoire est écrite en faits bruts (aides/fiches-dites.ts), dite comme la fiche la reçoit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { HistoireDuTicket, RetroDuTicket } from "../../runtime/src/histoire-ticket.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
@@ -15,12 +14,12 @@ import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { gestesDeCarte } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { histoireDe } from "../src/histoire.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { DIT_PROVISOIRE, PROVISOIRE } from "../src/vue/apprentissage.js";
 import { type Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { type HistoireBrute, histoireDe, type RetroBrute } from "./aides/fiches-dites.ts";
 
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const A = "2026-10-16T10:00:00.000Z";
@@ -57,7 +56,7 @@ const faits = (demande: number): Dessinable =>
     },
   }) as unknown as Dessinable;
 
-const HISTOIRE: Omit<HistoireDuTicket, "retro"> = {
+const HISTOIRE: HistoireBrute = {
   ticket: 12,
   steps: [
     { kind: "arrived", at: "2026-10-14T08:00:00.000Z" },
@@ -67,7 +66,7 @@ const HISTOIRE: Omit<HistoireDuTicket, "retro"> = {
   cost: { attempts: 1, tokens: 48210, durationMs: 722000, incomplete: false },
 };
 const TEXTE = "reconfirm L4\npropose Relire la fiche avant d'écrire.\npropose Un test attend un fait, jamais une durée.";
-const RETRO: RetroDuTicket = {
+const RETRO: RetroBrute = {
   at: "2026-10-14T10:30:00.000Z",
   text: TEXTE,
   lessons: [
@@ -79,9 +78,9 @@ const RETRO: RetroDuTicket = {
 
 // La fiche de #12 ouverte d'un clic sur sa carte, la box rendant cette rétro — `undefined` : une box
 // d'avant la rétro sur la fiche, qui n'écrit pas le champ ; rend sa section « retro ».
-async function retroSurLaFiche(retro: RetroDuTicket | null | undefined): Promise<Faux | undefined> {
-  const histoire: Partial<HistoireDuTicket> = retro === undefined ? HISTOIRE : { ...HISTOIRE, retro };
-  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], gestesDeFiche: (lue) => gestesDeCarte(lue), lireHistoire: () => histoireDe(JSON.stringify(histoire)) });
+async function retroSurLaFiche(retro: RetroBrute | null | undefined): Promise<Faux | undefined> {
+  const histoire: HistoireBrute = retro === undefined ? HISTOIRE : { ...HISTOIRE, retro };
+  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], gestesDeFiche: (lue) => gestesDeCarte(lue), lireHistoire: () => histoireDe(histoire) });
   (vue.element("projets").children[1] ?? assert.fail("pas de case")).click();
   await repos();
   vue.dire("surFaits", faits(vue.dernier("faits")[0] as number));

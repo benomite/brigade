@@ -8,12 +8,9 @@
 // premiers sont ceux que la fiche de l'app joue :
 //   npm --prefix runtime run rail -- remove 8              le retirer du rail (en attente, BLOQUÉ, 86, ou qui attend le chef)
 //   npm --prefix runtime run rail -- merge 8               merger sa livraison, quand la file demande de la merger à la main
-//   npm --prefix runtime run rail -- send-back 8 [raison…] renvoyer à un cook sa livraison, quand elle attend le chef
-//   npm --prefix runtime run rail -- correct 8 <raison…>   dire pourquoi il a corrigé sa livraison
 //   npm --prefix runtime run rail -- choose 8 <n>          répondre à sa carte de TODO par son choix n (à partir de 1)
 //   npm --prefix runtime run rail -- answer 8 <texte…>     répondre à sa carte de TODO en texte libre
 //   npm --prefix runtime run rail -- human 8 [qui…]        en WAITING faute de capacité : le confier à un humain, dans TODO (sortie-attente-capacite/)
-// `send-back` et `correct` font de la raison une leçon candidate du projet.
 // `choose` et `answer` écrivent la réponse sur l'issue et font avancer le
 // ticket dans le même appel (reponse-carte.ts).
 // La priorité d'un ticket n'a pas de geste ici : c'est le label `prio:` de son
@@ -26,7 +23,7 @@ import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { CLE_DES_CAPACITES, manqueDuTicket } from "./capacites.ts";
-import { corrigerLaLivraison, mergerLaLivraison, renvoyerLaLivraison, retirerDuRail } from "./geste-ticket.ts";
+import { mergerLaLivraison, retirerDuRail } from "./geste-ticket.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { repondreALaCarte } from "./reponse-carte.ts";
 import { confierAUnHumain, GESTE_HUMAIN } from "./sortie-attente-capacite/sortie.ts";
@@ -43,16 +40,14 @@ const USAGE = [
   "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run rail [-- <geste> <ticket> …]",
   "  remove <ticket>",
   "  merge <ticket>",
-  "  send-back <ticket> [reason…]",
-  "  correct <ticket> <reason…>",
   "  choose <ticket> <choice number>",
   "  answer <ticket> <answer…>",
   `  ${GESTE_HUMAIN} <ticket> [who…]`,
 ].join("\n");
 
-const GESTES = ["remove", "merge", "send-back", "correct", "choose", "answer", GESTE_HUMAIN];
+const GESTES = ["remove", "merge", "choose", "answer", GESTE_HUMAIN];
 // Les gestes qui prennent une raison — ou une réponse, ou qui —, en un ou plusieurs mots.
-const AVEC_RAISON = ["send-back", "correct", "answer", GESTE_HUMAIN];
+const AVEC_RAISON = ["answer", GESTE_HUMAIN];
 // Ceux qui prennent une valeur, en un mot.
 const AVEC_VALEUR = ["choose"];
 
@@ -99,15 +94,11 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
             ? await retirerDuRail(journal, github, projet, ticket)
             : geste === "merge"
               ? await mergerLaLivraison(journal, github, ticket)
-              : geste === "send-back"
-                ? renvoyerLaLivraison(journal, projet, ticket, raison)
-                : geste === "correct"
-                  ? corrigerLaLivraison(journal, projet, ticket, raison)
-                  : geste === "choose"
-                    ? await repondreALaCarte(journal, github, projet, ticket, { choix: Number(valeur) })
-                    : geste === GESTE_HUMAIN
-                      ? await confierAUnHumain(journal, github, projet, ticket, raison ?? "")
-                      : await repondreALaCarte(journal, github, projet, ticket, { texte: raison ?? "" });
+              : geste === "choose"
+                ? await repondreALaCarte(journal, github, projet, ticket, { choix: Number(valeur) })
+                : geste === GESTE_HUMAIN
+                  ? await confierAUnHumain(journal, github, projet, ticket, raison ?? "")
+                  : await repondreALaCarte(journal, github, projet, ticket, { texte: raison ?? "" });
       } catch (erreur) {
         if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
         echouer(1, `the gesture on #${ticket} did not go through on GitHub: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
@@ -115,8 +106,6 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       const fait: string = {
         remove: `#${ticket} removed from the rail`,
         merge: `#${ticket}: delivery merged`,
-        "send-back": `#${ticket}: delivery sent back to a cook`,
-        correct: `#${ticket}: correction recorded`,
         choose: `#${ticket}: card answered, choice ${valeur ?? ""}`,
         [GESTE_HUMAIN]: `#${ticket}: a human's job, in TODO`,
       }[geste] ?? `#${ticket}: card answered`;

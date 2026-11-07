@@ -16,16 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DE_CONFIANCE } from "./alimenter.ts";
 import type { Calibrage } from "./calibrage.ts";
-import type { VerdictDuSecondJuge } from "./events/pass.ts";
 import type { CommentaireDeVerdict, Jugement, Verdict } from "./github-etat/fusion.ts";
-
-// Les verdicts du second juge du journal d'avant, tels que le journal les
-// montre encore (`montrer-pass.ts`).
-export const DIRE_VERDICT: Record<VerdictDuSecondJuge, string> = {
-  "not-weakened": "not weakened",
-  weakened: "weakened",
-  "cannot-establish": "cannot establish",
-};
 
 // Le modèle le plus fort, et un effort haut : quel que soit le calibrage du
 // reviewer, le second juge n'est jamais plus faible que lui.

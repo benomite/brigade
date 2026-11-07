@@ -8,7 +8,6 @@ import { test, type TestContext } from "node:test";
 import { ouvrirGitHub } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { installerLimite, LimiteGitHubAtteinte, limiteDeLaStation } from "../src/limite-github.ts";
-import { principal as pass } from "../src/montrer-pass.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
@@ -28,7 +27,7 @@ function stationChargee(t: TestContext) {
   return limite;
 }
 
-test("rail remove et pass comment partent sur un compteur que la cuisine ne passe plus, et y sont comptés", async (t) => {
+test("rail remove part sur un compteur que la cuisine ne passe plus, et y sont comptés", async (t) => {
   const limite = stationChargee(t);
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
@@ -36,8 +35,6 @@ test("rail remove et pass comment partent sur un compteur que la cuisine ne pass
   journal.ajouter({ project: "brigade", ticket: 18, author: "github", type: "ticket.arrived", payload: { title: "Ticket 18", priority: 5, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18" } });
   const gh = fauxGh(t);
   gh.repondre(`repos/${DEPOT}/issues/18/labels/fire`, { corps: [] });
-  gh.repondre(`repos/${DEPOT}/issues/7`, { corps: { ...issueGitHub(7), body: "Le corps", user: { login: "chef" } } });
-  gh.repondre(`repos/${DEPOT}/issues/7/comments`, { statut: 201, corps: { id: 1 } });
   const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin };
 
   // La cuisine, elle, est retenue : rien ne part.
@@ -51,16 +48,12 @@ test("rail remove et pass comment partent sur un compteur que la cuisine ne pass
   assert.match(retrait.sortie(), /^#18 removed from the rail — cost: /);
   assert.deepEqual(lireRail(journal.base), []);
 
-  const commentaire = appeler(pass, ["7", "comment", "Le fournisseur répond lundi."], env);
-  assert.equal(await commentaire.fin, 0, commentaire.sortie());
-  assert.equal(JSON.parse(commentaire.sortie()).done, true);
-
   assert.deepEqual(
     gh.appels().map((appel) => appel.at(-1)),
-    [`repos/${DEPOT}/issues/18/labels/fire`, `repos/${DEPOT}/issues/7`, `repos/${DEPOT}/issues/7/comments`],
+    [`repos/${DEPOT}/issues/18/labels/fire`],
   );
-  assert.ok(!/budget GitHub épuisé/.test(retrait.sortie() + commentaire.sortie()));
-  assert.equal(limite.appels(), 2603);
+  assert.ok(!/budget GitHub épuisé/.test(retrait.sortie()));
+  assert.equal(limite.appels(), 2601);
 });
 
 test("gestes-sans-retenue.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

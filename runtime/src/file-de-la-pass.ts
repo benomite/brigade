@@ -138,27 +138,6 @@ export function tourAttendu(base: Base, ticket: number, retenues: Retenues = {})
   return tour === null || tour.tenants.length === 0 ? null : tour;
 }
 
-// Qui est dans sa pass, et la place de celle qui attend : `#17 is in its pass,
-// next in line`.
-export const direTenants = (tour: Tour) =>
-  `${tour.tenants.map((ticket) => `#${ticket}`).join(", ")} ${tour.tenants.length > 1 ? "are in their pass" : "is in its pass"}, ${tour.devant === 0 ? "next in line" : `${tour.devant} ahead of it`}`;
-
-// Ce qui la retient, en clair.
-export function direPourquoi(tour: Tour): string {
-  const { pourquoi } = tour;
-  const ou = (ticket: number) => (tour.tenants.includes(ticket) ? "" : ", ahead of it");
-  switch (pourquoi.quoi) {
-    case "seule":
-      return `judged alone: ${pourquoi.cause === "sans-zone" ? "it declares no zone" : "it wrote outside its zone"}`;
-    case "seul":
-      return `#${pourquoi.ticket}${ou(pourquoi.ticket)}${tour.tenants.includes(pourquoi.ticket) ? "" : ","} is judged alone`;
-    case "zone":
-      return `waiting for #${pourquoi.ticket}${ou(pourquoi.ticket)}: their zones overlap on ${pourquoi.chemin}`;
-    case "place":
-      return `waiting for a free slot: ${pourquoi.plafond} judgement${pourquoi.plafond > 1 ? "s" : ""} at once at most`;
-  }
-}
-
 // Passé ce délai depuis sa livraison, une livraison à juger que rien ne retient
 // est coincée : la pass du runtime qui tourne la prenait dans la seconde où la
 // file était libre. `status` signale celles que le journal garde de l'ancien

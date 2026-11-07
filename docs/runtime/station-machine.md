@@ -101,7 +101,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   restants sur 5000, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans N
   s`). `status` says it on its `github` line (`the box holds its own calls to keep the reserve for your
   gestures, back around HH:MM`); "GitHub is rate-limiting calls" is kept for when GitHub itself refused.
-- **The chef's gestures are never held by the box.** `rail` (remove, merge, send-back, choose, answer),
+- **The chef's gestures are never held by the box.** `rail` (remove, merge, choose, answer),
   `pass <ticket> issue|comment` and `manager` fail only if GitHub refuses. They are counted, and
   spend the reserve.
 - **Shared, not split.** The counter is a SQLite database,

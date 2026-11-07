@@ -1,14 +1,12 @@
-// L'issue d'un ticket et sa discussion, sur sa fiche — quelle que soit sa carte : ce que le runtime
-// en dit par `pass <ticket> issue` (runtime/src/issue-ticket.ts) — le corps, puis les commentaires
-// du plus ancien au plus récent, chacun avec son auteur et sa date —, le markdown rendu (markdown.ts).
+// L'issue d'un ticket et sa discussion, sur sa fiche — quelle que soit sa carte : lue de GitHub
+// (fiche-github.ts) — le corps, puis les commentaires du plus ancien au plus récent, chacun avec son
+// auteur et sa date —, le markdown rendu (markdown.ts).
 // Et le commentaire que le chef y ajoute : posté sur l'issue du ticket par l'accès GitHub de ce poste, à son nom
 // (gestes-github.ts, #2061), au clic et seulement au clic. Aucun LLM, aucune reformulation : le texte part tel qu'il
 // est écrit. Le geste se compose ici, jamais dans la vue.
 // La demande au second, elle, ne quitte pas le poste : `/brigade:ask <ticket> ` est écrit dans son second, sans Entrée.
-import { echecDe, type Rendu } from "./box.ts";
 import type { Projet } from "./config.ts";
-import { instant } from "./histoire.ts";
-import { liensDe, rendre, type Bloc } from "./markdown.ts";
+import type { Bloc } from "./markdown.ts";
 
 // Un message de l'issue, dit : qui l'a écrit, quand (l'heure de GitHub), et son texte rendu.
 // `corps` : c'est le corps de l'issue, le premier message — pas un commentaire.
@@ -22,47 +20,8 @@ export type Commente = { poste: true; prix: string } | { poste: false; refus: st
 // GitHub refuse un commentaire plus long.
 export const LONGUEUR_MAX = 65_536;
 
-const ILLISIBLE = "not read: the station did not return the issue in the expected shape";
-const SANS_AUTEUR = "a deleted GitHub account";
-
-const objet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
-const heure = (valeur: unknown): valeur is string => texte(valeur) && !Number.isNaN(Date.parse(valeur));
 const numero = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;
-
-// La première ligne de la sortie qui se lit en JSON : la commande n'en écrit qu'une.
-function json(sortie: string): unknown {
-  for (const ligne of sortie.split("\n")) {
-    if (!ligne.trimStart().startsWith("{")) continue;
-    try {
-      return JSON.parse(ligne);
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
-function message(brut: unknown, corps: boolean): MessageDit | undefined {
-  if (!objet(brut) || !texte(brut.author) || !heure(brut.at) || !texte(brut.body)) return undefined;
-  return { auteur: brut.author === "" ? SANS_AUTEUR : brut.author, at: instant(brut.at), blocs: rendre(brut.body), ...(corps ? { corps: true as const } : {}) };
-}
-
-// Ce que `pass <ticket> issue` a rendu, en mots de la fiche — ou pourquoi on n'en lit rien. Une carte
-// sans issue sort en 1 avec sa raison en JSON : c'est une réponse, pas une panne.
-export function discussionDe({ lance, erreur, sortie, erreurs }: Rendu, delaiMs: number): Discussion {
-  const lu = json(sortie);
-  if (objet(lu) && lu.found === false) return { sans: `no issue to read: ${texte(lu.reason) ? lu.reason : "the station does not say why"}` };
-  if (erreur !== null) return { sans: `not read: ${echecDe({ lance, erreur, sortie, erreurs }, delaiMs).erreur}` };
-  if (!objet(lu) || lu.found !== true || !objet(lu.issue)) return { sans: ILLISIBLE };
-  const { title, state, body, comments } = lu.issue;
-  if (!texte(title) || !Array.isArray(comments)) return { sans: ILLISIBLE };
-  const ouvre = message(body, true);
-  const suite = comments.map((commentaire) => message(commentaire, false));
-  if (ouvre === undefined || suite.some((dit) => dit === undefined)) return { sans: ILLISIBLE };
-  const messages = [ouvre, ...(suite as MessageDit[])];
-  return { titre: title, ouverte: state !== "closed", messages, liens: [...new Set(messages.flatMap(({ blocs }) => liensDe(blocs)))] };
-}
 
 // Ce qui poste le commentaire sur l'issue du ticket (main.ts, gestes-github.ts) : son adresse, ou pourquoi il n'est pas parti.
 export type Poster = (ticket: number, texte: string) => Promise<{ url: string | null } | { raison: string }>;

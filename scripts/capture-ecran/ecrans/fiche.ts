@@ -1,16 +1,16 @@
 // La fiche d'un ticket, ouverte par sa carte sur le rail : #14, que le cook de parade tient. Ce
-// qu'elle demande au pont est calculé par les modules de l'app, à partir de ce que la box rend :
-// `pass 14 --json` pour l'histoire, `pass 14 issue` pour la discussion.
-import { discussionDe } from "../../../app/src/discussion.ts";
+// qu'elle demande au pont est calculé par les modules de l'app, à partir de faits bruts
+// (app/test/aides/fiches-dites.ts).
 import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
-import { histoireDe, situationDe } from "../../../app/src/histoire.ts";
+import { situationDe } from "../../../app/src/histoire.ts";
+import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/fiches-dites.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 
-const PASS = {
+const PASS: HistoireBrute = {
   steps: [
     { kind: "arrived", at: "2026-10-13T09:40:02.000Z" },
     { kind: "taken", at: "2026-10-13T09:52:10.000Z", station: "box/claude" },
@@ -43,8 +43,8 @@ export const ecran: Ecran = {
         espace: [SECOND],
         situation: situationDe(carte),
         gestesDeFiche: gestesDeCarte(carte),
-        lireHistoire: histoireDe(JSON.stringify(PASS)),
-        lireDiscussion: discussionDe({ lance: "station parade pass 14 issue", erreur: null, sortie: JSON.stringify(ISSUE), erreurs: "" }, 30_000),
+        lireHistoire: histoireDe(PASS),
+        lireDiscussion: discussionDe(ISSUE),
       },
       envois: cuisine(RENDUS),
     };

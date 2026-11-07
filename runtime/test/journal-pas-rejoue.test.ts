@@ -8,7 +8,7 @@ import { lancer, repertoireTemporaire } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "../src");
 
-for (const commande of ["status", "montrer-rail", "garde-fous-cli", "montrer-station", "montrer-pass"]) {
+for (const commande of ["status", "montrer-rail", "garde-fous-cli", "montrer-station"]) {
   test(`${commande} devant un journal sans projections dit de redémarrer le runtime, sans trace`, async (t) => {
     const repertoire = repertoireTemporaire(t);
     ouvrirJournal(repertoire, { projections: [] }).fermer();
@@ -16,7 +16,7 @@ for (const commande of ["status", "montrer-rail", "garde-fous-cli", "montrer-sta
     const enfant = lancer(t, join(SRC, `${commande}.ts`), [], { BRIGADE_STATE_DIR: repertoire });
 
     assert.equal(await enfant.fin, 1);
-    assert.match(enfant.sortie(), commande === "montrer-rail" || commande === "montrer-pass" || commande === "garde-fous-cli" || commande === "montrer-station" ? /restart the runtime/ : /redémarrer le runtime/);
+    assert.match(enfant.sortie(), commande === "montrer-rail" || commande === "garde-fous-cli" || commande === "montrer-station" ? /restart the runtime/ : /redémarrer le runtime/);
     assert.doesNotMatch(enfant.sortie(), /at .*\.ts/);
   });
 }
