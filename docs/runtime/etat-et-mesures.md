@@ -487,11 +487,6 @@ A quality ticket opened before that marker existed counted every such ticket mer
 #2805, served, had #2813 opened on the very 13 send-backs of BOBL-tech/espace it had counted, all cooked on
 2026-11-05 and 06, before the cook's instruction learned the reviewer's blocking rules (#2770, #2789, #2797, #2803)
 and before a blocked cook went to the chef (#2805).
-The last quality ticket served is then on trial, like the time correction (#2818): a faulty ticket claimed before
-it was closed (`closedAt`, or `servieLe` for a ticket filed on the brigade for a served project) was cooked without
-its correction, says nothing of it, and opens nothing. #2818 opened on brigade with 21 blocking reviews, as many
-as #2812 had named: every ticket of its window was cooked before #2812's rule, the last of the cook's five review
-rules (#2770, #2789, #2797, #2803, #2812), reached main, and none had been cooked since.
 
 ## The daily report of the decisions brigade told about
 

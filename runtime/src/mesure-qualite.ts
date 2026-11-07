@@ -56,9 +56,6 @@ export type Qualite = {
   // Le merge de chaque fautif daté : un ticket de qualité ouvert avant la marque
   // de #2804 a compté ceux qui étaient mergés quand il s'est ouvert (#2813).
   mergesDesFautifs: ReadonlyMap<number, string>;
-  // La prise de chaque fautif datée (son merge sans prise lue) : un fautif pris
-  // avant que le dernier ticket de qualité soit servi a cuit sans sa correction (#2818).
-  prisesDesFautifs: ReadonlyMap<number, string>;
 };
 
 // Livré du premier coup : mergé sans renvoi ni cook raté.
@@ -81,7 +78,7 @@ export function classer(noms: readonly string[]): Compte[] {
   return [...comptes].map(([nom, fois]) => ({ nom, fois })).sort((a, b) => b.fois - a.fois);
 }
 
-export function mesurerQualite<T extends { ticket: number; mergedAt?: string; claimedAt?: string }>(temps: readonly T[], qualites: ReadonlyMap<number, QualiteDuTicket>, projet?: unknown): Qualite {
+export function mesurerQualite<T extends { ticket: number; mergedAt?: string }>(temps: readonly T[], qualites: ReadonlyMap<number, QualiteDuTicket>, projet?: unknown): Qualite {
   const tickets = ticketsRecents(temps).map(({ ticket }) => ticket);
   const connues = tickets.flatMap((ticket) => qualites.get(ticket) ?? []);
   const fautifs = tickets.filter((ticket) => {
@@ -90,12 +87,6 @@ export function mesurerQualite<T extends { ticket: number; mergedAt?: string; cl
   });
   const mergesDesFautifs = new Map(
     ticketsRecents(temps).flatMap(({ ticket, mergedAt }) => (fautifs.includes(ticket) && mergedAt !== undefined && !Number.isNaN(Date.parse(mergedAt)) ? [[ticket, mergedAt] as const] : [])),
-  );
-  const prisesDesFautifs = new Map(
-    ticketsRecents(temps).flatMap(({ ticket, claimedAt, mergedAt }) => {
-      const prise = [claimedAt, mergedAt].find((instant) => instant !== undefined && !Number.isNaN(Date.parse(instant)));
-      return fautifs.includes(ticket) && prise !== undefined ? [[ticket, prise] as const] : [];
-    }),
   );
   const premierCoup = partDuPremierCoup(connues);
   const seuil = seuilPremierCoup(projet);
@@ -116,7 +107,6 @@ export function mesurerQualite<T extends { ticket: number; mergedAt?: string; cl
     checksCasses: classer(reparations.flatMap((q) => q.reparation ?? [])),
     fautifs,
     mergesDesFautifs,
-    prisesDesFautifs,
   };
 }
 
