@@ -58,6 +58,10 @@ export const REGLE_GARDE_CORRECTION: string = [
   ...GARDES.map((g, i) => `${i + 1}. ${g.nom} (${g.chemins.join(", ")})`),
   "",
   `Its PR body has a "${TITRE_SECTION}" section that names each of these guards. A change to a path a guard owns is a guard lowered, and the correction is refused.`,
+  "",
+  // #2818 was sent back for it: its cause already had a fix on main, and it made the gate count
+  // the new send-backs away by their claim date instead — it cut the openings, not the send-backs.
+  "It does not silence the measure that opened it either (runtime/src/mesure-qualite.ts, runtime/src/alerte-qualite.ts). A send-back this ticket did not count is never counted away — by its claim date, its age or its project: that cuts the openings, not the send-backs, and the review refuses it as a silencer. The measure is corrected only when it reopens on the very send-backs a served quality ticket already counted. If the cause these send-backs name already has its fix on main and no ticket was cooked since, the delivery says so with the evidence — the fix, its merge, the tickets cooked after it — and changes nothing.",
 ].join("\n");
 
 export type ConstatGarde = {
