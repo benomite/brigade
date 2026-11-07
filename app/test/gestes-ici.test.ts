@@ -16,7 +16,6 @@ import { commandeDAttente, ecrireAttente } from "../src/attente.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { GESTE, lancerLa, ouvrirVeille, type Cuisine, type Lecture, type Locale } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
-import { jouerGesteDeFiche } from "../src/gestes-fiche.ts";
 import { commandeDuGeste, ecrireGeste } from "../src/gestes.ts";
 import { JUGEMENT, tenirServices, type Guide } from "../src/service.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -146,14 +145,13 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
     assert.equal(confirmationDe("stop", PARADE, { sans: "pas lus" }, undefined, undefined), undefined);
   });
 
-  test("accorder, révoquer le grant `merge` et merger une livraison : ici aussi", { skip: SANS_POSIX }, async (t) => {
+  test("accorder, révoquer le grant `merge` : ici aussi", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     const { ecrits, terminaux } = temoin();
     await ecrireGeste(terminaux, "grant-activer", PARADE, "merge", true, essai.ici);
     await ecrireGeste(terminaux, "grant-revoquer", PARADE, "merge", true, essai.ici);
-    await jouerGesteDeFiche(terminaux, PARADE, "merger", 42, undefined, undefined, essai.ici);
     for (const ecrite of ecrits) essai.jouer(ecrite);
-    assert.deepEqual(essai.lances(), [recu(essai, "grant", "enable", "merge"), recu(essai, "grant", "revoke", "merge"), recu(essai, "rail", "merge", "42")]);
+    assert.deepEqual(essai.lances(), [recu(essai, "grant", "enable", "merge"), recu(essai, "grant", "revoke", "merge")]);
   });
 
   test("ce que le chef tape passe un seul shell, ici : chaque mot arrive entier, et rien n'en est exécuté", { skip: SANS_POSIX }, async (t) => {

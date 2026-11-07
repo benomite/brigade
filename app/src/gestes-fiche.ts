@@ -22,7 +22,7 @@ import { enPoste } from "./gestes.ts";
 import { PRIORITES } from "./priorite.ts";
 import { CONTROLE, type Terminal } from "./terminaux.ts";
 
-export type IdDeFiche = "issue" | "pr" | "second" | "merger" | "retirer" | "cuisine" | "priorite" | "waiting" | "navigateur";
+export type IdDeFiche = "issue" | "pr" | "second" | "retirer" | "cuisine" | "priorite" | "waiting" | "navigateur";
 
 // Comment une action se joue, une fois branchée : `app`, l'app la joue elle-même (ouvrir une
 // adresse, écrire dans le second) ; `box`, c'est une commande du runtime — `box` compose ce qui
@@ -35,7 +35,7 @@ export type Actions = Readonly<Partial<Record<IdDeFiche, Branchement>>>;
 // elle-même ; changer la priorité aussi — elle remplace le label `prio:` de l'issue sur GitHub
 // (priorite.ts, #1739), sans la box ; renvoyer en cuisine un ticket revenu de WAITING et le retirer
 // du rail aussi — elle retire de son issue `waiting` ou `fire` (gestes-github.ts, #2061). Merger la
-// livraison se fait sur sa PR, sur GitHub : l'app le dit, et rien ne part. Les autres attendent leur
+// livraison se fait sur sa PR, sur GitHub : l'app n'a pas de bouton pour cela. Les autres attendent leur
 // action (en tête de ce fichier).
 export const ACTIONS: Actions = {
   issue: { app: true },
@@ -43,7 +43,6 @@ export const ACTIONS: Actions = {
   second: { app: true },
   priorite: { app: true },
   cuisine: { app: true },
-  merger: { box: (ticket) => `rail merge ${ticket}` },
   retirer: { box: (ticket) => `rail remove ${ticket}` },
 };
 
@@ -64,7 +63,6 @@ export const PRIX = {
   issue: null,
   pr: null,
   second: null,
-  merger: "the PR is merged into the integration branch, under the station's GitHub account, and the pass serves the ticket — a merge is not undone from the app",
   retirer: "the ticket leaves the rail and is not cooked; its issue stays open and loses its `fire` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent",
   cuisine: "a cook takes it again and spends what a cook spends; it leaves your queue",
   priorite: null,
@@ -76,7 +74,6 @@ const LIBELLES: Record<IdDeFiche, string> = {
   issue: "open the issue",
   pr: "open the merged PR",
   second: "ask the second",
-  merger: "merge the PR",
   retirer: "remove from the rail",
   cuisine: "back to the kitchen",
   priorite: "change the priority",

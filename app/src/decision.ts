@@ -9,9 +9,9 @@
 // La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `no-grant`…).
 export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null };
 
-// Les gestes qui tranchent une décision : merger la livraison, la sortir du rail, ouvrir l'issue
-// — là où le chef répond, recalibre ou corrige —, la renvoyer en cuisine.
-export type GesteAttendu = "merger" | "retirer" | "issue" | "cuisine";
+// Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue — là où le chef répond, recalibre ou
+// corrige —, la renvoyer en cuisine. Merger la livraison se fait sur sa PR, sur GitHub : l'app n'a pas de bouton.
+export type GesteAttendu = "retirer" | "issue" | "cuisine";
 export type Attendu = { phrase: string; gestes: GesteAttendu[] };
 
 export const SANS_DECISION = "This ticket waits for your decision — its issue says which.";
@@ -40,7 +40,7 @@ const ECARTEES: Readonly<Record<string, Attendu>> = {
 
 // Ce qui sort une remontée, selon qu'elle a une PR à merger ou non.
 const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } =>
-  pr === null ? { suite: "take it off the rail, or close its issue.", gestes: ["retirer"] } : { suite: "merge it anyway, or take it off the rail.", gestes: ["merger", "retirer"] };
+  pr === null ? { suite: "take it off the rail, or close its issue.", gestes: ["retirer"] } : { suite: "merge it anyway, or take it off the rail.", gestes: ["retirer"] };
 
 function remontee({ motif, cause, pr }: Decision): Attendu {
   const { suite, gestes } = SORTIR(pr);
@@ -54,7 +54,7 @@ export function attenduDe(decision: Decision | undefined): Attendu {
   const { quoi, motif, pr } = decision;
   switch (quoi) {
     case "merge":
-      return { phrase: (motif === null ? undefined : VERTE[motif]) ?? "Green, but not merged: merge it yourself.", gestes: pr === null ? [] : ["merger"] };
+      return { phrase: (motif === null ? undefined : VERTE[motif]) ?? "Green, but not merged: merge it yourself.", gestes: [] };
     case "remontee":
       return remontee(decision);
     case "fermee":

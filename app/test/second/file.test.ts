@@ -83,7 +83,7 @@ const github: AppelGitHub = async (chemin) => ({ status: 200, data: reponseA(che
 // Le bloc `awaiting` que l'app et le second en lisent, bords compris.
 const BLOC = [
   "awaiting   2 decisions await the chef — the oldest for 3 h 00",
-  "  #8  for 3 h 00  Merge PR #2326 by hand? It changes what judges it. — merge PR #2326 with `merge the PR` on its Todo card, or on GitHub  Ticket 8",
+  "  #8  for 3 h 00  Merge PR #2326 by hand? It changes what judges it. — merge PR #2326 on GitHub  Ticket 8",
   "  #20  for 2 h 00  Which token does the box use for the registry? — answer on its Todo card, in your own words  Ticket 20",
   "end awaiting",
 ].join("\n");

@@ -201,8 +201,6 @@ describe("« Its stations » dit chaque station telle que `facts` la voit (#1830
     assert.deepEqual([atteinte(mac)?.textContent, atteinte(mac)?.dataset.ton, pilule(mac)], [ATTEINTE.absente, "gris", ABSENTE.etat]);
     assert.match(atteinte(mac)?.title ?? "", /the kitchen has never heard from it/);
     assert.equal(retenue(mac)?.textContent, PAS_ANNONCEE.pourquoi);
-    // Son geste reste : l'arrêter avant qu'il ne vienne.
-    assert.ok(mac.dessous("button").some(({ ariaLabel }) => ariaLabel === "stop cooking on macbook/claude"));
     // La box, elle, est atteinte et cuit.
     const box = ligne(vue, "box/claude");
     assert.deepEqual([atteinte(box)?.textContent, pilule(box)], [ATTEINTE.oui, "cooking"]);

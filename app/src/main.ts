@@ -843,7 +843,6 @@ ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unkn
     redessinerRail(vise.nom);
     return { fait: rendu.fait, detail: rendu.detail };
   }
-  if (id === "merger") return { refus: SANS_FAIT.merger, detail: "" };
   if (!surGithub(id)) return jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
   const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
@@ -1249,10 +1248,6 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
 // Les labels d'une issue, lus et changés depuis une fiche (priorite.ts, gestes-github.ts), et le commentaire du chef,
 // avec le jeton du `gh` de ce poste.
 const clientDesLabels = clientDeLaPriorite({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), appeler: appelerGitHub, envoyer: envoyerParFetch() });
-// Le plafond de cooks d'une station, réglé depuis sa page, et le bouton qui arrête ou relance une station sur l'onglet
-// Cooks (#1185) : ils partaient sur le tableau de la cuisine, que plus aucun runtime ne lit (#2061). Une station prend
-// autant de tickets qu'elle déclare de places : rien ne part, et la phrase dit où le faire (gestes-github.ts).
-ipcMain.handle("reglerLePlafond", () => ({ refus: SANS_FAIT.plafond }));
 // Les plafonds de durée du projet, sur Kitchen > Health (#2490, plafonds-duree.ts) : lus et écrits dans
 // `.claude/brigade/projet.json` de son dépôt, sur sa branche d'intégration, par le jeton du `gh` de ce poste — ni box.
 const brancheDuProjet = (projet: Projet) => projet.base ?? projetsDesStations.vu()?.projets.find(({ nom }) => nom === projet.nom)?.base ?? null;
@@ -1299,7 +1294,6 @@ ipcMain.handle("ajouterSpecialisation", async (_, nom: unknown, demande: unknown
   if (vise === undefined) return parti(nom);
   return ajouterUneSpecialisation({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), demande, client: clientDesLabels });
 });
-ipcMain.handle("cuireSurLaStation", () => ({ refus: SANS_FAIT.cuisson }));
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
 // Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.

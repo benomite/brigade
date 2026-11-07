@@ -1,7 +1,7 @@
 // Le budget d'appels à GitHub, par projet et par heure (#2196). Chaque appel
 // que le pacer laisse partir (`limite-github.ts`, `prendre`) est déjà inscrit
 // dans le compteur partagé de la station : son instant, son projet, s'il écrit.
-// Ce module y ajoute sa catégorie — board, issues, gists, PRs, checks — et le
+// Ce module y ajoute sa catégorie — issues, gists, PRs, checks — et le
 // ticket qu'il sert quand le chemin le dit, et lit ce registre par heure d'horloge :
 // le total des lectures et des écritures de chaque projet, contre un budget
 // horaire tenu à part pour les unes et les autres.
@@ -15,7 +15,7 @@
 // facture pas en sort (`rendre`), ici aussi.
 import type { Base } from "../base.ts";
 
-export const CATEGORIES = ["board", "issues", "gists", "PRs", "checks"] as const;
+export const CATEGORIES = ["issues", "gists", "PRs", "checks"] as const;
 export type Categorie = (typeof CATEGORIES)[number];
 
 // Le budget par défaut : 600 appels par projet et par heure, lectures et
@@ -51,9 +51,8 @@ export function ticketDe(args: readonly string[]): number | null {
 }
 
 // La catégorie d'un appel inscrit sans elle — un compteur d'avant ce registre,
-// ou un appel dont seule la sorte de lecture est dite (le tableau, le gist).
+// ou un appel dont seule la sorte de lecture est dite (le gist, les PRs).
 export function categorieDeLaLecture(lecture: string | null): Categorie {
-  if (lecture === "board") return "board";
   if (lecture === "gist") return "gists";
   if (lecture === "pull-requests") return "PRs";
   return "issues";
@@ -90,7 +89,7 @@ export function preparerLeRegistre(base: Base): void {
   base.script("CREATE TABLE IF NOT EXISTS alertes_budget (projet TEXT NOT NULL, fenetre INTEGER NOT NULL, PRIMARY KEY (projet, fenetre)); CREATE INDEX IF NOT EXISTS appels_par_projet ON appels (projet, ecriture, instant);");
 }
 
-const zero = (): CompteDuType => ({ total: 0, byCategory: { board: 0, issues: 0, gists: 0, PRs: 0, checks: 0 } });
+const zero = (): CompteDuType => ({ total: 0, byCategory: { issues: 0, gists: 0, PRs: 0, checks: 0 } });
 
 type Groupe = { projet: string; ecriture: number; categorie: string | null; lecture: string | null; appels: number };
 

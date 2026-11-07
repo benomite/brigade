@@ -10,7 +10,7 @@ const compte = (total: number, byCategory: Record<string, number> = {}) => ({ to
 const INSTANTANE = {
   windowStart: "2026-11-03T10:00:00.000Z",
   projects: {
-    parade: { reads: compte(120, { issues: 80, board: 40, gists: 0 }), writes: compte(30, { prs: 30 }), budget: { reads: 100, writes: 50 }, overBudget: true },
+    parade: { reads: compte(120, { issues: 80, prs: 40, gists: 0 }), writes: compte(30, { prs: 30 }), budget: { reads: 100, writes: 50 }, overBudget: true },
     brigade: { reads: compte(10, { checks: 10 }), writes: compte(2, { prs: 2 }), budget: { reads: 100, writes: 50 }, overBudget: false },
   },
   perTicket: {},
@@ -24,7 +24,7 @@ describe("le budget d'appels GitHub", () => {
     assert.match(parade.textContent, /over budget/);
     const [lectures, ecritures] = parade.children.filter((e) => e.dataset.genre !== undefined);
     assert.match(lectures!.textContent, /reads 120 \/ 100/);
-    assert.match(lectures!.textContent, /used by issues 80, board 40/);
+    assert.match(lectures!.textContent, /used by issues 80, prs 40/);
     assert.doesNotMatch(lectures!.textContent, /gists/);
     assert.match(ecritures!.textContent, /writes 30 \/ 50/);
     assert.doesNotMatch(ecritures!.textContent, /used by/);

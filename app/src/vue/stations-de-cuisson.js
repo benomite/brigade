@@ -30,7 +30,6 @@ import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
 /** @typedef {import("../faits.ts").Cook} Cook */
 /** @typedef {import("../cuisson.ts").AgentDeStation} Agent */
-/** @typedef {import("../cuisson.ts").GesteDeCuisson} Geste */
 /** @typedef {import("../projets/demande.ts").AccesBloque} Acces */
 /** @typedef {import("../projets/demande.ts").Refus} Refus */
 /** @typedef {import("../projets/demande.ts").EchecDuClone} Clone */
@@ -54,11 +53,6 @@ import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
  * sa cuisine qui tourne ici, sa box, son nom.
  * @typedef {{ ici: boolean, projet?: string, editer?: Editer }} Lieu
  */
-// Ce que le dernier réglage du plafond a rendu pour une station : la phrase, refusée ou non, et son détail au survol.
-/** @typedef {{ dit: string, refus: boolean, detail: string }} DitDuPlafond */
-// Ce qu'un clic a rendu pour une station : la phrase, refusée ou non, le détail au survol, et le mot de la
-// station au moment du clic — elle s'efface quand la station en a changé.
-/** @typedef {{ dit: string, refus: boolean, detail: string, etat: string }} Dit */
 
 export const TITRE = "Its stations";
 export const RIEN_NE_TOURNE = "nothing running";
@@ -93,20 +87,10 @@ export const RELIRE = { libelle: "check again", survol: "reads GitHub again, to 
 export const FOURNIT = "Provides";
 export const FOURNIT_PAS_DIT = "not declared yet";
 
-// Le plafond de cooks du projet sur la station (ticket 1292) : ce qu'il vaut, d'où il vient, et ses deux gestes.
+// Le plafond de cooks du projet sur la station (ticket 1292) : ce qu'il vaut, d'où il vient, et le geste qui ouvre son réglage.
 export const POSER_LE_PLAFOND = "set the cap";
-export const PLAFOND_PAR_DEFAUT = "back to the default";
 // Ce que dit une station saturée : ce qui la sature, et ce que baisser le plafond change — et ne change pas.
 export const BAISSER_LE_PLAFOND = "Lowering the cap makes this project run fewer cooks at once; the machine's load does not drop right away.";
-
-// Ce que chaque bouton dit, ce qu'il dit tant que le clic attend sa réponse, ce qu'il fait — au survol du bouton —,
-// et son prix, nul quand il ne coûte rien : arrêter ne coupe rien et ne perd rien ; relancer remet ses cooks au
-// travail, sur le quota du chef. Le prix passe en survol, jamais sous le bouton.
-/** @type {Readonly<Record<Geste, { libelle: string, enCours: string, fait: string, prix: string | null }>>} */
-export const BOUTONS = {
-  stop: { libelle: "stop cooking", enCours: "stopping…", fait: "it takes no more tickets of this project; its running cooks finish — delivered, or their ticket goes back to the rail", prix: null },
-  start: { libelle: "start cooking", enCours: "starting…", fait: "it takes the project's tickets again", prix: "its cooks spend what cooks spend, on your quota" },
-};
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
@@ -208,15 +192,10 @@ export function cartesDeCooks(doc, station, siens, agents, carte) {
   return cartes;
 }
 
-// Sous une station : le plafond du projet sur elle comme sa box le dit (`3 at most — 8 cores`), en une phrase ce qui
-// la sature quand elle l'est, le champ et ses deux gestes — le nombre, ou le retour au défaut quand le chef l'a réglé.
-// Le plafond neuf se lit à la lecture qui suit le geste ; `en cours` : le geste attend sa réponse.
-/**
- * @param {Fabrique} doc @param {string} station @param {Plafonds} cap @param {DitDuPlafond | "en cours" | undefined} rendu
- * @param {{ lire: (station: string) => string, ecrire: (station: string, valeur: string) => void } | undefined} saisies @param {(station: string, valeur: string) => void} regler
- */
-function plafondDeLaStation(doc, station, cap, rendu, saisies, regler) {
-  const attend = rendu === "en cours";
+// Sous une station : le plafond du projet sur elle comme sa box le dit (`3 at most — 8 cores`), et en une phrase ce qui
+// la sature quand elle l'est. Il se lit seulement : son réglage est la déclaration de la station, sur sa machine.
+/** @param {Fabrique} doc @param {Plafonds} cap */
+function plafondDeLaStation(doc, cap) {
   const plafond = cree(doc, "p", `Cooks at once: ${cap.plafond.dit}`);
   plafond.className = "plafond-de-station";
   plafond.append(niveauDe(doc, "cooks"));
@@ -225,33 +204,6 @@ function plafondDeLaStation(doc, station, cap, rendu, saisies, regler) {
     const sature = cree(doc, "p", `Saturated on ${cap.retenue.ressources} — ${cap.retenue.detail}. ${BAISSER_LE_PLAFOND}`);
     sature.className = "retenue-de-station";
     lignes.push(sature);
-  }
-  const champ = cree(doc, "input");
-  champ.type = "text";
-  champ.inputMode = "numeric";
-  champ.placeholder = "cooks at once";
-  champ.ariaLabel = `cook cap on ${station}`;
-  champ.value = saisies?.lire(station) ?? "";
-  champ.addEventListener("input", () => saisies?.ecrire(station, champ.value));
-  champ.disabled = attend;
-  const regle = cree(doc, "p");
-  regle.className = "regle-le-plafond-de-station";
-  const poser = boutonAction(doc, POSER_LE_PLAFOND, () => regler(station, champ.value.trim()), { recommande: true, prix: "no running cook is stopped; the station launches no more while it is above — 0 lifts the limit" });
-  const clic = poser.children[0];
-  if (clic !== undefined) clic.disabled = attend;
-  regle.append(champ, poser);
-  if (cap.plafond.parLeChef) {
-    const retour = boutonAction(doc, PLAFOND_PAR_DEFAUT, () => regler(station, "auto"), { prix: "withdraws your cap: the one derived from the machine's cores returns" });
-    const clicRetour = retour.children[0];
-    if (clicRetour !== undefined) clicRetour.disabled = attend;
-    regle.append(retour);
-  }
-  lignes.push(regle);
-  if (rendu !== undefined && rendu !== "en cours") {
-    const dit = cree(doc, "p", rendu.dit);
-    dit.className = rendu.refus ? "dit refus" : "dit";
-    if (rendu.detail !== "") dit.title = rendu.detail;
-    lignes.push(dit);
   }
   return lignes;
 }
@@ -393,8 +345,7 @@ function cooksDeclares(doc, declaree, editer) {
   return [plafond, regle];
 }
 
-// La section des stations, ou null : `facts` ne les donne pas. `enCours` : les stations dont un clic attend sa
-// réponse, et lequel ; `dits` : ce que le dernier clic de chacune a rendu. `pastille` : celle de la vue. `carte` :
+// La section des stations, ou null : `facts` ne les donne pas. `pastille` : celle de la vue. `carte` :
 // la carte du ticket d'un cook, celle du kanban — sans elle, une ligne par cook. `tete` : ce qui se lit sous son titre,
 // avant les stations — la ligne de la cuisine du projet, où sa carte est fondue (ticket 1456).
 // `declarees` : les stations que le journal déclare (installation stations --json) ; `appairees` : celles que l'app
@@ -402,9 +353,9 @@ function cooksDeclares(doc, declaree, editer) {
 // `relire`, `autoriser` : les gestes d'une station ajoutée qui ne cuit pas encore (ticket 1786).
 /**
  * @param {Fabrique} doc
- * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, plafondsDits?: ReadonlyMap<string, DitDuPlafond | "en cours">, saisies?: { lire: (station: string) => string, ecrire: (station: string, valeur: string) => void }, regler?: (station: string, valeur: string) => void, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
+ * @param {{ lignes: readonly Ligne[] | undefined, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
  */
-export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, carte, plafonds, plafondsDits, saisies, regler, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
+export function poserLesStations(doc, { lignes, pastille, carte, plafonds, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
   if (lignes === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
@@ -447,35 +398,13 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       // le bloc, sous son geste.
       const cooks = carte === undefined ? lignesDeCooks(doc, ligne?.cooks ?? [], ligne?.agents ?? []) : cartesDeCooks(doc, rang.nom, ligne?.cooks ?? [], ligne?.agents ?? [], carte);
       pose.append(nom, etat, ...(carte === undefined ? [cooks] : []));
-      // Le geste : un seul bouton, et seulement quand c'est d'elle que l'arrêt vient ou s'en va.
-      if (ligne !== undefined && ligne.geste !== null) {
-        const geste = ligne.geste;
-        const attendu = enCours.get(ligne.station);
-        const bouton = boutonAction(doc, attendu === undefined ? BOUTONS[geste].libelle : BOUTONS[attendu].enCours, () => jouer(ligne.station, geste), { prix: BOUTONS[geste].prix });
-        bouton.className = "action geste-de-cuisson";
-        const clic = bouton.children[0];
-        if (clic !== undefined) {
-          clic.ariaLabel = `${BOUTONS[geste].libelle} on ${ligne.station}`;
-          clic.title = BOUTONS[geste].fait;
-          clic.disabled = attendu !== undefined;
-        }
-        pose.append(bouton);
-      }
-      // Ce que le dernier clic a rendu, tant que la station n'a pas changé de mot.
-      const rendu = ligne === undefined ? undefined : dits.get(ligne.station);
-      if (ligne !== undefined && rendu !== undefined && rendu.etat === ligne.etat) {
-        const dit = cree(doc, "p", rendu.dit);
-        dit.className = rendu.refus ? "dit refus" : "dit";
-        if (rendu.detail !== "") dit.title = rendu.detail;
-        pose.append(dit);
-      }
       // Pourquoi elle ne cuit pas, en une ligne.
       const retenue = retenueDe(rang);
       if (retenue !== undefined) pose.append(ligneDeRetenue(doc, rang, retenue, { ...(relire === undefined ? {} : { relire }), ...(autoriser === undefined ? {} : { autoriser }) }));
       // Ce qu'elle fournit, puis ses cooks à la fois.
       if (lieu !== undefined) pose.append(...fournitDe(doc, rang, lieu, declarees.length));
       const cap = plafonds?.[rang.nom];
-      if (cap !== undefined && regler !== undefined) pose.append(...plafondDeLaStation(doc, rang.nom, cap, plafondsDits?.get(rang.nom), saisies, regler));
+      if (cap !== undefined) pose.append(...plafondDeLaStation(doc, cap));
       else if (rang.declaree !== undefined) pose.append(...cooksDeclares(doc, rang.declaree, lieu?.editer));
       if (carte !== undefined) pose.append(cooks);
       return pose;

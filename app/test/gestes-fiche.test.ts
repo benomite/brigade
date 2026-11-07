@@ -63,8 +63,7 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     assert.deepEqual(
       proposes.map(({ id, libelle, recommande }) => [id, libelle, recommande === true]),
       [
-        ["merger", "merge the PR", true],
-        ["retirer", "remove from the rail", false],
+        ["retirer", "remove from the rail", true],
         ["issue", "open the issue", false],
         ["second", "ask the second", false],
         ["priorite", "change the priority", false],
@@ -102,9 +101,8 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
       ...gestesDeLaFiche(carte("86", { attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } })),
     ];
     const prix = Object.fromEntries(tous.map(({ id, prix: cout }) => [id, cout]));
-    assert.deepEqual(prix, { issue: null, pr: null, second: null, priorite: null, navigateur: null, waiting: null, merger: PRIX.merger, retirer: PRIX.retirer, cuisine: PRIX.cuisine });
+    assert.deepEqual(prix, { issue: null, pr: null, second: null, priorite: null, navigateur: null, waiting: null, retirer: PRIX.retirer, cuisine: PRIX.cuisine });
     assert.equal(PRIX.retirer, "the ticket leaves the rail and is not cooked; its issue stays open and loses its `fire` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent");
-    assert.match(PRIX.merger, /merged into the integration branch/);
     assert.deepEqual(tous.find(({ id }) => id === "priorite")?.valeurs, PRIORITES);
     assert.deepEqual(PRIORITES, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"]);
   });
@@ -116,7 +114,7 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "en attente", ouvrable: true, attendu: false, attend: [] }).map(({ id }) => id), ["issue", "second", "priorite", "retirer"]);
     // Une décision qui n'en a pas la forme est ignorée : la carte garde les gestes de tous.
     const decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
-    assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision }).map(({ id }) => id), ["merger", "retirer", "issue", "second", "priorite"]);
+    assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision }).map(({ id }) => id), ["retirer", "issue", "second", "priorite"]);
     assert.deepEqual(gestesDeCarte({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision: { ...decision, pr: 8 } }).map(({ id }) => id), ["issue", "second", "priorite"]);
   });
 });
@@ -127,11 +125,10 @@ describe("jouer un geste de la fiche", () => {
     return { envoyes, terminaux: { envoyer: async (_: Projet, commande: string) => (envoyes.push(commande), SECOND) } };
   };
 
-  test("retirer du rail et merger partent dans le second, par le geste de la station (#637)", async () => {
+  test("retirer du rail part dans le second, par le geste de la station (#637)", async () => {
     const { terminaux, envoyes } = registre();
     assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined, undefined, CUISINE), SECOND);
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "merger", 21, undefined, undefined, CUISINE), SECOND);
-    assert.deepEqual(envoyes, [ecrit("rail remove 21"), ecrit("rail merge 21")]);
+    assert.deepEqual(envoyes, [ecrit("rail remove 21")]);
   });
 
   test("renvoyer en cuisine n'est pas une commande de la station : l'app le poste sur le tableau de la cuisine (#1740) — rien ne part dans le second", () => {

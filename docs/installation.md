@@ -123,8 +123,8 @@ pull request.
 
 The pass runs the gates and a review on the pull request and writes its verdict on the issue. A
 green delivery is merged by the pass itself when the project switch is on (`project on`). If the
-pass escalates, or the switch is off, the delivery waits in **TODO** with the buttons `merge the PR`
-(recommended), `send back to the kitchen`, `remove from the rail`.
+pass escalates, or the switch is off, the delivery waits in **TODO** and you merge its PR on GitHub (the app has no merge button); the buttons are
+`send back to the kitchen` and `remove from the rail`.
 
 **You see**: the card in **Served**, the pull request merged, the issue closed, and `served 24 h` on
 the project's tile. That is your first ticket, cooked.

@@ -176,9 +176,9 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   station (a command) keeps its own queue, under the same shared counter.
 - **Where the calls go (#1417).** Every `gh api` call is recorded on the counter with its project
   (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind (`issue-comments`,
-  `pull-requests`, `issues`, `gist`, `gesture`, `board` — the Kitchen board's refresh, which no runtime does since #2061 —, `other`) over the
+  `pull-requests`, `issues`, `gist`, `gesture`, `other`) over the
   sliding hour. `status` prints, read-only (absent without a counter), `gh calls   N calls in the last
-  hour`, `most calls: project <p> (n), kind <k> (m)` and `board cost   N calls per hour, all projects`.
+  hour`, `most calls: project <p> (n), kind <k> (m)`.
   `faits` carries `appelsGithub`: `total`, `topProject`, `topKind` (`{name, calls}` or null),
   `byProject`, `byKind` (biggest first, ties by name).
 - **Calls by identity (#2316).** Every call that leaves is also counted under the identity whose token

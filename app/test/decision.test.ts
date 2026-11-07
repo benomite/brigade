@@ -12,16 +12,16 @@ describe("l'attendu d'une décision", () => {
   test("le cas de #824 : le manager a renoncé après des rouges, la livraison a sa PR — merge-la, ou sors-la du rail", () => {
     assert.deepEqual(attenduDe(decision("remontee", { motif: "still-red", cause: "manager-escalated", pr: PR })), {
       phrase: "The manager gave up after repeated reds: merge it anyway, or take it off the rail.",
-      gestes: ["merger", "retirer"],
+      gestes: ["retirer"],
     });
-    // Sans PR, il n'y a rien à merger.
+    // Sans PR, la phrase est autre.
     assert.deepEqual(attenduDe(decision("remontee", { motif: "still-red", cause: "returns-exhausted" })), {
       phrase: "Still red after its returns, the pass gave up: take it off the rail, or close its issue.",
       gestes: ["retirer"],
     });
   });
 
-  test("une livraison verte que la pass ne merge pas : la merger, chaque motif dit le sien", () => {
+  test("une livraison verte que la pass ne merge pas : chaque motif dit le sien, et aucun bouton ne merge", () => {
     for (const [motif, attendue] of [
       ["no-grant", /without the merge grant/],
       ["review-required", /review it, then merge it/],
@@ -30,7 +30,7 @@ describe("l'attendu d'une décision", () => {
     ] as const) {
       const { phrase, gestes } = attenduDe(decision("merge", { motif, pr: PR }));
       assert.match(phrase, attendue, motif);
-      assert.deepEqual(gestes, ["merger"], motif);
+      assert.deepEqual(gestes, [], motif);
     }
     assert.deepEqual(attenduDe(decision("merge", { motif: "no-grant" })).gestes, [], "sans PR, pas de merge");
   });

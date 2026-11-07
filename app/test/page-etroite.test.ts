@@ -1,6 +1,6 @@
 // La page d'un projet sur un écran étroit — le téléphone (#1186) : trois onglets, Rail, Cooks et la conversation avec le
 // second, qui prend la place du panneau de droite. Cooks y est en lecture seule : les lignes des stations, leur état,
-// leurs cooks, et sur chacune le seul bouton qui la lance ou l'arrête — ni les stations à régler, ni le plafond, ni le
+// leurs cooks, sans bouton — ni les stations à régler, ni le plafond, ni le
 // bac à sable. Rail y est celui d'un écran large ; le dernier onglet ouvert est retenu. Sur un écran large, rien ne
 // change : deux onglets, et le second à droite.
 // La vue est jouée telle qu'elle est, devant un faux document et un faux écran (aides/fausse-vue.ts).
@@ -12,14 +12,13 @@ import { pourLaBarre } from "../src/barre.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import type { RenduDeCuisson } from "../src/cuisson.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { RIEN_NE_TOURNE, BOUTONS as BOUTONS_DE_CUISSON } from "../src/vue/stations-de-cuisson.js";
+import { RIEN_NE_TOURNE } from "../src/vue/stations-de-cuisson.js";
 import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
@@ -89,13 +88,11 @@ function dessinable(stations: DuRuntime[] | undefined): Dessinable {
 // `sansStations` : un runtime d'avant #1183, dont `facts` ne donne pas les stations.
 async function ouvrir({ etroit = true, stockage, sansStations = false }: { etroit?: boolean; stockage?: FauxStockage; sansStations?: boolean } = {}) {
   const ecran = new FauxEcran(etroit);
-  const cuissons: [string, string, string][] = [];
   const vue = await jouerLaVue(
     {
       demarrage,
       espace: () => [SECOND],
       machines: () => [{ id: "poste", titre: "this Mac" }],
-      cuireSurLaStation: (projet, nom, geste) => (cuissons.push([projet, nom, geste]), { fait: `${nom} stops cooking ${projet}` }) as RenduDeCuisson,
     },
     { stockage, ecran },
   );
@@ -103,7 +100,7 @@ async function ouvrir({ etroit = true, stockage, sansStations = false }: { etroi
   await repos();
   vue.dire("surFaits", { ...dessinable(sansStations ? undefined : STATIONS), demande: vue.dernier("faits")[0] as number });
   await repos();
-  return { vue, ecran, cuissons };
+  return { vue, ecran };
 }
 
 const onglets = (vue: Jouee) => vue.element("onglets-du-projet").children;
@@ -222,27 +219,20 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
 });
 
 describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
-  test("chaque station a sa ligne, son état et ses cooks, et son seul geste est le bouton qui la lance ou l'arrête", async () => {
-    const { vue, cuissons } = await ouvrir();
+  test("chaque station a sa ligne, son état et ses cooks, et aucun geste", async () => {
+    const { vue } = await ouvrir();
     await taper(vue, "Cooks");
-    // Celles de la principale d'abord (#1786).
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
     assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "saturated"]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
     assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [RIEN_NE_TOURNE]);
-    // Tout ce qui se clique dans l'onglet : un bouton par station, rien d'autre.
-    assert.deepEqual(gestes(vue.element("rail")).map((bouton) => bouton.ariaLabel), ["stop cooking on box/claude", "start cooking on mac/claude", "stop cooking on atelier/claude"]);
-    assert.deepEqual(lignes(vue).map((li) => gestes(li).length), [1, 1, 1]);
+    // Rien ne se clique sur une ligne de station.
+    assert.deepEqual(lignes(vue).map((li) => gestes(li).length), [0, 0, 0]);
     // Ni la carte du projet, ni Taken et Pass — leurs fiches ont leurs gestes —, ni les serveurs de livraison.
     assert.deepEqual(colonnes(vue), []);
     assert.equal(dansLeRail(vue, "carte"), false);
     assert.equal(vue.element("rail").dessous("li").some((li) => li.className === "bon"), false);
-    // Le bouton fait ce qu'il fait sur un écran large : le runtime est appelé pour cette station.
-    gestes(ligne(vue, "box/claude"))[0]?.click();
-    await repos();
-    assert.deepEqual(cuissons, [[PARADE, "box/claude", "stop"]]);
-    assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length > 0, true);
   });
 
   test("aucun réglage : ni les stations à régler, ni le plafond, ni le bac à sable", async () => {
@@ -257,7 +247,7 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
     await repos();
     const texte = vue.element("rail").textContent;
     for (const reglage of [/cap/i, /at most/, /quota/, /sandbox/i, /\+ station/, /move the kitchen/, /Set the cooks/, /ordinary/i]) assert.doesNotMatch(texte, reglage);
-    assert.equal(gestes(vue.element("rail")).length, 3);
+    assert.equal(gestes(vue.element("rail")).length, 0);
   });
 
   test("le runtime ne donne pas ses stations : une phrase le dit, sans geste", async () => {
@@ -283,7 +273,7 @@ describe("sur un écran large, rien ne change", () => {
     assert.equal(dansLeRail(vue, "lecture-cuisine"), true);
     assert.equal(lecture(vue), "cooks");
     assert.equal(vue.element("stations-du-projet").hidden, false);
-    assert.deepEqual(lignes(vue).map((li) => gestes(li)[0]?.textContent), [BOUTONS_DE_CUISSON.stop.libelle, BOUTONS_DE_CUISSON.start.libelle, BOUTONS_DE_CUISSON.stop.libelle]);
+    assert.deepEqual(lignes(vue).flatMap((li) => gestes(li)).filter((bouton) => /^(stop|start) cooking$/.test(bouton.textContent)), []);
   });
 
   test("la fenêtre qui se rétrécit passe à trois onglets, et qui s'élargit revient à deux, le second à droite", async () => {

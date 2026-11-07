@@ -1,7 +1,6 @@
-// Les gestes de la file sur le téléphone (ticket 1164) : merger une PR qui attend, trancher une carte, arrêter
-// ou relancer la cuisine d'un projet. La vue est celle du desktop, sur un écran étroit (#1186), et ses gestes appellent
-// les mêmes actions du pont que sur le desktop : `gesteDeFiche` — le geste, le ticket, jamais une commande — et
-// `cuireSurLaStation`. Sur le téléphone, il n'y a pas de second où écrire la commande : le pont rend ce que la station
+// Les gestes de la file sur le téléphone (ticket 1164) : trancher une carte. La vue est celle du desktop, sur un écran étroit (#1186), et ses gestes appellent
+// les mêmes actions du pont que sur le desktop : `gesteDeFiche` — le geste, le ticket, jamais une commande.
+// Sur le téléphone, il n'y a pas de second où écrire la commande : le pont rend ce que la station
 // a fait (`fait`), comme pour une station sur Cooks. La fiche le dit, la box est relue tout de suite, et la carte quitte
 // la file à la lecture qui suit. Un geste refusé, ou un pont qui lève, le dit en une ligne, son détail au survol, et la
 // file reste ce qu'elle était.
@@ -12,7 +11,6 @@ import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import type { RenduDeCuisson } from "../../src/cuisson.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { gestesDeCarte } from "../../src/gestes-fiche.ts";
@@ -58,7 +56,7 @@ const station = (nom: string, plus: Partial<Station> = {}): Station => ({
   ...plus,
 });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
-// Dans TODO, deux décisions : #12, verte, que la pass ne merge pas sans le grant — la merger ; #31, dont la PR a été
+// Dans TODO, deux décisions : #12, verte, que la pass ne merge pas sans le grant — à merger sur sa PR ; #31, dont la PR a été
 // fermée sans merge — la sortir du rail. #21 est sur le rail ; #14 cuit sur la box.
 const FAITS: Faits = {
   etat: "ouverte",
@@ -138,36 +136,19 @@ async function confirmer(vue: Jouee, id: string): Promise<void> {
 // Ce que la fiche dit sous ses gestes : sa ligne, sa classe, et son survol.
 const issueDuGeste = (vue: Jouee) => gestes(vue).children.filter((pose) => pose.balise === "p").map((pose) => ({ classe: pose.className, dit: pose.textContent, survol: pose.title }));
 
-describe("depuis le téléphone, merger une PR qui attend", () => {
-  test("TODO : #12, son geste recommandé « merge the PR » ; confirmé, il part nommé — projet, geste, ticket —, la fiche dit ce que la station a fait, la box est relue, et #12 quitte la file", async () => {
-    const vue = await ouvrir({ gesteDeFiche: () => ({ fait: "#12 merged into the integration branch", detail: "brigade : #12: merged (PR #40)" }) });
-    assert.deepEqual(file(vue).Todo, ["#12", "#31"]);
-    await toucherLaCarte(vue, 12);
-    assert.equal(geste(vue, "merger").className, "recommande");
-    assert.equal(geste(vue, "merger").textContent, "merge the PR");
-    const relues = vue.appels.filter(({ geste: nom }) => nom === "relireBox").length;
-    await confirmer(vue, "merger");
-    assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "merger", 12, undefined]);
-    assert.deepEqual(issueDuGeste(vue), [{ classe: "dit", dit: "#12 merged into the integration branch", survol: "brigade : #12: merged (PR #40)" }]);
-    assert.equal(vue.appels.filter(({ geste: nom }) => nom === "relireBox").length, relues + 1, "la box est relue tout de suite");
-    lire(vue, MERGEE);
-    await repos();
-    assert.deepEqual(file(vue).Todo, ["#31"]);
-    assert.deepEqual(file(vue).Served, ["#12"]);
-  });
-
+describe("depuis le téléphone, un geste qui attend la réponse de la station", () => {
   test("tant que la station n'a pas répondu, la fiche le dit et ses gestes attendent : rien ne part deux fois", async () => {
     let rendre: (rendu: { fait: string }) => void = () => {};
     const vue = await ouvrir({ gesteDeFiche: () => new Promise((resoudre) => (rendre = resoudre)) as never });
-    await toucherLaCarte(vue, 12);
-    await confirmer(vue, "merger");
-    assert.deepEqual(issueDuGeste(vue).map(({ dit }) => dit), ["merge the PR: sent, waiting for the answer…"]);
-    assert.equal(geste(vue, "merger").disabled, true);
+    await toucherLaCarte(vue, 31);
+    await confirmer(vue, "retirer");
+    assert.deepEqual(issueDuGeste(vue).map(({ dit }) => dit), ["remove from the rail: sent, waiting for the answer…"]);
+    assert.equal(geste(vue, "retirer").disabled, true);
     assert.equal(geste(vue, "issue").disabled, true);
-    rendre({ fait: "#12 merged into the integration branch" });
+    rendre({ fait: "#31 left the rail" });
     await repos();
-    assert.deepEqual(issueDuGeste(vue).map(({ dit }) => dit), ["#12 merged into the integration branch"]);
-    assert.equal(geste(vue, "merger").disabled, false);
+    assert.deepEqual(issueDuGeste(vue).map(({ dit }) => dit), ["#31 left the rail"]);
+    assert.equal(geste(vue, "retirer").disabled, false);
     assert.equal(vue.appels.filter(({ geste: nom }) => nom === "gesteDeFiche").length, 1);
   });
 });
@@ -175,8 +156,8 @@ describe("depuis le téléphone, merger une PR qui attend", () => {
 describe("sur une fenêtre étroite du desktop, le geste part dans le second, que l'écran ne montre pas à côté de la fiche", () => {
   test("la fiche dit où lire sa réponse : l'onglet Second", async () => {
     const vue = await ouvrir({ gesteDeFiche: () => ({ id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "written in the second", arrete: false }) });
-    await toucherLaCarte(vue, 12);
-    await confirmer(vue, "merger");
+    await toucherLaCarte(vue, 31);
+    await confirmer(vue, "retirer");
     assert.deepEqual(issueDuGeste(vue), [{ classe: "dit", dit: "sent to the second: its answer is in the Second tab", survol: "" }]);
   });
 });
@@ -198,75 +179,22 @@ describe("depuis le téléphone, trancher une carte", () => {
 
 describe("depuis le téléphone, un geste qui échoue le dit et laisse la file telle quelle", () => {
   for (const [cas, gesteDeFiche, dit, survol] of [
-    ["refusé par la station", () => ({ refus: "#12 was not merged: GitHub refused the merge", detail: "brigade : #12: merge refused — Pull Request is not mergeable" }), "#12 was not merged: GitHub refused the merge", "brigade : #12: merge refused — Pull Request is not mergeable"],
+    ["refusé par la station", () => ({ refus: "#31 was not removed: GitHub refused the write", detail: "brigade : #31: write refused" }), "#31 was not removed: GitHub refused the write", "brigade : #31: write refused"],
     ["la station injoignable : le pont lève", () => Promise.reject(new Error("connect ETIMEDOUT 192.168.1.20:7010")), "nothing was sent — nothing was changed", "connect ETIMEDOUT 192.168.1.20:7010"],
     // Le pont Android d'aujourd'hui (app/android/web/pont.js) : un geste qu'il ne connaît pas ne rend rien.
     ["le pont ne porte pas l'action : il ne rend rien", () => undefined, "nothing was sent — nothing was changed", "this app does not carry this action to the station yet"],
   ] as const) {
-    test(`${cas} : une ligne, son détail au survol seulement ; la box n'est pas relue, et #12 reste dans TODO`, async () => {
+    test(`${cas} : une ligne, son détail au survol seulement ; la box n'est pas relue, et #31 reste dans TODO`, async () => {
       const vue = await ouvrir({ gesteDeFiche: gesteDeFiche as Reponses["gesteDeFiche"] });
       const avant = file(vue);
-      await toucherLaCarte(vue, 12);
+      await toucherLaCarte(vue, 31);
       const relues = vue.appels.filter(({ geste: nom }) => nom === "relireBox").length;
-      await confirmer(vue, "merger");
+      await confirmer(vue, "retirer");
       assert.deepEqual(issueDuGeste(vue), [{ classe: "refus", dit, survol }]);
       assert.doesNotMatch(gestes(vue).textContent, /ETIMEDOUT|brigade :/, "le détail n'est qu'au survol");
       assert.equal(vue.appels.filter(({ geste: nom }) => nom === "relireBox").length, relues);
       assert.deepEqual(file(vue), avant);
-      assert.equal(geste(vue, "merger").disabled, false, "le geste se rejoue");
+      assert.equal(geste(vue, "retirer").disabled, false, "le geste se rejoue");
     });
   }
-});
-
-describe("depuis le téléphone, arrêter ou relancer la cuisine d'un projet", () => {
-  const cooks = async (vue: Jouee) => {
-    await ouvrirOnglet(vue, "Cooks");
-  };
-  const ligne = (vue: Jouee) => rail(vue).dessous("li").find((li) => li.className === "station-de-cuisson") ?? assert.fail("pas de station");
-  const bouton = (vue: Jouee) => ligne(vue).dessous("button").find((pose) => pose.className !== "aide") ?? assert.fail("pas de bouton sur la station");
-  const etat = (vue: Jouee) => ligne(vue).dessous("span").find((pose) => pose.className === "pilule")?.textContent;
-  const dit = (vue: Jouee) => ligne(vue).dessous("p").map((pose) => [pose.className, pose.textContent]);
-
-  test("« stop cooking » arrête la cuisine sur la box, et l'écran dit son état neuf ; « start cooking » la relance", async () => {
-    const rendus: Record<string, RenduDeCuisson> = { stop: { fait: "box/claude stops cooking parade" }, start: { fait: "box/claude cooks parade again" } };
-    const vue = await ouvrir({ cuireSurLaStation: (_projet, _station, quoi) => rendus[quoi] as RenduDeCuisson });
-    await cooks(vue);
-    assert.equal(etat(vue), "cooking");
-    assert.equal(bouton(vue).textContent, "stop cooking");
-    bouton(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("cuireSurLaStation"), [PARADE, "box/claude", "stop"]);
-    assert.deepEqual(dit(vue), [["dit", "box/claude stops cooking parade"]]);
-    lire(vue, ARRETEE);
-    await repos();
-    assert.equal(etat(vue), "stopped");
-    assert.equal(bouton(vue).textContent, "start cooking");
-    bouton(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("cuireSurLaStation"), [PARADE, "box/claude", "start"]);
-    lire(vue, FAITS);
-    await repos();
-    assert.equal(etat(vue), "cooking");
-    assert.equal(bouton(vue).textContent, "stop cooking");
-  });
-
-  test("refusé, il le dit sous la station, et elle reste dans son état", async () => {
-    const vue = await ouvrir({ cuireSurLaStation: () => ({ refus: "box/claude was not stopped", detail: "brigade : station unreachable" }) });
-    await cooks(vue);
-    bouton(vue).click();
-    await repos();
-    assert.deepEqual(dit(vue), [["dit refus", "box/claude was not stopped"]]);
-    assert.equal(etat(vue), "cooking");
-    assert.equal(bouton(vue).textContent, "stop cooking");
-  });
-
-  test("un pont qui ne porte pas l'action ne rend rien : la station le dit, et le bouton se rejoue", async () => {
-    const vue = await ouvrir({ cuireSurLaStation: () => undefined as unknown as RenduDeCuisson });
-    await cooks(vue);
-    bouton(vue).click();
-    await repos();
-    assert.deepEqual(dit(vue), [["dit refus", "box/claude: nothing was sent — nothing was changed"]]);
-    assert.equal(bouton(vue).disabled, false);
-    assert.equal(etat(vue), "cooking");
-  });
 });

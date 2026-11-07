@@ -6,8 +6,8 @@
 //   MACHINE SATURATED for 3 min on memory and CPU — load of 18.4 for at most 12 · 812 MB of memory available for
 //              at least 3,205 MB (default: 10% of the machine's 32,050 MB): box takes no more tickets as long as it lasts
 //
-// Le réglage ne part plus de l'app (#2061) : aucune box ne lit plus de tableau de la cuisine, et une station prend autant
-// de tickets qu'elle déclare de places (gestes-github.ts, `SANS_FAIT`).
+// L'app ne le règle pas (#2061) : une station prend autant de tickets qu'elle déclare de places, et sa déclaration se
+// change sur sa machine.
 
 // `dit` : le plafond comme la box l'écrit — `3 at most — 8 cores`, `no limit — declared`,
 // `5 at most — set by you, replaces 3 (8 cores)`. `parLeChef` : il a été réglé, et `remplace` dit ce qu'il remplace.

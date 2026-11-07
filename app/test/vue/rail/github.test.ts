@@ -157,8 +157,6 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
       ],
     );
     assert.deepEqual(vu.stations?.surGithub, { illisible: null });
-    // Aucune n'a de bouton : arrêter une station est un geste de l'ancien chemin.
-    assert.deepEqual(vu.stations?.lignes.filter(({ etat }) => etat !== "cooking").map(({ geste }) => geste), [null, null]);
     assert.deepEqual(vu.cooks.enCours.map(({ ticket, station }) => `#${ticket} ${station}`), ["#2 box/claude", "#3 mac/claude"]);
   });
 
@@ -282,14 +280,14 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
   const commentaires = { ...Object.fromEntries(Object.entries(techniques).map(([n, c]) => [Number(n), [c]])), 2408: [juge(21, 2416)], 2322: [juge(22, 2325)] };
   const lireLeTodo = async () => dessine(await lire(github({ issues, commentaires })));
 
-  test("Todo montre deux cartes, #2408 et #2322, chacune une question qui nomme sa PR, avec le geste de merge", async () => {
+  test("Todo montre deux cartes, #2408 et #2322, chacune une question qui nomme sa PR", async () => {
     const vu = await lireLeTodo();
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
     assert.deepEqual(todo.map(({ ticket, ligne }) => [ticket, ligne]), [
       [2322, "Merge PR #2325 by hand? It changes what judges it."],
       [2408, "Merge PR #2416 by hand? It changes what judges it."],
     ]);
-    for (const carte of todo) assert.ok(gestesDeCarte(carte).some(({ id }) => id === "merger"), `#${carte.ticket} offers the merge gesture`);
+    for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no merge gesture`);
     assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2325], [2416]]);
   });
 

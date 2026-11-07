@@ -25,10 +25,7 @@ export const surGithub = (id: unknown): id is GesteSurGithub => typeof id === "s
 
 // Ce que la vue demande et qui n'a aucun fait sur GitHub qu'une station lise.
 export const SANS_FAIT = {
-  merger: "nothing was done: the app no longer merges through a Kitchen board — merge the delivery's PR on GitHub, or let the station's pass merge it",
   carte: "nothing was posted: a card of TODO is answered on its issue on GitHub — the station reads the issue, not the app",
-  plafond: "nothing was changed: a station takes as many tickets as it declares places — change its declaration on its machine",
-  cuisson: "nothing was sent: a station is no longer stopped or started from the app — stop its runtime on its machine, or remove `fire` from the tickets it should not take",
 } as const;
 
 const PAS_LU = "nothing was written: the rail of this project has not been read yet — read it again";

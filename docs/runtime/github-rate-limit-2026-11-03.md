@@ -2,6 +2,8 @@
 
 Ticket #2143, under epic #2137; its split of the calls feeds #2145 (at most 30 calls per served ticket, none while nothing changes).
 
+**Read this as a diagnosis of the day.** The incident happened while the Kitchen board still existed. The board was removed with the old state path (#2061): the GitHub-only path publishes and reads no board issue, so the rows below marked *removed (#2061)* no longer exist, and neither do the files they name (`tableau/publication/`, `tableau/gestes/`). What the runtime still does each tick is the `fire` list, the open list and the pass's reads.
+
 **The limit hit was, most probably, GitHub's secondary limit on concurrent requests — not the secondary limit on writes per minute, and not the primary hourly quota.** The primary quota is excluded by the numbers (`core` had 4653 of 5000 left at 15:50, the pause was still on). Writes are excluded by the code: the runtime emits only a handful of writes per minute for the whole box (see "Rate in the 15:22 window"), far under any write limit. What the code does produce is bursts of simultaneous reads, because every project ticks on the same 60-second schedule and some reads fan out in parallel (`ci()` and `ciDeLaBase()`). That choice is an inference from the code and the chef's figures; no log line of the incident was available to confirm it (see "Limit of this diagnosis").
 
 ## Limit of this diagnosis
@@ -18,7 +20,7 @@ The station journal, the counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.
 ## What is only probable
 
 - **Concurrency rather than writes** (the reasoning, from the code):
-  - Writes per tick are rare. The only periodic writes are the Kitchen board `PATCH` of each project (`tableau/publication/client.ts`, only when the rendered body changed: time and durations are stripped before comparing, `publier.ts` "corps comparé") and the station's gist `PATCH` (`appairage/canal.ts`, never closer than `ECART_MINIMAL_MS` = 60 s). The other writes are events: comments, labels, merges of the pass and the manager (~20 per served ticket, the chef's figure). With 13 tickets on the rail that is a few per minute for the box, not tens.
+  - Writes per tick are rare. The only periodic writes are the Kitchen board `PATCH` of each project (removed with the board, #2061: it was written only when the rendered body changed) and the station's gist `PATCH` (`appairage/canal.ts`, never closer than `ECART_MINIMAL_MS` = 60 s). The other writes are events: comments, labels, merges of the pass and the manager (~20 per served ticket, the chef's figure). With 13 tickets on the rail that is a few per minute for the box, not tens.
   - Reads are the bulk and they cluster. Each project's runtime fires its tick every 60 s (`runtime.ts`, `intervalleTickMs`), all started by the same station within seconds of each other, so all projects' polls leave in the same burst. `ci(sha)` runs two reads in parallel (`Promise.all`), and `ciDeLaBase` runs `ci` for each of 10 commits in parallel (`github.ts`): 20 simultaneous requests for one call, from the pass's `excuserLesJobsSansVert` (`pass.ts`).
   - So the shape of the traffic (22 counted calls a minute on average, but not spread: the burst is at the tick) fits a concurrency limit; it does not fit a write limit. The number of projects of the account was not given; the burst size scales with it, and with the chef's other clients (Mac, app) which share the account and are not counted by the box.
 - **The 32-minute length.** `retry-after`, if GitHub sent it, is what the code used; GitHub lengthens it when calls keep coming. If the refusal carried only `x-ratelimit-reset`, the pause ran to the end of the hourly window of `core`, up to an hour away, even though the secondary limit itself lifts sooner. The order of preference in `constaterLimite` is verified in the code; which header GitHub sent is not recorded. A lead, not a fact.
@@ -30,9 +32,9 @@ The station journal, the counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.
 | Call | Nature | Reason | ETag | Code |
 |---|---|---|---|---|
 | Open issues labelled `fire` (`issues?labels=fire&state=open&per_page=100`) | read | tick, per project | yes (one page; beyond 100 issues the poll becomes unconditional) | `github.ts` `tickets`/`sonder`, `alimenter.ts` `sonder` on `tick` |
-| Open issues of the repo, PRs included, for the board's "before the rail" | read | tick, per project | yes (same rule) | `github.ts` `ouvertes`, `tableau/publication/publier.ts` `ouvertesDuDepot`/`lireLesOuvertes` |
-| The board issue (`issues/<n>`), or by label when lost | read | tick, per project | yes | `tableau/publication/client.ts` `lire`, `publier.ts` `retrouver` |
-| Comments of the board issue, `?since=<writtenAt>` | read | tick, per project (the chef's gestures) | yes, but the path carries `since`: a rewrite of the board changes the path and costs one full read | `tableau/gestes/client.ts` `commentaires` |
+| Open issues of the repo, PRs included, for the board's "before the rail" | read | tick, per project | yes (same rule) | `github.ts` `ouvertes` (the board's own reader, `publier.ts`, was removed in #2061) |
+| The board issue (`issues/<n>`), or by label when lost | read | tick, per project | yes | removed (#2061) |
+| Comments of the board issue, `?since=<writtenAt>` | read | tick, per project (the chef's gestures) | yes, but the path carries `since`: a rewrite of the board changes the path and costs one full read | removed (#2061) |
 | Comments of a `fire` issue | read | event: only when its `updated_at` moved (or its fiche is not stable) | yes | `alimenter.ts` `lireFiche`, `github.ts` `commentaires` |
 | Events of an issue held at 86 | read | event: when its `updated_at` moved | yes | `alimenter.ts`, `github.ts` `retraitsDeFire` |
 | PR of a branch, then its detail | read | per tick for each ticket in pass, plus on log events | yes | `pass.ts` `prDeBranche`, `github.ts` |
@@ -42,7 +44,7 @@ The station journal, the counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.
 | Job log of a check | read | event | no | `github.ts` `journalDuCheck` |
 | Last page of a full list (comments, events with 100 entries) | read | whenever the list is read | no (`pleine`) | `github.ts` `dernierePagePleine` |
 | Any list over 100 items | read | tick | first page and later pages: no | `github.ts` `sonder`, `feuilleter` |
-| Board `PATCH`/`POST`, pin | write | event: only on a changed body | n/a | `tableau/publication/client.ts` |
+| Board `PATCH`/`POST`, pin | write | event: only on a changed body | n/a | removed (#2061) |
 | Gist `PATCH` (presence, rail) | write | tick (every 60 s at the closest, 5 min without change) | n/a | `appairage/canal.ts`, `presence.ts` |
 | Comments, labels, merge, close, PR creation | write | event (~20 per served ticket) | n/a | `github.ts`, `pass.ts`, `station.ts` |
 

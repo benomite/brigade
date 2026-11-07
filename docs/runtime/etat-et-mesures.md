@@ -101,7 +101,7 @@ workstation. A red base is not announced at once (`runtime/src/retenue/relance-b
 
 The block starts at the **only line that starts with `awaiting`** and ends at the **only
 line exactly `end awaiting`**, bounds included; between them everything is
-indented — an entry is two spaces in. Whoever presents it separately — the app, the second (`/brigade:po`) — takes it by these two lines. **The app reads one thing besides**, to sort its rail: the
+indented — an entry is two spaces in. Whoever presents it separately — the app, the second (the PO role, `commands/po.md`) — takes it by these two lines. **The app reads one thing besides**, to sort its rail: the
 ticket number **at the head** of an entry — two spaces, `#`, digits, two spaces (`  #12  for 2 d  …`). This
 head does not change without the app changing (`docs/app.md`, "The rail"); an entry
 that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside`, `breaker` or `kitchen`, and the tally of stops for lack of a grant, has none. Under `--follow`, later events
