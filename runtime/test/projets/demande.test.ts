@@ -9,7 +9,6 @@ const SHOP = {
   nom: "shop",
   depot: "acme/shop",
   base: "main",
-  principale: true,
   cooks: 2,
   manager: { modele: "sonnet", effort: "medium" },
   reviewer: { modele: "opus", effort: "high" },
@@ -19,6 +18,12 @@ const SHOP = {
 
 test("un projet demandé se lit tel que l'app l'écrit", () => {
   assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [SHOP] })), { projets: [SHOP], problemes: [] });
+});
+
+test("ce qu'une app plus ancienne écrit encore pour désigner une station principale n'est pas lu : toute station dont la demande porte le projet le sert (#2713, #2714)", () => {
+  for (const principale of [true, false, "oui"]) {
+    assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [{ ...SHOP, principale }] })), { projets: [SHOP], problemes: [] });
+  }
 });
 
 test("un projet demandé sans branche ni calibrage se lit : son dépôt les déclare — mais ce que l'app nomme doit être lisible", () => {
@@ -47,7 +52,6 @@ test("un projet illisible est dit, et les autres sont lus", () => {
         { ...SHOP, nom: "a", depot: "pas un dépôt" },
         { ...SHOP, nom: "b", cooks: 0 },
         { ...SHOP, nom: "c", manager: { modele: "gpt", effort: "medium" } },
-        { ...SHOP, nom: "d", principale: "oui" },
         SHOP,
         SHOP,
       ],
@@ -62,7 +66,6 @@ test("un projet illisible est dit, et les autres sont lus", () => {
     "projet « a » demandé par l'app : dépôt invalide — attendu <owner>/<repo>",
     "projet « b » demandé par l'app : plafond de cooks invalide — attendu un entier, 1 ou plus",
     "projet « c » demandé par l'app : calibrage du manager invalide — attendu un modèle (opus, sonnet, haiku) et un effort (low, medium, high, xhigh, max)",
-    "projet « d » demandé par l'app : on ne sait pas si cette station en est la principale",
     "projet « shop » demandé par l'app : demandé deux fois",
   ]);
 });

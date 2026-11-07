@@ -30,7 +30,6 @@ const SHOP = {
   nom: "shop",
   depot: "acme/shop",
   base: "main",
-  principale: true,
   cooks: 2,
   manager: { modele: "sonnet", effort: "medium" },
   reviewer: { modele: "opus", effort: "high" },
@@ -316,10 +315,10 @@ test("vers cet ordinateur sans bac à sable : le déménagement est refusé avec
   await leMac.relire();
   assert.equal(box.sert(), true);
   assert.deepEqual([box.suivi()?.etat, box.suivi()?.bascule ?? null], ["servi", null]);
-  // La reprise annulée laisse au Mac la ligne du projet, sans reprise : toute
-  // station dont la demande porte un projet le sert (#2713) — il n'est plus
-  // « secondaire », et sa cuisine s'ouvre aussi.
-  assert.equal(leMac.suivi()?.bascule ?? null, null);
+  // La reprise annulée retire au Mac la ligne que le déménagement lui avait
+  // donnée : il ne le servait pas avant lui, il ne le sert pas après.
+  assert.equal(leMac.sert(), false);
+  assert.equal(leMac.suivi(), undefined);
 });
 
 test("la commande refuse un déménagement qui n'a pas de sens, en une phrase : un projet qui ne cuit nulle part, une station qu'il occupe déjà, un déménagement en cours", async (t) => {
@@ -338,7 +337,7 @@ test("une station ne rouvre pas d'elle-même une cuisine qu'elle a remise : elle
   const { leCompte, box, mac, stations } = await unProjetServiSurLaBox(t);
   await deplacer(leCompte, "shop", mac, stations, { local: mac });
   await lireJusquA(stations, () => mac.sert(), [mac, box]);
-  // Une demande réécrite sans le déménagement lui redonne la principale.
+  // Une demande réécrite sans le déménagement le lui redemande.
   box.demander(SHOP);
   await box.relire();
   assert.equal(box.sert(), false);

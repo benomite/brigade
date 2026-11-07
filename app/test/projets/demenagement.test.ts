@@ -61,6 +61,15 @@ test("refusée par le runtime — pas de bac à sable sur ce Mac —, l'opérati
   assert.deepEqual(await demenager("parade", "gmac", ["gbox", "gmac"]), { refus: said });
 });
 
+test("la station qui remet sa cuisine part avec `--de` ; vers elle-même, rien n'est nommé", async (t) => {
+  const { runtime, lance } = unRuntime(t, `process.stdout.write(JSON.stringify({ moved: true, project: "parade", from: "parade-box", to: "pi", askedAt: "x" }) + "\\n");`);
+  const demenager = demenageurDuRuntime({ node: process.execPath, runtime, racine: "/tmp/station", env: { ...CACHE_DE_COMPILATION }, delaiMs: 60_000 });
+  await demenager("parade", "gpi", ["gbox", "gmac", "gpi"], "gbox");
+  assert.deepEqual(lance().args, ["parade", "gpi", "gbox", "gmac", "--de", "gbox"]);
+  await demenager("parade", "gbox", ["gbox", "gmac"], "gbox");
+  assert.deepEqual(lance().args, ["parade", "gbox", "gmac"]);
+});
+
 test("un runtime qui ne se lance pas se dit aussi, en une ligne", async () => {
   const demenager = demenageurDuRuntime({ node: "/nulle/part/node", runtime: "/nulle/part", racine: "/tmp/station", env: {}, delaiMs: 60_000 });
   const rendu = await demenager("parade", "gmac", ["gbox", "gmac"]);
@@ -81,9 +90,9 @@ function unGitHub(gists: Record<string, Fichiers>): GitHubDesStations {
 const suivi = (station: { nom: string; locale: boolean }, projets: object[]) => `${JSON.stringify({ brigade: "projets-suivi", format: 1, a: DEMANDE_LE, station, projets })}\n`;
 const unSuivi = (projet: object) => ({ nom: "parade", etat: "servi", dit: "", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, ...projet });
 
-function lesProjets(gists: Record<string, Fichiers>, options: { locale?: string | null; demenager?: Demenageur } = {}) {
+function lesProjets(gists: Record<string, Fichiers>, options: { locale?: string | null; demenager?: Demenageur; stations?: StationVue[] } = {}) {
   const lectures: VuDesProjets[] = [];
-  const projets = tenirProjets({ github: unGitHub(gists), stations: () => [BOX, MAC], depots: async () => [], surLecture: (vu) => lectures.push(vu), ...(options.locale === undefined ? {} : { locale: () => options.locale ?? null }), ...(options.demenager === undefined ? {} : { demenager: options.demenager }) });
+  const projets = tenirProjets({ github: unGitHub(gists), stations: () => options.stations ?? [BOX, MAC], depots: async () => [], surLecture: (vu) => lectures.push(vu), ...(options.locale === undefined ? {} : { locale: () => options.locale ?? null }), ...(options.demenager === undefined ? {} : { demenager: options.demenager }) });
   return { projets, lectures };
 }
 
@@ -210,4 +219,27 @@ describe("continuer sans bac à sable", () => {
     assert.deepEqual(await casse.continuerSansBac("parade"), { refus: "the choice could not be recorded: nothing was changed", detail: "disk full" });
     assert.deepEqual(await casse.continuerSansBac(""), { refus: "which project? none was named" });
   });
+});
+
+test("deux stations servent le projet (#2714) : déménagé vers une troisième, l'app nomme celle où la page le dit cuire", async () => {
+  const PI: StationVue = { ...MAC, id: "gpi", nom: "pi" };
+  const appels: Array<[string, string, readonly string[], string | undefined]> = [];
+  const { projets } = lesProjets(
+    {
+      gbox: { [FICHIER_PROJETS]: documentDeDemande([PARADE]), [FICHIER_SUIVI]: suivi({ nom: "parade-box", locale: false }, [unSuivi({})]) },
+      gmac: { [FICHIER_PROJETS]: documentDeDemande([PARADE]), [FICHIER_SUIVI]: suivi({ nom: "macbook", locale: false }, [unSuivi({})]) },
+      gpi: {},
+    },
+    {
+      stations: [BOX, MAC, PI],
+      demenager: async (projet, vers, gists, de) => {
+        appels.push([projet, vers, gists, de]);
+        return { demenage: { projet, de: "parade-box", vers: "pi" } };
+      },
+    },
+  );
+  const [parade] = (await projets.relire()).projets;
+  assert.equal(parade?.cuitSur?.id, "gbox");
+  assert.deepEqual(await projets.demenager("parade", "gpi"), { demenage: { projet: "parade", de: "parade-box", vers: "pi" } });
+  assert.deepEqual(appels, [["parade", "gpi", ["gbox", "gmac", "gpi"], "gbox"]]);
 });

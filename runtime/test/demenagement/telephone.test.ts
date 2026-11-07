@@ -16,7 +16,6 @@ const SHOP: ProjetDemande = {
   nom: "shop",
   depot: "acme/shop",
   base: "main",
-  principale: true,
   cooks: 2,
   manager: { modele: "sonnet", effort: "medium" },
   reviewer: { modele: "opus", effort: "high" },
@@ -30,7 +29,7 @@ test("vers un téléphone, le déménagement est refusé en une phrase : il ne f
   const stations = [station("box", [SHOP]), station("pixel", [], false)];
   assert.deepEqual(demenager(stations, "shop", "gistpixel", AUJOURDHUI), { refus: "pixel does not cook: no project's cooks run there" });
   // Même s'il porte déjà une ligne du projet.
-  const avecLigne = [station("box", [SHOP]), station("pixel", [{ ...SHOP, principale: false }], false)];
+  const avecLigne = [station("box", [SHOP]), station("pixel", [SHOP], false)];
   assert.deepEqual(demenager(avecLigne, "shop", "gistpixel", AUJOURDHUI), { refus: "pixel does not cook: no project's cooks run there" });
 });
 
@@ -42,7 +41,7 @@ test("un téléphone parmi les stations ne change pas celle où le projet cuit :
   assert.deepEqual(avec, { ecrire: (sans as { ecrire: unknown }).ecrire, de: "box", vers: "mac", demandeLe: AUJOURDHUI });
 });
 
-test("un téléphone marqué principal d'un projet n'est pas la station où il cuit : elle reste celle qui cuisine", () => {
+test("un téléphone dont la demande porte un projet n'est pas une station où il cuit : elle reste celle qui cuisine", () => {
   const stations = [station("box", [SHOP]), station("pixel", [SHOP], false), station("mac")];
   const rendu = demenager(stations, "shop", "gistmac", AUJOURDHUI);
   assert.ok(!("refus" in rendu), JSON.stringify(rendu));

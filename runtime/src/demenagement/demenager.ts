@@ -1,7 +1,7 @@
 // Le déménagement de la cuisine d'un projet, tel que l'app le demande — sur
 // cette station, sa box, ou une autre, sans retirer ni rajouter le projet :
 //
-//   node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>…
+//   node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>… [--de <gist>]
 //
 // Les gists sont ceux des stations du chef (celle visée comprise) : la commande
 // y lit la demande de chacune et ce qu'elle en suit, puis réécrit les deux qui
@@ -9,6 +9,10 @@
 // la reprend (`projets/demande.ts`). Le reste se fait entre les deux stations,
 // par leurs gists (`projets/tenir.ts`) ; rien ne part directement vers l'une
 // d'elles.
+//
+// Aucune station ne tient seule un projet (#2713) : la cuisine qui part est celle
+// de la station qui sert le projet. Quand plusieurs le servent, `--de` nomme
+// celle qui remet la sienne ; les autres continuent de le servir.
 //
 // Vers cet ordinateur — la station de `BRIGADE_STATION_DIR` —, la commande
 // joue d'abord la vérification du bac à sable (`bac-a-sable/verifier.ts`) :
@@ -36,7 +40,7 @@ import { NOM_DE_PROJET } from "../runtime.ts";
 import { sorteLue } from "../stations-globales/sorte.ts";
 import { worktreesDeLaStation } from "../station/configuration.ts";
 
-const USAGE = "usage : node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>…";
+const USAGE = "usage : node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>… [--de <gist>]";
 
 // Ce que la commande lit d'une station : son nom, si elle cuisine, sa demande, son suivi.
 export type StationLue = { gist: string; nom: string; cuisine: boolean; demande: ProjetDemande[] | null; suivi: string | undefined };
@@ -47,17 +51,34 @@ const sans = ({ remise: _remise, reprise: _reprise, ...reste }: ProjetDemande): 
 
 // Les demandes réécrites pour déménager `projet` vers la station `vers` (son
 // gist), ou pourquoi ce n'est pas possible — en une phrase. Ne lit rien, n'écrit rien.
-export function demenager(stations: StationLue[], projet: string, vers: string, demandeLe: string): Demenagement | { refus: string } {
+//
+// Aucune station ne tient seule un projet (#2713) : toute station qui
+// cuisine et dont la demande le porte sans remise le sert, et en tient sa
+// propre cuisine. Le déménagement passe celle de l'une — la source — à une
+// station qui ne le sert pas : la source est celle qui le sert, hors la
+// station visée ; s'il y en a plusieurs, `de` (son gist) la nomme. Les autres
+// stations qui le servent n'en changent rien.
+export function demenager(stations: StationLue[], projet: string, vers: string, demandeLe: string, de?: string): Demenagement | { refus: string } {
   const illisible = stations.find(({ demande }) => demande === null);
   if (illisible !== undefined) return { refus: `what the app asked of ${illisible.nom} is unreadable on its gist: nothing is changed` };
   const cible = stations.find(({ gist }) => gist === vers);
   if (cible === undefined) return { refus: `the station whose gist is ${vers} is not one of yours` };
   if (!cible.cuisine) return { refus: `${cible.nom} does not cook: no project's cooks run there` };
   const entree = (station: StationLue) => (station.demande ?? []).find(({ nom }) => nom === projet);
-  const principales = stations.filter((station) => station.cuisine && entree(station)?.principale === true);
-  const source = principales[0];
-  if (source === undefined) return { refus: `${projet} cooks on none of your stations: add it rather than move it` };
-  if (principales.length > 1) return { refus: `${projet} has several main stations (${principales.map(({ nom }) => nom).join(", ")}): nothing is changed until it has only one` };
+  // Celles qui le servent : elles cuisinent, et ne l'ont pas remis.
+  const servantes = stations.filter((station) => station.cuisine && entree(station) !== undefined && (entree(station)?.remise ?? null) === null);
+  if (servantes.length === 0) return { refus: `${projet} cooks on none of your stations: add it rather than move it` };
+  let source: StationLue | undefined;
+  if (de !== undefined) {
+    source = servantes.find(({ gist }) => gist === de);
+    if (source === undefined) return { refus: `${stations.find(({ gist }) => gist === de)?.nom ?? `the station whose gist is ${de}`} does not serve ${projet}: it has no kitchen of it to hand over` };
+  } else {
+    const autres = servantes.filter(({ gist }) => gist !== vers);
+    // Une reprise en cours depuis la station visée : c'est elle qui se reprend.
+    const revient = autres.find((station) => entree(station)?.reprise?.de === cible.nom);
+    if (revient !== undefined || autres.length <= 1) source = revient ?? autres[0] ?? cible;
+    else return { refus: `${projet} cooks on several of your stations (${autres.map(({ nom }) => nom).join(", ")}): say which one hands its kitchen over to ${cible.nom}` };
+  }
   const tenue = entree(source) as ProjetDemande;
   const enCours = tenue.reprise ?? null;
   if (enCours !== null) {
@@ -65,16 +86,16 @@ export function demenager(stations: StationLue[], projet: string, vers: string, 
     const recue = ou !== null && ou.etape === "recue" && ou.demandeLe === enCours.demandeLe;
     if (!recue) {
       // Un déménagement que la station visée n'a pas encore accepté se reprend :
-      // il revient vers celle qui le sert toujours.
+      // il revient vers celle qui le sert toujours — sa remise levée —, et
+      // celle qui devait le reprendre n'en garde pas la ligne : elle ne le
+      // servait pas avant lui.
       const origine = stations.find(({ nom }) => nom === enCours.de);
       const annulable = origine !== undefined && origine.gist === vers && (ou === null || ou.etape === "demandee" || ou.etape === "refusee");
       if (!annulable) return { refus: `${projet} is already moving from ${enCours.de} to ${source.nom}: wait until ${source.nom} serves it` };
       return {
-        ecrire: stations.flatMap((station) => {
+        ecrire: [source, cible].flatMap((station) => {
           const avant = station.demande ?? [];
-          const sienne = entree(station);
-          if (sienne === undefined) return [];
-          const apres = avant.map((un) => (un.nom === projet ? { ...sans(un), principale: station.gist === vers } : un));
+          const apres = station === source ? avant.filter(({ nom }) => nom !== projet) : avant.map((un) => (un.nom === projet ? sans(un) : un));
           return JSON.stringify(apres) === JSON.stringify(avant) ? [] : [{ gist: station.gist, projets: apres }];
         }),
         de: source.nom,
@@ -83,19 +104,18 @@ export function demenager(stations: StationLue[], projet: string, vers: string, 
       };
     }
   }
-  if (source.gist === vers) return { refus: `${projet} already cooks on ${cible.nom}` };
+  if (servantes.includes(cible)) return { refus: `${projet} already cooks on ${cible.nom}` };
 
-  const ecrire = stations.flatMap((station) => {
+  const ecrire = [source, cible].flatMap((station) => {
     const avant = station.demande ?? [];
     let apres: ProjetDemande[];
-    if (station.gist === source.gist) apres = avant.map((un) => (un.nom === projet ? { ...sans(un), principale: false, remise: { vers: cible.nom, gist: cible.gist, demandeLe } } : un));
-    else if (station.gist === vers) {
+    if (station === source) apres = avant.map((un) => (un.nom === projet ? { ...sans(un), remise: { vers: cible.nom, gist: cible.gist, demandeLe } } : un));
+    else {
       const reprise = { de: source.nom, gist: source.gist, demandeLe };
-      const sienne = entree(station);
-      // Sans ligne pour lui, la station visée reçoit celle de la principale : ses
+      // Sans ligne pour lui, la station visée reçoit celle de la source : ses
       // réglages sont ceux du projet, pas un nouveau parcours.
-      apres = sienne === undefined ? [...avant, { ...sans(tenue), principale: true, demandeLe, reprise }] : avant.map((un) => (un.nom === projet ? { ...sans(un), principale: true, reprise } : un));
-    } else apres = avant.map((un) => (un.nom === projet ? sans(un) : un));
+      apres = entree(station) === undefined ? [...avant, { ...sans(tenue), demandeLe, reprise }] : avant.map((un) => (un.nom === projet ? { ...sans(un), reprise } : un));
+    }
     return JSON.stringify(apres) === JSON.stringify(avant) ? [] : [{ gist: station.gist, projets: apres }];
   });
   return { ecrire, de: source.nom, vers: cible.nom, demandeLe };
@@ -136,7 +156,15 @@ export function dependancesDuProcess(env: Record<string, string | undefined>): D
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 export async function principal({ args, env, dire, redire }: Appel, dependances: Dependances = dependancesDuProcess(env)): Promise<void> {
-  const [projet, vers, ...autres] = args;
+  // `--de <gist>` : la station qui remet sa cuisine. Son gist est lu avec les autres, listé ou non.
+  const rang = args.indexOf("--de");
+  const de = rang === -1 ? undefined : args[rang + 1];
+  if (rang !== -1 && (de === undefined || de.startsWith("--"))) {
+    redire(`brigade : --de attend le gist de la station qui remet sa cuisine — ${USAGE}`);
+    throw new Sortie(2);
+  }
+  const [projet, vers, ...listes] = rang === -1 ? args : args.toSpliced(rang, 2);
+  const autres = de === undefined || listes.includes(de) ? listes : [...listes, de];
   if (projet === undefined || vers === undefined || !NOM_DE_PROJET.test(projet) || [vers, ...autres].some((gist) => !/^[A-Za-z0-9]{1,64}$/.test(gist))) {
     redire(`brigade : un projet, puis des gists — ${USAGE}`);
     throw new Sortie(2);
@@ -175,7 +203,7 @@ export async function principal({ args, env, dire, redire }: Appel, dependances:
     throw new Sortie(3);
   }
   const demandeLe = dependances.maintenant().toISOString();
-  const rendu = demenager(stations, projet, vers, demandeLe);
+  const rendu = demenager(stations, projet, vers, demandeLe, de);
   if ("refus" in rendu) return refuser(rendu.refus);
   // Celle qui le reprend d'abord : celle qu'il quitte ne bouge qu'une fois
   // qu'elle s'est dite prête, quel que soit l'ordre où elles lisent.
