@@ -182,6 +182,20 @@ the written deliverables were sent back for saying more than their sources: a vi
 neither the ticket nor the chef had stated (#2749), a launch plan whose figure claimed more than it
 measured, whose unread rules and places read as verified, and whose unmet criterion went unsaid (#2774).
 
+The same instruction tells the cook that a criterion asking for a proof — a test, a command, a
+measure, a migration or a script that is run — is held only when the cook runs it itself, on what the
+criterion names (the database as production initializes it, what the server exposes, the machine it
+says), and puts its output in its report. A stand-in — a constant read back, an in-memory registry, a
+script never launched, a table left "not measured" — or a figure that misses the threshold is blocking.
+A cook that cannot run the proof where it is (an access, a machine, an account it lacks) does not
+replace it: it names what it lacks in its `<bloque>` (#2805). Measured on BOBL-tech/espace (#2819, the
+numbers below are that repo's): after the captures asked of tickets that had no screen (fixed at the
+split by #2800), it was the most frequent blocking finding of its journal from 2026-10-18 to 11-02:
+a constant read back instead of a blank database (#498), an in-memory registry instead of the media
+the server exposes (#494, #546), a migration never run over old rows (#502), a script never launched
+and its table left "not measured" (#574), 11.9 s measured for "under 10 s" (#605), no test
+triggering the failure whose alert the criterion asks for (#740).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
