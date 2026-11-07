@@ -55,7 +55,8 @@ import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
-import { correctionDuTemps } from "./temps-max/correction.ts";
+import { correctionDuTemps, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
+import { routerLeTempsPerdu } from "./routage-temps-perdu.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
@@ -213,6 +214,10 @@ export type OptionsDeStation = {
   // s'ajoute à son `.claude/brigade/temps-tickets.json` (#2342). Absent, rien
   // ne s'écrit.
   clone?: string;
+  // Le dépôt du projet servi et le GitHub de la brigade : le ticket du temps
+  // perdu se dépose sur la brigade (#2783). Absents, il reste sur le projet.
+  depotServi?: string;
+  githubDeLaBrigade?: GitHubDeLaCorrection;
   // Le répertoire d'état du projet, où se compte un `blocked-on-human` sans
   // question (#2556). Absent, le cas est refusé mais pas compté.
   repertoireEtat?: string;
@@ -467,7 +472,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     clone === undefined
       ? null
       : correctionDuTemps({
-          github,
+          github: options.depotServi === undefined ? github : routerLeTempsPerdu({ github, servi: options.depotServi, ...(options.githubDeLaBrigade === undefined ? {} : { brigade: options.githubDeLaBrigade }) }),
           lire: () => {
             const temps = lesTempsDesTickets(clone);
             return { ...temps, qualites: qualitesDesTemps(temps.enregistrements), projet: projetDuClone(clone) };
@@ -1342,6 +1347,8 @@ export type OptionsDuDepot = {
   maintenant?: () => Date;
   // `owner/name` du projet.
   depotGitHub: string;
+  // Le GitHub de la brigade, où va le ticket du temps perdu (#2783).
+  githubDeLaBrigade?: GitHubDeLaCorrection;
   // L'état du tour lu en une requête GraphQL (#2301) ; `false` : le REST
   // d'avant, ce que mesurent les tests du coût par ticket.
   graphql?: boolean;
@@ -1732,7 +1739,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
