@@ -783,7 +783,8 @@ test("a conflict with the base is never set aside: a third conflict send-back re
 test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(35);
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
+  let n = 0;
+  const a = faux.station("A", { cuisiner: async () => ({ echec: `the cook committed nothing (${(n += 1)})` }), avertir: () => {} });
   for (let i = 0; i < 8; i += 1) {
     await a.tour();
     await a.calme();
@@ -792,6 +793,49 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
   assert.equal(echecs.length, 3);
   assert.match(echecs[2]?.body ?? "", /Taken off the kitchen/);
   assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+});
+
+const echecsDe = (faux: FauxGitHub, issue: number) => (faux.commentaires.get(issue) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length;
+
+test("two consecutive failures with the same stop reason set the ticket aside at once, no third cook (#2729)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the file no longer exists" }), avertir: () => {} });
+  for (let i = 0; i < 6; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(echecsDe(faux, 35), 2);
+  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+});
+
+test("three consecutive failures with different reasons set the ticket aside, no fourth cook (#2729)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  let n = 0;
+  const a = faux.station("A", { cuisiner: async () => ({ echec: `reason ${(n += 1)}` }), avertir: () => {} });
+  for (let i = 0; i < 8; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(echecsDe(faux, 35), 3);
+  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+  const dernier = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).at(-1);
+  assert.match(dernier?.body ?? "", /reason 3[\s\S]*Taken off the kitchen/);
+});
+
+test("a ticket whose files all live under .claude/brigade/ is flagged for the chef, not launched to a cook (#2729)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(40, CALIBRE, "Edit `.claude/brigade/gates.sh` and `.claude/brigade/tests-touches.mjs`.");
+  faux.feu(41, CALIBRE, "Edit `.claude/brigade/gates.sh` and `runtime/src/x.ts`.");
+  const a = faux.station("A", { avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [41]);
+  assert.ok(faux.ticket(40).labels.has("blocked-on-human"));
+  assert.match((faux.commentaires.get(40) ?? []).map((c) => c.body).join("\n"), /under `\.claude\/brigade\/`/);
 });
 
 test("removing hors-cuisine restarts the count of cooks without a delivery (#2430)", async () => {
@@ -810,7 +854,7 @@ test("removing hors-cuisine restarts the count of cooks without a delivery (#243
     await a.calme();
   }
   const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
-  assert.equal(echecs.length, 4);
+  assert.equal(echecs.length, 3);
   assert.equal(faux.ticket(35).labels.has("hors-cuisine"), false);
 });
 

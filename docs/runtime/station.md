@@ -376,7 +376,7 @@ not loop for ever.
 
 ### Relaunching a set-aside ticket
 
-A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks without a delivery, or
+A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
 after 2 sends back of the same delivery. To relaunch it, fix the cause, then **remove `hors-cuisine`**
 from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
 the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
@@ -433,3 +433,5 @@ for none.
 - **Asking for a capability authorizes nothing.** `accès-prod` on a `requiert` line is a name like any
   other: the list of what no grant authorizes (`runtime/src/grant.ts`) stays, and `grant -- enable
   acces-prod` is refused.
+
+A ticket whose files all live under `.claude/brigade/` is never launched to a cook (#2729): a cook's session cannot write there. The station labels it `blocked-on-human` with a question for the second or the chef. Tickets the station opened itself (body starting with `<!-- brigade:`) are exempt.

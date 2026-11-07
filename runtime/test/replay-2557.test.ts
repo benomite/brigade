@@ -79,11 +79,11 @@ test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure 
   assert.equal(faux.ticket(TICKET).labels.has("hors-cuisine"), false, "one failure does not take the ticket off the kitchen");
 });
 
-test("#2557 on 2026-11-06: the same stop without a reply, with the same reason three times, ends in hors-cuisine", async (t) => {
+test("#2557 on 2026-11-06: the same stop without a reply, with the same reason twice in a row, ends in hors-cuisine", async (t) => {
   const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 8);
   const echecs = corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec"));
-  assert.equal(echecs.length, 3);
+  assert.equal(echecs.length, 2);
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
-  assert.match(echecs[2] ?? "", /Taken off the kitchen/);
+  assert.match(echecs[1] ?? "", /Taken off the kitchen/);
   assert.ok(faux.ticket(TICKET).labels.has("hors-cuisine"));
 });
