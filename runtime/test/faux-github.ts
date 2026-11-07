@@ -21,7 +21,7 @@ import { lireLaConsigne } from "../src/second-juge.ts";
 export const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
 export type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
-export type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; mergeePar: string | null; fichiers: string[] };
+export type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; conflitDeContenu?: boolean; mergeePar: string | null; fichiers: string[] };
 
 export type OptionsDuFaux = {
   places?: number;
@@ -237,6 +237,8 @@ export class FauxGitHub {
         await noter("mettreAJour");
         const pr = this.pr(numero);
         if (pr.sha !== sha) return;
+        if (pr.enConflit && pr.conflitDeContenu) throw new Error("HTTP 422 — merge conflict between base and head");
+        pr.enConflit = false;
         pr.enRetard = false;
         pr.sha = this.sha();
       },

@@ -288,6 +288,8 @@ export const PASS_MAX = 5;
 export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
+// Posée sur un renvoi pour conflit avec la base : il ne compte pas dans le budget des renvois (#2726).
+const MARQUE_DE_CONFLIT = " conflit";
 
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `hors-cuisine`, que GitHub date pour toutes les stations
@@ -531,12 +533,21 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
   // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
   const renvoyes = new Set<number>();
+  // La tête de chaque PR en conflit dont la station a déjà tenté la synchro (#2726).
+  const synchrosTentees = new Map<number, string>();
   // `fois` : les renvois que cette tête peut porter — plus d'un quand la pass a
   // refusé la réponse du cook sur la même tête (#2592).
-  const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1) => {
+  // `genre` : pourquoi la livraison revient, dit en une ligne sur le commentaire
+  // de mise de côté. Un renvoi pour conflit avec la base ne mange pas le budget
+  // du cook (la base bouge sous la PR sans que le cook y soit pour rien) : il a
+  // le sien, et avant de sortir le ticket pour conflit la station resynchronise
+  // une dernière fois (`resynchroniser`) — seul un vrai conflit de contenu sort (#2726).
+  const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
     const tous = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
-    const renvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
+    const tousRenvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
+    const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
+    const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
     // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
     // Mais il doit quitter le pass : si le retrait de \`in-pass\` avait échoué
@@ -546,12 +557,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return;
     }
     const deja = renvois.length;
+    const marque = genre === "conflict" ? MARQUE_DE_CONFLIT : "";
+    if (deja >= RENVOIS_MAX && resynchroniser !== undefined && (await resynchroniser())) {
+      // La base a bougé depuis : la synchro passe, la PR n'est plus en conflit.
+      if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
+      return;
+    }
     if (deja >= RENVOIS_MAX) {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
       await github.labelliser(ticket.number, [HORS_CUISINE]);
       chrono.oublier(ticket.number);
     } else {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}${genre === "conflict" ? ", conflicts" : ""}) — ${raison}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
@@ -690,8 +707,25 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // En conflit avec la base : ni la mise à jour ni le merge ne passent, et
         // rien d'autre ne la débloque. Elle repart à un cook, qui la remet sur la
         // base (#2209).
+        // La station la remet d'abord à jour elle-même : un conflit mécanique (la
+        // base a bougé) se résout sans cook ni renvoi (#2726).
+        const synchroniser = async () => {
+          try {
+            await github.mettreAJour(pr.number, pr.sha);
+            return true;
+          } catch {
+            return false;
+          }
+        };
         try {
-          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit");
+          if (synchrosTentees.get(pr.number) !== pr.sha) {
+            synchrosTentees.set(pr.number, pr.sha);
+            if (await synchroniser()) {
+              chrono.marquer(ticket.number, "ci");
+              continue;
+            }
+          }
+          await renvoyer(ticket, pr.sha, "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit", 1, "conflict", synchroniser);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
@@ -742,7 +776,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             if (second === "sans-juge") return;
             if (second?.lance) bouge = true;
             if (second?.jugement.verdict === "request-changes") {
-              await renvoyer(ticket, pr.sha, `the second judge requested changes: ${second.jugement.motif}`);
+              await renvoyer(ticket, pr.sha, `the second judge requested changes: ${second.jugement.motif}`, 1, "review");
               bouge = true;
               return;
             }
@@ -788,7 +822,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
-            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`, 1, "red CI");
           }
           // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
           if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) {
