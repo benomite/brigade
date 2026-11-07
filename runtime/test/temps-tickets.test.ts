@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ticketDeCorrection } from "../src/temps-max/correction.ts";
 import { medianeDesRecents, medianePerdueDesRecents, tempsPerdu } from "../src/temps-max/mesure.ts";
-import { chronometre, enregistrerTemps, FICHIER_DES_TEMPS, resumer } from "../src/temps-ticket/mesure.ts";
+import { chronometre, type DepotDuTicket, enregistrerTemps, type Etape, FICHIER_DES_TEMPS, rattraperLaPrise, resumer } from "../src/temps-ticket/mesure.ts";
 import { lesTempsDesTickets } from "../src/temps-ticket/ligne-status.ts";
 import { repertoireTemporaire } from "./outils.ts";
 import { type Historique, rejouer } from "./temps-ticket/rejeu.ts";
@@ -119,9 +119,51 @@ describe("a ticket's time runs from its filing to its merge", () => {
       maintenant = Date.parse(hm(10, 35));
       return chrono.servir(42, { deposeAt: hm(10, 0), fireAt: hm(10, 2) });
     })();
-    assert.deepEqual(vue(hm(10, 1)), sans);
-    assert.deepEqual(vue(hm(10, 25)), sans);
+    const sansPrise = (temps: ReturnType<typeof vue>) => ({ ...temps, priseAt: null });
+    assert.deepEqual(sansPrise(vue(hm(10, 1))), sans);
+    assert.deepEqual(sansPrise(vue(hm(10, 25))), sans);
     assert.deepEqual(sans?.perdu, { attente: 20 * 60, ratees: 0, renvois: 0 });
+  });
+
+  // Un ticket mergé avant #2732 par une station qui n'a vu de lui que `vues`
+  // (marques posées dans l'ordre, chacune à son instant) : son enregistrement
+  // d'alors, sans la prise, et celui d'aujourd'hui, avec elle.
+  const avantEtApres = (vues: [Etape, string][], mergedAt: string) => {
+    const servi = (depot: DepotDuTicket) => {
+      let maintenant = 0;
+      const chrono = chronometre(() => new Date(maintenant));
+      for (const [etape, at] of vues) {
+        maintenant = Date.parse(at);
+        chrono.marquer(42, etape);
+      }
+      maintenant = Date.parse(mergedAt);
+      const temps = chrono.servir(42, depot);
+      assert.ok(temps !== null);
+      return temps;
+    };
+    const { priseAt: _priseAt, ...avant } = servi({ deposeAt: hm(10, 0), fireAt: hm(10, 2) });
+    return { avant, apres: servi({ deposeAt: hm(10, 0), fireAt: hm(10, 2), priseAt: hm(10, 5) }) };
+  };
+
+  test("a record measured before #2732 is caught up with the claim its issue bears, as the measure does today (#2734)", () => {
+    // Le cas de #2709 : vu en CI seulement, 309 min de ses 310 passaient pour l'attente d'une prise.
+    const { avant, apres } = avantEtApres([["ci", hm(10, 30)], ["merge", hm(10, 34)]], hm(10, 35));
+    assert.deepEqual(avant.perdu, { attente: 30 * 60, ratees: 0, renvois: 0 });
+    assert.deepEqual(rattraperLaPrise(avant, hm(10, 5)), apres);
+    assert.equal(tempsPerdu(rattraperLaPrise(avant, hm(10, 5))), 5 * 60);
+  });
+
+  test("caught up, the cooking the station did not see before a cooking it saw is a send-back", () => {
+    const { avant, apres } = avantEtApres([["cuisson", hm(10, 40)], ["ci", hm(10, 50)]], hm(10, 55));
+    assert.deepEqual(rattraperLaPrise(avant, hm(10, 5)), apres);
+    assert.deepEqual(apres.perdu, { attente: 5 * 60, ratees: 0, renvois: 35 * 60 });
+  });
+
+  test("caught up with no claim, or one the station saw, a record only learns it was read", () => {
+    const { avant } = avantEtApres([["cuisson", hm(10, 20)]], hm(10, 35));
+    assert.deepEqual(rattraperLaPrise(avant, null), { ...avant, priseAt: null });
+    assert.deepEqual(rattraperLaPrise(avant, hm(10, 25)), { ...avant, priseAt: hm(10, 25) });
+    assert.deepEqual(rattraperLaPrise(avant, hm(10, 1)), { ...avant, priseAt: hm(10, 1) });
   });
 
   test("the same ticket replayed from its GitHub history gives the same 35 min and phases, the merge request inside the CI", () => {

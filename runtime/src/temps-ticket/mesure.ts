@@ -140,7 +140,41 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
     merge: durees.merge,
     phases,
     perdu,
+    ...(depot === undefined ? {} : { priseAt: depot.priseAt ?? null }),
   };
+}
+
+// Un enregistrement mesuré avant #2732, corrigé de la prise que l'issue porte
+// (`priseAt`, lue sur GitHub) : son attente d'une prise courait jusqu'à la
+// première phase que la station a vue (`claimedAt`). Le temps de la prise à
+// celle-ci devient une cuisson — perdue en renvoi si la station a vu, après,
+// la cuisson qui a livré —, comme `mesurer` le fait depuis #2732. Les tickets
+// récents mesurés avant gardaient sinon, une journée durant, des heures de
+// cuisson pour l'attente d'une prise : #2709, 309 min de ses 310 (#2734).
+// L'enregistrement porte ensuite `priseAt`, et ne se corrige qu'une fois.
+export function rattraperLaPrise(t: EnregistrementTemps, priseAt: string | null): EnregistrementTemps {
+  const corrige: EnregistrementTemps = { ...t, priseAt };
+  const debut = Date.parse(t.depuis ?? "") + (t.attenteQualification ?? 0) * 1000;
+  const vue = Date.parse(t.claimedAt);
+  const prise = Date.parse(priseAt ?? "");
+  if ([debut, vue, prise].some(Number.isNaN) || prise <= debut || prise >= vue) return corrige;
+  const cuite = Math.min(t.attentePrise ?? 0, Math.round((vue - prise) / 1000));
+  if (cuite <= 0) return corrige;
+  corrige.attentePrise = (t.attentePrise ?? 0) - cuite;
+  corrige.cuisson = t.cuisson + cuite;
+  if (t.perdu !== undefined) corrige.perdu = { ...t.perdu, attente: Math.max(0, t.perdu.attente - cuite), renvois: t.perdu.renvois + (t.cuisson > 0 ? cuite : 0) };
+  const phases = [...(t.phases ?? [])];
+  const rang = phases.findIndex((p) => p.nom === NOMS_DES_ETAPES.attentePrise);
+  const attente = phases[rang];
+  if (attente !== undefined) {
+    const reste = Math.round(attente.minutes * 60) - cuite;
+    const suivante = phases[rang + 1];
+    const enCuisson = suivante?.nom === NOMS_DES_ETAPES.cuisson;
+    const cuisson = { nom: NOMS_DES_ETAPES.cuisson, minutes: minutes(cuite + (enCuisson ? Math.round(suivante.minutes * 60) : 0)) };
+    phases.splice(rang, enCuisson ? 2 : 1, ...(reste > 0 ? [{ ...attente, minutes: minutes(reste) }] : []), cuisson);
+    corrige.phases = phases;
+  }
+  return corrige;
 }
 
 // Le centile `p` (0 à 1) de valeurs, la valeur au rang ⌈p·(n−1)⌉ (la méthode
