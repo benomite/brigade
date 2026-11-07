@@ -117,6 +117,16 @@ export type FaitManager =
       type: "manager.requalified";
       payload: { run: string; fingerprint: string; outcome: "stated" | "card" | "taken-back" | "unreadable"; reason: string; card?: { kind: string; statement: string } };
     }
+  // An issue judged `incomplete` was followed up (#2692). `outcome`: `completed`
+  // (the manager rewrote its acceptance criteria and judged it `fire`:
+  // `criteria` holds them), `question` (a `product` TODO card asks the chef
+  // `question`, and the issue carries `product-question`), `unreadable` (no
+  // usable answer). `fingerprint`: that of the verdict it follows — the same
+  // one is not followed twice.
+  | {
+      type: "manager.completed";
+      payload: { run: string; fingerprint: string; outcome: "completed" | "question" | "unreadable"; reason: string; criteria?: string[]; question?: string };
+    }
   // The chef's commands. Without `manager.enabled`, the manager judges nothing.
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }

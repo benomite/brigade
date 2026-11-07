@@ -8,6 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Evenement, Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { empreinte, MARQUEUR_MANAGER } from "../src/juger.ts";
+import { MARQUE_DE_COMPLETION } from "../src/manager/verdict-incomplet.ts";
 import { configManager, MANAGER } from "../src/manager.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { FICHIER_DU_JETON } from "../src/jeton-claude.ts";
@@ -24,7 +25,8 @@ import { aArreter, jusqua, repertoireTemporaire } from "./outils.ts";
 function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
   const c = cuisine(t, { ...options, manager: options.manager ?? {} });
   if (!options.eteint) chef(c.repertoire, "manager.enabled");
-  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools"));
+  // Une complétion d'issue incomplète (#2692) n'est pas un jugement : elle a son test.
+  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools") && !(lancement.args[1] ?? "").startsWith(MARQUE_DE_COMPLETION));
   // Ce que le manager a dit sur une issue.
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);
   const faits = (numero: number) => c.journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
@@ -167,29 +169,32 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(jugements()[0]?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
   });
 
-  test("une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, sans rien poser", async (t) => {
+  test("une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, et ne la laisse pas sur ce seul commentaire (#2692)", async (t) => {
     const { gh, labels, dits, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => dits(30).length === 1);
+    await jusqua(() => dits(30).length === 2);
 
-    assert.deepEqual(labels(30), []);
-    assert.deepEqual(gh.labellisations, []);
-    const [dit = ""] = dits(30);
+    // Sa complétion ne se lit pas : la question passe au chef, rien ne part sur le rail.
+    assert.deepEqual(labels(30), ["product-question"]);
+    assert.ok(!gh.labellisations.flat(2).includes("fire"));
+    const [question = "", dit = ""] = dits(30);
+    assert.match(question, /une question est posée au chef/);
     assert.match(dit, /pas un ticket exécutable : un ticket incomplet/);
     assert.match(dit, /Rien ne dit comment vérifier que c'est fait\./);
     assert.match(dit, /Ce qui le rendrait exécutable\.\*\* Un critère d'acceptation\./);
     assert.match(dit, /rejugée/);
-    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented"]);
+    assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed").map((e) => charge(e)?.outcome), ["unreadable", "question"]);
     assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "incomplete" });
   });
 
   test("une issue ne se juge qu'une fois par état : ni les réveils, ni ce que le manager y a écrit ne la font rejuger", async (t) => {
     const { gh, jugements, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => dits(30).length === 1);
+    await jusqua(() => dits(30).length === 2);
 
     await laisserTourner();
 
     assert.equal(jugements().length, 1);
-    assert.equal(dits(30).length, 1);
+    assert.equal(dits(30).length, 2);
     // Tout est tranché : le sondage est confirmé, GitHub répond « inchangé ».
     assert.ok(gh.sondages.inchanges > 0);
   });
@@ -205,7 +210,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une issue refusée est rejugée quand le chef la modifie ou y répond", async (t) => {
     const { gh, jugements, labels, dits } = brigade(t, { manager: { suite: ["juge-incomplet"] }, issues: [issue(30, [])] });
-    await jusqua(() => dits(30).length === 1);
+    await jusqua(() => dits(30).length === 2);
 
     gh.repondre(30, "Je l'ai réduite au seul correctif du bail.");
     gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -214,7 +219,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(jugements()[1]?.args[1] ?? "", /Je l'ai réduite au seul correctif du bail\./);
     assert.doesNotMatch(jugements()[1]?.args[1] ?? "", /Manager — pas un ticket/);
     await jusqua(() => labels(30).includes("fire"));
-    assert.equal(dits(30).length, 2);
+    assert.equal(dits(30).length, 3);
   });
 
   test("ce que le code sait écarter ne coûte aucun jugement : roadmap, question, décision, issue retenue", async (t) => {
@@ -725,7 +730,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("après un redémarrage, ce qui a été jugé ne l'est pas de nouveau", async (t) => {
     const premiere = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => premiere.dits(30).length === 1);
+    await jusqua(() => premiere.dits(30).length === 2);
     premiere.runtime.arreter("test");
     // Un runtime neuf n'a plus l'ETag du précédent : il relit toute la liste.
     premiere.gh.poser(issue(40, ["blocked-on-human"]));
@@ -736,7 +741,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
     // Le jugement de #30 n'est pas rejoué ; l'issue #40, retenue, n'est que relue (#1102).
     assert.equal(seconde.jugements().filter((l) => /Issue #30 /.test(l.args[1] ?? "")).length, 1);
-    assert.equal(seconde.dits(30).length, 1);
+    assert.equal(seconde.dits(30).length, 2);
   });
 
   test("le chef ferme une issue dont le manager l'attendait : le journal l'apprend, une fois ; rouverte, il l'apprend aussi", async (t) => {
@@ -768,12 +773,12 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une issue jugée, exécutable ou non, peut être fermée sans que le journal le note : le manager n'en attendait pas le chef", async (t) => {
     const { gh, faits, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => dits(30).length === 1);
+    await jusqua(() => dits(30).length === 2);
 
     gh.poser(issue(30, [], { state: "closed" }));
     await laisserTourner();
 
-    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented"]);
   });
 
   test("un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118)", async (t) => {
@@ -796,7 +801,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118)", async (t) => {
     const { gh, journal, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => faits(30).length === 2);
+    await jusqua(() => faits(30).length === 4);
     // La cuisine l'avait pris, puis abandonné : le sondage, qui n'y voyait pas `fire`, l'a sorti du rail.
     journal.ajouter({ project: "brigade", ticket: 30, author: "github", type: "ticket.arrived", payload: { title: "Ticket 30", priority: 1, createdAt: "2026-10-01T00:00:30Z", url: "https://exemple.test/30", card: null } });
     journal.ajouter({ project: "brigade", ticket: 30, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });

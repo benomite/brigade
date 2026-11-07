@@ -83,6 +83,7 @@ export const ROLES: readonly Role[] = [
       { type: "manager.split-asked", dire: (_, n) => `asked you a question on epic ${n}` },
       { type: "manager.split-served", dire: (_, n) => `closed epic ${n}, all its tickets closed` },
       { type: "manager.requalified", dire: (p, n) => parmi(RELECTURES, p.outcome, n, `re-read ${n}`) },
+      { type: "manager.completed", dire: (p, n) => (p.outcome === "completed" ? `completed ${n} itself and put it on the rail` : p.outcome === "question" ? `asked you a product question on ${n}` : `re-read incomplete ${n}`) },
       { type: "manager.capability-resplit", dire: (_, n) => `rewrote ${n}: no station has what it asks` },
       { type: "manager.capability-gestured", dire: (_, n) => `asked you for an access ${n} needs` },
     ],

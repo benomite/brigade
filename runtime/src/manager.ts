@@ -40,6 +40,7 @@ import { labelsMontes } from "./projections/reactions.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirRequalification } from "./requalifier.ts";
+import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { estLaPauseDeGitHub } from "./limite-github.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
@@ -633,6 +634,19 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     signature,
   });
 
+  const verdictIncomplet = ouvrirVerdictIncomplet({
+    journal,
+    projet,
+    github,
+    depotGitHub: options.depotGitHub,
+    noter,
+    demander,
+    peutJuger,
+    arrete: () => arrete,
+    avertir,
+    signature,
+  });
+
   // Une issue rendue par le chef repart à neuf : le calibrage que le manager y
   // avait posé, et qu'elle porte encore, s'en va avant le jugement — sans quoi
   // il resterait, le manager ne réécrivant pas une dimension qui porte un
@@ -723,6 +737,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       // découpe.
       const jugee = issueDuManager(base, issue.number);
       epique = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
+      // Jugée incomplète : jamais laissée sur un commentaire seul (#2692).
+      if (jugee?.decision === "refused" && jugee.kind === ("incomplete" satisfies Nature)) {
+        if (arrete || !managerAllume(base)) return "arret";
+        if ((await verdictIncomplet.traiter(issue, corps, jugee)) === "attente") return "reste";
+      }
     }
     if (epique) {
       if (arrete || !managerAllume(base)) return "arret";

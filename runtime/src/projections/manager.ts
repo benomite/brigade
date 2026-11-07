@@ -125,6 +125,7 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
     "manager.capability-resplit": () => {},
     "manager.capability-gestured": () => {},
     "manager.requalified": () => {},
+    "manager.completed": () => {},
     "manager.enabled": (base, { at, author }) => basculer(base, 1, at, author),
     "manager.disabled": (base, { at, author }) => basculer(base, 0, at, author),
     "manager.set-aside": (base, { ticket, seq, at, payload }) => {
