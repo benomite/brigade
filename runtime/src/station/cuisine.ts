@@ -170,6 +170,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
     socle = demarrer({ repertoireEtat, projet, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }) });
     const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis);
+    const journal = socle.journal.base;
     if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU), avertir: dire });
     // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne
     // partent avec de quoi parler à GitHub : leur `gh` ne trouve aucun compte.
@@ -222,6 +223,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
               repertoireEtat,
+              // La porte de qualité devant la correction du temps (#2680) : ce que le journal sait des tickets mergés.
+              qualites: () => qualitesDuJournal(journal),
               // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
               gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
               // Le setup du worktree de chaque cook, joué avant lui (#2535).
