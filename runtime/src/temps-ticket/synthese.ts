@@ -16,7 +16,13 @@ export type EnregistrementTemps = { ticket: number; claimedAt: string; mergedAt:
     cuissonsRatees?: number;
     renvois?: number;
     phases?: { nom: string; minutes: number }[];
+    // Depuis #2670, son temps perdu, en secondes (`temps-max/mesure.ts`).
+    perdu?: Pertes;
   };
+
+// Le temps perdu d'un ticket, en secondes : l'attente avant sa prise, ses
+// cooks ratés, ses renvois (les livraisons renvoyées, de leur cook à la reprise).
+export type Pertes = { attente: number; ratees: number; renvois: number };
 
 export type SyntheseTemps = {
   mediane: number;

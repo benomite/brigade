@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { MAX_PAR_DEFAUT_MIN, maxDuProjet, medianeDesRecents, phaseLaPlusLenteDesTickets, phaseLaPlusLenteDuTicket, ticketsLesPlusLents, ticketsRecents } from "../../src/temps-max/mesure.ts";
+import { medianeDesRecents, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, SEUIL_PERDU_PAR_DEFAUT_MIN, seuilDuProjet, phaseLaPlusLenteDesTickets, phaseLaPlusLenteDuTicket, ticketsLesPlusLents, ticketsRecents } from "../../src/temps-max/mesure.ts";
 import { lesTempsDesTickets, type TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -11,21 +11,32 @@ const m = (n: number) => n * 60;
 // Sans dates, la durée est la somme des phases.
 const t = (ticket: number, cuisson: number, revue = 0, ci = 0, mergedAt?: string): TempsTicket => ({ ticket, cuisson: m(cuisson), cuissonTests: 0, attentePasse: 0, revue: m(revue), ci: m(ci), merge: 0, ...(mergedAt === undefined ? {} : { mergedAt }) });
 
-test("the project's max: 10 min by default, the project's own when it sets a valid one", () => {
-  assert.equal(MAX_PAR_DEFAUT_MIN, 10);
-  for (const projet of [undefined, null, [], {}, { tempsMaxTicketMin: 0 }, { tempsMaxTicketMin: -5 }, { tempsMaxTicketMin: "20" }, { tempsMaxTicketMin: Number.NaN }]) assert.equal(maxDuProjet(projet), 10);
-  assert.equal(maxDuProjet({ tempsMaxTicketMin: 20 }), 20);
+test("the project's lost-time threshold: 2 min by default, the project's own when it sets a valid one; tempsMaxTicketMin is no longer read", () => {
+  assert.equal(SEUIL_PERDU_PAR_DEFAUT_MIN, 2);
+  for (const projet of [undefined, null, [], {}, { lostTimeMaxMin: 0 }, { lostTimeMaxMin: -5 }, { lostTimeMaxMin: "20" }, { lostTimeMaxMin: Number.NaN }, { tempsMaxTicketMin: 20 }]) assert.equal(seuilDuProjet(projet), 2);
+  assert.equal(seuilDuProjet({ lostTimeMaxMin: 5 }), 5);
 });
 
-test("the max the runtime reads from .claude/brigade/projet.json: 10 without the key, 20 with \"tempsMaxTicketMin\": 20", (tc) => {
+test("the threshold the runtime reads from .claude/brigade/projet.json: 2 without the key, 5 with \"lostTimeMaxMin\": 5", (tc) => {
   const depot = repertoireTemporaire(tc);
   const dossier = join(depot, ".claude", "brigade");
   mkdirSync(dossier, { recursive: true });
-  assert.equal(lesTempsDesTickets(depot).tempsMaxTicketMin, 10);
+  assert.equal(lesTempsDesTickets(depot).lostTimeMaxMin, 2);
   writeFileSync(join(dossier, "projet.json"), JSON.stringify({ name: "brigade" }));
-  assert.equal(lesTempsDesTickets(depot).tempsMaxTicketMin, 10);
-  writeFileSync(join(dossier, "projet.json"), JSON.stringify({ name: "brigade", tempsMaxTicketMin: 20 }));
-  assert.equal(lesTempsDesTickets(depot).tempsMaxTicketMin, 20);
+  assert.equal(lesTempsDesTickets(depot).lostTimeMaxMin, 2);
+  writeFileSync(join(dossier, "projet.json"), JSON.stringify({ name: "brigade", lostTimeMaxMin: 5 }));
+  assert.equal(lesTempsDesTickets(depot).lostTimeMaxMin, 5);
+});
+
+test("a ticket's lost time: as the measure wrote it, else drawn from its waits, failed cooks and send-backs", () => {
+  assert.deepEqual(pertesDuTicket({ ...t(1, 10), perdu: { attente: m(3), ratees: m(4), renvois: m(5) } }), { attente: m(3), ratees: m(4), renvois: m(5) });
+  assert.deepEqual(pertesDuTicket({ ...t(1, 10), attenteQualification: m(1), attentePrise: m(2), cuissonsRatees: m(4), renvois: m(5) }), { attente: m(3), ratees: m(4), renvois: m(5) });
+  assert.deepEqual(pertesDuTicket(t(1, 10)), { attente: 0, ratees: 0, renvois: 0 });
+  assert.equal(medianePerdueDesRecents([{ ...t(1, 10), attentePrise: m(1) }, { ...t(2, 10), attentePrise: m(9) }, { ...t(3, 10), cuissonsRatees: m(4) }]), m(4));
+  assert.equal(medianePerdueDesRecents([]), null);
+  // La perte qui pèse le plus, en tout ; rien de perdu, aucune.
+  assert.equal(perteLaPlusLourde([{ ...t(1, 10), attentePrise: m(1) }, { ...t(2, 10), cuissonsRatees: m(4) }])?.nom, "failed cooks");
+  assert.equal(perteLaPlusLourde([t(1, 10)]), null);
 });
 
 test("recent tickets: the last 10, and every one merged in the 24 h before the last", () => {

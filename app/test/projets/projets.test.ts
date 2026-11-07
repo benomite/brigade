@@ -483,11 +483,11 @@ test("l'app ne joint aucune station : ce module ne parle qu'au `gh` du poste", (
 
 test("les temps de deux stations d'un projet : un ticket n'est compté qu'une fois, le plus récent l'emporte (#2567)", () => {
   const un = (ticket: number, mergedAt: string, cuisson = 60) => ({ ticket, mergedAt, cuisson });
-  const fusion = fusionnerLesTemps({ enregistrements: [un(1, "2026-11-06T07:00:00Z"), un(2, "2026-11-06T07:10:00Z")], tempsMaxTicketMin: 10 }, { enregistrements: [un(2, "2026-11-06T07:10:00Z"), un(3, "2026-11-06T07:20:00Z")], tempsMaxTicketMin: 12 });
+  const fusion = fusionnerLesTemps({ enregistrements: [un(1, "2026-11-06T07:00:00Z"), un(2, "2026-11-06T07:10:00Z")], lostTimeMaxMin: 2 }, { enregistrements: [un(2, "2026-11-06T07:10:00Z"), un(3, "2026-11-06T07:20:00Z")], lostTimeMaxMin: 3 });
   assert.deepEqual(fusion.enregistrements.map((e) => (e as { ticket: number }).ticket).sort(), [1, 2, 3]);
-  assert.equal(fusion.tempsMaxTicketMin, 10);
-  assert.deepEqual(fusionnerLesTemps(undefined, { enregistrements: [], tempsMaxTicketMin: 10 }), { enregistrements: [], tempsMaxTicketMin: 10 });
+  assert.equal(fusion.lostTimeMaxMin, 2);
+  assert.deepEqual(fusionnerLesTemps(undefined, { enregistrements: [], lostTimeMaxMin: 2 }), { enregistrements: [], lostTimeMaxMin: 2 });
   // Le résumé de la mesure (#2664) passe tel quel : celui de la première station qui en publie un.
-  const resume = { n: 3, medianMin: 14, p75Min: 47, maxMin: 10 };
-  assert.deepEqual(fusionnerLesTemps({ enregistrements: [], tempsMaxTicketMin: 10 }, { enregistrements: [], tempsMaxTicketMin: 10, resume }).resume, resume);
+  const resume = { n: 3, medianMin: 14, p75Min: 47, perduMedianMin: 5, lostTimeMaxMin: 2, phaseLaPlusLongue: null, perteLaPlusLourde: null };
+  assert.deepEqual(fusionnerLesTemps({ enregistrements: [], lostTimeMaxMin: 2 }, { enregistrements: [], lostTimeMaxMin: 2, resume }).resume, resume);
 });

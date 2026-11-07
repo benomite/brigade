@@ -72,5 +72,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 1700,
   etapes: [OUVRIR, KITCHEN],
-  donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, tempsMaxTicketMin: 15 } }, { plafondsDuree: PLAFONDS_LUS, closerDeSante: CLOSER_LU }),
+  donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, lostTimeMaxMin: 2 } }, { plafondsDuree: PLAFONDS_LUS, closerDeSante: CLOSER_LU }),
 };

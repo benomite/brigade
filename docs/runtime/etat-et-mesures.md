@@ -455,11 +455,15 @@ before. Epics are never merged, so never measured; their sub-tickets are.
 At the merge, the record goes to `.claude/brigade/temps-tickets.json` in the project's clone
 (`BRIGADE_REPO_DIR`), an object `{resume, tickets}`. `tickets` holds one record per ticket,
 `{ticket, depuis, claimedAt, mergedAt, attenteQualification, attentePrise, cuissonsRatees, cuisson, cuissonTests,
-renvois, attentePasse, revue, ci, merge, phases}`: timestamps are ISO, durations whole seconds, and `phases` the
-ticket's phases in the order it went through them, `{nom, minutes}` (one decimal), each cook on its own line.
-`resume` sums up the recent tickets (below): `{n, medianMin, p75Min, maxMin, phaseLaPlusLongue: {nom, medianMin,
-partPct}}` — their count, median and 75th percentile from filing to merge in whole minutes, the project's max,
-and the phase they spent the most time in, with its median per ticket and its share of their total. The 75th
+renvois, attentePasse, revue, ci, merge, phases, perdu}`: timestamps are ISO, durations whole seconds, `phases` the
+ticket's phases in the order it went through them, `{nom, minutes}` (one decimal), each cook on its own line, and
+`perdu` its lost time (#2670, below), `{attente, ratees, renvois}` in seconds.
+`resume` sums up the recent tickets (below): `{n, medianMin, p75Min, perduMedianMin, lostTimeMaxMin,
+phaseLaPlusLongue: {nom, medianMin, partPct}, perteLaPlusLourde: {nom, medianMin, partPct} | null}` — their count,
+median and 75th percentile from filing to merge in whole minutes, their median lost time (one decimal) and the
+project's threshold for it, the phase they spent the most time in, with its median per ticket and its share of
+their total, and the loss that weighs most (null when they lost nothing), with its median per ticket (one
+decimal) and its share of their lost time. The 75th
 percentile is the value at rank ⌈0.75·(n−1)⌉ (numpy's `higher`): of 40 tickets, the 31st. A ticket
 recorded again replaces its earlier record; a file still in the bare-array shape of before #2662 is read, and
 rewritten as the object at the next merge. Records of before #2662 have no `depuis`: they count from the claim.
@@ -486,20 +490,29 @@ tickets served on 2026-11-06 and 07 (with the epics and the issue closed unmerge
 leaves out): replayed, median 14 min, p75 47 min, and claim wait the slowest phase (54 %, a median of 5 min per
 ticket).
 
-**Over the max, a correction ticket** (`runtime/src/temps-max/`, #2515). The project's max is
-`tempsMaxTicketMin` in `.claude/brigade/projet.json`, in minutes, **10 by default**. At each turn, the
-GitHub-only station reads these records in its clone and takes the median of the recent tickets — the last
-10 merged, and every one merged in the 24 h before the last —, from filing (or `fire`) to merge. Over the max, it opens one
+**A ticket's lost time** (#2670) is all of its time except the cook that delivered — its last cooking — and the
+pass, CI and merge of that merged delivery. It splits into three losses: `attente` (`waiting for a claim`), the
+qualification wait and every claim wait; `ratees` (`failed cooks`); `renvois` (`send-backs`), each send-back and,
+before the delivered cook, the cooking, pass wait, review and CI of a delivery that was sent back. A record of
+before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
+2026-11-06 and 07 lost a median 7.7 min, 57 % of it waiting for a claim.
+
+**Over the lost-time threshold, a correction ticket** (`runtime/src/temps-max/`, #2515, on lost time since
+#2670). The project's threshold is `lostTimeMaxMin` in `.claude/brigade/projet.json`, in minutes, **2 by
+default**. It replaced the max of a ticket's whole time (`tempsMaxTicketMin`, 10 min), which no longer exists
+nor is read: a ticket has no fixed size — 10 min is too short to refactor half the database, far too long to
+re-center a title — while the time it loses is waste whatever its size. At each turn, the
+GitHub-only station reads these records in its clone and takes the median lost time of the recent tickets —
+the last 10 merged, and every one merged in the 24 h before the last. Over the threshold, it opens one
 issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:medium` (`high` until
 #2575: the ten corrections #2535 to #2573 cooked a median 10.9 min each, so each one added to the recent
-tickets a ticket over the max it was there to bring down), with the
-median, the five slowest tickets with their slowest phase, and the slowest phase (qualification wait, claim
-wait, failed cooks, cooking, send-backs, pass wait, review, CI or merge: the one these tickets spent the most
-time in) with its total, its share and its median per
-ticket. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
+tickets a ticket over the max it was there to bring down), with the median lost time, the loss that weighs
+most — waiting for a claim, failed cooks or send-backs — with its total, its share of the lost time, its
+median per ticket and how many tickets it hit, the three losses, and the tickets concerned, the ten that lost
+the most to it first. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
 GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
 the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
-and close the other. Once it is closed, a median still over the max opens a new one — **but not before the
+and close the other. Once it is closed, a median still over the threshold opens a new one — **but not before the
 last served correction has recent tickets of its own** (#2577): while one recent ticket at least was claimed
 before the merge of the last correction closed and recorded in these times, the median is still that of
 the tickets before it and says nothing of it, so nothing opens (`a-l-essai`; the station then reads GitHub
@@ -510,8 +523,9 @@ merge holds nothing back. The rule holds only once the station runs it: #2580 op
 merged, from a station still on the code before it, whose update comes much later; the same turn on the
 code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
 and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that
-of the tickets cooked before them. The measure is unchanged: the median, its window and its max are the same, and
-`status` and the rail still say it over the max. At or under the max, nothing is opened and GitHub is not read.
+of the tickets cooked before them. At or under the threshold, nothing is opened and GitHub is not read. `status` says the
+median lost time against the threshold (`lost time`, red over it), and TODO's informative part names each of the
+last 10 tickets that lost over twice the threshold, with its heaviest loss.
 
 ## The daily report of the decisions brigade told about
 

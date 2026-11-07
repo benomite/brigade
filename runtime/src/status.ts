@@ -27,7 +27,7 @@ import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
-import { ligneMedianeContreMax, lignesDeTicketsTropLongs } from "./temps-max/affichage/affichage.ts";
+import { ligneDuTempsPerdu, lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -139,7 +139,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   const derive = githubSeul?.etat === "accepted" ? lireDeriveGithub(env.BRIGADE_STATE_DIR) : null;
   if (derive !== null) etat = { ...etat, derive: derive.franchis };
   const temps = lesTempsDesTickets(env.BRIGADE_REPO_DIR);
-  etat = { ...etat, tropLongs: lignesDeTicketsTropLongs(temps.enregistrements, temps.tempsMaxTicketMin) };
+  etat = { ...etat, tropLongs: lignesDeTicketsQuiPerdent(temps.enregistrements, temps.lostTimeMaxMin) };
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
@@ -155,8 +155,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
-  const contreMax = ligneMedianeContreMax(temps.enregistrements, temps.tempsMaxTicketMin, rouge);
-  if (contreMax !== null) lignes.push(`${"ticket time".padEnd(11)} ${contreMax}`);
+  const perdu = ligneDuTempsPerdu(temps.enregistrements, temps.lostTimeMaxMin, rouge);
+  if (perdu !== null) lignes.push(`${"lost time".padEnd(11)} ${perdu}`);
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;
   const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;

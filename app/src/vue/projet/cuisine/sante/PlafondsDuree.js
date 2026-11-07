@@ -1,10 +1,10 @@
 // @ts-check
 // Les plafonds de durée, sur Kitchen > Health (ticket 2490, épique 2484) : au-delà, la cuisine signale la dérive. Le
-// temps maximum d'un ticket (ticket 2336), tel que la station le publie, puis les seuils `drift.*` que le dépôt du projet
+// seuil du temps perdu par ticket (ticket 2670, `lostTimeMaxMin`), tel que la station le publie, puis les seuils `drift.*` que le dépôt du projet
 // déclare (`.claude/brigade/projet.json`) — les durées en tête, les autres repliés derrière une ligne. Chaque seuil dit sa
 // valeur et d'où elle vient, et se change ici, et nulle part ailleurs dans la page du projet : un champ et « save ». Le
 // process principal l'écrit dans le dépôt, sur sa branche d'intégration (plafonds-duree.ts) ; la station l'applique à
-// son rapatriement suivant. Vide, le seuil se retire du dépôt. Le temps maximum d'un ticket ne s'écrit pas encore d'ici :
+// son rapatriement suivant. Vide, le seuil se retire du dépôt. Le seuil du temps perdu ne s'écrit pas encore d'ici :
 // sa ligne le dit, la raison au survol. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
 import { boutonAction, lectureIndisponible, replie, survol } from "../../../briques.js";
@@ -19,8 +19,9 @@ export const TITRE = "Duration caps";
 export const AIDE =
   "Above a cap, the kitchen flags the drift. Kept in the project's repository (.claude/brigade/projet.json): saved here, on its integration branch, the station applies it at its next fetch. Empty, the cap is removed from the repository.";
 export const BOUTON = { libelle: "save", enCours: "saving…", survol: "writes .claude/brigade/projet.json on the project's integration branch, on GitHub" };
-export const TEMPS_MAX = { nom: "Ticket duration", source: "published by the station", fige: "not editable here yet" };
-export const TEMPS_MAX_POURQUOI = "The station reads a ticket's max time (tempsMaxTicketMin) from its own clone, and does not accept it in projet.json yet: it cannot be saved from the app.";
+export const PERDU_MAX = { nom: "Lost time per ticket", source: "median of recent tickets, published by the station", fige: "not editable here yet" };
+export const PERDU_MAX_POURQUOI =
+  "The station caps the median lost time of recent tickets (waiting for a claim, failed cooks, send-backs) with lostTimeMaxMin, read from its own clone of projet.json, outside the drift thresholds this block writes: it cannot be saved from the app yet. A ticket's total time has no cap, its size varies.";
 export const AUTRES = "Other drift thresholds";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -114,35 +115,35 @@ export function poserUnPlafond(doc, { plafond, etat, choisir, changer }) {
   return rangee;
 }
 
-// La ligne du temps maximum d'un ticket : sa valeur, telle que la station la publie, sans champ.
-/** @param {Fabrique} doc @param {number | undefined} tempsMaxTicketMin */
-function poserLeTempsMax(doc, tempsMaxTicketMin) {
+// La ligne du seuil du temps perdu par ticket : sa valeur, telle que la station la publie, sans champ.
+/** @param {Fabrique} doc @param {number | undefined} lostTimeMaxMin */
+function poserLePerduMax(doc, lostTimeMaxMin) {
   const rangee = cree(doc, "div");
   rangee.className = "plafond";
-  rangee.dataset.cle = "tempsMaxTicketMin";
-  const nom = cree(doc, "span", TEMPS_MAX.nom);
+  rangee.dataset.cle = "lostTimeMaxMin";
+  const nom = cree(doc, "span", PERDU_MAX.nom);
   nom.className = "nom";
   const valeur = cree(doc, "p");
   valeur.className = "valeur";
-  const dite = cree(doc, "strong", tempsMaxTicketMin === undefined ? "not known yet" : `${tempsMaxTicketMin} min`);
+  const dite = cree(doc, "strong", lostTimeMaxMin === undefined ? "not known yet" : `${lostTimeMaxMin} min`);
   dite.className = "mono";
-  const source = cree(doc, "small", tempsMaxTicketMin === undefined ? "the station does not publish it yet" : TEMPS_MAX.source);
+  const source = cree(doc, "small", lostTimeMaxMin === undefined ? "the station does not publish it yet" : PERDU_MAX.source);
   source.className = "source";
   valeur.append(dite, source);
   const champ = cree(doc, "p");
   champ.className = "champ fige";
-  champ.append(cree(doc, "span", TEMPS_MAX.fige), survol(doc, TEMPS_MAX_POURQUOI));
+  champ.append(cree(doc, "span", PERDU_MAX.fige), survol(doc, PERDU_MAX_POURQUOI));
   rangee.append(nom, valeur, champ);
   return rangee;
 }
 
-// Le bloc : le temps maximum d'un ticket, puis les plafonds du dépôt — tant qu'ils ne sont pas lus, une ligne le dit ;
+// Le bloc : le seuil du temps perdu par ticket, puis les plafonds du dépôt — tant qu'ils ne sont pas lus, une ligne le dit ;
 // une lecture ratée tient en une ligne, son détail au survol.
 /**
  * @param {Fabrique} doc
- * @param {{ lecture?: Lecture, tempsMaxTicketMin?: number, etats?: ReadonlyMap<string, Etat>, autresOuverts?: boolean, basculerAutres?: (ouvert: boolean) => void, choisir?: (cle: string, choisi: string) => void, changer?: (cle: string, saisie: string) => void }} [options]
+ * @param {{ lecture?: Lecture, lostTimeMaxMin?: number, etats?: ReadonlyMap<string, Etat>, autresOuverts?: boolean, basculerAutres?: (ouvert: boolean) => void, choisir?: (cle: string, choisi: string) => void, changer?: (cle: string, saisie: string) => void }} [options]
  */
-export function poserBlocPlafondsDuree(doc, { lecture, tempsMaxTicketMin, etats = new Map(), autresOuverts = false, basculerAutres, choisir = () => {}, changer = () => {} } = {}) {
+export function poserBlocPlafondsDuree(doc, { lecture, lostTimeMaxMin, etats = new Map(), autresOuverts = false, basculerAutres, choisir = () => {}, changer = () => {} } = {}) {
   const bloc = doc.createElement("section");
   bloc.className = "bloc-du-projet";
   bloc.dataset.bloc = "plafonds-duree";
@@ -150,7 +151,7 @@ export function poserBlocPlafondsDuree(doc, { lecture, tempsMaxTicketMin, etats 
   const titre = doc.createElement("h3");
   titre.textContent = TITRE;
   titre.append(survol(doc, AIDE));
-  bloc.append(titre, poserLeTempsMax(doc, tempsMaxTicketMin));
+  bloc.append(titre, poserLePerduMax(doc, lostTimeMaxMin));
   if (lecture === undefined) {
     const attente = cree(doc, "p", "reading the caps of the repository…");
     attente.className = "plafonds-lecture";

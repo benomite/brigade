@@ -116,7 +116,7 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
       ["gatesSeconds", "0"],
       ["gatesSeconds", "-3"],
       ["gatesSeconds", "vite"],
-      ["tempsMaxTicketMin", "20"],
+      ["lostTimeMaxMin", "3"],
     ] as const) {
       const depot = github(PROJET);
       const rendu = await changerLePlafond({ depot: DEPOT, branche: "main", cle, saisie, client: depot.client });

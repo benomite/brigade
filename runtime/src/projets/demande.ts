@@ -204,8 +204,8 @@ export type SuiviDuProjet = {
   blocages?: Blocage[];
   // Le temps de son ajout à son premier ticket servi (`installation/delai/`).
   delai?: Delai;
-  // Les temps des derniers tickets mesurés du projet et son plafond (`temps-ticket/ligne-status.ts`).
-  temps?: { enregistrements: TempsTicket[]; tempsMaxTicketMin: number };
+  // Les temps des derniers tickets mesurés du projet et le seuil de leur temps perdu (`temps-ticket/ligne-status.ts`).
+  temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number };
   choix?: Choix[];
   // Les stations que l'app lui appaire en plus de la principale (`secondaires.ts`).
   secondaires?: StationSecondaire[];

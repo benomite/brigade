@@ -454,13 +454,12 @@ The Rail tab opens on **one thin band**, a single line, then the columns, which 
 each column runs down to the bottom of the tab, and no block above them pushes them into an inner scroll. The band
 says, from left to right, each part split from the next by a faint rule:
 
-- **Ticket time** — the median of the last 10 measured tickets against the project's max (`tempsMaxTicketMin`, 10
-  minutes by default): `Ticket time 18 min / 10 min`. Over the max, the median and the max turn red. The slowest of
-  those tickets, when it is over twice the max, is flagged with its slowest phase: `#2336 over twice the max — slowest
-  phase: Cooking`; at twice the max or under, nothing is flagged. On hover (or on the
-  keyboard), the rest of the Ticket times card (#2346, below): the slowest ticket and the median of each of the five
-  phases. A station that does not publish its times says `not available yet`; a project with no measured ticket, `no
-  ticket measured yet` — never a blank or a zero.
+- **Ticket time** — the median and p75 of the recent tickets, with no cap (a ticket's size varies), then their median
+  **lost time** against the project's threshold (`lostTimeMaxMin` of `projet.json`, 2 minutes by default, #2670):
+  `Ticket time median 14 min / p75 47 min · lost 5 min vs 2 min max`. Over the threshold, the lost figure turns red,
+  with `lost time over the max`. On hover (or on the keyboard), what lost time is, the heaviest loss and the slowest
+  phase with their medians (see "Median and p75, and lost time against its threshold" below). With no measure
+  published, `no measure yet` — never a blank or a zero.
 - **Cooks** — how many are running: `Cooks 2 running`, their tickets and stations on hover; `none running` when none
   is. When the reading does not name them (the rail read from GitHub alone), the count is that of Taken — one cook per
   ticket —, and the hover says so.
@@ -2043,36 +2042,49 @@ view reads it from `lenteur` of the project's view; **the field is not yet carri
 line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
 
 **Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project, on the **Cooks** tab — on Rail,
-the band at the top says the median and the max, the rest on hover (#2486): the median total of the last 10
-measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its tests,
-waiting for the pass, review, CI, merge) and the project's max (`tempsMaxTicketMin`, 10 minutes by default). Three states,
-`data-temps`: `normal`; `depasse` (the median is over the max: red border and the words "Over the max of N min");
-`vide` ("No ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone,
-so their sum can differ from the median total. The principal station reads the project's clone
-(`.claude/brigade/temps-tickets.json`, integer seconds, and `tempsMaxTicketMin` of `projet.json`; `lesTempsDesTickets` in
-`runtime/src/temps-ticket/ligne-status.ts`) and publishes `temps` (`{ enregistrements, tempsMaxTicketMin }`) in its
+the band at the top says the median, the p75 and the lost time, the rest on hover (#2486): the median total of the
+last 10 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its
+tests, waiting for the pass, review, CI, merge) and, at its head, the median lost time against the project's threshold
+(`lost 3 min vs 2 min max`; `lostTimeMaxMin`, 2 minutes by default, #2670). A record's lost time is its `perdu`
+(`{ attente, ratees, renvois }`, seconds: the wait before the claim, the failed cooks, the send-backs); an older
+record without it counts 0. A ticket's total time has no cap. Three states, `data-temps`: `normal`; `depasse` (the
+median lost time is over the threshold: red border and the words "Lost time over the max of N min"); `vide` ("No
+ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone, so their
+sum can differ from the median total. The principal station reads the project's clone
+(`.claude/brigade/temps-tickets.json`, integer seconds, and `lostTimeMaxMin` of `projet.json`; `lesTempsDesTickets` in
+`runtime/src/temps-ticket/ligne-status.ts`) and publishes `temps` (`{ enregistrements, lostTimeMaxMin, resume }`) in its
 project tracking, next to `delai`; the app relays it on the project's view. A station that does not publish it yet
 (an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
 Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
 
-**Median and p75 against the max** (#2664, epic #2659): the rail band and the Health tab say the ticket time from the
-`resume` object of `temps-tickets.json` that the measure publishes (`n`, `medianMin`, `p75Min`, `maxMin`,
-`phaseLaPlusLongue` as `{ nom, medianMin }`), relayed as `temps.resume` — the app reads it, it does not recompute it
-(`app/src/vue/temps-ticket/resume.js`). Rail band: « median 14 min / p75 47 min vs 10 min max », the figure over the max
-in red with « over the max » (`data-temps="depasse"`); the slowest phase is on hover. Health: the same median, p75 and
-max, the phase named with its median (« Slowest phase: review, median 9 min »), then the chart and the list when the
-records are there. With no `resume`, both say « no measure yet » (never a blank or a zero). Screenshots: `docs/captures/2664/`.
+**Median and p75, and lost time against its threshold** (#2664, epic #2659; #2670): the rail band and the Health tab
+say the ticket time from the `resume` object of `temps-tickets.json` that the measure publishes (`n`, `medianMin`,
+`p75Min`, `perduMedianMin`, `lostTimeMaxMin`, `phaseLaPlusLongue` and `perteLaPlusLourde` as `{ nom, medianMin,
+partPct }`, the latter null when nothing was lost), relayed as `temps.resume` — the app reads it, it does not recompute
+it (`app/src/vue/temps-ticket/resume.js`). A ticket's time, from its filing to its merge, has no cap: its size varies.
+Only its **lost time** has one — everything but the cook that delivered and the pass, CI and merge of the merged
+delivery: the wait for a claim, the failed cooks, the send-backs. `perduMedianMin` is the median lost time of the recent
+tickets, `lostTimeMaxMin` the project's threshold (`projet.json`, 2 minutes by default; when the resume lacks it, the
+one `temps` carries, else 2). Rail band: « median 14 min / p75 47 min · lost 5 min vs 2 min max », the lost figure over
+the threshold in red with « lost time over the max » (`data-temps="depasse"`); the median and p75 are never red. On
+hover: what lost time is, the heaviest loss (« Heaviest loss: failed cooks, median 4 min ») and the slowest phase.
+Health: the same median, p75 and lost time (« median lost time, max 2 min »), the heaviest loss and the slowest phase
+named with their medians, then the chart and the list when the records are there. A resume without `perduMedianMin`
+(an older station, with `maxMin`) is not read. With no `resume`, both say « no measure yet » (never a blank or a zero).
+Screenshots: `docs/captures/2664/`.
 
 **Kitchen > Health: ticket time and duration caps** (#2490, epic #2484). Two blocks, then the closer's.
 **Ticket time** reads the same measures as the Ticket times card (`temps` of the project's view): a ticket's time runs
-from its claim to its merge, its **pass** is the wait for the pass plus the review (`attentePasse + revue`). At the head,
-three figures — the ticket's median and the pass's median over the last 10 measured tickets, and the max of a ticket
-(`tempsMaxTicketMin`). Over time, one column per ticket (the last 30, oldest left), its pass at the bottom in yellow, a
-ticket over the max in red, the max as a dashed line; the ticket, its date and both durations on hover. Per ticket, the
+from its filing to its merge, its **pass** is the wait for the pass plus the review (`attentePasse + revue`). At the
+head, three figures from the measure's resume — the median, the p75 and the median lost time against its threshold
+(`lostTimeMaxMin`, #2670; above it, in red, with "Lost time over the max of N min"). Over time, one column per ticket
+(the last 30, oldest left), its pass at the bottom in yellow, with no max line: a ticket's total time has no cap; the
+ticket, its date and both durations on hover. Per ticket, the
 last 10, newest first: number, merge date, time, pass. The same empty states as the card ("No ticket measured yet",
 "Ticket times not available yet"). Module: `app/src/vue/projet/cuisine/sante/TempsTickets.js`.
 **Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
-first the **ticket duration** (#2336's `tempsMaxTicketMin`, as the station publishes it), then the durations the
+first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
+as the station publishes it), then the durations the
 repository declares — `drift.testsSeconds`, `drift.gatesSeconds` (100 s by default) —, then, folded behind one line
 ("Other drift thresholds · 1 set in the repository"), every other `drift.*` threshold of `projet.json`. Each `drift.*`
 cap has a field and **save** (disabled until the value changes; Enter saves too): the app writes it into
@@ -2081,8 +2093,8 @@ cap has a field and **save** (disabled until the value changes; Enter saves too)
 created with `version` and `integrationBranch`); the runtime reads it at its next fetch (`reglages-projet/en-vigueur.ts`).
 An empty field removes the cap from the repository. A value the runtime would refuse (zero, a fraction for a whole
 threshold) writes nothing and says so under the field; GitHub's refusal (a protected branch) too, its detail on hover.
-**The ticket duration is not editable here yet**: the runtime does not accept `tempsMaxTicketMin` in `projet.json` (its
-key check refuses it) and reads it only from its clone's working tree — its row says so, the reason on hover. The caps
+**The lost-time threshold is not editable here yet**: `lostTimeMaxMin` is not a `drift.*` threshold, the only keys this
+block writes, and the station reads it from its clone's working tree — its row says so, the reason on hover. The caps
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
 `app/src/vue/projet/cuisine/sante/PlafondsDuree.js`.
 

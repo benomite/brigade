@@ -42,7 +42,8 @@ function clone(tc: TestContext, minutes: number[], projet: object = {}): string 
   const dossier = join(depot, ".claude", "brigade");
   mkdirSync(dossier, { recursive: true });
   writeFileSync(join(dossier, "projet.json"), JSON.stringify(projet));
-  writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify(minutes.map((m, rang) => ({ ticket: rang + 1, cuisson: m * 60, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }))));
+  // Des tickets qui ont attendu leur prise `minutes`, puis cuit 10 min.
+  writeFileSync(join(dossier, "temps-tickets.json"), JSON.stringify(minutes.map((m, rang) => ({ ticket: rang + 1, attentePrise: m * 60, cuisson: 600, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }))));
   return depot;
 }
 
@@ -59,7 +60,7 @@ const station = (github: GitHubDuTour, depot: string, avertis: string[]) =>
     avertir: (texte) => avertis.push(texte),
   });
 
-test("over the max, the station's turn opens one prio:0 correction ticket, and no second one while it is open", async (tc) => {
+test("over the lost-time threshold, the station's turn opens one prio:0 correction ticket, and no second one while it is open", async (tc) => {
   const { issues, github } = faux();
   const avertis: string[] = [];
   const s = station(github, clone(tc, [12, 18, 25]), avertis);
@@ -70,13 +71,13 @@ test("over the max, the station's turn opens one prio:0 correction ticket, and n
   assert.equal(issues.length, 1);
   assert.ok(issues[0]?.labels.includes("prio:0"));
   assert.ok(issues[0]?.body.startsWith(MARQUE_CORRECTION));
-  assert.match(issues[0]?.body ?? "", /is \*\*18 min\*\*: over the project's max of 10 min/);
+  assert.match(issues[0]?.body ?? "", /is \*\*18 min\*\*: over the project's threshold of 2 min/);
 });
 
-test("the project's own max holds: under it, the turn opens nothing", async (tc) => {
+test("the project's own threshold holds: under it, the turn opens nothing", async (tc) => {
   const { issues, github } = faux();
   const avertis: string[] = [];
-  await station(github, clone(tc, [12, 18, 25], { tempsMaxTicketMin: 20 }), avertis).tour();
+  await station(github, clone(tc, [12, 18, 25], { lostTimeMaxMin: 20 }), avertis).tour();
   assert.deepEqual(avertis, []);
   assert.equal(issues.length, 0);
 });

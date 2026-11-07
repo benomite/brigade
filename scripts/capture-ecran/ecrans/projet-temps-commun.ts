@@ -18,4 +18,4 @@ const enregistrement = (ticket: number, minutes: number) => ({
 export const NORMAL = [9, 11, 8, 12, 10, 14, 9, 13, 11, 18].map((m, i) => enregistrement(2331 + i, m));
 export const LENT = [19, 22, 17, 25, 21, 30, 18, 24, 20, 28].map((m, i) => enregistrement(2331 + i, m));
 
-export const avec = (enregistrements: ReturnType<typeof enregistrement>[]) => () => donnees({ ...SUR_LA_BOX, temps: { enregistrements, tempsMaxTicketMin: 15 } });
+export const avec = (enregistrements: ReturnType<typeof enregistrement>[]) => () => donnees({ ...SUR_LA_BOX, temps: { enregistrements, lostTimeMaxMin: 2 } });

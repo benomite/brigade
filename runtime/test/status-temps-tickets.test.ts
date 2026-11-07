@@ -11,10 +11,16 @@ const ecrire = (depot: string, contenu: unknown) => {
   writeFileSync(join(depot, ".claude", "brigade", "temps-tickets.json"), JSON.stringify(contenu));
 };
 
-test("a fixture resume gives median and p75 against the max, and the slowest phase", (tc) => {
+test("a fixture resume gives median and p75, the lost time against its threshold with the heaviest loss, and the slowest phase", (tc) => {
+  const depot = repertoireTemporaire(tc);
+  ecrire(depot, { tickets: [], resume: { n: 12, medianMin: 14, p75Min: 47, perduMedianMin: 7.7, lostTimeMaxMin: 2, phaseLaPlusLongue: { phase: "cuisson", medianMin: 9 }, perteLaPlusLourde: { nom: "waiting for a claim", medianMin: 4.8, partPct: 57 } } });
+  assert.equal(ligneDuTempsDesTickets(depot), "Ticket time: median 14 min, p75 47 min (lost 7.7 min, max 2 min, mostly waiting for a claim), slowest phase cuisson (median 9 min)");
+});
+
+test("a resume written before #2670, with the max of a ticket and no lost time: the 'no measure yet' line", (tc) => {
   const depot = repertoireTemporaire(tc);
   ecrire(depot, { tickets: [], resume: { n: 12, medianMin: 14, p75Min: 47, maxMin: 10, phaseLaPlusLongue: { phase: "cuisson", medianMin: 9 } } });
-  assert.equal(ligneDuTempsDesTickets(depot), "Ticket time: median 14 min, p75 47 min (max 10 min), slowest phase cuisson (median 9 min)");
+  assert.equal(ligneDuTempsDesTickets(depot), SANS_MESURE);
 });
 
 test("no temps-tickets.json: the 'no measure yet' line", (tc) => {

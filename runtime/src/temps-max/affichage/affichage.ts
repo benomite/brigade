@@ -1,10 +1,10 @@
-// Le temps d'un ticket contre le max du projet, à l'écran (épique #2514).
-// Deux sorties, pures : la ligne de `status` (médiane contre max, en rouge quand
-// la médiane dépasse le max) et la ligne de la partie informative de TODO pour
-// un ticket qui a dépassé deux fois le max — dite dès qu'il est connu, sans
-// attendre la médiane, avec sa phase la plus lente. Le max est celui du projet
-// (`tempsMaxTicketMin`) : l'appelant le donne.
-import { mediane } from "../../temps-ticket/synthese.ts";
+// Le temps d'un ticket et le temps qu'il perd, à l'écran (épique #2514, #2670).
+// Deux sorties, pures : la ligne de `status` (temps perdu médian contre le
+// seuil, en rouge quand il le dépasse) et la ligne de la partie informative de
+// TODO pour un ticket qui a perdu plus de deux fois le seuil — dite dès qu'il
+// est connu, sans attendre la médiane, avec sa perte la plus lourde. Le seuil
+// est celui du projet (`lostTimeMaxMin`) : l'appelant le donne.
+import { medianePerdueDesRecents, perteLaPlusLourde, tempsPerdu } from "../mesure.ts";
 import type { TempsTicket } from "../../temps-ticket/ligne-status.ts";
 
 const DERNIERS = 10;
@@ -31,7 +31,7 @@ export type Phase = (typeof PHASES)[number][0];
 // cooks ratés et des renvois manquent aux enregistrements d'avant #2662 : 0.
 export const secondesDe = (t: TempsTicket, phase: Phase): number => t[phase] ?? 0;
 
-const minutes = (secondes: number) => `${Math.round(secondes / 60)} min`;
+const dixiemes = (secondes: number) => `${Math.round(secondes / 6) / 10} min`;
 
 // Du dépôt (ou de `fire`) au merge (#2662) — de la prise au merge pour un
 // enregistrement d'avant, qui n'a pas `depuis` — quand les deux dates y sont,
@@ -48,21 +48,21 @@ export function phaseLaPlusLente(t: TempsTicket): { nom: string; secondes: numbe
   return lente;
 }
 
-// `18 min / 10 min` ; rien de mesuré, pas de ligne. `rouge` : colorer quand la médiane dépasse le max.
-export function ligneMedianeContreMax(enregistrements: TempsTicket[], maxMin: number, rouge = false): string | null {
-  const derniers = enregistrements.slice(-DERNIERS);
-  if (derniers.length === 0) return null;
-  const med = mediane(derniers.map(dureeDuTicket));
-  const texte = `${minutes(med)} / ${maxMin} min`;
-  return rouge && med > maxMin * 60 ? `${ROUGE}${texte}${FIN_ROUGE}` : texte;
+// `3.5 min / 2 min` : le temps perdu médian des tickets récents contre le seuil ;
+// rien de mesuré, pas de ligne. `rouge` : colorer quand il dépasse le seuil.
+export function ligneDuTempsPerdu(enregistrements: TempsTicket[], seuilMin: number, rouge = false): string | null {
+  const med = medianePerdueDesRecents(enregistrements);
+  if (med === null) return null;
+  const texte = `${dixiemes(med)} / ${seuilMin} min`;
+  return rouge && med > seuilMin * 60 ? `${ROUGE}${texte}${FIN_ROUGE}` : texte;
 }
 
-// Une ligne par ticket mesuré (parmi les derniers) au-delà de deux fois le max ; à deux fois pile, aucune.
-export function lignesDeTicketsTropLongs(enregistrements: TempsTicket[], maxMin: number): string[] {
+// Une ligne par ticket mesuré (parmi les derniers) qui a perdu plus de deux fois le seuil ; à deux fois pile, aucune.
+export function lignesDeTicketsQuiPerdent(enregistrements: TempsTicket[], seuilMin: number): string[] {
   return enregistrements.slice(-DERNIERS).flatMap((t) => {
-    const duree = dureeDuTicket(t);
-    if (duree <= 2 * maxMin * 60) return [];
-    const lente = phaseLaPlusLente(t);
-    return [`ticket #${t.ticket} took ${minutes(duree)}, over twice the max of ${maxMin} min — slowest phase: ${lente.nom} ${minutes(lente.secondes)}`];
+    const perdu = tempsPerdu(t);
+    if (perdu <= 2 * seuilMin * 60) return [];
+    const lourde = perteLaPlusLourde([t]);
+    return [`ticket #${t.ticket} lost ${dixiemes(perdu)}, over twice the threshold of ${seuilMin} min — mostly ${lourde?.nom} ${dixiemes(lourde?.secondes ?? 0)}`];
   });
 }

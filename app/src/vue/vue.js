@@ -7301,7 +7301,7 @@ function poserLaSante(projet, garder = true) {
     poserBlocBloqueSansQuestion(document, /** @type {{ blockedWithoutQuestion?: unknown } | undefined} */ (vu)?.blockedWithoutQuestion),
     poserBlocPlafondsDuree(document, {
       ...(lecture === undefined ? {} : { lecture }),
-      ...(vu?.temps === undefined ? {} : { tempsMaxTicketMin: vu.temps.tempsMaxTicketMin }),
+      ...(vu?.temps === undefined ? {} : { lostTimeMaxMin: vu.temps.lostTimeMaxMin }),
       etats,
       autresOuverts: autresPlafondsOuverts.has(projet.nom),
       basculerAutres: (ouvert) => void (ouvert ? autresPlafondsOuverts.add(projet.nom) : autresPlafondsOuverts.delete(projet.nom)),

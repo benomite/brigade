@@ -14,5 +14,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR, KITCHEN, { saisir: CHAMP, texte: "150" }, { cliquer: '[data-bloc="plafonds-duree"] .plafond[data-cle="gatesSeconds"] .enregistrer-le-plafond button' }],
-  donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, tempsMaxTicketMin: 15 } }, { plafondsDuree: PLAFONDS_LUS, changerPlafondDuree: ENREGISTRE }),
+  donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, lostTimeMaxMin: 2 } }, { plafondsDuree: PLAFONDS_LUS, changerPlafondDuree: ENREGISTRE }),
 };

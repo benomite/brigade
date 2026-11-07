@@ -2,20 +2,22 @@
 // Le temps des tickets, en détail, sur Kitchen > Health (ticket 2490, épique 2484) : la durée d'un ticket — de sa prise
 // à son merge — et celle de sa pass — l'attente de la pass et sa revue —, en médiane, ticket par ticket, et dans le
 // temps. Les mesures sont celles que la principale publie sous `temps` du projet vu (`.claude/brigade/temps-tickets.json`
-// de son clone, en secondes entières), le plafond est `tempsMaxTicketMin` (15 minutes par défaut) : les mêmes que la
+// de son clone, en secondes entières). Le temps d'un ticket n'a pas de plafond, sa taille varie (ticket 2670) : seul son
+// temps perdu en a un, `lostTimeMaxMin` (2 minutes par défaut), sur la médiane des tickets récents. Les mêmes que la
 // carte des temps de Cooks (temps-ticket.js), dont ce bloc reprend les mots et les calculs. Ce module ne touche pas
 // `document` : il reçoit de quoi créer un élément (briques.js) et rend le bloc.
 
 import { survol } from "../../../briques.js";
 import { depasse, enMinutes, estDepasse, lireLeResume, SANS_MESURE, SANS_MESURE_DETAIL, surCombien } from "../../../temps-ticket/resume.js";
-import { dureeEnClair, MAX_PAR_DEFAUT_MIN, mediane, total } from "../../../temps-ticket/temps-ticket.js";
+import { dureeEnClair, mediane, total } from "../../../temps-ticket/temps-ticket.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../temps-ticket/temps-ticket.js").Enregistrement} Enregistrement */
 /** @typedef {import("../../../temps-ticket/temps-ticket.js").TempsDuProjet} TempsDuProjet */
 
 export const TITRE = "Ticket time";
-export const AIDE = "From the station's measures: a ticket's time runs from its claim to its merge; its pass is the wait for the pass and the review.";
+export const AIDE =
+  "From the station's measures: a ticket's time runs from its filing to its merge; its lost time is the wait for a claim, the failed cooks and the send-backs; its pass is the wait for the pass and the review.";
 // Combien de tickets la courbe montre, et combien la liste, les plus récents.
 export const DANS_LE_TEMPS = 30;
 export const PAR_TICKET = 10;
@@ -36,15 +38,13 @@ const lisible = (x) => {
 };
 
 // Ce que le bloc montre : les tickets mesurés du plus ancien au plus récent (les `DANS_LE_TEMPS` derniers, par
-// `mergedAt`), les médianes du ticket et de sa pass sur les `PAR_TICKET` derniers, et le plafond. Null sans ticket mesuré.
+// `mergedAt`), les médianes du ticket et de sa pass sur les `PAR_TICKET` derniers. Null sans ticket mesuré.
 /** @param {TempsDuProjet} temps */
 export function lireLesTemps(temps) {
-  const max = Number.isFinite(temps.tempsMaxTicketMin) && (temps.tempsMaxTicketMin ?? 0) > 0 ? /** @type {number} */ (temps.tempsMaxTicketMin) : MAX_PAR_DEFAUT_MIN;
   const ranges = (temps.enregistrements ?? []).filter(lisible).sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt) || a.ticket - b.ticket);
   if (ranges.length === 0) return null;
   const recents = ranges.slice(-PAR_TICKET);
   return {
-    max,
     dansLeTemps: ranges.slice(-DANS_LE_TEMPS).map((e) => ({ ticket: e.ticket, le: e.mergedAt, total: total(e), passe: passe(e) })),
     parTicket: recents.map((e) => ({ ticket: e.ticket, le: e.mergedAt, total: total(e), passe: passe(e) })).reverse(),
     nombre: recents.length,
@@ -64,7 +64,7 @@ function noeud(doc, balise, classe, texte) {
   return n;
 }
 
-// Un chiffre en tête : sa valeur, ce qu'elle est. `depasse` : il passe le plafond.
+// Un chiffre en tête : sa valeur, ce qu'elle est. `depasse` : il passe son seuil.
 /** @param {Fabrique} doc @param {string} valeur @param {string} legende @param {boolean} [depasse] */
 function chiffre(doc, valeur, legende, depasse = false) {
   const pose = noeud(doc, "p", "temps-chiffre");
@@ -74,9 +74,9 @@ function chiffre(doc, valeur, legende, depasse = false) {
 }
 
 // Le bloc à poser sur Health : toujours un bloc, jamais un blanc ni un zéro. Trois états — `data-temps` : « normal »,
-// « depasse » (la médiane ou le p75 du résumé de la mesure passe le plafond) et « vide » (la mesure n'a rien publié :
+// « depasse » (le temps perdu médian du résumé de la mesure passe son seuil) et « vide » (la mesure n'a rien publié :
 // « no measure yet », qui n'est pas un compte de zéro). En tête, les mêmes chiffres que la bande du rail, lus du
-// résumé sans les recalculer (resume.js), et la phase la plus longue avec sa médiane ; dessous, la courbe et la liste
+// résumé sans les recalculer (resume.js), la perte la plus lourde et la phase la plus longue avec leur médiane ; dessous, la courbe et la liste
 // des tickets, quand les enregistrements sont là.
 /** @param {Fabrique} doc @param {TempsDuProjet} [temps] */
 export function poserBlocTempsTickets(doc, temps) {
@@ -99,16 +99,21 @@ export function poserBlocTempsTickets(doc, temps) {
     bloc.dataset.temps = estDepasse(resume) ? "depasse" : "normal";
     const sur = surCombien(resume);
     const chiffres = noeud(doc, "div", "temps-chiffres");
-    chiffres.append(chiffre(doc, enMinutes(resume.medianMin), `median of ${sur}`, trop.mediane), chiffre(doc, enMinutes(resume.p75Min), `p75 of ${sur}`, trop.p75), chiffre(doc, enMinutes(resume.maxMin), "max of a ticket"));
+    chiffres.append(
+      chiffre(doc, enMinutes(resume.medianMin), `median of ${sur}`),
+      chiffre(doc, enMinutes(resume.p75Min), `p75 of ${sur}`),
+      chiffre(doc, enMinutes(resume.perduMedianMin), `median lost time, max ${enMinutes(resume.lostTimeMaxMin)}`, trop.perdu),
+    );
     bloc.append(chiffres);
-    if (estDepasse(resume)) bloc.append(noeud(doc, "p", "temps-depasse", `Over the max of ${enMinutes(resume.maxMin)}`));
+    if (estDepasse(resume)) bloc.append(noeud(doc, "p", "temps-depasse", `Lost time over the max of ${enMinutes(resume.lostTimeMaxMin)}`));
+    if (resume.perteLaPlusLourde !== null) bloc.append(noeud(doc, "p", "temps-phase-lente", `Heaviest loss: ${resume.perteLaPlusLourde.nom}, median ${enMinutes(resume.perteLaPlusLourde.medianMin)}`));
     if (resume.phaseLaPlusLongue !== null) bloc.append(noeud(doc, "p", "temps-phase-lente", `Slowest phase: ${resume.phaseLaPlusLongue.nom}, median ${enMinutes(resume.phaseLaPlusLongue.medianMin)}`));
   }
   const lu = temps === undefined ? null : lireLesTemps(temps);
   if (lu === null) return bloc;
 
-  // Dans le temps : une colonne par ticket, du plus ancien au plus récent, sa pass en bas ; le plafond en trait.
-  const echelle = Math.max(lu.max * 60, ...lu.dansLeTemps.map((t) => t.total), 1);
+  // Dans le temps : une colonne par ticket, du plus ancien au plus récent, sa pass en bas.
+  const echelle = Math.max(...lu.dansLeTemps.map((t) => t.total), 1);
   const courbe = noeud(doc, "div", "temps-courbe");
   courbe.role = "img";
   // Sa largeur suit le nombre de tickets : une colonne lisible, jamais plus large que la liste dessous.
@@ -118,7 +123,6 @@ export function poserBlocTempsTickets(doc, temps) {
   for (const t of lu.dansLeTemps) {
     const colonne = noeud(doc, "span", "temps-colonne");
     colonne.title = `#${t.ticket} · ${jour(t.le)} · ${dureeEnClair(t.total)}, pass ${dureeEnClair(t.passe)}`;
-    if (t.total > lu.max * 60) colonne.dataset.depasse = "oui";
     const reste = noeud(doc, "span", "temps-ticket-part");
     reste.style.height = `${(100 * Math.max(0, t.total - t.passe)) / echelle}%`;
     const pass = noeud(doc, "span", "temps-pass-part");
@@ -126,15 +130,12 @@ export function poserBlocTempsTickets(doc, temps) {
     colonne.append(reste, pass);
     colonnes.append(colonne);
   }
-  const plafond = noeud(doc, "span", "temps-plafond");
-  plafond.style.bottom = `${(100 * lu.max * 60) / echelle}%`;
-  colonnes.append(plafond);
   const premier = lu.dansLeTemps[0];
   const dernier = lu.dansLeTemps.at(-1);
   const axe = noeud(doc, "p", "temps-axe");
   axe.append(noeud(doc, "span", "", premier === undefined ? "" : jour(premier.le)), noeud(doc, "span", "", dernier === undefined ? "" : jour(dernier.le)));
   const legende = noeud(doc, "p", "temps-cles");
-  legende.append(noeud(doc, "span", "temps-cle ticket", "ticket"), noeud(doc, "span", "temps-cle pass", "pass"), noeud(doc, "span", "temps-cle max", `max ${lu.max} min`));
+  legende.append(noeud(doc, "span", "temps-cle ticket", "ticket"), noeud(doc, "span", "temps-cle pass", "pass"));
   courbe.append(colonnes, axe, legende);
   bloc.append(courbe);
 
@@ -148,7 +149,6 @@ export function poserBlocTempsTickets(doc, temps) {
   for (const t of lu.parTicket) {
     const ligne = noeud(doc, "tr", "");
     ligne.dataset.ticket = String(t.ticket);
-    if (t.total > lu.max * 60) ligne.dataset.depasse = "oui";
     ligne.append(noeud(doc, "td", "mono", `#${t.ticket}`), noeud(doc, "td", "", jour(t.le)), noeud(doc, "td", "temps-total", dureeEnClair(t.total)), noeud(doc, "td", "", dureeEnClair(t.passe)));
     corps.append(ligne);
   }

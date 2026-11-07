@@ -8209,16 +8209,6 @@ button.recommande {
 [data-bloc="temps-tickets"] .temps-pass-part {
   background: var(--jaune);
 }
-[data-bloc="temps-tickets"] .temps-colonne[data-depasse="oui"] .temps-ticket-part {
-  background: var(--rouge);
-}
-[data-bloc="temps-tickets"] .temps-plafond {
-  position: absolute;
-  left: 0;
-  right: 0;
-  border-top: 1px dashed var(--rouge);
-  pointer-events: none;
-}
 [data-bloc="temps-tickets"] :is(.temps-axe, .temps-cles) {
   display: flex;
   gap: 16px;
@@ -8241,12 +8231,6 @@ button.recommande {
 [data-bloc="temps-tickets"] .temps-cle.pass::before {
   background: var(--jaune);
 }
-[data-bloc="temps-tickets"] .temps-cle.max::before {
-  height: 0;
-  border-radius: 0;
-  border-top: 1px dashed var(--rouge);
-  vertical-align: 3px;
-}
 [data-bloc="temps-tickets"] .temps-par-ticket {
   border-collapse: collapse;
   width: 100%;
@@ -8261,9 +8245,6 @@ button.recommande {
   font-weight: 400;
   font-size: 12px;
   color: var(--discret);
-}
-[data-bloc="temps-tickets"] .temps-par-ticket tr[data-depasse="oui"] .temps-total {
-  color: var(--rouge-clair);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond {
   display: grid;
