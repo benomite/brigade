@@ -556,11 +556,12 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await jusqua(() => c.dits(30).length === 1);
     await c.laisserTourner();
 
-    assert.match(c.dits(30)[0] ?? "", /découpage illisible.*ticket 1 : critères d'acceptation absents/);
+    assert.match(c.dits(30)[0] ?? "", /découpage illisible/);
     assert.deepEqual(c.gh.creations, []);
-    assert.equal(c.jugements().length, 1);
-    assert.deepEqual(c.faits(30).map((e) => e.type), ["manager.split-failed", "manager.split-commented"]);
-    assert.ok(c.avertissements.some((message) => /découpage illisible sur l'épique #30/.test(message)));
+    // Le découpage, sa relance, puis l'épique jugée comme un ticket seul.
+    assert.equal(c.jugements().length, 3);
+    assert.deepEqual(c.faits(30).map((e) => e.type), ["manager.failed", "manager.split-failed", "manager.split-commented"]);
+    assert.ok(c.avertissements.some((message) => /jugement illisible sur l'issue #30/.test(message)));
   });
 
   test("une épique retenue par le chef n'est pas découpée ; libérée, elle l'est", async (t) => {

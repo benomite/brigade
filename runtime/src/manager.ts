@@ -613,6 +613,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     noter,
     demander,
     peutJuger,
+    jugerSeul: juger,
     arrete: () => arrete,
     eteint: () => !managerAllume(base),
     avertir,

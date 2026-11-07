@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
+import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
 import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
@@ -36,6 +37,9 @@ export type Atelier = {
   // Fait répondre le LLM à une consigne, sous les garde-fous.
   demander: <T>(sujet: { numero: number; prefixe: string; nom: string }, consigne: string, lire: (message: string | null) => { valeur: T } | { illisible: string }) => Promise<Reponse<T> | null>;
   peutJuger: () => boolean;
+  // Juge une épique comme un ticket seul, quand son découpage reste illisible
+  // après une relance. Rend vrai si le jugement a abouti.
+  jugerSeul?: (epic: IssueOuverte, commentaires: string[], etat: string) => Promise<boolean>;
   // Le runtime s'arrête : plus rien ne s'écrit.
   arrete: () => boolean;
   // Le chef a éteint le manager : ce qui est décidé reste au journal.
@@ -252,10 +256,23 @@ export function ouvrirDecoupage(atelier: Atelier) {
           } catch (erreur) {
             avertir(`brigade : plan du dépôt illisible, l'épique #${epic.number} est découpée sans lui — ${message(erreur)}`);
           }
-          const reponse = await demanderDecoupage({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, { depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
-          if (!reponse) return false;
-          retenir(epic.number, etat, reponse);
-          connu = decoupageDe(base, epic.number);
+          const mission = { depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) };
+          const suite = await demanderAvecRelance(
+            () => demanderDecoupage({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, mission),
+            async () => (await atelier.jugerSeul?.(epic, commentaires, etat)) ?? false,
+          );
+          if ("seul" in suite) {
+            // Jugée comme un ticket : son découpage illisible est noté, pour
+            // qu'elle ne soit pas redécoupée tant qu'elle ne change pas.
+            if (!suite.seul) return false;
+            noter(epic.number, { type: "manager.split-failed", payload: { run: "juge-seul", fingerprint: etat, reason: "découpage illisible deux fois — jugée comme un ticket seul" } });
+            connu = decoupageDe(base, epic.number);
+          } else {
+            const { reponse } = suite;
+            if (!reponse) return false;
+            retenir(epic.number, etat, reponse);
+            connu = decoupageDe(base, epic.number);
+          }
         }
       }
       if (!connu) return true;
