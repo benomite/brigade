@@ -9,7 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type OptionsDuDepot, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, cheminsDuDepot, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type OptionsDuDepot, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import { ConsigneIllisible } from "../src/second-juge.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
@@ -2052,6 +2052,65 @@ test("the open PRs are read only when a ticket has a zone (#2188)", async () => 
   await a.calme();
   assert.ok(!faux.appels.some((appel) => appel.quoi === "prsOuvertes"));
   assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
+});
+
+test("the paths a body names are kept only when they name the repository: a tracked file or folder, or a new file in a tracked folder (#2826)", () => {
+  const suivis = ["src/app.ts", "src/ui/clock.ts", "README.md"];
+  assert.deepEqual(cheminsDuDepot(["e.g", "i.e", "and/or", "Node.js", "Done.Next", "github.com/foo/bar"], suivis), []);
+  assert.deepEqual(cheminsDuDepot(["src/app.ts", "README.md", "src/ui", "src", "src/ui/new.ts", "src/nouveau/x.ts", "NEW.md"], suivis), ["src/app.ts", "README.md", "src/ui", "src", "src/ui/new.ts"]);
+});
+
+// Une station du dépôt, trois places, dont les cooks ne partent jamais : ce
+// qu'elle prend en un tour se lit au `taken` que ses prises posent.
+async function prisEnUnTour(t: TestContext, corps: Record<number, string>, fichiers: () => string[], avertir: (texte: string) => void = (texte) => assert.fail(texte)): Promise<number[]> {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  for (const [numero, texte] of Object.entries(corps)) faux.feu(Number(numero), CALIBRE, texte);
+  const station = stationDuDepot({
+    nom: "box",
+    places: 3,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: () => new Promise(() => {}),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 0,
+      changes: () => [],
+      diff: () => "",
+      fichiers,
+    },
+    ...reglagesDuFauxClaude(repertoire, () => assert.fail("no cook leaves")),
+    avertir,
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return [];
+  await station.tour();
+  return Object.keys(corps).map(Number).filter((numero) => faux.ticket(numero).labels.has(LABEL_TAKEN));
+}
+
+const corpsQuiSeRessemblent = {
+  21: "Show the clock on the mirror, e.g. at the top, and/or the date. Built on Node.js. Touches `src/ui/clock.ts`.",
+  22: "Dim the screen at night, e.g. after 22:00, and/or on a sensor. Touches `src/ui/dim.ts`.",
+  23: "The clock's font is too small in `src/ui/clock.ts`.",
+};
+
+test("the station of this runtime: two tickets with no declared zone whose bodies both say “e.g.” and “and/or” leave together; one naming the same tracked file as a cooking ticket waits (#2826)", async (t) => {
+  assert.deepEqual(await prisEnUnTour(t, corpsQuiSeRessemblent, () => ["src/ui/clock.ts", "src/app.ts"]), [21, 22]);
+});
+
+test("the station of this runtime: tracked files that cannot be read leave a ticket with no declared zone holding every path its body names, and the station says so (#2826)", async (t) => {
+  const dits: string[] = [];
+  const pris = await prisEnUnTour(t, { 21: corpsQuiSeRessemblent[21], 22: corpsQuiSeRessemblent[22] }, () => {
+    throw new Error("git ls-tree failed");
+  }, (texte) => void dits.push(texte));
+  assert.deepEqual(pris, [21]);
+  assert.ok(dits.some((dit) => /tracked files could not be read on box .*git ls-tree failed/.test(dit)));
 });
 
 test("the zone of a ticket is read from its Zone section", () => {

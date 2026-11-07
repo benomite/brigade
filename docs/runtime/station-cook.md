@@ -39,6 +39,12 @@ epic) owns **the paths its body names** (`fichiersDuCorps`): before #2758 it hel
 for nothing, and these tickets were the conflicts with the base that kept the first-try rate under
 its threshold. A ticket the station opened (body starting with a `<!-- brigade:` mark) also names
 what it must not touch, so it owns only its declared zone; so does a ticket with an unreadable card.
+**Only the body's paths that name the repository count** (`cheminsDuDepot`, #2826): a file or folder
+the base tracks, or a new file in a tracked folder. A body is prose: `e.g`, `i.e`, `and/or`,
+`Node.js` have the shape of a path, and before #2826 two tickets that both wrote "e.g." held each
+other at the claim gate — the second waited for the whole cook of the first, counted as waiting for a
+claim. When the base's tracked files cannot be read, the station says so and the zone keeps every
+path of the body for that tick: it holds too much, it never lets two cooks leave on one file.
 
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
