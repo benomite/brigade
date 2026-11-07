@@ -1026,9 +1026,36 @@ test("the pass presses the next turns on a delivery, a fresh verdict and a merge
   faux.ciEnCours.delete(pr.number);
   await a.tour();
   assert.equal(faux.mergee(61)?.mergeePar, "A");
-  assert.deepEqual(pressions, [true, false, false, false], "merged");
+  assert.deepEqual(pressions, [true, false, false, true], "merged: what it held is taken at a turn at once (#2802)");
   await a.tour();
-  assert.deepEqual(pressions, [true, false, false, false], "a quiet kitchen");
+  assert.deepEqual(pressions, [true, false, false, true], "a quiet kitchen");
+});
+
+test("a cook that delivers nothing frees its place at once: the rail is taken again at a turn at once, not at the interval (#2802)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(63);
+  const cuits: number[] = [];
+  const a = faux.station("A", {
+    places: 1,
+    cuisiner: async (issue) => {
+      cuits.push(issue);
+      return { echec: "gates red" };
+    },
+    avertir: () => {},
+  });
+  const pressions: boolean[] = [];
+  let libre: boolean | undefined;
+  a.presser = (maintenant = false) => {
+    pressions.push(maintenant);
+    libre ??= !faux.ticket(63).labels.has(LABEL_TAKEN);
+  };
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(cuits, [63]);
+  assert.deepEqual(pressions, [true], "given back without a delivery: a turn at once");
+  assert.equal(libre, true, "pressed once the ticket is given back on the issue");
+  await a.tour();
+  assert.deepEqual(cuits, [63, 63], "the place it freed is taken at the pressed turn");
 });
 
 test("a review that requests changes presses the next turns: the ticket sent back is taken again within 30 s (#2333)", async () => {

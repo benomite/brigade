@@ -546,6 +546,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
   const cuire = async (ticket: TicketLu, calibrage: Calibrage) => {
     const issue = ticket.number;
+    // Le ticket est rendu sur l'issue sans livraison : sa place est libre.
+    let liberee = false;
     try {
       let fait = await cuisiner(ticket, calibrage);
       if (fait.testsMs !== undefined) chrono.tests(issue, fait.testsMs);
@@ -610,6 +612,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // Sans livraison, ce cook compte au temps du ticket comme un cook raté (#2662).
         chrono.rater(issue);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        liberee = true;
         return;
       }
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
@@ -629,11 +632,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await github.labelliser(issue, [HORS_CUISINE]);
       }
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+      liberee = true;
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — ${message(erreur)}`);
       aRendre.set(issue, ticket);
     } finally {
       enVol.delete(issue);
+      // Rendu sans livraison, le ticket a libéré sa place : le suivant du rail
+      // la prend à un tour tout de suite, pas à l'intervalle, jusqu'à deux
+      // minutes plus loin, compté à son attente d'une prise (#2802).
+      if (liberee) station.presser?.(true);
     }
   };
 
@@ -869,6 +877,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // Le pass a bougé : un verdict neuf, un merge, une mise à jour, un refus,
         // un renvoi, ou une CI attendue sur une tête neuve (#2333).
         let bouge = false;
+        let mergee = false;
         try {
           const rendu = await relire(pr, {
             github,
@@ -919,6 +928,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             const attendue = fusion.issue === "ci-attendue" || fusion.issue === "gates-a-jouer";
             if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
             if (fusion.issue === "mergee") {
+              mergee = true;
               await servir(ticket.number, ticket.labels);
               await cloreLeServi(ticket);
             }
@@ -946,7 +956,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         } finally {
           enRelecture.delete(ticket.number);
-          if (bouge) station.presser?.();
+          // Mergée, elle libère ce qui retenait des tickets — une dépendance,
+          // une zone tenue, une place du pass — : ils se prennent à un tour
+          // tout de suite, pas 30 s plus loin (#2802).
+          if (bouge || mergee) station.presser?.(mergee);
         }
         };
         enRelecture.set(ticket.number, relireEtFusionner());
