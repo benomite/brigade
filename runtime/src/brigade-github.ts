@@ -962,14 +962,43 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         break;
       }
     }
+    // La zone d'un ticket : la section `Zone` de son corps, et la ligne `zone`
+    // de sa fiche — où le découpage l'écrit. Lue du corps seul, la zone d'un
+    // ticket né d'une épique n'était jamais tenue : deux cooks partaient sur
+    // les mêmes fichiers, et le second livré revenait en conflit (#2741). Une
+    // fiche illisible, ou des commentaires que GitHub ne donne pas, ne font
+    // pas foi : la zone est alors celle du corps.
+    const zones = new Map<number, Promise<string[]>>();
+    // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
+    const prisCeTour = new Set<number>();
+    const zoneDuTicket = (numero: number): Promise<string[]> => {
+      const deja = zones.get(numero);
+      if (deja !== undefined) return deja;
+      const lue = (async () => {
+        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
+        const laFiche = fiche(commentaires.map(({ body }) => body));
+        return [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
+      })();
+      zones.set(numero, lue);
+      return lue;
+    };
     // Une zone tenue : un de ses chemins en recoupe un que change une PR
-    // ouverte qui n'est pas celle du ticket.
+    // ouverte qui n'est pas celle du ticket, ou un de la zone d'un ticket en
+    // cuisson, ici ou sur une autre station — un cook tient sa zone avant
+    // d'avoir sa PR (#2741).
     const tenue = async (ticket: TicketLu): Promise<string | null> => {
-      const zone = zoneDuCorps(await github.corpsDuTicket(ticket.number));
+      const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
       ouvertes ??= await github.prsOuvertes();
       const propre = brancheDuTicket(ticket.number);
-      return ouvertes.find((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))))?.branche ?? null;
+      const pr = ouvertes.find((ouverte) => ouverte.branche !== propre && ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
+      if (pr !== undefined) return pr.branche;
+      for (const autre of tickets) {
+        if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
+        const sienne = await zoneDuTicket(autre.number).catch(() => []);
+        if (sienne.some((chemin) => zone.some((entree) => secoupent(entree, chemin)))) return brancheDuTicket(autre.number);
+      }
+      return null;
     };
     // Le premier des tickets que la fiche du ticket attend qui soit mis de côté
     // (`hors-cuisine`, `blocked-on-human`), avec la ligne de raison de son départ.
@@ -1071,6 +1100,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         throw erreur;
       }
       if (!pris.prise) continue;
+      prisCeTour.add(ticket.number);
       chrono.prendre(ticket.number);
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }

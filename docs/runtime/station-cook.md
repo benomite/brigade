@@ -28,6 +28,13 @@ back to queued having delivered nothing, one off the rail, a merged delivery (ev
 **unreadable** card, a PR opened outside any ticket. **Back from 86**, a ticket claims its zone again
 under the same rule; if another took it meanwhile, it waits for that one to be served.
 
+**On the GitHub-only path** (a station with no log), the claim gate applies the same hold: a ticket's
+zone is the `Zone` section of its body **and** the `zone` line of its card (where the split writes it;
+an unreadable card owns nothing), and it is held by an open PR that changes one of its paths, or by a
+ticket **taken** on any station — or claimed earlier in the same tick — whose zone overlaps, before
+that cook has opened its PR. Before #2741 only the body was read and only open PRs held: two cooks
+left on the same files, and the second delivered came back in conflict with the base.
+
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
 
