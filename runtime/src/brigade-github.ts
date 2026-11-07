@@ -53,6 +53,7 @@ import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, r
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
+import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { correctionDuTemps } from "./temps-max/correction.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
@@ -366,6 +367,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
   const corrigerLeTemps = clone === undefined ? null : correctionDuTemps({ github, lire: () => lesTempsDesTickets(clone), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  // La médiane des rapports cuisson réelle / attendue au-dessus de
+  // `cookingOverEstimateMax` ouvre son ticket de correction, un seul (#2676).
+  const alerterLaCuisson = clone === undefined ? null : alerteDuClone(clone, { github, avertir, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
   // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
   // `in-pass`. GitHub ne ferme pas toujours l'issue par le `Closes #N` de la PR
   // (#2467) ; la fermeture passe d'abord, pour qu'un retrait réussi sur une
@@ -642,7 +646,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     const lus = await github.fires();
-    await corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median ticket time is over the max but its correction ticket could not be opened on ${nom} — ${message(echec)}`));
+    await Promise.all([
+      corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median ticket time is over the max but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
+      alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
+    ]);
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
     // Une épique découpée garde `fire` et sa `prio:` : ni elle ne se prend, ni
