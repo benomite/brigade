@@ -9,14 +9,14 @@
 // La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `no-grant`…).
 export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null };
 
-// Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue — là où le chef répond, recalibre ou
-// corrige —, la renvoyer en cuisine. Merger la livraison se fait sur sa PR, sur GitHub : l'app n'a pas de bouton.
+// Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue
+// — là où le chef répond, recalibre ou corrige —, la renvoyer en cuisine.
 export type GesteAttendu = "retirer" | "issue" | "cuisine";
 export type Attendu = { phrase: string; gestes: GesteAttendu[] };
 
 export const SANS_DECISION = "This ticket waits for your decision — its issue says which.";
 
-// Une livraison verte que la pass ne merge pas elle-même : le geste est de la merger.
+// Une livraison verte que la pass ne merge pas elle-même : elle se merge sur sa PR, sur GitHub — aucun geste de l'app.
 const VERTE: Readonly<Record<string, string>> = {
   "no-grant": "Green, but the pass may not merge it without the merge grant: merge it yourself.",
   "review-required": "Green, but it touches what judges it or what the project opens: review it, then merge it.",
@@ -38,9 +38,11 @@ const ECARTEES: Readonly<Record<string, Attendu>> = {
   "blocked-on-human": { phrase: "Held for you: remove the label so the manager judges it again, or close the issue.", gestes: [] },
 };
 
-// Ce qui sort une remontée, selon qu'elle a une PR à merger ou non.
-const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } =>
-  pr === null ? { suite: "take it off the rail, or close its issue.", gestes: ["retirer"] } : { suite: "merge it anyway, or take it off the rail.", gestes: ["retirer"] };
+// Ce qui sort une remontée : le retrait du rail ; la phrase dit en plus que la PR, s'il y en a une, se merge sur GitHub.
+const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } => ({
+  suite: pr === null ? "take it off the rail, or close its issue." : "merge it anyway, or take it off the rail.",
+  gestes: ["retirer"],
+});
 
 function remontee({ motif, cause, pr }: Decision): Attendu {
   const { suite, gestes } = SORTIR(pr);
@@ -51,7 +53,7 @@ function remontee({ motif, cause, pr }: Decision): Attendu {
 
 export function attenduDe(decision: Decision | undefined): Attendu {
   if (decision === undefined) return { phrase: SANS_DECISION, gestes: [] };
-  const { quoi, motif, pr } = decision;
+  const { quoi, motif } = decision;
   switch (quoi) {
     case "merge":
       return { phrase: (motif === null ? undefined : VERTE[motif]) ?? "Green, but not merged: merge it yourself.", gestes: [] };

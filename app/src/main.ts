@@ -42,7 +42,7 @@ import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
-import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
+import { gestesDeCarte } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
@@ -829,8 +829,7 @@ ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
 // montre aussitôt la nouvelle priorité, jusqu'à ce que sa lecture la montre. Retirer le ticket du rail et
 // renvoyer en cuisine un ticket revenu de WAITING retirent de son issue `fire` ou `waiting`, par le même
 // jeton (gestes-github.ts, #2061) ; le rail, relu de GitHub, le montre. Merger la livraison se fait sur sa
-// PR, sur GitHub : rien ne part de l'app. Les autres sont une action de box, qui part dans le second
-// comme un geste du socle. La vue nomme le geste, le ticket et la valeur ; ce qui part se compose ici,
+// PR, sur GitHub : rien ne part de l'app. La vue nomme le geste, le ticket et la valeur ; ce qui part se compose ici,
 // jamais dans la vue.
 ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
@@ -843,7 +842,7 @@ ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unkn
     redessinerRail(vise.nom);
     return { fait: rendu.fait, detail: rendu.detail };
   }
-  if (!surGithub(id)) return jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
+  if (!surGithub(id)) return { refus: `nothing was done: “${String(id)}” is not a gesture the app plays here`, detail: "" };
   const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;

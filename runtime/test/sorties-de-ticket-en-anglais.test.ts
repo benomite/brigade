@@ -5,7 +5,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { principal as attendre } from "../src/attente-cli.ts";
-import { principal as montrerPass } from "../src/montrer-pass.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { principal as relire } from "../src/relire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
@@ -84,40 +83,4 @@ test("`waiting` : lister, set, resume, arrived et leurs refus ne portent aucun m
   const refus = await sortie(attendre, [], {});
   assert.equal(refus.code, 2);
   sansMotFrancais(refus.lignes);
-});
-
-test("`pass` : les livraisons de l'état d'exemple, chaque ticket et chaque refus ne portent aucun mot français du glossaire", async (t) => {
-  const { env } = etat(t);
-  const liste = await sortie(montrerPass, [], env);
-  assert.equal(liste.code, 0);
-  sansMotFrancais(liste.lignes);
-
-  // Un ticket par la pass : ses lignes sont celles de `pass` ; la charge utile écrite par d'autres (constat du reviewer, des gates) est lue telle quelle.
-  const ticket = await sortie(montrerPass, ["40"], env);
-  assert.equal(ticket.code, 0);
-  sansMotFrancais(ticket.lignes);
-  sansMotFrancais((await sortie(montrerPass, ["404"], env)).lignes);
-
-  // Les refus : un argument qui n'est pas un ticket, un geste mal formé, sans dépôt, sans état, sans journal.
-  const avecDepot = { ...env, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: "/inexistant" };
-  for (const [args, environnement] of [
-    [["tous"], env], [["40", "--json", "x"], env], [["40", "comment"], avecDepot], [["40", "issue", "x"], avecDepot], [["40", "bouger"], avecDepot], [["40", "issue"], env], [["40", "ask"], env],
-    [["40", "issue"], avecDepot], [["40", "comment", "du contexte"], avecDepot], [[], {}], [[], { BRIGADE_STATE_DIR: repertoireTemporaire(t) }],
-  ] as const) {
-    const refus = await sortie(montrerPass, [...args], { ...environnement });
-    assert.notEqual(refus.code, 0, args.join(" "));
-    sansMotFrancais(refus.lignes);
-  }
-});
-
-test("`pass --json` garde ses clés", async (t) => {
-  const { env } = etat(t);
-  const json = await sortie(montrerPass, ["40", "--json"], env);
-  assert.equal(json.code, 0);
-  const lu = JSON.parse(json.lignes.join("\n")) as Record<string, unknown>;
-  assert.ok(Object.keys(lu).length > 0);
-  const clefs = (valeur: unknown): string[] =>
-    Array.isArray(valeur) ? valeur.flatMap(clefs) : valeur !== null && typeof valeur === "object" ? Object.entries(valeur).flatMap(([clef, sous]) => [clef, ...clefs(sous)]) : [];
-  // Les clés sont celles de la projection, en anglais et en camelCase : aucune n'est traduite.
-  for (const clef of clefs(lu)) assert.match(clef, /^[a-z][A-Za-z0-9]*$/, clef);
 });

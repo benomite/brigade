@@ -7,35 +7,30 @@
 //   - pris ou en pass : rien de plus — on ne touche pas à un ticket en cours ;
 //   - servi : en plus, le voir dans le navigateur (#620), s'il y a un écran ;
 //   - qui t'attend : d'abord, les gestes qui tranchent ce qu'on attend de toi (decision.ts) — le
-//     premier est le recommandé : merger la livraison, la sortir du rail, ouvrir l'issue, la
+//     premier est le recommandé : la sortir du rail, ouvrir l'issue, la
 //     renvoyer en cuisine. Jamais une commande à recopier ni à envoyer : un bouton, qui la joue.
 // Un geste n'apparaît que si son action est branchée (`ACTIONS`) : la table dit ce qui est
 // permis, le branchement ce qui se fait. Une action qui n'est pas livrée n'a pas de branchement,
 // et son geste n'est jamais proposé — ni grisé, ni promis. Celles qui manquent aujourd'hui :
 // « mettre en WAITING » (#588) et « voir dans le navigateur » (#620) — leur épique n'est pas
 // livrée ; elle se branche ici à sa livraison, d'une ligne, sans rien toucher d'autre.
-// Ce module ne lance rien : il dit ce qui se propose, et compose ce qui part.
-import type { Cuisine } from "./box.ts";
-import type { Projet } from "./config.ts";
+// Ce module ne lance rien : il dit ce qui se propose.
 import { attenduDe, decisionLue, type Decision } from "./decision.ts";
-import { enPoste } from "./gestes.ts";
 import { PRIORITES } from "./priorite.ts";
-import { CONTROLE, type Terminal } from "./terminaux.ts";
 
 export type IdDeFiche = "issue" | "pr" | "second" | "retirer" | "cuisine" | "priorite" | "waiting" | "navigateur";
 
-// Comment une action se joue, une fois branchée : `app`, l'app la joue elle-même (ouvrir une
-// adresse, écrire dans le second) ; `box`, c'est une commande du runtime — `box` compose ce qui
-// suit `brigade <nom>`, pour ce ticket et la valeur choisie. `si` : ce que l'action demande de
-// plus à la carte pour se proposer — l'écran d'une livraison, pour le navigateur.
-export type Branchement = ({ app: true } | { box: (ticket: number, valeur?: string) => string }) & { si?: (carte: CarteDeFiche) => boolean };
+// Comment une action se joue, une fois branchée : l'app la joue elle-même (ouvrir une adresse,
+// écrire dans le second, écrire sur GitHub). `si` : ce que l'action demande de plus à la carte pour
+// se proposer — l'écran d'une livraison, pour le navigateur.
+export type Branchement = { app: true; si?: (carte: CarteDeFiche) => boolean };
 export type Actions = Readonly<Partial<Record<IdDeFiche, Branchement>>>;
 
 // Ce qui est branché aujourd'hui. Ouvrir l'issue et la PR, demander au second : l'app les joue
 // elle-même ; changer la priorité aussi — elle remplace le label `prio:` de l'issue sur GitHub
 // (priorite.ts, #1739), sans la box ; renvoyer en cuisine un ticket revenu de WAITING et le retirer
 // du rail aussi — elle retire de son issue `waiting` ou `fire` (gestes-github.ts, #2061). Merger la
-// livraison se fait sur sa PR, sur GitHub : l'app n'a pas de bouton pour cela. Les autres attendent leur
+// livraison se fait sur sa PR, sur GitHub : le geste n'est pas proposé. Les autres attendent leur
 // action (en tête de ce fichier).
 export const ACTIONS: Actions = {
   issue: { app: true },
@@ -43,7 +38,7 @@ export const ACTIONS: Actions = {
   second: { app: true },
   priorite: { app: true },
   cuisine: { app: true },
-  retirer: { box: (ticket) => `rail remove ${ticket}` },
+  retirer: { app: true },
 };
 
 // Ce que la fiche lit de la carte cliquée (faits.ts, `Carte`) : son mot d'état, si elle s'ouvre
@@ -126,29 +121,4 @@ export function gestesDeCarte(carte: unknown, actions: Actions = ACTIONS): Propo
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket)) return [];
   const lue = decisionLue(decision);
   return gestesDeLaFiche({ ticket, ...(texte(etat) ? { etat } : {}), ouvrable: ouvrable === true, attendu: attendu === true, ...(lue === undefined ? {} : { decision: lue }), ...(typeof pr === "boolean" ? { pr } : {}) }, actions);
-}
-
-// Ce que joue un geste de la fiche que l'app ne joue pas dans la vue — une commande de la box —, ou
-// pourquoi rien ne part. Elle part au clic — confirmé d'abord s'il coûte —, comme un geste direct
-// du socle (gestes.ts), et sa sortie se lit dans le second. `cuisine` : là où celle du projet
-// tourne à cet instant — sa box, ou cet ordinateur, où elle part.
-type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> };
-export function jouerGesteDeFiche(
-  terminaux: Registre,
-  projet: Projet,
-  id: unknown,
-  ticket: unknown,
-  valeur: unknown,
-  actions: Actions = ACTIONS,
-  cuisine: Cuisine | undefined,
-): { refus: string } | Promise<Terminal | { refus: string }> {
-  if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing is sent: the action names no ticket" };
-  if (cuisine === undefined) return { refus: `nothing is sent: “${projet.nom}” has no station — there is no command to run` };
-  if (projet.refus !== undefined) return { refus: `nothing is sent: “${projet.nom}” does not open — ${projet.refus}` };
-  const action = typeof id === "string" && Object.hasOwn(actions, id) ? actions[id as IdDeFiche] : undefined;
-  if (action === undefined || !("box" in action)) return { refus: `nothing is sent: “${String(id)}” is not an action of the station that this app can run` };
-  const suite = action.box(ticket, texte(valeur) ? valeur : undefined);
-  if (CONTROLE.test(suite)) return { refus: "nothing is sent: the command carries a control character" };
-  const ecrit = enPoste(cuisine, projet.nom, suite);
-  return "refus" in ecrit ? ecrit : terminaux.envoyer(projet, `!${ecrit.commande}`);
 }

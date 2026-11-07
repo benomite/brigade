@@ -87,7 +87,7 @@ npm --prefix runtime run guardrails -- pause no    # the slip leaves; an accepte
 
 - **Without your "yes", nothing changes.**
 - **After your "yes"**, until the pause ends: the pass still judges, but a green delivery **waits**
-  (`pass.waiting`, reason `paused`); `rail merge` is refused; stations take no tickets
+  (`pass.waiting`, reason `paused`); stations take no tickets
   (`station.held`, `paused`). Only the rename's own ticket goes through. A merge already sent to
   GitHub is not caught up with.
 - **The queue says it in one line** under the head of `awaiting`, not counted as a decision:

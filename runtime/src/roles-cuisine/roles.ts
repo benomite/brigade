@@ -68,8 +68,8 @@ const FINS_DE_PASSE: Record<string, (removed: number) => string> = {
 // La phrase d'une valeur de la table, ou `sinon` pour une valeur qu'elle ne connaît pas — jamais une clé héritée.
 const parmi = <A>(table: Record<string, (a: A) => string>, cle: unknown, a: A, sinon: string) => (typeof cle === "string" && Object.hasOwn(table, cle) ? (table[cle] as (a: A) => string)(a) : sinon);
 
-// Les rôles, dans l'ordre où un ticket les croise : le manager le juge, la pass juge sa livraison — avec le
-// reviewer et, si elle touche à ses juges, le second juge —, le triage reprend la carte qui irait au chef, et
+// Les rôles, dans l'ordre où un ticket les croise : le manager le juge, le reviewer lit sa livraison — et, si elle touche à
+// ses juges, le second juge —, le triage reprend la carte qui irait au chef, et
 // le closer nettoie le projet quand le chef le lui demande. Les cooks, eux, sont sur les blocs des stations.
 export const ROLES: readonly Role[] = [
   {
@@ -86,20 +86,6 @@ export const ROLES: readonly Role[] = [
       { type: "manager.completed", dire: (p, n) => (p.outcome === "completed" ? `completed ${n} itself and put it on the rail` : p.outcome === "question" ? `asked you a product question on ${n}` : `re-read incomplete ${n}`) },
       { type: "manager.capability-resplit", dire: (_, n) => `rewrote ${n}: no station has what it asks` },
       { type: "manager.capability-gestured", dire: (_, n) => `asked you for an access ${n} needs` },
-    ],
-  },
-  {
-    role: "pass",
-    does: "Judges each delivery on its gates, its CI and its review, then merges it, sends it back to its cook, or escalates it to you.",
-    lectures: [
-      { type: "pass.judged", dire: (p, n) => `judged ${n} ${p.verdict === "green" ? "green" : "red"}` },
-      // Mergé par la pass, pas noté d'un merge fait hors d'elle.
-      { type: "merge.done", filtre: "json_extract(payload, '$.by') = 'pass'", dire: (_, n) => `merged ${n}` },
-      { type: "pass.served", dire: (_, n) => `served ${n}, which had no diff` },
-      // Le manager, le triage et le chef écrivent aussi ces deux faits : seuls ceux de la pass sont son geste.
-      { type: "pass.returned", filtre: "author = 'pass'", dire: (_, n) => `sent ${n} back to its cook` },
-      { type: "pass.escalated", filtre: "author = 'pass'", dire: (_, n) => `escalated ${n}` },
-      { type: "pass.deferred", dire: (_, n) => `handed ${n} to the manager` },
     ],
   },
   {

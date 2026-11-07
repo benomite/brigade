@@ -32,7 +32,6 @@ describe("l'attendu d'une décision", () => {
       assert.match(phrase, attendue, motif);
       assert.deepEqual(gestes, [], motif);
     }
-    assert.deepEqual(attenduDe(decision("merge", { motif: "no-grant" })).gestes, [], "sans PR, pas de merge");
   });
 
   test("chaque sorte a sa phrase et ses gestes : renvoyer en cuisine, ouvrir l'issue où répondre ou corriger, retirer du rail", () => {

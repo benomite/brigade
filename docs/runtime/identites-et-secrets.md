@@ -56,7 +56,7 @@ The "cook" identity is the one under which the **station** delivers. The cook's 
 
 ### The merge says who did it
 
-`merge.done` carries `actor`, the GitHub account that merged; `npm run pass -- <ticket>` shows it.
+`merge.done` carries `actor`, the GitHub account that merged; the journal keeps it.
 When the pass **notes** a merge (by hand, or found at restart), `by` is **what GitHub names**: `pass`
 if its identity, `outside` otherwise — and the base is then checked. Under the single identity, `by`
 stays what the runtime assumes.

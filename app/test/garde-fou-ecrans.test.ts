@@ -125,8 +125,8 @@ async function alertes(): Promise<Joue> {
 }
 
 // Une carte qui t'attend, sur le rail.
-const decisionMerge = { quoi: "merge", motif: "no-grant", cause: null, pr: "https://github.com/benomite/brigade/pull/31" };
-const carte = { ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, decision: decisionMerge, pr: true, attend: ["livraison verte, non mergée"], dit: [] };
+const decisionFermee = { quoi: "fermee", motif: "still-red", cause: null, pr: "https://github.com/benomite/brigade/pull/31" };
+const carte = { ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, decision: decisionFermee, pr: true, attend: ["livraison verte, non mergée"], dit: [] };
 const faitsAvecCarte = (demande: number): Dessinable =>
   ({
     projet: "parade",
@@ -330,7 +330,7 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
   test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, dans l'ordre de la table", async () => {
     const { racine } = await ficheEnAttente();
     const proposes = gestesDeCarte(carte);
-    assert.ok(proposes.length > 0, "la table du chef propose des gestes pour cette carte");
+    assert.ok(proposes.some(({ id }) => id === "retirer"), "la décision attendue se tranche par le retrait : le geste manque à la table");
     const boutonsDeLaFiche = boutons(racine).map(({ textContent }) => textContent);
     for (const { libelle, id } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
     const [premier] = proposes;

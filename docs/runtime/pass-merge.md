@@ -16,7 +16,7 @@ npm --prefix runtime run grant -- revoke merge
 - **Absent by default**, and **not retroactive**: enabling it holds for the deliveries that
   follow; the ones already stopped, you merge by hand.
 - **Every use is logged** (`grant.used`: ticket, PR, commit, verdict): the answer to "why is this
-  code on `main`?" — `grant` lists the uses, `pass -- <ticket>` the verdict.
+  code on `main`?" — `grant` lists the uses; the verdict is on the delivery's PR.
 - **The merge is written in two steps**: the intent (`grant.used`) before the call to GitHub, the
   result after (`merge.done`, `merge.failed`). A runtime that died in between rereads the PR on
   restart. GitHub accepts the merge only if the branch is still on the judged commit; a merge it
@@ -64,24 +64,6 @@ or a limit set on a grant that had none, is refused — revoke, then enable agai
 grant is **enabled again** with `enable`; `enable` on an active grant writes nothing and points to
 `extend`.
 
-### Seeing the pass
-
-```bash
-npm --prefix runtime run pass              # the deliveries: phase, reason, returns used, PR — base state first when it matters, tally of stops without a grant last
-npm --prefix runtime run pass -- 17        # the history of ticket 17: each verdict and what produced it
-npm --prefix runtime run pass -- 17 --json  # same for the app, with cost and retro: {ticket, steps, cost, retro}
-npm --prefix runtime run pass -- 17 --relaunch  # relaunch the judgement of 17, stuck in pass (below)
-```
-
-```
-BASE RED since 2026-10-09T09:20:52.000Z (5d2e7b1) — after the merge of #17: nothing is judged or merged, deliveries wait
-#18  STOPPED — green, not merged (no-grant)  returns 0/2  since 2026-10-08T14:20:03.000Z  https://github.com/benomite/brigade/pull/53
-#20  ESCALATED (unjudged : ci-silent)  returns 0/2  since 2026-10-08T14:40:11.000Z  https://github.com/benomite/brigade/pull/55
-```
-
-`run pass -- <ticket>` unrolls each fact: review, verdict, return, grant use, merge and the GitHub
-identity that made it. Both commands never write and answer while the runtime runs.
-
 ### Deliveries judged in parallel
 
 The pass takes deliveries in delivery order and judges **several at once when their zones do not
@@ -127,14 +109,6 @@ writes nothing for a delivery that is not stuck:
 | queued for a reason (`base-red`, `machine-saturated`, …) | `#18 is queued (base-red): it is not stuck, the pass takes it up on its own once that is lifted` |
 | judged, merged or served | `#17 is already judged green: there is no judgement to relaunch` — or `already merged`, `already served`, `already judged red, and returned to a cook` |
 | being cooked, never delivered, off the rail | `#17 is being cooked: there is no delivery to judge yet`, `…never been through the pass…`, `…left the rail…` |
-
-`rail send-back` only sends back a delivery that awaits the chef (green and not merged, or
-escalated) and refuses a stuck one (`#644 has no delivery waiting for you: …`). Relaunching has it
-judged; it does not return it to a cook.
-
-`retro`, in `--json`, is the ticket's latest retro (#1038): `{at, text, lessons}`, `text` what the
-cook wrote between `<retro>` and `</retro>` (null if nothing), `lessons` at most three
-`{kind: "propose" | "reconfirm", id, text}`. `retro` is null until the ticket has one.
 
 The events not documented in [`pass.md`](pass.md) (which owns `pass.started`, `pass.reviewed`,
 `pass.ci-*`, `pass.test-fix-opening`, `pass.held`, `pass.escalated`, `pass.second-judged`,

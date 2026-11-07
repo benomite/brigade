@@ -1,11 +1,8 @@
-// L'histoire d'un ticket et ce qu'il a coûté, sur sa fiche : ce que le runtime en dit par
-// `pass -- <ticket> --json` (runtime/src/histoire-ticket.ts), posé tel quel — les étapes dans
-// l'ordre de la box, chacune avec son heure, et le coût. Rien n'est inventé : une étape qui n'a
-// pas eu lieu n'y est pas, une valeur que la box ne communique pas est écrite comme telle.
+// L'histoire d'un ticket et ce qu'il a coûté, sur sa fiche : les types que la fiche dit, remplis de ce que
+// GitHub en garde (fiche-github.ts) — les étapes dans l'ordre, chacune avec son heure, et le coût. Rien
+// n'est inventé : une valeur que GitHub ne porte pas est écrite « not communicated ».
 // S'y ajoutent, pour un ticket vivant, ce que son cook fait en ce moment ou ce qui le bloque,
 // lus de ce que sa carte porte déjà (faits.ts) — aucune lecture de plus.
-import { duree } from "./faits.ts";
-
 export const NON_COMMUNIQUE = "not communicated";
 
 // Une étape, dite : son mot, l'heure de la box, sa couleur quand elle juge (`vert`, `rouge`), et
@@ -26,88 +23,12 @@ export type Histoire = { etapes: EtapeDite[]; cout: CoutDit; retro: RetroDite } 
 
 // Un instant de la box, tel qu'elle l'a donné : son jour et son heure, en UTC.
 export const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
-const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0;
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
-const heure = (valeur: unknown): valeur is string => texte(valeur) && !Number.isNaN(Date.parse(valeur));
 const objet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
-
-const ILLISIBLE = "not read: the station did not return the history in the expected shape";
-
-function etape(brut: unknown): EtapeDite | undefined {
-  if (!objet(brut) || !heure(brut.at)) return undefined;
-  const at = instant(brut.at);
-  switch (brut.kind) {
-    case "arrived":
-      return { libelle: "arrived", at };
-    case "taken":
-      return { libelle: texte(brut.station) ? `taken by ${brut.station}` : "taken", at };
-    case "delivered":
-      return { libelle: "delivered", at };
-    case "reviewed": {
-      const { verdict, summary } = brut;
-      const detail = texte(summary) && summary !== "" ? { detail: summary } : {};
-      if (verdict === "green") return { libelle: "reviewed: green", at, ton: "vert", ...detail };
-      if (verdict === "red") return { libelle: "reviewed: red", at, ton: "rouge", ...detail };
-      return verdict === "unreadable" ? { libelle: "reviewed: verdict unreadable", at, ...detail } : undefined;
-    }
-    case "judged":
-      if (brut.verdict === "green") return { libelle: "judged: green", at, ton: "vert" };
-      return brut.verdict === "red" ? { libelle: "judged: red", at, ton: "rouge" } : undefined;
-    case "merged":
-      return { libelle: brut.by === "outside" ? "merged (outside the pass)" : "merged", at };
-    case "served":
-      return { libelle: "served without a merge", at };
-    default:
-      return undefined;
-  }
-}
 
 // Une rétro en laisse au plus trois (runtime/src/apprentissage/retro.ts, `LECONS_MAX`).
 export const LECONS_MAX = 3;
 export const SANS_RETRO = "no retro for this ticket yet";
-const RETRO_PAS_DONNEE = "retro not communicated: this station does not give it yet";
-const RETRO_ILLISIBLE = "retro not read: the station did not return it in the expected shape";
-
-// La rétro, telle que `pass -- <ticket> --json` la donne (`retro`) : nulle, le ticket n'a pas
-// été servi ; absente, la box est d'avant la rétro sur la fiche.
-function retroDe(brute: unknown): RetroDite {
-  if (brute === undefined) return { sans: RETRO_PAS_DONNEE };
-  if (brute === null) return { aucune: SANS_RETRO };
-  if (!objet(brute)) return { sans: RETRO_ILLISIBLE };
-  const { at, text, lessons } = brute;
-  if (!heure(at) || !(text === null || texte(text)) || !Array.isArray(lessons)) return { sans: RETRO_ILLISIBLE };
-  const lecons = lessons.slice(0, LECONS_MAX).flatMap((lecon: unknown): LeconDite[] => {
-    if (!objet(lecon) || (lecon.kind !== "propose" && lecon.kind !== "reconfirm")) return [];
-    const { id, text: dite } = lecon;
-    return [{ id: texte(id) && id !== "" ? id : "id not given", texte: texte(dite) && dite !== "" ? dite : "text not given", reconfirmee: lecon.kind === "reconfirm" }];
-  });
-  return { at: instant(at), texte: text === "" ? null : text, lecons };
-}
-
-// Ce que `pass -- <ticket> --json` a rendu, en mots de la fiche — ou pourquoi on n'en lit rien.
-export function histoireDe(sortie: string): Histoire {
-  let lu: unknown;
-  try {
-    lu = JSON.parse(sortie);
-  } catch {
-    return { sans: ILLISIBLE };
-  }
-  if (!objet(lu) || !Array.isArray(lu.steps) || !objet(lu.cost)) return { sans: ILLISIBLE };
-  const { attempts, tokens, durationMs, incomplete } = lu.cost;
-  if (!nombre(attempts) || (tokens !== null && !nombre(tokens)) || (durationMs !== null && !nombre(durationMs))) return { sans: ILLISIBLE };
-  const etapes = lu.steps.flatMap((brute) => etape(brute) ?? []);
-  return {
-    etapes,
-    cout: {
-      tokens: tokens === null ? NON_COMMUNIQUE : String(tokens),
-      duree: durationMs === null ? NON_COMMUNIQUE : duree(durationMs),
-      // Les essais sont toujours connus : aucun cook lancé, c'est zéro, pas un manque.
-      essais: String(attempts),
-      minimum: incomplete === true,
-    },
-    retro: retroDe(lu.retro),
-  };
-}
 
 // Ce que la fiche d'un ticket vivant dit en plus : ce que son cook fait en ce moment (ticket pris
 // ou en pass), ou ce qui le bloque (ticket en attente). Lu des faits que sa carte porte — mots du

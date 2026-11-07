@@ -22,9 +22,8 @@ export type DeLaBox = { nom: string; description: string; ancien?: string; mots?
 export const COMMANDES: readonly DeLaBox[] = [
   { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live", mots: { "--suivre": "--follow" } },
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
-  { nom: "rail", description: "The ticket rail; remove <ticket>, merge <ticket>, send-back <ticket> [reason…], correct <ticket> <reason…>" },
+  { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human" },
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
-  { nom: "pass", description: "The old pass's verdicts, as the log keeps them: [<ticket> [--json]]; <ticket> issue reads the card's GitHub issue, <ticket> comment <text> posts on it" },
   { nom: "station", description: "A station's settings: cooks <N>, stop <station>, start <station>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },

@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
@@ -269,10 +268,8 @@ test("la fiche d'un ticket qui demande une capacité la montre ; sans station qu
 });
 
 // Les gestes du chef sur un ticket du rail (geste-ticket.ts), tels que la fiche de l'app les
-// lance : `brigade <projet> rail remove <ticket>`, `… rail merge <ticket>` ; et ceux qui font
-// d'une raison une leçon, `… rail send-back <ticket> [raison…]` et `… rail correct <ticket>
-// <raison…>`. La priorité n'en est plus un : l'app change le label `prio:` de l'issue (#1739).
-describe("remove, merge, send-back et correct", () => {
+// lance : `brigade <projet> rail remove <ticket>`. La priorité n'en est plus un : l'app change le label `prio:` de l'issue (#1739).
+describe("remove", () => {
   const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
   const LABELS = (numero: number) => `${ISSUE(numero)}/labels`;
 
@@ -316,16 +313,6 @@ describe("remove, merge, send-back et correct", () => {
     assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
   });
 
-  test("merge refuse un ticket dont aucune livraison n'attend d'être mergée par le chef, sans rien demander à GitHub : la raison et le prix, en code 1", async (t) => {
-    const { gh, jouer } = cuisine(t);
-
-    const commande = jouer(["merge", "18"]);
-
-    assert.equal(await commande.fin, 1);
-    assert.match(commande.sortie(), /#18 is not touched: #18 has no delivery waiting for you to merge it — cost: none: nothing was changed/);
-    assert.deepEqual(gh.appels(), []);
-  });
-
   test("la priorité n'est pas un geste de la box : `priority` est un geste inconnu, refusé en 2, et rien ne part à GitHub (#1739)", async (t) => {
     const { journal, gh, jouer } = cuisine(t);
 
@@ -338,27 +325,9 @@ describe("remove, merge, send-back et correct", () => {
     assert.equal(ticketDuRail(journal.base, 18)?.priority, 5);
   });
 
-  test("correct dit pourquoi le chef a corrigé une livraison, en mots tapés sans guillemets : une leçon candidate, sans rien demander à GitHub ; send-back refuse ce qui n'attend pas le chef", async (t) => {
-    const { journal, gh, jouer, rail } = cuisine(t);
-    rail.envoyerEnPass(14, "box/claude");
-
-    const commande = jouer(["correct", "14", "Relire", "la", "fiche", "avant", "d'écrire."]);
-    assert.equal(await commande.fin, 0);
-    assert.match(commande.sortie(), /^#14: correction recorded — cost: none: your reason becomes a candidate lesson of the project/);
-    assert.deepEqual(
-      carnetDuProjet(journal.base, "brigade").lecons.map((l) => [l.texte, l.origin]),
-      [["Relire la fiche avant d'écrire.", { kind: "chef-correction", ticket: 14 }]],
-    );
-
-    const renvoi = jouer(["send-back", "18", "Une", "raison."]);
-    assert.equal(await renvoi.fin, 1);
-    assert.match(renvoi.sortie(), /#18 is not touched: #18 has no delivery waiting for you: .* — cost: none: nothing was changed/);
-    assert.deepEqual(gh.appels(), []);
-  });
-
   test("une demande mal formée, ou sans dépôt déclaré, est refusée en 2 avant que rien ne parte", async (t) => {
     const { gh, jouer } = cuisine(t);
-    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["merge"],["merge", "18", "now"], ["send-back"], ["correct", "x", "raison"], ["supprimer", "18"]]) {
+    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["merge", "18"], ["send-back", "18"], ["correct", "18", "raison"], ["supprimer", "18"]]) {
       const commande = jouer(args);
       assert.equal(await commande.fin, 2, args.join(" "));
       assert.match(commande.sortie(), /usage/, args.join(" "));

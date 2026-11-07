@@ -7,9 +7,7 @@
 // montre, celle de sa première entrée de la file.
 //
 // Ce qui suit dépend du choix (`suite`) et de l'endroit où le ticket attend :
-// - `merge` : la livraison qui attend le chef d'être mergée — verte, ou
-//   remontée avec sa PR — l'est, comme par son geste `rail merge`
-//   (geste-ticket.ts) — la pass le constate et sert le ticket ;
+// - `merge` : refusé — la box ne merge plus, une livraison se merge sur sa PR ;
 // - `drop` : le ticket sort du rail, comme par son geste `rail drop`
 //   (geste-ticket.ts) — son label `fire` est retiré ; un ticket que la
 //   cuisine en a déjà sorti en reste dehors, et le chef le prend à la main ;
@@ -35,10 +33,9 @@ import { abandonsEnCours } from "./abandon-en-chaine.ts";
 import type { AttenteDeTicket } from "./attend.ts";
 import { cartesEnTodo, type Suite } from "./carte-todo.ts";
 import { carteDuTicket, type CarteDuTicket } from "./carte-todo/cartes.ts";
-import { mergerLaLivraison, retirerDuRail, type Resultat } from "./geste-ticket.ts";
+import { retirerDuRail, type Resultat } from "./geste-ticket.ts";
 import { LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
-import { EN_PAUSE_POUR_LE_RENOMMAGE, mergeRetenu } from "./pause/pause.ts";
 import { passDuTicket } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { RETENUE } from "./requalifier.ts";
@@ -69,7 +66,6 @@ const pourLeCook = (carte: CarteDuTicket, reponse: string) => `Le chef a répond
 // Comment le ticket avance, vu avant d'écrire quoi que ce soit — ou pourquoi
 // il ne peut pas.
 type Avancee =
-  | { comment: "merge"; pr: string }
   | { comment: "retrait" }
   | { comment: "renvoi"; branche: string; pr: string | null }
   | { comment: "rail" }
@@ -95,7 +91,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
   const { base } = journal;
   const enTodo = carteDuTicket(base, ticket);
   if (!enTodo) return refuse(`#${ticket} has no card in TODO`);
-  const { attente, carte, attentes } = enTodo;
+  const { attente, carte } = enTodo;
 
   let texte: string;
   let rang: number | null = null;
@@ -126,14 +122,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
   const avancee = ((): Avancee => {
     if (attente.quoi === "abandon" && !sur) return avanceeDeLAbandon(base, ticket, attente, suite);
     const livraison = passDuTicket(base, ticket);
-    if (suite === "merge") {
-      const pause = mergeRetenu(base, ticket);
-      if (pause !== null) return { refus: `${EN_PAUSE_POUR_LE_RENOMMAGE} since ${pause.agreedAt}: no other merge until it ends — answer once the pause is over` };
-      // Verte, ou remontée avec sa PR : ce que `rail merge` merge (geste-ticket.ts).
-      const aMerger = attentes.some((autre) => autre.quoi === "merge" || (autre.quoi === "remontee" && autre.pr !== null));
-      if (!aMerger || livraison?.branch == null) return { refus: `this choice merges the delivery of #${ticket}, but no green delivery of it waits to be merged` };
-      return { comment: "merge", pr: livraison.pr ?? livraison.branch };
-    }
+    if (suite === "merge") return { refus: `this choice merges the delivery of #${ticket}, but the box no longer merges: merge its PR on GitHub` };
     if (suite === "drop") {
       if (!sur) return { refus: `this choice takes #${ticket} off the rail, but it is not on the rail` };
       return { comment: "retrait" };
@@ -177,10 +166,6 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
 
   await github.commenter(ticket, direLaReponse(carte, texte, rang));
 
-  if (avancee.comment === "merge") {
-    const merge = await mergerLaLivraison(journal, github, ticket);
-    if (!merge.done) return { done: false, reason: `your answer is on the issue, but the merge did not go: ${merge.reason}`, price: "your answer is written on the issue; the card stays in TODO" };
-  }
   if (avancee.comment === "retrait") {
     const retrait = await retirerDuRail(journal, github, projet, ticket);
     if (!retrait.done) return { done: false, reason: `your answer is on the issue, but the ticket did not leave the rail: ${retrait.reason}`, price: "your answer is written on the issue; the card stays in TODO" };
@@ -211,8 +196,6 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
 
   const ecrite = "your answer is written on the issue";
   switch (avancee.comment) {
-    case "merge":
-      return { done: true, price: `${ecrite}, and ${avancee.pr} is merged under the box's GitHub account; the pass sees it at its next tick and serves the ticket. A merge is not undone from here` };
     case "retrait":
       return { done: true, price: `${ecrite}; the ticket leaves the rail and is not cooked — its issue stays open and loses its \`fire\` label, put it back to bring the ticket back on the rail` };
     case "renvoi":

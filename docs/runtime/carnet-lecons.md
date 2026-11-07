@@ -24,8 +24,6 @@ A send-back is stronger proof than a cook's self-report. Its reason enters the p
 | The send-back | What becomes a lesson | Origin |
 |---|---|---|
 | The pass sends a red ticket back, or the manager relaunches a red from the pass | each finding, at most three | `pass-send-back #N` |
-| You send a delivery back (`rail send-back <N> <reason…>`) | your reason | `chef-correction #N` |
-| You say why you corrected a delivery (`rail correct <N> <reason…>`) | your reason | `chef-correction #N` |
 
 In the log: `lesson.candidate` (`origin`, `text`), one fact per lesson, written with the send-back.
 **A send-back without a reason gives birth to none.** A lesson fits on one line, without the tail of

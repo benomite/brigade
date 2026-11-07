@@ -37,7 +37,7 @@ test("la liste porte toujours le closer et chaque autre rôle, dans l'ordre, cha
   const roles = lire();
   assert.deepEqual(
     roles.map(({ role }) => role),
-    ["manager", "pass", "reviewer", "second judge", "triage", "closer"],
+    ["manager", "reviewer", "second judge", "triage", "closer"],
   );
   for (const { does, latest } of roles) {
     assert.equal(latest, null);
@@ -48,25 +48,18 @@ test("la liste porte toujours le closer et chaque autre rôle, dans l'ordre, cha
 
 test("le dernier geste d'un rôle est le plus récent des faits qu'il écrit, avec son ticket et son heure", (t) => {
   const { noter, de } = cuisine(t);
-  noter(12, { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } });
-  const juge = noter(14, { type: "pass.judged", payload: { verdict: "red" } }, { author: "pass" });
-  assert.deepEqual(de("pass"), { what: "judged #14 red", ticket: 14, at: juge });
-
-  const renvoi = noter(14, { type: "pass.returned", payload: { n: 1, findings: ["the test is missing"] } }, { author: "pass" });
-  assert.deepEqual(de("pass"), { what: "sent #14 back to its cook", ticket: 14, at: renvoi });
+  noter(12, { type: "pass.reviewed", payload: { outcome: "green", findings: [] } }, { author: "pass" });
+  const relu = noter(14, { type: "pass.reviewed", payload: { outcome: "red", findings: [{}] } }, { author: "pass" });
+  assert.deepEqual(de("reviewer"), { what: "reviewed #14: red, 1 finding", ticket: 14, at: relu });
   // Le manager n'a rien fait : rien d'un autre rôle ne lui est prêté.
   assert.equal(de("manager"), null);
 });
 
-test("un fait qu'un autre que le rôle écrit n'est pas son geste : un merge fait hors de la pass, un renvoi du manager ou du chef", (t) => {
+test("un fait qu'écrit un autre rôle n'est pas le geste du manager : un renvoi ou une remontée de la pass ne lui est pas prêté", (t) => {
   const { noter, de } = cuisine(t);
-  const merge = noter(11, { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } }, { author: "pass" });
-  noter(12, { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/2", sha: "beef", by: "outside", reconciled: true } }, { author: "pass" });
-  noter(13, { type: "pass.returned", payload: { n: 2, findings: ["x"] } }, { author: "manager" });
-  noter(13, { type: "pass.returned", payload: { n: 3, findings: ["y"] } }, { author: "chef" });
-  noter(14, { type: "pass.escalated", payload: { reason: REDECOUPE } }, { author: "manager" });
-
-  assert.deepEqual(de("pass"), { what: "merged #11", ticket: 11, at: merge });
+  noter(13, { type: "pass.returned", payload: { n: 2, findings: ["x"] } }, { author: "pass" });
+  noter(14, { type: "pass.escalated", payload: { reason: REDECOUPE } }, { author: "pass" });
+  assert.equal(de("manager"), null);
 });
 
 test("chaque rôle dit son geste en une phrase composée de ses champs", (t) => {
@@ -114,13 +107,13 @@ test("aucune phrase n'est la sortie d'une commande : ni le texte libre du fait, 
 
 test("seuls comptent les faits du projet : un geste sur un autre projet n'est pas le dernier de celui-ci", (t) => {
   const { noter, journal } = cuisine(t);
-  const ici = noter(11, { type: "pass.judged", payload: { verdict: "green" } }, { author: "pass" });
-  noter(12, { type: "pass.judged", payload: { verdict: "red" } }, { author: "pass", project: "cantine" });
+  const ici = noter(11, { type: "pass.reviewed", payload: { outcome: "green", findings: [] } }, { author: "pass" });
+  noter(12, { type: "pass.reviewed", payload: { outcome: "red", findings: [] } }, { author: "pass", project: "cantine" });
 
-  const pass = (projet: string) => rolesDeLaCuisine(journal.base, projet).find(({ role }) => role === "pass")?.latest;
-  assert.deepEqual(pass(PROJET), { what: "judged #11 green", ticket: 11, at: ici });
-  assert.equal(pass("cantine")?.what, "judged #12 red");
-  assert.ok(rolesDeLaCuisine(journal.base, "cantine").filter(({ role }) => role !== "pass").every(({ latest }) => latest === null));
+  const relecteur = (projet: string) => rolesDeLaCuisine(journal.base, projet).find(({ role }) => role === "reviewer")?.latest;
+  assert.deepEqual(relecteur(PROJET), { what: "reviewed #11: green", ticket: 11, at: ici });
+  assert.equal(relecteur("cantine")?.what, "reviewed #12: red, 0 findings");
+  assert.ok(rolesDeLaCuisine(journal.base, "cantine").filter(({ role }) => role !== "reviewer").every(({ latest }) => latest === null));
 });
 
 test("chaque type de fait d'un rôle se lit sans lever, charge vide comprise", (t) => {
@@ -147,10 +140,10 @@ test("`facts` donne les rôles du projet dans `rolesCuisine` — chacun nul sans
   assert.equal(vide.length, ROLES.length);
   assert.ok(vide.every(({ latest }) => latest === null));
 
-  ecrire(PROJET, 12, "pass", { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } });
-  ecrire("cantine", 13, "pass", { type: "merge.done", payload: { pr: "https://github.com/chef/cantine/pull/1", sha: "beef", by: "pass", reconciled: false } });
-  const pass = (await lire({ BRIGADE_PROJECT: PROJET })).find(({ role }) => role === "pass")?.latest;
-  assert.equal(pass?.what, "merged #12");
-  assert.equal(pass?.ticket, 12);
-  assert.ok(!Number.isNaN(Date.parse(pass?.at ?? "")));
+  ecrire(PROJET, 12, "pass", { type: "pass.reviewed", payload: { outcome: "green", findings: [] } });
+  ecrire("cantine", 13, "pass", { type: "pass.reviewed", payload: { outcome: "red", findings: [] } });
+  const relecteur = (await lire({ BRIGADE_PROJECT: PROJET })).find(({ role }) => role === "reviewer")?.latest;
+  assert.equal(relecteur?.what, "reviewed #12: green");
+  assert.equal(relecteur?.ticket, 12);
+  assert.ok(!Number.isNaN(Date.parse(relecteur?.at ?? "")));
 });

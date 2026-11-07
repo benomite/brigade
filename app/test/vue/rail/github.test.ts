@@ -287,7 +287,7 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
       [2322, "Merge PR #2325 by hand? It changes what judges it."],
       [2408, "Merge PR #2416 by hand? It changes what judges it."],
     ]);
-    for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no merge gesture`);
+    for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no merge button: the PR is merged on GitHub`);
     assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2325], [2416]]);
   });
 

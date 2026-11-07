@@ -1235,7 +1235,7 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     assert.doesNotMatch(visible(vue), /remontée|à trancher|depuis 40 min/);
   });
 
-  test("chaque geste attendu est un bouton — retirer du rail —, le recommandé distingué ; aucune commande `brigade` n'est à recopier ni à envoyer", async () => {
+  test("chaque geste attendu est un bouton — retirer du rail —, le recommandé distingué ; merger se fait sur la PR, aucun bouton n'est proposé pour le faire ; aucune commande `brigade` n'est à recopier", async () => {
     const vue = await ouvrirLaCarte();
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id, libelle]) => [id, libelle]), [
       ["retirer", "remove from the rail"],
@@ -1245,22 +1245,9 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     ]);
     assert.equal(gesteDeLaFiche(vue, "retirer").className, "recommande");
     assert.deepEqual(boutonsDeLaFiche(vue).filter((pose) => pose.className.split(" ").includes("recommande")).map((pose) => pose.textContent), ["remove from the rail"]);
+    assert.ok(!boutonsDeLaFiche(vue).some((pose) => /merge/.test(pose.textContent)), "aucun bouton de merge n'est offert");
     assert.doesNotMatch(visible(vue), /brigade parade|geste\.ts/);
     assert.equal(fiche(vue).dessous("button").filter((pose) => pose.className === "mono").length, 0);
-  });
-
-  test("retirer du rail coûte : son prix est au survol, et le clic le confirme d'abord, prix en une ligne — le « oui » le fait partir, nommé par le geste et le ticket", async () => {
-    const vue = await ouvrirLaCarte();
-    assert.deepEqual(gestesDeLaFicheOuverte(vue).find(([id]) => id === "retirer"), ["retirer", "remove from the rail", PRIX.retirer]);
-    assert.doesNotMatch(visible(vue), /cost:|loses its/);
-    gesteDeLaFiche(vue, "retirer").click();
-    await repos();
-    assert.ok(!vue.appels.some(({ geste }) => geste === "gesteDeFiche"), "rien ne part avant le « oui »");
-    const confirmation = fiche(vue).dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.deepEqual(confirmation.dessous("p").filter((pose) => pose.className === "prix").map((ligne) => ligne.textContent), [PRIX.retirer]);
-    (confirmation.dessous("button").find((pose) => pose.textContent === "yes, remove from the rail") ?? assert.fail("pas de « oui »")).click();
-    await repos();
-    assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "retirer", 12, undefined]);
   });
 
   test("l'historique et la discussion qui ne se lisent pas tiennent chacun en une ligne : la commande lancée, son usage et son code de sortie ne se lisent qu'au survol", async () => {

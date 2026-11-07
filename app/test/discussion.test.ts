@@ -10,11 +10,10 @@ import { join, resolve } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import type { Rendu } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { commenter, demanderAuSecond, discussionDe, noteDeLaQuestion, PRIX, type Poster, type Commente, type Discussion } from "../src/discussion.ts";
+import { commenter, demanderAuSecond, noteDeLaQuestion, PRIX, type Poster, type Commente, type Discussion } from "../src/discussion.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -24,14 +23,14 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { discussionDe } from "./aides/fiches-dites.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = resolve(import.meta.dirname, "..", "..");
 const PARADE = "parade";
 const PROJET = { nom: PARADE, dossier: "/tmp/parade" };
-const DELAI = 60_000;
 
-// Ce que `pass 21 issue` rend (runtime/src/issue-ticket.ts) : le corps, puis les commentaires du plus ancien au plus récent.
+// L'issue lue de GitHub : le corps, puis les commentaires du plus ancien au plus récent.
 const ISSUE = {
   found: true,
   issue: {
@@ -47,56 +46,6 @@ const ISSUE = {
     ],
   },
 };
-const lu = (sortie: unknown, code = 0): Rendu => ({
-  lance: "$ brigade parade pass 21 issue",
-  erreur: code === 0 ? null : Object.assign(new Error("Command failed"), { code, killed: false, cmd: "brigade" }),
-  sortie: typeof sortie === "string" ? sortie : `${JSON.stringify(sortie)}\n`,
-  erreurs: "",
-});
-
-describe("la discussion de l'issue, telle que `pass <ticket> issue` la rend", () => {
-  test("le corps, puis les commentaires dans l'ordre chronologique, chacun avec son auteur et sa date, le markdown rendu", () => {
-    const discussion = discussionDe(lu(ISSUE), DELAI);
-    assert.ok(!("sans" in discussion));
-    assert.equal(discussion.titre, "L'export du journal");
-    assert.equal(discussion.ouverte, true);
-    assert.deepEqual(
-      discussion.messages.map(({ auteur, at, corps }) => [auteur, at, corps === true]),
-      [
-        ["benomite", "2026-10-14 08:00 UTC", true],
-        ["benomite", "2026-10-14 08:01 UTC", false],
-        ["brigade-pass[bot]", "2026-10-14 11:30 UTC", false],
-        ["a deleted GitHub account", "2026-10-14 12:00 UTC", false],
-      ],
-    );
-    assert.deepEqual(discussion.messages[0]?.blocs, [
-      { titre: 2, contenu: [{ texte: "Contexte" }] },
-      { paragraphe: [{ texte: "Exporter le journal en " }, { gras: [{ texte: "CSV" }] }, { texte: "." }] },
-      { liste: [{ blocs: [{ paragraphe: [{ texte: "une ligne par événement" }] }] }, { blocs: [{ paragraphe: [{ code: "at" }, { texte: " en UTC" }] }] }] },
-    ]);
-    // Un commentaire fait des seuls marqueurs du runtime n'a rien de visible.
-    assert.deepEqual(discussion.messages[3]?.blocs, []);
-    assert.deepEqual(discussion.liens, ["https://github.com/benomite/brigade/pull/31"]);
-  });
-
-  test("une carte sans issue sort en 1 avec sa raison : la fiche la dit — ce n'est pas une panne", () => {
-    assert.deepEqual(discussionDe(lu({ found: false, reason: "#21 is a pull request, not an issue" }, 1), DELAI), { sans: "no issue to read: #21 is a pull request, not an issue" });
-  });
-
-  test("une panne, une station muette ou un runtime qui ne connaît pas `issue` : la fiche dit ce qui a été lancé et rendu", () => {
-    const panne = discussionDe({ ...lu("", 1), erreurs: "brigade : l'issue de #21 n'a pas été lue — gh: HTTP 502\n" }, DELAI);
-    assert.ok("sans" in panne);
-    assert.match(panne.sans, /^not read: \$ brigade parade pass 21 issue\nbrigade : l'issue de #21 n'a pas été lue — gh: HTTP 502\n\n→ exit code 1$/);
-    assert.ok("sans" in discussionDe(lu("usage : …", 2), DELAI));
-  });
-
-  test("une sortie illisible n'est pas lue : la fiche dit pourquoi", () => {
-    for (const sortie of ["", "pas du json", "{}", JSON.stringify({ found: true, issue: { title: "t", comments: "x" } }), JSON.stringify({ found: true, issue: { ...ISSUE.issue, comments: [{ author: 1 }] } })]) {
-      assert.deepEqual(discussionDe(lu(sortie), DELAI), { sans: "not read: the station did not return the issue in the expected shape" }, sortie);
-    }
-  });
-});
-
 // Le poste de l'issue, doublé : ce qu'il reçoit est noté, et `rendre` dit ce que GitHub en a fait — l'adresse du
 // commentaire, ou pourquoi il n'est pas parti.
 function poste(rendre: (ticket: number, texte: string) => { url: string | null } | { raison: string } = (ticket) => ({ url: `https://github.com/chef/parade/issues/${ticket}#issuecomment-7001` })) {
@@ -202,8 +151,8 @@ const ecrire = (vue: Jouee, texte: string) => {
   champ(vue).value = texte;
   champ(vue).declencher("input");
 };
-const lue = (): Discussion => discussionDe(lu(ISSUE), DELAI);
-const avecCommentaire = (texte: string): Discussion => discussionDe(lu({ ...ISSUE, issue: { ...ISSUE.issue, comments: [...ISSUE.issue.comments, { author: "benomite", at: "2026-10-14T13:00:00Z", body: texte }] } }), DELAI);
+const lue = (): Discussion => discussionDe(ISSUE);
+const avecCommentaire = (texte: string): Discussion => discussionDe({ ...ISSUE, issue: { ...ISSUE.issue, comments: [...ISSUE.issue.comments, { author: "benomite", at: "2026-10-14T13:00:00Z", body: texte }] } });
 
 describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () => {
   test("le corps, puis les commentaires dans l'ordre, avec leur auteur et leur date — quelle que soit la colonne de la carte", async () => {

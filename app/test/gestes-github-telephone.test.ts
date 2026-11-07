@@ -258,9 +258,9 @@ describe("sans station joignable, les trois gestes passent par GitHub seul", () 
     }
   });
 
-  test("merger la livraison se fait sur sa PR, comme du desktop : rien ne part", async () => {
+  test("merger n'est plus un geste de la fiche, comme du desktop : rien ne part", async () => {
     const monde = github();
-    assert.ok("refus" in (await telephone(monde).gestes.geste(PROJET, "merger", 22)));
+    assert.match((await telephone(monde).gestes.geste(PROJET, "merger", 22) as { refus: string }).refus, /^nothing was sent: this phone does not play this action/);
     assert.deepEqual(monde.recues, []);
   });
 
@@ -462,7 +462,7 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
   test("la fiche, sur le téléphone, propose les gestes qu'il écrit sur GitHub — rien d'une station", async () => {
     const { pont } = await pontDeLAPK(github());
     assert.deepEqual(json(await pont.gestesDeFiche!({ ticket: 22, etat: "en attente", ouvrable: true, attendu: false })).map(({ id }: { id: string }) => id), ["retirer"]);
-    assert.ok("refus" in json(await pont.gesteDeFiche!(PROJET, "merger", 22)));
+    assert.match(json(await pont.gesteDeFiche!(PROJET, "merger", 22)).refus, /^nothing was sent: this phone does not play this action/);
   });
 
   test("une écriture que GitHub refuse : le pont rend la phrase, GitHub au survol ; rien n'est relu, rien n'est montré fait", async () => {

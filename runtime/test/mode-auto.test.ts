@@ -60,7 +60,7 @@ test("après l'installation, le fichier du projet autorise la lecture de la file
   const allow = lus().permissions.allow;
   assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace status)`), allow.join("\n"));
   for (const doc of ["installer.md", "runtime/README.md", "runtime/station.md", "runtime/exploitation.md", "app.md", "glossary.md"]) assert.ok(allow.includes(`Bash(${SSH} mabox cat /opt/brigade/docs/${doc})`), doc);
-  for (const lecture of ["rail", "log", "pass", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
+  for (const lecture of ["rail", "log", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
   assert.ok(allow.includes("Read(~/.config/brigade/app.json)"));
   assert.match(sortie, /mabox`, projet « espace »/);
   assert.match(sortie, /AUTORISÉ\s+Lire la file — 1 règle/);
@@ -161,8 +161,8 @@ test("relancer l'installation ne duplique rien et ne retire aucun réglage du ch
   assert.equal(premiere.code, 0, premiere.sortie);
   assert.equal(seconde.code, 0, seconde.sortie);
   assert.equal(readFileSync(reglages, "utf8"), apres, "la seconde passe a réécrit le fichier");
-  assert.match(seconde.sortie, /39 règle\(s\), toutes déjà là : rien n'est écrit/);
-  assert.match(premiere.sortie, /38 règle\(s\) ajoutée\(s\), 1 déjà là/);
+  assert.match(seconde.sortie, /38 règle\(s\), toutes déjà là : rien n'est écrit/);
+  assert.match(premiere.sortie, /37 règle\(s\) ajoutée\(s\), 1 déjà là/);
   // L'indentation du chef est gardée : le diff ne montre que les règles.
   assert.match(apres, /^ {4}"env"/m);
 

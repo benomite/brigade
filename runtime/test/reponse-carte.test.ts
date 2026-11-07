@@ -96,7 +96,7 @@ describe("répondre d'un clic à une carte de TODO", () => {
     assert.deepEqual(c.journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload, { choice: null, answer: "Ni l'un ni l'autre : un export Excel, en plus du CSV.", then: "resume" });
   });
 
-  test("un choix qui merge : la livraison verte qui attend le chef est mergée, la réponse écrite, et la carte sort de TODO", async (t) => {
+  test("un choix qui merge est refusé : la box ne merge plus, rien ne part et la carte reste dans TODO", async (t) => {
     const c = atelier(t);
     await c.livrer();
     c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
@@ -104,12 +104,11 @@ describe("répondre d'un clic à une carte de TODO", () => {
 
     const resultat = await c.repondre({ choix: 3 });
 
-    assert.equal(resultat.done, true);
-    assert.deepEqual(c.gh.merges, [[101, `tete-de-${BRANCHE}`]]);
-    assert.match(c.dits()[0] ?? "", /choice 3 of 3:\n\n> Export CSV ou export JSON \?\n\nGarder la livraison telle quelle\.$/);
-    assert.deepEqual(cartesEnTodo(c.journal.base), []);
-    // Le merge, la pass le constate et sert le ticket : rien ne le renvoie au cook.
-    assert.equal(ticketDuRail(c.journal.base, 30)?.state, "pass");
+    assert.equal(resultat.done, false);
+    assert.match((resultat as { reason: string }).reason, /the box no longer merges: merge its PR on GitHub/);
+    assert.deepEqual(c.gh.merges, []);
+    assert.deepEqual(c.dits(), []);
+    assert.equal(cartesEnTodo(c.journal.base).length, 1);
   });
 
   test("un ticket 86 sans livraison revient sur le rail ; une issue retenue par `blocked-on-human` perd son label, et le manager la rejuge", async (t) => {
@@ -137,8 +136,8 @@ describe("répondre d'un clic à une carte de TODO", () => {
     for (const choix of [0, 4, 1.5]) assert.equal((await c.repondre({ choix })).done, false, String(choix));
     assert.match(((await c.repondre({ choix: 4 })) as { reason: string }).reason, /offers choices 1 to 3/);
     assert.match(((await c.repondre({ texte: "   " })) as { reason: string }).reason, /it is empty/);
-    // Merger une livraison remontée, rouge : ce n'est pas une livraison verte qui attend.
-    assert.match(((await c.repondre({ choix: 3 })) as { reason: string }).reason, /no green delivery of it waits to be merged/);
+    // Merger : la box ne le fait plus.
+    assert.match(((await c.repondre({ choix: 3 })) as { reason: string }).reason, /the box no longer merges/);
     assert.deepEqual(c.gh.merges, []);
     assert.deepEqual(c.dits(), []);
     assert.equal(cartesEnTodo(c.journal.base).length, 1);
@@ -156,7 +155,7 @@ describe("répondre d'un clic à une carte de TODO", () => {
 });
 
 describe("toute carte de TODO se répond, pas seulement celle de la porte", () => {
-  test("une livraison verte à merger à la main : son seul bouton la merge, et la réponse dit ce que la carte disait", async (t) => {
+  test("une livraison verte à merger à la main : son seul bouton merger est refusé, rien ne part", async (t) => {
     const c = atelier(t);
     await c.livrer();
     c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
@@ -164,12 +163,10 @@ describe("toute carte de TODO se répond, pas seulement celle de la porte", () =
 
     const resultat = await c.repondre({ choix: 1 });
 
-    assert.equal(resultat.done, true);
-    assert.deepEqual(c.gh.merges, [[101, `tete-de-${BRANCHE}`]]);
-    assert.match(c.dits()[0] ?? "", /^\*\*The chef's answer\*\* to the TODO card — choice 1 of 1:\n\n> The delivery of #30 is green, but the pass does not merge it without a merge grant\.\n\nMerge /);
-    assert.deepEqual(c.journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload.then, "merge");
-    // Aucune carte de la porte : rien à en sortir.
-    assert.equal(c.journal.duTicket(30).some((e) => e.type === "todo.left"), false);
+    assert.equal(resultat.done, false);
+    assert.match((resultat as { reason: string }).reason, /the box no longer merges/);
+    assert.deepEqual(c.gh.merges, []);
+    assert.deepEqual(c.dits(), []);
   });
 
   test("une remontée de la pass au chef : « Take it off the rail » sort le ticket du rail, la réponse écrite", async (t) => {
@@ -189,17 +186,16 @@ describe("toute carte de TODO se répond, pas seulement celle de la porte", () =
     assert.deepEqual(c.journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload.then, "drop");
   });
 
-  test("une remontée au chef avec sa PR : « Merge … as it is » la merge", async (t) => {
+  test("une remontée au chef avec sa PR : « Merge … as it is » est refusé, rien ne part", async (t) => {
     const c = atelier(t);
     await c.livrer();
-    // Une remontée que seul le chef lève : une remontée technique est à la cuisine, sans carte (#1826).
     c.noter(30, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause: "secrets-unavailable" } }, "pass");
     c.rail.quatreVingtSix(30, { motif: `pass:${NON_JUGEE}` });
 
     const resultat = await c.repondre({ choix: 2 });
 
-    assert.equal(resultat.done, true, (resultat as { reason?: string }).reason ?? "");
-    assert.deepEqual(c.gh.merges, [[101, `tete-de-${BRANCHE}`]]);
+    assert.equal(resultat.done, false);
+    assert.deepEqual(c.gh.merges, []);
   });
 
   test("une PR fermée sans merge : « Start it over » rend le ticket au rail", async (t) => {
