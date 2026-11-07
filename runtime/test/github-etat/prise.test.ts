@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { corpsDeLacher, corpsDePrise, lacher, lireTenant, prendre, PRIS, purger, tenant, type CommentaireDePrise, type GitHubDeLaPrise, type RetraitDeLabel } from "../../src/github-etat/prise.ts";
+import { corpsDeLacher, corpsDePrise, lacher, lireTenant, premierePrise, prendre, PRIS, purger, tenant, type CommentaireDePrise, type GitHubDeLaPrise, type RetraitDeLabel } from "../../src/github-etat/prise.ts";
 
 const NUMERO = 42;
 
@@ -260,4 +260,16 @@ test("purger removes a taken label nobody holds, leaves a held one, and survives
   await parti.github.labelliser(NUMERO, [PRIS]);
   const github = { ...parti.github, delabelliser: async () => { throw new Error("HTTP 404 — Label does not exist"); } };
   assert.equal(await purger(parti.lue(), { github }), true);
+});
+
+test("the first claim of a ticket is the earliest one posted by the repo since the given instant, whichever station won (#2732)", () => {
+  const commentaires = [
+    { body: corpsDePrise("avant"), association: "OWNER", createdAt: "2026-11-02T09:00:00Z" },
+    { body: corpsDePrise("intrus"), association: "NONE", createdAt: "2026-11-02T10:01:00Z" },
+    { body: "Taken, says someone", association: "OWNER", createdAt: "2026-11-02T10:02:00Z" },
+    { body: corpsDePrise("mac"), association: "OWNER", createdAt: "2026-11-02T10:05:00Z" },
+    { body: corpsDePrise("pi"), association: "MEMBER", createdAt: "2026-11-02T10:03:00Z" },
+  ];
+  assert.equal(premierePrise(commentaires, "2026-11-02T10:00:00Z"), "2026-11-02T10:03:00.000Z");
+  assert.equal(premierePrise(commentaires, "2026-11-02T10:06:00Z"), null);
 });
