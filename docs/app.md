@@ -2043,14 +2043,12 @@ view reads it from `lenteur` of the project's view; **the field is not yet carri
 line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
 
 **Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project, on the **Cooks** tab — on Rail,
-the band at the top says the median, the p75 and the lost time, the rest on hover (#2486): the median total of the
+the band at the top says the four figures (#2672), the rest on hover (#2486): the median total of the
 last 10 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its
-tests, waiting for the pass, review, CI, merge) and, at its head, the median lost time against the project's threshold
-(`lost 3 min vs 2 min max`; `lostTimeMaxMin`, 2 minutes by default, #2670). A record's lost time is its `perdu`
-(`{ attente, ratees, renvois }`, seconds: the wait before the claim, the failed cooks, the send-backs); an older
-record without it counts 0. A ticket's total time has no cap. Three states, `data-temps`: `normal`; `depasse` (the
-median lost time is over the threshold: red border and the words "Lost time over the max of N min"); `vide` ("No
-ticket measured yet", never a blank or a zero). Each of the five phases is the median of that phase alone, so their
+tests, waiting for the pass, review, CI, merge). Nothing there shows a time against a max any more: lost time,
+cooking against estimate and the quality figures are the four figures of the rail band and the Health tab (#2672). A
+ticket's total time has no cap. Two states, `data-temps`: `normal`; `vide` ("No ticket measured yet", never a blank or
+a zero). Each of the five phases is the median of that phase alone, so their
 sum can differ from the median total. The principal station reads the project's clone
 (`.claude/brigade/temps-tickets.json`, integer seconds, and `lostTimeMaxMin` of `projet.json`; `lesTempsDesTickets` in
 `runtime/src/temps-ticket/ligne-status.ts`) and publishes `temps` (`{ enregistrements, lostTimeMaxMin, resume }`) in its

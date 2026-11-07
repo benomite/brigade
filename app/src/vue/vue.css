@@ -445,9 +445,6 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
-#temps-ticket-du-projet .temps-ticket[data-temps="depasse"] {
-  border-color: var(--rouge);
-}
 #temps-ticket-du-projet p,
 #temps-ticket-du-projet ul {
   margin: 0;
@@ -468,19 +465,10 @@ main > header,
   font-size: 22px;
   color: var(--texte);
 }
-#temps-ticket-du-projet [data-temps="depasse"] .temps-valeur {
-  color: var(--rouge-clair);
-}
 #temps-ticket-du-projet .temps-legende,
 #temps-ticket-du-projet .temps-lent,
 #temps-ticket-du-projet .temps-vide {
   color: var(--texte-doux);
-}
-#temps-ticket-du-projet .temps-depasse {
-  color: var(--rouge-clair);
-  border: 1px solid var(--rouge);
-  border-radius: var(--rayon-bouton);
-  padding: 0 8px;
 }
 #temps-ticket-du-projet .temps-barre {
   display: flex;
