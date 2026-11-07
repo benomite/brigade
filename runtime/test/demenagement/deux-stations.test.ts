@@ -91,3 +91,21 @@ test("la commande nomme la station qui remet sa cuisine par `--de`, et la demand
   assert.deepEqual(relue("gistpi"), [{ ...SHOP, demandeLe: AUJOURDHUI, reprise: { de: "mac", gist: "gistmac", demandeLe: AUJOURDHUI } }]);
   for (const gist of Object.keys(gists)) assert.ok(!(gists[gist]?.[FICHIER_PROJETS] ?? "").includes("principal"));
 });
+
+test("`--de` sans gist est mal appelé : rien n'est lu", async () => {
+  for (const args of [["shop", "gistpi", "gistbox", "--de"], ["shop", "gistpi", "--de", "--de"]]) {
+    const dit: string[] = [];
+    let code = 0;
+    try {
+      await principal(
+        { args, env: {}, dire: (ligne) => dit.push(ligne), redire: (ligne) => dit.push(ligne) },
+        { canal: { creer: async () => assert.fail(), ecrire: async () => assert.fail(), lire: async () => assert.fail("rien ne se lit") }, maintenant: () => new Date(AUJOURDHUI), gistLocal: null, verifierBacASable: () => ({ ok: true, version: "2.1.300" }) },
+      );
+    } catch (erreur) {
+      if (!(erreur instanceof Sortie)) throw erreur;
+      code = erreur.code;
+    }
+    assert.equal(code, 2, args.join(" "));
+    assert.match(dit.join("\n"), /--de attend le gist/);
+  }
+});

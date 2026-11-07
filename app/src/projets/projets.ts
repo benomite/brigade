@@ -693,7 +693,10 @@ export function tenirProjets(options: OptionsProjets): Projets {
       if (visee === undefined) return { refus: "that station is no longer paired with this app: nothing was changed" };
       if (visee.cuisine === false) return { refus: `${visee.nom} does not cook: nothing was changed` };
       if (options.demenager === undefined) return { refus: "this app has no runtime beside it to move a kitchen: nothing was changed" };
-      const rendu = await options.demenager(nom, visee.id, stations.map(({ id }) => id));
+      // La station qu'il quitte : celle où la page le dit cuire, si elle est appairée.
+      const de = vu?.projets.find((projet) => projet.nom === nom)?.cuitSur?.id ?? null;
+      const gists = stations.map(({ id }) => id);
+      const rendu = await options.demenager(nom, visee.id, gists, de !== null && gists.includes(de) ? de : undefined);
       await relire();
       return rendu;
     });

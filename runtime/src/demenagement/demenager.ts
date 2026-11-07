@@ -156,10 +156,16 @@ export function dependancesDuProcess(env: Record<string, string | undefined>): D
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 export async function principal({ args, env, dire, redire }: Appel, dependances: Dependances = dependancesDuProcess(env)): Promise<void> {
+  // `--de <gist>` : la station qui remet sa cuisine. Son gist est lu avec les autres, listé ou non.
   const rang = args.indexOf("--de");
   const de = rang === -1 ? undefined : args[rang + 1];
-  const [projet, vers, ...autres] = rang === -1 ? args : [...args.slice(0, rang), ...args.slice(rang + 2), ...(de === undefined ? [] : [de])];
-  if (projet === undefined || vers === undefined || (rang !== -1 && de === undefined) || !NOM_DE_PROJET.test(projet) || [vers, ...autres].some((gist) => !/^[A-Za-z0-9]{1,64}$/.test(gist))) {
+  if (rang !== -1 && (de === undefined || de.startsWith("--"))) {
+    redire(`brigade : --de attend le gist de la station qui remet sa cuisine — ${USAGE}`);
+    throw new Sortie(2);
+  }
+  const [projet, vers, ...listes] = rang === -1 ? args : args.toSpliced(rang, 2);
+  const autres = de === undefined || listes.includes(de) ? listes : [...listes, de];
+  if (projet === undefined || vers === undefined || !NOM_DE_PROJET.test(projet) || [vers, ...autres].some((gist) => !/^[A-Za-z0-9]{1,64}$/.test(gist))) {
     redire(`brigade : un projet, puis des gists — ${USAGE}`);
     throw new Sortie(2);
   }

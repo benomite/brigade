@@ -16,8 +16,10 @@ export const DEMENAGER = join("src", "demenagement", "demenager.ts");
 
 // `detail` : ce que la commande a écrit d'autre — il se lit au survol, jamais à plat.
 export type Demenagement = { demenage: { projet: string; de: string; vers: string } } | { refus: string; detail?: string };
-// L'opération : le projet, le gist de la station visée, et ceux de toutes les stations du chef.
-export type Demenageur = (projet: string, vers: string, gists: readonly string[]) => Promise<Demenagement>;
+// L'opération : le projet, le gist de la station visée, et ceux de toutes les stations du chef ;
+// `de`, le gist de la station qui remet sa cuisine — celle où la page le dit cuire —, quand l'app la
+// connaît : plusieurs stations servent un projet (#2713), le runtime ne devine pas laquelle part.
+export type Demenageur = (projet: string, vers: string, gists: readonly string[], de?: string) => Promise<Demenagement>;
 
 // Ce que le runtime a rendu, lu : sa ligne JSON, ou son code. Rien n'y est cru sur parole.
 export function lireRendu(code: number | null, sortie: string, erreurs: string): Demenagement {
@@ -48,9 +50,9 @@ export type ReglagesDuDemenagement = {
 
 // L'opération lancée une fois, sur cet ordinateur. Jamais d'exception : un échec est un refus.
 export function demenageurDuRuntime(reglages: ReglagesDuDemenagement): Demenageur {
-  return (projet, vers, gists) =>
+  return (projet, vers, gists, de) =>
     new Promise((resoudre) => {
-      const args = [join(reglages.runtime, DEMENAGER), projet, vers, ...gists.filter((gist) => gist !== vers)];
+      const args = [join(reglages.runtime, DEMENAGER), projet, vers, ...gists.filter((gist) => gist !== vers), ...(de === undefined || de === vers ? [] : ["--de", de])];
       execFile(reglages.node, args, { windowsHide: true, cwd: reglages.runtime, env: { ...reglages.env, BRIGADE_STATION_DIR: reglages.racine }, timeout: reglages.delaiMs, maxBuffer: 4 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
         if (erreur !== null && typeof erreur.code !== "number") {
           const pourquoi = erreur.killed === true ? `no answer within ${Math.round(reglages.delaiMs / 1000)} s` : erreur.message;
