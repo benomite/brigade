@@ -81,6 +81,49 @@ describe("a ticket's time runs from its filing to its merge", () => {
     assert.equal(medianePerdueDesRecents([temps]), 20 * 60);
   });
 
+  test("merged by a station that did not see its claim, its claim wait ends at the first claim the issue bears, and the rest is cooking (#2732)", () => {
+    // Pris à 10:05 par une autre station (ou avant un redémarrage) : celle qui
+    // merge ne le voit qu'en CI à 10:30. Sans la prise, ses 33 min passaient
+    // pour l'attente d'une prise.
+    let maintenant = Date.parse(hm(10, 30));
+    const chrono = chronometre(() => new Date(maintenant));
+    chrono.marquer(42, "ci");
+    maintenant = Date.parse(hm(10, 34));
+    chrono.marquer(42, "merge");
+    maintenant = Date.parse(hm(10, 35));
+    const temps = chrono.servir(42, { deposeAt: hm(10, 0), fireAt: hm(10, 2), priseAt: hm(10, 5) });
+    assert.ok(temps !== null);
+    assert.deepEqual(temps.phases, [
+      { nom: "qualification wait", minutes: 2 },
+      { nom: "claim wait", minutes: 3 },
+      { nom: "cooking", minutes: 25 },
+      { nom: "CI", minutes: 4 },
+      { nom: "merge", minutes: 1 },
+    ]);
+    assert.deepEqual(temps.perdu, { attente: 300, ratees: 0, renvois: 0 });
+    assert.equal(tempsPerdu(temps), 5 * 60);
+  });
+
+  test("a claim read before the ticket was put on the rail, or after the station saw it claimed, changes nothing", () => {
+    const vue = (priseAt: string) => {
+      let maintenant = Date.parse(hm(10, 20));
+      const chrono = chronometre(() => new Date(maintenant));
+      chrono.prendre(42);
+      maintenant = Date.parse(hm(10, 35));
+      return chrono.servir(42, { deposeAt: hm(10, 0), fireAt: hm(10, 2), priseAt });
+    };
+    const sans = (() => {
+      let maintenant = Date.parse(hm(10, 20));
+      const chrono = chronometre(() => new Date(maintenant));
+      chrono.prendre(42);
+      maintenant = Date.parse(hm(10, 35));
+      return chrono.servir(42, { deposeAt: hm(10, 0), fireAt: hm(10, 2) });
+    })();
+    assert.deepEqual(vue(hm(10, 1)), sans);
+    assert.deepEqual(vue(hm(10, 25)), sans);
+    assert.deepEqual(sans?.perdu, { attente: 20 * 60, ratees: 0, renvois: 0 });
+  });
+
   test("the same ticket replayed from its GitHub history gives the same 35 min and phases, the merge request inside the CI", () => {
     const [temps] = rejouer([DU_TICKET]);
     assert.equal(temps?.depuis, hm(10, 0));

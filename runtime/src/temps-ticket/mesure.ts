@@ -45,8 +45,9 @@ export const NOMS_DES_ETAPES: Record<Etape, string> = {
 // Sous l'heure, il part du dépôt et l'attente jusqu'à `fire` est celle du manager.
 export const RAIL_PLUS_TARD_MS = 60 * 60 * 1000;
 
-// Quand l'issue a été déposée et, si GitHub le dit, mise sur le rail (ISO).
-export type DepotDuTicket = { deposeAt: string; fireAt?: string | null };
+// Quand l'issue a été déposée et, si GitHub le dit, mise sur le rail et prise
+// pour la première fois (ISO).
+export type DepotDuTicket = { deposeAt: string; fireAt?: string | null; priseAt?: string | null };
 
 // À partir de `at` (ISO), le ticket est dans `etape`, jusqu'à la marque suivante.
 export type Marque = { etape: Etape; at: string };
@@ -60,17 +61,27 @@ export type Parcours = { ticket: number; marques: Marque[]; testsMs: number };
 const minutes = (secondes: number) => Math.round(secondes / 6) / 10;
 
 // Les marques d'avant la prise, tirées du dépôt : l'attente de la
-// qualification jusqu'à `fire`, puis celle d'une prise.
+// qualification jusqu'à `fire`, puis celle d'une prise, jusqu'à la première
+// prise que l'issue porte. La station qui merge n'a pas toujours vu cette
+// prise — une autre station l'a prise, ou elle a redémarré depuis — : sans
+// elle, tout le temps jusqu'à la première phase vue passait pour l'attente
+// d'une prise (#2732). Ce qu'elle n'a pas vu après la prise est une cuisson.
 function marquesDuDepot(depot: DepotDuTicket | undefined): Marque[] {
   const depose = Date.parse(depot?.deposeAt ?? "");
   if (depot === undefined || Number.isNaN(depose)) return [];
   const fire = Date.parse(depot.fireAt ?? "");
-  if (Number.isNaN(fire) || fire <= depose) return [{ etape: "attentePrise", at: depot.deposeAt }];
-  if (fire - depose > RAIL_PLUS_TARD_MS) return [{ etape: "attentePrise", at: new Date(fire).toISOString() }];
-  return [
-    { etape: "attenteQualification", at: depot.deposeAt },
-    { etape: "attentePrise", at: new Date(fire).toISOString() },
-  ];
+  const avant: Marque[] =
+    Number.isNaN(fire) || fire <= depose
+      ? [{ etape: "attentePrise", at: depot.deposeAt }]
+      : fire - depose > RAIL_PLUS_TARD_MS
+        ? [{ etape: "attentePrise", at: new Date(fire).toISOString() }]
+        : [
+            { etape: "attenteQualification", at: depot.deposeAt },
+            { etape: "attentePrise", at: new Date(fire).toISOString() },
+          ];
+  const prise = Date.parse(depot.priseAt ?? "");
+  const attente = Date.parse(avant.at(-1)?.at ?? "");
+  return Number.isNaN(prise) || prise <= attente ? avant : [...avant, { etape: "cuisson", at: new Date(prise).toISOString() }];
 }
 
 // Le parcours mesuré jusqu'au merge (`mergedAt`, ISO), depuis le dépôt quand
