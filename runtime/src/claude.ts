@@ -110,6 +110,14 @@ export function ticketRemis(ticket: { number: number; title: string; body: strin
 // Comment un cook joue ses tests pendant qu'il travaille, et ses gates à la fin.
 export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière, qui prend des minutes sur une station chargée. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
 
+// Comment un cook se relit avant de livrer : sur ce que le reviewer tient pour
+// bloquant (`reviewer.ts`, « Ce que tu cherches »). La relecture bloquante est
+// le premier motif de renvoi (#2770 : 20 renvois sur 45 tickets mergés), et
+// ses seconds commits disent le plus souvent ce qui manquait : le code neuf
+// branché là où la station le lance (#2627, #2640, #2676, #2680, #2681,
+// #2694), une donnée lue là où plus rien ne l'écrit (#2707).
+export const CONSIGNE_DE_RELECTURE = "Avant de commiter, relis ton diff comme le reviewer le relira : un seul constat bloquant renvoie le ticket à un cook entier. Il bloque sur ce que le ticket demande et que le diff ne fait pas, ou fait de travers ; sur un critère que le ticket écrit en toutes lettres ou chiffre et que tu n'as pas tenu à la lettre ; sur un bug, un cas d'erreur avalé, un test qui ne teste rien ; et sur le code neuf que rien n'atteint en production — une fonction exportée que seuls ses tests appellent, une donnée lue là où plus rien ne l'écrit. Remonte les appelants de chaque nouvel export jusqu'au point d'entrée que le dépôt lance (son `CLAUDE.md` le nomme), et branche-le s'il n'y arrive pas.";
+
 // Comment un cook lit le dépôt. Lu dans les sessions des cooks de #2486 à
 // #2571 (#2573) : 73 % de la cuisson est le modèle entre deux appels, 27 % ce
 // que les outils ont tourné. Les cooks opus — 405 des 497 min — font 65 % de
@@ -163,7 +171,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     ...(mission.joint === undefined ? [] : [mission.joint, ""]),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le. ${CONSIGNE_DES_LECTURES}`,
-    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS}`,
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis ?? mission.joint)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
@@ -189,7 +197,7 @@ export function consigneDeSuite(mission: { ticket: number; titre: string; depot:
     ...blocDuSetup(mission.setup),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)} ; puis ce qui est déjà fait : \`git log origin/${base}..HEAD\` et \`git diff origin/${base}...HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     `2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs. ${CONSIGNE_DES_LECTURES}`,
-    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche. ${CONSIGNE_DES_TESTS}`,
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche. ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
