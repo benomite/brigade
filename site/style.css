@@ -38,7 +38,7 @@ p { margin: 0 0 1rem; }
 code { font: 700 .92em "Courier Prime", ui-monospace, monospace; background: var(--paper); color: #1d2328; padding: .05em .35em; border-radius: 2px; }
 
 h1, h2 { font-family: "Big Shoulders Display", "Arial Narrow", sans-serif; font-weight: 900; line-height: .95; margin: 0; letter-spacing: .005em; }
-h1 { font-size: clamp(3.2rem, 11vw, 6.6rem); margin: 1.25rem 0 1.5rem; max-width: 11ch; }
+h1 { font-size: clamp(2.6rem, 9vw, 5rem); margin: 1.25rem 0 1.5rem; max-width: 16ch; }
 h2 { font-size: clamp(2rem, 5.4vw, 3.2rem); margin-bottom: 1.25rem; max-width: 20ch; }
 h3 { font-size: 1.08rem; font-weight: 700; margin: 0 0 .3rem; line-height: 1.25; }
 
