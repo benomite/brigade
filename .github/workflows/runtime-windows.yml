@@ -11,16 +11,43 @@
 # finit par ses échecs, ses tests sautés et ses comptes en annotations du check, lisibles par l'API de
 # GitHub sans le journal du job (runtime/test/support/annotations.ts) :
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
-# Le job ne tourne que sur `main` (push, sans condition de chemin : la base a un statut Windows pour
-# chacun de ses commits, #1859) et à la demande (`workflow_dispatch`). Il ne tourne plus sur les PR
-# (#2087) : un échec sur `main` reste rouge, jamais affiché vert, et ne retient aucune autre livraison.
-# Les causes restantes et la condition pour le rendre à nouveau bloquant sur les PR : #2112.
+# Le job tourne sur `main` (push, sans condition de chemin : la base a un statut Windows pour chacun
+# de ses commits, #1859), à la demande (`workflow_dispatch`) et sur les PR qui touchent ce que ces
+# tests couvrent (#2695, épique #2661). Il avait quitté les PR (#2087), et 5 des 7 réparations de
+# `main` des 5 au 7 novembre étaient des tests Windows (#2538, #2608, #2614, #2616, #2625) : une PR
+# qui les cassait était fusionnée verte, `main` rougissait après. Le job porte le même nom sur la PR et
+# sur `main` (`windows tests (n/8)`), pour que la liste des checks reste cohérente ; sur une PR dont
+# les fichiers sont tous hors de la liste ci-dessous, aucun job ne démarre.
+#
+# La liste des chemins (`pull_request.paths`), par groupe et pourquoi :
+#   - runtime/** : les sources du runtime et les tests Windows eux-mêmes. Les réparations #2538
+#     (runtime/test/github-seul/setup-du-cook.test.ts), #2614 et #2616 (runtime/test/installation.test.ts)
+#     et #2625 (runtime/test/station/cuisine-github-seul.test.ts) sont des tests ; leurs PR cassantes
+#     (#2535, #2464, #2622) changeaient runtime/src/ (brigade-github.ts, main.ts, station/*.ts) et des
+#     tests du runtime.
+#   - app/** : les tests de l'app jouent aussi sous Windows ; #2608 (app/test/plugin-app.test.ts) et
+#     #2636 (app/test/poste/station.test.ts) en sont issus, et leurs PR cassantes (#2606,
+#     #2479) changeaient app/src/vue/ (rail/github.ts, parcours-projet/*, vue.css, vue.js).
+#   - docs/runtime/** : des tests du runtime relisent ces pages (ex. exploitation-en-anglais.test.ts) ;
+#     #2535 et #2464 en ont changé (station.md, station-machine.md, settings-ownership.md).
+#   - .claude/brigade/** : les scripts de gates et de setup que les tests du runtime jouent sous le
+#     bash de Git (setup-du-cook, installation).
+#   - ce fichier : un changement du workflow doit être éprouvé par lui-même.
+# Quand un test Windows casse `main`, étendre cette liste avec les fichiers de la PR cassante et de la
+# réparation qui n'y sont pas encore, et le dire dans la PR de la réparation.
 name: runtime-windows
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    paths:
+      - "runtime/**"
+      - "app/**"
+      - "docs/runtime/**"
+      - ".claude/brigade/**"
+      - ".github/workflows/runtime-windows.yml"
   workflow_dispatch:
 
 permissions:
@@ -28,8 +55,7 @@ permissions:
 
 jobs:
   tests:
-    # « windows » en tête : la station GitHub seul ne lit pas ces checks pour
-    # l'état de la base (#2087 : informatifs, jamais bloquants).
+    # « windows » en tête, même nom sur la PR et sur `main` (#2695).
     name: windows tests (${{ matrix.part }}/8)
     runs-on: windows-latest
     timeout-minutes: 15
