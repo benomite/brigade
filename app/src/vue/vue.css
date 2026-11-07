@@ -2845,12 +2845,6 @@ main > header,
   border: 1px solid var(--rouge);
   border-radius: var(--rayon-bouton);
 }
-#rail .bande-rail .bande-lent {
-  padding: 0 6px;
-  color: var(--rouge-clair);
-  border: 1px solid var(--rouge);
-  border-radius: var(--rayon-bouton);
-}
 /* L'âge du rail, au bout de la bande. */
 #rail .bande-rail .age-du-rail {
   margin-left: auto;
