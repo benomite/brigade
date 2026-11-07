@@ -24,6 +24,7 @@ import type { FaitManager } from "./events/manager.ts";
 import type { FaitMiseAJour } from "./events/update.ts";
 import type { FaitNettoyage } from "./events/cleanup.ts";
 import type { FaitPass, FaitPassRevolu } from "./events/pass.ts";
+import type { FaitRapportQualite } from "./events/quality.ts";
 import type { FaitPause } from "./pause/evenements.ts";
 import type { FaitProfil } from "./profils/evenements.ts";
 import type { FaitRail } from "./events/rail.ts";
@@ -38,7 +39,7 @@ import type { FaitInterrupteur } from "./events/switch.ts";
 import type { FaitTodo } from "./events/todo.ts";
 import type { FaitUrgence } from "./events/emergency.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif | FaitCarnet | FaitProfil | FaitApprentissage | FaitDemenagement | FaitTodo | FaitPause | FaitGates | FaitBudgetDesGates | FaitBlocage | FaitBesoin | FaitDelai | FaitInterrupteur | FaitReparation | FaitReglage | FaitAutonomie | FaitSortieDeCapacite | FaitRetenue;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif | FaitCarnet | FaitProfil | FaitApprentissage | FaitDemenagement | FaitTodo | FaitPause | FaitGates | FaitBudgetDesGates | FaitBlocage | FaitBesoin | FaitDelai | FaitInterrupteur | FaitReparation | FaitReglage | FaitAutonomie | FaitSortieDeCapacite | FaitRetenue | FaitRapportQualite;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

@@ -32,6 +32,7 @@ import { brancherElagageGithub, elagageDuClone } from "../github-seul/elagage/el
 import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/closer-github-passe.ts";
 import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
+import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
@@ -241,7 +242,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => direLaQualite(mesurerQualite(lesTempsDesTickets(station.clone).enregistrements, qualitesDuJournal(elaguee.journal.base), projetDuClone(station.clone))), derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton))), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherRapportHebdo(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat })), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     const roles = identites;
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};

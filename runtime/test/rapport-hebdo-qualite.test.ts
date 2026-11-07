@@ -4,8 +4,11 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { Fait } from "../src/evenements.ts";
+import { ouvrirJournal } from "../src/journal.ts";
+import type { Runtime } from "../src/runtime.ts";
 import { partDansLesSeuils, type QualiteDuTicket } from "../src/mesure-qualite.ts";
-import { FICHIER_DU_RAPPORT, rapportHebdomadaire, semaineDe } from "../src/rapport-hebdo-qualite.ts";
+import { brancherRapportHebdo, FICHIER_DU_RAPPORT, qualitesDuJournal, rapportHebdomadaire, semaineDe } from "../src/rapport-hebdo-qualite.ts";
 import type { TempsTicket } from "../src/temps-ticket/ligne-status.ts";
 
 // Dix tickets, `lents` d'entre eux au-delà du max de 10 min.
@@ -76,4 +79,46 @@ test("the week is the ISO week", () => {
   assert.equal(semaineDe(new Date("2026-11-08T23:59:00Z")), "2026-W45");
   assert.equal(semaineDe(new Date("2026-11-09T00:00:00Z")), "2026-W46");
   assert.equal(semaineDe(new Date("2027-01-01T00:00:00Z")), "2026-W53");
+});
+
+test("only the week before counts: a slow slide over two months proposes nothing, a recent drop does", () => {
+  const dossier = dossierNeuf();
+  mkdirSync(join(dossier, ".claude/brigade"), { recursive: true });
+  const semaines = [0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.62].map((premierCoup, i) => ({ semaine: `2026-W${37 + i}`, dansLesSeuils: 0.9, premierCoup, reparationsParMerge: 0 }));
+  writeFileSync(join(dossier, FICHIER_DU_RAPPORT), JSON.stringify({ semaine: "2026-W43", historique: semaines }));
+  const texte = rapportHebdomadaire({ dossier, temps: temps(1), qualites: qualites(6), maintenant: lundi2, envoyer: () => {} }) ?? "";
+  assert.doesNotMatch(texte, /Threshold proposal/);
+});
+
+test("the journal's quality: a ticket taken twice is not first-try, a repair ticket names its check", () => {
+  const base = mkdtempSync(join(tmpdir(), "journal-"));
+  const journal = ouvrirJournal(base);
+  const noter = (ticket: number, fait: Fait) => journal.ajouter({ project: "p", ticket, author: "runtime", ...fait });
+  const limits = { durationMs: 1, tokens: 1, idleMs: 1 };
+  for (const [ticket, essais, titre] of [[1, 1, "Ticket"], [2, 2, "Réparer la base `main`, rouge sur abc1234 : tests (app)"]] as const) {
+    noter(ticket, { type: "ticket.arrived", payload: { title: titre, priority: null, createdAt: "2026-11-01T00:00:00Z", url: "u" } });
+    noter(ticket, { type: "ticket.taken", payload: { station: "s", leaseUntil: "2026-12-01T00:00:00.000Z" } });
+    for (let i = 0; i < essais; i++) noter(ticket, { type: "cook.launched", payload: { run: `${ticket}-${i}`, limits, stream: "x", branch: "b", worktree: "w" } });
+    noter(ticket, { type: "merge.done", payload: { pr: "p", sha: "s", by: "pass", reconciled: true } });
+  }
+  const q = qualitesDuJournal(journal.base);
+  journal.fermer();
+  assert.deepEqual(q.get(1), { renvois: [], cooksRates: 0 });
+  assert.deepEqual(q.get(2), { renvois: ["send-back"], cooksRates: 0, reparation: ["tests (app)"] });
+});
+
+test("the second's pass is wired: a runtime wake-up writes the report to the journal once a week", () => {
+  const clone = dossierNeuf();
+  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+  const enregistrements = temps(1).map((t, i) => ({ ...t, mergedAt: new Date(Date.UTC(2026, 10, 2, i)).toISOString() }));
+  writeFileSync(join(clone, ".claude/brigade/temps-tickets.json"), JSON.stringify(enregistrements));
+  const journal = ouvrirJournal(dossierNeuf());
+  let reveil = () => {};
+  const runtime = { projet: "p", journal, surReveil: (f: () => void) => { reveil = f; return () => {}; } } as unknown as Runtime;
+  brancherRapportHebdo(runtime, { clone, repertoireEtat: dossierNeuf(), maintenant: () => lundi1 });
+  reveil();
+  const dits = journal.tout().filter((e) => e.type === "quality.reported");
+  journal.fermer();
+  assert.equal(dits.length, 1);
+  assert.match(JSON.stringify(dits[0]?.payload), /Weekly quality report — 2026-W45/);
 });
