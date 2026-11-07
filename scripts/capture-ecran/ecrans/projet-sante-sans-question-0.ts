@@ -10,5 +10,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR, KITCHEN],
-  donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, tempsMaxTicketMin: 15 }, blockedWithoutQuestion: 0 } as ProjetVu),
+  donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, lostTimeMaxMin: 2 }, blockedWithoutQuestion: 0 } as ProjetVu),
 };

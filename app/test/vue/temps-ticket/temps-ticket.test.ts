@@ -1,5 +1,5 @@
 // Le bloc des temps des derniers tickets, sur la page du projet (#2346, épique #2336) : médiane, plus lent, cinq phases,
-// plafond, et l'état vide. Le module est joué avec le faux élément de l'app (aides/fausse-vue.ts).
+// le temps perdu contre son seuil (#2670), et l'état vide. Le module est joué avec le faux élément de l'app (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { dureeEnClair, poserTempsTicket, synthese } from "../../../src/vue/temps-ticket/temps-ticket.js";
@@ -9,7 +9,7 @@ import { Faux } from "../../aides/fausse-vue.ts";
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const MIN = 60;
 
-const ticket = (n: number, total: number, mergedAt = `2026-10-${String(10 + n).padStart(2, "0")}T10:00:00.000Z`) => ({
+const ticket = (n: number, total: number, mergedAt = `2026-10-${String(10 + n).padStart(2, "0")}T10:00:00.000Z`, perdu?: { attente: number; ratees: number; renvois: number }) => ({
   ticket: n,
   claimedAt: "2026-10-01T00:00:00.000Z",
   mergedAt,
@@ -19,16 +19,19 @@ const ticket = (n: number, total: number, mergedAt = `2026-10-${String(10 + n).p
   revue: total * 0.2,
   ci: total * 0.1,
   merge: total * 0.1,
+  ...(perdu === undefined ? {} : { perdu }),
 });
+const date = (n: number) => `2026-10-${String(10 + n).padStart(2, "0")}T10:00:00.000Z`;
 
 describe("la synthèse", () => {
-  test("la médiane et le plus lent des 10 derniers par date de merge, le plafond par défaut à 10 min", () => {
+  test("la médiane et le plus lent des 10 derniers par date de merge, le seuil du temps perdu par défaut à 2 min", () => {
     const lu = synthese({ enregistrements: [ticket(1, 100 * MIN), ...Array.from({ length: 10 }, (_, i) => ticket(20 + i, (5 + i) * MIN, `2026-11-${String(i + 1).padStart(2, "0")}T10:00:00.000Z`))] }) ?? assert.fail("pas de synthèse");
     assert.equal(lu.nombre, 10, "le plus ancien (100 min) sort de la fenêtre");
-    assert.equal(lu.max, 10);
+    assert.equal(lu.max, 2);
     assert.equal(lu.mediane, 9.5 * MIN);
-    assert.deepEqual(lu.plusLent, { ticket: 29, total: 14 * MIN, phase: "Cooking", double: false });
-    assert.equal(lu.depasse, false);
+    assert.deepEqual(lu.plusLent, { ticket: 29, total: 14 * MIN, phase: "Cooking" });
+    assert.equal(lu.perdu, 0, "sans `perdu`, un enregistrement ne perd rien");
+    assert.equal(lu.depasse, false, "un temps total de 14 min n'est plus au-dessus de rien");
   });
 
   test("la cuisson compte ses tests ; cinq phases", () => {
@@ -37,9 +40,15 @@ describe("la synthèse", () => {
     assert.equal(lu.phases[0]?.duree, 5 * MIN);
   });
 
-  test("le plafond du projet remplace le défaut ; un plafond absurde retombe sur 10", () => {
-    assert.equal(synthese({ enregistrements: [ticket(1, MIN)], tempsMaxTicketMin: 30 })?.max, 30);
-    assert.equal(synthese({ enregistrements: [ticket(1, MIN)], tempsMaxTicketMin: -3 })?.max, 10);
+  test("le seuil du projet remplace le défaut ; un seuil absurde retombe sur 2", () => {
+    assert.equal(synthese({ enregistrements: [ticket(1, MIN)], lostTimeMaxMin: 5 })?.max, 5);
+    assert.equal(synthese({ enregistrements: [ticket(1, MIN)], lostTimeMaxMin: -3 })?.max, 2);
+  });
+
+  test("le temps perdu : l'attente avant la prise, les cuissons ratées et les renvois, en médiane", () => {
+    const lu = synthese({ enregistrements: [ticket(1, 10 * MIN, date(1), { attente: 60, ratees: 120, renvois: 60 }), ticket(2, 10 * MIN, date(2), { attente: 30, ratees: 0, renvois: 0 }), ticket(3, 10 * MIN, date(3), { attente: 600, ratees: 0, renvois: 0 })] }) ?? assert.fail();
+    assert.equal(lu.perdu, 4 * MIN);
+    assert.equal(lu.depasse, true);
   });
 
   test("les entrées illisibles sont écartées ; rien de lisible, pas de synthèse", () => {
@@ -55,22 +64,29 @@ describe("la synthèse", () => {
 });
 
 describe("le bloc", () => {
-  test("normal : la médiane, le plus lent, le plafond, cinq phases, pas d'alerte", () => {
-    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 10 * MIN), ticket(8, 12 * MIN), ticket(9, 20 * MIN)], tempsMaxTicketMin: 15 });
+  test("normal : la médiane, le plus lent, le temps perdu contre son seuil, cinq phases, pas d'alerte", () => {
+    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 10 * MIN), ticket(8, 12 * MIN), ticket(9, 20 * MIN)], lostTimeMaxMin: 2 });
     assert.equal(bloc.dataset.temps, "normal");
     const texte = bloc.dessous("span").map((s: { textContent?: string }) => s.textContent ?? "").join("|");
     assert.match(texte, /12 min/);
-    assert.match(texte, /max 15 min/);
-    assert.doesNotMatch(texte, /Over the max/);
+    assert.match(texte, /lost 0 s vs 2 min max/);
+    assert.doesNotMatch(texte, /over the max/);
     assert.match(bloc.dessous("p").map((p: { textContent?: string }) => p.textContent ?? "").join("|"), /Slowest: #9 — 20 min/);
     assert.equal(bloc.dessous("li").length, 5);
   });
 
-  test("au-dessus du plafond : le dit en toutes lettres, avec le plafond", () => {
-    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 20 * MIN), ticket(8, 25 * MIN)], tempsMaxTicketMin: 15 });
+  test("le temps perdu au-dessus du seuil : le dit en toutes lettres, avec le seuil", () => {
+    const perdu = { attente: 60, ratees: 240, renvois: 0 };
+    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 8 * MIN, date(7), perdu), ticket(8, 9 * MIN, date(8), perdu)], lostTimeMaxMin: 2 });
     assert.equal(bloc.dataset.temps, "depasse");
     const texte = bloc.dessous("span").map((s: { textContent?: string }) => s.textContent ?? "").join("|");
-    assert.match(texte, /Over the max of 15 min/);
+    assert.match(texte, /lost 5 min vs 2 min max/);
+    assert.match(texte, /Lost time over the max of 2 min/);
+  });
+
+  test("un long ticket sans temps perdu n'est au-dessus de rien : sa taille varie", () => {
+    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 60 * MIN), ticket(8, 90 * MIN)], lostTimeMaxMin: 2 });
+    assert.equal(bloc.dataset.temps, "normal");
   });
 
   test("sans ticket mesuré : un état vide explicite, ni blanc ni zéro", () => {
@@ -83,8 +99,8 @@ describe("le bloc", () => {
     }
   });
 
-  test("une médiane égale au plafond n'est pas au-dessus", () => {
-    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 15 * MIN)], tempsMaxTicketMin: 15 });
+  test("un temps perdu égal au seuil n'est pas au-dessus", () => {
+    const bloc = poserTempsTicket(doc, { enregistrements: [ticket(7, 15 * MIN, date(7), { attente: 120, ratees: 0, renvois: 0 })], lostTimeMaxMin: 2 });
     assert.equal(bloc.dataset.temps, "normal");
   });
 
@@ -101,10 +117,11 @@ describe("le bloc", () => {
 describe("ce que l'app relit du suivi de la station", () => {
   const relu = (temps: unknown) => lireSuivi(JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", ...(temps === undefined ? {} : { temps }) }] }))[0]?.temps;
 
-  test("les temps publiés arrivent tels quels, avec le plafond", () => {
+  test("les temps publiés arrivent tels quels, avec le seuil du temps perdu (2 min sans lui ou absurde)", () => {
     const lignes = [ticket(7, 20 * MIN)];
-    assert.deepEqual(relu({ enregistrements: lignes, tempsMaxTicketMin: 30 }), { enregistrements: lignes, tempsMaxTicketMin: 30 });
-    assert.equal(relu({ enregistrements: [], tempsMaxTicketMin: -1 })?.tempsMaxTicketMin, 10);
+    assert.deepEqual(relu({ enregistrements: lignes, lostTimeMaxMin: 3 }), { enregistrements: lignes, lostTimeMaxMin: 3 });
+    assert.equal(relu({ enregistrements: [], lostTimeMaxMin: -1 })?.lostTimeMaxMin, 2);
+    assert.equal(relu({ enregistrements: [] })?.lostTimeMaxMin, 2);
   });
 
   test("absents ou illisibles : rien", () => {

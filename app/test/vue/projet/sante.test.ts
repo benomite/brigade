@@ -39,8 +39,9 @@ const ticket = (n: number, total: number, pass: number, jour = n - 100) => ({
   merge: (total - pass) * MIN * 0.05,
 });
 // Le résumé de la mesure (`resume` de temps-tickets.json) : la bande du rail et Health le lisent sans le recalculer.
-const RESUME = { n: 3, medianMin: 10, p75Min: 14, maxMin: 15, phaseLaPlusLongue: { nom: "cooking", medianMin: 6 } };
-const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], tempsMaxTicketMin: 15, resume: RESUME };
+// Le temps total n'a pas de plafond (#2670) : seul le temps perdu médian se compare à son seuil, `lostTimeMaxMin`.
+const RESUME = { n: 3, medianMin: 10, p75Min: 14, perduMedianMin: 1, lostTimeMaxMin: 2, phaseLaPlusLongue: { nom: "cooking", medianMin: 6, partPct: 60 }, perteLaPlusLourde: null };
+const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], lostTimeMaxMin: 2, resume: RESUME };
 
 const texte = (racine: Faux) => racine.textContent;
 const parClasse = (racine: Faux, classe: string) => [...racine.descendants()].filter((pose) => pose.className.split(" ").includes(classe));
@@ -59,11 +60,12 @@ describe("le temps des tickets, sur Health", () => {
 
     const bloc: Faux = poserBlocTempsTickets(doc, TEMPS);
     assert.equal(bloc.dataset.temps, "normal");
-    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), ["10 minmedian of the last 3 measured tickets", "14 minp75 of the last 3 measured tickets", "15 minmax of a ticket"]);
+    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), ["10 minmedian of the last 3 measured tickets", "14 minp75 of the last 3 measured tickets", "1 minmedian lost time, max 2 min"]);
     assert.equal(parClasse(bloc, "temps-phase-lente").map(texte)[0], "Slowest phase: cooking, median 6 min");
     const colonnes = parClasse(bloc, "temps-colonne");
     assert.deepEqual(colonnes.map(({ title }) => title), ["#101 · Oct 1 · 10 min, pass 2 min", "#102 · Oct 2 · 20 min, pass 6 min", "#103 · Oct 3 · 9 min, pass 3 min"]);
-    assert.deepEqual(colonnes.map(({ dataset }) => dataset.depasse), [undefined, "oui", undefined], "le ticket au-delà du plafond est marqué");
+    assert.deepEqual(colonnes.map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined], "le temps d'un ticket n'a pas de plafond");
+    assert.equal(parClasse(bloc, "temps-plafond").length, 0);
     const lignes = bloc.dessous("tr").filter(({ dataset }) => dataset.ticket !== undefined);
     assert.deepEqual(lignes.map((ligne) => ligne.children.map(texte)), [
       ["#103", "Oct 3", "9 min", "3 min"],
@@ -72,26 +74,27 @@ describe("le temps des tickets, sur Health", () => {
     ]);
   });
 
-  test("la médiane ou le p75 au-delà du plafond passent le bloc en « depasse », en rouge, sans changer les autres chiffres", () => {
+  test("le temps perdu médian au-delà de son seuil passe le bloc en « depasse », lui seul en rouge ; la perte la plus lourde se dit", () => {
     const sur = (resume: object) => poserBlocTempsTickets(doc, { ...TEMPS, resume });
-    const lent = sur({ ...RESUME, medianMin: 14, p75Min: 47, maxMin: 10 });
-    assert.equal(lent.dataset.temps, "depasse");
-    assert.deepEqual(parClasse(lent, "temps-chiffre").map(({ dataset }) => dataset.depasse), ["oui", "oui", undefined]);
-    assert.match(texte(lent), /Over the max of 10 min/);
-    const p75 = sur({ ...RESUME, medianMin: 9, p75Min: 16 });
-    assert.equal(p75.dataset.temps, "depasse");
-    assert.deepEqual(parClasse(p75, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, "oui", undefined]);
+    const perdu = sur({ ...RESUME, perduMedianMin: 5, perteLaPlusLourde: { nom: "send-backs", medianMin: 3, partPct: 60 } });
+    assert.equal(perdu.dataset.temps, "depasse");
+    assert.deepEqual(parClasse(perdu, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, "oui"]);
+    assert.match(texte(perdu), /Lost time over the max of 2 min/);
+    assert.deepEqual(parClasse(perdu, "temps-phase-lente").map(texte), ["Heaviest loss: send-backs, median 3 min", "Slowest phase: cooking, median 6 min"]);
+    const long = sur({ ...RESUME, medianMin: 90, p75Min: 160 });
+    assert.equal(long.dataset.temps, "normal", "un long ticket sans temps perdu n'est au-dessus de rien");
+    assert.deepEqual(parClasse(long, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined]);
   });
 
   test("les chiffres sont ceux du résumé, les mêmes que ceux de la bande du rail", () => {
     const bloc = poserBlocTempsTickets(doc, TEMPS);
     const bande = tempsDeLaBande(doc, TEMPS);
-    assert.equal(texte(bande), "Ticket time" + "median" + "10 min" + "/" + "p75" + "14 min" + "vs 15 min max");
-    assert.deepEqual(parClasse(bloc, "temps-valeur").map(texte), ["10 min", "14 min", "15 min"]);
+    assert.equal(texte(bande), "Ticket time" + "median" + "10 min" + "/" + "p75" + "14 min" + "·" + "lost" + "1 min" + "vs 2 min max");
+    assert.deepEqual(parClasse(bloc, "temps-valeur").map(texte), ["10 min", "14 min", "1 min"]);
   });
 
   test("jamais un blanc ni un zéro : sans mesure, « no measure yet » — la phase, le plafond et les figures ne s'inventent pas", () => {
-    for (const temps of [undefined, { enregistrements: [], tempsMaxTicketMin: 15 }]) {
+    for (const temps of [undefined, { enregistrements: [], lostTimeMaxMin: 2 }]) {
       const vide = poserBlocTempsTickets(doc, temps);
       assert.equal(vide.dataset.temps, "vide");
       assert.match(texte(vide), /no measure yet/);
@@ -109,11 +112,11 @@ const champDe = (ligne: Faux) => ligne.dessous("input")[0] ?? assert.fail("pas d
 const boutonDe = (ligne: Faux) => ligne.dessous("button").find((bouton) => bouton.textContent === "save" || bouton.textContent === "saving…") ?? assert.fail("pas de bouton");
 
 describe("les plafonds de durée, sur Health", () => {
-  test("le temps maximum d'un ticket tel que la station le publie, sans champ ; les durées du dépôt ; les autres repliés", () => {
-    const bloc = poserBlocPlafondsDuree(doc, { lecture: LECTURE, tempsMaxTicketMin: 15 });
-    const tempsMax = ligneDe(bloc, "tempsMaxTicketMin");
-    assert.match(texte(tempsMax), /^Ticket duration15 minpublished by the stationnot editable here yet/);
-    assert.equal(tempsMax.dessous("input").length, 0);
+  test("le seuil du temps perdu par ticket tel que la station le publie, sans champ ; les durées du dépôt ; les autres repliés", () => {
+    const bloc = poserBlocPlafondsDuree(doc, { lecture: LECTURE, lostTimeMaxMin: 2 });
+    const perduMax = ligneDe(bloc, "lostTimeMaxMin");
+    assert.match(texte(perduMax), /^Lost time per ticket2 minmedian of recent tickets, published by the stationnot editable here yet/);
+    assert.equal(perduMax.dessous("input").length, 0);
     assert.match(texte(ligneDe(bloc, "gatesSeconds")), /^Gates duration120 sin the repository/);
     assert.match(texte(ligneDe(bloc, "testsSeconds")), /^Test suite durationnot setthe station's, if any/);
     const replie = bloc.dessous("details")[0] ?? assert.fail("pas de repli");

@@ -1,7 +1,7 @@
 // @ts-check
 // La bande du haut de l'onglet Rail (ticket 2486, épique 2484) : sur une seule ligne mince, le temps d'un ticket, les
-// cooks en cours et le backlog — à la place de leurs blocs séparés. Le temps d'un ticket est la médiane et le p75 contre le
-// plafond, tels que la mesure les résume (resume.js), son détail au survol ; les cooks en cours se comptent, leurs tickets au survol ; le
+// cooks en cours et le backlog — à la place de leurs blocs séparés. Le temps d'un ticket est la médiane et le p75, puis
+// le temps perdu contre son seuil (ticket 2670), tels que la mesure les résume (resume.js), son détail au survol ; les cooks en cours se comptent, leurs tickets au survol ; le
 // backlog est la barre empilée qui déplie sa colonne, avec l'histogramme des 24 heures (avant-le-rail.js, cadence.js),
 // que la vue pose et passe tels quels. Sous la bande, le rail prend toute la hauteur.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
@@ -36,9 +36,10 @@ function part(doc, pose, titre, dit, detail) {
   return survol(doc, detail, pose);
 }
 
-// Le temps d'un ticket : la médiane et le p75 contre le plafond (« 14 min / 47 min vs 10 min »), tels que la mesure les
-// résume (temps-ticket/resume.js, jamais recalculés) ; en rouge celui qui passe le plafond, avec « over the max ». Les
-// phases sont au survol. Jamais un blanc ni un zéro : sans mesure, la part le dit (« no measure yet »).
+// Le temps d'un ticket : la médiane et le p75, sans plafond (la taille d'un ticket varie), puis le temps perdu médian
+// contre son seuil (« lost 3 min vs 2 min max »), tels que la mesure les résume (temps-ticket/resume.js, jamais
+// recalculés) ; le temps perdu en rouge quand il passe le seuil, avec « lost time over the max ». La perte la plus
+// lourde et la phase la plus longue sont au survol. Jamais un blanc ni un zéro : sans mesure, la part le dit (« no measure yet »).
 /** @param {Fabrique} doc @param {TempsDuProjet | undefined} temps */
 export function tempsDeLaBande(doc, temps) {
   const lu = lireLeResume(temps);
@@ -54,10 +55,24 @@ export function tempsDeLaBande(doc, temps) {
     c.append(noeud(doc, "span", "bande-doux", legende), noeud(doc, "strong", "bande-valeur", enMinutes(minutes)));
     return c;
   };
-  const dit = [chiffre("median", lu.medianMin, trop.mediane), noeud(doc, "span", "bande-doux", "/"), chiffre("p75", lu.p75Min, trop.p75), noeud(doc, "span", "bande-doux", `vs ${enMinutes(lu.maxMin)} max`)];
-  if (estDepasse(lu)) dit.push(noeud(doc, "span", "bande-depasse", "over the max"));
+  const dit = [
+    chiffre("median", lu.medianMin, false),
+    noeud(doc, "span", "bande-doux", "/"),
+    chiffre("p75", lu.p75Min, false),
+    noeud(doc, "span", "bande-doux", "·"),
+    chiffre("lost", lu.perduMedianMin, trop.perdu),
+    noeud(doc, "span", "bande-doux", `vs ${enMinutes(lu.lostTimeMaxMin)} max`),
+  ];
+  if (estDepasse(lu)) dit.push(noeud(doc, "span", "bande-depasse", "lost time over the max"));
   pose.dataset.temps = estDepasse(lu) ? "depasse" : "normal";
-  const detail = [`Median and p75 of ${surCombien(lu)}, from claim to merge, against the max of ${enMinutes(lu.maxMin)}.`, lu.phaseLaPlusLongue === null ? "" : `Slowest phase: ${lu.phaseLaPlusLongue.nom}, median ${enMinutes(lu.phaseLaPlusLongue.medianMin)}.`].join(" ").trim();
+  const detail = [
+    `Median and p75 of ${surCombien(lu)}, from filing to merge.`,
+    `Lost time (waiting for a claim, failed cooks, send-backs): median ${enMinutes(lu.perduMedianMin)}, against the max of ${enMinutes(lu.lostTimeMaxMin)}.`,
+    lu.perteLaPlusLourde === null ? "" : `Heaviest loss: ${lu.perteLaPlusLourde.nom}, median ${enMinutes(lu.perteLaPlusLourde.medianMin)}.`,
+    lu.phaseLaPlusLongue === null ? "" : `Slowest phase: ${lu.phaseLaPlusLongue.nom}, median ${enMinutes(lu.phaseLaPlusLongue.medianMin)}.`,
+  ]
+    .filter((phrase) => phrase !== "")
+    .join(" ");
   return part(doc, pose, "Ticket time", dit, detail);
 }
 

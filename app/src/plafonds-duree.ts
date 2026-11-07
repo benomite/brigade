@@ -5,9 +5,10 @@
 // GitHub, par l'API REST et le jeton du `gh` de ce poste — comme la priorité d'un ticket (priorite.ts). Ni box, ni PR :
 // écrit, il vaut au rapatriement suivant de la station.
 //
-// Le temps maximum d'un ticket (#2336, `tempsMaxTicketMin`) est aussi un plafond de durée, mais il ne s'écrit pas
-// d'ici : le runtime refuse encore cette clé dans `projet.json` (son crible ne la connaît pas) et ne la relit que dans
-// l'arbre de son clone. La page le montre, tel que la station le publie, sans champ.
+// Le seuil du temps perdu par ticket (#2670, `lostTimeMaxMin` : la médiane du temps perdu des tickets récents — l'attente
+// avant la prise, les cuissons ratées, les renvois ; le temps total d'un ticket n'a pas de plafond) est aussi un plafond
+// de durée, mais il ne s'écrit pas d'ici : ce n'est pas un seuil `drift.*`, et la station ne le relit que dans l'arbre
+// de son clone. La page le montre, tel que la station le publie, sans champ.
 //
 // L'app ne juge que ce que le runtime refuserait de lire (`SEUILS_DU_PROJET`) : un nombre au-dessus de zéro, entier
 // quand le seuil l'est. Ce module compose les demandes ; ce qui les porte est donné (`ClientDeLaPriorite`).

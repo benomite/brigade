@@ -175,7 +175,7 @@ export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macO
 
 // La principale que l'app recommande : une station serveur, en ligne d'abord.
 // Les temps de deux stations d'un même projet : un ticket n'est compté qu'une fois (le plus récent des deux enregistrements),
-// le plafond est celui de la première station qui en publie un.
+// le seuil du temps perdu est celui de la première station.
 export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): TempsPublie {
   if (a === undefined) return b;
   const parTicket = new Map<unknown, unknown>();
@@ -189,9 +189,9 @@ export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): T
     const deja = parTicket.get(ticket) as { mergedAt?: unknown } | undefined;
     if (deja === undefined || Date.parse(String((e as { mergedAt?: unknown }).mergedAt)) > Date.parse(String(deja.mergedAt))) parTicket.set(ticket, e);
   }
-  // Le résumé est celui de la première station qui en publie un, comme le plafond.
+  // Le résumé est celui de la première station qui en publie un ; le seuil, celui de la première.
   const resume = a.resume ?? b.resume;
-  return { enregistrements: [...parTicket.values(), ...fusion], tempsMaxTicketMin: a.tempsMaxTicketMin, ...(resume === undefined ? {} : { resume }) };
+  return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }) };
 }
 
 export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {

@@ -91,9 +91,10 @@ export type Selections = Record<string, string>;
 // `serviLe` (ISO, ou null tant qu'aucun ticket n'est servi) et `duree` (millisecondes, figée, ou null).
 export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | null };
 // Les temps des derniers tickets mesurés du projet, tels que sa principale les lit dans `.claude/brigade/` (#2346,
-// runtime/src/temps-ticket/) : les enregistrements (secondes entières ; la vue écarte les illisibles) et le plafond en minutes.
+// runtime/src/temps-ticket/) : les enregistrements (secondes entières ; la vue écarte les illisibles) et le seuil du temps
+// perdu par ticket en minutes (`lostTimeMaxMin`, #2670 : la médiane du temps perdu des tickets récents ; le temps total n'a pas de plafond).
 // `resume` : le résumé que la mesure écrit dans `temps-tickets.json` (#2659), relayé tel quel — la vue ne le recalcule pas.
-export type TempsPublie = { enregistrements: unknown[]; tempsMaxTicketMin: number; resume?: unknown };
+export type TempsPublie = { enregistrements: unknown[]; lostTimeMaxMin: number; resume?: unknown };
 // `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
 // tient (#1756, runtime/src/projets/secondaires.ts) — déclarées à son journal, chacune par son gist, avec ce qu'elle
 // fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
@@ -257,12 +258,12 @@ function lireDelai(lu: unknown): Delai | null {
 
 // Les temps publiés d'un projet. Absents ou illisibles : rien — la vue dit alors que la station ne les publie pas.
 function lireTemps(lu: unknown): TempsPublie | null {
-  const { enregistrements, tempsMaxTicketMin, resume } = (lu ?? {}) as Record<string, unknown>;
+  const { enregistrements, lostTimeMaxMin, resume } = (lu ?? {}) as Record<string, unknown>;
   const avecResume = typeof resume === "object" && resume !== null;
   if (!Array.isArray(enregistrements) && !avecResume) return null;
   return {
     enregistrements: Array.isArray(enregistrements) ? enregistrements : [],
-    tempsMaxTicketMin: typeof tempsMaxTicketMin === "number" && Number.isFinite(tempsMaxTicketMin) && tempsMaxTicketMin > 0 ? tempsMaxTicketMin : 10,
+    lostTimeMaxMin: typeof lostTimeMaxMin === "number" && Number.isFinite(lostTimeMaxMin) && lostTimeMaxMin > 0 ? lostTimeMaxMin : 2,
     ...(avecResume ? { resume } : {}),
   };
 }
