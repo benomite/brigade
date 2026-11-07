@@ -87,12 +87,15 @@ export function ouvrirDecoupage(atelier: Atelier) {
   // recouvrement, et le chef relit le découpage.
   const demanderDecoupage = async (sujet: { numero: number; prefixe: string; nom: string }, mission: Parameters<typeof consigneDeDecoupage>[0]): Promise<Reponse<Decoupe> | null> => {
     const communs = communsDuRail(base);
-    const reponse = await atelier.demander(sujet, consigneDeDecoupage(mission), lireDecoupage);
+    // Le plan lu est celui dont le découpage juge ce qui est d'interface ; un
+    // plan illisible est vide, donc inconnu.
+    const lire = (message: string | null) => lireDecoupage(message, mission.fichiers.length === 0 ? null : mission.fichiers);
+    const reponse = await atelier.demander(sujet, consigneDeDecoupage(mission), lire);
     if (!reponse || "illisible" in reponse || reponse.valeur.quoi !== "tickets") return reponse;
     const defauts = defautsDeDecoupage(reponse.valeur.tickets, communs);
     if (defauts.length === 0 || arrete() || atelier.eteint()) return reponse;
     const refus = `Ton découpage précédent est refusé par le code, à refaire une seule fois :\n${defauts.map((defaut) => `- ${defaut}`).join("\n")}`;
-    const seconde = await atelier.demander(sujet, consigneDeDecoupage({ ...mission, commentaires: [...mission.commentaires, refus] }), lireDecoupage);
+    const seconde = await atelier.demander(sujet, consigneDeDecoupage({ ...mission, commentaires: [...mission.commentaires, refus] }), lire);
     if (!seconde) return reponse;
     if (!("illisible" in seconde) && seconde.valeur.quoi === "tickets") {
       const restes = defautsDeDecoupage(seconde.valeur.tickets, communs);

@@ -8,7 +8,7 @@ import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capa
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
-import { recouvrement, segments } from "./zones.ts";
+import { possede, recouvrement, segments } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
 // Au-delà, ce n'est plus un découpage qu'un humain relit d'un coup d'œil :
@@ -178,7 +178,21 @@ export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "re
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
 
-function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
+// Vrai si la zone d'un ticket le donne au cook design. Une zone qui nomme la
+// vue de l'app, ou un chemin dessous, la touche. Une zone qui ne nomme qu'un
+// dossier qui la contient (`app/src/`) ne la touche que si le dépôt a une vue :
+// le plan `fichiers` en porte un fichier. Sur BOBL-tech/espace, dont `app/src/`
+// est le serveur et qui n'a ni vue ni cook design, ce dossier faisait des
+// tickets serveur des tickets d'interface, que la relecture renvoyait faute de
+// captures avant et après qu'aucun écran ne pouvait donner (#2800 : #727,
+// #729). `fichiers` null : le plan est inconnu, le dossier compte.
+function zoneDuCookDesign(zone: string[], fichiers: readonly string[] | null): boolean {
+  if (!toucheLaVue(zone)) return false;
+  if (fichiers === null) return true;
+  return [...zone, ...fichiers].some((chemin) => possede(VUE_DE_L_APP, chemin));
+}
+
+function lireTicket(brut: unknown, rang: number, fichiers: readonly string[] | null): TicketPrevu | string {
   const ou = `ticket ${rang}`;
   if (brut === null || typeof brut !== "object" || Array.isArray(brut)) return `${ou} : pas un objet`;
   const lu = brut as Record<string, unknown>;
@@ -214,12 +228,13 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   if (!cook) return `${ou} : cook inconnu : ${JSON.stringify(lu.cook)} — attendu ${COOKS.join(", ")}`;
   // Une zone qui touche la vue de l'app est au cook design, quoi qu'en dise
   // le jugement.
-  const design = cook === "design" || toucheLaVue(prevu.zone);
+  const design = cook === "design" || zoneDuCookDesign(prevu.zone, fichiers);
   return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration, ...(design ? { cook: "design" as const } : {}) };
 }
 
-// Lit le découpage dans le dernier message du jugement.
-export function lireDecoupage(message: string | null): { valeur: Decoupe } | { illisible: string } {
+// Lit le découpage dans le dernier message du jugement. `fichiers` : le plan
+// du dépôt donné au jugement, null s'il est inconnu.
+export function lireDecoupage(message: string | null, fichiers: readonly string[] | null = null): { valeur: Decoupe } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
   const lu = objet(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
@@ -238,7 +253,7 @@ export function lireDecoupage(message: string | null): { valeur: Decoupe } | { i
   if (lu.tickets.length > TICKETS_MAX) return { illisible: `${lu.tickets.length} tickets — ${TICKETS_MAX} au plus : au-delà, l'épique est à réduire` };
   const tickets: TicketPrevu[] = [];
   for (const [i, brut] of lu.tickets.entries()) {
-    const ticket = lireTicket(brut, i + 1);
+    const ticket = lireTicket(brut, i + 1, fichiers);
     if (typeof ticket === "string") return { illisible: ticket };
     tickets.push(ticket);
   }
