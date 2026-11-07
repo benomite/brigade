@@ -143,6 +143,27 @@ const tempsStables = (fin: Date): TempsTicket[] => Array.from({ length: 6 }, (_,
 const fermetures = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ body }) => estUneFermeture(body));
 const corrections = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ labels }) => labels.includes("correction"));
 
+describe("the quality of the recent tickets, at the pass (#2678)", () => {
+  test("the closing issue says the quality lines next to the times", async (t) => {
+    const gh = fauxGitHub();
+    const { clone } = fauxClone();
+    const k = brancher(t, { github: gh.github, clone, temps: () => tempsStables(MAINTENANT), qualite: () => ["- First try: 80% of the 10 recent tickets known to the log — at or over the project's threshold of 70%."] });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    assert.match(fermetures(gh)[0]!.body, /## Times\n\n.*\n\n## Quality\n\n- First try: 80% of the 10 recent tickets/);
+  });
+
+  test("a quality that cannot be read is said in the body and warned, and the pass still opens", async (t) => {
+    const gh = fauxGitHub();
+    const { clone } = fauxClone();
+    const k = brancher(t, { github: gh.github, clone, qualite: () => { throw new Error("log closed"); } });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    assert.match(fermetures(gh)[0]!.body, /## Quality\n\nQuality not read: log closed\./);
+    assert.ok(k.avertissements.includes("brigade : quality not read — log closed"));
+  });
+});
+
 describe("the times of the tickets, at the pass", () => {
   test("drifting times: the closing issue names the cause and its numbers, and one correction ticket is opened", async (t) => {
     const gh = fauxGitHub();

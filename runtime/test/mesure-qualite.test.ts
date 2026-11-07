@@ -1,9 +1,14 @@
 // La qualité des tickets récents, sur la fenêtre des mesures de temps (#2678).
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { classer, mesurerQualite, partDuPremierCoup, REPARATIONS_PAR_MERGE_MAX, reparationsParMerge, SEUIL_PREMIER_COUP_PAR_DEFAUT, seuilPremierCoup, type QualiteDuTicket } from "../src/mesure-qualite.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test, type TestContext } from "node:test";
+import type { Fait } from "../src/evenements.ts";
+import { ouvrirJournal } from "../src/journal.ts";
+import { classer, direLaQualite, mesurerQualite, partDuPremierCoup, projetDuClone, qualitesDuJournal, REPARATIONS_PAR_MERGE_MAX, reparationsParMerge, SEUIL_PREMIER_COUP_PAR_DEFAUT, seuilPremierCoup, type QualiteDuTicket } from "../src/mesure-qualite.ts";
 import { ticketsRecents } from "../src/temps-max/mesure.ts";
 import type { TempsTicket } from "../src/temps-ticket/ligne-status.ts";
+import { horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const heure = (h: number) => new Date(Date.UTC(2026, 10, 5, 0) + h * 3_600_000).toISOString();
 const t = (ticket: number, mergedAt?: string): TempsTicket => ({ ticket, cuisson: 60, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, ...(mergedAt === undefined ? {} : { mergedAt }) });
@@ -113,4 +118,115 @@ test("ranking: most frequent first, ties in the order first seen", () => {
     { nom: "c", fois: 1 },
   ]);
   assert.deepEqual(classer([]), []);
+});
+
+test("the threshold's exact boundary: 70% first-try is not under a 70% threshold", () => {
+  const q = new Map(tousNets);
+  for (const ticket of [3, 4, 5]) q.set(ticket, { renvois: [], cooksRates: 1 });
+  const qualite = mesurerQualite(douze, q);
+  assert.equal(qualite.premierCoup, 0.7);
+  assert.equal(qualite.sousLeSeuil, false);
+  assert.equal(mesurerQualite(douze, q, { premierCoupMinPourcent: 71 }).sousLeSeuil, true);
+});
+
+test("the lines the closing pass gives: rate against threshold, repairs per merge, both rankings — and unknown, not 0%, without measure", () => {
+  const q = new Map(tousNets);
+  q.set(4, { renvois: ["blocking review", "blocking review"], cooksRates: 0 });
+  q.set(6, { renvois: [], cooksRates: 0, reparation: ["tests (app)"] });
+  q.delete(12);
+  assert.deepEqual(direLaQualite(mesurerQualite(douze, q)), [
+    "- First try: 89% of the 9 recent tickets known to the log, 1 more not known — at or over the project's threshold of 70%.",
+    "- Repairs of main: 1 over 9 merged PRs, 0.111 per merge — more than one per ten merges.",
+    "- Send-back reasons: blocking review (2).",
+    "- Checks that broke main: tests (app) (1).",
+  ]);
+  assert.deepEqual(direLaQualite(mesurerQualite(douze, new Map())), [
+    "- First try: unknown — none of the 10 recent tickets is known to the log (threshold 70%).",
+    "- Repairs of main: unknown — no merged PR to count.",
+    "- Send-back reasons: none.",
+    "- Checks that broke main: none.",
+  ]);
+});
+
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const a = (minute: number) => `${JOUR_HORLOGE}T10:${String(minute).padStart(2, "0")}:00.000Z`;
+
+function journal(t: TestContext) {
+  const j = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => j.fermer());
+  const noter = (fait: Fait, ticket: number) => j.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+  let runs = 0;
+  const cuire = (ticket: number, outcome: "ok" | "failed" = "ok") => {
+    const run = `run-${++runs}`;
+    noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: "box/claude", model: "opus", effort: "medium" } }, ticket);
+    noter({ type: "cook.exited", payload: { run, outcome, code: outcome === "ok" ? 0 : 1, signal: null, turns: 10, tokens: 1000, durationMs: 60_000 } }, ticket);
+    return run;
+  };
+  const juger = (ticket: number, run: string, verdict: "green" | "red", bloquants = 0) =>
+    noter(
+      {
+        type: "pass.judged",
+        payload: {
+          run,
+          pr: `https://exemple.test/pull/${ticket}`,
+          number: ticket,
+          sha: `sha-${ticket}`,
+          verdict,
+          gates: { outcome: "green", code: 0, failures: [], tail: "" },
+          ci: { outcome: "none", checks: [] },
+          review: { outcome: bloquants > 0 ? "red" : "green", run: null, summary: null, findings: Array.from({ length: bloquants }, () => ({ severity: "blocking", file: "a.ts", text: "x" })) },
+          findings: [],
+          judgeModified: false,
+          noDiff: false,
+        },
+      } as Fait,
+      ticket,
+    );
+  const prendre = (ticket: number) => noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: a(59) } }, ticket);
+  const merger = (ticket: number) => noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
+  return { base: j.base, noter, cuire, juger, prendre, merger };
+}
+
+test("the log tells each merged ticket's send-backs with their cause, its failed cooks, and the checks its repair of main names", (ctx) => {
+  const j = journal(ctx);
+  // 1 : du premier coup. 2 : renvoyé par la relecture, puis vert. 3 : un cook raté, puis vert.
+  j.prendre(1);
+  j.juger(1, j.cuire(1), "green");
+  j.merger(1);
+  j.prendre(2);
+  j.juger(2, j.cuire(2), "red", 1);
+  j.juger(2, j.cuire(2), "green");
+  j.merger(2);
+  j.prendre(3);
+  j.cuire(3, "failed");
+  j.juger(3, j.cuire(3), "green");
+  j.merger(3);
+  // 4 : le ticket de réparation de la base. 5 : pris, jamais mergé.
+  j.noter({ type: "base.repair-opened", payload: { sha: "rouge", failures: ["tests (app)", "types (runtime)"], reconciled: false } } as Fait, 4);
+  j.prendre(4);
+  j.juger(4, j.cuire(4), "green");
+  j.merger(4);
+  j.prendre(5);
+  j.cuire(5);
+  const qualites = qualitesDuJournal(j.base);
+  assert.deepEqual([...qualites], [
+    [1, { renvois: [], cooksRates: 0 }],
+    [2, { renvois: ["blocking review"], cooksRates: 0 }],
+    [3, { renvois: [], cooksRates: 1 }],
+    [4, { renvois: [], cooksRates: 0, reparation: ["tests (app)", "types (runtime)"] }],
+  ]);
+  const qualite = mesurerQualite([1, 2, 3, 4, 5].map((ticket) => t(ticket)), qualites);
+  assert.equal(qualite.premierCoup, 0.5);
+  assert.equal(qualite.inconnus, 1);
+  assert.deepEqual(qualite.checksCasses, [{ nom: "tests (app)", fois: 1 }, { nom: "types (runtime)", fois: 1 }]);
+});
+
+test("the project's projet.json, read from the clone: its threshold, or the default when missing or unreadable", (t) => {
+  const clone = repertoireTemporaire(t);
+  assert.equal(seuilPremierCoup(projetDuClone(clone)), 70);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude", "brigade", "projet.json"), "{ not json");
+  assert.equal(seuilPremierCoup(projetDuClone(clone)), 70);
+  writeFileSync(join(clone, ".claude", "brigade", "projet.json"), JSON.stringify({ tempsMaxTicketMin: 10, premierCoupMinPourcent: 80 }));
+  assert.equal(seuilPremierCoup(projetDuClone(clone)), 80);
 });
