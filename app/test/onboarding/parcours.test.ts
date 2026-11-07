@@ -236,7 +236,7 @@ const MIRRORLAB: Projet = { nom: "mirrorlab", dossier: "/tmp/mirrorlab", depot: 
 const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine", depot: "benomite/cantine", base: "main" };
 const vuAvec = (onboarding: DuRuntime | null): VuDesProjets => ({
   a: A,
-  projets: [{ nom: "mirrorlab", depot: DEPOT, base: "main", stations: [{ id: "g1", nom: "box", principale: true, etat: "servi", dit: "served by box", autoriser: [] }], servi: null, ...(onboarding === null ? {} : { onboarding: lu(onboarding) }) }],
+  projets: [{ nom: "mirrorlab", depot: DEPOT, base: "main", suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat: "servi", dit: "served by box", autoriser: [] }], servi: null, ...(onboarding === null ? {} : { onboarding: lu(onboarding) }) }],
   recommandee: "g1",
   avertissements: {},
   machines: { g1: machineProposee(BOX) },

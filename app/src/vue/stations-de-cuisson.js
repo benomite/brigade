@@ -11,12 +11,11 @@
 // saturée, un projet refusé, l'accès au dépôt bloqué — avec de quoi ouvrir Cooks, où ce geste se fait. Une seule
 // ligne, quel que soit le nombre de causes ; aucune quand rien ne le demande.
 // Le bloc liste toutes les stations qui servent le projet, chacune une fois (ticket 1786) : celles que `facts` donne, celles
-// que la principale déclare sans qu'elles s'y soient encore annoncées, et celles que l'app lui a ajoutées et qui n'en sont
-// pas encore. La principale — elle tient le manager et la pass — vient d'abord, marquée, avec le geste qui en change ;
-// chaque station dit si elle est atteinte, ce qu'elle fournit (le bloc « what each station provides » y est fondu, son
+// que le journal déclare sans qu'elles s'y soient encore annoncées, et celles que l'app lui a ajoutées et qui n'en sont
+// pas encore. Toutes se disent de la même façon, dans l'ordre où elles sont données ; chaque station dit si elle est atteinte, ce qu'elle fournit (le bloc « what each station provides » y est fondu, son
 // « edit » compris), ses cooks à la fois, et, quand elle ne peut pas cuire, pourquoi en une ligne.
-// Telle que la principale la voit (ticket 1830), quand `facts` le dit : atteinte ou absente — une distante qui ne s'est
-// pas manifestée à la principale est absente, et ne se lit jamais « reached · cooking » —, et ce qu'elle fournit.
+// Telle que `facts` la voit (ticket 1830), quand il le dit : atteinte ou absente — une distante qui ne s'est
+// pas manifestée est absente, et ne se lit jamais « reached · cooking » —, et ce qu'elle fournit.
 // Et ce que chaque station fait tourner à côté de ses cooks (ticket 1971) — la pass qui juge une livraison, le manager
 // qui juge ou découpe une issue, le triage, le closer qui nettoie le projet : une carte chacun, avant celles des cooks, qui
 // dit son rôle, sa station, son ticket, ce qu'il fait et depuis quand ; une ligne chacun sur l'écran étroit. Une station
@@ -40,15 +39,15 @@ import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
 /** @typedef {import("./stations-declarees.js").Editer} Editer */
 /**
  * Une station du projet telle que l'app la connaît par GitHub (vue.js, `cuisineDe`) : son gist, son nom, si c'est sa
- * principale, ce que sa pastille en dit (`dit`, `ton`, `survol`), et, ajoutée mais bloquée ou pas atteinte, pourquoi en
+ * ce que sa pastille en dit (`dit`, `ton`, `survol`), et, ajoutée mais bloquée ou pas atteinte, pourquoi en
  * quelques mots et ce que le chef y fait (`pourquoi`, `geste`), et les autorisations GitHub qu'elle attend. `station` : le
- * nom sous lequel la principale la déclare, quand elle le dit.
- * @typedef {{ id: string, nom: string, station?: string, principale: boolean, dit: string, ton?: string, survol: string, pourquoi: string, geste: string, autoriser: readonly string[] }} Appairee
+ * nom sous lequel le journal la déclare, quand il le dit.
+ * @typedef {{ id: string, nom: string, station?: string, dit: string, ton?: string, survol: string, pourquoi: string, geste: string, autoriser: readonly string[] }} Appairee
  */
 /**
- * Une station du bloc : son nom ; `principale` : elle tourne là où tournent le manager et la pass ; sa ligne de `facts`,
- * sa déclaration, et ce que l'app en sait par GitHub — chacun absent quand sa source ne la nomme pas.
- * @typedef {{ nom: string, principale: boolean, ligne?: Ligne, declaree?: StationDeclaree, appairee?: Appairee }} StationDuBloc
+ * Une station du bloc : son nom ; `distante` : elle tourne sur une autre machine que celle qui lit, quand une source le dit ;
+ * sa ligne de `facts`, sa déclaration, et ce que l'app en sait par GitHub — chacun absent quand sa source ne la nomme pas.
+ * @typedef {{ nom: string, distante?: boolean, ligne?: Ligne, declaree?: StationDeclaree, appairee?: Appairee }} StationDuBloc
  */
 /**
  * Où tournent les stations du projet, et de quoi éditer chacune (stations-declarees.js) : les stations que ce poste joue,
@@ -74,32 +73,25 @@ export const ROLES_EN_COURS = {
 };
 export const OUVRIR_COOKS = "open Cooks";
 
-// Le rôle d'une station (ticket 1786) : la principale tient le manager et la pass, les autres cuisent à côté. Au survol.
-export const ROLES = {
-  principale: { mot: "main station", survol: "it runs the project's manager and its pass, and cooks its tickets too" },
-  cuisson: { mot: "cooking station", survol: "it cooks the project's tickets beside the main station: it runs neither its manager nor its pass" },
-};
 // Atteinte ou non : ce que sa pastille dit. Une distante que rien ne dit atteinte ni perdue n'est pas dite verte.
 export const ATTEINTE = { oui: "reached", non: "not reached", inconnue: "no word", absente: "absent" };
-export const ATTEINTE_INCONNUE = "the main station does not say whether it reaches this station: it says so of the stations added from the app";
-export const ATTEINTE_PRINCIPALE = "the app reads its kitchen: this page comes from it";
-// Une station déclarée qui ne s'est pas encore annoncée à la principale ne cuit pas.
-export const PAS_ANNONCEE = { pourquoi: "not signed in yet", geste: "the main station has not heard from it yet: it takes no ticket until it does" };
-// Ce que la principale dit de sa présence, au survol de sa pastille (ticket 1830).
+export const ATTEINTE_INCONNUE = "nothing says whether this station is reached";
+export const ATTEINTE_ICI = "the app reads its kitchen: this page comes from it";
+// Une station déclarée qui ne s'est pas encore annoncée ne cuit pas.
+export const PAS_ANNONCEE = { pourquoi: "not signed in yet", geste: "nothing has been heard from it yet: it takes no ticket until it does" };
+// Ce que `facts` dit de sa présence, au survol de sa pastille (ticket 1830).
 /** @param {string | null | undefined} vueLe */
-export const VUE_PAR_LA_PRINCIPALE = (vueLe) => `the main station hears from it${vueLe === null || vueLe === undefined ? "" : ` — its last request: ${vueLe}`}`;
+export const VUE_PAR_LES_FAITS = (vueLe) => `the kitchen hears from it${vueLe === null || vueLe === undefined ? "" : ` — its last request: ${vueLe}`}`;
 /** @param {string | null | undefined} vueLe */
-export const ABSENTE_POUR_LA_PRINCIPALE = (vueLe) =>
-  vueLe === null || vueLe === undefined ? "the main station has never heard from it: it takes no ticket until it does" : `the main station has not heard from it since ${vueLe}: it takes no ticket until it does`;
-// Une station que la principale a vue, et qui s'est tue depuis.
+export const ABSENTE_DES_FAITS = (vueLe) =>
+  vueLe === null || vueLe === undefined ? "the kitchen has never heard from it: it takes no ticket until it does" : `the kitchen has not heard from it since ${vueLe}: it takes no ticket until it does`;
+// Une station que la cuisine a vue, et qui s'est tue depuis.
 /** @param {string} vueLe */
-export const TUE = (vueLe) => ({ pourquoi: `silent since ${vueLe}`, geste: "open Brigade on that computer: it takes tickets again once it asks the main station" });
+export const TUE = (vueLe) => ({ pourquoi: `silent since ${vueLe}`, geste: "open Brigade on that computer: it takes tickets again once it asks the kitchen" });
 export const RELIRE = { libelle: "check again", survol: "reads GitHub again, to see whether the station has spoken" };
-// Ce qu'elle fournit : sa déclaration le dit ; une station que la principale ne déclare pas encore n'a rien dit.
+// Ce qu'elle fournit : sa déclaration le dit ; une station que le journal ne déclare pas encore n'a rien dit.
 export const FOURNIT = "Provides";
-export const FOURNIT_PAS_DIT = "not declared on the main station yet";
-// Le changement de principale : le déménagement de la cuisine, que l'en-tête du projet ouvre (ticket 1095).
-export const CHANGER_LA_PRINCIPALE = { libelle: "move the kitchen", survol: "moves the manager and the pass to another of your stations: the choice opens at the top of the page" };
+export const FOURNIT_PAS_DIT = "not declared yet";
 
 // Le plafond de cooks du projet sur la station (ticket 1292) : ce qu'il vaut, d'où il vient, et ses deux gestes.
 export const POSER_LE_PLAFOND = "set the cap";
@@ -264,57 +256,49 @@ function plafondDeLaStation(doc, station, cap, rendu, saisies, regler) {
   return lignes;
 }
 
-// Le nom de la machine d'une station, comme la principale le tire de son nom pour la déclarer `<machine>/claude`
-// (runtime/src/projets/preparer.ts, `machineDe`) : de quoi reconnaître une station ajoutée tant que la principale ne dit pas
+// Le nom de la machine d'une station, comme la station le tire de son nom pour la déclarer `<machine>/claude`
+// (runtime/src/projets/preparer.ts, `machineDe`) : de quoi reconnaître une station ajoutée tant que le journal ne dit pas
 // encore sous quel nom elle la déclare.
 /** @param {string} nom */
 const machineDe = (nom) => nom.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station";
 
-// Les stations du bloc, chacune une fois : celles de `facts`, dans son ordre, puis celles que la principale déclare sans
-// qu'elles s'y soient annoncées, puis celles que l'app connaît par GitHub et qu'aucune des deux ne nomme. Une station de la
-// machine de la principale — non distante — en est (`principale`), et la principale que l'app connaît s'y rattache ; elles
-// viennent d'abord, et la première est la principale du bloc.
+// Les stations du bloc, chacune une fois : celles de `facts`, dans son ordre, puis celles que le journal déclare sans
+// qu'elles s'y soient annoncées, puis celles que l'app connaît par GitHub et qu'aucune des deux ne nomme. Une station que
+// l'app connaît se rattache à la station du bloc qui porte son nom, ou le nom de sa machine ; sans elle, elle a la sienne.
 /** @param {readonly Ligne[]} lignes @param {readonly StationDeclaree[]} declarees @param {readonly Appairee[]} appairees @returns {StationDuBloc[]} */
 export function stationsDuBloc(lignes, declarees = [], appairees = []) {
   /** @type {StationDuBloc[]} */
-  const rangs = lignes.map((ligne) => ({ nom: ligne.station, principale: !ligne.distante, ligne }));
+  const rangs = lignes.map((ligne) => ({ nom: ligne.station, distante: ligne.distante, ligne }));
   for (const declaree of declarees) {
     const tenu = rangs.find(({ nom }) => nom === declaree.nom);
     if (tenu !== undefined) tenu.declaree = declaree;
-    else rangs.push({ nom: declaree.nom, principale: !declaree.distante, declaree });
-  }
-  const principale = appairees.find((appairee) => appairee.principale);
-  if (principale !== undefined) {
-    const siennes = rangs.filter((rang) => rang.principale);
-    if (siennes.length === 0) rangs.push({ nom: principale.nom, principale: true, appairee: principale });
-    for (const rang of siennes) rang.appairee = principale;
+    else rangs.push({ nom: declaree.nom, distante: declaree.distante, declaree });
   }
   for (const appairee of appairees) {
-    if (appairee === principale) continue;
-    const libres = rangs.filter((rang) => !rang.principale && rang.appairee === undefined);
+    const libres = rangs.filter((rang) => rang.appairee === undefined);
     const sienne = libres.find(({ nom }) => nom === appairee.station) ?? (appairee.station === undefined ? libres.find(({ nom }) => nom.split("/")[0] === machineDe(appairee.nom)) : undefined);
     if (sienne !== undefined) sienne.appairee = appairee;
-    else rangs.push({ nom: appairee.nom, principale: false, appairee });
+    else rangs.push({ nom: appairee.nom, appairee });
   }
-  return [...rangs.filter((rang) => rang.principale), ...rangs.filter((rang) => !rang.principale)];
+  return rangs;
 }
 
-// Si une station est atteinte : ce que la principale en dit dans `facts` — sa cuisine se lit, une distante s'y est
-// manifestée ou non ; à défaut, ce que l'app en sait par GitHub ; à défaut encore, la principale l'est, et d'une
-// distante, rien ne le dit.
+// Si une station est atteinte : ce que `facts` en dit — sa cuisine se lit, une distante s'y est manifestée ou non ; à
+// défaut, ce que l'app en sait par GitHub ; à défaut encore, celle qui n'est pas distante l'est, et d'une distante, rien
+// ne le dit.
 /** @param {StationDuBloc} rang @returns {{ mot: string, ton: string, survol: string }} */
-function atteinteDe({ principale, appairee, ligne }) {
+function atteinteDe({ distante, appairee, ligne }) {
   if (ligne?.presente !== undefined) {
-    if (!ligne.distante) return { mot: ATTEINTE.oui, ton: "vert", survol: ATTEINTE_PRINCIPALE };
-    if (ligne.presente) return { mot: ATTEINTE.oui, ton: "vert", survol: VUE_PAR_LA_PRINCIPALE(ligne.vueLe) };
-    return { mot: ATTEINTE.absente, ton: "gris", survol: ABSENTE_POUR_LA_PRINCIPALE(ligne.vueLe) };
+    if (!ligne.distante) return { mot: ATTEINTE.oui, ton: "vert", survol: ATTEINTE_ICI };
+    if (ligne.presente) return { mot: ATTEINTE.oui, ton: "vert", survol: VUE_PAR_LES_FAITS(ligne.vueLe) };
+    return { mot: ATTEINTE.absente, ton: "gris", survol: ABSENTE_DES_FAITS(ligne.vueLe) };
   }
   if (appairee !== undefined) {
     const survol = [appairee.dit, appairee.survol].filter((ligne, i, lignes) => ligne !== "" && lignes.indexOf(ligne) === i).join("\n");
     if (appairee.ton === "vert") return { mot: ATTEINTE.oui, ton: "vert", survol };
-    return { mot: principale && appairee.ton === "rouge" ? appairee.dit : ATTEINTE.non, ton: appairee.ton === "rouge" ? "rouge" : "gris", survol };
+    return { mot: appairee.ton === "rouge" ? appairee.dit : ATTEINTE.non, ton: appairee.ton === "rouge" ? "rouge" : "gris", survol };
   }
-  if (principale) return { mot: ATTEINTE.oui, ton: "vert", survol: ATTEINTE_PRINCIPALE };
+  if (distante === false) return { mot: ATTEINTE.oui, ton: "vert", survol: ATTEINTE_ICI };
   return { mot: ATTEINTE.inconnue, ton: "gris", survol: ATTEINTE_INCONNUE };
 }
 
@@ -325,7 +309,7 @@ function atteinteDe({ principale, appairee, ligne }) {
 function retenueDe({ ligne, appairee }) {
   if (appairee !== undefined && appairee.pourquoi !== "") return { pourquoi: appairee.pourquoi, geste: appairee.geste, parGitHub: true };
   if (ligne === undefined) return { ...PAS_ANNONCEE, parGitHub: false };
-  // Absente pour la principale : elle ne s'y est jamais manifestée, ou s'est tue depuis.
+  // Absente : elle ne s'y est jamais manifestée, ou s'est tue depuis.
   if (ligne.distante && ligne.presente === false) return { ...(ligne.vueLe === null || ligne.vueLe === undefined ? PAS_ANNONCEE : TUE(ligne.vueLe)), parGitHub: false };
   return undefined;
 }
@@ -374,10 +358,10 @@ function fournitDe(doc, rang, lieu, declarees) {
   const libelle = cree(doc, "span", FOURNIT);
   libelle.className = "libelle";
   ligne.append(libelle);
-  // Sans sa déclaration lue, ce que `facts` dit qu'elle fournit — la principale la déclare ainsi —, sans « edit ».
+  // Sans sa déclaration lue, ce que `facts` dit qu'elle fournit — le journal la déclare ainsi —, sans « edit ».
   const dansLesFaits = rang.ligne?.fournit;
   if (rang.declaree === undefined && dansLesFaits !== undefined) {
-    const [capacites] = ceQuElleFournit(doc, { nom: rang.nom, moteur: "", fournit: dansLesFaits, cooks: 0, distante: rang.ligne?.distante ?? !rang.principale }, { ici: lieu.ici });
+    const [capacites] = ceQuElleFournit(doc, { nom: rang.nom, moteur: "", fournit: dansLesFaits, cooks: 0, distante: rang.distante ?? true }, { ici: lieu.ici });
     ligne.append(capacites);
     return [ligne];
   }
@@ -409,41 +393,24 @@ function cooksDeclares(doc, declaree, editer) {
   return [plafond, regle];
 }
 
-// Le changement de principale, sur sa ligne : le bouton du déménagement — grisé, avec pourquoi au survol, quand il n'est
-// pas offert.
-/** @param {Fabrique} doc @param {{ offert: boolean, pourquoiPas: string, ouvrir: () => void }} deplacer */
-function changerLaPrincipale(doc, deplacer) {
-  const pose = cree(doc, "p");
-  pose.className = "principale-de-station";
-  const bouton = cree(doc, "button", CHANGER_LA_PRINCIPALE.libelle);
-  bouton.type = "button";
-  bouton.className = "changer-la-principale";
-  bouton.title = deplacer.offert ? CHANGER_LA_PRINCIPALE.survol : deplacer.pourquoiPas;
-  bouton.disabled = !deplacer.offert;
-  bouton.addEventListener("click", () => deplacer.ouvrir());
-  pose.append(bouton);
-  return pose;
-}
-
 // La section des stations, ou null : `facts` ne les donne pas. `enCours` : les stations dont un clic attend sa
 // réponse, et lequel ; `dits` : ce que le dernier clic de chacune a rendu. `pastille` : celle de la vue. `carte` :
 // la carte du ticket d'un cook, celle du kanban — sans elle, une ligne par cook. `tete` : ce qui se lit sous son titre,
 // avant les stations — la ligne de la cuisine du projet, où sa carte est fondue (ticket 1456).
-// `declarees` : les stations que la principale déclare (installation stations --json) ; `appairees` : celles que l'app
-// connaît par GitHub ; `lieu` : où elles tournent, et de quoi les éditer ; `deplacer` : le changement de principale ;
+// `declarees` : les stations que le journal déclare (installation stations --json) ; `appairees` : celles que l'app
+// connaît par GitHub ; `lieu` : où elles tournent, et de quoi les éditer ;
 // `relire`, `autoriser` : les gestes d'une station ajoutée qui ne cuit pas encore (ticket 1786).
 /**
  * @param {Fabrique} doc
- * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, plafondsDits?: ReadonlyMap<string, DitDuPlafond | "en cours">, saisies?: { lire: (station: string) => string, ecrire: (station: string, valeur: string) => void }, regler?: (station: string, valeur: string) => void, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, deplacer?: { offert: boolean, pourquoiPas: string, ouvrir: () => void }, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
+ * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, plafondsDits?: ReadonlyMap<string, DitDuPlafond | "en cours">, saisies?: { lire: (station: string) => string, ecrire: (station: string, valeur: string) => void }, regler?: (station: string, valeur: string) => void, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
  */
-export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, carte, plafonds, plafondsDits, saisies, regler, tete = [], declarees = [], appairees = [], lieu, deplacer, relire, autoriser }) {
+export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, carte, plafonds, plafondsDits, saisies, regler, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
   if (lignes === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
   section.ariaLabel = TITRE;
   if (carte !== undefined) section.dataset.cartes = "";
   const rangs = stationsDuBloc(lignes, declarees, appairees);
-  const premiere = rangs.find((rang) => rang.principale);
   const liste = cree(doc, "ol");
   liste.append(
     ...rangs.map((rang) => {
@@ -451,19 +418,13 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       const pose = cree(doc, "li");
       pose.className = "station-de-cuisson";
       pose.dataset.station = rang.nom;
-      // Une seule principale : une autre station de sa machine cuit à côté d'elle.
-      const sonRole = rang === premiere ? "principale" : "cuisson";
-      pose.dataset.role = sonRole;
-      // Son nom, son rôle, et où elle tourne.
+      // Son nom, et où elle tourne.
       const nom = cree(doc, "span");
       nom.className = "nom";
       const appele = cree(doc, "strong", rang.nom);
       appele.className = "mono";
-      const role = cree(doc, "small", ROLES[sonRole].mot);
-      role.className = "role";
-      role.title = ROLES[sonRole].survol;
-      const ou = rang.declaree !== undefined && lieu !== undefined ? [motDuLieu(doc, rang.declaree, lieu)] : (ligne?.distante ?? !rang.principale) ? [cree(doc, "small", "remote")] : [];
-      nom.append(appele, role, ...ou);
+      const ou = rang.declaree !== undefined && lieu !== undefined ? [motDuLieu(doc, rang.declaree, lieu)] : (rang.distante ?? true) ? [cree(doc, "small", "remote")] : [];
+      nom.append(appele, ...ou);
       // Atteinte ou non, puis son mot, ce qu'il veut dire en quelques mots, et le reste au survol.
       const etat = cree(doc, "span");
       etat.className = "etat";
@@ -511,8 +472,6 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       // Pourquoi elle ne cuit pas, en une ligne.
       const retenue = retenueDe(rang);
       if (retenue !== undefined) pose.append(ligneDeRetenue(doc, rang, retenue, { ...(relire === undefined ? {} : { relire }), ...(autoriser === undefined ? {} : { autoriser }) }));
-      // La principale : le geste qui en change, une fois.
-      if (rang === premiere && deplacer !== undefined) pose.append(changerLaPrincipale(doc, deplacer));
       // Ce qu'elle fournit, puis ses cooks à la fois.
       if (lieu !== undefined) pose.append(...fournitDe(doc, rang, lieu, declarees.length));
       const cap = plafonds?.[rang.nom];

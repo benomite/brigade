@@ -14,10 +14,10 @@ const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12 · 8 cores"
 const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "en-ligne", ligne: "online · no project", pannes: [], dit: "online", version: "", projets: [], max: null };
 const STATIONS: VuDesStations = { a: MAINTENANT, stations: [BOX, MAC] };
 
-const station = (id: string, nom: string, principale: boolean) => ({ id, nom, principale, etat: principale ? ("servi" as const) : ("secondaire" as const), dit: principale ? `served by ${nom}` : "not its main station: it runs neither its manager nor its pass", autoriser: [] });
-// parade cuit sur la box, ou sur ce Mac : la principale, l'autre en renfort.
-export const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", stations: [station("box", "box", true), station("macbook", "macbook", false)], servi: null, cuitSur: { id: "box", nom: "box", ici: false }, demenagement: null };
-export const SUR_CE_MAC: ProjetVu = { ...SUR_LA_BOX, stations: [station("macbook", "macbook", true), station("box", "box", false)], cuitSur: { id: "macbook", nom: "macbook", ici: true } };
+const station = (id: string, nom: string) => ({ id, nom, etat: "servi" as const, dit: `served by ${nom}`, autoriser: [] });
+// parade cuit sur la box, ou sur ce Mac : les deux le servent, de la même façon.
+export const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "box", nom: "box" }, stations: [station("box", "box"), station("macbook", "macbook")], servi: null, cuitSur: { id: "box", nom: "box", ici: false }, demenagement: null };
+export const SUR_CE_MAC: ProjetVu = { ...SUR_LA_BOX, suiviPar: { id: "macbook", nom: "macbook" }, stations: [station("macbook", "macbook"), station("box", "box")], cuitSur: { id: "macbook", nom: "macbook", ici: true } };
 
 // Les données d'un écran : parade tel que `projet` le dit ; `reponses`, ce que les gestes rendent.
 export function donnees(projet: ProjetVu, reponses: Record<string, unknown> = {}): Donnees {

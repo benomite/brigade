@@ -75,7 +75,7 @@ describe("sur la page du projet", () => {
       nom: "parade",
       depot: "benomite/parade",
       base: "main",
-      stations: [{ id: "g1", nom: "box", principale: true, etat: "en-preparation", dit: "", autoriser: [] }],
+      suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat: "en-preparation", dit: "", autoriser: [] }],
       servi: null,
       cuitSur: { id: "g1", nom: "box", ici: false },
       ...(lu === undefined ? {} : { delai: lu }),

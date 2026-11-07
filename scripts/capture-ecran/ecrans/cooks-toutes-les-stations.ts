@@ -1,6 +1,5 @@
-// L'onglet Cooks de « parade », qui cuit sur la box, avec toutes ses stations (#1786) : la box, sa principale — son manager
-// et sa pass —, ce Mac ajouté à sa cuisine, atteint, qui y cuit #15, et un PC ajouté lui aussi, que la box ne parvient pas
-// à atteindre et qui ne s'est jamais annoncé. Chacune une fois dans « Its stations », la principale d'abord : si elle est
+// L'onglet Cooks de « parade », qui cuit sur la box, avec toutes ses stations (#1786) : la box, ce Mac ajouté à sa cuisine, atteint, qui y cuit #15, et un PC ajouté lui aussi, que la box ne parvient pas
+// à atteindre et qui ne s'est jamais annoncé. Chacune une fois dans « Its stations », toutes de la même façon : si elle est
 // atteinte, ce qu'elle fournit, ses cooks à la fois, ce qu'elle cuit, et pourquoi le PC ne cuit pas. Ce que chaque station
 // fournit vient de la déclaration de la box (`installation stations --json`), comme dans l'app.
 import type { Faits } from "../../../app/src/faits.ts";
@@ -32,10 +31,10 @@ const DECLAREES: StationsLues = {
 };
 
 const [box, mac] = SUR_LA_BOX.stations;
-const PC = { id: "pc", nom: "pc", principale: false, etat: "secondaire" as const, dit: "not its main station: it runs neither its manager nor its pass", autoriser: [] };
+const PC = { id: "pc", nom: "pc", etat: "attendu" as const, dit: "pc has not read it yet", autoriser: [] };
 
 export const ecran: Ecran = {
-  dit: "L'onglet Cooks de « parade », cuisant sur la box : toutes ses stations dans « Its stations », la principale d'abord — atteinte ou non, ce qu'elle fournit, ses cooks à la fois, ce qu'elle cuit, et pourquoi le PC ne cuit pas",
+  dit: "L'onglet Cooks de « parade », cuisant sur la box : toutes ses stations dans « Its stations », toutes de la même façon — atteinte ou non, ce qu'elle fournit, ses cooks à la fois, ce qu'elle cuit, et pourquoi le PC ne cuit pas",
   largeur: 1440,
   hauteur: 1100,
   etapes: [OUVRIR, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
@@ -45,8 +44,8 @@ export const ecran: Ecran = {
         ...SUR_LA_BOX,
         stations: [
           box!,
-          { ...mac!, atteinte: { oui: true, dit: "reached: it is online on GitHub", station: MAC } },
-          { ...PC, atteinte: { oui: false, dit: "not reached: no sign of life on GitHub since 2026-10-12T18:20:00.000Z", station: "pc/claude", pourquoi: "not reached", geste: "open Brigade on that computer" } },
+          { ...mac!, dit: "it is online on GitHub" },
+          PC,
         ],
       },
       { service: guide(DECLAREES) },

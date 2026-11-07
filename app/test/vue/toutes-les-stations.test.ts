@@ -22,7 +22,7 @@ import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, 
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
 import { ABSENTE } from "../../src/cuisson.ts";
-import { ATTEINTE, CHANGER_LA_PRINCIPALE, FOURNIT_PAS_DIT, PAS_ANNONCEE, POSER_LE_PLAFOND, RELIRE, ROLES, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
+import { ATTEINTE, FOURNIT_PAS_DIT, PAS_ANNONCEE, POSER_LE_PLAFOND, RELIRE, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
 import { TITRE as TITRE_DES_DECLAREES } from "../../src/vue/stations-declarees.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -42,10 +42,11 @@ const SUR_LA_BOX: ProjetVu = {
   nom: PARADE,
   depot: "benomite/parade",
   base: "main",
+  suiviPar: { id: "gbox", nom: "box" },
   stations: [
-    { id: "gbox", nom: "box", principale: true, etat: "servi", dit: "served by box", autoriser: [] },
-    { id: "gmac", nom: "macbook", principale: false, etat: "secondaire", dit: "not its main station", autoriser: [], atteinte: { oui: true, dit: "reached: it is online on GitHub", station: "macbook/claude" } },
-    { id: "gpc", nom: "pc", principale: false, etat: "attendu", dit: "pc has not read it yet", autoriser: [] },
+    { id: "gbox", nom: "box", etat: "servi", dit: "served by box", autoriser: [] },
+    { id: "gmac", nom: "macbook", etat: "servi", dit: "it is online on GitHub", autoriser: [] },
+    { id: "gpc", nom: "pc", etat: "attendu", dit: "pc has not read it yet", autoriser: [] },
   ],
   servi: null,
   cuitSur: { id: "gbox", nom: "box", ici: false },
@@ -124,18 +125,15 @@ async function ouvrir(vu: VuDesProjets = vuDes(SUR_LA_BOX), stations: DuRuntime[
 
 const lignes = (vue: Jouee) => vue.element("rail").dessous("li").filter((li) => li.className === "station-de-cuisson");
 const ligne = (vue: Jouee, nom: string) => lignes(vue).find((li) => li.dataset.station === nom) ?? assert.fail(`pas de ligne pour ${nom}`);
-const role = (pose: Faux) => pose.dessous("small").find(({ className }) => className === "role")?.textContent;
 const atteinte = (pose: Faux) => pose.dessous("span").find(({ className }) => className === "pilule atteinte");
 const fournit = (pose: Faux) => pose.dessous("div").find(({ className }) => className === "fournit-de-station");
 const retenue = (pose: Faux) => pose.dessous("p").find(({ className }) => className === "retenue-de-cuisson");
 const boutonDe = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de « ${texte} » sous ${pose.dataset.station}`);
 
 describe("« Its stations » liste toutes les stations du projet (#1786)", () => {
-  test("chacune une fois, la principale d'abord : celle de `facts`, celle que la box déclare sans qu'elle s'y soit annoncée, celle que l'app a ajoutée", async () => {
+  test("chacune une fois, sans rôle dit : celle de `facts`, celle que la box déclare sans qu'elle s'y soit annoncée, celle que l'app a ajoutée", async () => {
     const vue = await ouvrir();
     assert.deepEqual(lignes(vue).map(({ dataset }) => dataset.station), ["box/claude", "macbook/claude", "pc"]);
-    assert.deepEqual(lignes(vue).map(role), [ROLES.principale.mot, ROLES.cuisson.mot, ROLES.cuisson.mot]);
-    assert.match(ligne(vue, "box/claude").dessous("small").find(({ className }) => className === "role")?.title ?? "", /manager and its pass/);
     // Atteinte ou non : la box l'est, le Mac aussi — la box le dit —, le PC ne l'est pas.
     assert.deepEqual(lignes(vue).map((pose) => [atteinte(pose)?.textContent, atteinte(pose)?.dataset.ton]), [
       [ATTEINTE.oui, "vert"],
@@ -173,16 +171,11 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     assert.equal(lignes(vue).filter(({ dataset }) => dataset.station === "macbook/claude").length, 1);
   });
 
-  test("la principale porte « move the kitchen » : il ouvre le choix de la machine, en tête de la page", async () => {
+  test("toutes les stations se disent de la même façon : aucun geste de la cuisine n'est sur une ligne ni sous le titre du bloc", async () => {
     const vue = await ouvrir();
-    assert.equal(ligne(vue, "macbook/claude").dessous("button").some(({ textContent }) => textContent === CHANGER_LA_PRINCIPALE.libelle), false);
-    const deplacer = boutonDe(ligne(vue, "box/claude"), CHANGER_LA_PRINCIPALE.libelle);
-    assert.equal(deplacer.disabled, false);
-    deplacer.click();
-    await repos();
-    const choix = vue.element("stations-du-projet").dessous("section").find(({ className }) => className === "demenagement") ?? assert.fail("pas de choix");
-    assert.equal(choix.hidden, false);
-    assert.match(choix.textContent, /Move parade's kitchen from box to:/);
+    assert.equal(vue.element("rail").dessous("button").some(({ textContent }) => textContent === "move the kitchen"), false);
+    const formes = lignes(vue).map((pose) => pose.children.map(({ className }) => className).filter((nom) => ["nom", "etat"].includes(nom)));
+    assert.deepEqual(formes, formes.map(() => ["nom", "etat"]));
   });
 
   test("« set the cap » d'une station ouvre son formulaire dans sa ligne, son plafond prêt à changer", async () => {
@@ -194,7 +187,7 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
   });
 });
 
-describe("« Its stations » dit chaque station telle que la principale la voit (#1830)", () => {
+describe("« Its stations » dit chaque station telle que `facts` la voit (#1830)", () => {
   // mirrorscreen : la box déclare le Mac — distante+ensemble, macos, un navigateur — mais il ne s'est jamais manifesté à
   // elle ; l'app, elle, le lit en ligne sur GitHub. Aucune déclaration lue par `installation stations --json`.
   const SANS_DECLARATION = lireStations(JSON.stringify({ etape: { id: "stations", etat: "faite" }, proposees: [], absent: null, declarees: [] })) ?? assert.fail("la forme de `installation stations --json` n'est plus lue");
@@ -206,7 +199,7 @@ describe("« Its stations » dit chaque station telle que la principale la voit 
     const vue = await ouvrir(vuDes(SUR_LA_BOX), [LA_BOX, LE_MAC], SANS_DECLARATION);
     const mac = ligne(vue, "macbook/claude");
     assert.deepEqual([atteinte(mac)?.textContent, atteinte(mac)?.dataset.ton, pilule(mac)], [ATTEINTE.absente, "gris", ABSENTE.etat]);
-    assert.match(atteinte(mac)?.title ?? "", /the main station has never heard from it/);
+    assert.match(atteinte(mac)?.title ?? "", /the kitchen has never heard from it/);
     assert.equal(retenue(mac)?.textContent, PAS_ANNONCEE.pourquoi);
     // Son geste reste : l'arrêter avant qu'il ne vienne.
     assert.ok(mac.dessous("button").some(({ ariaLabel }) => ariaLabel === "stop cooking on macbook/claude"));
@@ -239,23 +232,23 @@ describe("« Its stations » dit chaque station telle que la principale la voit 
 describe("les stations du bloc, rangées (#1786)", () => {
   const ligneDe = (nom: string, distante: boolean) => ({ station: nom, distante, etat: "cooking", dit: "", survol: "", cooks: [], agents: [], geste: "stop" as const });
   const declaree = (nom: string, distante: boolean) => ({ nom, moteur: "claude", fournit: ["code"], cooks: 1, distante });
-  const app = (id: string, nom: string, principale: boolean, station?: string) => ({ id, nom, principale, dit: "", survol: "", pourquoi: "", geste: "", autoriser: [], ...(station === undefined ? {} : { station }) });
+  const app = (id: string, nom: string, station?: string) => ({ id, nom, dit: "", survol: "", pourquoi: "", geste: "", autoriser: [], ...(station === undefined ? {} : { station }) });
 
   test("chacune une fois : `facts` et la déclaration par leur nom, une station de l'app par le nom que la principale lui donne — ou celui de sa machine", () => {
-    const rangs = stationsDuBloc([ligneDe("mac-mini/claude", true), ligneDe("box/claude", false)], [declaree("box/claude", false), declaree("mac-mini/claude", true), declaree("pc/claude", true)], [app("g1", "box", true), app("g2", "Mac Mini", false), app("g3", "pc", false, "pc/claude"), app("g4", "atelier", false)]);
+    const rangs = stationsDuBloc([ligneDe("mac-mini/claude", true), ligneDe("box/claude", false)], [declaree("box/claude", false), declaree("mac-mini/claude", true), declaree("pc/claude", true)], [app("g1", "box"), app("g2", "Mac Mini"), app("g3", "pc", "pc/claude"), app("g4", "atelier")]);
     assert.deepEqual(
-      rangs.map(({ nom, principale, ligne, declaree: d, appairee: a }) => [nom, principale, ligne !== undefined, d !== undefined, a?.id]),
+      rangs.map(({ nom, ligne, declaree: d, appairee: a }) => [nom, ligne !== undefined, d !== undefined, a?.id]),
       [
-        ["box/claude", true, true, true, "g1"],
-        ["mac-mini/claude", false, true, true, "g2"],
-        ["pc/claude", false, false, true, "g3"],
-        ["atelier", false, false, false, "g4"],
+        ["mac-mini/claude", true, true, "g2"],
+        ["box/claude", true, true, "g1"],
+        ["pc/claude", false, true, "g3"],
+        ["atelier", false, false, "g4"],
       ],
     );
   });
 
-  test("sans station de la principale dans `facts` ni dans la déclaration, la principale de l'app a sa ligne, en tête", () => {
-    const rangs = stationsDuBloc([ligneDe("mac/claude", true)], [], [app("g2", "mac", false), app("g1", "box", true)]);
-    assert.deepEqual(rangs.map(({ nom, principale }) => [nom, principale]), [["box", true], ["mac/claude", false]]);
+  test("sans station de `facts` ni de la déclaration qui lui réponde, une station de l'app a sa ligne, après celles de `facts`", () => {
+    const rangs = stationsDuBloc([ligneDe("mac/claude", true)], [], [app("g2", "mac"), app("g1", "box")]);
+    assert.deepEqual(rangs.map(({ nom }) => nom), ["mac/claude", "box"]);
   });
 });

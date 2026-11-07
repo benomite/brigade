@@ -1046,7 +1046,7 @@ ipcMain.handle("dossiersDeLaStation", async (_, nom: unknown): Promise<DossiersD
 // fichier de cette machine (reglages-de-la-station.ts). Un téléphone n'a pas de station.
 const fichierDesReglagesDeLaStation = join(dirname(cheminConfiguration()), "station-reglages.json");
 // Le bac à sable est « off » dès qu'un projet cuisiné ici a reçu « continuer sans » (suivi publié par la principale).
-const sansBacASable = () => (projetsDesStations.vu()?.projets ?? []).some((projet) => projet.onboarding?.sansBacASable === true && projet.stations.some(({ principale, id }) => principale && id === projetsDesStations.vu()?.locale));
+const sansBacASable = () => (projetsDesStations.vu()?.projets ?? []).some((projet) => projet.onboarding?.sansBacASable === true && projet.suiviPar?.id === projetsDesStations.vu()?.locale);
 ipcMain.handle("reglagesDeLaStation:lire", async () => {
   if (role.role !== "station") return { refus: "this device runs no station" };
   try {

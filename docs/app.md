@@ -67,16 +67,14 @@ there (repository access, refusal) in that single line. Clicking it opens Cooks,
 sources (`coutDesGates`, `triage`). Captures: `docs/captures/1457/`.
 **On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
 another computer (`remote`). **Every station serving the project is there, each once** (#1786): the stations of `facts`, then
-those the main station declares that have not signed in to it yet, then those the app added to the project that the main
-station does not declare yet — a station of the app is recognised by the name the main station gives it (`macbook/claude`,
-published with whether it is reached), or else by its machine name. **The main station comes first**, tagged `main station`
-(on hover: it runs the manager and the pass); the others are `cooking station`. The main station's block carries **`move the
-kitchen`**, the very gesture at the top of the page: it opens the choice of the machine there; greyed, with the reason on
-hover, when the kitchen cannot move (a project not added from this app, no other station, a move under way). Each block
-says **whether the station is reached** — `reached` in green (the main station, whose kitchen the app reads; a station the
-main station says it reaches), `not reached` in grey, or `no word` in grey for a remote station nothing says anything of —,
-**as the main station sees it** when `facts` says so (#1830, `presente`): a remote station that has not shown itself to the
-main station reads `absent` in grey (on hover: since when the main station has not heard from it), whatever the app reads
+those the journal declares that have not signed in yet, then those the app added to the project that the journal does not
+declare yet — a station of the app is recognised by the name the journal gives it (`macbook/claude`), or else by its machine
+name. **All of them are shown the same way** (#2715), in the order they are given: no role label, no ordering by role, no
+special state, and no `move the kitchen` in the block (the gesture is at the top of the page). Each block
+says **whether the station is reached** — `reached` in green (the station whose kitchen the app reads; a station GitHub
+says is reached), `not reached` in grey, or `no word` in grey for a remote station nothing says anything of —,
+**as `facts` sees it** when it says so (#1830, `presente`): a remote station that has not shown itself
+reads `absent` in grey (on hover: since when the kitchen has not heard from it), whatever the app reads
 of it on GitHub, and its state reads `not cooking` — never `reached · cooking`; once it has shown itself, `reached` (on
 hover, its last request) and `cooking`. Then its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
@@ -84,7 +82,7 @@ and, at the bottom of the block, **the cards of the tickets in flight on that st
 the Rail kanban: a click (or Enter) opens the same sheet as the same card in Taken, its number opens the issue; a ticket
 the rail read does not carry has a card with its number and its title. **Before them, a card for each agent the station
 runs besides its cooks** (#1971) — the pass judging a delivery, the manager qualifying or splitting an issue, the triage, the
-closer cleaning the project up, as `facts` gives them (`agents`; the main station runs them): its role (what it is, on
+closer cleaning the project up, as `facts` gives them (`agents`): its role (what it is, on
 hover), the station's tag (its short name, the full name on hover), its ticket and the rail's title, what it does
 (`running the gates`, `review in progress`, `qualifying the issue`, `closing: cleaning up the project`…) and for how long
 (the time on hover). Not paper like a cook's card: the kitchen's dark, a dashed outline and a left bar in the role's tint.
@@ -101,16 +99,16 @@ what, on the cooks' side, asks for your action — a saturated station, a statio
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
 when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
 **A station that cannot cook says why in one line** (#1786, #1774), under its state: `not signed in yet` for a declared
-station that has not announced itself to the main station (on hover: it takes no ticket until it does); for a station
+station that has not announced itself (on hover: it takes no ticket until it does); for a station
 added from the app, where it is stuck — `not received by the station`, `waiting for your authorization on GitHub`,
 `refused`, `not reached` —, what you do about it on hover, `check again` (it rereads GitHub) and the authorization button
 it waits for. **In each block, what the station provides** (`Provides code raisonnement`, then `edit`, below) and **its
 cooks at once**: the cap its runtime gives, with `set the cap` (below); for a station whose runtime does not give it yet, the
 number it declares (`Cooks at once: 2`) and `set the cap`, which opens its form, in the block. Without the declaration read, what it
-provides comes from `facts` (`fournit`, what the main station declares of it, #1830), with no `edit`; only a station the
-main station does not declare yet says `not declared on the main station yet`. An absent station says why: `not signed in
+provides comes from `facts` (`fournit`, what the journal declares of it, #1830), with no `edit`; only a station the
+journal does not declare yet says `not declared yet`. An absent station says why: `not signed in
 yet`, or `silent since <time>`. On a narrow screen, the blocks are read-only: no `edit`, no
-`move the kitchen`, no `check again`. The block below, *what each station provides*, is no longer laid when the stations'
+`check again`. The block below, *what each station provides*, is no longer laid when the stations'
 blocks are: it is only the fallback while `facts` does not give the stations.
 **What each declared station provides** (#1509, epic #1506) — in its block since #1786, in a block of its own under the
 stations otherwise: one row per station the project
@@ -1770,21 +1768,18 @@ none.
 cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens below, in one card
 (#1107):
 
-- **At the top, a sentence says what you are doing**: `Choose the machine that runs <projet>'s kitchen.`,
-  then what that machine does — it runs the manager and the pass, and it cooks — and that
-  everything is already set to what is recommended: you change what you want, or you launch as is.
-- **The main machine first**, a simple choice among your paired stations. Each says what
+- **At the top, a sentence says what you are doing**: `Choose the machine that cooks <projet>.`,
+  and that everything is already set to what is recommended: you change what you want, or you launch as is.
+- **Then the stations**, one checkbox per paired station, all of them the same. Each says what
   choosing it implies: `always on: it keeps cooking while your computer sleeps` for a
   server, `stops when you close the app on this computer` for the app on a Mac or a PC. **The
-  server station is chosen by default**, marked `recommended`; with no server, the first readable
-  machine.
-- **Then the other stations, optional** (`Other stations · optional`): one checkbox per other station.
-  Every station cooks; only the main one runs the manager and the pass.
-- **The number of cooks at a time comes preset**, drawn from the main station's cores — those the station
+  server station is ticked by default**, marked `recommended`; with no server, the first readable
+  machine. Every station cooks, takes, reviews and merges.
+- **The number of cooks at a time comes preset**, drawn from the cores of the station — those it
   publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
   the station applies: `max(1, ⌊(cores − 2) / 2⌋)`, 3 for 8 cores. Below:
   `recommended — from <station>'s 8 cores: …`. A station that does not publish its cores yet: 2,
-  and the line says so. Choosing another main station makes the number follow, as long as you have not typed it.
+  and the line says so. Ticking another station makes the number follow, as long as you have not typed it.
 - **The calibration of the manager and the reviewer is folded under "Advanced settings"**, with what it
   sets: the model and the effort that judge, split and review — and therefore what they take from your
   quota. Folded, the line says what will go out (`manager sonnet / medium · reviewer sonnet / medium`).
@@ -1797,8 +1792,7 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
   field: what is missing is read above the button, and the card stays open.
 
 Once handed over, the page says **where it cooks** — `Cooks on <station>`, its other stations after it
-(`· macbook (second station)`) — and, under that line, `The first station keeps the manager and the pass;
-all the stations cook.` A station added from the app counts as a *second station* only once it serves the project (it has read the request and calls itself secondary); until then its line carries no rank but says where it is stuck in a few words — `not received by the station`, `waiting for your authorization on GitHub`, `refused`, `being prepared` — with `check again` (reads GitHub again) and, on hover, what to do (#1774). **"+ station"** opens the same card, about the added machine only (#1307):
+(`· macbook`) — and, under that line, `All the stations cook.` A station added from the app is told like any other; until it has read the request, its line says in a few words that it is `not received by the station`, with `check again` (reads GitHub again) and, on hover, what to do (#1774). **"+ station"** opens the same card, about the added machine only (#1307):
 `Add a station to <projet>'s kitchen.`, with the same sentence, then one **machine** — this computer's
 station chosen at once when it does not cook the project yet, otherwise the first paired one — and, from
 the first render, what belongs to that machine: **cooks at once** (from its own cores, with its

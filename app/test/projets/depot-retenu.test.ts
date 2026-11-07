@@ -49,7 +49,7 @@ const vue = (en: object | null): VuDesProjets => {
     nom: "parade",
     depot: "benomite/parade",
     base: "main",
-    stations: [{ id: "g1", nom: "parade-box", principale: true, etat: lu?.etat ?? "servi", dit: "", autoriser: [] }],
+    suiviPar: { id: "g1", nom: "parade-box" }, stations: [{ id: "g1", nom: "parade-box", etat: lu?.etat ?? "servi", dit: "", autoriser: [] }],
     servi: null,
     acces: lu?.acces ?? null,
     refus: lu?.refus ?? null,

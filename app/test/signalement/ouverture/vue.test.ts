@@ -232,7 +232,7 @@ describe("une station en panne", () => {
   // La station du projet, refusée, sur sa ligne de l'onglet Cooks : rouge.
   const projets = (etat: "refuse" | "servi"): VuDesProjets => ({
     a: A,
-    projets: [{ nom: "parade", depot: "benomite/parade", base: "main", stations: [{ id: "g1", nom: "box", principale: true, etat, dit: etat === "refuse" ? "box cannot clone benomite/parade" : "", autoriser: [] }], servi: null, acces: null, refus: null, worktree: null }],
+    projets: [{ nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat, dit: etat === "refuse" ? "box cannot clone benomite/parade" : "", autoriser: [] }], servi: null, acces: null, refus: null, worktree: null }],
     recommandee: "g1",
     avertissements: {},
     machines: { g1: machineProposee({ nom: BOX.nom, machine: BOX.machine, coeurs: 8 }) },

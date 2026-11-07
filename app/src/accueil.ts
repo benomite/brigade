@@ -289,11 +289,11 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
     const liste = projets();
     const lus = liste.map(({ nom }) => faits.get(nom)).flatMap((lu) => (lu !== undefined && "faits" in lu ? [lu.faits] : []));
     const cooks = (station: string) => lus.reduce((total, { cooks = [] }) => total + cooks.filter((cook) => cook.station === station).length, 0);
-    // Les projets ouverts ici dont la cuisine tourne sur une autre station : celle que le projet nomme principale, à défaut une autre qui le porte.
+    // Les projets ouverts ici dont la cuisine tourne sur une autre station : celle qui porte son suivi, à défaut une autre qui le porte.
     const ailleursDe = (locale_: string): CuisineAilleurs[] =>
       liste.flatMap(({ nom }) => {
-        const principale = projetsDesStations?.projets.find((projet) => projet.nom === nom)?.stations.find(({ principale: est, id }) => est && id !== locale_)?.nom;
-        const portee = principale ?? stations?.stations.find(({ id, projets: portes }) => id !== locale_ && portes.includes(nom))?.nom;
+        const suivie = projetsDesStations?.projets.find((projet) => projet.nom === nom)?.suiviPar;
+        const portee = (suivie !== undefined && suivie.id !== locale_ ? suivie.nom : undefined) ?? stations?.stations.find(({ id, projets: portes }) => id !== locale_ && portes.includes(nom))?.nom;
         return portee === undefined ? [] : [{ projet: nom, station: portee }];
       });
     const ici = locale();

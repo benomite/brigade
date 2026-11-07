@@ -41,9 +41,10 @@ const PARADE: VuDesProjets = {
       nom: "parade",
       depot: "benomite/parade",
       base: "main",
+      suiviPar: { id: "g1", nom: "box" },
       stations: [
-        { id: "g1", nom: "box", principale: true, etat: "a-autoriser", dit: "authorize brigade on benomite/parade, on GitHub: one click per page", autoriser: ["https://github.com/apps/brigade-cook/installations/new"] },
-        { id: "g2", nom: "macbook", principale: false, etat: "secondaire", dit: "not its main station: it runs neither its manager nor its pass", autoriser: [] },
+        { id: "g1", nom: "box", etat: "a-autoriser", dit: "authorize brigade on benomite/parade, on GitHub: one click per page", autoriser: ["https://github.com/apps/brigade-cook/installations/new"] },
+        { id: "g2", nom: "macbook", etat: "servi", dit: "served by macbook", autoriser: [] },
       ],
       servi: null,
     },
@@ -93,7 +94,7 @@ test("sur la page d'une station, un projet que l'app lui a ajouté : sa ligne di
   const { jouee, section, bouton } = await laHome(PARADE);
   assert.equal(section().children[6]?.textContent, "Projects");
   const ligne = section().children[7]?.dessous("button").find(({ dataset }) => dataset.projet === "parade") ?? assert.fail("pas de ligne « parade »");
-  assert.equal(ligne.ariaLabel, "parade — main — waiting for your authorization on GitHub");
+  assert.equal(ligne.ariaLabel, "parade — waiting for your authorization on GitHub");
   // Son dépôt et ce que la station en dit sont au survol.
   assert.match(ligne.title, /benomite\/parade · main/);
   assert.match(ligne.title, /authorize brigade on benomite\/parade/);
@@ -113,7 +114,7 @@ test("sur la page d'une station, un projet que l'app lui a ajouté : sa ligne di
   assert.equal(section().children[10]?.textContent, "parade is removed: each of its stations takes it out of its configuration within a minute");
 });
 
-test("le parcours propose d'office la station serveur pour principale ; choisir un ordinateur affiche l'avertissement", async () => {
+test("le parcours propose d'office la station serveur ; choisir seulement un ordinateur affiche l'avertissement", async () => {
   const { jouee, bouton, formulaire } = await laHome(SANS_PROJET);
   assert.equal(formulaire().hidden, true);
   bouton("+ add a project").click();
@@ -122,14 +123,19 @@ test("le parcours propose d'office la station serveur pour principale ; choisir 
   assert.equal(formulaire().hidden, false);
   assert.ok(jouee.appels.some(({ geste }) => geste === "depotsDuChef"));
   const [cocheBox, cocheMac] = choix(formulaire(), "checkbox");
-  const [principaleBox, principaleMac] = choix(formulaire(), "radio");
+  assert.equal(choix(formulaire(), "radio").length, 0);
   assert.equal(cocheBox?.checked, true);
-  assert.equal(principaleBox?.checked, true);
   assert.equal(cocheMac?.checked, false);
-  assert.match(formulaire().textContent, /box — Linux 6\.1\.0 · {2}main \(recommended: always on\)/);
+  assert.doesNotMatch(formulaire().textContent, /main/);
   assert.equal(formulaire().children[4]?.textContent, "");
 
-  principaleMac?.declencher("change");
+  cocheMac!.checked = true;
+  cocheMac?.declencher("change");
+  await repos();
+  assert.equal(formulaire().children[4]?.textContent, "");
+  const [cocheBoxApres] = choix(formulaire(), "checkbox");
+  cocheBoxApres!.checked = false;
+  cocheBoxApres?.declencher("change");
   await repos();
   const [, cocheMacApres] = choix(formulaire(), "checkbox");
   assert.equal(cocheMacApres?.checked, true);
@@ -138,12 +144,12 @@ test("le parcours propose d'office la station serveur pour principale ; choisir 
   jouee.dire("surStations", STATIONS);
   jouee.dire("surProjetsDesStations", SANS_PROJET);
   await repos();
-  assert.equal(choix(formulaire(), "radio")[1]?.checked, true);
+  assert.equal(choix(formulaire(), "checkbox")[1]?.checked, true);
   assert.equal(formulaire().children[4]?.textContent, AVERTI);
 });
 
-test("valider envoie le dépôt, sa branche, les stations, la principale, les décisions et l'heure d'ouverture ; ce qui manque se lit dessous", async () => {
-  let rendu: Ajout = { signales: { cooks: "How many cooks may the main station run at once for this project?" } };
+test("valider envoie le dépôt, sa branche, les stations, les décisions et l'heure d'ouverture ; ce qui manque se lit dessous", async () => {
+  let rendu: Ajout = { signales: { cooks: "How many cooks may a station run at once for this project?" } };
   const { jouee, section, bouton, formulaire } = await laHome(SANS_PROJET, () => rendu);
   bouton("+ add a project").click();
   await repos();
@@ -176,13 +182,12 @@ test("valider envoie le dépôt, sa branche, les stations, la principale, les d�
     depot: "benomite/brigade",
     base: "v2",
     stations: ["g1"],
-    principale: "g1",
     cooks: "",
     manager: { modele: "sonnet", effort: "medium" },
     reviewer: { modele: "sonnet", effort: "high" },
     ouvertLe: "string",
   });
-  assert.match(formulaire().textContent, /How many cooks may the main station run at once for this project\?/);
+  assert.match(formulaire().textContent, /How many cooks may a station run at once for this project\?/);
   assert.equal(formulaire().hidden, false);
 
   assert.ok(cooks);
@@ -192,5 +197,5 @@ test("valider envoie le dépôt, sa branche, les stations, la principale, les d�
   await repos();
   await repos();
   assert.equal(formulaire().hidden, true);
-  assert.match(section().children[10]?.textContent ?? "", /^brigade is asked of its stations: its main station prepares it and adds it within a minute/);
+  assert.match(section().children[10]?.textContent ?? "", /^brigade is asked of its stations: each station prepares it and adds it within a minute/);
 });

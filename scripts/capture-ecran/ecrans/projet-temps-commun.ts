@@ -1,5 +1,5 @@
 // Les temps des derniers tickets de « parade » (#2346, épique #2336) : les enregistrements de
-// `.claude/brigade/temps-tickets.json`, en secondes, tels que la principale les publie sous `temps` du projet vu.
+// `.claude/brigade/temps-tickets.json`, en secondes, tels que la station les publie sous `temps` du projet vu.
 import { donnees, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
 const MIN = 60;

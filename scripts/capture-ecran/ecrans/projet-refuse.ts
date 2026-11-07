@@ -8,7 +8,7 @@ import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 // Refusé par la box : `refus`, tel que la box le publie (runtime/src/projets/refus.ts, remedes/catalogue/port.ts).
 export const refuse = (refus: NonNullable<ProjetVu["refus"]>): ProjetVu => ({
   ...SUR_LA_BOX,
-  stations: SUR_LA_BOX.stations.map((station) => (station.principale ? { ...station, etat: "refuse" as const, dit: "refused" } : station)),
+  stations: SUR_LA_BOX.stations.map((station) => (station.id === SUR_LA_BOX.suiviPar?.id ? { ...station, etat: "refuse" as const, dit: "refused" } : station)),
   refus,
 });
 export const PORT = {
