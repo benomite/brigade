@@ -145,7 +145,7 @@ let seVide = (): boolean => false;
 // Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
 let choisis: ServiceDeLOrdinateur | null = null;
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(fenetreDeDepartMs === null ? {} : { fenetreDeDepartMs }), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }), ...(relaisMs === undefined ? {} : { intervalleRelaisMs: Number(relaisMs) }) });
-const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
+const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
 const vidange = miseAJour !== null || dossierMiseAJour === null ? null : tenirLaVidange({ racine, dossier: dossierMiseAJour, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });

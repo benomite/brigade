@@ -1,7 +1,8 @@
 // La mise à jour de la station de l'ordinateur : une release plus récente est
-// téléchargée sous le répertoire de la station, la station se vide de ses
-// cooks sans en couper aucun, puis demande sa relance sur elle. Un regard ou un
-// téléchargement qui rate la laisse telle quelle.
+// téléchargée sous le répertoire de la station, qui prend encore ses tickets et
+// demande sa relance sur elle au premier moment sans cook en vol, ou à
+// l'échéance, leur travail sauvé (#2815). Un regard ou un téléchargement qui
+// rate la laisse telle quelle.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -81,32 +82,71 @@ test("une release plus récente est téléchargée sous le répertoire de la sta
   assert.equal(demandes.length, 1);
 });
 
-test("un cook en vol retient la demande de relance jusqu'à ce qu'il ait fini : il n'est pas coupé, et la station ne prend plus de ticket entre-temps", async (t) => {
+test("un cook en vol retient la demande de relance jusqu'à ce qu'il ait fini : il n'est pas coupé, et la station prend encore ses tickets entre-temps (#2815)", async (t) => {
   const { publiees, demandes, cooks, regards, ouvrir, racine } = station(t);
   publier(publiees, "0.20261102.100000");
   cooks.add(41);
   const miseAJour = ouvrir("0.20261101.100000");
   const passage = miseAJour.passer();
   await jusqua(() => lireStatut(racine)?.draining !== null && lireStatut(racine)?.draining !== undefined);
-  assert.equal(miseAJour.retenue(), true);
+  assert.equal(miseAJour.retenue(), false);
   assert.deepEqual(lireStatut(racine)?.draining?.cooks, [41]);
   // Le cook travaille : regardé de nouveau, il retient toujours la demande.
   const vus = regards.n;
   await jusqua(() => regards.n >= vus + 3);
   assert.equal(demandes.length, 0);
   assert.equal(lireDemande(racine), null);
-  // Il a fini : la demande part.
+  assert.equal(miseAJour.retenue(), false);
+  // Il a fini : la station ne prend plus rien, et la demande part.
   cooks.delete(41);
   const statut = await passage;
+  assert.equal(miseAJour.retenue(), true);
   assert.equal(demandes.length, 1);
   assert.equal(statut.restart?.version, "0.20261102.100000");
   assert.deepEqual(lireStatut(racine)?.draining?.cooks, []);
 });
 
-test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend plus de ticket ; la relance est demandée quand ce cook a livré", async (t) => {
+test("l'échéance passée, des cooks encore en vol : leur travail est sauvé sur leur branche, la station ne prend plus rien, puis la relance est demandée", async (t) => {
+  let instant = Date.parse("2026-11-07T21:00:00Z");
+  const sauves: number[][] = [];
+  let sauvegarde = (): void => {};
+  const { publiees, demandes, cooks, regards, ouvrir, racine } = station(t, {
+    maintenant: () => new Date(instant),
+    echeanceMs: 60_000,
+    sauver: () =>
+      new Promise((resoudre) => {
+        sauvegarde = () => {
+          sauves.push([...cooks]);
+          const rendus = [...cooks];
+          cooks.clear();
+          resoudre(rendus);
+        };
+      }),
+  });
+  publier(publiees, "0.20261102.100000");
+  cooks.add(41);
+  cooks.add(42);
+  const miseAJour = ouvrir("0.20261101.100000");
+  const passage = miseAJour.passer();
+  await jusqua(() => lireStatut(racine)?.draining?.cooks.length === 2);
+  const vus = regards.n;
+  await jusqua(() => regards.n >= vus + 3);
+  assert.deepEqual([miseAJour.retenue(), sauves, demandes.length], [false, [], 0]);
+  // L'échéance passe : la sauvegarde part, et la station ne prend plus rien.
+  instant += 60_000;
+  await jusqua(() => miseAJour.retenue());
+  assert.equal(demandes.length, 0);
+  sauvegarde();
+  const statut = await passage;
+  assert.deepEqual(sauves, [[41, 42]]);
+  assert.equal(statut.restart?.version, "0.20261102.100000");
+  assert.equal(demandes.length, 1);
+});
+
+test("pendant l'attente de sa relance, la station GitHub seul garde son cook en vol et prend le ticket qui arrive (#2815) ; la relance est demandée quand ses cooks ont livré", async (t) => {
   // Les cooks en vol que la mise à jour regarde : ceux de la station GitHub seul.
   let enCuisine = (): number[] => [];
-  const { publiees, demandes, ouvrir } = station(t, { enVol: () => enCuisine() });
+  const { publiees, demandes, ouvrir, racine } = station(t, { enVol: () => enCuisine() });
   publier(publiees, "0.20261102.100000");
   const ecrits: string[] = [];
   let tickets: TicketLu[] = [{ number: 7, title: "sept", labels: ["fire", "model:opus", "effort:high"], state: "open" }];
@@ -126,7 +166,7 @@ test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend
   } as unknown as GitHubDuTour;
   const prises: number[] = [];
   const prise: Prise = { prendre: async (issue) => (prises.push(issue.number), { prise: true }), lacher: async () => true };
-  let livrer = () => {};
+  const livraisons = new Map<number, () => void>();
   let miseAJour: ReturnType<typeof ouvrir> | null = null;
   const tenue = stationGitHub({
     nom: "mac/claude",
@@ -134,7 +174,7 @@ test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend
     base: "main",
     github,
     prise: retenirLaPrise(prise, () => miseAJour?.retenue() ?? false),
-    cuisiner: (ticket) => new Promise((resoudre) => void (livrer = () => resoudre({ branche: `cook/${ticket.number}-github` }))),
+    cuisiner: (ticket) => new Promise((resoudre) => void livraisons.set(ticket.number, () => resoudre({ branche: `cook/${ticket.number}-github` }))),
     juger: async () => ({ verdict: "approve", motif: "" }),
     avertir: () => {},
   });
@@ -145,17 +185,24 @@ test("pendant le drain, la station GitHub seul garde son cook en vol et ne prend
   const ouverte = ouvrir("0.20261101.100000");
   miseAJour = ouverte;
   const passage = ouverte.passer();
-  await jusqua(() => ouverte.retenue());
-  // Un ticket libre arrive, une place est libre : la station ne le prend pas.
+  await jusqua(() => lireStatut(racine)?.draining?.cooks.join(",") === "7");
+  // Un ticket libre arrive, une place est libre : la station le prend, sans
+  // attendre sa relance — l'attendre faisait tout le temps perdu des tickets de
+  // BOBL-tech/mirrorscreen (#2815).
   tickets = [...tickets, { number: 8, title: "huit", labels: ["fire", "model:opus", "effort:high"], state: "open" }];
+  assert.equal(ouverte.retenue(), false);
   await tenue.tour();
-  assert.deepEqual(prises, [7]);
-  assert.deepEqual(tenue.enCuisine(), [7]);
+  assert.deepEqual(prises, [7, 8]);
+  assert.deepEqual(tenue.enCuisine(), [7, 8]);
   assert.equal(demandes.length, 0);
-  // Le cook livre : sa PR part, puis la relance est demandée.
-  livrer();
+  // Le premier cook livre : l'autre est encore en vol, la relance attend.
+  livraisons.get(7)?.();
+  await jusqua(() => ecrits.includes("pr cook/7-github"));
+  assert.equal(demandes.length, 0);
+  // Le second livre : la relance est demandée.
+  livraisons.get(8)?.();
   await passage;
-  assert.ok(ecrits.includes("pr cook/7-github"));
+  assert.ok(ecrits.includes("pr cook/8-github"));
   assert.equal(demandes[0]?.version, "0.20261102.100000");
 });
 
