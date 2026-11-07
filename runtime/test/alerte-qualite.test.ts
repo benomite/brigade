@@ -208,3 +208,27 @@ test("the project's own first-try threshold, read from projet.json by the statio
   assert.ok(issues.some(({ body }) => body.startsWith(MARQUE_CORRECTION)));
   assert.ok(issues.some(({ body }) => body.startsWith(MARQUE_CUISSON)));
 });
+
+// #2804 : le ticket de qualité mergé a compté ses renvois ; la fenêtre glissante
+// les contient encore, et ils ne rouvrent rien.
+test("a quality ticket merged: same window, same data, no second ticket; send-backs newer than it open exactly one", async () => {
+  const depot = new FauxDepot();
+  const lire = (qualites: Map<number, QualiteDuTicket>, combien = 10) => () => ({ enregistrements: lents(combien), lostTimeMaxMin: 10, qualites });
+  const premiere = await correctionDuTemps({ github: depot.github(), lire: lire(soixante()), maintenant: MAINTENANT })();
+  assert.deepEqual(premiere, { issue: "qualite", qualite: { issue: "ouverte", numero: 2700, causes: ["premier-coup"] } });
+  assert.match(depot.issues[0]?.corps ?? "", /<!-- brigade:qualite-comptes 1,2,3,4 -->/);
+  // Le ticket est mergé : fermé.
+  if (depot.issues[0]) depot.issues[0].state = "closed";
+  const encore = await correctionDuTemps({ github: depot.github(), lire: lire(soixante()), maintenant: MAINTENANT })();
+  assert.deepEqual(encore, { issue: "qualite", qualite: { issue: "deja-servie", numero: 2700, causes: ["premier-coup"] } });
+  assert.equal(depot.issues.length, 1);
+  // Des renvois plus récents, et le taux sous le seuil : un ticket, et un seul.
+  const neuve = soixante();
+  for (const t of [5, 6]) neuve.set(t, { renvois: ["blocking review"], cooksRates: 0 });
+  const corriger = correctionDuTemps({ github: depot.github(), lire: lire(neuve), maintenant: MAINTENANT });
+  assert.equal((await corriger()).issue, "qualite");
+  await corriger();
+  assert.equal(depot.issues.length, 2);
+  assert.equal(depot.issues[1]?.state, "open");
+  assert.match(depot.issues[1]?.corps ?? "", /qualite-comptes 1,2,3,4,5,6 -->/);
+});
