@@ -55,8 +55,9 @@ import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
-import { correctionDuTemps, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
+import { correctionDuTemps, ticketDeCorrection, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
 import { routerLeTempsPerdu } from "./routage-temps-perdu.ts";
+import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
@@ -230,6 +231,9 @@ export type OptionsDeStation = {
   // projet sans CI sur ses PR est jugé par elles. Absent, la station ne les
   // joue pas, et une autre le fera.
   gates?: (ticket: TicketLu, pr: PRAFusionner) => Promise<LieuDesGates>;
+  // Les tickets `hors-cuisine` du tour, que le redépôt reprend sans humain
+  // (`refile-hors-cuisine.ts`, #2786). Absent, rien ne les reprend.
+  redeposer?: (tickets: readonly TicketLu[]) => Promise<unknown>;
 };
 
 // Le préfixe du label par lequel un ticket demande une capacité.
@@ -784,6 +788,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
     const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()));
+    await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a hors-cuisine lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     await Promise.all([
       corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
       alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
@@ -1739,7 +1744,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }) });
+  // Le ticket de temps perdu resté hors cuisine est redéposé sur brigade (#2786) :
+  // sa perte est réelle tant que les temps du clone sont au-dessus du seuil.
+  const { clone, githubDeLaBrigade } = options;
+  const perteReelle = () => {
+    const { enregistrements, lostTimeMaxMin } = lesTempsDesTickets(clone);
+    return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
+  };
+  const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
+  const station = stationGitHub({ nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
