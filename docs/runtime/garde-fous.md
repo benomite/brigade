@@ -9,7 +9,8 @@
 
 Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. On Windows the
 process tree is read from the process table (`Win32_Process`, PowerShell) and killed at once, no
-grace (`runtime/src/arbre.ts`); a relayed cook is killed by its pid. Whatever a cook started and
+grace (`runtime/src/arbre.ts`); a table PowerShell returns with an error is still read, and a read that
+returns no line is tried again on the next round, unless PowerShell is missing or used its whole delay (#2829); a relayed cook is killed by its pid. Whatever a cook started and
 that still lives at its exit is killed too. **An open breaker and the "stop" both hold**, restarts
 included, until "resume".
 

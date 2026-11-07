@@ -494,6 +494,8 @@ so each quality ticket served before the update reopened the next. On the code o
 #2805, #2813, #2819 and #2825 closed opens nothing (`deja-servie`), and a send-back merged after the last of
 them opens one. The cause they name, blocking review, is corrected in the cook's instruction (#2770, #2789,
 #2797, #2803, #2812, #2819) and by a blocked cook going to the chef (#2805); none of the 13 was cooked under it.
+#2829 is the fifth, from the same station: no marker, and none of the measure's rule (#2824) in its body, while
+0.20261107.212204+g0cf609d, which holds #2804, #2813 and #2819, was still draining in. Nothing to correct on main.
 
 The rule each quality ticket carries (`runtime/src/garde-correction.ts`) also keeps its correction off the measure
 that opened it (#2824): a send-back the ticket did not count is never counted away, by its claim date, its age or its
