@@ -1,7 +1,7 @@
 // Les états se lisent sans lire : une forme et une couleur par état, selon la maquette — la
 // pastille, la pilule, le point. Chaque forme se lit sans la couleur (niveaux de gris), et le
 // libellé de chaque état reste dans le DOM. Rien n'est demandé au runtime : tout vient de ce que
-// la box dit déjà (faits, la lecture d'un onglet). La vue est jouée devant un faux document.
+// la box dit déjà (faits). La vue est jouée devant un faux document.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +17,7 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, type Reponses, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
+import { jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -76,82 +76,16 @@ const regle = (selecteur: string): Map<string, string> => {
 // La silhouette qu'une règle donne à la forme d'une pastille : rond, losange, carré, anneau, triangle.
 const silhouette = (declarations: Map<string, string>) => `${declarations.get("border-radius") ?? ""}|${declarations.get("transform") ?? ""}|${declarations.get("clip-path") ?? ""}|${declarations.get("background") ?? ""}`;
 
-describe("les trois états de pilotage ont chacun leur forme et leur couleur", () => {
-  // La tête de la lecture de l'onglet Cooks (#1184) : Settings ne montre plus celle de `status` (#1700).
-  async function entete(lecture: object) {
-    const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    vue.dire("surContenu", { projet: PARADE, demande: vue.dernier("onglet")[2] as number, a: A, ...lecture } as never, undefined, undefined);
-    await repos();
-    return vue.element("lu-cuisine");
-  }
-
-  test("pilotable, joignable mais plus pilotable, pas joignable : trois états, trois formes", async () => {
-    const pilotable = await entete({ sorties: [{ commande: "status", texte: "ok" }] });
-    const plus = await entete({ erreur: "x", atteinte: true, cas: null });
-    const pas = await entete({ erreur: "x", atteinte: false, cas: null });
-
-    assert.deepEqual([pilotable.dataset.etat, plus.dataset.etat, pas.dataset.etat], ["pilotable", "plus-pilotable", "pas-joint"]);
-    // Le libellé est toujours dans le DOM.
-    assert.match(pilotable.textContent, /^read at /);
-    assert.match(plus.textContent, /^REACHED, BUT NO LONGER/);
-    assert.match(pas.textContent, /^NOT REACHED/);
-
-    // Trois formes distinctes, posées par la vue, et que la feuille dessine chacune à sa façon.
-    const formes = [pilotable, plus, pas].map((tete) => tete.dataset.forme ?? "");
-    assert.deepEqual(formes, ["disque", "losange", "carre"]);
-    assert.equal(new Set(formes.map((forme) => silhouette(regle(`#lu-cuisine[data-forme="${forme}"]::before`)))).size, 3, "deux formes se dessinent pareil");
-    // Et trois couleurs.
-    assert.deepEqual([pilotable, plus, pas].map((tete) => tete.dataset.ton), ["vert", "jaune", "rouge"]);
-  });
-
-  test("les cas « joint mais » partagent la forme de « plus pilotable » : ni disque, ni carré", async () => {
-    const inconnu = await entete({ erreur: "x", atteinte: true, cas: "projet-inconnu" });
-    assert.deepEqual([inconnu.dataset.etat, inconnu.dataset.ton, inconnu.dataset.forme], ["inconnu", "jaune", "losange"]);
-    assert.match(inconnu.textContent, /^REACHED, BUT UNKNOWN TO THE STATION/);
-  });
-});
-
 describe("la cuisine : une pastille à forme, et son libellé", () => {
-  // La carte du projet est sur l'onglet Cooks (#1184), fondue dans la ligne de sa cuisine, en tête de ses stations (#1456).
-  const cuisine = (vue: Awaited<ReturnType<typeof ouvrir>>) => vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
-  test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
+  test("cuisine ouverte : disque vert ; arrêtée : carré rouge — sur la pastille de la barre", async () => {
     const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
     const numero = () => vue.dernier("faits")[0] as number;
+    const barre = () => vue.element("projets").dessous("span").find((s) => s.className === "pastille") ?? assert.fail("pas de pastille dans la barre");
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: numero() });
-    const pilule = (cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
-    const [point] = pilule.dessous("span");
-    assert.equal(pilule.textContent, "ouverte");
-    assert.deepEqual([point?.dataset.ton, point?.dataset.forme], ["vert", "disque"]);
+    assert.deepEqual([barre().dataset.ton, barre().dataset.forme], ["vert", "disque"]);
 
     vue.dire("surFaits", { ...faits("arrêtée", "rouge", true), demande: numero() });
-    const arretee = (cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
-    assert.equal(arretee.textContent, "arrêtée");
-    assert.deepEqual([arretee.dessous("span")[0]?.dataset.ton, arretee.dessous("span")[0]?.dataset.forme], ["rouge", "carre"]);
-    // La pastille de la barre prend la même forme.
-    const barre = vue.element("projets").dessous("span").find((s) => s.className === "pastille") ?? assert.fail("pas de pastille dans la barre");
-    assert.deepEqual([barre.dataset.ton, barre.dataset.forme], ["rouge", "carre"]);
-  });
-
-  test("un mot hors des listes fermées garde la pastille vide : ni ton, ni forme, et le texte nu", async () => {
-    const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    vue.dire("surFaits", { ...faits("un mot inconnu", undefined), demande: vue.dernier("faits")[0] as number });
-    const pilule = cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule");
-    assert.equal(pilule.textContent, "un mot inconnu");
-    assert.deepEqual([pilule.dessous("span")[0]?.dataset.ton, pilule.dessous("span")[0]?.dataset.forme], [undefined, undefined]);
-  });
-
-  test("sans stations lues, la carte du projet reste en tête de Cooks, et porte la pilule (#1456)", async () => {
-    const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    vue.dire("surFaits", { ...faits("ouverte", "vert", false, null), demande: vue.dernier("faits")[0] as number });
-    assert.equal(vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine"), undefined);
-    const carte = vue.element("carte");
-    const poses = vue.element("rail").children;
-    assert.ok(poses.includes(carte) && poses.indexOf(carte) < poses.indexOf(vue.element("cuisson-du-projet")), "la carte n'est pas au-dessus des stations");
-    assert.equal(carte.dessous("span").find((s) => s.className === "pilule")?.textContent, "ouverte");
+    assert.deepEqual([barre().dataset.ton, barre().dataset.forme], ["rouge", "carre"]);
   });
 });
 

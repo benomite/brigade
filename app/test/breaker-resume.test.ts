@@ -279,9 +279,9 @@ describe("la ligne du disjoncteur, en tête de TODO", () => {
     assert.deepEqual(boutons(ligne(vue)).map(({ textContent }) => textContent), [REPRENDRE]);
   });
 
-  test("sur Cooks, sans colonne TODO : la bande porte la ligne, avec le même « Resume »", async () => {
+  test("sur Stations, sans colonne TODO : la bande porte la ligne, avec le même « Resume »", async () => {
     const vue = await ouvrir(async () => ({ demandee: { issue: 2150, url: null } }));
-    await ouvrirOnglet(vue, "Cooks");
+    await ouvrirOnglet(vue, "Stations");
     const bande = vue.element("alertes").children.find((pose) => pose.textContent.includes("breaker open")) ?? assert.fail("la bande ne dit pas le disjoncteur");
     const bouton = reprendre(bande);
     bouton.click();

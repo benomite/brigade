@@ -98,7 +98,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
     // En haut, un onglet de pages, Paramètres : ni « Second », ni shell — ni Cost, qui vit au niveau de l'app (#1022).
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
     // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
     assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
     assert.deepEqual(montre(vue), ["second · claude"]);
@@ -121,10 +121,10 @@ describe("le second est une colonne à droite, pas une page", () => {
       assert.deepEqual(terminal?.ecrits, ["> une conversation en cours\r\n"]);
     };
 
-    // Cooks est un onglet du projet (#1184), pas une page : rien ne se pose par-dessus le centre.
+    // Cooks n'est plus ni un onglet ni une page (#2921) : chaque autre lecture se pose par-dessus le centre.
     for (const { titre } of ONGLETS) {
       await ouvrirLecture(vue, titre);
-      assert.equal(vue.element("contenu").hidden, titre === "Cooks", titre);
+      assert.equal(vue.element("contenu").hidden, false, titre);
       tenu();
     }
     // Un shell s'ouvre à droite, à côté du second : il a son cadre à lui, montré à la place de
@@ -430,7 +430,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
   test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; un onglet, et le geste du journal", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);

@@ -18,13 +18,11 @@ import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllis
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
-import { triageDe, triageLu, type JourDeTriage, type JourLu } from "./triage.ts";
-import { apprentissageDe, apprentissageInforme, apprentissageLu, ligneOuvrable, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
+import { apprentissageDe, apprentissageInforme, apprentissageLu, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { anciennete, cadenceLue, essaisLus, histogramme, points, type Anciennete, type EssaiLu, type Point, type CadenceLue, type Histogramme } from "./cadence.ts";
-import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
@@ -380,11 +378,6 @@ export type Faits = {
   // Ce qui tourne hors des cooks de ticket — la pass, le manager, le triage, le closer (#1971) ; absent d'un runtime
   // d'avant ce champ.
   agents?: AgentLu[];
-  // Le plafond de calibrage du manager, et si le chef l'a posé (plafond-de-calibrage.ts) ; absent d'un runtime
-  // d'avant ce champ.
-  plafondDeCalibrage?: PlafondLu;
-  // Ce que le triage a fait chacun des sept derniers jours (UTC), le plus ancien d'abord (triage.ts) ; absent d'un runtime d'avant ce champ.
-  triage?: JourLu[];
   // Ce que la cuisine du projet a servi, renvoyé et remonté au chef dans la dernière heure et le dernier jour (ticket
   // 1272) : six nombres, à zéro sans activité ; absent d'un runtime d'avant ce champ.
   activiteCuisine?: ActiviteCuisine;
@@ -482,11 +475,6 @@ export type Tableau = {
   // Ce que chaque station du projet en fait, ses cooks et son geste, et la ligne d'alerte de l'onglet Rail
   // (cuisson.ts) — absent d'un runtime qui ne donne pas les stations.
   stations?: CuissonDuProjet;
-  // Le plafond de calibrage du projet, d'où vient sa valeur, et de quoi le régler (plafond-de-calibrage.ts) —
-  // absent d'un runtime qui ne le donne pas.
-  plafondDeCalibrage?: PlafondVu;
-  // Ce que le triage a fait chaque jour, le plus récent d'abord : la file le pose en tête (triage.ts) — absent d'un runtime qui ne le donne pas.
-  triage?: JourDeTriage[];
   // Les six nombres de la cuisine du projet, en tête de l'onglet Cooks — absent d'un runtime qui ne les donne pas.
   activiteCuisine?: ActiviteCuisine;
   // Les rôles de la cuisine du projet, sur l'onglet Cooks — absent d'un runtime qui ne les donne pas.
@@ -546,16 +534,6 @@ const appelsLus = (valeur: unknown): AppelsGithub => {
 };
 
 // Une station que le projet déclare, et ce qu'elle fait des tickets ordinaires (ordinaires.ts).
-function plafondLu(valeur: unknown): PlafondLu {
-  const lu = objet(valeur, "plafondDeCalibrage");
-  const pose = objet(lu.parLeChef, "plafondDeCalibrage.parLeChef");
-  return {
-    modele: texte(lu.modele, "plafondDeCalibrage.modele"),
-    effort: texte(lu.effort, "plafondDeCalibrage.effort"),
-    parLeChef: { modele: booleen(pose.modele, "plafondDeCalibrage.parLeChef.modele"), effort: booleen(pose.effort, "plafondDeCalibrage.parLeChef.effort") },
-  };
-}
-
 function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
   const lu = objet(valeur, champ);
   return {
@@ -828,8 +806,6 @@ export function comprendre(sortie: string): Faits | { informe: string } {
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
       ...surGithubLu(racine.stationsSurGithub),
       ...(agentsLus(racine.agents) === undefined ? {} : { agents: agentsLus(racine.agents) }),
-      ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
-      ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
       ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
       ...(cadenceLue(racine.cadence) === undefined ? {} : { cadence: cadenceLue(racine.cadence) }),
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
@@ -1350,8 +1326,6 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
-    ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
-    ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
     ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
@@ -1458,13 +1432,6 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         undefined;
       return captures?.ecrans.find((candidat) => candidat.ecran === ecran)?.[moment as Moment] ?? undefined;
     },
-    // La ligne du carnet d'une leçon promue, telle que la box l'a donnée à la dernière lecture : la seule
-    // adresse que son lien ouvre (apprentissage.ts). Rien pour une leçon provisoire, ou qu'elle ne porte pas.
-    lecon(projet: unknown, id: unknown): string | undefined {
-      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
-      const url = donnes?.apprentissage?.lecons.find((candidate) => candidate.statut === "promue" && candidate.id === id)?.url;
-      return ligneOuvrable(url) ? url : undefined;
-    },
     // La carte de TODO d'un ticket, telle que la box l'a donnée à la dernière lecture : la seule à
     // laquelle le chef répond depuis l'app (carte-todo.ts). Rien pour un ticket qui n'en a pas.
     carte(projet: unknown, ticket: unknown): CarteLue | undefined {
@@ -1492,10 +1459,6 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
     stations(projet: unknown): StationDesFaits[] | undefined {
       return typeof projet === "string" ? tenus.get(projet)?.faits.stations : undefined;
-    },
-    // Ce que `facts` dit du plafond de calibrage d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
-    plafondDeCalibrage(projet: unknown): PlafondLu | undefined {
-      return typeof projet === "string" ? tenus.get(projet)?.faits.plafondDeCalibrage : undefined;
     },
     // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne — celles qui le précisent
     // comprises —, et son titre si `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne

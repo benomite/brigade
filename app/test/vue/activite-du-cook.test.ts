@@ -16,7 +16,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { activitesPubliees, type ActiviteDuCook, type ActivitesPubliees, type EtapeDuCook } from "../../src/tableau/lecture.ts";
 import { EN_COURS, INDISPONIBLE, SANS_PR, SOURCE, TITRE } from "../../src/vue/activite-du-cook.js";
-import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
+import { carteDuTicket, type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const A = "2026-10-23T10:04:30.000Z";
@@ -45,8 +45,7 @@ const FAITS: Faits = {
   cooks: [COOK_14],
   attend: [],
 };
-// La station de #14, telle que le runtime la rend dans `facts` (runtime/src/etat.ts) : sa carte se pose dans son bloc,
-// sur l'onglet Cooks.
+// La station de #14, telle que le runtime la rend dans `facts` (runtime/src/etat.ts).
 const STATIONS = [
   { station: "box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [COOK_14] },
 ];
@@ -84,10 +83,10 @@ async function ouvrir(): Promise<Jouee> {
   await repos();
   return vue;
 }
-// La fiche de #14, ouverte comme le chef l'ouvre : sa carte, sous sa station, sur l'onglet Cooks.
+// La fiche de #14, ouverte comme le chef l'ouvre : sa carte, sur le kanban de l'onglet Rail.
 async function ouvrirLaFiche(vue: Jouee): Promise<void> {
-  await ouvrirOnglet(vue, "Cooks");
-  const carte = vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.textContent.includes("#14")) ?? assert.fail("pas de carte #14 sur Cooks");
+  await ouvrirOnglet(vue, "Rail");
+  const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14 sur Rail");
   carte.click();
   await repos();
   assert.equal(vue.element("fiche").hidden, false);

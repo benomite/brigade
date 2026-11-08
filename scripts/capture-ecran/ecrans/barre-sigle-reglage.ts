@@ -8,6 +8,6 @@ export const ecran: Ecran = {
   dit: "Les réglages de « mirrorlab », parmi les cinq projets du chef (#1983) : sous toi, la ligne de son sigle dans la barre — tiré de son nom, et le champ pour écrire le sien",
   largeur: 1440,
   hauteur: 1040,
-  etapes: [{ cliquer: '#projets > button[title^="mirrorlab — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }],
+  etapes: [{ cliquer: '#projets > button[title^="mirrorlab — "]' }, { cliquer: "#onglets-du-projet button:nth-child(3)" }],
   donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(PROJETS_DU_CHEF)), espace: [] }, envois: cuisine(RENDUS_DU_CHEF) }),
 };

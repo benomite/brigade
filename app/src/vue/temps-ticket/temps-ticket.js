@@ -1,28 +1,10 @@
 // @ts-check
-// Les temps des derniers tickets d'un projet, sur sa page (ticket 2346, épique 2336) : la médiane et le plus lent des
-// 10 derniers tickets mesurés, avec le partage en cinq phases (cuisson avec ses tests, attente de la passe, revue, CI,
-// merge). Les enregistrements sont ceux de `.claude/brigade/temps-tickets.json` (secondes entières). Le temps total
-// d'un ticket n'a pas de plafond : sa taille varie ; le temps perdu, la cuisson contre l'estimation et la qualité sont
-// les quatre chiffres de la bande du rail et de Health (resume.js), pas d'ici. Ce module ne touche pas `document` : il reçoit de quoi créer un
-// élément (briques.js) et rend le bloc.
+// Les enregistrements des temps des tickets d'un projet (ticket 2346, épique 2336), ceux de `.claude/brigade/temps-tickets.json`
+// (secondes entières), et de quoi les lire : le total d'un ticket, la médiane, une durée en clair. Le bloc qui les montre est
+// celui du bandeau de santé (projet/bandeau-sante/TempsTickets.js). Ce module ne touche pas `document`.
 
-import { survol } from "../briques.js";
-
-/** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number, claimedAt: string, mergedAt: string, cuisson: number, cuissonTests: number, attentePasse: number, revue: number, ci: number, merge: number }} Enregistrement */
 /** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown }} TempsDuProjet */
-
-export const NOMBRE_DE_TICKETS = 10;
-
-// Les cinq phases montrées : chacune est la médiane de cette phase seule (leur somme peut donc différer de la médiane du total) ; la cuisson compte ses tests, qui se disent au survol.
-/** @type {{ cle: "cuisson" | "attentePasse" | "revue" | "ci" | "merge", libelle: string }[]} */
-export const PHASES = [
-  { cle: "cuisson", libelle: "Cooking" },
-  { cle: "attentePasse", libelle: "Waiting for the pass" },
-  { cle: "revue", libelle: "Review" },
-  { cle: "ci", libelle: "CI" },
-  { cle: "merge", libelle: "Merge" },
-];
 
 /** @param {Enregistrement} e */
 const cuisson = (e) => e.cuisson + e.cuissonTests;
@@ -45,100 +27,4 @@ export function dureeEnClair(secondes) {
   if (minutes < 60) return `${minutes} min`;
   const [h, m] = [Math.floor(minutes / 60), minutes % 60];
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
-}
-
-/** @param {unknown} x @returns {x is Enregistrement} */
-const lisible = (x) => {
-  if (typeof x !== "object" || x === null) return false;
-  const e = /** @type {Record<string, unknown>} */ (x);
-  return (
-    typeof e.ticket === "number" &&
-    typeof e.mergedAt === "string" &&
-    !Number.isNaN(Date.parse(e.mergedAt)) &&
-    ["cuisson", "cuissonTests", "attentePasse", "revue", "ci", "merge"].every((p) => typeof e[p] === "number" && Number.isFinite(e[p]))
-  );
-};
-
-// La synthèse des 10 derniers tickets (par `mergedAt`), ou null sans ticket mesuré. Les entrées illisibles sont écartées.
-/** @param {TempsDuProjet} temps */
-export function synthese(temps) {
-  const recents = (temps.enregistrements ?? []).filter(lisible).sort((a, b) => Date.parse(b.mergedAt) - Date.parse(a.mergedAt)).slice(0, NOMBRE_DE_TICKETS);
-  const premier = recents[0];
-  if (premier === undefined) return null;
-  let lent = premier;
-  for (const e of recents) if (total(e) > total(lent)) lent = e;
-  // La phase la plus longue du ticket le plus lent (la cuisson compte ses tests) ; à égalité, la première dans l'ordre du ticket.
-  const phaseLente = PHASES.reduce((a, b) => ((b.cle === "cuisson" ? cuisson(lent) : lent[b.cle]) > (a.cle === "cuisson" ? cuisson(lent) : lent[a.cle]) ? b : a));
-  return {
-    nombre: recents.length,
-    mediane: mediane(recents.map(total)),
-    plusLent: { ticket: lent.ticket, total: total(lent), phase: phaseLente.libelle },
-    phases: PHASES.map(({ cle, libelle }) => ({ cle, libelle, duree: mediane(recents.map((e) => (cle === "cuisson" ? cuisson(e) : e[cle]))) })),
-    testsMedians: mediane(recents.map((e) => e.cuissonTests)),
-  };
-}
-
-/**
- * @param {Fabrique} doc
- * @param {string} balise
- * @param {string} classe
- * @param {string} [texte]
- */
-function noeud(doc, balise, classe, texte) {
-  const n = doc.createElement(balise);
-  n.className = classe;
-  if (texte !== undefined) n.textContent = texte;
-  return n;
-}
-
-// Le bloc à poser sur la page du projet : toujours un bloc, jamais un blanc ni un zéro. Deux états — `data-temps` :
-// « normal » et « vide » (aucun ticket mesuré). `temps` indéfini : la station
-// du projet ne publie pas encore ses temps — « vide » aussi, mais qui le dit, pour ne pas affirmer qu'aucun ticket n'est mesuré.
-/**
- * @param {Fabrique} doc
- * @param {TempsDuProjet | undefined} temps
- */
-export function poserTempsTicket(doc, temps) {
-  const lu = synthese(temps ?? { enregistrements: [] });
-  const bloc = noeud(doc, "div", "temps-ticket");
-  const tete = noeud(doc, "p", "temps-tete");
-  tete.append(noeud(doc, "span", "temps-titre", "Ticket times"));
-  bloc.append(tete);
-  if (temps === undefined) {
-    bloc.dataset.temps = "vide";
-    bloc.dataset.publie = "non";
-    const vide = noeud(doc, "p", "temps-vide", "Ticket times not available yet");
-    vide.append(survol(doc, "The project's station does not publish its ticket times yet: this is not a count of zero tickets"));
-    bloc.append(vide);
-    return bloc;
-  }
-  if (lu === null) {
-    bloc.dataset.temps = "vide";
-    const vide = noeud(doc, "p", "temps-vide", "No ticket measured yet");
-    vide.append(survol(doc, `The times appear once a ticket is merged: the median and the slowest of the last ${NOMBRE_DE_TICKETS} measured tickets`));
-    bloc.append(vide);
-    return bloc;
-  }
-  bloc.dataset.temps = "normal";
-  const mediane_ = noeud(doc, "p", "temps-mediane");
-  mediane_.append(noeud(doc, "span", "temps-valeur", dureeEnClair(lu.mediane)), noeud(doc, "span", "temps-legende", lu.nombre === 1 ? "median of the only measured ticket" : `median of the last ${lu.nombre} tickets`));
-  const lent = noeud(doc, "p", "temps-lent", `Slowest: #${lu.plusLent.ticket} — ${dureeEnClair(lu.plusLent.total)}`);
-  bloc.append(mediane_, lent);
-
-  const somme = lu.phases.reduce((s, p) => s + p.duree, 0);
-  const barre = noeud(doc, "div", "temps-barre");
-  const liste = noeud(doc, "ul", "temps-phases");
-  for (const p of lu.phases) {
-    const part = noeud(doc, "span", "temps-part");
-    part.dataset.phase = p.cle;
-    part.style.flexGrow = String(somme === 0 ? 1 : p.duree);
-    barre.append(part);
-    const ligne = noeud(doc, "li", "temps-phase");
-    ligne.dataset.phase = p.cle;
-    ligne.append(noeud(doc, "span", "temps-nom", p.libelle), noeud(doc, "span", "temps-duree", dureeEnClair(p.duree)));
-    if (p.cle === "cuisson") ligne.append(survol(doc, `cooking and its tests; the tests alone: ${dureeEnClair(lu.testsMedians)} (median)`));
-    liste.append(ligne);
-  }
-  bloc.append(barre, liste);
-  return bloc;
 }

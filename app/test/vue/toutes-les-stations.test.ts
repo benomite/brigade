@@ -118,7 +118,7 @@ async function ouvrir(vu: VuDesProjets = vuDes(SUR_LA_BOX), stations: DuRuntime[
   await repos();
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations }) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-  await ouvrirOnglet(vue, "Cooks");
+  await ouvrirOnglet(vue, "Stations");
   return vue;
 }
 

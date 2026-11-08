@@ -1,4 +1,4 @@
-// L'onglet Cooks d'un projet sur GitHub seul (#2358) : ses stations telles que GitHub les dit — la station qui tient un
+// L'onglet Stations d'un projet sur GitHub seul (#2358) : ses stations telles que GitHub les dit — la station qui tient un
 // ticket cuit, avec ce ticket ; une station fraîche sans ticket est atteinte et attend ; une station tue n'est pas
 // atteinte, et dit son dernier signe de vie —, la box comme le Mac, par la même règle et dans la même ligne. Rien n'y vient
 // des `facts` de l'ancien journal, ni des stations qu'il déclare ou que l'app lui connaît : le Mac qui cuit ne s'y lit
@@ -138,7 +138,7 @@ async function ouvrir(rail: RailSurGithub = RAIL, signes: SignesDeVie = SIGNES):
   await repos();
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(avecLeRail(FIGE, rail, signes).faits) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-  await ouvrirOnglet(vue, "Cooks");
+  await ouvrirOnglet(vue, "Stations");
   return vue;
 }
 
@@ -147,7 +147,7 @@ const ligne = (vue: Jouee, nom: string) => lignes(vue).find((li) => li.dataset.s
 const pilules = (pose: Faux) => pose.dessous("span").filter(({ className }) => className === "pilule atteinte" || className === "pilule");
 const dit = (pose: Faux) => pose.dessous("span").find(({ className }) => className === "etat")?.dessous("small")[0]?.textContent;
 
-describe("l'onglet Cooks d'un projet sur GitHub seul : ses stations dites de GitHub (#2358)", () => {
+describe("l'onglet Stations d'un projet sur GitHub seul : ses stations dites de GitHub (#2358)", () => {
   test("une qui cuit, avec son ticket ; une qui attend, atteinte ; une tue, pas atteinte, avec son dernier signe de vie", async () => {
     const vue = await ouvrir();
     assert.deepEqual(lignes(vue).map(({ dataset }) => dataset.station), ["box/claude", "macbook/claude", "pc/claude"]);
@@ -169,9 +169,9 @@ describe("l'onglet Cooks d'un projet sur GitHub seul : ses stations dites de Git
     const vue = await ouvrir();
     const rail = vue.element("rail");
     for (const pose of lignes(vue)) {
-      // Ses seuls boutons sont ceux des cartes de ses tickets.
-      assert.equal(pose.children.filter(({ className }) => className !== "cartes").flatMap((enfant) => enfant.dessous("button")).length, 0, `${pose.dataset.station} porte un bouton`);
-      assert.deepEqual(pose.children.map(({ className }) => className), ["nom", "etat", pose.dataset.station === "macbook/claude" ? "cartes" : "aucun-cook"]);
+      // Aucun bouton : ni dans la ligne, ni dans ses cooks.
+      assert.equal(pose.dessous("button").length, 0, `${pose.dataset.station} porte un bouton`);
+      assert.deepEqual(pose.children.map(({ className }) => className), ["nom", "etat", pose.dataset.station === "macbook/claude" ? "cooks" : "cooks vide"]);
     }
     assert.equal(rail.textContent.includes("move the kitchen"), false);
   });

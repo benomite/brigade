@@ -107,11 +107,9 @@ const recevoir = (vue: Jouee, recue: Dessinable = dessinable()) => vue.dire("sur
 
 const colonnes = (vue: Jouee) => vue.element("rail").dessous("section");
 const bons = (ou: Faux) => ou.dessous("li").filter((li) => li.className === "bon");
-// Les colonnes sont partagées entre les deux onglets du projet (#1184) : Taken et Pass sur Cooks, les autres sur Rail.
-const montrerOnglet = (vue: Jouee, titre: "Rail" | "Cooks") => {
-  // Cooks est un sous-onglet de Kitchen (#2485).
-  if (titre === "Cooks") (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === "Kitchen") ?? assert.fail("pas d'onglet Kitchen")).click();
-  (vue.element(titre === "Cooks" ? "onglets-cuisine" : "onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
+// Les onglets du projet (#1184, #2921) : Rail porte toutes les colonnes ; Stations, la liste de ses stations.
+const montrerOnglet = (vue: Jouee, titre: "Rail" | "Stations") => {
+  (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
 };
 const bonDe = (vue: Jouee, numero: number): Faux => carteDuTicket(vue, numero) ?? assert.fail(`pas de bon #${numero}`);
 // Ce qu'un bon dit de la file : chaque fait, son libellé puis sa valeur.
@@ -188,7 +186,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.equal(vue.element("rail").hidden, false);
     assert.deepEqual(cinq(), ATTENDU);
 
-    // Une page par-dessus : toutes, sauf Cooks, qui est un onglet et non plus une page.
+    // Une page par-dessus : toutes, sauf Cooks, qui n'est plus ni un onglet ni une page.
     for (const { titre } of ONGLETS.filter(({ id }) => id !== "cooks")) {
       await ouvrirLecture(vue, titre);
       assert.equal(vue.element("contenu").hidden, false, titre);
@@ -281,7 +279,7 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
 const HORS_LIGNE = "2026-10-13T13:35:36.000Z";
 const horsLigne = (a = HORS_LIGNE): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a, erreur: "GitHub could not be reached to read the Kitchen board of benomite/parade: fetch failed.", atteinte: true, cas: null, duTableau: true, horsLigne: true });
 const signes = (vue: Jouee) => vue.element("rail").dessous("p").filter(({ className }) => className === "hors-ligne");
-// L'espace du projet : sa bande, et son rail — la carte du projet y est, sur Cooks.
+// L'espace du projet : sa bande, et son rail.
 const ESPACE = ["alertes", "rail"];
 const ALARMES = /not verified|not drawn|not read|open Settings|could not be reached|NOT READ|tried at/;
 
@@ -303,13 +301,13 @@ describe("hors ligne (#1818)", () => {
       [`offline since ${new Date(HORS_LIGNE).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`],
     );
     for (const id of ESPACE) assert.doesNotMatch(vue.element(id).textContent, ALARMES, id);
-    // Sur Cooks aussi, un seul signe.
-    montrerOnglet(vue, "Cooks");
+    // Un détour par Stations, et le retour sur Rail : toujours un seul signe.
+    montrerOnglet(vue, "Stations");
+    await repos();
+    montrerOnglet(vue, "Rail");
     await repos();
     assert.equal(signes(vue).length, 1);
     assert.doesNotMatch(vue.element("rail").textContent, /not verified|not drawn|NOT READ|tried at/);
-    montrerOnglet(vue, "Rail");
-    await repos();
 
     recevoir(vue);
     assert.deepEqual(signes(vue), []);
@@ -324,7 +322,9 @@ describe("hors ligne (#1818)", () => {
     assert.equal(signes(vue).length, 1);
     assert.match(vue.element("rail").textContent, /^offline since /);
     for (const id of ESPACE) assert.doesNotMatch(vue.element(id).textContent, /first read|not verified|not drawn|tried at|NOT READ/, id);
-    montrerOnglet(vue, "Cooks");
+    montrerOnglet(vue, "Stations");
+    await repos();
+    montrerOnglet(vue, "Rail");
     await repos();
     assert.equal(signes(vue).length, 1);
     assert.doesNotMatch(vue.element("rail").textContent, /facts: first read|not verified|not drawn|NOT READ|tried at/);

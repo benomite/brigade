@@ -3,12 +3,14 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is four entries, Rail · Stations · Kitchen · Settings** (#2485), next to the project name; **Rail is the
-tab opened by default**. Kitchen has two sub-tabs, **Health** and **Cooks**, shown under it, each one click away. Settings opens over
+**The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
+tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's health sits in
+a strip above the rail** (#2921, `app/src/vue/projet/bandeau-sante/`) — the ticket time in detail, the blocked-without-a-question
+counter, the duration caps (#2490), the closer (#2491), then the Cost and Closer rows of all projects — with the same values
+as before, shown on the Rail tab only (it holds at most a third of the middle and scrolls past that). Settings opens over
 the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
-(`stations/`, `cuisine/sante/`, `cuisine/cuisiniers/`, `rail/BandeRail.js`) and its own ticket fills it; **Health** shows
-the ticket time in detail, the duration caps (#2490) and the closer (#2491) — see "Kitchen > Health" below. **Stations lists the project's stations** (#2487) — the very list Cooks shows, the same lines, kept up to date by
-the same readings — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
+(`stations/`, `bandeau-sante/`, `rail/BandeRail.js`). **Stations lists the project's stations** (#2487), kept up to date by
+the same readings as ever — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
 to a station.* **This computer comes first**, as the recommended button, when its station does not serve the project yet;
 then the stations paired with your account that the project is not chosen for — an offline one says so. Each choice is a
 gesture the app already makes: this computer serves the project as its Settings box does, a paired station gets it in its
@@ -17,7 +19,16 @@ was given the project — the station joins the list once it takes it; a refusal
 in a hover; `cancel` closes without writing anything. The narrow screen, which sets nothing, and a project whose
 repository the app does not know have no button. Under the list, **Station settings** sets each station (#2488, below), and under it, the **Local station** block shows what only
 this computer's station has (see "This computer's station, on the Stations tab", #2489).
-What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
+
+**Removed with the Kitchen tab (#2921)**: what only the Cooks sub-tab carried is gone from the app — the reliability of the
+cooks, the closer's section and its launch, the raw reading of `station` and the app's reading of it every thirty seconds,
+the gates' budget, the triage history, what the cooks learned, the calibration ceiling block (the same ceiling is a row of
+Settings), the specializations, the notebook, the old Ticket times card (the strip's block replaces it), the cards of the
+cooks in flight inside a station's line, and the narrow-screen Cooks page. A passage below that still describes one of
+them as living "on Cooks" is history, not behaviour. A stored "cooks" or "health" tab reopens on Rail. The alert line's
+"open Cooks" button now opens Stations.
+
+What follows about the tabs (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, Awaiting you, Waiting and Served (#2093, titled so since #2922) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
@@ -26,17 +37,7 @@ its cooks learned and the raw reading of `station` (the machine and its saturati
 last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
 terminals, permanently**: the second, and beside it, at the same level, the shells you open — nothing you look at
 in the middle hides them, and switching tabs neither cuts nor empties the conversation.
-**Cooks reads in the order of its review** (#1456, `docs/revue-page-cooks.md`): **first, what cooks and what is stuck**
-— the stations' block, headed by the kitchen's line (its state in a pill and its latest event; the project tile is
-folded into it, and is shown whole above the stations only when they are not read), each station with its state, its
-reason and its cooks' cards, a stuck cook's card saying `STUCK: no progress since 31 min`; on a 1366×768 laptop
-screen, all of it is visible without scrolling. Then **the reliability of its
-cooks** and **its closer** — these two were the Settings pages Reliability and Closer until #1699 (see "The
-cooks' reliability, on Cooks" and "The closer, on Cooks"). Then, **folded
-behind a single line each and closed by default**: the calibration ceiling (`opus / high · default`), what the cooks learned (`4 lessons, 3 profiles`) and the raw reading of
-`station`. A click on the line opens it; the app keeps it open from one reading to the next. **A block with nothing to
-say is a single line**, never a table of zeros: lessons (`nothing yet on this project: no lesson, no
-profile`). **No page of a worktree opens from the app** (#1846): you follow what a cook does on its ticket's sheet,
+**No page of a worktree opens from the app** (#1846): you follow what a cook does on its ticket's sheet,
 then its PR, and you try the built app once it is merged. The cap on cooks is set on each station's
 line; the raw reading no longer carries the button that wrote `station cooks` into the second.
 **The triage, day by day** sits folded
@@ -1018,7 +1019,7 @@ What the home used to show besides went elsewhere, or was removed:
   with its pairing code field — is the last block of **a project's Stations tab**, under the project's own stations and
   this computer's station. The stations under your account are read again each time that tab opens.
 - The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
-  block, **All projects**, of **a project's Kitchen > Health**. Their pages are unchanged.
+  block, **All projects**, of **a project's health strip**. Their pages are unchanged.
 - The **App** section (the running version, **Install now** / **Later**) is removed: a higher version is said, with
   **Install now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
   shown.
@@ -1057,7 +1058,7 @@ THIS COMPUTER'S STATION
   says what is going on — **what blocks first**, then **what awaits you** (how many decisions,
   since when), then **what is cooking** (its cooks' tickets, or what is at the pass). Nothing
   going on: `nothing cooking, nothing waits for you`. When the reliability of its cooks has drifted, it ends
-  with one word, `drifting`, and hovering says why (#987, see "The cooks' reliability, on Cooks").
+  with one word, `drifting`, and hovering says why (#987).
 - **A project's dot** is **red** when it is blocked — base red, kitchen stopped or
   held, runtime off, station unreachable —, **yellow** when a decision awaits you, **green**
   otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project that no station serves
@@ -1071,7 +1072,7 @@ THIS COMPUTER'S STATION
 - **A click anywhere on a row opens it**: the project's space, or the station's page
   (see "Your stations: paired by a code, read on GitHub"). **No row carries any
   action** — no merge, no triage, no removing `fire`: decisions are taken in the project.
-- **A "Cost" row**, in the All projects block of a project's Kitchen > Health (#2638), opens **the cost of all
+- **A "Cost" row**, in the All projects block of a project's health strip (#2638), opens **the cost of all
   projects** (#1022), in place of the home (see "The cost of all projects"). It shows no figure: the cost reading only
   starts when its page is open.
 - **A "Closer" row**, under it, opens **the added / removed ratio of all projects** (#1682) the same way (see "The
@@ -1108,7 +1109,7 @@ your stations" list and the "add a project" path, on a station's page.
 
 ### The cost of all projects
 
-*Tickets: #908 to #912, #1022, #2638.* **In a project's Kitchen > Health, the "Cost" row opens the cost page of all
+*Tickets: #908 to #912, #1022, #2638.* **In a project's health strip, the "Cost" row opens the cost page of all
 projects**, in place of the home, the project's space closed — the **T** icon remains the entry shown, and "‹ All projects"
 brings you back to the home. What holds for all projects together lives at the app level; what holds for one project lives
 in the project (the home's rule, #868): **no project has a Cost tab**, and what a project has cost is read
@@ -1155,7 +1156,7 @@ in place of the alert. The same thresholds judge, the same way, a project's cost
 
 ### The added / removed ratio of all projects
 
-*Ticket: #1682 (epic #1663).* **In a project's Kitchen > Health, under "Cost", a "Closer" row opens the page of the
+*Ticket: #1682 (epic #1663).* **In a project's health strip, under "Cost", a "Closer" row opens the page of the
 added / removed ratio of every project**, in place of the home, like the cost page — "‹ All projects" brings you back. It reads
 `closing --json` **on the box of each project** the cost page reads (`RATIOS`, `app/src/onglets.ts`), every thirty
 seconds while it is displayed, and only then. Nothing is added to the runtime: the page reads the object that
@@ -1172,7 +1173,7 @@ added / removed, per project
 
 - **One row per project with a closer set**, in the file's order; **a project with no closer set has no row**. A
   click on its name opens its space.
-- **Its current ratio** is the one of its closer section on Cooks (see "The closer, on Cooks"): the longest window, in the words
+- **Its current ratio** is the one of its closer section on Cooks (removed with the Cooks tab, #2921): the longest window, in the words
   of `closing` (`15.5:1`, `nothing removed`), with what it counts below.
 - **Its trend — going down, flat or going up — is read from successive values of the ratio.** The runtime keeps no
   history of the ratio: `closing --json` gives it over the last 20, 50 and 100 merges, each window taken from the same
@@ -1364,10 +1365,10 @@ desktop's chain and by the phone on two copies of a mocked GitHub, comparing eve
 bridge with no station reachable — are `app/test/gestes-github-telephone.test.ts`.
 
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
-first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
+first, then On the rail, WAITING and Served, stacked — and Stations — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
-and nothing on it scrolls sideways at phone width. Screens: `telephone-file` and `telephone-file-cooks` of
-`scripts/capture-ecran` (`docs/captures/1163/`).
+and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
+`scripts/capture-ecran` (`docs/captures/1163/`; its Cooks screen went with the Cooks tab, #2921).
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
 `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
@@ -1850,7 +1851,7 @@ same hover, the heaviest loss and the slowest phase named with their medians, th
 records are there. With neither `resume` nor `chiffres`, both say « no measure yet » (never a blank or a zero).
 Screenshots: `docs/captures/2664/`.
 
-**Kitchen > Health: ticket time and duration caps** (#2490, epic #2484). Two blocks, then the closer's.
+**Health strip: ticket time and duration caps** (#2490, epic #2484). Two blocks, then the closer's.
 **Ticket time** reads the same measures as the Ticket times card (`temps` of the project's view): a ticket's time runs
 from its filing to its merge, its **pass** is the wait for the pass plus the review (`attentePasse + revue`). At the
 head, the median and the p75 from the measure's resume, then the station's four figures (#2672) with their thresholds,
@@ -1858,7 +1859,7 @@ in red when over. Over time, one column per ticket
 (the last 30, oldest left), its pass at the bottom in yellow, with no max line: a ticket's total time has no cap; the
 ticket, its date and both durations on hover. Per ticket, the
 last 10, newest first: number, merge date, time, pass. The same empty states as the card ("No ticket measured yet",
-"Ticket times not available yet"). Module: `app/src/vue/projet/cuisine/sante/TempsTickets.js`.
+"Ticket times not available yet"). Module: `app/src/vue/projet/bandeau-sante/TempsTickets.js`.
 **Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
 first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
 as the station publishes it), then the durations the
@@ -1873,11 +1874,11 @@ threshold) writes nothing and says so under the field; GitHub's refusal (a prote
 **The lost-time threshold is not editable here yet**: `lostTimeMaxMin` is not a `drift.*` threshold, the only keys this
 block writes, and the station reads it from its clone's working tree — its row says so, the reason on hover. The caps
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
-`app/src/vue/projet/cuisine/sante/PlafondsDuree.js`.
+`app/src/vue/projet/bandeau-sante/PlafondsDuree.js`.
 
-**Kitchen > Health: blocked without a question** (#2557, epic #2553). Under the ticket time, a **Blocked without a question** counter: the project status field `blockedWithoutQuestion` (an integer). At 0 it reads neutral ("none — every block asks the chef a question"); above 0 it is an alert — a red left rule, a bold red number, "tickets blocked-on-human with no question — a defect to fix". A station that does not publish the field yet reads "Not available yet", which is not a count of zero.
+**Health strip: blocked without a question** (#2557, epic #2553). Under the ticket time, a **Blocked without a question** counter: the project status field `blockedWithoutQuestion` (an integer). At 0 it reads neutral ("none — every block asks the chef a question"); above 0 it is an alert — a red left rule, a bold red number, "tickets blocked-on-human with no question — a defect to fix". A station that does not publish the field yet reads "Not available yet", which is not a count of zero.
 
-**Kitchen > Health: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
+**Health strip: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
 read on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/closer-sante.ts`) — when Health
 opens, then at most once a minute while it stays open; each part that fails to read is one line, its detail on hover, and
 does not take the others along.
@@ -1903,27 +1904,7 @@ repository`, `the station's, or 500 lines`) and **save**, as a duration cap: onl
 it at its next fetch, a value it would refuse writes nothing and says so. The closer on GitHub reads only the calibration and
 the removed lines cap: the two others say `not read on GitHub yet`, the reason on hover. Settings still carries its
 closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
-`app/src/vue/projet/cuisine/sante/Closer.js`.
-
-**Kitchen > Cooks: the cooks' specializations, and adding one** (#2492, epic #2484). A **specialization** is a cook for
-one kind of ticket: the model and the effort it runs with, and the capabilities a station needs to run it. Each one is a
-file of the project's repository, **`agents/cook-<name>.md`** — where the design cook already lives
-(`PROFIL_COOK_DESIGN`, `runtime/src/calibrage.ts`) —, a Claude Code agent whose frontmatter carries `name`,
-`description` and, when set, `model`, `effort` and `capabilities` (`code, navigateur-headless`). The **Specializations**
-block of Cooks lists them, one row each, by name: the cook and what it cooks, its model, its effort, its capabilities;
-a model or an effort the file does not set reads **per ticket** (the ticket's calibration decides, on hover), no
-capability reads **none**. Without any, one line: "no specialization yet: every ticket goes to the general cook". The
-app reads them on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/specialisations.ts`)
-— when Cooks opens, then at most once a minute while it stays open; a failed reading is one line, its detail on hover.
-**`Add a specialization`** opens the form in place: what is expected at its head, then **Name** (lowercase letters,
-digits and hyphens; `general` is the ordinary cook's), **What it cooks** (one line, required), **Model** and **Effort**
-(`per ticket` first), **Capabilities**; **add** (recommended) creates `agents/cook-<name>.md` on the integration branch
-— never over an existing one: a name already taken is refused —, the form closes, one line says it was added, and the
-specialization joins the list. Reopened, the app reads it back from the repository. A refusal (a bad name, GitHub's
-answer) stays under the form in one line, its detail on hover, with what was filled; **cancel** closes it. The app
-neither edits nor removes a specialization: its file is edited in the repository. Today the runtime routes only the
-design cook (`cook:design`); the other specializations wait in the repository until it routes them. Screenshots:
-`docs/captures/2492/`. Module: `app/src/vue/projet/cuisine/cuisiniers/Specialisations.js`.
+`app/src/vue/projet/bandeau-sante/Closer.js`.
 
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
@@ -2335,11 +2316,7 @@ route left (`app/src/onglets.ts`); the installation guide and **the installation
 button in the space's header, the verdict at the top of Settings —: the app only needs a GitHub connection (#1692), and
 installing a station is a separate topic (#1536); uninstalling the project from its station (`See what the station would
 remove`, `Uninstall from the station`); `where the rail's data comes from`; and the project's `status`, as the station
-renders it. **Reliability and Closer are no longer there either** (#1699): they are sections of the Cooks tab (see "The
-cooks' reliability, on Cooks" and "The closer, on Cooks"). **Cooks** is no longer there (#1184): it is the space's Cooks
-tab, which relays `station`, read on the box of the single project shown, at the bottom of the tab — folded behind its
-line (#1456), with no button: the cap on cooks is set on each station's line; it is read only while the tab is shown.
-An alert-band line whose cause is fixed there leads to it in one click. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
+renders it. **Reliability and Closer are no longer there either** (#1699), nor on the Cooks tab, which is gone (#2921). An alert-band line whose cause is fixed on the Stations tab leads to it in one click. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
 clicking it again closes it.
 
 **The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
@@ -2376,7 +2353,6 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
 | Reading | The command the app runs through the project's station | What you read there |
 |---|---|---|
-| **Cooks** | `brigade <nom> station`, then `brigade <nom> measures --last <window> --by 1`, then `brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
 | **Log** | `brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
 - **Only the displayed reading is read**: its command goes out when you open it, then every thirty
@@ -2391,153 +2367,6 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
   the station renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
 - The space gives you back the tab where you left it.
 
-### The cooks' reliability, on Cooks
-
-*Tickets: #987, #1699.* On the project's **Cooks** tab, in a section under its tickets, **the reliability of the
-project's cooks, over its latest served tickets** — on a wide screen only: a narrow screen's Cooks is read-only and runs
-no reading (#1186), so neither this section nor the closer's is laid there. Until #1699 it was the page **Settings →
-Reliability**; it is read with the Cooks tab, every thirty seconds while that tab is shown, and a reading that fails
-whole is said once, by the tab's reading line, not again in the section.
-
-- **At the top, three figures**: the share **delivered first time** ("1 of 7 · 14%"), against its threshold;
-  the **average number of attempts per ticket**; the **tokens lost on failed attempts**, against their cap.
-  Below, a line says over which tickets they are taken: `7 merged of the last 10 tickets served — 3 not
-  merged, left out`.
-- **Then the failure causes that come back most, three at most**: each with its number of attempts,
-  its share of the failed attempts, and its latest tickets — three at most, most recent first. **A click
-  on a ticket opens its card**, over the tab, with its history. With no failed attempt, `no failed attempt`.
-- **A figure past its threshold turns red** — the first-time share *below* its own, the lost tokens
-  *above* theirs —, as the `drift` line of `status` flags it. The average number of attempts has
-  no threshold. A threshold the chef has not set: the runtime's for first time, `50% (default)`;
-  none for the lost tokens, `no ceiling set`, and nothing is judged.
-- **Not enough served tickets yet to measure, the section says so** —
-  `not enough tickets served yet to measure: 6 of the 10 it takes`, or `none of the last 10 tickets
-  served is merged yet` —, **never zeros**.
-- **What the cooks taught the project** (#1058, epic #1034), under "what the cooks learned" — **now on the Cooks tab of the project, under the calibration ceiling (#1273), no longer on Reliability**, folded behind its line (#1456); same content, same actions, laid from `facts` once the box answers. **Its
-  lessons**, provisional then promoted in `facts` order, one line each: the status as a dot
-  (`provisional`, `promoted` in the accent's tone; its meaning on hovering the dot), the identifier in
-  monospace and the text, then the day of its entry (`since 10/1/2026`), **where it comes from** (#1089: `origin: retro`, `origin: pass send-back on #12` or `origin: chef correction on #15`, read from the `origine` of the lesson in `facts`; a lesson with none recorded reads as `retro`), **the tickets that proposed it** —
-  a click opens the card — and **the number of cooks that received it** (`received by 14 cooks`, or `received by
-  no cook yet`). **A promoted one carries "open in the notebook"**: the button opens, in the browser, its line
-  of the project's notebook on GitHub — the address `facts` gave for this lesson, and no other (the view
-  names the lesson, the main process holds the address) —, **creating nothing: no branch, no PR**; to
-  remove it, the chef opens their own PR. With no address (the box does not know the repo), the button is inactive,
-  and hovering says so. A provisional one has no link. **Its profiles**: the name, the domain (`for
-  app/src/vue`), the notebook — each lesson by its identifier and its text, its state when it is no longer
-  promoted (`retired`, `expired`), or `empty` — and **the tickets it cooked** (`cooked #29 #36`, or `none
-  yet`). **Each lesson and each profile also shows its progress** (#1059): under its line, the share delivered
-  first time (`60% (6 of 10)`) and the average attempts per ticket (`1.5 on average`), **before then after its
-  entry** — the figures of `progres` in `facts`. A side with no merged ticket is said in words, `not enough
-  tickets yet`, never by 0 or NaN. An empty part is said in one line (`no profile yet`). **While the project has neither lesson nor profile,
-  the section is a single line** — `what the cooks learned` and `nothing yet on this project: no lesson, no
-  profile` (#1456) —, **and no list**, nothing to open. It comes from `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
-  read by `app/src/apprentissage.ts`; a runtime from before this field does not return it either, and the page says the
-  same sentence. While the project's facts are not read, the section is not laid.
-- **The project's notebook, read-only** (#2493, epic #2484), the "Notebook" block of Kitchen > Cooks: the lessons of the project's notebook, entry by entry — the identifier in monospace, the text, the day of its entry (`since 10/1/2026`) —, from the promoted lessons of `facts` (`apprentissage`, read by `app/src/apprentissage.ts`); a provisional lesson is not in the notebook yet. Nothing in it is clickable (opening a line on GitHub stays with "what the cooks learned"). **With no entry** — no promoted lesson, or facts not read — the block says `No lesson in the notebook yet`, never a blank area.
-- **What the project cost is no longer there** (#1699): the "cost of this project" block — its lost tokens and its
-  most expensive tickets, read in its own `station` — was dropped instead of moved. The app's cost page (see "The cost of
-  all projects") gives each project's share of every figure, and the lost tokens and most expensive tickets of all
-  projects together; this project's lost tokens, judged against `seuil-perdus`, stay in the third figure above.
-
-**Where it comes from** (`app/src/fiabilite.ts`). The app computes nothing and asks the runtime for nothing new:
-it reads what `measures` writes (`docs/runtime/etat-et-mesures.md`, "Le relevé des mesures") — the blocks
-`retries`, `failures` and `launches` —, and the chef's settings under "chef's decisions" of `station`.
-
-- **The window is that of the first-time drift**: `fenetre-renvois` (10 absent a setting), its
-  threshold `seuil-renvois` (50%). The reading therefore runs `station`, then `measures --last <window>`: the section
-  and the `drift` line of `status` judge the same tickets. **The minimum to measure is the drift's**:
-  the full window, of which at least one merged ticket. Served tickets that are not merged (in progress,
-  dropped, served with no diff) are set aside, and the line under the figures says so.
-- **The lost tokens are those the runtime judges against `seuil-perdus`**: over the last 10 merges.
-  `--by 1` puts each merge in its own slice, so that each row of the `launches` block carries its rank;
-  the app sums the `lost` column of the last ten. A launch whose tokens are not known makes the
-  sum "≥".
-- A box whose `measures` does not yet count returns (a runtime from before #946): the section says in one
-  line that reliability is not communicated, the detail on hover.
-
-**On the home screen, the line of a project whose reliability has drifted says so in one word: `drifting`** — when the
-project's `status` carries a `drift` line on the first-time share, or on the lost tokens. What it
-says is on hover; the dot does not change: nothing awaits the chef, nothing blocks. The other thresholds
-(tests, repo, most expensive ticket) are not the cooks' reliability, and add nothing to it.
-
-### The closer, on Cooks
-
-*Tickets: #990 (epic #986), #1699.* On the project's **Cooks** tab, in a section under its gates, **the project's
-"closer" part**: what the closer's last observation spotted (`docs/runtime/fermeture.md`, "La fermeture qui observe").
-Until #1699 it was the page **Settings → Closer**; `closing --json` now goes out with the Cooks tab's reading, after
-`station` and `measures`.
-
-- **At the top, four figures**: the **merges since the last cleanup**, the **added / removed**
-  ratio (`2.5:1`, or `nothing removed`, as `closing` says it — over its longest window, with below it
-  `+18,340 / −7,336 · last 100 merges`), the **duplicates** and the **dead exports**. The closer's calibration
-  is stated next to the title (`closer sonnet / medium`).
-- **A button unfolds what was spotted** — `show what was found (8)` —, and clicking it again folds it;
-  once unfolded, the list stays so across re-readings. One line per finding, under the name the pass gives it:
-  `D1  app/src/vue/vue.js:1405-1428  24 lines also at app/src/vue/fiabilite.js:40-63`, or
-  `M1  runtime/src/mesures.ts:212  export ancienneJauge named by tests only`. Nothing spotted: `nothing found`.
-- **With no closer set, the part says so** — `No closer is set on this project.` — **and gives the action
-  that sets one, as a button**: the model and the effort are chosen together, in two closed lists
-  (those the station accepts), and **"Set the closer…"**, the recommended button, acts only once both are
-  chosen — one without the other makes the start be refused (`docs/runtime/fermeture.md`). Like the
-  action buttons ("Buttons write, they do not send"), it **writes into the second, without
-  sending**, the doc's two actions on one line — `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <nom> station closer-modele
-  <model> && … station closer-effort <effort>)` — : the chef hits Enter. What it
-  writes, and the accepted values, are on hover; no command is displayed. The choice holds across
-  re-readings. What is written is composed in the main process (`app/src/boutons.ts`, `ecritPourLeCloser`),
-  which refuses a value outside the lists. **No figure.**
-- **An unreadable integration branch**: the merges remain (the log holds them alone), the other three
-  figures say `not communicated`, and a line `the integration branch could not be read` carries the reason
-  on hover. A failed reading — a box with no log, a runtime from before `closing --json` — fits in one line,
-  `the closer could not be read`, the detail on hover.
-- **Under the list, the launch of a cleanup** (`closer-lancement`, #991) — see below. Under it, the
-  **summary of the last finished pass** (`closer-bilan`, #992) — see below.
-
-**Launching a cleanup** (#991). **"Launch a cleanup…"**, the recommended button — the price on hover, from the
-closer's calibration: `on your quota: sonnet / medium · 500,000 tokens at most · 500 lines removed at most`.
-**Nothing goes out on click**: the app asks the box for the preview (`closing preview --json`, which writes nothing), and opens
-the confirmation of actions that cost — **`Launch a cleanup?`**, the price in one line (`closer on sonnet /
-medium · starts under 1 cook in flight · …`), **what the closer will do**, sentence by sentence, as the runtime
-says it, then what the request made now would become (`a request would leave within the second`, or
-`a request would wait`, the reason on hover). **"yes, launch it"** sends the request, a single one —
-`closing write --json --confirm`: the main process launches it only with the view's "yes", and the runtime
-refuses it without `--confirm` —, **"no"** closes without sending anything. A request that would be refused, impossible
-or already made has no "yes": the line says why.
-
-**Where the request stands** is then read in the same reading, `closing --json` (its `request`): the action having come back,
-the app re-reads the tab at once, and the place says meanwhile what was done (`the cleanup is requested —
-reading where it stands…`). Then, one line per state:
-
-- **waiting, and for what** — `Cleanup requested — waiting: start condition not met: 3 cooks in flight for a
-  threshold of 1`, the whole reason on hover —, and **"Cancel the cleanup"**, which withdraws it
-  (`closing cancel --json`): the place then goes back to "nothing requested", the launch button alone;
-- **running** — `Cleanup running — since …`: started, it can no longer be cancelled, and is not relaunched;
-- **refused, and why** — `Last cleanup refused on …: …` — then the button, to relaunch;
-- **finished** — `Last cleanup finished on …` — then the button; its summary is below.
-
-**The summary of a finished pass** (#992, `vue/closer/bilan/bilan.js`). When the last request is `done`, the
-summary place shows, from `request` of `closing --json` (nothing is recounted): **what the pass
-removed** — one line per candidate, its short name (`M1`, `D2`) and what it was proposed for; the number of
-lines removed/added on hovering the title — and **the PR opened**, as a link: a click opens it in the
-workstation's browser (`ouvrirBilan`, https only). Nothing removed: `nothing was removed`; no PR (or
-an address that is not https): `no PR was opened`, with no link. A request that is not finished has
-no summary: the place is empty. Capture: `docs/captures/992/`.
-
-A box that does not answer, a runtime that does not know these actions: one line (`the station could not be asked —
-not reached`), what the app got on hover, and the button stays. The three actions go out through the
-project's passage, like `manager backlog` (`app/src/closer-lancement.ts`); the place is laid in the view
-(`app/src/vue/closer/lancement/lancement.js`). With no closer set, there is neither place nor button.
-
-**Proposing a cleanup when the drift crosses its threshold** (#993). When `closing --json` says `drift.crossed`, the
-launch place carries at the top `The drift threshold is crossed — a cleanup could bring it back.`, what crossed
-its threshold on hover, and a button, **"Review the cleanup…"**. It does the launch button's action — the preview,
-then the confirmation above —: **the proposal creates no request**, neither at its click, nor on loading or
-re-reading the page; the request goes out only at "yes, launch it". It disappears when a request is waiting or
-running, or when an action is on its way; threshold not crossed (or not declared), it does not exist
-(`app/src/vue/closer/derive/derive.js`).
-
-**Where it comes from.** The app runs `closing --json` (#988) and reads the object it returns on one line — nothing is
-recounted, nothing is launched: the command opens the log read-only. The view reads it itself in the
-Cooks tab's output (`app/src/vue/closer/section.js`); the raw object is not shown.
 ### This station's GitHub Apps, in Settings (#2317, epic #2313)
 
 **Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on

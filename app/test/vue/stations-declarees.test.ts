@@ -1,4 +1,4 @@
-// Sur l'onglet Cooks (#1509, épique #1506) : chaque station que la box du projet déclare, une ligne chacune — son nom,
+// Sur l'onglet Stations (#1509, épique #1506) : chaque station que la box du projet déclare, une ligne chacune — son nom,
 // son plafond de cooks, ses capacités, et où elle tourne, la box ou ce poste, sous deux mots distincts. Un projet qui
 // n'en déclare aucune le dit en une ligne, jamais par un blanc. La déclaration arrive avec l'installation du projet
 // (`controle.stations`, service.ts) : à l'ouverture de l'espace, puis à chaque contrôle. La vue jouée telle qu'elle est,
@@ -15,7 +15,7 @@ import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
-import { AUCUNE, OU, ouTourne, PAS_LUE, plafondDit, poserLesDeclarees, TITRE } from "../../src/vue/stations-declarees.js";
+import { OU, ouTourne, plafondDit, poserLesDeclarees } from "../../src/vue/stations-declarees.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-23T10:04:12.000Z";
@@ -79,60 +79,53 @@ async function ouvrir(stations: StationsLues | undefined, projet: Projet = PROJE
   const vue = await jouerLaVue({ demarrage: demarrage(projet), espace: () => [], service: () => guide(stations), lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
+  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-  await ouvrirOnglet(vue, "Cooks");
+  await ouvrirOnglet(vue, "Stations");
   return vue;
 }
 
-const bloc = (vue: Jouee) => vue.element("rail").dessous("section").find((pose) => pose.className === "stations-declarees");
-// Une ligne telle qu'elle se lit : son nom, où elle tourne, son plafond, ses capacités.
+const bloc = (vue: Jouee) => vue.element("rail").dessous("section").find((pose) => pose.className === "stations-de-cuisson");
+// Une ligne de station telle qu'elle se lit : son nom, où elle tourne, ses capacités. Le plafond, lui, est celui des
+// lignes que le journal déclare (« Cooks at once »).
+const lignesDe = (pose: Faux) => pose.dessous("li").filter(({ className }) => className === "station-de-cuisson");
 const lu = (pose: Faux) =>
+  lignesDe(pose).map((ligne) => ({
+    nom: ligne.dessous("strong").find(({ className }) => className === "mono")?.textContent,
+    ou: ligne.dessous("span").find(({ className }) => className === "ou")?.textContent,
+    plafond: ligne.dessous("p").find(({ className }) => className === "plafond-de-station")?.textContent,
+    capacites: ligne.dessous("li").filter(({ className }) => className === "capacite mono").map(({ textContent }) => textContent),
+  }));
+
+// Le module seul : une ligne de `stations-declarees.js`, telle qu'il la pose.
+const luSeul = (pose: Faux) =>
   pose.dessous("li").filter(({ className }) => className === "station-declaree").map((ligne) => {
-    const [qui, plafond, capacites] = ligne.children;
-    return {
-      nom: qui?.children[0]?.textContent,
-      ou: qui?.children[1]?.textContent,
-      plafond: plafond?.textContent,
-      capacites: capacites?.children.map(({ textContent }) => textContent),
-    };
+    const [, plafond, capacites] = ligne.children;
+    return { plafond: plafond?.textContent, capacites: capacites?.children.map(({ textContent }) => textContent) };
   });
 
-describe("ce que chaque station déclarée fournit, sur l'onglet Cooks", () => {
+describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () => {
   test("une station de la box et deux d'autres postes : leur plafond, leurs capacités, et des mots distincts pour où elles tournent", async () => {
     const vue = await ouvrir(DECLAREES);
-    const pose = bloc(vue) ?? assert.fail("pas de stations déclarées sur Cooks");
-    assert.equal(pose.dessous("h4")[0]?.textContent?.startsWith(TITRE), true);
+    const pose = bloc(vue) ?? assert.fail("pas de stations déclarées sur Stations");
     assert.deepEqual(lu(pose), [
-      { nom: "box/claude", ou: "box station", plafond: "3 cooks at once", capacites: ["code", "raisonnement"] },
-      { nom: "mac/claude", ou: "remote", plafond: "1 cook at once", capacites: ["navigateur-headless", "chrome-connecté"] },
-      { nom: "pc/claude", ou: "remote", plafond: "2 cooks at once", capacites: ["code"] },
+      { nom: "box/claude", ou: "box station", plafond: "Cooks at once: 3this machine", capacites: ["code", "raisonnement"] },
+      { nom: "mac/claude", ou: "remote", plafond: "Cooks at once: 1this machine", capacites: ["navigateur-headless", "chrome-connecté"] },
+      { nom: "pc/claude", ou: "remote", plafond: "Cooks at once: 2this machine", capacites: ["code"] },
     ]);
-    // Les mots sont distincts, et la peau les distingue aussi.
+    // Les mots sont distincts.
     assert.equal(new Set(Object.values(OU)).size, 3);
-    const lignes = pose.dessous("li").filter(({ className }) => className === "station-declaree");
-    assert.deepEqual(lignes.map(({ dataset }) => dataset.ou), ["box", "ailleurs", "ailleurs"]);
+    const lignes = lignesDe(pose);
     // Le survol dit où : la box par le nom que le chef lui connaît, ce poste qui tire son travail de la box.
     const survols = lignes.map((ligne) => ligne.dessous("span").find(({ className }) => className === "ou")?.title ?? "");
     assert.match(survols[0] ?? "", /^it runs on the project.s main station$/);
     assert.match(survols[1] ?? "", /another workstation/);
     assert.match(survols[2] ?? "", /another workstation/);
-    // Sous les stations, au-dessus de la fiabilité des cooks.
-    const ids = vue.element("rail").children.map(({ id }) => id);
-    assert.ok(ids.indexOf("declarees-du-projet") > ids.indexOf("cuisson-du-projet"), ids.join(", "));
-    assert.ok(ids.indexOf("declarees-du-projet") < ids.indexOf("fiabilite-du-projet"), ids.join(", "));
   });
 
-  test("un projet sans station déclarée le dit en une ligne, à la place d'un blanc", async () => {
-    const vue = await ouvrir({ ...DECLAREES, declarees: [] });
-    const pose = bloc(vue) ?? assert.fail("rien sur Cooks");
-    assert.deepEqual(pose.dessous("p").map(({ textContent }) => textContent), [AUCUNE]);
-    assert.equal(lu(pose).length, 0);
-  });
-
-  test("tant que l'installation n'a rien lu, une ligne le dit ; le contrôle suivant pose les stations, sans rouvrir l'espace", async () => {
+  test("tant que l'installation n'a rien lu, aucune station déclarée n'est posée ; le contrôle suivant pose les stations, sans rouvrir l'espace", async () => {
     const vue = await ouvrir(undefined);
-    assert.deepEqual(bloc(vue)?.dessous("p").map(({ textContent }) => textContent), [PAS_LUE]);
+    assert.deepEqual(lu(bloc(vue) ?? assert.fail("pas de bloc")), []);
     vue.dire("surGuide", guide(DECLAREES));
     await repos();
     assert.deepEqual(lu(bloc(vue) ?? assert.fail("plus de bloc")).map(({ nom }) => nom), ["box/claude", "mac/claude", "pc/claude"]);
@@ -145,10 +138,10 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Cooks", () => {
   test("le module se lit seul, sur un faux document", () => {
     const doc = { createElement: (balise: string) => new Faux(balise) };
     const pose = poserLesDeclarees(doc as never, { stations: DECLAREES }) as unknown as Faux;
-    assert.deepEqual(lu(pose).map(({ plafond }) => plafond), [plafondDit(3), plafondDit(1), plafondDit(2)]);
+    assert.deepEqual(luSeul(pose).map(({ plafond }) => plafond), [plafondDit(3), plafondDit(1), plafondDit(2)]);
     // Une station sans capacité le dit.
     const sans = poserLesDeclarees(doc as never, { stations: { ...DECLAREES, declarees: [{ nom: "box/claude", moteur: "claude", fournit: [], cooks: 1, distante: false }] } }) as unknown as Faux;
-    assert.deepEqual(lu(sans)[0]?.capacites, ["provides nothing"]);
+    assert.deepEqual(luSeul(sans)[0]?.capacites, ["provides nothing"]);
     // La cuisine tourne sur ce poste : ses stations de la box tournent ici.
     const [box, mac] = DECLAREES.declarees;
     assert.equal(ouTourne(box ?? assert.fail(), { ici: true }), "poste");

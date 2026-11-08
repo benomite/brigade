@@ -4,7 +4,7 @@
 // `espace`, sans closer réglé — qui n'a pas de ligne.
 import type { Lecture } from "../../../app/src/box.ts";
 import type { Projet } from "../../../app/src/config.ts";
-import { OBSERVEE } from "./closer.ts";
+import { OBSERVEE } from "./closer-observee.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Envoi, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

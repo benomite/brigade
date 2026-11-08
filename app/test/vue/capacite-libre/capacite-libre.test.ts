@@ -87,19 +87,19 @@ async function ouvrir() {
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
+  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-  await ouvrirOnglet(vue, "Cooks");
+  await ouvrirOnglet(vue, "Stations");
   return { vue, envoyes };
 }
 
 const attendre = async () => {
   for (let tour = 0; tour < 10; tour++) await repos();
 };
-const ligne = (vue: Jouee, nom: string) => vue.element("rail").dessous("li").find(({ className, dataset }) => className === "station-declaree" && dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
+const ligne = (vue: Jouee, nom: string) => vue.element("rail").dessous("li").find(({ className, dataset }) => className === "station-de-cuisson" && dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
 const formulaire = (vue: Jouee, nom: string) => ligne(vue, nom).dessous("div").find(({ className }) => className === "edition") ?? assert.fail(`le formulaire de ${nom} n'est pas ouvert`);
 const editer = async (vue: Jouee, nom: string) => {
-  (ligne(vue, nom).children.find(({ className }) => className === "editer") ?? assert.fail(`pas de « edit » sur ${nom}`)).click();
+  (ligne(vue, nom).dessous("button").find(({ className }) => className === "editer") ?? assert.fail(`pas de « edit » sur ${nom}`)).click();
   await attendre();
   return formulaire(vue, nom);
 };

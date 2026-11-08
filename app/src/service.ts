@@ -382,7 +382,7 @@ export function commandeDeDemarrage(_projet: Projet): { refus: string } {
 // brute) — la bande d'alertes le reprend, sans le redire autrement.
 export type Controle = { a: string; stations?: StationsLues; manques?: Manque[]; renouvellement?: RenouvellementEnEchec; verification?: Montree };
 
-// Ce que le chef enregistre d'une station déclarée, depuis l'onglet Cooks (#1510) : son plafond de cooks, ses capacités
+// Ce que le chef enregistre d'une station déclarée, depuis l'onglet Stations (#1510) : son plafond de cooks, ses capacités
 // — ou son retrait. Chaque geste ne change qu'elle (runtime/src/une-station.ts).
 export type StationVoulue = { cooks: number; fournit: string[] } | { retiree: true };
 // Ce qu'il en advient, en une ligne : `detail`, ce que la box a rendu d'un refus — pour le survol.
@@ -984,7 +984,7 @@ export function tenirServices(options: {
       });
     },
 
-    // Une station déclarée, changée seule depuis l'onglet Cooks (#1510) : son plafond et ses capacités,
+    // Une station déclarée, changée seule depuis l'onglet Stations (#1510) : son plafond et ses capacités,
     // ou son retrait — par les commandes du runtime qui ne touchent qu'elle (`installation stations set`, `remove`) ;
     // les autres restent telles que la station les a écrites. `voulu` : ce que la vue a recueilli — rien n'y
     // est cru sur parole. Puis les stations sont relues, et la vue les reçoit par `surGuide`.
