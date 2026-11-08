@@ -9,8 +9,8 @@
 // ticket, sous une marque, et le rend à un cook, sans `blocked-on-human`.
 //
 // Une seule fois : un ticket qui porte déjà la marque et bloque encore va au
-// chef comme avant, comme une question que la preuve ne répond pas, ou une
-// preuve que la station ne peut pas lire ou écrire.
+// manager (#2894, `blocage-au-manager.ts`), comme une question que la preuve ne
+// répond pas, ou une preuve que la station ne peut pas lire ou écrire.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { comptesDe, MARQUE_QUALITE } from "./alerte-qualite.ts";
 import type { GitHubDuTour } from "./brigade-github.ts";
@@ -45,7 +45,7 @@ export function sectionDeLaPreuve(question: string, faits: ReadonlyMap<number, r
 
 // `null` : pas un cas de preuve — le ticket ne compte aucun ticket, ou la
 // question ne demande pas ce que la preuve dit. `relance: false` : un cas de
-// preuve que la station ne peut pas servir, et pourquoi ; le ticket va au chef.
+// preuve que la station ne peut pas servir, et pourquoi ; le blocage va au manager.
 export type Relance = null | { relance: true } | { relance: false; pourquoi: string };
 
 // Ajoute la preuve au corps du ticket bloqué si elle répond à sa question.

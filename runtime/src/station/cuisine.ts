@@ -219,6 +219,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               plafonds: reglages.plafonds,
               graceMs: reglages.graceMs,
               reviewer: reviewer.calibrage,
+              // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+              manager: () => decisions.manager(),
               flux: join(repertoireEtat, "github-seul"),
               // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
               gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),

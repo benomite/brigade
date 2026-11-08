@@ -189,6 +189,8 @@ try {
             plafonds: reglages.plafonds,
             graceMs: reglages.graceMs,
             reviewer: reviewer.calibrage,
+            // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+            manager: () => decisions.manager(),
             flux: join(repertoireEtat, "github-seul"),
             observer: suiviDuTour.envelopper,
             sauter: suiviDuTour.sauter,

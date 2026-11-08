@@ -20,22 +20,36 @@ base, the stale-branch pruning).
   Without one the label is not applied, the station warns, and the case is counted — a failure, not a step. The count is
   never reset; `status` shows it (`blocked w/o q`) and `facts` carries it as the integer `blockedWithoutQuestion`
   (#2556).
-- **A blocked cook goes to the chef, not to review.** A cook that writes `<bloque>…</bloque>` in its deliverable —
-  the decision or condition it lacks: a ticket it depends on not merged yet, an access, a machine — has its ticket
-  escalated, with or without commits: its question is quoted on the issue (`poserALaMain`), `blocked-on-human` is set,
-  `taken` is released, and no station takes a ticket carrying `blocked-on-human` until the chef removes it. What it
+- **A blocked cook goes to the manager, not to review.** A cook that writes `<bloque>…</bloque>` in its deliverable —
+  the decision or condition it lacks: a ticket it depends on not merged yet, an access, a machine — never sets
+  `blocked-on-human` itself, with or without commits: its question goes to the manager first (next item), `taken` is
+  released, and no station takes a ticket carrying `blocked-on-human` until the chef removes it. What it
   committed stays on its branch, pushed; with no PR yet, the branch head is marked as saved work (#2586), so the cook
   that resumes after the answer starts from it instead of the pass judging it as a delivery. Since #2061 the station
   never read `<bloque>`: the partial work of a blocked cook went to review, came back red, and the next cook blocked
   again — 6 of the 13 blocking reviews on BOBL-tech/espace (#798 four times, #755 twice) (#2805).
+- **The manager answers a technical block; only a product or design decision reaches the chef.** The station runs the
+  manager — its calibration, the reviewer's read-only tools, in a worktree of the ticket's branch — on the cook's question
+  and its previous answers on this ticket (`runtime/src/blocage-au-manager.ts`). A technical question — a tool, a path, a
+  repository, a choice between technical options, an access the kitchen has — is answered on the issue
+  (`<!-- brigade:reponse-au-blocage n=… -->`: the cook's question, the answer, the decision taken) and the ticket goes
+  back to a cook from its branch, with no `blocked-on-human` and not counted among its tries. A product or design
+  question sets `blocked-on-human`, the comment opening on the question in one line
+  (`**Question for the chef (product):** …`); a gesture only the chef can make sets it too, the comment opening on the
+  exact gesture (`**Gesture for the chef:** …`). After two technical answers, the third block goes back to the manager
+  with both answers, and its decision is appended to the ticket's body once (`<!-- brigade:decision-du-manager -->`);
+  a block on a ticket that already carries it, or a decision the station cannot write, counts as a cook without a
+  delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
+  unreadable, the station has none — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
+  is retried; the third such wait since the ticket was last relaunched counts as a cook without a delivery. Seen on #2875 (#2894).
 - **A blocked question the evidence answers goes back to a cook, not to the chef.** When the blocked ticket is a
   quality ticket that counts tickets (`brigade:qualite-comptes`) and the question asks for what that evidence holds —
   which tickets, their send-backs or cooks without a delivery, their reasons, their timestamps — the station appends
   to the ticket's body, under `<!-- brigade:preuve -->`, every `brigade:renvoi` and `brigade:echec` a station wrote on
   each counted ticket, with its time and reason, and gives the ticket back without `blocked-on-human`, not counted
   among its tries (`runtime/src/relance-blocage-preuve.ts`). Once only: a ticket that already carries the evidence and
-  blocks again goes to the chef, as does a question the evidence does not answer, or evidence the station cannot read
-  or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
+  blocks again goes to the manager, as does a question the evidence does not answer, or evidence the station cannot
+  read or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

@@ -21,13 +21,14 @@ import { join } from "node:path";
 import { fiche, type Fiche } from "./fiche.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
-import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
+import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
 import { lireBlocage, lireLivrable } from "./livrable.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
 import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
+import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis, MARQUE_DE_DECISION, MARQUE_DE_REPONSE, REPONSES_AVANT_DECISION, sectionDeLaDecision, type ConsulterLeManager, type ReponseDuManager } from "./blocage-au-manager.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
@@ -124,8 +125,10 @@ export type GitHubDuTour = GitHubDeLaFusion &
     checksDeLaBase(): Promise<CheckDeLaBase[]>;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
-    // Remplace le corps de l'issue : la preuve d'un ticket de mesure y
-    // s'ajoute (#2841). Absent, un cook bloqué va au chef comme avant.
+    // Remplace le corps de l'issue : la preuve d'un ticket de mesure (#2841) et
+    // la décision du manager sur un blocage répété (#2894) s'y ajoutent. Absent,
+    // ni l'une ni l'autre ne s'écrit : le blocage va au manager comme un autre,
+    // et une décision non écrite compte pour un cook sans livraison.
     ecrireCorps?: GitHub["ecrireCorps"];
     // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
     prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
@@ -273,6 +276,10 @@ export type OptionsDeStation = {
   // déclarée ne garde que les chemins de son corps qui nomment le dépôt
   // (`cheminsDuDepot`). Absents ou illisibles, elle les garde tous.
   fichiersSuivis?: () => string[];
+  // Le manager, à qui va la question d'un cook bloqué avant tout
+  // `blocked-on-human` (#2894). Absent, le blocage attend, puis compte pour un
+  // cook sans livraison : il ne va jamais au chef sans lui.
+  consulter?: ConsulterLeManager;
 };
 
 // Le préfixe du label par lequel un ticket demande une capacité.
@@ -606,6 +613,64 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     return Number.isFinite(terme) && terme > instant();
   };
 
+  // La question d'un cook bloqué va au manager, jamais au chef directement
+  // (#2894). Rend ce que devient le ticket — rendu à la file (`liberee`), retenu
+  // pour le chef sur une décision de produit ou de design ou un geste qu'il est
+  // seul à pouvoir faire (`retenue`) —, ou l'échec d'un cook sans livraison
+  // qu'il devient : le même blocage technique ne boucle pas.
+  const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
+    const issue = ticket.number;
+    const premiereLigne = question.trim().split("\n")[0] ?? "";
+    // Les réponses techniques qu'il a déjà données, depuis le dernier retrait de `hors-cuisine`.
+    const lus = await github.commentaires(issue).catch(() => null);
+    const reponses = lus === null ? null : (await depuisLeRelancement(github, issue, lus, MARQUE_DE_REPONSE)).map((c) => c.body);
+    const lu: ReponseDuManager =
+      reponses === null
+        ? { illisible: "the issue's comments could not be read to count the manager's previous answers" }
+        : options.consulter === undefined
+          ? { illisible: "this station has no manager to consult" }
+          : await options.consulter(ticket, { question, reponses }).catch((erreur: unknown): ReponseDuManager => ({ illisible: message(erreur) }));
+    // Sans avis, le ticket attend puis repart, sans aller au chef ; au-delà de
+    // `ECHECS_MAX` attentes de ce genre, il compte pour un cook sans livraison.
+    if ("illisible" in lu) {
+      const deja = (await depuisLeRelancement(github, issue, lus ?? [], MARQUE_D_ATTENTE)).filter((c) => c.body.includes(" manager ")).length;
+      if (deja + 1 >= ECHECS_MAX) return { echec: `the cook declared itself blocked, and the manager could not answer it, ${deja + 1} times (${lu.illisible})` };
+      const reprise = instant() + ATTENTE_MS;
+      avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked and the manager could not answer (${lu.illisible}): the ticket waits, then is retried, not given to the chef`);
+      await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped, blocked, and the manager could not answer its question — ${lu.illisible}.\n\nThe ticket does not go to the chef: it waits until ${new Date(reprise).toISOString()}, then a cook resumes it from its branch. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
+      return "liberee";
+    }
+    const { avis } = lu;
+    if (avis.issue === "technique") {
+      const deja = reponses ?? [];
+      // La troisième réponse s'écrit dans le corps du ticket, une seule fois.
+      const ecrite = deja.length >= REPONSES_AVANT_DECISION;
+      if (ecrite) {
+        const pasEcrite = (pourquoi: string) => ({ echec: `the manager's decision on the cook's block could not be written into the ticket: ${pourquoi}` });
+        let corps: string;
+        try {
+          corps = await github.corpsDuTicket(issue);
+        } catch (erreur) {
+          return pasEcrite(message(erreur));
+        }
+        if (corps.includes(MARQUE_DE_DECISION)) return { echec: `the cook blocked again on a technical question after the manager's decision was written into the ticket: ${premiereLigne}` };
+        if (github.ecrireCorps === undefined) return pasEcrite("this GitHub client cannot write the ticket's body");
+        try {
+          await github.ecrireCorps(issue, `${corps.trimEnd()}\n\n${sectionDeLaDecision(question, avis)}\n`);
+        } catch (erreur) {
+          return pasEcrite(message(erreur));
+        }
+      }
+      avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a technical question: the manager answered it${ecrite ? " and its decision is written into the ticket" : ""}, the ticket goes back to a cook`);
+      await github.commenter(issue, corpsDeLaReponseAuBlocage({ station: nom, n: deja.length + 1, question, avis, ecrite }));
+      return "liberee";
+    }
+    avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked, and the manager read ${avis.issue === "geste" ? "a gesture only the chef can make" : `a ${avis.issue === "produit" ? "product" : "design"} decision`}: the ticket goes to the chef`);
+    const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, corpsDeLaCarte({ station: nom, question, avis }));
+    if (!pose.pose) avertir(`brigade : ${pose.echec}`);
+    return "retenue";
+  };
+
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
   const cuire = async (ticket: TicketLu, calibrage: Calibrage) => {
@@ -655,9 +720,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         liberee = true;
         return;
       }
-      // Bloqué n'est pas livré (#2073) : la question du cook va au chef, écrite
-      // sur la carte, et le ticket est retenu par `blocked-on-human` jusqu'à sa
-      // réponse. Relue, sa livraison partielle revenait rouge à un cook qui se
+      // Bloqué n'est pas livré (#2073) : la question du cook va au manager, qui
+      // y répond et rend le ticket à un cook, ou la pose au chef sur la carte
+      // sous `blocked-on-human` si elle est de produit, de design ou un geste
+      // qu'il est seul à pouvoir faire (#2894). Relue, sa livraison partielle revenait rouge à un cook qui se
       // déclarait bloqué à son tour : 6 des 13 relectures bloquantes de
       // BOBL-tech/espace (#798 quatre fois, #755 deux fois) (#2805).
       if ("bloque" in fait) {
@@ -673,13 +739,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           return;
         }
         if (relance !== null) avertir(`brigade : #${issue} sur ${nom} — the blocked question is not re-queued with the evidence: ${relance.pourquoi}`);
-        const citee = fait.bloque.split("\n").map((ligne) => `> ${ligne}`).join("\n");
-        avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked: the ticket goes to the chef, not to review`);
-        const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, `Station \`${nom}\`: the cook stopped, blocked — nothing it did goes to review. Its question:\n\n${citee}\n\nAnswer it on this issue, then remove \`${A_LA_MAIN}\`: a cook resumes the ticket from its branch.`);
-        if (!pose.pose) avertir(`brigade : ${pose.echec}`);
-        chrono.rater(issue);
-        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
-        return;
+        // Toute autre question va au manager, jamais au chef directement (#2894).
+        const suite = await confierAuManager(ticket, fait.bloque);
+        if (typeof suite === "string") {
+          chrono.rater(issue);
+          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+          liberee = suite === "liberee";
+          return;
+        }
+        fait = suite;
       }
       // Un constat écrit, que les critères du ticket admettent pour tout
       // livrable, le sert (#2854) : il est posté sur l'issue, qui est fermée.
@@ -1519,6 +1587,10 @@ export type OptionsDuDepot = {
   plafonds: Plafonds;
   graceMs: number;
   reviewer: Calibrage;
+  // Le calibrage du manager, relu à chaque consultation : la question d'un cook
+  // bloqué lui va avant tout \`blocked-on-human\` (#2894). Absent, la station n'a
+  // pas de manager à consulter, et le dit sur l'issue.
+  manager?: () => Calibrage;
   // La consigne du second juge (#2555). Par défaut, \`agents/second-juge.md\`
   // du plugin de ce runtime.
   consigneDuSecondJuge?: () => string;
@@ -1905,6 +1977,34 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
+  // Le manager consulté sur le blocage d'un cook (#2894) : dans un worktree de
+  // la branche du ticket, où le cook a laissé son travail, avec les outils de
+  // lecture du reviewer, pour vérifier dans le dépôt ce que la question demande.
+  const calibrageDuManager = options.manager;
+  const consulter: ConsulterLeManager | undefined =
+    calibrageDuManager === undefined
+      ? undefined
+      : async (ticket, { question, reponses }) => {
+          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+          if (lue === null) return { illisible: "the issue no longer exists" };
+          const branche = brancheDuTicket(ticket.number);
+          const run = `blocage-${ticket.number}-github`;
+          const lieu = depot.connait(branche) ? { worktree: await depot.reprendre(run, branche), branche: null } : await depot.preparer(run);
+          try {
+            const texte = consigneDuBlocage({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body), question, reponses });
+            const flux = join(options.flux, `${run}-${reponses.length + 1}.flux.jsonl`);
+            const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+            const fin = await lance.fin;
+            const lu = lireLeFlux(lance.flux ?? flux);
+            const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+            if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+            return lireAvis(lu.message ?? null);
+          } finally {
+            depot.retirer(lieu.worktree, lieu.branche ?? undefined);
+          }
+        };
+
   // Le second juge (#2555) : un lancement à part de la relecture, dans son
   // propre worktree et sous son propre flux, qui ne lit ni la relecture ni son
   // verdict — le modèle le plus fort, un effort haut, la consigne du plugin de
@@ -1939,7 +2039,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
