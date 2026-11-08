@@ -311,6 +311,33 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.match(dit[0] ?? "", /n'a rien livré/);
   });
 
+  test("un ticket fermé par une PR mergée depuis sa branche `cook/<n>-github`, sans `Closes`, est servi avec son numéro de PR", async (t) => {
+    const c = brigade(t, { issues: [issue(30, ["epic"])] });
+    epique(c);
+    await c.decoupee(30);
+    livrer(c, 501, 503);
+    c.gh.ouvertes.set("cook/502-github", { number: 902, url: "https://github.com/acme/kitchen/pull/902", base: "main", sha: "s", state: "closed", merged: true, enRetard: false, mergeePar: null });
+    fermer(c, 502);
+    await jusqua(() => c.gh.lire(30)?.state === "closed");
+    assert.match(c.liste(30), /\| #502 \| [^|]+ \| servi \|/);
+    assert.match(c.liste(30), /\*\*3\/3 servis\.\*\*/);
+    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps)).map(([, corps]) => corps);
+    assert.equal(dit.length, 1);
+    assert.doesNotMatch(dit[0] ?? "", /Abandonnés/);
+    assert.match(dit[0] ?? "", /- #502 .+pull\/902/);
+  });
+
+  test("une branche `cook/<n>-github` dont la PR n'est pas mergée ne sert pas le ticket : il reste abandonné", async (t) => {
+    const c = brigade(t, { issues: [issue(30, ["epic"])] });
+    epique(c);
+    await c.decoupee(30);
+    livrer(c, 501, 503);
+    c.gh.ouvertes.set("cook/502-github", { number: 902, url: "https://github.com/acme/kitchen/pull/902", base: "main", sha: "s", state: "closed", merged: false, enRetard: false, mergeePar: null });
+    fermer(c, 502);
+    await jusqua(() => c.gh.lire(30)?.state === "closed");
+    assert.match(c.liste(30), /\| #502 \| [^|]+ \| abandonné \|/);
+  });
+
   test("devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse", async (t) => {
     const c = brigade(t, { manager: { suite: ["decoupe-question"] }, issues: [issue(30, ["epic"]), issue(31, [])] });
     epique(c, 30, "Que ce soit plus rapide.");
