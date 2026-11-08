@@ -122,7 +122,7 @@ const joue = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "jo
 const refuse = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "refuse", dit: "Not done — choose #21 2: a cook is working on #21", raison: "a cook is working on #21" });
 // La colonne TODO, son compte et ses bons.
 const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne TODO");
-const compte = (vue: Jouee) => todo(vue).dessous("h4")[0]?.dessous("span")[1]?.textContent;
+const compte = (vue: Jouee) => todo(vue).dessous("h4")[0]?.children[1]?.textContent;
 const bon = (vue: Jouee, ticket: number): Faux | undefined => todo(vue).dessous("li").find((pose) => pose.className === "bon" && pose.dessous("button")[0]?.textContent === `#${ticket}`);
 const carte = (vue: Jouee, ticket: number): Faux => bon(vue, ticket)?.dessous("section").find((pose) => pose.className === "carte-todo") ?? assert.fail(`pas de carte de TODO sur #${ticket}`);
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);

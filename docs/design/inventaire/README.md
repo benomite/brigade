@@ -153,17 +153,16 @@ Buttons of the class `recommande` are drawn in two ways: a border in `--accent` 
 
 | Marker | Where it is defined | Shape | Capture |
 |---|---|---|---|
-| `.pilule` | `vue.css:2516` | padding 4px 10px, radius 999px, border `--trait` | `stations-station-locale.png`, `cooks-github-stations.png` |
+| `.pilule`, `[data-pastille]` — the six ticket states (#2917) | `app/src/vue/composants/pastille/pastille.css` | padding 4px 10px, radius 999px, border `--trait` | `stations-station-locale.png`, `cooks-github-stations.png` |
 | `.etiquette` of a voucher | `vue.css:3852` | padding 0 6px, 11px, radius 8px, border `--bon-trait` | `rail-etiquettes.png` |
 | `.age` of a voucher | `vue.css:4291` | padding 0 6px, 11px, radius 999px, border `--bon-trait` | `rail-file.png` |
 | `.prio` of a voucher | `vue.css:4342` | padding 0 6px, 10px, radius 999px, border `--bon-trait` | `rail-file.png` |
-| `.etat-ticket.attendu` | `vue.css:4330` | radius 999px | `espace-projet-etats-github.png` |
 | `.signal` on the project bar | `vue.css:2549` | `min-width` 14px, 10px, radius 7px | `barre-des-projets.png` |
 | `.urgent` of the alerts | `vue.css:4956` | radius 3px | `espace-projet.png` |
 | `.marque` of the rail breakdown | `vue.css:2938` | radius 3px | `rail-file.png` |
-| `.pastille` | `vue.css:2459` | 10px circle (50%), or a square, diamond, ring, pause or triangle form by `data-forme` | `espace-projet-etats-github.png` |
+| `.pastille` | `app/src/vue/composants/pastille/pastille.css` | 10px circle (50%), or a square, diamond, ring, pause or triangle form by `data-forme` | `espace-projet-etats-github.png` |
 
-The `data-forme` shapes (losange, carré, pause, triangle) are drawn by separate rules for `.pastille` (`vue.css:2491-2510`), for the column titles of the rail (`3758-3777`) and for `#rail .etat-ticket` (`4266-4285`).
+The `data-forme` shapes (losange, carré, pause, triangle) are drawn once, for `.pastille`, in `pastille.css` (#2917): the column titles and the state of a card on the rail are the pill of `pastille.js`, one variant per ticket state (queued, taken, pass, awaiting, waiting, served).
 
 #### Cards
 
