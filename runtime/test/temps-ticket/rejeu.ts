@@ -3,6 +3,7 @@
 // direct (`chronometre`). Le rejeu passe par la même mesure (`mesurer`) et la
 // même règle du cook raté (`rater`) que la station.
 import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
+import { faitsDePrise } from "../../src/github-etat/prise.ts";
 import { type DepotDuTicket, type Etape, type Marque, mesurer, type Parcours, rater } from "../../src/temps-ticket/mesure.ts";
 import type { EnregistrementTemps } from "../../src/temps-ticket/synthese.ts";
 
@@ -31,12 +32,14 @@ export const LABEL_EPIQUE = "epic";
 export function parcoursDeLHistorique(h: Historique): { parcours: Parcours; depot: DepotDuTicket; mergedAt: string } | null {
   if (h.mergedAt === undefined || h.mergedAt === null || Number.isNaN(Date.parse(h.mergedAt))) return null;
   if (h.labels.includes(LABEL_EPIQUE) || h.evenements.some((e) => e.label === LABEL_EPIQUE)) return null;
+  // Les prises, les rendus et les renvois se lisent comme la station les lit au merge (`faitsDePrise`, #2954).
   const faits = [
     ...h.evenements.map((e) => ({ at: e.createdAt, quoi: e.event === "labeled" && e.label === LABEL_IN_PASS ? "passe" : "" })),
-    ...h.commentaires.map((c) => ({
-      at: c.createdAt,
-      quoi: c.body.startsWith("<!-- brigade:prise ") ? "prise" : c.body.startsWith("<!-- brigade:echec") || c.body.startsWith("<!-- brigade:lache ") ? "echec" : c.body.startsWith("<!-- brigade:renvoi") ? "renvoi" : /^<!-- brigade:verdict [^>]*verdict=approve /.test(c.body) ? "approuve" : "",
-    })),
+    ...faitsDePrise(
+      h.commentaires.map((c) => ({ ...c, association: "OWNER" })),
+      new Date(0).toISOString(),
+    ),
+    ...h.commentaires.map((c) => ({ at: c.createdAt, quoi: /^<!-- brigade:verdict [^>]*verdict=approve /.test(c.body) ? "approuve" : "" })),
   ]
     .filter((f) => f.quoi !== "" && !Number.isNaN(Date.parse(f.at)))
     .sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
@@ -46,7 +49,7 @@ export function parcoursDeLHistorique(h: Historique): { parcours: Parcours; depo
   };
   for (const { at, quoi } of faits) {
     if (quoi === "prise") marquer("cuisson", at);
-    else if (quoi === "echec") rater(marques, at);
+    else if (quoi === "rendu") rater(marques, at);
     else if (quoi === "passe") marquer("attentePasse", at);
     else if (quoi === "approuve") marquer("ci", at);
     else if (quoi === "renvoi") marquer("renvoi", at);

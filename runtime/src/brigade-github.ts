@@ -38,7 +38,7 @@ import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, 
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
+import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
@@ -1610,8 +1610,10 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       const lue = await github.issue(issue);
       if (lue === null) return null;
       const [[fireAt = null] = [], commentaires] = await Promise.all([github.posesDeFire?.(issue), github.commentaires(issue)]);
-      // Sa prise, que la station qui merge n'a pas vue si une autre l'a prise ou si elle a redémarré depuis (#2732).
-      return { deposeAt: lue.createdAt, fireAt, priseAt: premierePrise(commentaires, fireAt ?? lue.createdAt) };
+      // Sa prise, que la station qui merge n'a pas vue si une autre l'a prise ou si elle a redémarré depuis (#2732),
+      // et ce qui l'a suivie : les cooks rendus sans livraison, les renvois, les reprises (#2954).
+      const depuis = fireAt ?? lue.createdAt;
+      return { deposeAt: lue.createdAt, fireAt, priseAt: premierePrise(commentaires, depuis), faits: faitsDePrise(commentaires, depuis) };
     },
     // Des PR ou des fichiers que la requête a tronqués ou mal rendus (un renommage
     // perd son ancien chemin) : tout se relit en REST, pour ne rien juger de moins.
