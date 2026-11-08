@@ -11,6 +11,7 @@ import { stationGitHub, type GitHubDuTour } from "../src/brigade-github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { mesurerQualite, type QualiteDuTicket } from "../src/mesure-qualite.ts";
 import { avecLaPreuve, preuveDeMesure, TITRE_PREUVE, type GitHubDeLaPreuve } from "../src/preuve-mesure.ts";
+import type { GitHubDeLaBrigade } from "../src/routage-temps-perdu.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
 import { MARQUE_CORRECTION, ticketDeCorrection } from "../src/temps-max/correction.ts";
 import type { TempsTicket } from "../src/temps-ticket/ligne-status.ts";
@@ -215,4 +216,71 @@ test("filing path: the station's turn files the lost-time ticket with its eviden
   assert.match(ouverte?.body ?? "", /## Evidence/);
   assert.match(ouverte?.body ?? "", /- #101: 2 send-backs\n {2}- send-back: the review requested changes: the test asserts nothing/);
   assert.match(ouverte?.body ?? "", /- #102: 1 failed cook\n {2}- failed cook: the cook committed nothing/);
+});
+
+const MESURE = "BOBL-tech/mirrorscreen";
+
+test("measured project other than the served one: the body copies the tickets, reasons, timestamps and journal events, and names no bare issue or state path", async (t) => {
+  const enregistrements = temps();
+  const github = githubDeLaPreuve();
+  const repertoireEtat = journalDeLaStation(t);
+  const perdu = ticketDeCorrection(enregistrements, 2);
+  assert.ok(perdu);
+  const corpsPerdu = await avecLaPreuve(perdu.corps, () => preuveDeMesure({ github, repertoireEtat, projetMesure: MESURE })("temps-perdu", enregistrements, QUALITES));
+  const qualite = ticketDeQualite(mesurerQualite(enregistrements, QUALITES));
+  assert.ok(qualite);
+  const corpsQualite = await avecLaPreuve(qualite.corps, () => preuveDeMesure({ github, projetMesure: MESURE })("qualite", enregistrements, QUALITES));
+
+  // Copié : numéros, raisons, horodatages, événements du journal, en toutes lettres.
+  for (const numero of TICKETS) assert.ok(corpsPerdu.includes(`- ${MESURE}#${numero}: `) && corpsQualite.includes(`- ${MESURE}#${numero}: `), `#${numero}`);
+  assert.match(corpsQualite, new RegExp(`- ${MESURE}#101: 2 send-backs\\n {2}- send-back: the review requested changes: the test asserts nothing\\n {2}- send-back: the CI is red on: tests`));
+  assert.match(corpsQualite, /failed cook: the cook committed nothing/);
+  for (const [numero, depot] of Object.entries(DEPOTS)) assert.ok(corpsPerdu.includes(`${MESURE}#${numero}: `) && corpsPerdu.includes(`filed ${depot.deposeAt}, fire ${depot.fireAt ?? "none on GitHub"}, first claim ${depot.priseAt}`), `#${numero}`);
+  assert.ok(corpsPerdu.includes("merged 2026-11-07T10:00:00.000Z"));
+  assert.match(corpsPerdu, /- 2026-11-07T09:30:00.000Z `station.held` station=box\/a reason=quota\n- 2026-11-07T10:10:00.000Z `station.released` station=box\/a/);
+  assert.match(corpsPerdu, /lost 20 min of 60 min/);
+  assert.match(corpsPerdu, new RegExp(`${MESURE} is not the repository this ticket is filed on`));
+
+  // Pas de référence nue : ni `#101` seul, ni le chemin de l'état du projet mesuré.
+  for (const corps of [corpsPerdu, corpsQualite]) {
+    const section = corps.slice(corps.indexOf(TITRE_PREUVE));
+    assert.doesNotMatch(section, /(?<![\w/])#\d+/);
+    assert.doesNotMatch(section, /temps-tickets\.json|\.claude\/brigade/);
+  }
+});
+
+test("filing path, measured project other than the served one: the ticket filed on the brigade carries the copied evidence", async (t) => {
+  const brigade: { titre: string; corps: string }[] = [];
+  const avertis: string[] = [];
+  const temps = faux();
+  const githubDeLaBrigade = {
+    issuesDepuis: async () => [],
+    creerIssue: async ({ titre, corps }: { titre: string; corps: string }) => {
+      brigade.push({ titre, corps });
+      return 4000;
+    },
+    fermerIssue: async () => {},
+  } as unknown as GitHubDeLaBrigade;
+  await stationGitHub({
+    nom: "box/test",
+    places: 1,
+    base: "main",
+    github: temps.github,
+    prise: { prendre: async () => ({ prise: false }), lacher: async () => true },
+    cuisiner: async () => ({ echec: "not here" }),
+    juger: async () => ({ verdict: "approve", motif: "" }),
+    clone: clone(t, { lostTimeMaxMin: 2 }, () => ({ renvois: [], cooksRates: 0 })),
+    repertoireEtat: journalDeLaStation(t),
+    depotServi: MESURE,
+    githubDeLaBrigade,
+    avertir: (texte) => avertis.push(texte),
+    maintenant: () => new Date("2026-11-07T14:00:00Z"),
+  }).tour();
+  assert.deepEqual(avertis, []);
+  assert.equal(temps.issues.length, 0);
+  const [ouvert] = brigade;
+  assert.match(ouvert?.titre ?? "", /\(measured on BOBL-tech\/mirrorscreen\)$/);
+  assert.ok(ouvert?.corps.includes(`${MESURE}#101: `));
+  assert.match(ouvert?.corps ?? "", /`station.held` station=box\/a reason=quota/);
+  assert.doesNotMatch(ouvert?.corps ?? "", /temps-tickets\.json/);
 });

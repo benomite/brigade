@@ -13,6 +13,14 @@
 // première prise, lus sur GitHub ; puis les événements du journal de la
 // station sur la fenêtre mesurée (`station.held`, `station.released`…).
 //
+// Projet mesuré autre que celui où le ticket se dépose (#2840) : le cook du
+// ticket n'a alors ni ses issues, ni son état sur la station. La station copie
+// en toutes lettres, dans le corps, ses tickets (numéros, raisons), ses
+// horodatages et les événements du journal ; chaque ticket y est nommé par son
+// projet (`BOBL-tech/mirrorscreen#101`, jamais `#101`, qui désignerait une issue
+// du dépôt du ticket), et le corps ne renvoie ni à ses issues ni au chemin de
+// son état pour porter cette preuve.
+//
 // Une lecture qui échoue ne fait tomber ni la section ni le dépôt du ticket :
 // la ligne qui en dépend le dit, avec l'erreur, et rien n'est inventé à sa place.
 import { DE_CONFIANCE } from "./alimenter.ts";
@@ -56,6 +64,8 @@ export type JournalDeLaFenetre = { debut: string; fin: string } & ({ evenements:
 const court = (texte: string) => (texte.length > LONGUEUR_MAX ? `${texte.slice(0, LONGUEUR_MAX - 1)}…` : texte);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const min = (secondes: number) => `${Math.round(secondes / 6) / 10} min`;
+// Le ticket `n`, nommé par son projet quand le ticket se dépose sur un autre dépôt.
+const nomme = (n: number, projet?: string) => (projet === undefined ? `#${n}` : `${projet}#${n}`);
 const fois = (n: number, nom: string) => `${n} ${nom}${n === 1 ? "" : "s"}`;
 
 // La raison qu'un commentaire de la station donne, après son « — » (`brigade-github.ts`).
@@ -94,22 +104,24 @@ const resume = (p: PreuveDuTicket): string => {
   return [...(renvois.length > 0 ? [fois(renvois.length, "send-back")] : []), ...(echecs.length > 0 ? [fois(echecs.length, "failed cook")] : [])].join(", ");
 };
 
-const enTete = (tickets: readonly PreuveDuTicket[]) => [
+const enTete = (tickets: readonly PreuveDuTicket[], projet?: string) => [
   TITRE_PREUVE,
   "",
-  `_Gathered by the station when it filed this ticket, from the project's \`.claude/brigade/temps-tickets.json\`, its issues${tickets.length === 0 ? "" : ` (${tickets.map((p) => `#${p.temps.ticket}`).join(", ")})`} and the station's journal: what a cook needs to diagnose the measure, with no other access._`,
+  projet !== undefined
+    ? `_Gathered by the station when it filed this ticket, from ${projet}'s tickets${tickets.length === 0 ? "" : ` (${tickets.map((p) => nomme(p.temps.ticket, projet)).join(", ")})`}, their recorded timestamps and the station's journal. ${projet} is not the repository this ticket is filed on, and a cook cannot read it: everything the measure rests on is copied below in full._`
+    : `_Gathered by the station when it filed this ticket, from the project's \`.claude/brigade/temps-tickets.json\`, its issues${tickets.length === 0 ? "" : ` (${tickets.map((p) => `#${p.temps.ticket}`).join(", ")})`} and the station's journal: what a cook needs to diagnose the measure, with no other access._`,
   "",
 ];
 
 // La section d'un ticket de qualité : chaque ticket mesuré et ses raisons.
-export function sectionDeQualite(tickets: readonly PreuveDuTicket[]): string {
-  return [...enTete(tickets), `### Measured tickets (${tickets.length})`, "", ...tickets.flatMap((p) => [`- #${p.temps.ticket}: ${resume(p)}`, ...lignesDesRaisons(p)])].join("\n");
+export function sectionDeQualite(tickets: readonly PreuveDuTicket[], projet?: string): string {
+  return [...enTete(tickets, projet), `### Measured tickets (${tickets.length})`, "", ...tickets.flatMap((p) => [`- ${nomme(p.temps.ticket, projet)}: ${resume(p)}`, ...lignesDesRaisons(p)])].join("\n");
 }
 
 // Un instant lu sur GitHub, ou ce qui en tient lieu.
 const instant = (valeur: string | null | undefined, absent: string) => (valeur === null || valeur === undefined || valeur === "" ? absent : valeur);
 
-function lignesDuTemps(p: PreuveDuTicket): string[] {
+function lignesDuTemps(p: PreuveDuTicket, projet?: string): string[] {
   const t = p.temps;
   const pertes = pertesDuTicket(t);
   const perdu = `lost ${min(tempsPerdu(t))} of ${min(dureeDuTicket(t))} (claim wait ${min(pertes.attente)}, failed cooks ${min(pertes.ratees)}, send-backs ${min(pertes.renvois)})`;
@@ -118,7 +130,7 @@ function lignesDuTemps(p: PreuveDuTicket): string[] {
     depot === undefined || "erreur" in depot
       ? `filed, fire and first claim not read on GitHub${depot === undefined ? "" : ` (${court(depot.erreur)})`}; recorded start ${instant(t.depuis, "none")}, recorded first claim ${instant(t.priseAt, "none")}`
       : `filed ${depot.deposeAt}, fire ${instant(depot.fireAt, "none on GitHub")}, first claim ${instant(depot.priseAt, "none on GitHub")}`;
-  return [`- #${t.ticket}: ${resume(p)} — ${perdu}`, `  - ${quand}, merged ${instant(t.mergedAt, "unknown")}`, ...lignesDesRaisons(p)];
+  return [`- ${nomme(t.ticket, projet)}: ${resume(p)} — ${perdu}`, `  - ${quand}, merged ${instant(t.mergedAt, "unknown")}`, ...lignesDesRaisons(p)];
 }
 
 const payloadCite = (payload: unknown) => {
@@ -126,28 +138,28 @@ const payloadCite = (payload: unknown) => {
   const champs = Object.entries(payload as Record<string, unknown>).map(([cle, valeur]) => `${cle}=${typeof valeur === "string" ? valeur : JSON.stringify(valeur)}`);
   return court(champs.join(" "));
 };
-const ligneDeLEvenement = (e: EvenementDuJournal) => {
+const ligneDeLEvenement = (e: EvenementDuJournal, projet?: string) => {
   const cite = payloadCite(e.payload);
-  return `- ${e.at} \`${e.type}\`${e.ticket === null ? "" : ` #${e.ticket}`}${cite === "" ? "" : ` ${cite}`}`;
+  return `- ${e.at} \`${e.type}\`${e.ticket === null ? "" : ` ${nomme(e.ticket, projet)}`}${cite === "" ? "" : ` ${cite}`}`;
 };
 
 // La section d'un ticket du temps perdu : par ticket, ses instants, sa perte et
 // ses raisons ; puis les événements du journal de la fenêtre.
-export function sectionDuTempsPerdu(tickets: readonly PreuveDuTicket[], journal: JournalDeLaFenetre): string {
+export function sectionDuTempsPerdu(tickets: readonly PreuveDuTicket[], journal: JournalDeLaFenetre, projet?: string): string {
   const evenements =
     "erreur" in journal
       ? [`- the station's journal could not be read: ${court(journal.erreur)}`]
       : journal.evenements.length === 0
         ? ["- no event in this window"]
         : [
-            ...journal.evenements.slice(0, EVENEMENTS_CITES).map(ligneDeLEvenement),
+            ...journal.evenements.slice(0, EVENEMENTS_CITES).map((e) => ligneDeLEvenement(e, projet)),
             ...(journal.evenements.length > EVENEMENTS_CITES ? [`- and ${journal.evenements.length - EVENEMENTS_CITES} more`] : []),
           ];
   return [
-    ...enTete(tickets),
+    ...enTete(tickets, projet),
     `### Measured tickets (${tickets.length})`,
     "",
-    ...tickets.flatMap(lignesDuTemps),
+    ...tickets.flatMap((p) => lignesDuTemps(p, projet)),
     "",
     `### Station journal, ${journal.debut} to ${journal.fin}`,
     "",
@@ -202,7 +214,9 @@ async function parPaquets<T, R>(elements: readonly T[], faire: (element: T) => P
 // La preuve, liée au GitHub du projet et au journal de la station
 // (`repertoireEtat` ; absent, la section le dit). Elle rend la section de la
 // sorte demandée, sur les tickets récents des enregistrements ; elle ne lève pas.
-export function preuveDeMesure({ github, repertoireEtat }: { github: GitHubDeLaPreuve; repertoireEtat?: string }) {
+// `projetMesure` : le projet mesuré, quand le ticket se dépose sur un autre
+// dépôt (#2840) ; la section copie alors tout, sous les noms de ce projet.
+export function preuveDeMesure({ github, repertoireEtat, projetMesure }: { github: GitHubDeLaPreuve; repertoireEtat?: string; projetMesure?: string }) {
   return async (sorte: SorteDeMesure, enregistrements: readonly TempsTicket[], qualites: ReadonlyMap<number, QualiteDuTicket>): Promise<string> => {
     const recents = ticketsRecents(enregistrements);
     const tickets = await parPaquets(recents, async (temps): Promise<PreuveDuTicket> => {
@@ -222,17 +236,17 @@ export function preuveDeMesure({ github, repertoireEtat }: { github: GitHubDeLaP
             );
       return { ...preuve, depot };
     });
-    if (sorte === "qualite") return sectionDeQualite(tickets);
+    if (sorte === "qualite") return sectionDeQualite(tickets, projetMesure);
     const fenetre = fenetreDesTickets(recents);
-    if (fenetre === null) return sectionDuTempsPerdu(tickets, { debut: "unknown", fin: "unknown", erreur: "the measured tickets carry no readable instant" });
-    if (repertoireEtat === undefined) return sectionDuTempsPerdu(tickets, { ...fenetre, erreur: "this station was started without a state directory" });
+    if (fenetre === null) return sectionDuTempsPerdu(tickets, { debut: "unknown", fin: "unknown", erreur: "the measured tickets carry no readable instant" }, projetMesure);
+    if (repertoireEtat === undefined) return sectionDuTempsPerdu(tickets, { ...fenetre, erreur: "this station was started without a state directory" }, projetMesure);
     let journal: JournalDeLaFenetre;
     try {
       journal = { ...fenetre, evenements: evenementsDeLaFenetre(repertoireEtat, fenetre.debut, fenetre.fin) };
     } catch (erreur) {
       journal = { ...fenetre, erreur: message(erreur) };
     }
-    return sectionDuTempsPerdu(tickets, journal);
+    return sectionDuTempsPerdu(tickets, journal, projetMesure);
   };
 }
 
