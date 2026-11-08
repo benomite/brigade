@@ -69,7 +69,7 @@ async function todoDe(login: string | null, monde: Record<number, Issue> = MONDE
   assert.ok(!("erreur" in montree) && montree.attend !== undefined, "status carries its awaiting block");
   const faits = comprendre(JSON.stringify(lu.faits));
   assert.ok(!("informe" in faits), "facts are in shape");
-  const cartes = tableauDe(faits as Faits, { bloc: montree.attend, a: LU }, { texte: status, a: LU }).rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+  const cartes = tableauDe(faits as Faits, { bloc: montree.attend, a: LU }, { texte: status, a: LU }).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
   const chefs = new Map((lu.faits.attend as { ticket: number; chef?: CarteDuChef }[]).map(({ ticket, chef }) => [ticket, chef]));
   return { tickets: cartes.map(({ ticket }) => ticket), bloc: montree.attend, chefs };
 }

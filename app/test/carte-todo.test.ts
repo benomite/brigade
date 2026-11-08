@@ -127,7 +127,7 @@ describe("la carte de TODO, lue dans `facts`", () => {
     const faits = tenirFaits();
     const recue = faits.recevoir({ projet: "parade", demande: 0, a: FAITS.lu, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
     assert.ok("tableau" in recue);
-    const todo = recue.tableau.rail.colonnes.find(({ nom }) => nom === "Todo");
+    const todo = recue.tableau.rail.colonnes.find(({ nom }) => nom === "Awaiting you");
     assert.deepEqual(
       todo?.cartes.map(({ ticket, todo: carte }) => [ticket, carte?.question]),
       [

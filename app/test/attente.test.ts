@@ -149,13 +149,13 @@ describe("le rail en TODO et WAITING", () => {
       ["On the rail", "1", [21]],
       ["Taken", "0", []],
       ["Pass", "0", []],
-      ["Todo", "3", [30, 31, 12]],
+      ["Awaiting you", "3", [30, 31, 12]],
       ["Waiting", "1", [8]],
       ["Served", "0", []],
     ]);
     // Même nommé par la file, un ticket qui attend un tiers n'est pas dans TODO.
     const nomme = { ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 8, titre: "Ticket 8", url: null }] };
-    assert.deepEqual(rangs(nomme)[3], ["Todo", "3", [30, 31, 12]]);
+    assert.deepEqual(rangs(nomme)[3], ["Awaiting you", "3", [30, 31, 12]]);
     assert.deepEqual(rangs(nomme)[4], ["Waiting", "1", [8]]);
     // Aucun : la colonne le dit.
     assert.equal(rail({ ...FAITS, rail: [] }).colonnes[4]?.vide, "no ticket waits for a third party");
@@ -296,10 +296,10 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       .dessous("section")
       .map((pose) => pose.children[0]?.children[0]?.textContent);
     // Le kanban est entier sur Rail, Taken et Pass compris.
-    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
+    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"]);
     const bon = bonDe(vue, 8);
     assert.ok(colonne(vue, "Waiting").contains(bon));
-    assert.ok(!colonne(vue, "Todo").contains(bon));
+    assert.ok(!colonne(vue, "Awaiting you").contains(bon));
     // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
     assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, "waiting for sa validation écrite du devis · from le client");
     assert.equal(bon.dessous("li").length, 0);

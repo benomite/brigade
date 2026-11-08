@@ -182,9 +182,9 @@ const etroit = () => ecranEtroit?.matches === true;
 // La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
 ecranEtroit?.addEventListener?.("change", () => montrer());
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
-const COLONNE_QUI_T_ATTEND = "Todo";
+const COLONNE_QUI_T_ATTEND = "Awaiting you";
 const SUR_LE_RAIL = "On the rail";
-// Les colonnes où quelque chose attend le chef ou bouge : Todo, Taken, Pass. Les autres — On the rail, Waiting, Served — se
+// Les colonnes où quelque chose attend le chef ou bouge : Awaiting you, Taken, Pass. Les autres — On the rail, Waiting, Served — se
 // lisent en défilant, si elles sont hors de vue (ticket 1556).
 const COLONNES_ACTIVES = new Set([COLONNE_QUI_T_ATTEND, "Taken", "Pass"]);
 // Les projets dont la rangée des colonnes a déjà été placée à l'ouverture : ensuite, la lecture suivante garde le défilement du chef.
@@ -4965,7 +4965,7 @@ function blocDeLaStationLocale(projet) {
   return cree;
 }
 
-// Le rail en six colonnes — On the rail, Taken, Pass, Todo, Waiting, Served (ticket 2093) —,
+// Le rail en six colonnes — On the rail, Taken, Pass, Awaiting you, Waiting, Served (ticket 2093, titres du ticket 2922) —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Taken et Pass compris, sans rien

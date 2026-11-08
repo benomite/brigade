@@ -181,7 +181,7 @@ async function ouvrir(reprendre: (projet: string) => Promise<RenduDeLaReprise | 
   return vue;
 }
 
-const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Todo") ?? assert.fail("pas de colonne TODO");
+const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne TODO");
 const ligneDe = (vue: Jouee): Faux | undefined => todo(vue).dessous("div").find(({ className }) => className === "ligne-disjoncteur");
 const ligne = (vue: Jouee): Faux => ligneDe(vue) ?? assert.fail("pas de ligne du disjoncteur dans TODO");
 // Les boutons d'une ligne, hors survols.

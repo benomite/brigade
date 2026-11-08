@@ -19,7 +19,7 @@ repository the app does not know have no button. Under the list, **Station setti
 this computer's station has (see "This computer's station, on the Stations tab", #2489).
 What follows about **Rail and Cooks** (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
-whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
+whole kanban in its order — On the rail, Taken, Pass, Awaiting you, Waiting and Served (#2093, titled so since #2922) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
 gates, and, folded, its calibration ceiling, its roles, what
 its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
@@ -516,7 +516,7 @@ A project opened from that screen has neither a box nor a station on this comput
 still show something, always:
 
 - **Rail** shows the project's one rail view (#2076): its rail read from its GitHub repository, like
-  that of any project, whichever station serves it — On the rail, Taken, Pass, then Todo with each card that awaits
+  that of any project, whichever station serves it — On the rail, Taken, Pass, then Awaiting you (Todo) with each card that awaits
   you and its gestures, Waiting and Served. The app reads the repository of
   every project in the projects file, not only of those it knows a station serves: a project whose
   kitchen runs on another station has the same view as one served by this computer. The rail its
@@ -688,7 +688,8 @@ The old path still runs on two projects.
 
 The question is the comment's first written line; each line `- [<gesture>] <label>` after it is a choice, in order, the
 gesture among `resume`, `merge`, `drop`, `close` (a GitHub check box `- [ ]` or `- [x]`, or another word, is not a choice);
-the rest is drawn under the question. A comment without choices reads as before, and keeps the free-text field. The question
+the rest is drawn under the question. A comment without choices reads as before, and keeps the free-text field. The first
+choice is drawn as the recommended answer (#2922): whoever writes the card lists the answer it recommends first. The question
 is said once: the card's line says what its kind asks (`A product question waits for your answer.`), the card asks the
 question, and the sheet says it under `what it asks you`, its head saying what the kind asks (never `what blocks it: not
 communicated`).
@@ -2785,27 +2786,35 @@ from the rail.
 **It is the main view of the space: in the middle of the screen, under the project name, whatever
 tab is shown below it** — the second, a shell, the output of a command. **Six columns**, one
 ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what you
-have to do (Todo), what waits for a third party (Waiting), what is done (Served). **The columns are shared between the project's two tabs**
+have to do (Awaiting you), what waits for a third party (Waiting), what is done (Served). **The columns are shared between the project's two tabs**
 (#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column. No card
 opens a served worktree page (#1846). The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.
 
-**The order** (#2093): the row reads On the rail, Taken, Pass, Todo, Waiting, Served — the rail in the order of
-service, then what waits for you, what waits for a third party, and what is done. Titles are cased alike (Todo and
-Waiting, not TODO and WAITING; the card badges keep their words), and each column has its own mark: a ring for On the
-rail, a triangle for Taken, a diamond for Pass, a square for Todo, an orange **pause** (two bars: held, waiting for
+**The order** (#2093): the row reads On the rail, Taken, Pass, Awaiting you, Waiting, Served — the rail in the order of
+service, then what waits for you, what waits for a third party, and what is done. The fourth column was titled Todo
+until #2922, which gave it the mockup's title (`Project.dc.html`, epic #2897); "Todo" in this document names the same
+column. Titles are cased alike (Awaiting you and Waiting, not TODO and WAITING; the card badges keep their words), and
+each column has its own mark: a ring for On the rail, a triangle for Taken, a diamond for Pass, a square for Awaiting you, an orange **pause** (two bars: held, waiting for
 someone) for Waiting, a disc for Served. The Backlog column, unfolded, comes just left of On the rail. **Todo never
 disappears**: when the `awaiting` block says nothing awaits the chef, its one line says `nothing awaits you`; when
 the block has lines without a ticket (a station, the base), it says that no ticket heads them. Captures: `docs/captures/2093/` — `espace-projet-*` and `espace-projet-etats-github-*`, `-avant` and `-apres`.
 
 ```
-● On the rail  2       ● Taken  1             ● Pass  1            ■ Todo  1              ‖ Waiting  0        ● Served  1
+● On the rail  2       ● Taken  1             ● Pass  1            ■ Awaiting you  1      ‖ Waiting  0        ● Served  1
   #22 queued             #14 taken              #15 in pass          #21 BLOCKED            no ticket waits     #9 served
   Login by…              Form…                  PDF export…          The log export         for a third party   SIRET validation
   after #14              writes the tests       review in progress   Merge it yourself.                         served at 14:02 ·
                          · 12 min               · 1 min                                                         The SIRET field…
 ```
+
+**Vouchers, and the warm card** (#2922, mockup `Project.dc.html`): a ticket is a cream paper voucher (`--bon`), in
+every column but Awaiting you. There a ticket is the warm card of what awaits you (`--attend`, its `--attend-trait`
+border, a card's radius): its number, its title, its question in large type, then its choices — **the first choice is
+the recommended answer**, the only button filled with the accent, the others ordinary buttons — then `answer in my own
+words`, which opens the free-text field and its `send`. A card with no choices keeps its field open (it is its only
+answer), and so does a card on which the chef already typed. Captures: `docs/captures/2922/`.
 
 **A card fits in two lines** (#622): its number, its state and its title, then **a sentence in plain
 words** that says what is happening, and at most **one signal line** when something asks for your
