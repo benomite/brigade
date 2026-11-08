@@ -161,6 +161,25 @@ base, the stale-branch pruning).
   card no role answers is assigned to the chef. Without `humans`, nothing changes: the chef is mentioned, no one is
   assigned (`runtime/src/aiguillage-humains/`).
 
+## Running Brigade on an open-source project
+
+An open-source project runs the same kitchen, with outside contributors who have no write access to its repository.
+The mode is decided in epic #2927. Its outside PRs are in the runtime; the rest is decided and not yet in the runtime,
+and says so below.
+
+- **An outside PR is judged, never merged by the kitchen.** A PR opened from a fork is reviewed and gated by the
+  kitchen, with none of the project's secrets, and its verdict is one comment on the PR (*An outside PR is judged, never
+  merged*, above). The kitchen never merges it: a `merge #N?` card goes to the human with the `review` role, who merges
+  it by hand, with `yes` recommended when the review approves and no gate is red. With no `review` human declared in the
+  project's settings, the card goes to the chef.
+- **A stranger's issue waits for a human.** Decided, not yet in the runtime: an issue opened by someone outside the
+  project gets a triage proposal from the manager and a TODO card for the `product` human. Nothing reaches the rail until
+  that human answers.
+- **A contributor station runs from a fork.** Decided, not yet in the runtime: a contributor without write access runs a
+  station from a fork, claims a ticket, and delivers an outside PR, which the path above judges.
+- **The chef can refuse a contributor station.** Decided, not yet in the runtime: the project's `chef` refuses any
+  contributor station in Settings.
+
 ## What is gone (#2061)
 
 The code that gave one station the kitchen of a project is removed from the runtime. Nothing takes a ticket from the log any more:
