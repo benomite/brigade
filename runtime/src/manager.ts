@@ -32,6 +32,9 @@ import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
+import { auteurSansEcriture } from "./github-etat/auteur.ts";
+import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
+import type { Humain } from "./aiguillage-humains/aiguillage.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
@@ -131,6 +134,10 @@ export type OptionsManager = ConfigManager & {
   // son tour tout de suite, pas à son tour suivant, jusqu'à deux minutes plus
   // loin (#2796).
   surLeRail?: () => void;
+  // Les humains du projet (`humans` de ses réglages), relus à chaque carte :
+  // l'humain `product` reçoit celle de l'issue d'un auteur sans l'écriture
+  // (#2934). Absents, elle va au chef.
+  humains?: () => Humain[];
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -198,7 +205,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const garanties = new Set<number>();
   const garantir = async (issue: IssueOuverte) => {
     garanties.delete(issue.number);
-    if (DE_CONFIANCE.includes(issue.association) || !github.labelsPosesParDeConfiance) return;
+    if (!auteurSansEcriture(issue) || !github.labelsPosesParDeConfiance) return;
     if (!issue.labels.some((label) => label === LABEL || priorite([label]) !== null)) return;
     try {
       const posees = await github.labelsPosesParDeConfiance(issue.number);
@@ -230,7 +237,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
-    if (!DE_CONFIANCE.includes(issue.association) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
+    if (auteurSansEcriture(issue) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
     if (issue.number === options.roadmap) return { quoi: "ecart", raison: "roadmap", fired };
     const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
     if (label) return { quoi: "ecart", raison: label, fired };
@@ -639,6 +646,20 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     ...(options.surLeRail === undefined ? {} : { surLeRail: options.surLeRail }),
   });
 
+  // L'issue d'un auteur sans l'écriture : une proposition de tri, et une carte
+  // à l'humain `product`, dont la réponse la met sur le rail ou la ferme (#2934).
+  const etrangeres = ouvrirIssuesEtrangeres({
+    github,
+    depotGitHub: options.depotGitHub,
+    demander,
+    peutJuger,
+    arrete: () => arrete,
+    avertir,
+    humains: options.humains ?? (() => []),
+  });
+  // Les issues ouvertes du tour en cours, parmi lesquelles le tri cherche un doublon.
+  let ouvertesDuTour: IssueOuverte[] = [];
+
   const requalification = ouvrirRequalification({
     journal,
     projet,
@@ -744,8 +765,13 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
     let epique = tri.quoi === "decouper";
     if (tri.quoi === "fini") return "fait";
-    if (tri.quoi === "ecart") ecarter(issue, tri, connue);
-    else if (tri.quoi === "juger") {
+    if (tri.quoi === "ecart") {
+      ecarter(issue, tri, connue);
+      if (tri.raison === ("untrusted-author" satisfies Ecart)) {
+        if (arrete || !managerAllume(base)) return "arret";
+        return etrangeres.traiter(issue, ouvertesDuTour);
+      }
+    } else if (tri.quoi === "juger") {
       const corps = await commentaires(issue);
       const etat = empreinte(issue, corps);
       if (connue?.fingerprint !== etat) {
@@ -788,6 +814,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     if (sondage.inchange && (confirmees === null || remisesEnAttente(base).every((remise) => sansObjet.has(cle(remise))))) return;
     const issues = (sondage.inchange ? (confirmees ?? []) : sondage.issues).filter((issue) => !terminees.has(issue.number));
     const presentes = new Set(issues.map((issue) => issue.number));
+    ouvertesDuTour = issues.filter(lisible);
     requalification.suivre(issues);
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
