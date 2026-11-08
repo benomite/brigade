@@ -91,6 +91,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
 | `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
+| — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
