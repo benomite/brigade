@@ -199,7 +199,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // conflit ou rouge (#2454) : ce n'est pas un échec, il reste du travail.
 // `bloque` : le cook s'est déclaré bloqué (`<bloque>` dans son dernier message), avec
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string } | { bloque: string } | { constat: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string } | { constat: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -569,6 +569,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   let premierTour = true;
   // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
   let arretee = false;
+  // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
+  let baseManquante: string | null = null;
   // Les PR dont la fusion n'a pas abouti — GitHub a refusé le merge, ou la
   // mise à jour de la branche est demandée —, et ce qu'elles étaient alors :
   // leur tête, leur version et la base. Elle ne se retente qu'une fois l'une
@@ -632,6 +634,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           return;
         }
         fait = { echec: refusee };
+      }
+      // La base de la station manque sur l'origine : c'est sa configuration, pas
+      // le ticket. Il est rendu sans compter, et la station n'en prend plus (#2876).
+      if ("baseAbsente" in fait) {
+        const premiere = baseManquante === null;
+        baseManquante ??= fait.baseAbsente;
+        if (premiere) avertir(`brigade : #${issue} sur ${nom} — the base branch \`${fait.baseAbsente}\` does not exist on the remote: this station takes no more tickets of ${nom} until it is restarted with a base branch that exists`);
+        await github.commenter(issue, `Station \`${nom}\`: its base branch \`${fait.baseAbsente}\` does not exist on the remote, so no worktree can be prepared. This is the station's configuration, not the ticket's: the ticket is given back for another station, and is not counted among its ${ECHECS_MAX} tries.`);
+        chrono.rater(issue);
+        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        liberee = true;
+        return;
       }
       // Bloqué n'est pas livré (#2073) : la question du cook va au chef, écrite
       // sur la carte, et le ticket est retenu par `blocked-on-human` jusqu'à sa
@@ -1171,6 +1185,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // dernier), puis les plus anciens (#2209).
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     for (const ticket of libres) {
+      if (baseManquante !== null) break;
       if (enVol.size + aRendre.size >= places) break;
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       if (enPass(tickets, renvoyes) >= PASS_MAX) break;
@@ -1693,6 +1708,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     try {
       lieu = reprise ? { worktree: await depot.reprendre(run, brancheDuTicket(ticket.number)), branche: brancheDuTicket(ticket.number) } : await depot.preparer(run);
     } catch (erreur) {
+      const absente = /couldn't find remote ref (?:refs\/heads\/)?(\S+)/.exec(message(erreur))?.[1];
+      if (absente === base) return { baseAbsente: absente };
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }
     const { worktree, branche } = lieu;
