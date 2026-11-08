@@ -134,11 +134,11 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     assert.deepEqual(lignes(vue).map((li) => boutonDe(li)), [undefined, undefined, undefined]);
   });
 
-  test("Cooks dans l'ordre de sa revue (#1456) : les stations d'abord, puis les tickets, les gates, et les blocs repliés en bas", async () => {
+  test("Cooks dans l'ordre de sa revue (#1456) : les stations d'abord, puis les gates, et les blocs repliés en bas", async () => {
     const { vue } = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     const ids = vue.element("rail").children.map(({ id, className }) => id || className);
-    const ordre = ["cuisson-du-projet", "activite-du-projet", "gates-du-projet", "plafond-du-projet", "roles-du-projet", "appris-du-projet", "replie lecture-de-la-cuisine"];
+    const ordre = ["cuisson-du-projet", "gates-du-projet", "plafond-du-projet", "appris-du-projet", "replie lecture-de-la-cuisine"];
     assert.deepEqual(ids.filter((id) => ordre.includes(id)), ordre);
     // Rien de ce qui précède les stations n'est un bloc : au plus la ligne qui dit l'âge de la lecture.
     assert.deepEqual(ids.slice(0, ids.indexOf("cuisson-du-projet")).filter((id) => id !== "fraicheur"), []);

@@ -1,6 +1,6 @@
 // L'onglet Cooks de « parade » quand sa box ne déclare aucune station (#1509) : la ligne qui le dit, à la place d'un blanc.
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { guide } from "./cooks-stations-declarees.ts";
+import { guide } from "./cooks-stations-commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;

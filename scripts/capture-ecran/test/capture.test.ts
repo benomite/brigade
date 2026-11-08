@@ -138,9 +138,10 @@ describe("la ligne de commande", () => {
   test("un écran inconnu est refusé, en nommant ceux qui existent, et rien n'est écrit", async () => {
     const dossier = mkdtempSync(join(tmpdir(), "capture-ecran-test-"));
     const sortie = join(dossier, "x.png");
+    const noms = [...(await ecrans()).keys()];
     await assert.rejects(lancer(process.execPath, [COMMANDE, "cuisine", sortie]), (erreur: { code: number; stderr: string }) => {
       assert.equal(erreur.code, 2);
-      assert.match(erreur.stderr, /écran inconnu : cuisine — les écrans : ajout, bande-alertes-ouverte, bande-alertes, closer-attente, closer-derive, closer-en-cours, closer-finie, closer-lancer, closer-refusee, closer-sans, closer-trouvailles, closer, cout-par-jour, cout-perdus, cout, espace-projet, fiche, file-ou-cuit, manager-allume, manager-allumer, manager-eteint, merge-accorder, reglages-ordinaires-sans-bac, reglages-ordinaires, rien-ne-cuit, station-connexion-max, station-en-ligne, station-hors-ligne, station-mise-a-jour, station-retrait, tous-les-projets/);
+      assert.match(erreur.stderr, new RegExp(`écran inconnu : cuisine — les écrans : ${noms.join(", ")}$`, "m"));
       return true;
     });
     assert.equal(existsSync(sortie), false);

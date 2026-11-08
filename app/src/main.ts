@@ -22,7 +22,6 @@ import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
-import { confierAUnHumain } from "./vue/attente-capacite/geste.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -1314,11 +1313,6 @@ const lancerSurLaCuisine = (lu: Lu, commande: string) => {
 };
 // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
 // ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.
-// « It's a human's job » et « reassign » (#1958) : `rail human`, là où la cuisine du projet tourne (vue/attente-capacite/).
-ipcMain.handle("confierAUnHumain", (_, nom: unknown, ticket: unknown, qui: unknown) => {
-  const { vise, lu } = cuisineDuProjet(nom);
-  return vise === undefined ? parti(nom) : confierAUnHumain(vise.nom, lu, ticket, qui, lancerSurLaCuisine);
-});
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977, vue/signalement/) : le journal du projet est lu
 // là où sa cuisine tourne — hors de son passage, qu'une lecture longue ne le retienne pas —, et l'issue préremplie
 // s'ouvre dans le navigateur du poste. Rien n'est envoyé à GitHub d'ici : le chef l'envoie lui-même.

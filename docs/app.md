@@ -30,41 +30,20 @@ in the middle hides them, and switching tabs neither cuts nor empties the conver
 — the stations' block, headed by the kitchen's line (its state in a pill and its latest event; the project tile is
 folded into it, and is shown whole above the stations only when they are not read), each station with its state, its
 reason and its cooks' cards, a stuck cook's card saying `STUCK: no progress since 31 min`; on a 1366×768 laptop
-screen, all of it is visible without scrolling. Then the project's tickets, **the reliability of its
-cooks**, its gates and **its closer** — these two were the Settings pages Reliability and Closer until #1699 (see "The
+screen, all of it is visible without scrolling. Then **the reliability of its
+cooks** and **its closer** — these two were the Settings pages Reliability and Closer until #1699 (see "The
 cooks' reliability, on Cooks" and "The closer, on Cooks"). Then, **folded
-behind a single line each and closed by default**: the calibration ceiling (`opus / high · default`), the kitchen roles
-(`6 roles · latest: … · no action yet: …`), what the cooks learned (`4 lessons, 3 profiles`) and the raw reading of
+behind a single line each and closed by default**: the calibration ceiling (`opus / high · default`), what the cooks learned (`4 lessons, 3 profiles`) and the raw reading of
 `station`. A click on the line opens it; the app keeps it open from one reading to the next. **A block with nothing to
-say is a single line**, never a table of zeros: tickets (`nothing served, sent back or escalated in the last day`),
-gates (`no run in the last 24 h · budget of one run: …`), lessons (`nothing yet on this project: no lesson, no
+say is a single line**, never a table of zeros: lessons (`nothing yet on this project: no lesson, no
 profile`). **No page of a worktree opens from the app** (#1846): you follow what a cook does on its ticket's sheet,
 then its PR, and you try the built app once it is merged. The cap on cooks is set on each station's
 line; the raw reading no longer carries the button that wrote `station cooks` into the second.
-**Under the stations, the project's tickets in the last hour and the last day** (#1272): how many were
-`served`, `sent back` to a cook and `escalated` to you, in a small table — one row per window, `last hour` then `last day`.
-Six numbers read in `facts` (`activiteCuisine`, docs/runtime/etat-et-mesures.md), counted in tickets and for this project only;
-with no activity, one line says so (#1456). What each counts is in the help of its heading. A runtime that does not give them shows nothing
-there, nor a box that does not answer; on a narrow screen, they sit under the stations' lines.
-**Under them, the project's gates over the last hour and the last 24 h** (#1318): `gates, last hour and last 24 h`, the
-same small table — one row per window, `last hour` then `last 24 h`, with `runs`, `average time` and `average CPU` (what one
-run costs, read against the budget of one run, on the row below, `(default)` when you have not set it), then `total time` and
-`total CPU`. On the `last hour` row, each average carries its trend against the last 24 h — `↑ rising` (red), `↓ falling`
-(green) past 10 %, `steady` within. Everything is read in `facts` (`coutDesGates`: `lastHour`, `lastDay`, `averages`,
-`trend`): the app computes nothing. Averages read in seconds; totals in seconds up to ten minutes, then in minutes, then in
-hours; the exact figure is on hover. No run in the hour nor in the 24 h: one line says so, with the budget of one run
-(#1456), never a blank. A runtime that
-gives only the day shows its row alone, its averages `–` (the hover says why); one that gives nothing shows nothing.
-**The gates against their budget, on Cooks too (#1457)**: above that table, in the same block (anchor `#gates-du-projet`), the
-block of the Rail — `gates, latest run against budget`, with the full run on the base and the ticket the kitchen opened on
-its own — shown whole only when the latest run or the base run is over budget, or when the kitchen opened a ticket; otherwise
-one line (`within budget · time 62 s / 100 s, CPU 181 s / 400 s`, or `no run yet`). **The triage, day by day** sits folded
-under the roles (anchor `#triage-du-projet`): one line with the latest day's two numbers (`today: 2 decided alone · 1 sent
+**The triage, day by day** sits folded
+under the calibration ceiling (anchor `#triage-du-projet`): one line with the latest day's two numbers (`today: 2 decided alone · 1 sent
 to TODO`), the days when opened; one line, nothing to open, when there is no day (`no day yet`) or every day is 0. The
-Rail no longer carries either block (#1458): it is the kanban, plus one alert line at the top when something holds tickets
-back — gates over budget (`gates over budget — #31`, the ticket the kitchen opened), joined with the station alerts already
-there (repository access, refusal) in that single line. Clicking it opens Cooks, scrolled to the gates block. Same data
-sources (`coutDesGates`, `triage`). Captures: `docs/captures/1457/`.
+Rail no longer carries it (#1458): it is the kanban, plus one alert line at the top when the stations hold tickets back
+(repository access, refusal). Clicking it opens Cooks. Captures: `docs/captures/1457/`.
 **On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
 another computer (`remote`). **Every station serving the project is there, each once** (#1786): the stations of `facts`, then
 those the journal declares that have not signed in yet, then those the app added to the project that the journal does not
@@ -131,25 +110,6 @@ station (`installation stations set`): the others stay as it wrote them. `Remove
 its price in one line, then runs `installation stations remove`; the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
 the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
-**Under the stations, its cloud stations** (#2232, epic #2223): stations a cloud host starts when the rail has work no
-other station takes, and stops when it is empty, on the user's own host account. The block says how many are added
-(`none added yet`, `1 added`), then the **cost per ticket served** over the period (`$1.80`; on hover, `$12.60 billed this
-month, 7 tickets served`) — `not available yet` while no ticket was served, never a division by zero. Below, the
-**three ceilings** — `Stations at once`, `Hours a day`, `Hours a month` —, prefilled with the ones the project holds; an
-empty field bounds nothing. **`Add a cloud station`**, recommended (its price on hover: the host bills each station's
-hours), adds a station in one click once two things hold, checked in this order: a ceiling at least — without one, nothing
-leaves and the line under the button says `Set a ceiling first — …` (a field that is not a positive number, or a
-fractional `Stations at once`, is refused the same way); and **what a cloud station receives, approved once**: before the
-first station, the click opens the list of what it receives and of what it never receives (the Max session, the other
-secrets) — each item's `dit`, word for word, from the runtime's `Liste` —, with `Approve and add`, recommended, its price in one line, and `Cancel`. Approved, the list is folded under the
-ceilings (`What a cloud station receives — approved`) and the next station is added with no question; a changed list
-arrives unapproved and asks again. What the add returned is one line under the block, a refusal with its detail on hover;
-a read that fails says `cloud stations: not read`. **The block is drawn but not yet live**: no runtime command publishes
-the cloud stations yet (the shapes are `runtime/src/stations-cloud/plafonds.ts`, `runtime/src/stations-cloud-cout/` and
-`runtime/src/stations-cloud-secrets/`, #2228, #2230, #2231), so the main process does not offer `stationsCloud` and
-`ajouterStationCloud` (`app/src/vue/pont.d.ts`, optional), and the Cooks tab lays no block until it does. The client that
-reads those shapes is `app/src/stations-cloud/stations-cloud.ts`; the view module is
-`app/src/vue/stations-cloud/stations-cloud.js`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
 ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
 `default`, `set by you`, or one of each —, read from `facts` (`plafondDeCalibrage`): the app does not know the default, it
@@ -163,13 +123,6 @@ by the runtime, a line says so, its output on hover. A runtime that does not giv
 settings (`setting`), the folded block holds the same row as Settings (see "The project's settings, changed by a pull
 request"), and nothing is set on the box any more. The lists and `set ceiling` above remain only for a runtime that does
 not give its settings yet.
-**Under the ceiling, the kitchen roles** (#1274), in a block titled `kitchen roles`: the `manager`, the `pass`, the `reviewer`, the
-`second judge`, the `triage` and the `closer`, one per row — its name, one line on what it does, and under it its latest action
-on this project, a short sentence and its time (`merged #12 · Oct 13, 2026, 9:41 AM`). A role that has never acted on the
-project says `no action yet`. The roles, their line and the sentence are read in `facts` (`rolesCuisine`,
-docs/runtime/etat-et-mesures.md): the app composes none, and nothing there is command output. A runtime that does not give
-them shows nothing there, nor a box that does not answer; on a narrow screen, they sit under the stations' lines. The
-module is `app/src/vue/roles-cuisine.js`.
 **On a narrow screen — the phone (#1151), or a window under 720 px —, the menu gains a fifth entry** (#1186): after Settings,
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
@@ -822,34 +775,6 @@ through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the car
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
-### A WAITING card awaiting a capability: give it to a station, or hand it to a human (#1958)
-
-A ticket whose `requiert` names a capability no station provides waits in WAITING: its card reads
-"waiting for a station that provides `<capability>`". Its card, and only that WAITING card (`facts` gives it `requiert`, every capability its card asks for), carries
-two ways out, each one gesture — at most one pick, then one confirmation:
-
-- **`Give it to a station`**, recommended: under the card, the project's stations (`installation stations --json`, as on
-  Cooks), each with what it provides, the first one picked; one click picks another. The confirmation says what that station
-  will provide from now on, its price in one line (a cook takes it on that station). Confirmed, the capabilities the card asks
-  for are added to what the station provides, by the same gesture as `Save` in its form on Cooks (`changerUneStation`,
-  `installation stations set`): its form, reopened, shows them ticked. The runtime sees the station provide it at its next pass,
-  puts the ticket back on the rail (`capabilities-reread`) and it leaves for that station — it does not come back to WAITING
-  for that capability.
-- **`It's a human's job`**: the confirmation says the ticket leaves the rail and waits in TODO as a task for the chef.
-  Confirmed, `rail human <ticket>` runs where the project's kitchen runs (`docs/runtime/journal-et-rail.md`, "Handing a ticket
-  to a human"): the issue loses `fire` and takes `hors-cuisine`, and the ticket enters TODO as a task.
-
-On the TODO card of such a task, under its question (`What became of this task?` — `It is done`, `It will not be done`, or your
-own words, written on the issue), the task itself: **`Assignee`**, a field set to `chef`, and `reassign`, active once another name
-is typed, which plays `rail human <ticket> <name>` (one word: a first name, a GitHub login); then the card's **title**, **what
-no station provides**, its **context** and its **acceptance criteria**, as the issue wrote them.
-
-What is done is said under the card in one line; a refusal, in red, the runtime's output on hover. The modules are
-`app/src/vue/attente-capacite/` (`sorties.js` the card, `geste.ts` the command, `lecture.ts` what `facts` gives). Captures:
-`docs/captures/1958/` — `rail-sans-station-avant.png` / `-apres.png` (the WAITING card, before and with its two ways out),
-`rail-sans-station-donner-apres.png` (`Give it to a station` opened), `rail-sans-station-humain-apres.png` (`It's a human's job`
-confirmation), `todo-tache-humaine-avant.png` / `-apres.png` (the task in TODO, before and with its assignee and its body).
-
 ### The second's choices, as buttons under its terminal (#1520)
 
 When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
@@ -1334,10 +1259,6 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/main — read at 14:32:07, reread wh
 - **What the number does not say**: what these commits change. Thirty-nine doc commits and one
   commit that adds a tab read the same — `git log` is what says.
 
-### The update prompt of the Android app (#1170)
-
-At launch, the Android app checks the manifest of the latest release (`app/src/mise-a-jour/android.ts`). When that check returns an offer, the app puts a prompt at the very top of the window, above every screen: **"Version 1.5.0 is available"**, the release notes under it, and two buttons — **Update** (recommended) and **Not now**. *Update* hands the offer's `apkUrl` to the install step (`brigade.installerApk`); *Not now* closes the prompt, and it does not come back until the next launch. With no update — or a failed check — nothing is shown and the launch is unchanged. The desktop app never gets an offer: it updates itself (`miseAJour`). The view is `app/src/vue/mise-a-jour/invite.js`; the capture is `scripts/capture-ecran` screen `offre-apk` (`docs/captures/1170/`). The Android bridge (`app/android/web/pont.js`) does not yet run the check nor the install: until it does, the prompt is built and tested but nothing sends it an offer.
-
 ### The new-version line (#1528, #2431)
 
 When a newer `app-v<version>` release is published and the app does not run it, the app puts **one line** at the very top of the window, above every screen, with the running version and the latest one, then where its own update stands:
@@ -1446,8 +1367,8 @@ bridge with no station reachable — are `app/test/gestes-github-telephone.test.
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
-and nothing on it scrolls sideways at phone width. Screens: `telephone-file`, `telephone-file-cooks` and
-`telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`).
+and nothing on it scrolls sideways at phone width. Screens: `telephone-file` and `telephone-file-cooks` of
+`scripts/capture-ecran` (`docs/captures/1163/`).
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
 `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
@@ -1520,8 +1441,8 @@ bridge (`statutDeLaStation`, then `surStatutDeLaStation`): behind, it says so in
 date, in green. With no status — a bridge that does not read it yet, or a status that does not keep the contract —
 it says `version unknown`, grey, the reason on hover: never an error, never an empty cell. With no box read yet, the
 box's cell says `version unknown` too. The phone shows no such line. The view is `app/src/vue/station-version/`, its
-tests `app/test/vue-station-version/`; screens: `docs/captures/2191/` (`scripts/capture-ecran` screens
-`stations-version-en-retard`, `stations-version-a-jour`, `stations-version-inconnue`).
+tests `app/test/vue-station-version/`; screens: `docs/captures/2191/` (`scripts/capture-ecran` screen
+`stations-version-inconnue`).
 
 **A click on its line opens the station's page**: at the top, its name, its dot and its state in
 one sentence (#877); below, its faults with their button, the projects the app added to it and the
@@ -1900,12 +1821,6 @@ station publishes in its tracking. Before any ticket of the chef is served it sa
 the final duration the station froze (« First ticket served 2 h 34 min after the project was added »), which a second
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
 Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
-
-**Slowest part** (#2351, epic #2337): one line under the first-ticket line, the sentence `nommerLePlusLent` returns
-for the project (« CI: 7 min median », « a cook spends 70 % of its time in tests »), with its figures on hover. The
-view reads it from `lenteur` of the project's view; **the field is not yet carried by `ProjetVu`**
-(`app/src/projets/projets.ts`) — until the station publishes it and the app relays it, no line shows. No sentence, no
-line and no empty placeholder. Screenshots: `docs/captures/2351/`. The module is `app/src/vue/projet/lenteur.js`.
 
 **Ticket times** (#2346, epic #2336): a card under the first-ticket line, per project, on the **Cooks** tab — on Rail,
 the band at the top says the four figures (#2672), the rest on hover (#2486): the median total of the
@@ -3280,16 +3195,6 @@ section. With the section laid, `right now` is not repeated under it.
   seven days (UTC), the most recent first, two counts: `decided alone` (the cards the triage settled itself) and `sent to TODO`
   (the cards it let into TODO). A day with no activity says `0` and `0`, never a blank. The runtime counts (`facts`, `triage`:
   `docs/runtime/etat-et-mesures.md`); the app only lays them out, and draws nothing from a runtime from before that field.
-- **The gates against their budget (#1318, epic #1313)**: at the head of the rail, above the triage, a compact block —
-  `gates, latest run against budget` — gives what the project's latest gates run cost against the budget of one run, in
-  wall-clock time and in CPU, both in seconds to read one against the other: `time 215 s / 100 s (default)`,
-  `CPU 990 s / 400 s (default)`. A budget you have not set is the default, and says `(default)`. When the runtime judges
-  the run over budget, the block takes a red edge and the mark `over budget`; when the kitchen opened a ticket on its own
-  to bring the gates back under it, a line says `the kitchen opened #31 on its own to bring the gates back under budget`,
-  and the number opens that ticket's sheet — with its title and its issue when the rail or what is before it carries it.
-  No run yet: `–` against the budget, and `no run yet`. A run cut before its end has its CPU `not measured`. Everything is
-  read in `facts` (`coutDesGates`, `docs/runtime/etat-et-mesures.md`): the app judges nothing, and draws nothing from a
-  runtime from before that field.
 - **The columns fit in the window at its opening size**; narrower, they scroll.
   The rail and what the displayed tab shows below it share the height, half and half; the
   rail scrolls within its own. A project that no station serves on this computer has no rail — nothing is read from it — and

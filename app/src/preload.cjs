@@ -95,7 +95,6 @@ const pont = {
   continuerSansBacASable: (nom) => ipcRenderer.invoke("continuerSansBacASable", nom),
   leverLeRefus: (nom, refus, remede) => ipcRenderer.invoke("leverLeRefus", nom, refus, remede),
   choisirUneIssue: (nom, choix, issue) => ipcRenderer.invoke("choisirUneIssue", nom, choix, issue),
-  confierAUnHumain: (nom, ticket, qui) => ipcRenderer.invoke("confierAUnHumain", nom, ticket, qui),
   signaler: (demande) => ipcRenderer.invoke("signaler", demande),
   demenagerLaCuisine: (nom, vers) => ipcRenderer.invoke("demenagerLaCuisine", nom, vers),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
@@ -166,10 +165,6 @@ const pont = {
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
-  // L'offre d'une version plus haute de l'APK Android (ticket 1170) : le desktop se met à jour par
-  // `surMiseAJour` et n'en reçoit jamais — l'abonnement n'y reçoit rien, le geste n'y fait rien.
-  surOffreApk: () => undefined,
-  installerApk: async () => undefined,
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),

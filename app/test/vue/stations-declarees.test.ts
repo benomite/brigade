@@ -118,10 +118,10 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Cooks", () => {
     assert.match(survols[0] ?? "", /^it runs on the project.s main station$/);
     assert.match(survols[1] ?? "", /another workstation/);
     assert.match(survols[2] ?? "", /another workstation/);
-    // Sous les stations, au-dessus des tickets de l'heure.
+    // Sous les stations, au-dessus de la fiabilité des cooks.
     const ids = vue.element("rail").children.map(({ id }) => id);
     assert.ok(ids.indexOf("declarees-du-projet") > ids.indexOf("cuisson-du-projet"), ids.join(", "));
-    assert.ok(ids.indexOf("declarees-du-projet") < ids.indexOf("activite-du-projet"), ids.join(", "));
+    assert.ok(ids.indexOf("declarees-du-projet") < ids.indexOf("fiabilite-du-projet"), ids.join(", "));
   });
 
   test("un projet sans station déclarée le dit en une ligne, à la place d'un blanc", async () => {

@@ -5,8 +5,7 @@
 import type { EtatDeMiseAJour } from "../../../app/src/mise-a-jour/etat.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { SANS_CLONE } from "./reglages-code-installee.ts";
-import { ecran as installee } from "./tous-les-projets-installee.ts";
+import { ecran as installee, SANS_CLONE } from "./tous-les-projets-installee.ts";
 
 const VERSION = "1.4.0";
 const NOUVELLE = "1.5.0";

@@ -20,13 +20,11 @@ import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Bloc } from "../ordinaires.ts";
 import type { RenduDePanne } from "../pannes/gestes.ts";
 import type { EtatDeMiseAJour } from "../mise-a-jour/etat.ts";
-import type { UpdateOffer } from "../mise-a-jour/android.ts";
 import type { Avis as AvisDeVersion } from "../mise-a-jour/avis.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide, StationChangee, StationVoulue } from "../service.ts";
-import type { RenduDuGeste as RenduDuGesteHumain } from "./attente-capacite/geste.ts";
 import type { Demande as DemandeDeSignalement, RenduDuSignalement } from "./signalement/ouverture.ts";
 import type { DepotDuChef } from "../projets/github.ts";
 import type { Ajout, Choisi, DefautsDeLaMachine, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
@@ -36,7 +34,6 @@ import type { Terminal } from "../terminaux.ts";
 import type { CompteGitHub, DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
 import type { Ouverture, Progres, StationsDuChef } from "../premier-lancement.ts";
 import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
-import type { AjoutCloud, CloudAjoute, VuDuCloud } from "../stations-cloud/stations-cloud.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
@@ -82,12 +79,6 @@ export type Pont = {
   // Change une station déclarée, seule (ticket 1510) : son plafond et ses capacités, ce poste qui la joue — ou la retire.
   // Ses stations relues arrivent par `surGuide` ; ce qu'il en advient, en une ligne.
   changerUneStation(projet: string, station: string, voulu: StationVoulue): Promise<StationChangee | { refus: string }>;
-  // Les stations cloud du projet (ticket 2232, épique 2223) : ce qu'elles coûtent, ses plafonds, ce qu'une station
-  // reçoit et si le chef l'a approuvé — puis l'ajout d'une, avec ses plafonds et, la première fois, l'approbation.
-  // Optionnels : aucune commande du runtime ne les publie encore, et le process principal ne les offre pas ; tant
-  // qu'il ne les offre pas, l'onglet Cooks ne pose pas leur bloc (stations-cloud/stations-cloud.js).
-  stationsCloud?(projet: string): Promise<VuDuCloud | { refus: string; detail?: string } | undefined>;
-  ajouterStationCloud?(projet: string, ajout: AjoutCloud): Promise<CloudAjoute>;
   // Protège la branche d'intégration sur GitHub.
   proteger(projet: string): Promise<{ refus: string } | undefined>;
   // Répond à la décision courante — deux valeurs quand elle se répond avec une autre.
@@ -215,12 +206,6 @@ export type Pont = {
   // « Installer maintenant » : télécharge la nouvelle version si ce n'est pas fait, l'installe et
   // relance l'app sur elle — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur sa version.
   installerMiseAJour(): Promise<{ refus: string } | undefined>;
-  // L'app Android seule (le ticket 1170) : l'offre d'une version plus haute, que la vérification du
-  // lancement (mise-a-jour/android.ts) rend — `surOffreApk` la reçoit, sans jamais rien recevoir quand il n'y en
-  // a pas —, et « Update », qui remet l'`apkUrl` à l'installation. Sur le desktop, qui se met à jour par
-  // `miseAJour`, le pont ne rend aucune offre : `surOffreApk` n'y reçoit jamais rien.
-  installerApk(apkUrl: string): Promise<unknown> | void;
-  surOffreApk(recevoir: (offre: UpdateOffer) => void): void;
   // La ligne d'une version plus haute (les tickets 1528 et 2431, mise-a-jour/avis.ts) : la plus haute version publiée
   // au-dessus de celle qui tourne, la version qui tourne, le lien direct du paquet de ce poste et le premier lancement — ou
   // rien, si l'app est à jour ou si ce poste ne se met pas à jour par là (lancée depuis le dépôt). Rien ne l'écarte.
@@ -286,9 +271,6 @@ export type Pont = {
   // Une issue de la carte d'un besoin qui manque à la principale du projet (ticket 1400) : le choix — sa clé —, l'issue
   // retenue. Elle s'écrit dans la demande de la principale, qui la pose à son journal. Rend ce qui est fait, ou pourquoi rien.
   choisirUneIssue(nom: string, choix: string, issue: string): Promise<Choisi>;
-  // « It's a human's job », sur la carte d'un ticket en WAITING faute de capacité, et « reassign » sur sa tâche dans TODO
-  // (ticket 1958) : `rail human <ticket> [qui]` part là où la cuisine du projet tourne (attente-capacite/geste.ts).
-  confierAUnHumain(nom: string, ticket: number, qui?: string): Promise<RenduDuGesteHumain>;
   // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : ouvre dans le navigateur une nouvelle issue
   // préremplie sur benomite/brigade — versions, système, la panne, les lignes du journal qui en parlent, masquées
   // (signalement/ouverture.ts). Rien n'est envoyé : le chef l'envoie lui-même. Rend ouvert, ou pourquoi rien.

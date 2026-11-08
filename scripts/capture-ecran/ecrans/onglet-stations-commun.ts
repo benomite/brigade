@@ -1,15 +1,34 @@
 // L'onglet Stations de « parade » (#2487) : ses deux stations — la box cuit #14, le Mac, distant, arrêté par le chef y
 // finit #15 —, puis « Add a station ». Le Mac de l'écran a sa station, qui ne sert pas encore parade (`projetsServis`) ;
 // le compte du chef a deux stations appairées : parade-box, à qui parade est choisi, et atelier, à qui rien ne l'est.
+import type { Faits } from "../../../app/src/faits.ts";
 import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
 import { stationDuGist, type StationEnregistree, type StationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT, type Rendu } from "./commun.ts";
-import { FACTS } from "./cooks-deux-stations.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const INSTANT = Date.parse(MAINTENANT);
 const IL_Y_A = (minutes: number) => new Date(INSTANT - minutes * 60_000).toISOString();
 const PARADE = RENDUS.parade as Rendu;
+// La box cuit #14, le Mac, distant, arrêté par le chef y finit #15.
+const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
+const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
+const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/claude" };
+const station = { plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, arreteeDepuis: null, refus: null } as const;
+const FACTS: Faits = {
+  ...PARADE.facts,
+  compteurs: { ...PARADE.facts.compteurs, auTravail: 2 },
+  rail: [
+    ...PARADE.facts.rail.slice(0, 1),
+    { ticket: 15, etat: "pris", titre: COOK_15.titre, url: issue(15), activite: null, attente: null },
+    ...PARADE.facts.rail.slice(1),
+  ],
+  cooks: [COOK_14, COOK_15],
+  stations: [
+    { ...station, station: "box/claude", distante: false, cuisson: "cooking", cooks: [COOK_14] },
+    { ...station, station: "mac/claude", distante: true, cuisson: "stopped", arreteeDepuis: "2026-10-13T09:52:00.000Z", cooks: [COOK_15] },
+  ],
+} as Faits;
 
 function lue(id: string, name: string, machine: string, repositories: string[]): StationEnregistree {
   const station = stationDuGist(

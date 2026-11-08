@@ -14,7 +14,6 @@ import { GESTES_D_ATTENTE } from "../../../app/src/attente.ts";
 import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../app/src/gestes.ts";
 import type { PrioriteMontree } from "../../../app/src/priorite.ts";
-import type { EnvoiDeCarte } from "../../../app/src/tableau/envois.ts";
 import { GESTES_DES_GRANTS } from "../../../app/src/grants.ts";
 import { EFFORTS, MODELES } from "../../../app/src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../../app/src/onglets.ts";
@@ -88,9 +87,7 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
 
 // Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot — et `manager`,
 // que l'app lit elle-même pour chaque projet (main.ts, la veille du manager) : absent, il n'est pas lu.
-// `envois` : les réponses du chef aux cartes de TODO que les commentaires de son tableau de la cuisine montrent
-// (app/src/tableau/envois.ts) — la lecture de `facts` les porte, comme celle que main.ts fait du tableau.
-export type Rendu = { facts: Faits; status: string; station: string; manager?: string; envois?: EnvoiDeCarte[] };
+export type Rendu = { facts: Faits; status: string; station: string; manager?: string };
 
 // Les envois d'une cuisine figée, dans l'ordre où main.ts les fait : la barre posée, `facts` de
 // chaque projet, puis `manager` de ceux qui le rendent ; « Tous les projets », `status` et `station` de
@@ -112,8 +109,7 @@ export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string
   const envoisDesFaits: Envoi[] = [
     ...bandes.ouvrir(projets).map(alertes),
     ...projets.flatMap((projet) => {
-      const envois = rendus[projet]?.envois;
-      const lue: Lecture & { envois?: EnvoiDeCarte[] } = { ...lecture(projet, { facts: JSON.stringify(rendus[projet]?.facts) }), ...(envois === undefined ? {} : { envois }) };
+      const lue = lecture(projet, { facts: JSON.stringify(rendus[projet]?.facts) });
       return [dessine(faits.recevoir(lue)), alertes(bandes.faits(lue))];
     }),
     ...projets.flatMap((projet) => {

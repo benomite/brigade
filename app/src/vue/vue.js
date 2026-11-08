@@ -75,7 +75,6 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirBandeau } from "./mise-a-jour/bandeau.js";
-import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./connexion-github.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
@@ -88,7 +87,6 @@ import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserTriageDeCooks } from "./triage.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, stationAOuvrir } from "./stations-declarees.js";
-import { auClic, lireLaSaisie, poserLeCloud, saisieDe } from "./stations-cloud/stations-cloud.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -102,7 +100,6 @@ import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, RE
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
-import { poserLaLenteur } from "./projet/lenteur.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
@@ -113,14 +110,11 @@ import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
-import { poserLActivite } from "./activite-cuisine.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserBarre } from "./avant-le-rail.js";
 import { poserAge, poserCadence, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { poserLeBudgetDAppels } from "./budget-appels.js";
-import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
-import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
@@ -147,7 +141,6 @@ import { poserBlocCloser } from "./projet/cuisine/sante/Closer.js";
 import { etatFerme as ajoutDeSpecialisationFerme, poserBlocSpecialisations } from "./projet/cuisine/cuisiniers/Specialisations.js";
 import { poserBlocCahier } from "./projet/cuisine/cuisiniers/Cahier.js";
 import { poserGesteDuSecond } from "./second/geste.js";
-import { tenirLesSorties } from "./attente-capacite/sorties.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 
@@ -332,10 +325,7 @@ const specialisationsEnLecture = new Set();
 /** @type {Map<string, import("./projet/cuisine/cuisiniers/Specialisations.js").Etat>} */
 const ajoutsDeSpecialisation = new Map();
 const specialisationsDuProjet = document.createElement("section");
-const activiteDuProjet = document.createElement("div");
-activiteDuProjet.id = "activite-du-projet";
-// Dessous, ce que ses gates ont coûté les dernières 24 h, à côté du budget d'un passage (ticket 1318). poserCuisson le
-// remplit ; poserRail le pose.
+// Le budget des appels GitHub du projet (budget-appels.js). poserCuisson le remplit ; poserRail le pose.
 const gatesDuProjet = document.createElement("div");
 gatesDuProjet.id = "gates-du-projet";
 // La carte du projet — son état, ses compteurs, ses cooks en cours et leur station, le dernier événement. Sur Cooks,
@@ -356,28 +346,13 @@ let stationsPosees = false;
 // (ticket 1509), d'après le dernier contrôle de l'installation : poserDeclarees le remplit ; poserRail le pose.
 const declareesDuProjet = document.createElement("div");
 declareesDuProjet.id = "declarees-du-projet";
-// Ses stations cloud — leur coût par ticket servi, ses plafonds, « Add a cloud station » —, sous ses stations (ticket
-// 2232) : poserCloud le remplit, d'après ce que le process principal en lit ; poserRail le pose. Tant que le pont ne
-// les offre pas, il reste vide.
-const cloudDuProjet = document.createElement("div");
-cloudDuProjet.id = "cloud-du-projet";
-// Ce que le process principal a lu des stations cloud de chaque projet — ou la ligne d'une lecture qui a échoué —,
-// les projets dont la lecture est partie, et ce que le chef a saisi sur leur bloc.
-/** @type {Map<string, import("../stations-cloud/stations-cloud.ts").VuDuCloud | { refus: string, detail?: string }>} */
-const cloudsLus = new Map();
-/** @type {Set<string>} */
-const cloudsDemandes = new Set();
-/** @type {Map<string, import("./stations-cloud/stations-cloud.js").Saisie>} */
-const saisiesCloud = new Map();
 // Les stations que la box de chaque projet déclare, telles que le dernier contrôle de son installation les a lues
 // (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
 /** @type {Map<string, import("../service.ts").StationsLues>} */
 const declarees = new Map();
-// Les deux sorties d'une carte en WAITING faute de capacité, et la tâche qu'elle devient dans TODO (ticket 1958).
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : une issue préremplie, ouverte dans le navigateur.
 // Sur le téléphone, rien ne l'ouvrirait : le bouton n'y est pas.
 const signalement = tenirLeSignalement({ doc: document, pont: brigade, actif: () => telephoneVu === undefined });
-const sortiesDeCapacite = tenirLesSorties({ doc: document, pont: brigade, stations: (nom) => declarees.get(nom), reposer: (nom) => void (courant?.nom === nom && poserRail(courant)), relire: () => lireLesFaits() });
 // Les blocs repliés que le chef a ouverts, par projet (`<projet>#<bloc>`) : reposés à chaque lecture, ils restent
 // ouverts ; fermés à la première.
 /** @type {Set<string>} */
@@ -391,10 +366,6 @@ const replieDe = (projet, cle, ligne, contenu) =>
 const plafondDuProjet = document.createElement("div");
 plafondDuProjet.id = "plafond-du-projet";
 plafondDuProjet.ariaLive = "polite";
-// Les rôles de sa cuisine — le closer et les autres —, chacun avec ce qu'il fait et sa dernière action, sous son plafond,
-// sur Cooks (ticket 1274), repliés (ticket 1456). poserCuisson les remplit ; poserRail les pose.
-const rolesDuProjet = document.createElement("div");
-rolesDuProjet.id = "roles-du-projet";
 // Ce que les cooks ont appris au projet — ses leçons et ses profils —, sous ses rôles, sur Cooks (ticket 1273), repliés
 // (ticket 1456) : ils étaient sur Reliability. poserCuisson les remplit ; poserRail les pose.
 const apprisDuProjet = document.createElement("div");
@@ -691,7 +662,6 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
-const lenteurDuProjet = element("lenteur-du-projet");
 const tempsTicketDuProjet = element("temps-ticket-du-projet");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
@@ -2484,93 +2454,6 @@ function poserDeclarees(projet) {
   declareesDuProjet.replaceChildren(poserLesDeclarees(document, { stations: declarees.get(projet.nom), ...lieuDesStations(projet) }));
 }
 
-// Les stations cloud du projet (stations-cloud/stations-cloud.js, ticket 2232) : lues une fois, puis après chaque ajout.
-// Un pont qui ne les offre pas, ou qui ne rend rien, laisse le bloc vide.
-/** @param {Projet} projet */
-function poserCloud(projet) {
-  if (typeof brigade.stationsCloud !== "function") return cloudDuProjet.replaceChildren();
-  const vu = cloudsLus.get(projet.nom);
-  if (vu === undefined) {
-    if (!cloudsDemandes.has(projet.nom)) void lireCloud(projet);
-    return cloudDuProjet.replaceChildren();
-  }
-  let saisie = saisiesCloud.get(projet.nom);
-  if (saisie === undefined && !("refus" in vu)) saisiesCloud.set(projet.nom, (saisie = saisieDe(vu)));
-  const reprise = repriseDuClavier();
-  cloudDuProjet.replaceChildren(poserLeCloud(document, { vu, saisie: saisie ?? { aLaFois: "", heuresParJour: "", heuresParMois: "", approbation: false, envoi: false }, gestes: gestesDuCloud(projet) }));
-  rendreLeClavier(reprise);
-}
-/** @param {Projet} projet */
-async function lireCloud(projet) {
-  cloudsDemandes.add(projet.nom);
-  /** @type {Awaited<ReturnType<NonNullable<typeof brigade.stationsCloud>>>} */
-  let lu;
-  try {
-    lu = await brigade.stationsCloud?.(projet.nom);
-  } catch (erreur) {
-    lu = { refus: "the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  if (lu === undefined) return;
-  cloudsLus.set(projet.nom, lu);
-  if (courant?.nom === projet.nom) poserCloud(courant);
-}
-// Un clic sur « Add a cloud station » : sans plafond, la ligne dit pourquoi ; avant la première station, la liste de ce
-// qu'elle reçoit s'ouvre, à approuver ; sinon, l'ajout part.
-/** @param {Projet} projet @returns {import("./stations-cloud/stations-cloud.js").Gestes} */
-function gestesDuCloud(projet) {
-  const reposer = () => void (courant?.nom === projet.nom && poserCloud(courant));
-  return {
-    ajouter: () => {
-      const vu = cloudsLus.get(projet.nom);
-      const saisie = saisiesCloud.get(projet.nom);
-      if (vu === undefined || "refus" in vu || saisie === undefined || saisie.envoi) return;
-      const clic = auClic(vu, saisie);
-      saisie.rendu = undefined;
-      saisie.retenu = "retenu" in clic ? clic.retenu : undefined;
-      if ("approuver" in clic) saisie.approbation = true;
-      if ("ajouter" in clic) return void ajouterUnCloud(projet, clic.ajouter, false);
-      reposer();
-    },
-    approuver: () => {
-      const saisie = saisiesCloud.get(projet.nom);
-      if (saisie === undefined || saisie.envoi) return;
-      const lue = lireLaSaisie(saisie);
-      if ("retenu" in lue) {
-        saisie.approbation = false;
-        saisie.retenu = lue.retenu;
-        return reposer();
-      }
-      void ajouterUnCloud(projet, lue.plafonds, true);
-    },
-    renoncer: () => {
-      const saisie = saisiesCloud.get(projet.nom);
-      if (saisie !== undefined) saisie.approbation = false;
-      reposer();
-    },
-  };
-}
-// L'ajout part avec ses plafonds — et l'approbation, la première fois —, puis le bloc se relit : ce qu'il a rendu reste dessous.
-/** @param {Projet} projet @param {import("../stations-cloud/stations-cloud.ts").Plafonds} plafonds @param {boolean} approuver */
-async function ajouterUnCloud(projet, plafonds, approuver) {
-  const saisie = saisiesCloud.get(projet.nom);
-  if (saisie === undefined) return;
-  saisie.envoi = true;
-  if (courant?.nom === projet.nom) poserCloud(courant);
-  /** @type {import("../stations-cloud/stations-cloud.ts").CloudAjoute} */
-  let rendu;
-  try {
-    rendu = (await brigade.ajouterStationCloud?.(projet.nom, { plafonds, approuver })) ?? { refus: "No cloud station was added: the app does not offer them yet" };
-  } catch (erreur) {
-    rendu = { refus: "No cloud station was added: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  saisie.envoi = false;
-  saisie.rendu = rendu;
-  if ("fait" in rendu) saisie.approbation = false;
-  cloudsLus.delete(projet.nom);
-  await lireCloud(projet);
-  if (courant?.nom === projet.nom) poserCloud(courant);
-}
-
 // Où tournent les stations d'un projet, et de quoi éditer chacune — dans leur bloc, ou dans « Its stations » (ticket 1786).
 /** @param {Projet} projet @returns {import("./stations-de-cuisson.js").Lieu} */
 function lieuDesStations(projet) {
@@ -3318,7 +3201,7 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
     bon.append(ouvre);
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
-  bon.append(...poserGestesDAttente(projet, carte), ...sortiesDeCapacite.poser(projet, carte), ...signalerLaCarte(projet, carte));
+  bon.append(...poserGestesDAttente(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
 }
 
@@ -4860,39 +4743,21 @@ function poserCuisson(projet, posees = new Map()) {
   });
   stationsPosees = pose !== null;
   cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
-  // Les six nombres de sa cuisine : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
-  const activite = poserLActivite(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.activiteCuisine : undefined);
-  activiteDuProjet.replaceChildren(...(activite === null ? [] : [activite]));
-  // Ses gates des dernières 24 h : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
-  // Le dernier passage face au budget, et le ticket que la cuisine a ouvert (ticket 1457), puis, dessous, l'heure et le jour.
   const tableauLu = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau : undefined;
-  const gates = poserLeJourDesGates(document, tableauLu?.coutDesGates);
-  gatesDuProjet.replaceChildren(...poserLesGatesDeCooks(document, tableauLu?.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), ...(gates === null ? [] : [gates]), ...(tableauLu?.budgetDesAppels === undefined ? [] : [poserLeBudgetDAppels(document, tableauLu.budgetDesAppels)]));
+  gatesDuProjet.replaceChildren(...(tableauLu?.budgetDesAppels === undefined ? [] : [poserLeBudgetDAppels(document, tableauLu.budgetDesAppels)]));
   triageDuProjet.replaceChildren(...(tableauLu === undefined ? [] : poserTriageDeCooks(document, tableauLu.triage, (ligne, contenu) => replieDe(projet, "triage", ligne, contenu))));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
-  const cout = tableauLu?.coutDesGates;
-  const gatesHorsBudget = cout !== undefined && (cout.overBudget || cout.base?.overBudget === true) ? GATES_HORS_BUDGET + (cout.ticket === null ? "" : ` — #${cout.ticket.number}`) : null;
   const alerte = ligneDAlerte(document, {
     alerte: stations?.alerte ?? null,
     refusee: stations?.lignes.some(({ etat }) => etat === "refused") ?? false,
     acces: vu?.acces ?? vu?.worktree?.acces ?? null,
     clone: vu?.clone ?? null,
     refus: vu?.refus ?? null,
-    // Les gates hors budget retiennent les tickets (ticket 1458) : la ligne dit le ticket que la cuisine a ouvert, et son
-    // clic pose le bloc des gates de Cooks en vue.
-    gates: gatesHorsBudget,
-    ouvrir: () => {
-      choisirOnglet(CUISINE);
-      if (gatesHorsBudget !== null) gatesDuProjet.scrollIntoView?.({ block: "start" });
-    },
+    ouvrir: () => choisirOnglet(CUISINE),
   });
   alerteDeCuisine.hidden = alerte === null;
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
   poserPlafondDeCalibrage(projet);
-  // Les rôles de sa cuisine, lus dans `facts` : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
-  const rolesLus = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.rolesCuisine : undefined;
-  const roles = poserLesRoles(document, rolesLus);
-  rolesDuProjet.replaceChildren(...(roles === null || rolesLus === undefined ? [] : [replieDe(projet, "roles", { titre: TITRE_DES_ROLES, resume: resumeDesRoles(rolesLus), aide: AIDE_DES_ROLES }, [roles])]));
   // Ses leçons et ses profils (apprentissage.js), lus dans `facts` : une leçon promue ouvre sa ligne du carnet par le
   // process principal, qui en tient l'adresse — rien n'est créé. Rien tant que sa box ne répond pas. Repliés derrière
   // leurs nombres ; sans leçon ni profil, la phrase seule, rien à ouvrir.
@@ -4988,7 +4853,7 @@ function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
   // Ce que chaque station fournit est dans sa ligne (ticket 1786).
-  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, gatesDuProjet, triageDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -5187,12 +5052,11 @@ function poserLeRail(projet) {
   const posees = new Map();
   poserCuisson(projet, posees);
   poserDeclarees(projet);
-  poserCloud(projet);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
   // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), cloudDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, blocDesSpecialisations(projet), poserBlocCahier(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage?.lecons : undefined), lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), fiabilite, gatesDuProjet, closer, plafondDuProjet, triageDuProjet, apprisDuProjet, blocDesSpecialisations(projet), poserBlocCahier(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage?.lecons : undefined), lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -6878,7 +6742,6 @@ function poserStationsDuProjet() {
     poserLesChoix(undefined);
     poserLesBlocages(undefined);
     poserLeDelai(undefined);
-    poserLaLenteurDuProjet(undefined);
     poserLesTempsDesTickets(undefined);
     return;
   }
@@ -6920,7 +6783,6 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
-  poserLaLenteurDuProjet(projet);
   poserLesTempsDesTickets(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
@@ -6969,15 +6831,6 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
-}
-// Ce qui est le plus lent dans le projet affiché (ticket 2351) : la phrase que la station publie sous `lenteur` du
-// projet vu, ou rien. Le champ n'est pas encore dans `ProjetVu` (projets.ts) : l'app ne lit que ce qui est publié.
-/** @param {Projet | undefined} projet */
-function poserLaLenteurDuProjet(projet) {
-  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
-  const pose = poserLaLenteur(document, /** @type {{ lenteur?: import("./projet/lenteur.js").Lenteur | null } | undefined} */ (vu)?.lenteur);
-  lenteurDuProjet.hidden = pose === null;
-  lenteurDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
 // Les temps des derniers tickets du projet affiché (ticket 2346) : un bloc, ou son état vide ; la station qui n'en publie pas le dit.
 // Sur Cooks seulement : sur Rail, le temps d'un ticket est dans la bande du haut, son détail au survol (ticket 2486).
@@ -8736,10 +8589,6 @@ brigade.surMiseAJour((vu) => {
   miseAJourVue = vu;
   bandeauDeVersion.suivre(vu);
 });
-// L'offre d'une version plus haute de l'app Android, au lancement : l'invite se pose sur l'espace ; « Not now » la
-// ferme jusqu'au lancement suivant, « Update » remet l'adresse de l'APK à l'installation.
-const inviteDeMiseAJour = tenirInvite(element("offre-apk"), document, { installer: (apkUrl) => brigade.installerApk(apkUrl) });
-brigade.surOffreApk((offre) => inviteDeMiseAJour.offrir(offre));
 // Une version plus haute publiée pour ce poste (mise-a-jour/avis.ts) : une ligne en tête de l'app, la version qui tourne
 // et la dernière, et où en est la mise à jour de l'app installée (mise-a-jour/etat.ts) — jusqu'à ce que l'app tourne sur
 // la dernière. Rien ne l'écarte.

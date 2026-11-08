@@ -10,7 +10,7 @@ import type { StationsLues } from "../../../app/src/service.ts";
 import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { guide } from "./cooks-stations-declarees.ts";
+import { guide } from "./cooks-stations-commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris : la session d'hier", arrete: false };
