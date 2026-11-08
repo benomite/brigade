@@ -1,15 +1,14 @@
-# Le site public de brigade (#1553) : `site/` est publié sur GitHub Pages. La vidéo de démo vit dans
-# `docs/demo/` (#1554) ; elle est copiée dans l'artefact sous `demo/` quand le dossier existe, et
-# son absence n'est pas un échec.
+# Le site public de brigade (#1553, #2872) : `site/` est publié sur GitHub Pages, et rien d'autre du dépôt
+# (l'artefact est `site/` lui-même, vérifié par runtime/test/pages-site.test.ts).
 # Réglage à activer une fois par le chef : Settings → Pages → Source : GitHub Actions.
 name: pages
 
 on:
   push:
     branches: [main]
-    paths: [site/**, docs/demo/**, .github/workflows/pages.yml]
+    paths: [site/**, .github/workflows/pages.yml]
   pull_request:
-    paths: [site/**, docs/demo/**, .github/workflows/pages.yml]
+    paths: [site/**, .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
@@ -26,14 +25,9 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble the artifact
-        run: |
-          mkdir -p _site
-          cp -R site/. _site/
-          if [ -d docs/demo ]; then cp -R docs/demo _site/demo; fi
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: site
 
   deploy:
     # Le déploiement ne se joue que depuis main ; sur une PR, seul l'artefact est construit.

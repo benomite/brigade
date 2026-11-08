@@ -11,7 +11,8 @@ Links used in every post: site https://benomite.github.io/brigade/ and repo http
 1. **#1912 is done**: a stranger installed Brigade and cooked a first ticket with only the README and the app. Do not post before. A reader whose first install fails does not come back.
 2. **Recount the figures** in the posts (merged PRs, share cooked by the kitchen). Those below were counted on `main` on 2026-11-07 (see [`positioning.md`](positioning.md) for the commands): 1,191 merged PRs, 1,016 (85%) from a `cook/<n>-…` branch.
 3. **Add the demo video link** where a post says `[DEMO LINK]` (or embed it where the place allows).
-4. **Read each place's rules in a browser** (next section) and apply the checklist.
+4. **Turn Pages on, once** (#2872): in the repo, Settings → Pages → Source: **GitHub Actions**. Until then `.github/workflows/pages.yml` builds but the site is not served; then re-run it (Actions → pages → Run workflow) or push to `site/`, and open https://benomite.github.io/brigade/ to check it shows the landing page.
+5. **Read each place's rules in a browser** (next section) and apply the checklist.
 
 ## Rules: what is verified and what is not
 
