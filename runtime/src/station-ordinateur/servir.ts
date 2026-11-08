@@ -118,6 +118,7 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
       // Sur le Mac du chef, chaque `claude` part dans le bac à sable ; s'il n'y est pas, le projet n'est pas servi.
       const bacASable = configBacASableLocal(sondesDeLaMachine(options.claude), { home: options.maison, worktrees: projet.worktrees, caches: lireCaches(env) }, hotes);
       const retenue = options.retenue;
+      const managerDuDepot = reglages?.defaultCalibrations?.manager;
       return stationDuDepot({
         nom: options.station,
         places: plafondDesCoeurs(availableParallelism()),
@@ -134,6 +135,8 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
         plafonds,
         graceMs,
         reviewer: reglages?.defaultCalibrations?.reviewer ?? REVIEWER_DE_DEPART,
+        // La question d'un cook bloqué va au manager que le dépôt calibre (#2894).
+        ...(managerDuDepot === undefined ? {} : { manager: () => managerDuDepot }),
         flux: join(etat, "github-seul"),
         avertir: options.dire,
         // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).

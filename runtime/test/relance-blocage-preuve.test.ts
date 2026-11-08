@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { MARQUE_QUALITE, marqueDesComptes } from "../src/alerte-qualite.ts";
+import { MARQUE_DE_LA_CONSULTATION } from "../src/blocage-au-manager.ts";
 import { A_LA_MAIN, priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
@@ -31,9 +32,12 @@ async function bloqueSur(t: TestContext, question: string, { tours = 1, corps = 
   faux.poster(6, "box", "an outsider's remark — not evidence");
   faux.commentaires.get(6)!.at(-1)!.association = "NONE";
   let lancements = 0;
-  const lancer: Lancer = ({ flux }) => {
-    lancements += 1;
-    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: `I stopped.\n<livrable>\n<bloque>${question}</bloque>\n</livrable>` })}\n`);
+  // Le manager consulté sur un blocage que la preuve ne relance pas (#2894) y lit une question de produit.
+  const lancer: Lancer = ({ args, flux }) => {
+    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+    if (!consulte) lancements += 1;
+    const message = consulte ? JSON.stringify({ issue: "produit", question: PRODUIT }) : `I stopped.\n<livrable>\n<bloque>${question}</bloque>\n</livrable>`;
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const avertissements: string[] = [];
@@ -52,6 +56,7 @@ async function bloqueSur(t: TestContext, question: string, { tours = 1, corps = 
     plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
     graceMs: 1,
     reviewer: { model: "sonnet", effort: "medium" },
+    manager: () => ({ model: "sonnet", effort: "medium" }),
     flux: repertoire,
     lancer,
     avertir: (texte) => void avertissements.push(texte),
@@ -77,22 +82,22 @@ test("a cook blocked on a question the measurement evidence answers: the evidenc
   assert.doesNotMatch(commentaires, /brigade:echec/);
 });
 
-test("a cook blocked on a question the evidence does not answer still ends blocked-on-human, its body untouched", async (t) => {
+test("a cook blocked on a question the evidence does not answer goes to the manager, which may set blocked-on-human; its body untouched", async (t) => {
   const { ticket, commentaires } = await bloqueSur(t, PRODUIT);
   assert.equal(ticket.labels.has(A_LA_MAIN), true);
   assert.equal(ticket.corps, CORPS);
   assert.match(commentaires, new RegExp(`the cook stopped, blocked[\\s\\S]*> ${PRODUIT}`));
 });
 
-test("a ticket that already carried the evidence and still blocks is not re-queued again: after one re-queue it falls back to blocked-on-human", async (t) => {
+test("a ticket that already carried the evidence and still blocks is not re-queued again: after one re-queue it goes to the manager, here to blocked-on-human", async (t) => {
   const { ticket, lancements, avertissements } = await bloqueSur(t, EVIDENCE, { tours: 3 });
-  assert.equal(lancements(), 2, "one re-queue, then the second cook's block goes to the chef, and nothing takes it after");
+  assert.equal(lancements(), 2, "one re-queue, then the second cook's block goes to the manager and the chef, and nothing takes it after");
   assert.equal(ticket.labels.has(A_LA_MAIN), true);
   assert.equal(ticket.corps.split(MARQUE_DE_PREUVE).length, 2, "the evidence is appended once");
   assert.ok(avertissements.some((a) => a.includes("already carried the evidence")), avertissements.join("\n"));
 });
 
-test("evidence the station cannot write re-queues nothing: the ticket goes to the chef as before, and the station says why", async (t) => {
+test("evidence the station cannot write re-queues nothing: the block goes to the manager as any other, and the station says why", async (t) => {
   const { ticket, avertissements } = await bloqueSur(t, EVIDENCE, {
     ecrire: async () => {
       throw new Error("HTTP 502");
