@@ -1,18 +1,88 @@
 # Launch plan: "you are no longer at your computer"
 
-Internal draft. **Nothing is posted from this repository.** The chef reads this plan, edits it and publishes by hand, after #1912. No file here holds a command, script or API call that publishes. Epic: #1546.
+Internal draft. **Nothing is posted from this repository.** The chef reads this plan, edits it and publishes by hand: the soft launch this week, the wide places after #1912. No file here holds a command, script or API call that publishes. Epic: #1546.
 
-Angle chosen by the chef on 2026-11-07: [`positioning.md`](positioning.md). Demo video: [`demo-script.md`](demo-script.md) (#1550). This plan supersedes the older [`docs/communication/plan-lancement.md`](../communication/plan-lancement.md) for the angle; its two Reddit and LinkedIn drafts predate it.
+Angle chosen by the chef on 2026-11-07: [`positioning.md`](positioning.md). Demo video, for the wide places: [`demo-script.md`](demo-script.md) (#1550). This plan supersedes the older [`docs/communication/plan-lancement.md`](../communication/plan-lancement.md) for the angle; its two Reddit and LinkedIn drafts predate it.
 
 Links used in every post: site https://benomite.github.io/brigade/ and repo https://github.com/benomite/brigade. Terms follow [`docs/glossary.md`](../glossary.md).
 
-## Before publishing (gate)
+## Two stages
 
-1. **#1912 is done**: a stranger installed Brigade and cooked a first ticket with only the README and the app. Do not post before. A reader whose first install fails does not come back.
+On 2026-11-08 the chef decided to start communicating now, without waiting for #1912. So the plan has two stages:
+
+1. **Soft launch (this week)**: one LinkedIn post to the chef's own network. No demo video, no wait for #1912. Section "Soft launch" below.
+2. **Wide places, after #1912**: r/ClaudeAI, r/ClaudeCode and Show HN (and the other places listed). The #1912 gate stays for these.
+
+**Why the gate stays for the wide places.** Strangers there arrive cold and try the install once. A first install that fails there costs the launch: the thread is public, the failure is quoted in the comments, and a reader whose first install fails does not come back. On the chef's own network, readers forgive a rough edge and tell the chef directly.
+
+## Before the soft launch
+
+1. **Capture or GIF**: the post uses a capture or GIF of the app in place of `[DEMO LINK]`. `docs/marketing/assets/app-capture.png` or `.gif` (#2873) is **not in the repo yet**, and none is made up: producing it (a screenshot of the app, or a short screen recording as a GIF) is still to do before posting. Attach it to the post itself.
+2. **Turn Pages on, once** (#2872): see step 4 of the wide gate below. The post links the site and the repo.
+3. **Repo card**: run the `gh repo edit` command in "Repo card" below, so the repo looks finished when the first readers open it.
+4. The figures in the post are those counted on 2026-11-07; recount them if the post goes out later (see [`positioning.md`](positioning.md) for the commands).
+
+## Before the wide places (gate)
+
+1. **#1912 is done**: a stranger installed Brigade and cooked a first ticket with only the README and the app. Do not post before. A first install that fails there costs the launch.
 2. **Recount the figures** in the posts (merged PRs, share cooked by the kitchen). Those below were counted on `main` on 2026-11-07 (see [`positioning.md`](positioning.md) for the commands): 1,191 merged PRs, 1,016 (85%) from a `cook/<n>-…` branch.
-3. **Add the demo video link** where a post says `[DEMO LINK]` (or embed it where the place allows).
+3. **Add the demo video link** where a wide post says `[DEMO LINK]` (or embed it where the place allows).
 4. **Turn Pages on, once** (#2872): in the repo, Settings → Pages → Source: **GitHub Actions**. Until then `.github/workflows/pages.yml` builds but the site is not served; then re-run it (Actions → pages → Run workflow) or push to `site/`, and open https://benomite.github.io/brigade/ to check it shows the landing page.
 5. **Read each place's rules in a browser** (next section) and apply the checklist.
+
+## Soft launch (this week, LinkedIn, chef's own network)
+
+- **Why first**: the readers know the chef and forgive a rough edge. Their first reactions and install problems feed #1912 and the wide posts.
+- **Needs**: the capture or GIF above. Not the demo video, not #1912.
+- **Rules link**: https://www.linkedin.com/legal/professional-community-policies (not verified: LinkedIn refuses unauthenticated reads).
+- **Checklist**: attach the capture or GIF to the post; repo link in the first comment if the chef prefers reach; no engagement baiting.
+
+**Post**
+
+You can't stay at your desk all day. Your backlog doesn't care.
+
+For months I've worked differently: I write a ticket, I leave, and the work is done when I come back. I built a tool for it, Brigade.
+
+How it works: I describe what I want to an assistant, which writes the ticket. An AI agent takes it in its own branch and opens a pull request. A second step checks the tests and reviews it, and merges it if everything is green. I'm called, on my phone, only for what is mine to decide.
+
+The proof is the project itself: 1,016 of its 1,191 merged pull requests (85%) came from an agent's branch.
+
+It's young and rough in places, and it's open source and free; the agents run on your own Claude subscription. If you try it and something breaks, tell me: that is what I'm here for.
+
+If it speaks to you, a star on the repo helps others find it.
+
+*(Capture or GIF attached to the post.)*
+
+First comment: Site https://benomite.github.io/brigade/ · Repo https://github.com/benomite/brigade
+
+## Watch after each post
+
+Read these the same day, then each morning for a week. The repo is `benomite/brigade`; `gh` must be logged in as the chef. These commands only read.
+
+- **Stars** (total now, then compare with yesterday's number):
+
+  ```
+  gh api repos/benomite/brigade --jq .stargazers_count
+  gh api repos/benomite/brigade/stargazers -H "Accept: application/vnd.github.star+json" --jq '.[] | [.starred_at, .user.login] | @tsv' --paginate | tail -20
+  ```
+
+- **Issues opened by strangers** (anyone who is not the chef; read each one, an install failure is the signal #1912 waits for):
+
+  ```
+  gh issue list -R benomite/brigade --state all --search "-author:benomite" --json number,title,author,createdAt --jq '.[] | [.number, .createdAt, .author.login, .title] | @tsv'
+  ```
+
+- **Traffic** (repo insights; the API keeps 14 days, so read it before the numbers roll off; needs push access):
+
+  ```
+  gh api repos/benomite/brigade/traffic/views
+  gh api repos/benomite/brigade/traffic/clones
+  gh api repos/benomite/brigade/traffic/popular/referrers
+  ```
+
+  In the browser: the repo, Insights → Traffic. The referrers show which post sent the readers.
+
+Note the three numbers (stars, stranger issues, unique visitors) in a line per post, so the next post is judged against the previous one.
 
 ## Repo card: description, topics, social preview
 
@@ -33,14 +103,14 @@ gh repo edit benomite/brigade --description "AI agents work your GitHub tickets 
 
 The station has no authenticated browser: Reddit and LinkedIn refuse unauthenticated tools (proxy `403`, already recorded on 2026-10-23 and 2026-11-01 in the older plan), and a web search on 2026-11-07 returned no rule text for the subreddits. **So no rule below is quoted from memory.** Each place gives its rules link and the one-line check the chef must do; the chef pastes the exact sentence into the "Rule quoted" line when reading the page. The only facts taken from a search are marked "(secondary source)" and are not rules.
 
-## Places, in posting order
+## Wide places, in posting order (after #1912)
 
 Space them out: Show HN and Reddit on a weekday morning US Eastern time, never two the same day, so the chef can answer every comment within the hour. One author, same disclosure everywhere: "I built it."
 
 ### 1. r/ClaudeAI — day 1
 
 - **Why first**: cooks are real `claude` sessions; the community closest to the product.
-- **Angle**: the *how*. Close the laptop, the ticket still gets cooked. Ask for feedback on the trust model, not for stars.
+- **Angle**: the *how*. Close the laptop, the ticket still gets cooked. Ask for feedback on the trust model; the one-line star ask comes last, in the post.
 - **Rules link**: https://www.reddit.com/r/ClaudeAI/about/rules (sidebar and wiki; also https://support.reddithelp.com/hc/en-us/articles/360043504051-Spam).
 - **Rule quoted**: *chef to paste.* Not verified. Seen in search (secondary source): the sub pins a "Built with Claude" project showcase megathread and flairs promotion posts. Check whether a project must go in that thread or carry the Promotion flair.
 - **Checklist**: flair, disclosure that you are the author, link policy, whether a standalone post is allowed at all.
@@ -59,7 +129,7 @@ Space them out: Show HN and Reddit on a weekday morning US Eastern time, never t
 - **Angle**: plain and technical. What it does, what it costs, how it can go wrong. No adjectives.
 - **Rules link**: https://news.ycombinator.com/showhn.html and https://news.ycombinator.com/newsguidelines.html
 - **Rule quoted**: *chef to paste.* The Show HN page says (secondary source, a search excerpt) that Show HN is for something you made that people can try; a landing page alone is not enough. Brigade qualifies only because the app is downloadable: the post links the repo, not the site.
-- **Checklist**: title starts with "Show HN:", no promotional wording, no request for upvotes, no asking friends to vote, stay in the thread to answer.
+- **Checklist**: title starts with "Show HN:", no promotional wording, no request for upvotes, no asking friends to vote (the one-line star ask in the text is for the repo, not for votes; the chef may drop it there if the thread reads badly), stay in the thread to answer.
 
 ### 4. r/SideProject — day 6
 
@@ -69,15 +139,7 @@ Space them out: Show HN and Reddit on a weekday morning US Eastern time, never t
 - **Rule quoted**: *chef to paste.* Not verified. Search sources disagree on how promotion-friendly it is (secondary source), so read it.
 - **Checklist**: whether a project post needs a template or flair, and whether the poster must answer feedback.
 
-### 5. LinkedIn — day 8
-
-- **Why**: about a week after the technical audience, the same story told as a work-organisation one.
-- **Angle**: "you are no longer at your computer", as a way of working: a backlog worked through while you are elsewhere, and you are called only for your decisions.
-- **Rules link**: https://www.linkedin.com/legal/professional-community-policies
-- **Rule quoted**: *chef to paste.* Not verified (LinkedIn refuses unauthenticated reads).
-- **Checklist**: put the repo link in the first comment rather than the body if the chef prefers reach; no engagement baiting.
-
-### 6. The Claude community — day 10
+### 5. The Claude community — day 10
 
 - **Why last**: it is the most official place, so post when the product has shown it holds up and there are real answers to link.
 - **Which place**: the official Claude Discord server (invite from https://www.anthropic.com/community), in its showcase or projects channel if it has one. Channel names could not be verified from the station: the chef confirms one exists before posting, and if none does, skips this place rather than use a general channel.
@@ -88,7 +150,7 @@ Space them out: Show HN and Reddit on a weekday morning US Eastern time, never t
 
 ## Ready-to-paste first posts
 
-Placeholders: `[DEMO LINK]`, and the figures to recount. Everything else can be pasted.
+These are the wide-place posts, for after #1912 (the soft launch post is above). Each asks for a star in one line, once; the link line carries no second ask. Placeholders: `[DEMO LINK]`, and the figures to recount. Everything else can be pasted.
 
 ### 1. r/ClaudeAI
 
@@ -117,6 +179,8 @@ Brigade builds itself: 1,016 of its 1,191 merged PRs (85%) came from a cook's br
 
 It's young and opinionated, and the cooks run on your Claude Max session (an API key does not fit). Does a ticket-in, reviewed-PR-out loop match how you'd trust agents with your repo? Where would you want a human gate I haven't put?
 
+If it's useful, a star on the repo helps others find it.
+
 Site: https://benomite.github.io/brigade/ · Repo (MIT): https://github.com/benomite/brigade
 
 ### 2. r/ClaudeCode
@@ -138,6 +202,8 @@ I wanted Claude Code to keep working when I'm not at my computer, without a pile
 It runs on Claude Max sessions. Desktop app for Mac and Windows. Demo: [DEMO LINK]
 
 I'd like to hear where the guardrails are too loose or too tight in your own setups.
+
+If it's useful, a star on the repo helps others find it.
 
 https://benomite.github.io/brigade/ · https://github.com/benomite/brigade
 
@@ -161,6 +227,8 @@ Repo: https://github.com/benomite/brigade · Site: https://benomite.github.io/br
 
 I'd like to hear what would make you trust, or not trust, an agent merging into your repo.
 
+If it's useful, a star on the repo helps others find it.
+
 ### 4. r/SideProject
 
 **Title**
@@ -175,25 +243,11 @@ It's open source (MIT), a desktop app for Mac and Windows. It builds itself: mos
 
 What I'd love to know: would you leave your own side project to something like this, and what would stop you? Two-minute demo: [DEMO LINK]
 
+If it's useful, a star on the repo helps others find it.
+
 https://benomite.github.io/brigade/ · https://github.com/benomite/brigade
 
-### 5. LinkedIn
-
-You can't stay at your desk all day. Your backlog doesn't care.
-
-For months I've worked differently: I write a ticket, I leave, and the work is done when I come back. I built a tool for it, Brigade.
-
-How it works: I describe what I want to an assistant, which writes the ticket. An AI agent takes it in its own branch and opens a pull request. A second step checks the tests and reviews it, and merges it if everything is green. I'm called, on my phone, only for what is mine to decide.
-
-The proof is the project itself: 1,016 of its 1,191 merged pull requests (85%) came from an agent's branch.
-
-Three things I learned: bounding every agent (time, tokens, a stop button) matters more than making it smarter; the backlog is the only place where work should be coordinated; and "what needs a human" has to be written down, or everything comes back to you.
-
-It's open source and free; the agents run on your own Claude subscription. Two-minute demo in the first comment.
-
-First comment: Demo [DEMO LINK] · Site https://benomite.github.io/brigade/ · Repo https://github.com/benomite/brigade
-
-### 6. Claude community (showcase channel)
+### 5. Claude community (showcase channel)
 
 **Title / first line**: Brigade: Claude Code cooks that work GitHub tickets while you're away
 
@@ -202,6 +256,8 @@ Hi all, I built Brigade, an open-source app (Mac, Windows) that runs Claude Code
 Demo: [DEMO LINK] · Site: https://benomite.github.io/brigade/ · Repo: https://github.com/benomite/brigade
 
 Question for the group: how many parallel Claude Code sessions does your plan allow before you hit limits?
+
+If it's useful, a star on the repo helps others find it.
 
 ## The three likely objections
 
