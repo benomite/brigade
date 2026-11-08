@@ -569,6 +569,14 @@ which ran while #2876's fix was merging (b45f9f1, 09:51 UTC). #2879 was served a
 merged after it. The box's station still runs dd576d9: the next version, 0.20261108.095107+gb45f9f1, did not download
 either (504). Replayed on these 88 tickets with #2879 served at its merge, dd576d9's gate opens a ticket and main's
 waits (`en-attente`, 20 merged tickets missing since #2879). Nothing to correct on main.
+#2885 counted 90 tickets, on the same reasons again: 17 conflicts with the base, 16 blocking reviews, 7 red runtime
+tests, all on tickets merged before #2862 was served. The two tickets it measures that #2883 did not are #2883, served
+first try, and #2874, whose two failed cooks are on the missing `v2` base branch again: #2876's fix (bc1a68e) is not in
+dd576d9, the version the box's station still runs. #2883 was served at 10:10 UTC (dcbd3a9) and no ticket was merged
+after it. The next version, 0.20261108.095107+gb45f9f1, still did not download (504, checked at 10:10 UTC); at 10:14
+UTC every station package under `releases/download/` answered 504, dd576d9's own included, while the release itself
+read 200 from the API. Replayed on these 90 tickets with #2879 and #2883 served at their merges, dd576d9's gate opens a
+ticket and main's waits (`en-attente`, 20 merged tickets missing since #2883). Nothing to correct on main.
 
 ## The daily report of the decisions brigade told about
 
