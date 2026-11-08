@@ -137,11 +137,16 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
       continue;
     }
     // Un clic, ou un texte tapé dans un champ — sa valeur posée, et l'`input` que la frappe déclencherait ; dans une
-    // liste (`select`), une valeur choisie, et le `change` que le choix déclencherait aussi (#1739).
+    // liste (`select`), une valeur choisie, et le `change` que le choix déclencherait aussi (#1739) ; `valider` : le champ
+    // quitté ou validé par Entrée, son `change` aussi — un réglage s'applique là (#2920).
     const [geste, selecteur, faire] =
       "cliquer" in etape
         ? ["cliquer", etape.cliquer, "trouves[0].click();"]
-        : ["saisir", etape.saisir, `trouves[0].value = ${JSON.stringify(etape.texte)}; trouves[0].dispatchEvent(new Event("input")); if (trouves[0] instanceof HTMLSelectElement) trouves[0].dispatchEvent(new Event("change"));`];
+        : [
+            "saisir",
+            etape.saisir,
+            `trouves[0].value = ${JSON.stringify(etape.texte)}; trouves[0].dispatchEvent(new Event("input")); if (${etape.valider === true} || trouves[0] instanceof HTMLSelectElement) trouves[0].dispatchEvent(new Event("change"));`,
+          ];
     const trouves = (await evaluer(`(() => { const trouves = document.querySelectorAll(${JSON.stringify(selecteur)}); if (trouves.length === 1) { ${faire} } return trouves.length; })()`)) as number;
     if (trouves !== 1) throw new Error(`étape « ${geste} ${selecteur} » : ${trouves} élément(s) trouvé(s), il en faut un`);
     await poser(`après « ${geste} ${selecteur} »`);

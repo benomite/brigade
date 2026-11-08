@@ -4,13 +4,15 @@
 // calibrage, sa condition de départ, ses plafonds. Tout vient du dépôt du projet, sur GitHub (closer-sante.ts) : une
 // passe est une issue de fermeture, ce qu'elle a retiré est sa PR mergée ; ce qu'il vérifie en premier, ce que la
 // dernière passe lui a remis ; ses vérifications en plus, `.claude/brigade/closer-checks.md` ; ses réglages, `closer.*`
-// de `.claude/brigade/projet.json`. Un réglage chiffré a la ligne d'un plafond de durée (PlafondsDuree.js) : son nom,
-// sa valeur et d'où elle vient, un champ et « save ». Ce module ne touche pas `document` : il reçoit de quoi créer un
-// élément.
+// de `.claude/brigade/projet.json`. Chaque réglage est une rangée de réglage (composants/reglage, ticket 2920) — un
+// réglage chiffré, celle d'un plafond de durée (PlafondsDuree.js) : son nom, sa valeur en vigueur et d'où elle vient, un
+// contrôle qui s'applique dès qu'il change, sans « save » ; gardé dans le dépôt, il s'y propose par une pull request, et
+// sa rangée le dit. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
 import { boutonAction, replie, survol } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
-import { poserUnPlafond } from "./PlafondsDuree.js";
+import { ditDuPlafond, EN_COURS, poserUnPlafond } from "./PlafondsDuree.js";
+import { ditDuReglage, PAR_PR, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
@@ -21,7 +23,9 @@ import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 /** @typedef {import("../../../closer-sante.ts").Calibrage} Calibrage */
 /** @typedef {import("./PlafondsDuree.js").Etat} Etat */
 // Ce que le chef tape dans le champ d'une vérification, l'écriture en cours, ce qu'elle a rendu.
-/** @typedef {{ saisie?: string, enCours?: string, dit?: { fait: string } | { refus: string, detail?: string } }} EtatDesVerifications */
+// La PR ouverte dit la vérification qu'elle ajoute ou retire.
+/** @typedef {{ pr: string, numero: number, geste: "ajouter" | "retirer", verification: string } | { fait: string } | { refus: string, detail?: string }} DitDesVerifications */
+/** @typedef {{ saisie?: string, enCours?: string, dit?: DitDesVerifications }} EtatDesVerifications */
 
 export const TITRE = "Closer";
 export const AIDE =
@@ -30,12 +34,14 @@ export const FAIT = "What it did";
 export const EN_PREMIER = "What it checks first";
 export const EN_PLUS = "Extra checks";
 export const REGLAGES = "Settings";
+export const REGLAGES_AIDE =
+  "Kept in the project's repository (.claude/brigade/projet.json): a change here opens a pull request on its integration branch, and the station applies it once merged, at its next fetch. Empty, the setting's removal is proposed.";
 export const SANS_PASSE = "No closing pass yet on this project";
 export const SANS_PASSE_POURQUOI = "A station opens one once the closer is calibrated and 20 merges reached the integration branch since the last pass.";
 export const SES_VERIFICATIONS = "At each pass: the dead code and the duplicates of the base, the drift of the latest merges, and the ticket times.";
 export const EN_PLUS_AIDE =
-  "Kept in the project's repository (.claude/brigade/closer-checks.md), on its integration branch. The runtime does not copy them into a pass's issue yet: they wait in the repository until it does.";
-export const AJOUTER = { libelle: "add", enCours: "adding…", survol: "writes .claude/brigade/closer-checks.md on the project's integration branch, on GitHub", invite: "e.g. unused CSS classes in app/src/vue/vue.css" };
+  "Kept in the project's repository (.claude/brigade/closer-checks.md): adding or removing one here opens a pull request on its integration branch, and the list changes once merged. The runtime does not copy them into a pass's issue yet: they wait in the repository until it does.";
+export const AJOUTER = { libelle: "add", enCours: "adding…", survol: "opens a pull request that adds it to .claude/brigade/closer-checks.md, towards the project's integration branch, on GitHub", invite: "e.g. unused CSS classes in app/src/vue/vue.css" };
 export const RETIRER = { libelle: "remove", enCours: "removing…" };
 export const PAS_SUR_GITHUB = "not read on GitHub yet";
 export const PAS_SUR_GITHUB_POURQUOI = "The closer on GitHub reads only its calibration and its removed lines cap: this setting is kept in the repository, and applies once the runtime reads it there.";
@@ -191,20 +197,24 @@ function ceQuIlVerifie(doc, passes, { ouverts, basculer }) {
 
 // --- Ce qu'il vérifie en plus --------------------------------------------------------
 
-/** @param {Fabrique} doc @param {{ fait: string } | { refus: string, detail?: string }} dit */
-function rendu(doc, dit) {
-  if ("refus" in dit) return ligneErreur(doc, dit.refus, dit.detail, { classe: "dit refus" });
-  const pose = cree(doc, "p");
-  pose.className = "dit fait";
-  pose.textContent = dit.fait;
-  return pose;
+// Ce que le dernier geste a rendu, sous le champ (composants/reglage) : en route, la PR ouverte — la vérification qu'elle
+// ajoute ou retire —, la liste déjà telle quelle, ou le refus.
+/** @param {Fabrique} doc @param {EtatDesVerifications} etat @param {(url: string) => void} ouvrir */
+function rendu(doc, etat, ouvrir) {
+  if (etat.enCours !== undefined) return ditDuReglage(doc, { enCours: EN_COURS });
+  const dit = etat.dit;
+  if (dit !== undefined && "pr" in dit) {
+    const valeur = dit.geste === "ajouter" ? `the check “${dit.verification}”` : `the removal of “${dit.verification}”`;
+    return ditDuReglage(doc, { pr: dit.pr, numero: dit.numero, valeur }, { ouvrir });
+  }
+  return ditDuReglage(doc, dit);
 }
 
 /**
  * @param {Fabrique} doc @param {Lecture["verifications"] | undefined} verifications @param {EtatDesVerifications} etat
- * @param {{ taper: (saisie: string) => void, changer: (geste: "ajouter" | "retirer", saisie: string) => void }} gestes
+ * @param {{ taper: (saisie: string) => void, changer: (geste: "ajouter" | "retirer", saisie: string) => void, ouvrir: (url: string) => void }} gestes
  */
-function ceQuIlVerifieEnPlus(doc, verifications, etat, { taper, changer }) {
+function ceQuIlVerifieEnPlus(doc, verifications, etat, { taper, changer, ouvrir }) {
   const pose = partie(doc, EN_PLUS, EN_PLUS_AIDE);
   pose.dataset.partie = "en-plus";
   if (verifications === undefined) {
@@ -273,32 +283,27 @@ function ceQuIlVerifieEnPlus(doc, verifications, etat, { taper, changer }) {
   });
   suivre();
   champ.append(entree, bouton);
-  pose.append(champ);
-  if (etat.dit !== undefined) pose.append(rendu(doc, etat.dit));
+  // Gardées dans le dépôt : la partie le dit comme une rangée de réglage, sous son champ.
+  const parPr = cree(doc, "p", PAR_PR);
+  parPr.className = "par-pr";
+  pose.append(champ, parPr, ...rendu(doc, etat, ouvrir));
   return pose;
 }
 
 // --- Ses réglages ----------------------------------------------------------------------
 
-// Le calibrage : le modèle et l'effort, choisis ensemble — vides tous deux, le dépôt n'en dit plus rien.
+// Le calibrage : le modèle et l'effort, choisis ensemble — vides tous deux, le dépôt n'en dit plus rien. Il s'applique
+// au `change` d'une liste, dès que les deux disent un calibrage autre que celui en vigueur ; l'un sans l'autre attend.
 /**
  * @param {Fabrique} doc
- * @param {{ reglage: Reglage, etat: Etat | undefined, valeurs: { modeles: readonly string[], efforts: readonly string[] }, choisir: (choisi: string) => void, changer: (calibrage: Calibrage) => void }} options
+ * @param {{ reglage: Reglage, etat: Etat | undefined, valeurs: { modeles: readonly string[], efforts: readonly string[] }, choisir: (choisi: string) => void, changer: (calibrage: Calibrage) => void, ouvrir?: (url: string) => void }} options
  */
-function ligneDuCalibrage(doc, { reglage, etat, valeurs, choisir, changer }) {
-  const rangee = cree(doc, "div");
-  rangee.className = "plafond";
-  rangee.dataset.cle = reglage.cle;
-  const nom = cree(doc, "span", reglage.nom);
-  nom.className = "nom";
+function ligneDuCalibrage(doc, { reglage, etat, valeurs, choisir, changer, ouvrir }) {
   const lu = /** @type {Calibrage | null} */ (reglage.valeur);
-  const valeur = cree(doc, "p");
-  valeur.className = "valeur";
   const dite = cree(doc, "strong", lu === null ? "not set" : `${lu.model} / ${lu.effort}`);
   dite.className = "mono";
   const source = cree(doc, "small", lu === null ? "the station's, if any" : "in the repository");
   source.className = "source";
-  valeur.append(dite, source);
   const occupe = etat?.enCours === true;
   const [modeleChoisi, effortChoisi] = etat?.choisi === undefined ? [lu?.model ?? "", lu?.effort ?? ""] : etat.choisi.split(" ");
   /** @param {string} invite @param {readonly string[]} liste @param {string} choisie */
@@ -322,39 +327,30 @@ function ligneDuCalibrage(doc, { reglage, etat, valeurs, choisir, changer }) {
     if ((m === "") !== (e === "")) return false;
     return lu === null ? m !== "" : m !== lu.model || e !== lu.effort;
   };
-  const bouton = boutonAction(doc, occupe ? "saving…" : "save", () => {
-    if (change()) changer({ model: modele.value, effort: effort.value });
-  });
-  bouton.className = "action enregistrer-le-plafond";
-  /** @type {any} */
-  const clic = bouton.children[0];
-  const suivre = () => {
-    if (clic !== undefined) clic.disabled = occupe || !change();
-  };
-  if (clic !== undefined) clic.title = "writes .claude/brigade/projet.json on the project's integration branch, on GitHub";
   for (const liste of [modele, effort]) {
     liste.addEventListener("change", () => {
       choisir(`${modele.value} ${effort.value}`);
-      suivre();
+      if (!occupe && change()) changer({ model: modele.value, effort: effort.value });
     });
   }
-  suivre();
-  const champ = cree(doc, "p");
-  champ.className = "champ";
-  champ.append(modele, effort, bouton, survol(doc, "Both chosen together: one without the other makes the start be refused. Both emptied, the repository no longer sets it."));
-  rangee.append(nom, valeur, champ);
-  if (etat?.dit !== undefined) rangee.append(rendu(doc, etat.dit));
-  return rangee;
+  return rangeeDeReglage(doc, {
+    nom: reglage.nom,
+    cle: reglage.cle,
+    valeur: [dite, source],
+    controle: [modele, effort, survol(doc, "Both chosen together: one without the other makes the start be refused, and is not proposed. Both emptied, the setting's removal is proposed.")],
+    depot: true,
+    dessous: ditDuPlafond(doc, etat, (valeur) => `${valeur.model} / ${valeur.effort}`, ouvrir),
+  });
 }
 
 // Les réglages : le calibrage, puis les trois nombres, chacun comme un plafond de durée. Celui que le closer sur GitHub
 // ne lit pas encore le dit, la raison au survol.
 /**
  * @param {Fabrique} doc @param {Lecture["reglages"] | undefined} reglages
- * @param {{ etats: ReadonlyMap<string, Etat>, valeurs: { modeles: readonly string[], efforts: readonly string[] }, choisir: (cle: string, choisi: string) => void, changer: (cle: string, saisie: string | Calibrage) => void }} options
+ * @param {{ etats: ReadonlyMap<string, Etat>, valeurs: { modeles: readonly string[], efforts: readonly string[] }, choisir: (cle: string, choisi: string) => void, changer: (cle: string, saisie: string | Calibrage) => void, ouvrir: (url: string) => void }} options
  */
-function sesReglages(doc, reglages, { etats, valeurs, choisir, changer }) {
-  const pose = partie(doc, REGLAGES, "Kept in the project's repository (.claude/brigade/projet.json): saved here, on its integration branch, the station applies it at its next fetch. Empty, the setting is removed from the repository.");
+function sesReglages(doc, reglages, { etats, valeurs, choisir, changer, ouvrir }) {
+  const pose = partie(doc, REGLAGES, REGLAGES_AIDE);
   pose.dataset.partie = "reglages";
   if (reglages === undefined) {
     pose.append(cree(doc, "p", "reading the closer's settings…"));
@@ -367,11 +363,11 @@ function sesReglages(doc, reglages, { etats, valeurs, choisir, changer }) {
   for (const reglage of reglages.liste) {
     const etat = etats.get(reglage.cle);
     if (reglage.cle === "calibration") {
-      pose.append(ligneDuCalibrage(doc, { reglage, etat, valeurs, choisir: (choisi) => choisir(reglage.cle, choisi), changer: (calibrage) => changer(reglage.cle, calibrage) }));
+      pose.append(ligneDuCalibrage(doc, { reglage, etat, valeurs, choisir: (choisi) => choisir(reglage.cle, choisi), changer: (calibrage) => changer(reglage.cle, calibrage), ouvrir }));
       continue;
     }
     const plafond = /** @type {any} */ ({ cle: reglage.cle, nom: reglage.nom, unite: reglage.unite, entier: true, duree: false, defaut: reglage.defaut, valeur: reglage.valeur });
-    const rangee = poserUnPlafond(doc, { plafond, etat, choisir: (choisi) => choisir(reglage.cle, choisi), changer: (saisie) => changer(reglage.cle, saisie) });
+    const rangee = poserUnPlafond(doc, { plafond, etat, choisir: (choisi) => choisir(reglage.cle, choisi), changer: (saisie) => changer(reglage.cle, saisie), ouvrir });
     // La condition de départ se lit en cooks en vol : « 1 », c'est aucun.
     if (reglage.cle === "cooksBelow") {
       const [dite, source] = rangee.children[1]?.children ?? [];
@@ -392,12 +388,13 @@ function sesReglages(doc, reglages, { etats, valeurs, choisir, changer }) {
 
 // --- Le bloc -----------------------------------------------------------------------------
 
-// Le bloc entier. `lecture` indéfinie : la première lecture est en route ; chaque partie dit la sienne.
+// Le bloc entier. `lecture` indéfinie : la première lecture est en route ; chaque partie dit la sienne. `ouvrir` ouvre
+// une passe ou sa PR ; `ouvrirLaPr`, la PR qu'un réglage changé a ouverte.
 /**
  * @param {Fabrique} doc
- * @param {{ lecture?: Lecture, etats?: ReadonlyMap<string, Etat>, verifications?: EtatDesVerifications, valeurs?: { modeles: readonly string[], efforts: readonly string[] }, candidatsOuverts?: boolean, basculerCandidats?: (ouvert: boolean) => void, ouvrir?: (url: string) => void, choisir?: (cle: string, choisi: string) => void, changer?: (cle: string, saisie: string | Calibrage) => void, taper?: (saisie: string) => void, changerVerification?: (geste: "ajouter" | "retirer", saisie: string) => void }} [options]
+ * @param {{ lecture?: Lecture, etats?: ReadonlyMap<string, Etat>, verifications?: EtatDesVerifications, valeurs?: { modeles: readonly string[], efforts: readonly string[] }, candidatsOuverts?: boolean, basculerCandidats?: (ouvert: boolean) => void, ouvrir?: (url: string) => void, ouvrirLaPr?: (url: string) => void, choisir?: (cle: string, choisi: string) => void, changer?: (cle: string, saisie: string | Calibrage) => void, taper?: (saisie: string) => void, changerVerification?: (geste: "ajouter" | "retirer", saisie: string) => void }} [options]
  */
-export function poserBlocCloser(doc, { lecture, etats = new Map(), verifications = {}, valeurs = { modeles: [], efforts: [] }, candidatsOuverts = false, basculerCandidats, ouvrir = () => {}, choisir = () => {}, changer = () => {}, taper = () => {}, changerVerification = () => {} } = {}) {
+export function poserBlocCloser(doc, { lecture, etats = new Map(), verifications = {}, valeurs = { modeles: [], efforts: [] }, candidatsOuverts = false, basculerCandidats, ouvrir = () => {}, ouvrirLaPr = ouvrir, choisir = () => {}, changer = () => {}, taper = () => {}, changerVerification = () => {} } = {}) {
   const bloc = doc.createElement("section");
   bloc.className = "bloc-du-projet";
   bloc.dataset.bloc = "closer";
@@ -409,8 +406,8 @@ export function poserBlocCloser(doc, { lecture, etats = new Map(), verifications
     titre,
     ceQuIlAFait(doc, lecture?.passes, ouvrir),
     ceQuIlVerifie(doc, lecture?.passes, { ouverts: candidatsOuverts, ...(basculerCandidats === undefined ? {} : { basculer: basculerCandidats }) }),
-    ceQuIlVerifieEnPlus(doc, lecture?.verifications, verifications, { taper, changer: changerVerification }),
-    sesReglages(doc, lecture?.reglages, { etats, valeurs, choisir, changer }),
+    ceQuIlVerifieEnPlus(doc, lecture?.verifications, verifications, { taper, changer: changerVerification, ouvrir: ouvrirLaPr }),
+    sesReglages(doc, lecture?.reglages, { etats, valeurs, choisir, changer, ouvrir: ouvrirLaPr }),
   );
   return bloc;
 }

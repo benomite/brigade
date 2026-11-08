@@ -1079,10 +1079,12 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     coche.checked = cochee;
     coche.declencher("change");
   };
+  // Le plafond tapé, puis le champ quitté : il s'applique à son `change` — il n'y a pas de « Save ».
   const plafond = (forme: Faux, cooks: string) => {
     const champ = forme.dessous("input").find(({ type }) => type === "number") ?? assert.fail("pas de plafond");
     champ.value = cooks;
     champ.declencher("input");
+    champ.declencher("change");
   };
   const sans = <T extends { nom?: string }>(liste: T[], nom: string) => liste.filter((station) => station.nom !== nom);
 
@@ -1104,16 +1106,19 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     // Ce que les autres stations du projet fournissent est offert aussi, décoché.
     assert.ok(forme.dessous("input").some(({ ariaLabel, checked }) => (ariaLabel === "raisonnement" || ariaLabel.startsWith("raisonnement:")) && !checked));
 
-    // Régler : un autre plafond, une capacité de plus.
+    // Aucun « Save » : chaque contrôle s'applique dès qu'il change.
+    assert.equal(forme.dessous("button").some(({ textContent }) => textContent === "Save"), false);
+    // Régler : un autre plafond, puis une capacité de plus — chacun part aussitôt, la déclaration entière avec lui.
     plafond(forme, "4");
-    cocher(forme, "raisonnement", true);
-    bouton(forme, "Save").click();
+    await fini();
+    assert.match(reglage(section(vue, editee), "cooks").textContent, /saved; the other stations are unchanged/);
+    cocher(formulaire(vue, editee), "raisonnement", true);
     await fini();
     const reglee = lues(vue);
     assert.deepEqual(reglee.find(({ nom }) => nom === editee), { ...avant.find(({ nom }) => nom === editee), plafond: "4 cooks at once", capacites: [...station.fournit, "raisonnement"].join(", ") });
     assert.deepEqual(sans(reglee, editee), sans(avant, editee));
     assert.deepEqual(sans(await declaree(), editee), sans(auJournal, editee));
-    assert.match(section(vue, editee).dessous("p").at(-1)?.textContent ?? "", /saved; the other stations are unchanged/);
+    assert.match(reglage(section(vue, editee), "capacites").textContent, /saved; the other stations are unchanged/);
 
     // La retirer : rien ne part avant la confirmation.
     cocher(section(vue, editee), `${editee} serves calculus`, false);
@@ -1140,12 +1145,14 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     const vue = jouee.element("rail");
     const forme = formulaire(vue, "box/claude");
     assert.equal(reglage(forme, "sert").dessous("input")[0]?.disabled, true);
-    // Aucune capacité cochée : refusé avant de partir, rien n'est écrit.
+    // Aucune capacité cochée : refusé avant de partir, rien n'est écrit ; le refus se lit sous sa rangée, et la case
+    // revient à la valeur en vigueur.
     cocher(forme, "code", false);
-    bouton(forme, "Save").click();
     await fini();
-    const refus = formulaire(vue, "box/claude").dessous("p").find(({ className }) => className === "indisponible");
+    const capacites = reglage(formulaire(vue, "box/claude"), "capacites");
+    const refus = capacites.children.find(({ className }) => className === "dit refus");
     assert.match(refus?.textContent ?? "", /provides at least one capability/);
+    assert.equal(capacites.dessous("input").find(({ ariaLabel }) => ariaLabel === "code" || ariaLabel.startsWith("code:"))?.checked, true);
     assert.deepEqual((await declaree()).map(({ fournit }) => fournit), [["code"]]);
   });
 });

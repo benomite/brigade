@@ -1,43 +1,6 @@
-/* Les stations contributrices sous Settings (ticket 2936) : une rangée par station, la même grille que les humains — son
-   nom, son compte, « refused » si elle l'est, et le bouton du geste ; le refus du dernier geste dessous, en une ligne (composants/ligne-erreur). Ni
-   cadre ni titre de plus : le groupe du projet les porte. */
+/* Les stations contributrices sous Settings (ticket 2936) : une rangée de réglage par station (composants/reglage, ticket
+   2920) — son nom, son compte, « refused » si elle l'est, et le bouton du geste ; le refus du dernier geste dessous, en une
+   ligne (composants/ligne-erreur). Ni cadre ni titre de plus : le groupe du projet les porte. */
 #etat #stations-contributrices {
   margin: 0;
-}
-#etat .stations-contributrices > :is(.tete, .station-contributrice) {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 180px) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  margin: 0;
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-#etat .stations-contributrices .tete > .nom {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  color: var(--discret);
-}
-#etat .stations-contributrices .station-contributrice > .nom {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-#etat .stations-contributrices .station-contributrice > .compte,
-#etat .stations-contributrices .station-contributrice > .etat {
-  color: var(--discret);
-}
-#etat .stations-contributrices .station-contributrice.refusee > .etat {
-  font-weight: 600;
-}
-#etat .stations-contributrices .action > button {
-  white-space: nowrap;
-}
-#etat .stations-contributrices .station-contributrice > [data-ligne="erreur"] {
-  grid-column: 1 / -1;
-}
-@media (max-width: 720px) {
-  #etat .stations-contributrices > :is(.tete, .station-contributrice) {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

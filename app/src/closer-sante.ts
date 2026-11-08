@@ -1,7 +1,8 @@
 // Le closer d'un projet, sur Kitchen > Health (#2491, épique #2484) : ce qu'il a fait — ses passes et ce que chacune a
 // retiré —, ce qu'il vérifie en premier sur ce projet, ce que le chef lui demande de vérifier en plus, et ses réglages.
 // Tout se lit et s'écrit sur GitHub, par l'API REST et le jeton du `gh` de ce poste, comme les plafonds de durée
-// (plafonds-duree.ts) : ni box. Ses réglages, gardés dans `projet.json`, s'y proposent par une pull request (#2920).
+// (plafonds-duree.ts) : ni box. Ses réglages, gardés dans `projet.json`, et ses vérifications en plus, gardées dans
+// `closer-checks.md`, s'y proposent par une pull request (#2920).
 //
 // - **Ses passes** : le closer passe sur GitHub (#2361, runtime/src/closer-github-passe/) — une passe est une issue
 //   `fire`, au titre `Closing pass on …` et au corps marqué `<!-- brigade:fermeture sha=<base> -->`, qu'un cook cuit
@@ -82,7 +83,12 @@ export type RenduDuReglage =
   | ({ propose: string; cle: CleDuCloser; valeur: number | Calibrage | null } & PrOuverte)
   | { fait: string; cle: CleDuCloser; valeur: number | Calibrage | null }
   | { refus: string; detail?: string };
-export type RenduDesVerifications = { fait: string; liste: string[] } | { refus: string; detail?: string };
+// Ce qu'un geste sur les vérifications a rendu : la PR qui le propose — la vérification, et la liste en vigueur, qui ne
+// change qu'au merge —, la liste déjà telle quelle, ou pourquoi rien n'a changé.
+export type RenduDesVerifications =
+  | ({ propose: string; geste: "ajouter" | "retirer"; verification: string; liste: string[] } & PrOuverte)
+  | { fait: string; liste: string[] }
+  | { refus: string; detail?: string };
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -267,8 +273,9 @@ export function verificationProposee(saisie: unknown): { verification: string } 
   return { verification: texte };
 }
 
-// Ajoute une vérification au fichier du dépôt — ou en retire une. Le fichier est relu pour son `sha` ; sans lui, il est
-// créé. Une vérification déjà là n'est pas ajoutée deux fois.
+// Ajoute une vérification au fichier du dépôt — ou en retire une —, proposé par une pull request vers la branche
+// d'intégration (#2920) : rien n'y change avant le merge, et la liste rendue reste celle en vigueur. Le fichier est relu
+// pour son `sha` ; sans lui, il est créé. Une vérification déjà là n'est pas ajoutée deux fois.
 export async function changerLesVerifications({ depot, branche, geste, saisie, client }: { depot: string; branche: string | null; geste: unknown; saisie: unknown; client: ClientDeLaPriorite }): Promise<RenduDesVerifications> {
   if (geste !== "ajouter" && geste !== "retirer") return { refus: "nothing was changed: the action is neither to add nor to remove a check" };
   const propose = verificationProposee(saisie);
@@ -284,16 +291,11 @@ export async function changerLesVerifications({ depot, branche, geste, saisie, c
   if (geste === "ajouter" && deja) return { fait: "unchanged: the closer already has this check", liste: avant };
   if (geste === "retirer" && !deja) return { fait: "unchanged: the closer does not have this check", liste: avant };
   const apres = geste === "ajouter" ? [...avant, propose.verification] : avant.filter((verification) => verification !== propose.verification);
+  const dit = `${geste === "ajouter" ? "add" : "remove"} a check of the closer`;
   try {
-    const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${VERIFICATIONS}`, {
-      message: `brigade: ${geste === "ajouter" ? "add" : "remove"} a check of the closer (from the app, Kitchen > Health)`,
-      content: Buffer.from(texteDesVerifications(apres), "utf8").toString("base64"),
-      ...(lu.sha === null ? {} : { sha: lu.sha }),
-      ...(branche === null ? {} : { branch: branche }),
-    });
-    if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${VERIFICATIONS}`, ecrit);
+    const ouverte = await proposerLeFichier(client, depot, branche, { chemin: VERIFICATIONS, texte: texteDesVerifications(apres), sha: lu.sha, dit, ou: "Kitchen > Health" });
+    return { propose: PROPOSE, ...ouverte, geste, verification: propose.verification, liste: avant };
   } catch (erreur) {
-    return { refus: `nothing was changed: GitHub did not write ${VERIFICATIONS}`, detail: message(erreur) };
+    return { refus: `nothing was proposed: GitHub did not open the pull request of ${VERIFICATIONS}`, detail: message(erreur) };
   }
-  return { fait: geste === "ajouter" ? "added in the repository" : "removed from the repository", liste: apres };
 }

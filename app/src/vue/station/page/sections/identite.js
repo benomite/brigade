@@ -1,7 +1,8 @@
 // @ts-check
 // La section « Identity » de la page d'une station (ticket 2642, épique 2497) : son nom, sa machine, ses cœurs, sa
 // version, et où en est sa mise à jour — une ligne chacun, avec la marque de son niveau (`contexte.niveau`, que la coque
-// pose). Tout cela vit sur la machine : le niveau de chaque ligne est « this machine ».
+// pose). Tout cela vit sur la machine : le niveau de chaque ligne est « this machine », jamais une PR. Le nom, la machine,
+// les cœurs et la version se lisent seulement : leurs rangées n'ont pas de contrôle.
 // - Cet ordinateur : la mise à jour se fait d'ici — « Update now » quand la station est en retard et que la coque
 //   donne le geste (`identite.mettreAJour`) ; à jour, la ligne le dit.
 // - Une autre station : la section se montre sans se régler (`contexte.lectureSeule`) — jamais de bouton, la note
@@ -9,6 +10,7 @@
 // - Ce que la station n'a pas dit (cœurs, version) se dit « unknown », en une ligne, jamais une case vide.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, et rend un élément.
 
+import { rangeeDeReglage } from "../../../composants/reglage/reglage.js";
 import { gesteOuNote } from "../NoteSurPlace.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
@@ -51,18 +53,9 @@ export function poserSection(doc, contexte) {
   return racine;
 }
 
-// Une ligne : son nom, la marque de son niveau (posée par la coque), sa valeur, et son geste s'il y en a un.
+// Une ligne : une rangée de réglage (composants/reglage, ticket 2920) — son nom, la marque de son niveau (posée par la
+// coque), sa valeur, et son geste s'il y en a un ; sans geste, une rangée qui se lit seulement.
 /** @param {Fabrique} doc @param {any} marque @param {string} nom @param {string} valeur @param {any} [geste] */
 function ligne(doc, marque, nom, valeur, geste) {
-  const racine = doc.createElement("div");
-  racine.className = "reglage";
-  racine.dataset.reglage = nom;
-  const titre = doc.createElement("strong");
-  titre.textContent = nom;
-  const texte = doc.createElement("span");
-  texte.className = "valeur";
-  texte.textContent = valeur;
-  racine.append(titre, marque, texte);
-  if (geste !== undefined) racine.append(geste);
-  return racine;
+  return rangeeDeReglage(doc, { nom, cle: nom, niveau: marque, valeur: [valeur], controle: geste === undefined ? [] : [geste] });
 }

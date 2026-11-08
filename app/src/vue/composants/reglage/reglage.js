@@ -19,20 +19,21 @@ import { ligneErreur } from "../ligne-erreur/ligne-erreur.js";
  */
 
 // La ligne d'une rangée gardée dans le dépôt : changer la valeur ouvre une PR, qui vaut une fois mergée.
-export const PAR_PR = "kept in the repository: a change opens a pull request — it applies once merged";
+export const PAR_PR = "a change opens a pull request, applied once merged";
 // Ce qu'une rangée gardée dans le dépôt dit de la PR qu'elle a ouverte.
 export const PROPOSE = "proposed in";
 
 /**
  * Une rangée. `niveau` : la marque de son niveau (niveauDe) — « project » la dit gardée dans le dépôt, sauf `depot`
  * explicite. `valeur` : ce qui est en vigueur. `controle` : ce qui la change, et s'applique dès qu'il change. `dessous` :
- * ce que le contrôle a ouvert ou rendu (une confirmation, `ditDuReglage`).
+ * ce que le contrôle a ouvert ou rendu (une confirmation, `ditDuReglage`). `classe` : le crochet que l'écran et ses tests
+ * gardent pour retrouver la rangée (il ne porte aucune règle de rangée).
  * @param {Fabrique} doc
- * @param {{ nom: string, cle?: string, niveau?: any, valeur?: (any | string)[], controle?: any[], depot?: boolean, dessous?: any[] }} reglage
+ * @param {{ nom: string, cle?: string, niveau?: any, valeur?: (any | string)[], controle?: any[], depot?: boolean, dessous?: any[], classe?: string }} reglage
  */
-export function rangeeDeReglage(doc, { nom, cle, niveau, valeur = [], controle = [], depot, dessous = [] }) {
+export function rangeeDeReglage(doc, { nom, cle, niveau, valeur = [], controle = [], depot, dessous = [], classe }) {
   const rangee = doc.createElement("div");
-  rangee.className = "reglage";
+  rangee.className = classe === undefined || classe === "" ? "reglage" : `reglage ${classe}`;
   if (cle !== undefined) rangee.dataset.cle = cle;
   const nomme = doc.createElement("span");
   nomme.className = "nom";
@@ -57,11 +58,12 @@ export function rangeeDeReglage(doc, { nom, cle, niveau, valeur = [], controle =
 }
 
 // Ce que le dernier changement d'une rangée a rendu, sous elle — rien quand il n'a rien rendu. La PR ouverte se dit avec
-// le bouton qui l'ouvre ; un refus est la ligne d'erreur (composants/ligne-erreur), son détail au survol.
+// le bouton qui l'ouvre ; un refus est la ligne d'erreur (composants/ligne-erreur), son détail au survol, lue d'office aux
+// lecteurs d'écran : c'est l'échec du geste qu'on vient de faire.
 /** @param {Fabrique} doc @param {Dit | undefined} dit @param {{ ouvrir?: (url: string) => void }} [gestes] @returns {any[]} */
 export function ditDuReglage(doc, dit, { ouvrir } = {}) {
   if (dit === undefined) return [];
-  if ("refus" in dit) return dit.refus === "" ? [] : [ligneErreur(doc, dit.refus, dit.detail ?? "", { classe: "dit refus" })];
+  if ("refus" in dit) return dit.refus === "" ? [] : [ligneErreur(doc, dit.refus, dit.detail ?? "", { classe: "dit refus", alerte: true })];
   const ligne = doc.createElement("p");
   if ("enCours" in dit) {
     ligne.className = "dit en-cours";

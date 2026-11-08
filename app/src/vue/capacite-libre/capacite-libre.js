@@ -1,8 +1,9 @@
 // @ts-check
 // Une capacité hors du catalogue, dans « What it provides » (ticket 1959, épique 1950) : sous les cases du formulaire
 // d'une station, un champ et « Add ». Le chef y tape une capacité que ni le catalogue de la machine ni aucune autre
-// station n'offre — celle qu'un ticket attend en WAITING. Ajoutée, elle devient une case, cochée, du formulaire ;
-// « Save » la déclare avec les autres (stations-declarees.js), et le ticket qui l'attendait revient seul sur le rail.
+// station n'offre — celle qu'un ticket attend en WAITING. Ajoutée, elle devient une case, cochée, du formulaire, et elle
+// s'applique aussitôt, comme une case cochée : la station la déclare avec les autres (stations-declarees.js,
+// `controleDesCapacites`), et le ticket qui l'attendait revient seul sur le rail.
 // Déclarée, elle est offerte aux autres stations comme ce qu'elles fournissent (`choixDeCapacites`).
 // Un nom vide, illisible ou déjà dans le formulaire est refusé en une ligne sous le champ : rien n'est ajouté, rien
 // n'est envoyé.
@@ -18,7 +19,7 @@ import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 export const AJOUTER = "Add";
 export const INVITE = "a capability not listed";
-export const AIDE = "A capability no case offers yet — the one a ticket in WAITING awaits: type its name, add it, then save. The tickets waiting for it go back on the rail.";
+export const AIDE = "A capability no case offers yet — the one a ticket in WAITING awaits: type its name and add it — it is declared at once. The tickets waiting for it go back on the rail.";
 
 // La règle du nom tapé, celle du runtime (runtime/src/capacite-libre/capacite-libre.ts), que la vue ne peut pas
 // importer : elle ne lit pas de TypeScript. Le test de la vue les tient identiques

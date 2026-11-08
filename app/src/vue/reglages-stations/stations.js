@@ -11,6 +11,7 @@
 import { boutonAction, survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { rangeeDeReglage } from "../composants/reglage/reglage.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ station: string, login: string | null, refused: boolean }} Station */
@@ -39,21 +40,16 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-// Une rangée : le nom de la station, son compte, « refused » si elle l'est, et le bouton du geste contraire ; dessous, le
-// refus du dernier geste, en une ligne.
+// Une rangée de réglage (composants/reglage, ticket 2920) : le nom de la station, son compte et « refused » si elle l'est,
+// et le bouton du geste contraire, qui part tout de suite ; dessous, le refus du dernier geste, en une ligne.
 /**
  * @param {Fabrique} doc
  * @param {{ rangee: Rangee, gestes: { changer: (rangee: Rangee) => void } }} options
  */
 export function poserUneStation(doc, { rangee, gestes }) {
-  const racine = cree(doc, "div");
-  racine.className = rangee.refused ? "station-contributrice refusee" : "station-contributrice";
-  racine.dataset.station = rangee.station;
-  const nom = cree(doc, "strong", rangee.station);
-  nom.className = "nom mono";
   const compte = cree(doc, "span", rangee.login === null ? "" : `@${rangee.login}`);
   compte.className = "compte";
-  const etat = cree(doc, "span", rangee.refused ? MOTS.refusee : "");
+  const etat = cree(doc, "strong", rangee.refused ? MOTS.refusee : "");
   etat.className = "etat";
   const geste = boutonAction(doc, rangee.refused ? MOTS.reaccepter : MOTS.refuser, () => gestes.changer(rangee));
   geste.className = "action changer";
@@ -63,10 +59,15 @@ export function poserUneStation(doc, { rangee, gestes }) {
     bouton.disabled = rangee.enCours === true;
     bouton.ariaLabel = `${rangee.refused ? "accept again" : "refuse"} ${rangee.station}`;
   }
-  racine.append(nom, compte, etat, geste);
-  if (rangee.refus !== undefined) {
-    racine.append(ligneErreur(doc, rangee.refus.ligne, rangee.refus.detail, { classe: "refus", alerte: true }));
-  }
+  const racine = rangeeDeReglage(doc, {
+    nom: rangee.station,
+    classe: rangee.refused ? "station-contributrice refusee" : "station-contributrice",
+    valeur: [compte, etat],
+    controle: [geste],
+    dessous: rangee.refus === undefined ? [] : [ligneErreur(doc, rangee.refus.ligne, rangee.refus.detail, { classe: "refus", alerte: true })],
+  });
+  racine.dataset.station = rangee.station;
+  if (racine.children[0] !== undefined) racine.children[0].className = "nom mono";
   return racine;
 }
 
@@ -80,12 +81,8 @@ export function poserLesStations(doc, { etat, gestes }) {
   const section = cree(doc, "section");
   section.className = "stations-contributrices";
   section.ariaLabel = "The project's contributor stations";
-  const tete = cree(doc, "div");
-  tete.className = "tete";
-  const titre = cree(doc, "span", TITRE);
-  titre.className = "nom";
-  titre.append(survol(doc, MOTS.aide));
-  tete.append(titre);
+  const tete = rangeeDeReglage(doc, { nom: TITRE, classe: "tete" });
+  tete.children[0]?.append(survol(doc, MOTS.aide));
   section.append(tete);
   if (etat.lecture === "refus") {
     section.append(ligneErreur(doc, etat.ligne, etat.detail));

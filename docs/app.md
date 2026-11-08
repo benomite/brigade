@@ -81,8 +81,11 @@ station that has not announced itself (on hover: it takes no ticket until it doe
 added from the app, where it is stuck — `not received by the station`, `waiting for your authorization on GitHub`,
 `refused`, `not reached` —, what you do about it on hover, `check again` (it rereads GitHub) and the authorization button
 it waits for. **In each block, what the station provides** (`Provides code raisonnement`, then `edit`, below) and **its
-cooks at once**: the cap its runtime gives, with `set the cap` (below); for a station whose runtime does not give it yet, the
-number it declares (`Cooks at once: 2`) and `set the cap`, which opens its form, in the block. Without the declaration read, what it
+cooks at once**: a settings row (`composants/reglage`, #2920) — its name and level, the cap its runtime gives, else the
+number it declares; for a declared station, a number field that applies as soon as it changes (Enter, or leaving the field):
+it sends the station's whole declaration with that cap in it, through the same gesture as its form (below), `applying…`
+under the row meanwhile, then what was done or the refusal, the field back to the value in force. While the station's form
+is open, the row is read-only — the form has the field —, and so it is without the declaration read. Without the declaration read, what it
 provides comes from `facts` (`fournit`, what the journal declares of it, #1830), with no `edit`; only a station the
 journal does not declare yet says `not declared yet`. An absent station says why: `not signed in
 yet`, or `silent since <time>`. On a narrow screen, the blocks are read-only: no `edit`, no
@@ -98,18 +101,24 @@ come from `installation stations --json`, which the installation check reads (on
 the first read, one line says `not read yet`; a project that declares no station says `no station declared: no cook leaves
 for this project`, never a blank. On a narrow screen, the block sits under the stations' lines. The module is
 `app/src/vue/stations-declarees.js`.
-**Each row has `edit`** (#1510) — so does each station's block (#1786): under the row, its form — `Cooks at once`, prefilled; `What it provides`, one checkbox per
+**Each row has `edit`** (#1510) — so does each station's block (#1786): under the row, its form — two settings rows
+(`composants/reglage`, #2920), each with its `this machine` level: `Cooks at once`, prefilled; `What it provides`, one checkbox per
 capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
 this computer can declare, unticked. Under the boxes (#1959), a field and `Add` take a capability that no box offers — the one a
 ticket in WAITING awaits (``awaiting a station that provides `<capability>` ``): its name is typed (trimmed, inner spaces turned into
-hyphens, the backquotes of a name copied from a card dropped), and it becomes a ticked box of the form; an empty name, one the
-runtime would not read, or one already in the form is refused in one line under the field, and nothing is added. Once saved, the
-station provides it, the other stations' forms offer it, and the ticket that awaited it goes back on the rail on its own. The rule
-for the typed name is `runtime/src/capacite-libre/`; the view applies the same one (`app/src/vue/capacite-libre/`), a test keeps
-them identical. `Save`, recommended, changes that station only, by the runtime's single-station commands run through the project's
-station (`installation stations set`): the others stay as it wrote them. `Remove` asks first,
-its price in one line, then runs `installation stations remove`; the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
-the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
+hyphens, the backquotes of a name copied from a card dropped), and it becomes a ticked box of the form, applied at once like
+a ticked box; an empty name, one the runtime would not read, or one already in the form is refused in one line under the
+field, and nothing is added or sent. Once applied, the station provides it, the other stations' forms offer it, and the
+ticket that awaited it goes back on the rail on its own. The rule for the typed name is `runtime/src/capacite-libre/`; the
+view applies the same one (`app/src/vue/capacite-libre/`), a test keeps them identical. **There is no Save button**: the
+number applies when it changes (Enter, or leaving the field), each box as soon as it is ticked or unticked; each change
+sends the station's whole declaration with that one value changed, and changes that station only, by the runtime's
+single-station commands run through the project's station (`installation stations set`): the others stay as it wrote them.
+The declaration lives on the project's main station, not in the repository: no change opens a pull request. While a change
+runs, `applying…` reads under its row and the form's controls wait; then the row says what was done, or the refusal in one
+line (the station's answer on hover), the control back to the value in force. The form stays open; `Close` folds it.
+`Remove` asks first, its price in one line, then runs `installation stations remove`; the project's only station cannot be
+removed. Then the stations are read again, and the rows follow; one line under the station's row says it was removed. It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
 ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
@@ -432,18 +441,24 @@ lines, each the same row as in Settings — the setting's name and its **level**
 `app/src/vue/niveaux.js`), the value in force, and its control:
 
 - **cooks at once** — a number; **what it provides** — the capability boxes of "edit" on Cooks, and a field for one no
-  box offers. **Save** (recommended, greyed until something changed) sends both to the project's declaration of its
-  stations, the same gesture as "edit" on Cooks (`changerUneStation`); the re-read declaration then shows the new values.
+  box offers. There is no Save button (#2920): the number applies when it changes (Enter, or leaving the field), each box
+  as soon as it is ticked or unticked, an added capability as soon as it is added. Each change sends the station's whole
+  declaration with that one value changed, the same gesture as "edit" on Cooks (`changerUneStation`); `applying…` reads
+  under its row and the controls wait meanwhile, then the row says what was done, or the refusal in one line (its detail on
+  hover) with the control back to the value in force. The re-read declaration then shows the new values.
 - **ordinary tickets** — `taken` or `not taken`. On the station that runs on this computer, the box is this computer's
-  option, the same as Settings (`reglerOrdinaires`, its cooks limit kept): it writes at once. On a box station, `taken`,
+  option, the same as Settings (`reglerOrdinaires`, its cooks limit kept): it writes at once, `applying…` under the row
+  meanwhile, a refusal under it. On a box station, `taken`,
   greyed — a box station takes every ticket it can cook. On a remote station, what `facts` says of it, greyed, the
   reason on hover; `not said` when its main station does not say it.
 - **serves this project** — ticked for every declared station. Unticking asks first, with what it costs in one line
   (`Stop serving parade on pc/claude?`); confirmed, the station is removed from the declaration. The project's only
   station cannot be unticked, the reason on hover.
 
-Nothing is stored by the block: each change goes through the storage that already existed, and a reload of the app shows
-it as written. Captures: `docs/captures/2488/`.
+Each line is the app's settings row (`rangeeDeReglage`, `app/src/vue/composants/reglage/reglage.js`). Every one of these
+settings lives on a station, none in the project's repository: no change opens a pull request. Nothing is stored by the
+block: each change goes through the storage that already existed, and a reload of the app shows it as written. Captures:
+`docs/captures/2488/`.
 
 *Code: `app/src/vue/projet/stations/ReglagesStation.js`, `reglagesDesStations` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/reglages-station.test.ts`.*
@@ -452,9 +467,11 @@ it as written. Captures: `docs/captures/2488/`.
 
 At the bottom of the **Stations** tab, under **Station settings**, the **Local station** block shows what only this computer's station has, titled
 with its name and `this Mac` (`this PC`), its lines in a card like those of **Station settings** above it. The other
-stations have none of it. Each setting is one line, as in Settings —
+stations have none of it. Each setting is the app's settings row (`composants/reglage`, #2920) —
 its name with its level label (`this machine` for all of them, `app/src/vue/niveaux.js`), its value, what it implies on
-hover, its one control, and under it what the control returned:
+hover, its one control, and under it what the control returned. A control applies as soon as it changes — no Save button —:
+`applying…` under its row while the change runs, both sandbox controls waiting; a refusal in one line under the row that
+changed, the control re-read at the value in force. None of them is kept in the repository: no change opens a pull request.
 
 | Line | Value | Control |
 |---|---|---|
@@ -471,8 +488,9 @@ removes them.
 
 ### The station page, section Identity (#2642, epic #2497)
 
-The **Identity** section of a station's page has one line per fact — `name`, `machine`, `cores`, `version`, `updates` —
-each with its level label (`this machine`, from `app/src/vue/niveaux.js`). What the station has not said reads `unknown`.
+The **Identity** section of a station's page has one settings row per fact (#2920, `composants/reglage/reglage.js`) —
+`name`, `machine`, `cores`, `version`, `updates` — each with its level label (`this machine`, from
+`app/src/vue/niveaux.js`). The first four are read only: their rows have no control. What the station has not said reads `unknown`.
 On this computer, a station that is behind shows **Update now** (recommended); up to date, the line says so. On another
 station the section is read-only: the same lines, never a button.
 
@@ -1450,7 +1468,9 @@ one sentence (#877); below, its faults with their button, the projects the app a
 Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
 `status`), what holds tickets back when it is saturated (memory, processor, value and threshold), no
 field to change it: a station takes as many tickets as it declares places, and its declaration is changed on its machine.
-#1292: the same cap is on each station's line in the Cooks tab — `Cooks at once: 3 at most — 8 cores`, read only. When the station is saturated, one sentence says what holds it (`Saturated on CPU —
+#1292: the same cap is on each station's line in the Cooks tab — the `Cooks at once` settings row, `3 at most — 8 cores` — read only
+while the station's declaration is not read; a declared station's row has the number field that changes its declaration
+(#2920, see "What each declared station provides"). When the station is saturated, one sentence says what holds it (`Saturated on CPU —
 load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
 "‹ All projects" takes you back to the home screen, like the **T** square.
 Under its faults, its sections (#2641, epic #2497), in this order, each under its heading: Identity, Connections,
@@ -1461,12 +1481,17 @@ unavailable`, its detail on hover; the others render. The page knows whether it 
 station the app reads); on another station's page, every section gets `lectureSeule` and shows, without editing, what
 only changes on that machine. Each setting carries its level mark (`NiveauReglage.js`, the one `niveauDe` uses: this
 machine, project, you); no project-level setting appears here — they live in the project's Stations tab (#2484).
-Screens: `docs/captures/2641/`.
+Every setting of the page is the app's single settings row (#2920, `app/src/vue/composants/reglage/reglage.js`): its
+name and level mark, its value, its control. There is no Save button: a field applies when it changes (Enter, or leaving
+it), through the same gesture the section always used (`station/page/appliquer.js`); while it runs the row says
+`applying…` and its controls are disabled, then a refusal is the error line under the row, its detail on hover. All of
+them live on the machine, none in the repository, so no row opens a pull request. Screens: `docs/captures/2641/`.
 Folders and sandbox (#2644, `sections/dossiers-et-bac-a-sable.js`): the clones folder, the worktrees folder, the sandbox
 state (on / off) and the network door — the hosts a cook may reach, each with what opens it on hover — each with the
-`this machine` mark. On this computer's station a folder and the network door change from a field and a button (`save`,
-`open`, `remove`); the change is kept in `station-reglages.json` beside the app file (`app/src/reglages-de-la-station.ts`)
-and read back at every load. On another station the section shows the same, with nothing to change. The station does not
+`this machine` mark. On this computer's station a folder changes from its field, and a host opens from the network
+door's field, as soon as the field changes — no `save` or `open` button; `saved on this machine` then reads under the row.
+Removing a host the chef opened (`remove`) is confirmed inline under the door (`close it` / `keep it open`). The change is
+kept in `station-reglages.json` beside the app file (`app/src/reglages-de-la-station.ts`) and read back at every load. On another station the section shows the same, with nothing to change. The station does not
 read that file yet: it is the app's side of the setting (each setting's hover says so). The sandbox state is read from
 the projects' onboarding: off once a project cooked here continued without it. On another station the section shows
 "not available for this station" — the app reads nothing of a station it does not run. Screens: `docs/captures/2644/`.
@@ -1864,13 +1889,19 @@ last 10, newest first: number, merge date, time, pass. The same empty states as 
 first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
 as the station publishes it), then the durations the
 repository declares — `drift.testsSeconds`, `drift.gatesSeconds` (100 s by default) —, then, folded behind one line
-("Other drift thresholds · 1 set in the repository"), every other `drift.*` threshold of `projet.json`. Each `drift.*`
-cap has a field and **save** (disabled until the value changes; Enter saves too): the app writes it into
-`.claude/brigade/projet.json` on the project's integration branch, on GitHub, with the chef's `gh` token
-(`app/src/plafonds-duree.ts`: the file is read again for its `sha`, only `drift.<key>` changes, a missing file is
-created with `version` and `integrationBranch`); the runtime reads it at its next fetch (`reglages-projet/en-vigueur.ts`).
-An empty field removes the cap from the repository. A value the runtime would refuse (zero, a fraction for a whole
-threshold) writes nothing and says so under the field; GitHub's refusal (a protected branch) too, its detail on hover.
+("Other drift thresholds · 1 set in the repository"), every other `drift.*` threshold of `projet.json`. Each cap is one
+settings row (`composants/reglage`, #2920): no **save** — a `drift.*` field applies on its `change` (left, or Enter) when
+it changes the repository's value. Kept in the repository, its row says `a change opens a pull request, applied once merged`: the app proposes the change by a pull request, on GitHub, with the chef's `gh` token
+(`app/src/plafonds-duree.ts`, `proposerLeFichier`: the file is read again on the integration branch — the repository's
+default branch when the project does not name one — for its `sha`, only `drift.<key>` changes, a missing file is created
+with `version` and `integrationBranch`; a new branch `brigade/setting-…` starts from the integration branch's head, the
+file is written on it, and the PR opens towards the integration branch). While it runs the row says `opening the pull
+request…`; then `150 s proposed in` and a `pull request #<n>` link that opens it in the browser. The value shown stays
+the one in force: the runtime reads the new one at its next fetch once the PR is merged (`reglages-projet/en-vigueur.ts`).
+An empty field proposes the cap's removal (`removal proposed in`). A value the runtime would refuse (zero, a fraction for
+a whole threshold) proposes nothing and says so under the field, what was typed staying in it; a step GitHub refuses
+(reading the branch head, creating the branch, writing the file, opening the PR) is the error line `nothing was proposed`,
+its detail on hover — nothing claims success.
 **The lost-time threshold is not editable here yet**: `lostTimeMaxMin` is not a `drift.*` threshold, the only keys this
 block writes, and the station reads it from its clone's working tree — its row says so, the reason on hover. The caps
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
@@ -1893,15 +1924,21 @@ or by tests only`), the duplicates, the drift of the latest merges (its longest 
 ticket times (`stable since the previous pass`, or the drift found and its correction ticket) — then, folded behind one
 line (`Candidates · 5 handed to pass #2531 on 9f3c2a1`), each candidate under its pass name.
 **Extra checks**: what the chef asks the closer to check in addition, one per line, each with **remove**; a field and
-**add** (recommended, enabled once something is typed; Enter adds too) write it into **`.claude/brigade/closer-checks.md`**
-on the integration branch — created when missing, a check already there is not doubled —, and the check joins the list,
-`added in the repository` under the field. **The runtime does not copy these checks into a pass's issue yet**: they wait in
+**add** (recommended, enabled once something is typed; Enter adds too). Kept in **`.claude/brigade/closer-checks.md`**, the
+part says `a change opens a pull request, applied once merged`: adding or removing one is
+proposed by a pull request towards the integration branch (`proposerLeFichier` with that path — the file created when
+missing, a check already there not doubled, `unchanged` said instead). While it runs the part says `opening the pull
+request…`; then `the check “…” proposed in` (or `the removal of “…” proposed in`) and a `pull request #<n>` link that opens
+it. The list shown stays the one in force on the integration branch until the PR is merged; a step GitHub refuses is the
+error line `nothing was proposed`, its detail on hover. **The runtime does not copy these checks into a pass's issue yet**: they wait in
 the repository until it does (the `?` says so).
 **Settings**: the closer's four settings of `closer.*` in `.claude/brigade/projet.json` — its **calibration** (a model and an
-effort, saved together; both emptied, the repository no longer sets it), its **start condition** (`cooksBelow`, `none in
-flight` for 1), its **tokens cap** and its **removed lines cap** —, each with its value, where it comes from (`in the
-repository`, `the station's, or 500 lines`) and **save**, as a duration cap: only `closer.<key>` changes, the runtime reads
-it at its next fetch, a value it would refuse writes nothing and says so. The closer on GitHub reads only the calibration and
+effort, applied together on the `change` of either list once both are chosen; one without the other proposes nothing; both
+emptied, its removal is proposed), its **start condition** (`cooksBelow`, `none in flight` for 1), its **tokens cap** and its
+**removed lines cap** —, each a settings row with its value, where it comes from (`in the repository`, `the station's, or
+500 lines`) and a control that applies on `change`, with no **save**, as a duration cap: only `closer.<key>` changes, by a
+pull request towards the integration branch, which the row announces and then links (`opus / high proposed in` `pull
+request #<n>`); the runtime reads it at its next fetch once merged, a value it would refuse proposes nothing and says so. The closer on GitHub reads only the calibration and
 the removed lines cap: the two others say `not read on GitHub yet`, the reason on hover. Settings still carries its
 closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
 `app/src/vue/projet/bandeau-sante/Closer.js`.
@@ -1923,10 +1960,10 @@ Every other gesture rewrites the selections as they are. Screenshots: `docs/capt
 
 **"Cook it on a station that has it" opens the station form** (#1511, epic #1506): that one option writes nothing. It
 switches to Cooks and opens the edit form of #1510 under a station of this workstation — the first one this computer
-plays for the project, else the first the project declares — with the capability the need calls already checked, in
-addition to what the station provides (`browser` → `navigateur-headless`, `postgres` → `postgres`, …: the first
-capability the runtime gives the need, `CAPACITE_DU_BESOIN` in `app/src/vue/stations-declarees.js`). Save writes it like
-any other edit, and the capability shows on the station's row; the card stays until the station publishes the choice as
+plays for the project, else the first the project declares — with the capability the need calls offered, unticked, next
+to what the station provides (`browser` → `navigateur-headless`, `postgres` → `postgres`, …: the first capability the
+runtime gives the need, `CAPACITE_DU_BESOIN` in `app/src/vue/stations-declarees.js`). Since #2920 each box applies as soon
+as it changes: ticking it declares it like any other edit, and the capability shows on the station's row; the card stays until the station publishes the choice as
 answered. No station read yet, one line under the card says so. Screenshots: `docs/captures/1511/`.
 
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
@@ -2314,9 +2351,10 @@ GitHub Apps, the projects it serves, the app's code) are not shown in Settings; 
   `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
   its projects file.
 
-**Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
-field and `propose`, a switch, a checkbox, a number, a palette, a button. What the control opened or returned — a
-confirmation, a refusal — is laid under the value. Nothing else is laid in Settings: no statistic, no history, no reading's
+**Every setting is one line**, the same everywhere (`app/src/vue/composants/reglage/`, #2920): its name, its value in
+force, and **one** control to change it — a field, a pair of lists, a switch, a checkbox, a number, a palette, a button.
+The control applies as soon as it changes, with no Save button; a setting kept in the project's repository opens a pull
+request when it changes, and its row says so in one line (`a change opens a pull request, applied once merged`). What the control opened or returned — a confirmation, a refusal — is laid under the row. Nothing else is laid in Settings: no statistic, no history, no reading's
 text, no explanatory paragraph — what a setting implies is on hover of its value. A group with nothing to set says so in
 one line.
 
@@ -2333,15 +2371,17 @@ one row per project setting: the integration branch, the manager's and the revie
 default calibrations, the calibration ceiling, and the closer's four settings (#1685) — its calibration, its start
 threshold (`cooksBelow`), its tokens cap and its removed-lines cap. Each row says the value in force and where it comes from — `from the
 repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —
-a text field for the branch and for a closer's number, a model and an effort for a calibration — and `propose`, enabled once the value differs. They
-are read when the project opens, by the runtime's `setting` where its kitchen runs. `propose` plays `setting ceiling
+a text field for the branch and for a closer's number, a model and an effort for a calibration —, with no button: the row
+says a change opens a pull request. They are read when the project opens, by the runtime's `setting` where its kitchen
+runs. **A change proposes at once** (#2920): a text field when it changes (Enter, or leaving it) with a non-empty value
+other than the one in force, a calibration when either of its two lists changes and the pair differs. It plays `setting ceiling
 <model> <effort>` (or `manager`, `reviewer`, `closer`, `closer-cooks <n>`, `closer-tokens <n>`, `closer-lines <n>`,
 `branch <name>`) there: the runtime checks the value against the settings writer — the check the file itself passes, so
 a value the file would refuse (a closer's `0`, a branch git would refuse, a path) is refused there, before any request
-and any pull request —, opens a pull request on the project's repository and hands it to the pass, which holds it for you. The button
-says `proposing…` until the runtime has answered. Opened, the row says `<value> proposed as a pull request — it applies
-once merged`, with a `pull request #<n>` button that opens it; refused — a value that belongs to the machine, a change
-the repository already carries —, the runtime's sentence is said next to the field, its detail on hover, and the field
+and any pull request —, opens a pull request on the project's repository and hands it to the pass, which holds it for you. The row
+says `proposing…` under it, its control waiting, until the runtime has answered. Opened, the row says `<value> proposed
+in` with a `pull request #<n>` button that opens it; refused — a value that belongs to the machine, a change
+the repository already carries —, the runtime's sentence is said under the row, its detail on hover, and the field
 goes back to the value in force. **The value shown never changes on a proposal**: it is the one in force, until the pull
 request is merged. Nothing is saved on the box. The app itself refuses only what does not write as the command's words
 (a branch name with a blank, a closer's number that is not digits: `nothing was sent: this value is a whole number,
@@ -2355,10 +2395,12 @@ section lists the humans the project's `.claude/brigade/projet.json` declares (`
 and its roles as four checkboxes — `product`, `design`, `review`, `client-contact` — and `remove`. Every change applies
 as you make it, with no Save button: ticking or unticking a role sends the human with its new roles; `add a human` opens a
 new row, which sends nothing until its login is written (Enter, or leaving the field), then sends it with the roles ticked
-on it — `cancel` drops it; `remove` sends the removal. Each row says `written to projet.json through a pull request`,
-then `writing to projet.json…` while the service answers, then `proposed in` (or `removal proposed in`) with a `PR #<n>`
-button that opens the pull request. A refusal — an unknown login, no access to the repository — is said in one line on
-that row only, the rest on hover; the row goes back to its roles before the change and names no pull request. With no
+on it — `cancel` drops it; `remove` sends the removal. Each row is the settings row (#2920): its login, the roles
+`projet.json` declares — the value in force until a pull request is merged —, its checkboxes, and the line every
+repository-kept row carries, `a change opens a pull request, applied once merged`. Under it,
+`writing to projet.json…` while the service answers, then `proposed in` (or `removal proposed in`) with a `pull request
+#<n>` button that opens the pull request. A refusal — an unknown login, no access to the repository — is said in one line
+under that row only, the rest on hover, under a pull request the row had already opened; the row goes back to its roles before the change and names no pull request. With no
 declared human, the section says `No human is declared for this project.` with `add the first human`; a list that cannot
 be read says `humans unavailable` in one line, the detail on hover. The section is `app/src/vue/settings-humans/`; it calls
 the service through three bridge methods — `listerLesHumains(project)`, `enregistrerUnHumain(project, {login, roles})`
@@ -2415,14 +2457,15 @@ station and are never sent to the repository** (what the Apps are for on hover).
   `not configured` otherwise (`App 1203456 · no key stored` when only the ID is there). What the role's App does is on
   hover. A station whose Apps cannot be read says `this station's Apps unavailable`, the reason on hover — never
   `not configured`.
-- **its form**: an `App ID` field (prefilled with the stored ID, which is not secret), a key field — paste the key, or
-  `choose the .pem file`: the file's name is shown, never its content — and `save`, the recommended gesture while the
-  role is not configured.
-- **`save`** stores the App through the runtime (`runtime/src/identites-stations.ts`, `rangerApp`), in the station's Apps
+- **its control**: an `App ID` field (prefilled with the stored ID, which is not secret) and a key field — paste the key,
+  or `choose the .pem file`: the file's name is shown, never its content. There is no `save` (#2920): **the row applies
+  when its control changes once the key is written** — the key field left, a `.pem` chosen, or the App ID field left
+  with a key already there. Kept on this station, the row opens no pull request. `saving…` reads under it meanwhile.
+- **Applied, the row** stores the App through the runtime (`runtime/src/identites-stations.ts`, `rangerApp`), in the station's Apps
   directory, replacing the one before. Stored, the line says `configured` and `stored: its key is not shown again`, and
   **the key field is empty**: the key leaves the screen, and nothing ever shows it again — the station only says whether
   it has it. Projects the station opens from then on act under it.
-- **What does not store writes nothing**: an empty App ID (`nothing was written: enter the App's ID`), one that is not
+- **What does not store writes nothing**: an empty App ID when the key is given (`nothing was written: enter the App's ID`), one that is not
   an App ID, or a key that is not a PEM private key (`nothing was written: this is not a private key — …`) is said under
   its field, and nothing leaves the screen. What the station refuses — one App for two roles, a key it cannot read, an
   Apps directory open to others — is said in one line under the role, the rest of the runtime's sentence on hover.

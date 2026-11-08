@@ -1,7 +1,8 @@
 // Les réglages de « parade » (Settings, General) et ceux de son projet, lus dans son dépôt (#1309) : sa branche
 // d'intégration, les calibrages par défaut de son manager et de son reviewer, son plafond de calibrage, les réglages de
-// son closer (#1685) — chacun sa valeur, d'où elle vient, et de quoi la changer. Le chef a choisi `sonnet` pour le
-// plafond, sans l'avoir proposé.
+// son closer (#1685) — chacun la rangée de réglage (#2920) : sa valeur, d'où elle vient, de quoi la changer, et la ligne
+// qui dit qu'un changement ouvre une PR. Le chef écrit `develop` dans la branche, sans l'avoir validé : rien n'est
+// proposé tant que le champ n'est pas quitté.
 import { reglagesVus } from "../../../app/src/reglages-du-projet.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -27,11 +28,12 @@ export const LUS = {
 
 export const OUVRIR: Etape[] = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(3)" }];
 export const PLAFOND = '#reglages-du-projet .reglage[data-cle="plafond"]';
+export const BRANCHE = '#reglages-du-projet .reglage[data-cle="branche"]';
 
 export const ecran: Ecran = {
-  dit: "Les réglages de « parade » : ceux de son projet, lus dans son dépôt, chacun avec sa valeur, d'où elle vient et « propose » ; le plafond changé en `sonnet`, pas encore proposé",
+  dit: "Les réglages de « parade » : ceux de son projet, lus dans son dépôt, chacun avec sa valeur, d'où elle vient, son champ et « a change opens a pull request, applied once merged », sans bouton ; `develop` écrit dans la branche, pas encore validé",
   largeur: 1440,
   hauteur: 900,
-  etapes: [...OUVRIR, { saisir: `${PLAFOND} select[aria-label$="model"]`, texte: "sonnet" }],
+  etapes: [...OUVRIR, { saisir: `${BRANCHE} input`, texte: "develop" }],
   donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], reglagesDuProjet: LUS }, envois: cuisine(RENDUS) }),
 };

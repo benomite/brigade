@@ -289,12 +289,14 @@ export type Pont = {
   refuserUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
   accepterUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
-  // (`.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (plafonds-duree.ts).
+  // (`.claude/brigade/projet.json`), lus sur sa branche d'intégration, sur GitHub, et changés par une pull request vers elle
+  // (ticket 2920, plafonds-duree.ts) : la PR rendue s'ouvre par `ouvrirLaProposition`.
   plafondsDuree(projet: string): Promise<import("../plafonds-duree.ts").LectureDesPlafonds>;
   changerPlafondDuree(projet: string, cle: string, saisie: string): Promise<import("../plafonds-duree.ts").RenduDuPlafond>;
   // Le closer du projet, sur Kitchen > Health (ticket 2491) : ses passes et ce que chacune a retiré, ce que la dernière lui
   // a remis, ses vérifications en plus (`.claude/brigade/closer-checks.md`) et ses réglages (`closer.*` de
-  // `.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (closer-sante.ts).
+  // `.claude/brigade/projet.json`), lus sur sa branche d'intégration, sur GitHub (closer-sante.ts). Un réglage changé
+  // ou une vérification ajoutée ou retirée s'y proposent par une pull request (ticket 2920), qui s'ouvre par `ouvrirLaProposition`.
   closerDeSante(projet: string): Promise<import("../closer-sante.ts").LectureDuCloser>;
   changerReglageDuCloser(projet: string, cle: string, saisie: string | { model: string; effort: string }): Promise<import("../closer-sante.ts").RenduDuReglage>;
   changerVerificationDuCloser(projet: string, geste: "ajouter" | "retirer", saisie: string): Promise<import("../closer-sante.ts").RenduDesVerifications>;

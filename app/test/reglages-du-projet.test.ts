@@ -1,8 +1,8 @@
 // Les réglages du projet sur sa page (#1309, épique 1301) : sa branche d'intégration, ses calibrages par défaut, son
 // plafond de calibrage et ceux de son closer (#1685), lus par `setting` là où sa cuisine tourne, chacun avec de quoi le
-// changer. « propose » ouvre une
-// PR sur le dépôt du projet — rien ne se pose sur la box — : la page le dit à côté du champ, avec de quoi ouvrir la PR,
-// et la valeur en vigueur ne change pas tant qu'elle n'est pas mergée. Un refus du runtime se dit à côté du champ, qui
+// changer. Chacun est la rangée de réglage (#2920) : sans bouton, le `change` de son champ ouvre une PR sur le dépôt du
+// projet — rien ne se pose sur la box —, la rangée le dit d'avance, puis la PR sous elle, avec de quoi l'ouvrir ; la
+// valeur en vigueur ne change pas tant qu'elle n'est pas mergée. Un refus du runtime se dit sous la rangée, et le champ
 // revient à la valeur en vigueur. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import type { ExecFileException } from "node:child_process";
@@ -19,7 +19,8 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { commandeDuReglage, lireLesReglages, PROPOSE, proposerLeReglage, reglagesVus, type LectureDesReglages, type RenduDuReglage } from "../src/reglages-du-projet.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { BOUTON, TITRE } from "../src/vue/projet/reglages.js";
+import { PAR_PR, PROPOSE as PROPOSE_DANS } from "../src/vue/composants/reglage/reglage.js";
+import { EN_COURS, TITRE } from "../src/vue/projet/reglages.js";
 import { type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
@@ -134,7 +135,7 @@ const demarrage = () => ({
   code: undefined,
 });
 
-// Ce que le pont répond à « propose » : rien tant que le test ne le lâche pas.
+// Ce que le pont répond à une proposition : rien tant que le test ne le lâche pas.
 type Proposition = { projet: string; choix: unknown; rendre(rendu: RenduDuReglage): void };
 
 async function ouvrir(lecture: LectureDesReglages = { vus: reglagesVus(SORTIE) ?? assert.fail() }) {
@@ -156,11 +157,17 @@ const section = (vue: Jouee) => vue.element("reglages-du-projet").children[0] ??
 const rangee = (vue: Jouee, cle: string) => section(vue).children.find((pose) => pose.dataset.cle === cle) ?? assert.fail(`pas de rangée ${cle}`);
 const valeur = (pose: Faux) => pose.dessous("p").find((p) => p.className === "valeur")?.textContent;
 const dit = (pose: Faux) => pose.dessous("p").find((p) => p.className.startsWith("dit"));
-const proposer = (pose: Faux) => pose.dessous("button").find((bouton) => bouton.textContent === BOUTON.libelle || bouton.textContent === BOUTON.enCours) ?? assert.fail("pas de « propose »");
+const parPr = (pose: Faux) => pose.dessous("p").find((p) => p.className === "par-pr")?.textContent;
 const liste = (pose: Faux, nom: "model" | "effort") => pose.dessous("select").find((select) => select.ariaLabel.endsWith(nom)) ?? assert.fail(`pas de liste ${nom}`);
-function choisir(champ: Faux, valeurChoisie: string) {
+// Écrire dans un champ, ou choisir dans une liste, sans le valider : seul `input` part.
+function ecrire(champ: Faux, valeurChoisie: string) {
   champ.value = valeurChoisie;
-  champ.declencher(champ.balise === "input" ? "input" : "change");
+  champ.declencher("input");
+}
+// Puis le valider — Entrée, le focus qui s'en va, un choix fait : son `change`.
+function choisir(champ: Faux, valeurChoisie: string) {
+  ecrire(champ, valeurChoisie);
+  champ.declencher("change");
 }
 
 describe("Settings : les réglages du projet, chacun changé par une PR", () => {
@@ -181,29 +188,47 @@ describe("Settings : les réglages du projet, chacun changé par une PR", () => 
     assert.equal(valeur(rangee(vue, "closer-lines")), "800set on the station");
     assert.equal(rangee(vue, "closer-tokens").dessous("input")[0]?.value, "200000");
     for (const cle of ["branche", "manager", "reviewer", "plafond", "closer", "closer-cooks", "closer-tokens", "closer-lines"]) {
-      // Rien de changé, rien à proposer.
-      assert.equal(proposer(rangee(vue, cle)).disabled, true, cle);
+      // Gardé dans le dépôt : la rangée dit qu'un changement ouvre une PR, et n'a ni « propose » ni « save ».
+      assert.equal(rangee(vue, cle).dataset.depot, "", cle);
+      assert.equal(parPr(rangee(vue, cle)), PAR_PR, cle);
+      assert.equal(rangee(vue, cle).dessous("button").length, 0, cle);
     }
+    assert.equal(section(vue).dessous("button").some((bouton) => /propose|save/i.test(bouton.textContent)), false);
   });
 
-  test("changer le plafond et « propose » : la PR est dite à côté du champ, avec de quoi l'ouvrir ; la valeur en vigueur ne change pas", async () => {
+  test("écrire sans valider ne propose rien ; valider la valeur en vigueur, ou un champ vide, non plus", async () => {
+    const { vue, propositions } = await ouvrir();
+    const branche = () => rangee(vue, "branche").dessous("input")[0] ?? assert.fail();
+    ecrire(branche(), "develop");
+    await repos();
+    assert.equal(propositions.length, 0);
+    choisir(branche(), " main ");
+    choisir(branche(), "   ");
+    await repos();
+    assert.equal(propositions.length, 0);
+    // Le modèle et l'effort de nouveau ceux en vigueur : rien ne change, rien ne part.
+    choisir(liste(rangee(vue, "plafond"), "model"), "opus");
+    await repos();
+    assert.equal(propositions.length, 0);
+  });
+
+  test("changer le modèle du plafond le propose aussitôt : la PR est dite sous la rangée, avec de quoi l'ouvrir ; la valeur en vigueur ne change pas", async () => {
     const { vue, propositions } = await ouvrir();
     const plafond = rangee(vue, "plafond");
     choisir(liste(plafond, "model"), "sonnet");
     await repos();
-    assert.equal(proposer(plafond).disabled, false);
-    proposer(plafond).click();
-    await repos();
     assert.deepEqual(propositions.map(({ projet, choix }) => [projet, choix]), [[PARADE, { cle: "plafond", modele: "sonnet", effort: "high" }]]);
-    // Tant que le runtime n'a pas répondu, le bouton dit qu'il s'y met, et ne se reclique pas.
-    const enCours = proposer(rangee(vue, "plafond"));
-    assert.equal(enCours.textContent, BOUTON.enCours);
-    assert.equal(enCours.disabled, true);
+    // Tant que le runtime n'a pas répondu, la rangée dit qu'elle s'y met, et ses listes attendent.
+    const enCours = rangee(vue, "plafond");
+    assert.equal(dit(enCours)?.className, "dit en-cours");
+    assert.equal(dit(enCours)?.textContent, EN_COURS);
+    assert.ok(enCours.dessous("select").every((select) => select.disabled));
 
     propositions[0]?.rendre({ propose: PROPOSE, pr: PR, numero: 51 });
     await repos();
     const apres = rangee(vue, "plafond");
-    assert.match(dit(apres)?.textContent ?? "", /^sonnet \/ high proposed as a pull request — it applies once merged/);
+    assert.equal(dit(apres)?.className, "dit propose");
+    assert.match(dit(apres)?.textContent ?? "", new RegExp(`^sonnet / high ${PROPOSE_DANS}pull request #51$`));
     assert.equal(valeur(apres), "opus / highdefault");
     const lien = apres.dessous("button").find((bouton) => bouton.textContent === "pull request #51") ?? assert.fail("pas de bouton vers la PR");
     lien.click();
@@ -213,12 +238,17 @@ describe("Settings : les réglages du projet, chacun changé par une PR", () => 
     assert.equal(vue.appels.some(({ geste }) => geste === "reglerLePlafondDeCalibrage" || geste === "lancer"), false);
   });
 
-  test("un refus du runtime se dit à côté du champ ; la valeur en vigueur ne change pas, et le champ y revient", async () => {
+  test("changer l'effort d'un calibrage le propose aussi, avec le modèle en vigueur", async () => {
+    const { vue, propositions } = await ouvrir();
+    choisir(liste(rangee(vue, "manager"), "effort"), "medium");
+    await repos();
+    assert.deepEqual(propositions.map(({ choix }) => choix), [{ cle: "manager", modele: "opus", effort: "medium" }]);
+  });
+
+  test("un refus du runtime se dit sous la rangée ; la valeur en vigueur ne change pas, et le champ y revient", async () => {
     const { vue, propositions } = await ouvrir();
     const branche = rangee(vue, "branche");
     choisir(branche.dessous("input")[0] ?? assert.fail(), "/home/chef/parade");
-    await repos();
-    proposer(branche).click();
     await repos();
     assert.deepEqual(propositions[0]?.choix, { cle: "branche", valeur: "/home/chef/parade" });
     propositions[0]?.rendre({ refus: "This value does not belong in the project's repository: its value is a path on a machine.", detail: "$ node geste.ts parade setting branch /home/chef/parade" });
@@ -241,18 +271,16 @@ describe("Settings : les réglages du projet, chacun changé par une PR", () => 
 });
 
 describe("Settings : les réglages du closer, changés par la même PR (#1685)", () => {
-  test("changer le plafond de tokens du closer et « propose » : la PR est dite, avec de quoi l'ouvrir ; rien ne part vers la box", async () => {
+  test("changer le plafond de tokens du closer le propose : la PR est dite, avec de quoi l'ouvrir ; rien ne part vers la box", async () => {
     const { vue, propositions } = await ouvrir();
     const tokens = rangee(vue, "closer-tokens");
     choisir(tokens.dessous("input")[0] ?? assert.fail(), "300000");
-    await repos();
-    proposer(tokens).click();
     await repos();
     assert.deepEqual(propositions.map(({ projet, choix }) => [projet, choix]), [[PARADE, { cle: "closer-tokens", valeur: "300000" }]]);
     propositions[0]?.rendre({ propose: PROPOSE, pr: PR, numero: 52 });
     await repos();
     const apres = rangee(vue, "closer-tokens");
-    assert.match(dit(apres)?.textContent ?? "", /^300000 proposed as a pull request — it applies once merged/);
+    assert.equal(dit(apres)?.textContent, `300000 ${PROPOSE_DANS}pull request #52`);
     assert.equal(valeur(apres), "200000from the repository");
     (apres.dessous("button").find((bouton) => bouton.textContent === "pull request #52") ?? assert.fail("pas de bouton vers la PR")).click();
     await repos();
@@ -270,8 +298,6 @@ describe("Settings : les réglages du closer, changés par la même PR (#1685)",
     const { vue, propositions } = await ouvrir();
     const cooks = rangee(vue, "closer-cooks");
     choisir(cooks.dessous("input")[0] ?? assert.fail(), "0");
-    await repos();
-    proposer(cooks).click();
     await repos();
     propositions[0]?.rendre(refusee);
     await repos();

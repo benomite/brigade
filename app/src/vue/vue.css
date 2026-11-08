@@ -256,56 +256,6 @@ main > header,
   flex: 1 1 100%;
   margin-right: var(--pas-4);
 }
-:is(.interrupteur-de-tete, #etat .reglage) .bascule {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-  padding: var(--pas-1) var(--pas-3) var(--pas-1) var(--pas-2);
-  font-weight: 600;
-  background: var(--bouton);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-pastille);
-}
-:is(.interrupteur-de-tete, #etat .reglage) .bascule:hover:not(:disabled) {
-  border-color: var(--trait-fort);
-}
-:is(.interrupteur-de-tete, #etat .reglage) .glissiere {
-  position: relative;
-  width: 30px;
-  height: 16px;
-  background: var(--trait-fort);
-  border-radius: var(--rayon-pastille);
-}
-:is(.interrupteur-de-tete, #etat .reglage) .glissiere::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  background: var(--discret);
-  border-radius: 50%;
-}
-:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="allume"] .glissiere {
-  background: var(--vert);
-}
-:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="allume"] .glissiere::after {
-  left: 16px;
-  background: var(--texte);
-}
-:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="eteint"] {
-  color: var(--texte-doux);
-}
-:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="inconnu"] {
-  color: var(--discret);
-  border-style: dashed;
-  cursor: default;
-}
-:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="inconnu"] .glissiere::after {
-  left: 9px;
-  background: transparent;
-  border: 1px dashed var(--discret);
-}
 /* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
    la largeur, ils défilent. */
 /* Les onglets du projet (ticket 1184, 2921), Rail et Stations, entre son nom et Settings : les mêmes onglets, soulignés de
@@ -1599,21 +1549,7 @@ main > header,
 #station .section-de-station > h3 {
   margin: 0;
 }
-/* Dossiers et bac à sable (ticket 2644) : une ligne par réglage — son nom et son niveau, sa valeur, son champ. */
-#station .dossiers-et-bac-a-sable .reglage {
-  display: grid;
-  grid-template-columns: 200px 1fr auto;
-  gap: var(--pas-1) var(--pas-3);
-  align-items: center;
-  margin: 0;
-  padding: var(--pas-1) 0;
-}
-#station .dossiers-et-bac-a-sable .reglage p {
-  margin: 0;
-}
-#station .dossiers-et-bac-a-sable .reglage .dit {
-  grid-column: 2 / 4;
-}
+/* Dossiers et bac à sable (ticket 2644) : leurs réglages sont des rangées de réglage (composants/reglage, ticket 2920). */
 #station .dossiers-et-bac-a-sable .hote {
   margin-right: var(--pas-3);
 }
@@ -1880,10 +1816,9 @@ main > header,
   user-select: none;
 }
 /* Settings (ticket 1700) : trois groupes, un par niveau — le projet, cette machine, toi —, chacun une carte sous son
-   titre, le mot du niveau. Dedans, chaque réglage est une ligne, la même pour tous : son nom, sa valeur en vigueur, son
-   contrôle — puis, sous la valeur, ce que le contrôle a ouvert ou rendu. Les réglages du projet dans son dépôt gardent
-   leurs rangées (projet/reglages.js), sans second cadre ni second titre : le groupe les porte. Sur un écran étroit,
-   le nom, la valeur et le contrôle passent l'un sous l'autre. */
+   titre, le mot du niveau. Dedans, chaque réglage est la rangée de réglage de l'app (composants/reglage, ticket 2920), qui
+   porte sa peau : ici ne se pose que la place des groupes. Les réglages du projet dans son dépôt n'ont ni second cadre ni
+   second titre : le groupe les porte. */
 #etat {
   padding-bottom: var(--pas-4);
 }
@@ -1899,176 +1834,9 @@ main > header,
   font-size: var(--taille-corps);
   font-weight: 700;
 }
-#etat .groupe > :is(div, section) > .reglage,
-#etat .reglages-du-projet .reglage {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-#etat .reglage > .nom {
-  color: var(--discret);
-}
-#etat .reglage > p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-#etat .reglage > .valeur strong {
-  font-weight: 600;
-}
-#etat .reglage > .valeur small {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#etat .reglage > p.dit {
-  grid-column: 2 / -1;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#etat #reglages-du-projet {
-  margin: 0;
-}
-#etat .reglages-du-projet {
-  padding: 0;
-  background: none;
-  border: 0;
-}
-#etat .reglages-du-projet > h3,
-#etat .reglage .niveau {
-  display: none;
-}
 #etat #arreter-cuisine {
   display: block;
   padding: 0;
-}
-#etat .reglage [data-etat] {
-  border-left: 0;
-}
-#etat .reglage input[type="number"] {
-  width: 64px;
-}
-/* Les GitHub Apps de la station (ticket 2317, identites-github.js) : la même ligne que les autres réglages. Le
-   contrôle d'un rôle tient l'App ID, la clé — collée, ou son .pem choisi — et « save », l'un sous l'autre ; chaque
-   erreur se lit sous son champ. La ligne d'en-tête dit où restent les clés. */
-#etat .apps-github > .reglage {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-#etat .apps-github > .reglage.tete > .valeur {
-  grid-column: 2 / -1;
-}
-#etat .apps-github .garde {
-  color: var(--texte-doux);
-}
-#etat .apps-github .configuree {
-  color: var(--vert);
-}
-#etat .apps-github .pas-configuree {
-  color: var(--discret);
-}
-#etat .apps-github .champ {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pas-2);
-}
-#etat .apps-github :is(.champ-id, .champ-cle, .gestes-du-role) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  width: 100%;
-}
-#etat .apps-github :is(.app-id, .cle) {
-  padding: var(--pas-1) var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#etat .apps-github .app-id {
-  width: 160px;
-}
-#etat .apps-github .cle {
-  width: 100%;
-  max-width: 420px;
-  resize: vertical;
-}
-#etat .apps-github :is(.app-id, .cle)::placeholder {
-  color: var(--discret);
-  font-family: var(--police-interface);
-}
-#etat .apps-github .champ .action > button {
-  white-space: nowrap;
-}
-#etat .apps-github .champ p.dit {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: var(--taille-corps);
-}
-#etat .apps-github .fichier {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-/* Les projets que sert la station de cet ordinateur (ticket 2359, projets-servis/) : la même ligne que les autres
-   réglages, une case par projet. La ligne d'en-tête dit, en clair, quand cet ordinateur n'en sert aucun. */
-#etat .projets-servis > .reglage {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-#etat .projets-servis > .reglage.tete > .valeur {
-  grid-column: 2 / -1;
-}
-#etat .projets-servis > .reglage > .nom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-1) var(--pas-2);
-  overflow-wrap: anywhere;
-}
-#etat .projets-servis .depot {
-  font-size: var(--taille-corps);
-}
-#etat .projets-servis .servi {
-  color: var(--vert);
-}
-#etat .projets-servis .pas-servi {
-  color: var(--discret);
-}
-#etat .projets-servis .champ input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-/* Le champ du sigle : trois signes, en mono comme la case qui les écrit (la vue lui pose `mono`). */
-#sigle input {
-  width: 64px;
-  padding: var(--pas-1) var(--pas-2);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#sigle input::placeholder {
-  color: var(--discret);
-}
-#sigle .champ button {
-  margin-left: var(--pas-2);
-  white-space: nowrap;
 }
 /* Les couleurs du projet : une pastille ronde par couleur de la palette, sur la ligne de chaque rôle. Celle que le
    projet porte est cerclée. */
@@ -2756,8 +2524,9 @@ main > header,
   border-radius: var(--rayon-bouton);
 }
 /* Une station s'édite (ticket 1510) : « edit » à droite de sa ligne, et sous elle, sur toute la largeur, son
-   formulaire — son plafond, ses capacités en cases (celles de « + station », ticket 1307), ce poste qui la joue, puis
-   « Save », recommandé, « Cancel » et, à l'écart, « Remove ». Ce que le dernier geste a rendu passe dessous. */
+   formulaire — son plafond et ses capacités en cases (celles de « + station », ticket 1307), chacun une rangée de
+   réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920), puis « Close » et, à l'écart, « Remove ».
+   Ce que le dernier geste a rendu passe dessous. */
 #rail :is(.station-declaree, .fournit-de-station) > .editer {
   white-space: nowrap;
 }
@@ -2771,32 +2540,6 @@ main > header,
   background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .champ {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-3);
-  font-weight: 600;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) input[type="number"] {
-  width: 8ch;
-  padding: var(--pas-1) var(--pas-2);
-  font: inherit;
-  font-weight: 400;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) fieldset {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) legend {
-  margin-bottom: var(--pas-2);
-  padding: 0;
-  font-weight: 600;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacites {
   display: grid;
@@ -2866,12 +2609,10 @@ main > header,
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button {
   white-space: nowrap;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .fait {
+#rail :is(.station-declaree, .station-de-cuisson) > .fait {
   grid-column: 1 / -1;
   margin: 0;
   font-size: var(--taille-corps);
-}
-#rail :is(.station-declaree, .station-de-cuisson) .fait {
   color: var(--discret);
 }
 /* Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune — son nom, son mot et ce qu'il veut dire,
@@ -2987,9 +2728,6 @@ main > header,
 #rail .station-de-cuisson .fournit-de-station .pas-dit {
   font-style: italic;
   color: var(--discret);
-}
-#rail .station-de-cuisson .ouvre-l-edition button {
-  white-space: nowrap;
 }
 /* Sur Rail, en tête, la ligne qui dit ce qui, du côté des cooks, demande un geste (ticket 1185) : une seule ligne,
    et de quoi ouvrir Cooks, à droite. */
@@ -4034,15 +3772,6 @@ main > header,
     margin: var(--pas-2) var(--pas-2) 0;
     padding: var(--pas-2) var(--pas-3) var(--pas-1);
   }
-#etat .groupe > :is(div, section) > .reglage,
-  #etat .reglages-du-projet .reglage,
-  #etat .apps-github > .reglage {
-    grid-template-columns: minmax(0, 1fr);
-  }
-#etat .reglage > p.dit,
-#etat .apps-github > .reglage.tete > .valeur {
-    grid-column: 1;
-  }
 #cadre {
     flex-direction: column;
   }
@@ -4185,21 +3914,11 @@ main > header {
   margin-left: var(--pas-2);
   vertical-align: middle;
 }
-/* Le plafond du projet sous une ligne de station de Cooks (ticket 1292). */
-.station-de-cuisson .plafond-de-station,
-.station-de-cuisson .retenue-de-station,
-.station-de-cuisson .regle-le-plafond-de-station {
+/* Le plafond de cooks sous une ligne de station (ticket 1292) : sa rangée de réglage prend toute la ligne, ce qui la
+   retient dessous. */
+.station-de-cuisson > :is([data-cle="cooks"], .retenue-de-station) {
   grid-column: 1 / -1;
   margin: 0;
-}
-.station-de-cuisson .regle-le-plafond-de-station {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
-  align-items: center;
-}
-.station-de-cuisson .regle-le-plafond-de-station input {
-  width: 8em;
 }
 
 /* Le rail qu'une station publie sur GitHub, sur un ordinateur qui ne sert pas le projet (ticket 1435) : sa phrase de tête,
@@ -4336,67 +4055,6 @@ main > header {
 .geste-du-second .replie > summary .resume {
   margin-left: var(--pas-2);
   color: var(--discret);
-}
-/* Les réglages du projet, dans son dépôt (ticket 1309) : une rangée par réglage — son nom, sa valeur en vigueur et d'où
-   elle vient, son champ et « propose » —, puis ce que le dernier clic a rendu, à côté du champ. Sur Cooks, le plafond
-   de calibrage est la même rangée, sous sa ligne repliée. */
-#reglages-du-projet {
-  margin: var(--pas-3) var(--pas-4) 0;
-}
-.reglages-du-projet {
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--carte);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
-}
-.reglages-du-projet h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-2);
-  font-weight: 600;
-}
-.reglages-du-projet .reglage {
-  display: grid;
-  grid-template-columns: 220px 220px 1fr;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-}
-.reglages-du-projet .reglage + .reglage {
-  border-top: 1px solid var(--trait-doux);
-}
-.reglages-du-projet .reglage .nom {
-  color: var(--discret);
-}
-.reglages-du-projet .reglage p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  margin: 0;
-}
-.reglages-du-projet .valeur strong {
-  font-weight: 600;
-}
-.reglages-du-projet .valeur small {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-.reglages-du-projet .champ input[type="text"] {
-  width: 160px;
-}
-.reglages-du-projet .action > button {
-  white-space: nowrap;
-}
-.reglages-du-projet .reglage p.dit {
-  display: block;
-  grid-column: 2 / -1;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-.reglages-du-projet .dit > span + * {
-  margin-left: var(--pas-2);
 }
 /* Le niveau d'un réglage (ticket 1310) : une petite étiquette à côté de son nom — project, this machine ou you. */
 .niveau {
@@ -4871,47 +4529,7 @@ main > header {
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .nom {
-  color: var(--discret);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .valeur strong {
-  font-weight: 600;
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .valeur small,
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .champ :is(.unite),
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .champ.fige,
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond input[type="text"] {
-  width: 10ch;
-  padding: var(--pas-1) var(--pas-2);
-  font: inherit;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond .action > button {
-  white-space: nowrap;
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p.dit {
-  grid-column: 2 / -1;
   font-size: var(--taille-corps);
   color: var(--discret);
 }
@@ -5051,7 +4669,7 @@ main > header {
   max-width: 640px;
   padding-top: var(--pas-1);
 }
-[data-bloc="closer"] :is(.champ.ajouter input[type="text"], .plafond select) {
+[data-bloc="closer"] .champ.ajouter input[type="text"] {
   padding: var(--pas-1) var(--pas-2);
   font: inherit;
   color: var(--texte);
@@ -5061,9 +4679,6 @@ main > header {
 }
 [data-bloc="closer"] .champ.ajouter input[type="text"] {
   flex: 1;
-}
-[data-bloc="closer"] .plafond select {
-  background: var(--bouton);
 }
 [data-bloc="closer"] :is(.en-plus, .champ.ajouter) .action > button {
   white-space: nowrap;
@@ -5119,9 +4734,9 @@ main > header {
   gap: var(--pas-2);
 }
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
-   ses quatre réglages, la même ligne que Settings : le nom et son niveau, la valeur en vigueur, le contrôle. « Save »
-   vient sous le plafond et les capacités, qu'il enregistre ; les deux cases s'écrivent seules. Les cartes s'alignent sur
-   la liste des stations, au-dessus (ticket 2487). */
+   ses quatre réglages, chacun une rangée de réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920).
+   Ici ne se pose que la place des cartes, alignées sur la liste des stations au-dessus (ticket 2487), et ce qui est à
+   elles : un réglage qui ne vaut pas est en retrait, les capacités sont des cases. */
 .reglages-station h3 {
   display: flex;
   align-items: center;
@@ -5138,72 +4753,28 @@ main > header {
   margin: 0 0 var(--pas-1);
   font-size: var(--taille-corps);
 }
-#rail .station-reglee > .reglage {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 220px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  font-size: var(--taille-corps);
-  border-top: 1px solid var(--trait-doux);
-}
-#rail .station-reglee > .reglage > .nom {
-  color: var(--discret);
-}
-#rail .station-reglee > .reglage > .valeur {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-#rail .station-reglee > .reglage > .valeur strong {
-  font-weight: 600;
-}
-#rail .station-reglee > .reglage[data-pris="false"] > .valeur strong,
-#rail .station-reglee > .reglage[data-pris="inconnu"] > .valeur strong {
+#rail .station-reglee > :is([data-pris="false"], [data-pris="inconnu"]) > .valeur strong {
   font-weight: 400;
   color: var(--discret);
 }
-#rail .station-reglee > .reglage > .champ {
-  display: block;
-  font-weight: 400;
-}
-#rail .station-reglee > .reglage input[type="checkbox"] {
-  margin: 0;
-  accent-color: var(--accent);
-}
-#rail .station-reglee > .reglage .capacites {
+#rail .station-reglee .capacites {
   display: flex;
   flex-wrap: wrap;
   gap: var(--pas-2);
 }
-#rail .station-reglee > .reglage .capacite {
+#rail .station-reglee .capacite {
   padding: var(--pas-1) var(--pas-3);
 }
-#rail .station-reglee > .reglage .capacite-libre {
+#rail .station-reglee .capacite-libre {
   margin-top: var(--pas-2);
 }
-/* Le pied se range sur la grille des réglages : son bouton tombe sous la colonne des cases. Le parent dans le sélecteur
-   le fait passer devant le `display: flex` des pieds d'édition, plus haut. */
-#rail .reglages-station > .station-reglee > .gestes {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 220px) minmax(0, 1fr);
-  column-gap: var(--pas-3);
-  padding: 0 0 var(--pas-2);
-}
-#rail .reglages-station > .station-reglee > .gestes > * {
-  grid-column: 3;
-  justify-self: start;
-}
-#rail .station-reglee > :is(.fait) {
+#rail .station-reglee > .fait {
   margin: var(--pas-1) 0 0;
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-/* La station locale (ticket 2489) : son nom à côté du titre, puis chaque réglage en une ligne, la même que dans Settings —
-   son nom et l'étiquette de son niveau, sa valeur, son contrôle, et dessous ce que le contrôle a rendu. */
+/* La station locale (ticket 2489) : son nom à côté du titre, puis ses réglages, des rangées de réglage
+   (composants/reglage) dans une carte ; sa connexion à Claude dit son état en couleur. */
 .bloc-du-projet[data-bloc="station-locale"] h3 small {
   margin-left: var(--pas-2);
   font-size: var(--taille-corps);
@@ -5221,58 +4792,13 @@ main > header {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
-.bloc-du-projet[data-bloc="station-locale"] .carte > .reglage {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 440px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  font-size: var(--taille-corps);
-  border-top: 1px solid var(--trait-doux);
-}
-.bloc-du-projet[data-bloc="station-locale"] .carte > .reglage:first-child {
+.bloc-du-projet[data-bloc="station-locale"] > .carte > :first-child {
   border-top: 0;
 }
-.bloc-du-projet[data-bloc="station-locale"] .reglage .champ > button {
-  white-space: nowrap;
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage > .nom {
-  color: var(--discret);
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage > p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit {
-  grid-column: 2 / -1;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage input[type="number"] {
-  width: 8ch;
-  padding: var(--pas-1) var(--pas-2);
-  font: inherit;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage input[type="checkbox"] {
-  margin: 0;
-  accent-color: var(--accent);
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat] {
-  padding-left: 0;
-  border-left: 0;
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="connectee"] {
+.bloc-du-projet[data-bloc="station-locale"] [data-etat="connectee"] {
   color: var(--vert);
 }
-.bloc-du-projet[data-bloc="station-locale"] .reglage [data-etat="perdue"] {
+.bloc-du-projet[data-bloc="station-locale"] [data-etat="perdue"] {
   color: var(--rouge-clair);
 }
 /* L'étape « projet » du parcours d'ajout (ticket 2476) : l'attendu en tête, le champ qui cherche parmi les dépôts du
@@ -5373,25 +4899,6 @@ main > header {
   color: var(--discret);
 }
 
-/* La section « Identity » de la page d'une station (ticket 2642) : une ligne par réglage — son nom, sa marque de niveau,
-   sa valeur, et « Update now » sur cet ordinateur quand la station est en retard. */
-#station .identite {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-}
-#station .identite .reglage {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#station .identite .reglage > strong {
-  min-width: 72px;
-}
-#station .identite .reglage .valeur {
-  flex: 1;
-}
-
 /* La note sur place (ticket 2646) : à la place du geste d'un réglage qui ne se change que sur la machine, vu d'une autre station. */
 .note-sur-place {
   margin-left: var(--pas-2);
@@ -5399,9 +4906,5 @@ main > header {
   font-style: italic;
   color: var(--discret);
 }
-/* La section « Connections » de la page d'une station (ticket 2643) : une rangée par réglage, son nom, son niveau, sa valeur, son geste. */
-.connexions .reglage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pas-2); padding: var(--pas-1) 0; }
-.connexions .reglage .nom { min-width: 11rem; }
-.connexions .reglage .valeur { display: inline-flex; align-items: center; gap: var(--pas-2); }
-.connexions .reglage .geste-dit { flex-basis: 100%; margin: 0; }
+/* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de composants/reglage. */
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }

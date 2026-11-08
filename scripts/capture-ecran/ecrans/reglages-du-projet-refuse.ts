@@ -1,17 +1,16 @@
 // Les réglages de « parade », une branche d'intégration refusée par le runtime (#1309) : un chemin de la machine ne
-// s'écrit pas dans le dépôt. Le refus se dit à côté du champ, qui revient à la valeur en vigueur — inchangée.
+// s'écrit pas dans le dépôt. Écrite et validée, la branche est proposée aussitôt (#2920) ; le refus se dit sous la
+// rangée, et le champ revient à la valeur en vigueur — inchangée.
 import { phraseDuRuntime } from "../../../app/src/reglages-du-projet.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { LUS, OUVRIR } from "./reglages-du-projet.ts";
-
-const BRANCHE = '#reglages-du-projet .reglage[data-cle="branche"]';
+import { BRANCHE, LUS, OUVRIR } from "./reglages-du-projet.ts";
 
 export const ecran: Ecran = {
-  dit: "Les réglages de « parade », la branche `/home/chef/parade` refusée : le refus du runtime à côté du champ, la valeur en vigueur `main` inchangée",
+  dit: "Les réglages de « parade », la branche `/home/chef/parade` validée et refusée : le refus du runtime sous la rangée, la valeur en vigueur `main` inchangée",
   largeur: 1440,
   hauteur: 900,
-  etapes: [...OUVRIR, { saisir: `${BRANCHE} input`, texte: "/home/chef/parade" }, { cliquer: `${BRANCHE} .proposer-le-reglage > button` }],
+  etapes: [...OUVRIR, { saisir: `${BRANCHE} input`, texte: "/home/chef/parade", valider: true }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: {

@@ -1,0 +1,159 @@
+/* La rangée de réglage (ticket 2920, posée par reglage.js) : la même ligne pour chaque réglage de chaque écran — son nom
+   et la marque de son niveau, sa valeur en vigueur, son contrôle, qui s'applique dès qu'il change. Dessous, sur toute la
+   largeur après le nom : la ligne d'un réglage gardé dans le dépôt (« a change opens a pull request »), puis ce que le
+   dernier changement a rendu. Aucune autre règle de la vue ne dessine une rangée de réglage ; un écran ne pose que sa
+   place. Sur un écran étroit, le nom, la valeur et le contrôle passent l'un sous l'autre. */
+.reglage {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
+  border-top: 1px solid var(--trait-doux);
+}
+.reglage > .nom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pas-1) var(--pas-2);
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+.reglage > .nom .niveau {
+  font-size: var(--taille-meta);
+}
+.reglage > :is(p, .champ) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-2);
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.reglage > .valeur strong {
+  font-weight: 600;
+}
+.reglage > .valeur small {
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+.reglage > .champ :is(input[type="text"], input[type="number"], input:not([type]), select, textarea) {
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.reglage > .champ input[type="text"] {
+  width: 100%;
+  max-width: 320px;
+}
+.reglage > .champ textarea {
+  width: 100%;
+  max-width: 420px;
+  resize: vertical;
+}
+.reglage > .champ :is(input, textarea)::placeholder {
+  color: var(--discret);
+  font-family: var(--police-interface);
+}
+.reglage > .champ .action > button {
+  white-space: nowrap;
+}
+/* Ce qui suit un champ sans le changer — son unité, un « not editable here » — est en retrait. */
+.reglage > .champ :is(.unite, .fige) {
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+.reglage > .champ input[type="number"] {
+  width: 72px;
+}
+.reglage > .champ input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.reglage > .champ :disabled {
+  opacity: 0.6;
+}
+/* La rangée de tête d'un bloc de réglages (`classe: "tete"`) : son titre, puis ce qu'elle dit sur toute la largeur. */
+.reglage.tete > .valeur {
+  grid-column: 2 / -1;
+}
+/* Ce qui suit les trois colonnes — la ligne du dépôt, ce que le changement a rendu, une confirmation — prend la largeur
+   après le nom. */
+.reglage > :nth-child(n + 4) {
+  grid-column: 2 / -1;
+}
+.reglage > p.par-pr,
+.reglage > p.dit {
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+.reglage > p.dit.fait {
+  color: var(--vert);
+}
+.reglage > p.dit.propose > span + * {
+  margin-left: var(--pas-1);
+}
+/* Le contrôle d'une bascule (marche / arrêt) : la glissière de l'interrupteur, la même partout. */
+:is(.interrupteur-de-tete, .reglage) .bascule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  padding: var(--pas-1) var(--pas-3) var(--pas-1) var(--pas-2);
+  font-weight: 600;
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-pastille);
+}
+:is(.interrupteur-de-tete, .reglage) .bascule:hover:not(:disabled) {
+  border-color: var(--trait-fort);
+}
+:is(.interrupteur-de-tete, .reglage) .glissiere {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  background: var(--trait-fort);
+  border-radius: var(--rayon-pastille);
+}
+:is(.interrupteur-de-tete, .reglage) .glissiere::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--discret);
+  border-radius: 50%;
+}
+:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="allume"] .glissiere {
+  background: var(--vert);
+}
+:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="allume"] .glissiere::after {
+  left: 16px;
+  background: var(--texte);
+}
+:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="eteint"] {
+  color: var(--texte-doux);
+}
+:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="inconnu"] {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="inconnu"] .glissiere::after {
+  left: 9px;
+  background: transparent;
+  border: 1px dashed var(--discret);
+}
+@media (max-width: 720px) {
+  .reglage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reglage > :nth-child(n + 4),
+  .reglage.tete > .valeur {
+    grid-column: 1;
+  }
+}

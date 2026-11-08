@@ -2,7 +2,8 @@
 // chacun avec la marque de son niveau ; connectée, perdue, et en lecture seule sur une autre station.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { AILLEURS, CHANGER, RENOUVELER, poserSection } from "../src/vue/station/page/sections/connexions.js";
+import { EN_COURS } from "../src/vue/station/page/appliquer.js";
+import { AILLEURS, CHANGER, RENOUVELER, RIEN_FAIT, poserSection } from "../src/vue/station/page/sections/connexions.js";
 import { poserPageDeStation } from "../src/vue/station/page/StationPage.js";
 import { Faux, repos } from "./aides/fausse-vue.ts";
 
@@ -12,7 +13,9 @@ const STATION = { id: "gist-mac", nom: "mac/claude" };
 function section(locale: string, connexions: object) {
   return poserPageDeStation(doc, { station: STATION, locale, connexions: connexions as never }).then((page) => (page as Faux).children[1]?.children[1] as Faux);
 }
-const rangee = (racine: Faux, cle: string) => racine.children.find((une) => une.dataset.reglage === cle) as Faux;
+const rangee = (racine: Faux, cle: string) => racine.children.find((une) => une.dataset.cle === cle) as Faux;
+// Ce qu'une rangée de réglage (ticket 2920) dit sous elle : après son nom, sa valeur et son contrôle.
+const dessous = (une: Faux) => une.children.slice(3);
 const boutons = (racine: Faux) => [...racine.descendants()].filter((e) => e.balise === "button" && e.textContent !== "?");
 
 describe("la section Connections", () => {
@@ -47,11 +50,30 @@ describe("la section Connections", () => {
     assert.match(racine.textContent, /log-in started/);
   });
 
-  test("un geste qui échoue se dit en une ligne, sans erreur brute en dehors", async () => {
+  test("un geste qui échoue se dit en une ligne d'erreur sous sa rangée, son message au survol, sans erreur brute en dehors", async () => {
     const racine = await section("gist-mac", { github: { login: "a" }, claude: null, gestes: { changerGitHub: async () => { throw new Error("gh failed"); } } });
     boutons(racine)[0]?.click();
     await repos();
-    assert.match(racine.textContent, /nothing was done: gh failed/);
+    const [refus] = dessous(rangee(racine, "github"));
+    assert.equal(refus?.dataset.ligne, "erreur");
+    assert.equal(refus?.children[0]?.textContent, RIEN_FAIT);
+    assert.ok(refus?.descendants().some((e) => e.ariaLabel === "gh failed"));
+  });
+
+  test("le geste court : son bouton désactivé et « applying… » sous la rangée, puis le refus qu'il rend sous elle", async () => {
+    let fini: (rendu: unknown) => void = () => {};
+    const racine = await section("gist-mac", { github: { login: "a" }, claude: null, gestes: { changerGitHub: () => new Promise((r) => (fini = r)) } });
+    const [changer] = boutons(racine);
+    changer?.click();
+    await repos();
+    assert.equal(changer?.disabled, true);
+    assert.equal(dessous(rangee(racine, "github")).map((e) => e.textContent).join(), EN_COURS);
+    fini({ refus: "GitHub sign-in could not be started" });
+    await repos();
+    assert.equal(changer?.disabled, false);
+    assert.equal(dessous(rangee(racine, "github"))[0]?.dataset.ligne, "erreur");
+    assert.match(rangee(racine, "github").textContent, /GitHub sign-in could not be started/);
+    assert.ok(!racine.descendants().some((e) => e.className === "par-pr"), "réglages de la machine : aucune ligne de PR");
   });
 
   test("sur une autre station : les deux se lisent, aucun geste, une note dit que le changement se fait sur cette machine", async () => {

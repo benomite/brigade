@@ -100,7 +100,7 @@ describe("le bloc de la station locale", () => {
   test("chaque geste appelle le sien : le bac à sable, le login de la panne", () => {
     const faits: unknown[][] = [];
     const bloc = poserBlocStationLocale(doc, etat({ station: station("macbook", "perdue", [PERDUE]) }), {
-      regler: (actif, limite) => void faits.push(["regler", actif, limite]),
+      regler: (actif, limite, ou) => void faits.push(["regler", actif, limite, ou]),
       seConnecter: (cle) => void faits.push(["seConnecter", cle]),
     }) as unknown as Faux;
     assert.equal(valeurDe(lignes(bloc).find(({ dataset }) => dataset.cle === "claude") ?? assert.fail("pas de ligne")), "lost");
@@ -113,7 +113,19 @@ describe("le bloc de la station locale", () => {
     const [login] = boutons(bloc, "log in");
     assert.equal(login?.className, "recommande");
     login?.click();
-    assert.deepEqual(faits, [["regler", false, 2], ["regler", false, null], ["seConnecter", PERDUE.cle]]);
+    assert.deepEqual(faits, [["regler", false, 2, "option"], ["regler", false, null, "limite"], ["seConnecter", PERDUE.cle]]);
+  });
+
+  test("aucun « Save » ; un changement en route se dit sous sa rangée, les contrôles du bac à sable attendent ; un refus se lit sous la sienne", () => {
+    const bloc = poserBlocStationLocale(doc, etat()) as unknown as Faux;
+    assert.deepEqual(bloc.dessous("button").filter(({ textContent }) => /^(save|saving…)$/i.test(textContent)), []);
+    const ditSous = (pose: Faux) => lignes(pose).map((ligne) => ligne.children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]));
+    const enRoute = poserBlocStationLocale(doc, etat({ reglageDit: { ou: "limite", dit: { enCours: "applying…" } } })) as unknown as Faux;
+    assert.deepEqual(ditSous(enRoute), [[], [], [], [["dit en-cours", "applying…"]], []]);
+    assert.ok(enRoute.dessous("input").every(({ disabled }) => disabled));
+    const refuse = poserBlocStationLocale(doc, etat({ reglageDit: { ou: "option", dit: { refus: "nothing was written: EACCES" } } })) as unknown as Faux;
+    assert.deepEqual(ditSous(refuse), [[], [], [["dit refus", "nothing was written: EACCES"]], [], []]);
+    assert.ok(refuse.dessous("input").every(({ disabled }) => !disabled));
   });
 });
 
@@ -215,6 +227,30 @@ describe("la station locale dans l'onglet Stations", () => {
     await repos();
     await repos();
     assert.deepEqual(leBloc(vue).dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent), ["nothing was written: EACCES"]);
+    // Sous la rangée qui a changé, et la case relue revient à la valeur en vigueur.
+    const bac = lignes(leBloc(vue)).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de bac à sable");
+    assert.ok(bac.children.some(({ className }) => className === "dit refus"));
+    assert.equal(leBloc(vue).dessous("input")[0]?.checked, true);
+  });
+
+  test("un changement du bac à sable s'applique aussitôt : « applying… » sous sa rangée tant qu'il est en route", async () => {
+    let lacher = (_: string | undefined) => {};
+    const vue = await jouer(station("macbook", "connectee"), () => new Promise<string | undefined>((resolu) => (lacher = resolu)) as never);
+    await ouvrirLeProjet(vue);
+    await ouvrirOnglet(vue, "Stations");
+    await repos();
+    const limite = leBloc(vue).dessous("input")[1] ?? assert.fail("pas de limite");
+    limite.value = "3";
+    limite.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("reglerOrdinaires"), ["parade", true, 3]);
+    assert.ok(leBloc(vue).dessous("p").some(({ className, textContent }) => className === "dit en-cours" && textContent === "applying…"));
+    assert.ok(leBloc(vue).dessous("input").every(({ disabled }) => disabled));
+    lacher(undefined);
+    await repos();
+    await repos();
+    assert.equal(leBloc(vue).dessous("p").some(({ className }) => className.startsWith("dit en-cours")), false);
+    assert.ok(leBloc(vue).dessous("input").every(({ disabled }) => !disabled));
   });
 
   test("connexion perdue : « log in » joue le login de la panne de cette station, comme sur sa page, et ce qu'il a rendu se lit dessous", async () => {

@@ -13,7 +13,8 @@
 // Le bloc liste toutes les stations qui servent le projet, chacune une fois (ticket 1786) : celles que `facts` donne, celles
 // que le journal déclare sans qu'elles s'y soient encore annoncées, et celles que l'app lui a ajoutées et qui n'en sont
 // pas encore. Toutes se disent de la même façon, dans l'ordre où elles sont données ; chaque station dit si elle est atteinte, ce qu'elle fournit (le bloc « what each station provides » y est fondu, son
-// « edit » compris), ses cooks à la fois, et, quand elle ne peut pas cuire, pourquoi en une ligne.
+// « edit » compris), ses cooks à la fois — la rangée de réglage de l'app (composants/reglage, ticket 2920), dont le champ
+// s'applique dès qu'il change —, et, quand elle ne peut pas cuire, pourquoi en une ligne.
 // Telle que `facts` la voit (ticket 1830), quand il le dit : atteinte ou absente — une distante qui ne s'est
 // pas manifestée est absente, et ne se lit jamais « reached · cooking » —, et ce qu'elle fournit.
 // Et ce que chaque station fait tourner à côté de ses cooks (ticket 1971) — la pass qui juge une livraison, le manager
@@ -22,9 +23,9 @@
 // qui ne fait rien tourner le dit en une ligne ; une qui ne fait que juger ne se dit pas sans cook.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { boutonAction } from "./briques.js";
 import { niveauDe } from "./niveaux.js";
-import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
+import { ceQuElleFournit, champDuPlafond, ditDe, motDuLieu } from "./stations-declarees.js";
+import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 import { bouton } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
@@ -89,8 +90,8 @@ export const RELIRE = { libelle: "check again", survol: "reads GitHub again, to 
 export const FOURNIT = "Provides";
 export const FOURNIT_PAS_DIT = "not declared yet";
 
-// Le plafond de cooks du projet sur la station (ticket 1292) : ce qu'il vaut, d'où il vient, et le geste qui ouvre son réglage.
-export const POSER_LE_PLAFOND = "set the cap";
+// Le plafond de cooks du projet sur la station (ticket 1292) : le nom de sa rangée.
+export const PLAFOND = "Cooks at once";
 // Ce que dit une station saturée : ce qui la sature, et ce que baisser le plafond change — et ne change pas.
 export const BAISSER_LE_PLAFOND = "Lowering the cap makes this project run fewer cooks at once; the machine's load does not drop right away.";
 
@@ -152,15 +153,45 @@ export function lignesDeCooks(doc, siens, agents) {
   return cooks;
 }
 
-// Sous une station : le plafond du projet sur elle comme sa box le dit (`3 at most — 8 cores`), et en une phrase ce qui
-// la sature quand elle l'est. Il se lit seulement : son réglage est la déclaration de la station, sur sa machine.
-/** @param {Fabrique} doc @param {Plafonds} cap */
-function plafondDeLaStation(doc, cap) {
-  const plafond = cree(doc, "p", `Cooks at once: ${cap.plafond.dit}`);
-  plafond.className = "plafond-de-station";
-  plafond.append(niveauDe(doc, "cooks"));
+// Ce que le chef tape dans le champ du plafond d'une station, gardé d'une pose à l'autre tant que sa déclaration ne change
+// pas : un bloc reposé le redonne tel quel. Un changement refusé le ramène, une fois, à la valeur en vigueur.
+/** @type {Map<string, import("./stations-declarees.js").Edition & { lue: string, vu?: object }>} */
+const plafondsTapes = new Map();
+/** @param {StationDeclaree} declaree @param {{ envoi?: boolean, rendu?: object } | undefined} dernier */
+function saisieDuPlafond(declaree, dernier) {
+  const lue = JSON.stringify([declaree.cooks, declaree.fournit]);
+  const tenue = plafondsTapes.get(declaree.nom);
+  const refuse = dernier?.rendu !== undefined && "refus" in dernier.rendu;
+  if (tenue !== undefined && tenue.lue === lue && !(refuse && tenue.vu !== dernier)) {
+    tenue.envoi = dernier?.envoi === true;
+    return tenue;
+  }
+  const neuve = { nom: declaree.nom, cooks: String(declaree.cooks), fournit: [...declaree.fournit], choix: [], confirmer: false, envoi: dernier?.envoi === true, lue, ...(refuse ? { vu: dernier } : {}) };
+  plafondsTapes.set(declaree.nom, neuve);
+  return neuve;
+}
+
+// Sous une station : la rangée de ses cooks à la fois — le plafond du projet sur elle comme sa box le dit (`3 at most — 8
+// cores`), à défaut ce qu'elle déclare —, et en une phrase ce qui la sature quand elle l'est. Déclarée et éditable, son
+// champ change ce qu'elle déclare dès qu'il change : la déclaration entière part, ce plafond dedans (stations-declarees.js) ;
+// son formulaire ouvert sous elle a ce champ, la rangée se lit alors seulement. Sans déclaration lue, elle se lit seulement.
+/** @param {Fabrique} doc @param {Plafonds | undefined} cap @param {StationDeclaree | undefined} declaree @param {Editer | undefined} editer */
+function plafondDeLaStation(doc, cap, declaree, editer) {
+  const vaut = cree(doc, "strong", cap === undefined ? String(declaree?.cooks ?? "") : cap.plafond.dit);
+  const reglable = declaree !== undefined && editer !== undefined && editer.editee?.nom !== declaree.nom;
+  /** @type {any[]} */
+  let controle = [];
+  /** @type {any[]} */
+  let dessous = [];
+  if (reglable) {
+    const dernier = editer.dernier?.nom === declaree.nom ? editer.dernier : undefined;
+    const saisie = saisieDuPlafond(declaree, dernier);
+    controle = [champDuPlafond(doc, declaree, saisie, `plafond:${declaree.nom}`, (voulu) => editer.appliquer(declaree.nom, "cooks", voulu))];
+    dessous = dernier === undefined ? [] : ditDuReglage(doc, ditDe(dernier, "cooks"));
+  }
+  const plafond = rangeeDeReglage(doc, { nom: PLAFOND, cle: "cooks", niveau: niveauDe(doc, "cooks"), valeur: [vaut], controle, dessous });
   const lignes = [plafond];
-  if (cap.retenue !== undefined) {
+  if (cap?.retenue !== undefined) {
     const sature = cree(doc, "p", `Saturated on ${cap.retenue.ressources} — ${cap.retenue.detail}. ${BAISSER_LE_PLAFOND}`);
     sature.className = "retenue-de-station";
     lignes.push(sature);
@@ -284,23 +315,6 @@ function fournitDe(doc, rang, lieu, declarees) {
   return [ligne, ...(dessous === undefined ? [] : [dessous])];
 }
 
-// Ses cooks à la fois, quand son runtime ne dit pas encore le plafond du projet sur elle : ce qu'elle déclare, et « set the
-// cap », qui ouvre son formulaire — son plafond s'y règle.
-/** @param {Fabrique} doc @param {StationDeclaree} declaree @param {Editer | undefined} editer */
-function cooksDeclares(doc, declaree, editer) {
-  const plafond = cree(doc, "p", `Cooks at once: ${declaree.cooks}`);
-  plafond.className = "plafond-de-station";
-  plafond.append(niveauDe(doc, "cooks"));
-  if (editer === undefined || editer.editee?.nom === declaree.nom) return [plafond];
-  const regle = cree(doc, "p");
-  regle.className = "regle-le-plafond-de-station ouvre-l-edition";
-  const ouvrir = boutonAction(doc, POSER_LE_PLAFOND, () => editer.ouvrir(declaree.nom));
-  const clic = ouvrir.children[0];
-  if (clic !== undefined) clic.ariaLabel = `${POSER_LE_PLAFOND}: ${declaree.nom}`;
-  regle.append(ouvrir);
-  return [plafond, regle];
-}
-
 // La section des stations, ou null : `facts` ne les donne pas. `pastille` : celle de la vue. `tete` : ce qui se lit sous son titre,
 // avant les stations — la ligne de la cuisine du projet, où sa carte est fondue (ticket 1456).
 // `declarees` : les stations que le journal déclare (installation stations --json) ; `appairees` : celles que l'app
@@ -356,8 +370,7 @@ export function poserLesStations(doc, { lignes, pastille, plafonds, tete = [], d
       // Ce qu'elle fournit, puis ses cooks à la fois.
       if (lieu !== undefined) pose.append(...fournitDe(doc, rang, lieu, declarees.length));
       const cap = plafonds?.[rang.nom];
-      if (cap !== undefined) pose.append(...plafondDeLaStation(doc, cap));
-      else if (rang.declaree !== undefined) pose.append(...cooksDeclares(doc, rang.declaree, lieu?.editer));
+      if (cap !== undefined || rang.declaree !== undefined) pose.append(...plafondDeLaStation(doc, cap, rang.declaree, lieu?.editer));
       return pose;
     }),
   );

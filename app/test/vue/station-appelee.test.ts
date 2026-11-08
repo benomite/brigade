@@ -1,6 +1,7 @@
 // « Cook it on a station that has it » (#1511, épique #1506), sur la carte d'un besoin que la station n'a pas : le clic
 // n'écrit pas le choix, il ouvre sur Stations le formulaire d'une station de ce poste (#1510) avec la capacité qui manque
-// déjà cochée, en plus de celles que la station déclare. Les cartes sont écrites par le runtime lui-même, relues comme
+// offerte, en plus de celles que la station déclare : chaque case s'appliquant dès qu'elle change (#2920), c'est la cocher
+// qui la déclare. Les cartes sont écrites par le runtime lui-même, relues comme
 // l'app relit le suivi d'une station ; les stations déclarées sont lues par `lireStations` ; la vue est jouée contre le
 // faux pont (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -126,37 +127,46 @@ const cliquerSurAilleurs = async (jouee: Awaited<ReturnType<typeof laPage>>["jou
 };
 const formulaire = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => jouee.element("rail").dessous("div").find(({ className }) => className === "edition");
 const cochees = (forme: Faux) => forme.dessous("input").filter(({ type, checked, ariaLabel }) => type === "checkbox" && checked).map(({ ariaLabel }) => ariaLabel);
+const caseDe = (forme: Faux, capacite: string) => forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && ariaLabel === capacite) ?? assert.fail(`pas de case « ${capacite} »`);
 
 describe("« Cook it on a station that has it » ouvre le formulaire de la station de ce poste", () => {
-  test("un navigateur qui manque : le formulaire de pc/claude, navigateur-headless coché en plus de code, et rien n'est écrit", async () => {
+  test("un navigateur qui manque : le formulaire de pc/claude, navigateur-headless offert à côté de code, et rien n'est écrit avant qu'il soit coché", async () => {
     const { jouee, envoyes } = await laPage([enAttente("browser")]);
     assert.equal(formulaire(jouee), undefined);
     await cliquerSurAilleurs(jouee, "browser");
     const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
     assert.equal(forme.ariaLabel, "edit pc/claude");
-    assert.deepEqual(cochees(forme).sort(), ["code", "navigateur-headless"]);
-    // Le choix lui-même n'est pas écrit : la carte reste, le chef enregistre ou non le formulaire.
+    assert.deepEqual(cochees(forme), ["code"]);
+    assert.equal(caseDe(forme, "navigateur-headless").checked, false);
+    // Le choix lui-même n'est pas écrit : la carte reste, et rien ne part avant que le chef coche la case.
     assert.throws(() => jouee.dernier("choisirUneIssue"), /n'a pas appelé/);
-    // « Save » envoie ce que le formulaire montre.
-    (forme.dessous("button").find((pose) => pose.textContent === "Save") ?? assert.fail("pas de « Save »")).click();
+    assert.equal(envoyes.length, 0);
+    // Aucun « Save » : la case cochée part aussitôt, la déclaration entière de la station avec elle.
+    assert.equal(forme.dessous("button").some(({ textContent }) => textContent === "Save"), false);
+    const coche = caseDe(forme, "navigateur-headless");
+    coche.checked = true;
+    coche.declencher("change");
     for (let tour = 0; tour < 5; tour++) await repos();
     assert.deepEqual(envoyes[0]?.slice(0, 2), ["parade", "pc/claude"]);
     assert.deepEqual([...((envoyes[0]?.[2] as { fournit: string[] }).fournit)].sort(), ["code", "navigateur-headless"]);
   });
 
-  test("un autre besoin, Docker : docker est coché, code reste coché, et la case de Docker est celle du catalogue du poste", async () => {
+  test("un autre besoin, Docker : docker est offert, code reste coché, et la case de Docker est celle du catalogue du poste", async () => {
     const { jouee } = await laPage([enAttente("docker")]);
     await cliquerSurAilleurs(jouee, "docker");
     const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
     assert.equal(forme.ariaLabel, "edit pc/claude");
-    assert.deepEqual(cochees(forme).sort(), ["code", "docker"]);
+    assert.deepEqual(cochees(forme), ["code"]);
+    assert.equal(caseDe(forme, "docker").checked, false);
     assert.equal(forme.dessous("input").filter(({ ariaLabel }) => ariaLabel === "docker").length, 1);
   });
 
-  test("une station qui fournit déjà la capacité : elle reste cochée, une seule fois", async () => {
+  test("une capacité qu'aucune case n'offrait : elle est offerte une seule fois, décochée", async () => {
     const { jouee } = await laPage([enAttente("postgres")]);
     await cliquerSurAilleurs(jouee, "postgres");
-    assert.deepEqual(cochees(formulaire(jouee) ?? assert.fail("fermé")).sort(), ["code", "postgres"]);
+    const forme = formulaire(jouee) ?? assert.fail("fermé");
+    assert.deepEqual(cochees(forme), ["code"]);
+    assert.equal(forme.dessous("input").filter(({ ariaLabel }) => ariaLabel === "postgres").length, 1);
   });
 
   test("aucune station lue : rien ne s'ouvre, une ligne sous la carte le dit", async () => {

@@ -80,6 +80,7 @@ import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, prixDit, replie, survol } from "./briques.js";
 import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { rangeeDeReglage as rangeeDeLaFamille } from "./composants/reglage/reglage.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
 import { bon as bonDeLaFamille, teteDuBon } from "./composants/bon/bon.js";
 import { carteAttente, carteDeReponse } from "./composants/carte-attente/carte-attente.js";
@@ -88,7 +89,7 @@ import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
-import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, stationAOuvrir } from "./stations-declarees.js";
+import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, revenir, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
@@ -127,7 +128,7 @@ import { MENU, STATIONS } from "./projet/menu/menu.js";
 import { poserBlocBandeRail } from "./projet/rail/BandeRail.js";
 import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
 import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
-import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
+import { ORDINAIRES_EN_COURS, poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { monterLePanneau } from "./projet/panneau-second/panneau-second.js";
 import { poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
@@ -943,8 +944,8 @@ function marquerLecture(projet) {
   if (enLecture.has(projet.nom) && seLit(projet) && projet.sansStation !== true) rail.dataset.lecture = "";
   else delete rail.dataset.lecture;
 }
-// Les réglages de chaque projet (ticket 1309) : leur dernière lecture, et l'état de chacun — ce que le chef a choisi sans
-// le proposer, le clic qui attend sa réponse, ce que le dernier a rendu. Le plafond, sur Cooks, est le même réglage.
+// Les réglages de chaque projet (ticket 1309) : leur dernière lecture, et l'état de chacun — ce que le chef écrit sans
+// l'avoir changé, la proposition qui attend sa réponse, ce que la dernière a rendu. Le plafond, sur Cooks, est le même réglage.
 /** @type {Map<string, import("../reglages-du-projet.ts").LectureDesReglages>} */
 const reglagesLus = new Map();
 /** @type {Map<string, Map<import("../reglages-du-projet.ts").Cle, import("./projet/reglages.js").Etat>>} */
@@ -2149,11 +2150,14 @@ function reglagesDesStations(projet) {
   const saisies = saisiesDesStations.get(projet.nom) ?? new Map();
   saisiesDesStations.set(projet.nom, saisies);
   const ordinaires = ordinairesVus.get(projet.nom);
+  // Ce que le dernier changement des tickets ordinaires de ce poste a rendu, sous leur rangée : en route, ou refusé.
+  const ordinairesDit = ordinairesEnCours.has(projet.nom) ? ORDINAIRES_EN_COURS : ordinairesRefuses.projet === projet.nom && ordinairesRefuses.refus !== "" ? { refus: ordinairesRefuses.refus } : undefined;
   const pose = poserBlocReglagesStation(document, {
     stations: declarees.get(projet.nom),
     projet: projet.nom,
     ici: projet.ici === true,
     ...(ordinaires === undefined ? {} : { ordinaires }),
+    ...(ordinairesDit === undefined ? {} : { ordinairesDit }),
     ...(lignes === undefined ? {} : { lignes }),
     saisies,
     gestes: gestesDesReglages(projet),
@@ -2173,13 +2177,13 @@ function reposerLesReglagesDesStations(projet) {
   rail.replaceChildren(...poses.map((pose) => (pose === ancien ? neuf : pose)));
   rendreLeClavier(reprise);
 }
-// Les gestes du bloc : « Save » envoie le plafond et les capacités saisis, comme « edit » sur Cooks ; la case des tickets
-// ordinaires de ce poste s'écrit comme dans Settings ; « Stop serving » confirmé retire la station.
+// Les gestes du bloc : un plafond ou des capacités changés partent aussitôt, comme sous « edit » sur Cooks ; la case des
+// tickets ordinaires de ce poste s'écrit comme dans Settings ; « Stop serving » confirmé retire la station.
 /** @param {Projet} projet @returns {import("./projet/stations/ReglagesStation.js").Gestes} */
 function gestesDesReglages(projet) {
   const saisie = (/** @type {string} */ nom) => saisiesDesStations.get(projet.nom)?.get(nom);
   return {
-    sauver: (nom) => void changerLaStation(projet, nom, false),
+    appliquer: (nom, cle, voulu) => void changerLaStation(projet, nom, cle, voulu),
     ordinaires: (pris) => void reglerLesOrdinairesIci(projet, pris),
     confirmer: (nom, oui) => {
       const tenue = saisie(nom);
@@ -2187,39 +2191,54 @@ function gestesDesReglages(projet) {
       tenue.confirmer = oui;
       reposerLesReglagesDesStations(projet);
     },
-    retirer: (nom) => void changerLaStation(projet, nom, true),
+    retirer: (nom) => void changerLaStation(projet, nom, "sert", { retiree: true }),
   };
 }
-// Le geste part, puis la saisie dit ce qu'il a rendu ; la déclaration relue arrive par `surGuide`, et le bloc s'y repose.
-/** @param {Projet} projet @param {string} nom @param {boolean} retrait */
-async function changerLaStation(projet, nom, retrait) {
+// Le changement part — la rangée `cle` dit qu'il est en route —, puis elle dit ce qu'il a rendu ; refusé, la saisie revient
+// à la déclaration en vigueur. La déclaration relue arrive par `surGuide`, et le bloc s'y repose.
+/** @param {Projet} projet @param {string} nom @param {string} cle @param {import("../service.ts").StationVoulue} voulu */
+async function changerLaStation(projet, nom, cle, voulu) {
   const saisie = saisiesDesStations.get(projet.nom)?.get(nom);
   if (saisie === undefined || saisie.envoi) return;
   saisie.envoi = true;
   saisie.confirmer = false;
+  saisie.ou = cle;
   saisie.rendu = undefined;
   reposerLesReglagesDesStations(projet);
-  /** @type {import("../service.ts").StationVoulue} */
-  const voulu = retrait ? { retiree: true } : { cooks: Number(saisie.cooks), fournit: saisie.fournit };
   /** @type {import("../service.ts").StationChangee} */
   let rendu;
   try {
     rendu = await brigade.changerUneStation(projet.nom, nom, voulu);
   } catch (erreur) {
-    rendu = { refus: "Nothing was saved: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    rendu = { refus: "Nothing was changed: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   saisie.envoi = false;
   saisie.rendu = rendu;
+  if ("refus" in rendu) revenir(saisie, declarees.get(projet.nom)?.declarees.find((lue) => lue.nom === nom));
   if (courant?.nom === projet.nom) reposerLesReglagesDesStations(courant);
 }
+// Les projets dont la case des tickets ordinaires de ce poste est en route, sur « Station settings ».
+/** @type {Set<string>} */
+const ordinairesEnCours = new Set();
 // La case des tickets ordinaires de ce poste : la même écriture que Settings, la limite de cooks gardée telle qu'elle est.
 /** @param {Projet} projet @param {boolean} pris */
 async function reglerLesOrdinairesIci(projet, pris) {
   const lu = ordinairesVus.get(projet.nom);
-  if (lu === undefined || !lu.reglable) return;
-  const refus = await brigade.reglerOrdinaires(projet.nom, pris, lu.limite);
+  if (lu === undefined || !lu.reglable || ordinairesEnCours.has(projet.nom)) return;
+  ordinairesEnCours.add(projet.nom);
+  reposerLesReglagesDesStations(projet);
+  /** @type {string | undefined} */
+  let refus;
+  try {
+    refus = await brigade.reglerOrdinaires(projet.nom, pris, lu.limite);
+  } catch (erreur) {
+    refus = `nothing was written: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  } finally {
+    ordinairesEnCours.delete(projet.nom);
+  }
   ordinairesRefuses = { projet: projet.nom, refus: refus ?? "" };
   ordinairesPose = "";
+  // Relue, l'option se repose à la valeur en vigueur — celle d'avant, quand le changement est refusé.
   if (courant?.nom === projet.nom) await poserOrdinaires(projet);
 }
 
@@ -2242,13 +2261,15 @@ function lieuDesStations(projet) {
       editee = undefined;
       reposerLesStations(projet);
     },
-    sauver: () => void envoyerLEdition(projet, false),
+    appliquer: (nom, cle, voulu) => void envoyerLEdition(projet, nom, cle, voulu),
     confirmer: (/** @type {boolean} */ oui) => {
       if (editee?.projet !== projet.nom) return;
       editee.edition.confirmer = oui;
       reposerLesStations(projet);
     },
-    retirer: () => void envoyerLEdition(projet, true),
+    retirer: () => {
+      if (editee?.projet === projet.nom) void envoyerLEdition(projet, editee.edition.nom, "retrait", { retiree: true });
+    },
   };
   return { ici: projet.ici === true, projet: projet.nom, editer };
 }
@@ -2257,16 +2278,18 @@ function lieuDesStations(projet) {
 // autres stations, et ce que cet ordinateur sait déclarer — lu comme pour « + station » (ticket 1307).
 /** @type {{ projet: string, edition: import("./stations-declarees.js").Edition } | undefined} */
 let editee;
-// Ce que le dernier geste a rendu, sous la ligne de sa station, le formulaire refermé.
-/** @type {{ projet: string, nom: string, fait: string } | undefined} */
+// Ce que le dernier changement a rendu sur une station dont le formulaire est fermé : son plafond réglé sur sa ligne
+// (« Its stations »), en route ou rendu, ou son retrait.
+/** @type {{ projet: string, nom: string, ou: string, envoi?: boolean, rendu?: import("../service.ts").StationChangee } | undefined} */
 let derniereEditee;
-// `appelee` : une capacité à cocher en plus de celles que la station déclare déjà (ticket 1511).
+// `appelee` : une capacité offerte en plus de celles que la station déclare déjà (ticket 1511) — sa case suit les siennes,
+// décochée : chaque case s'applique dès qu'elle est cochée (ticket 2920), c'est la cocher qui la déclare.
 /** @param {Projet} projet @param {string} nom @param {string} [appelee] */
 async function ouvrirLEdition(projet, nom, appelee) {
   const lues = declarees.get(projet.nom);
   const station = lues?.declarees.find((lue) => lue.nom === nom);
   if (lues === undefined || station === undefined) return;
-  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: appelee === undefined || station.fournit.includes(appelee) ? [...station.fournit] : [...station.fournit, appelee], choix: choixDeCapacites(station, lues, [], appelee), confirmer: false, envoi: false } };
+  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: [...station.fournit], choix: choixDeCapacites(station, lues, [], appelee), confirmer: false, envoi: false } };
   editee = ouverte;
   derniereEditee = undefined;
   reposerLesStations(projet);
@@ -2275,31 +2298,37 @@ async function ouvrirLEdition(projet, nom, appelee) {
   ouverte.edition.choix = choixDeCapacites(station, lues, defauts.capacites, appelee);
   if (courant?.nom === projet.nom) reposerLesStations(courant);
 }
-// « Save », ou « Remove » confirmé : le geste part, puis le formulaire se referme sur ce qu'il a rendu — ou reste
-// ouvert, le refus dedans. Les stations relues arrivent par `surGuide`.
-/** @param {Projet} projet @param {boolean} retrait */
-async function envoyerLEdition(projet, retrait) {
-  const ouverte = editee;
-  if (ouverte === undefined || ouverte.projet !== projet.nom || ouverte.edition.envoi) return;
-  const { edition } = ouverte;
-  edition.envoi = true;
-  edition.confirmer = false;
-  edition.rendu = undefined;
+// Un réglage de la station changé — dans son formulaire, ou son plafond sur sa ligne —, ou « Remove » confirmé : le geste
+// part, sa rangée dit qu'il est en route, puis ce qu'il a rendu ; refusé, la saisie revient à la déclaration en vigueur.
+// Le formulaire reste ouvert, sauf sur un retrait fait. Les stations relues arrivent par `surGuide`.
+/** @param {Projet} projet @param {string} nom @param {string} cle @param {import("../service.ts").StationVoulue} voulu */
+async function envoyerLEdition(projet, nom, cle, voulu) {
+  const ouverte = editee?.projet === projet.nom && editee.edition.nom === nom ? editee : undefined;
+  const edition = ouverte?.edition;
+  if (edition?.envoi === true || (derniereEditee?.projet === projet.nom && derniereEditee.nom === nom && derniereEditee.envoi === true)) return;
+  if (edition !== undefined) {
+    edition.envoi = true;
+    edition.confirmer = false;
+    edition.ou = cle;
+    edition.rendu = undefined;
+  }
+  derniereEditee = edition === undefined ? { projet: projet.nom, nom, ou: cle, envoi: true } : undefined;
   reposerLesStations(projet);
-  /** @type {import("../service.ts").StationVoulue} */
-  const voulu = retrait ? { retiree: true } : { cooks: Number(edition.cooks), fournit: edition.fournit };
   /** @type {import("../service.ts").StationChangee} */
   let rendu;
   try {
-    rendu = await brigade.changerUneStation(projet.nom, edition.nom, voulu);
+    rendu = await brigade.changerUneStation(projet.nom, nom, voulu);
   } catch (erreur) {
-    rendu = { refus: "Nothing was saved: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    rendu = { refus: "Nothing was changed: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  edition.envoi = false;
-  if (editee === ouverte && "fait" in rendu) {
-    editee = undefined;
-    derniereEditee = { projet: projet.nom, nom: edition.nom, fait: rendu.fait };
-  } else edition.rendu = rendu;
+  if (edition !== undefined) {
+    edition.envoi = false;
+    if ("refus" in rendu) revenir(edition, declarees.get(projet.nom)?.declarees.find((lue) => lue.nom === nom));
+    if (cle === "retrait" && "fait" in rendu && editee === ouverte) {
+      editee = undefined;
+      derniereEditee = { projet: projet.nom, nom, ou: cle, rendu };
+    } else edition.rendu = rendu;
+  } else derniereEditee = { projet: projet.nom, nom, ou: cle, rendu };
   if (courant?.nom === projet.nom) reposerLesStations(courant);
 }
 
@@ -2321,22 +2350,12 @@ async function amorcerService(projet) {
   suivreGeste(projet, await brigade.amorcer(projet.nom));
 }
 
-// Une ligne de Settings (ticket 1700), la même pour chaque réglage : son nom, sa valeur en vigueur, son contrôle —
-// puis, sous elle, ce que le contrôle a ouvert ou rendu (une confirmation, un refus).
-/** @param {string} nom @param {(Node | string)[]} valeur @param {HTMLElement[]} controle @param {HTMLElement[]} [dessous] */
-function rangeeDeReglage(nom, valeur, controle, dessous = []) {
-  const rangee = document.createElement("div");
-  rangee.className = "reglage";
-  const nomme = bloc("span", nom);
-  nomme.className = "nom";
-  const vaut = document.createElement("p");
-  vaut.className = "valeur";
-  vaut.append(...valeur);
-  const champ = document.createElement("p");
-  champ.className = "champ";
-  champ.append(...controle);
-  rangee.append(nomme, vaut, champ, ...dessous);
-  return rangee;
+// Une ligne de Settings (ticket 1700) : la rangée de réglage de l'app (composants/reglage, ticket 2920) — son nom, sa
+// valeur en vigueur, son contrôle, qui s'applique dès qu'il change ; puis, sous elle, ce que le contrôle a ouvert ou rendu
+// (une confirmation, un refus). `niveau` : sa clé, et la marque de son niveau (niveaux.js), posée à côté de son nom.
+/** @param {string} nom @param {(Node | string)[]} valeur @param {HTMLElement[]} controle @param {HTMLElement[]} [dessous] @param {{ cle: string, niveau: HTMLElement }} [niveau] */
+function rangeeDeReglage(nom, valeur, controle, dessous = [], niveau) {
+  return rangeeDeLaFamille(document, { nom, valeur, controle, dessous, ...niveau });
 }
 
 // Un refus, sous la ligne qu'il concerne.
@@ -2434,10 +2453,7 @@ function poserCouleurs(projet) {
     palette.className = "rangee";
     palette.append(...pastilles, autre);
     const proche = projet.proches?.[role];
-    const pose = rangeeDeReglage(libelle, [bloc("span", portee === undefined ? "none yet" : (nommee ?? portee))], [palette], proche === undefined ? [] : refusDeReglage(`${libelle}: ${proche}`));
-    pose.dataset.cle = "couleurs";
-    pose.firstElementChild?.append(niveauDe(document, "couleurs"));
-    return pose;
+    return rangeeDeReglage(libelle, [bloc("span", portee === undefined ? "none yet" : (nommee ?? portee))], [palette], proche === undefined ? [] : refusDeReglage(`${libelle}: ${proche}`), { cle: "couleurs", niveau: niveauDe(document, "couleurs") });
   };
   couleurs.replaceChildren(rangee("onglet", "tab, in the bar"), rangee("accent", "accent, in the space"), ...refusDeReglage(couleurRefusee.refus));
 }
@@ -2460,10 +2476,7 @@ function poserSigle(projet) {
   const controle = projet.sigle === undefined ? [champ] : [champ, bouton("back to its name", () => void siglerProjet(projet, null))];
   const vaut = bloc("span", projet.etiquette);
   vaut.className = "mono";
-  const pose = rangeeDeReglage("label, in the bar", [vaut, ` · ${projet.sigle === undefined ? "from its name" : "yours"}`], controle, refusDeReglage(sigleRefuse.refus));
-  pose.dataset.cle = "sigle";
-  pose.firstElementChild?.append(niveauDe(document, "sigle"));
-  sigle.replaceChildren(pose);
+  sigle.replaceChildren(rangeeDeReglage("label, in the bar", [vaut, ` · ${projet.sigle === undefined ? "from its name" : "yours"}`], controle, refusDeReglage(sigleRefuse.refus), { cle: "sigle", niveau: niveauDe(document, "sigle") }));
 }
 
 // Un sigle écrit : le process principal l'écrit dans le fichier des projets, et il revient par `surConfiguration` — la
@@ -2537,9 +2550,10 @@ function poserLesReglagesDuProjet(projet) {
   reglagesDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
 
-// « propose » : le changement part par le process principal (reglages-du-projet.ts), qui attend que le runtime du projet
-// ait ouvert la PR. Tant qu'il n'a pas répondu, le bouton dit qu'il s'y met. Ouverte, la PR se dit à côté du champ ;
-// refusé, le refus — et le champ revient à la valeur en vigueur, qui ne change pas tant que la PR n'est pas mergée.
+// Un réglage du projet changé : le changement part par le process principal (reglages-du-projet.ts), qui attend que le
+// runtime du projet ait ouvert la PR. Tant qu'il n'a pas répondu, la rangée dit qu'il s'y met. Ouverte, la PR se dit sous
+// la rangée ; refusé, le refus — et le champ revient à la valeur en vigueur, qui ne change pas tant que la PR n'est pas
+// mergée.
 /** @param {Projet} projet @param {import("../reglages-du-projet.ts").ChoixDeReglage} choix @param {string} dit */
 async function proposerUnReglage(projet, choix, dit) {
   const etats = etatsDesReglages.get(projet.nom) ?? new Map();
@@ -2614,13 +2628,9 @@ async function poserOrdinaires(projet) {
   option.addEventListener("change", () => void regler());
   limite.addEventListener("change", () => void regler());
   // Ce que l'option implique est au survol de sa valeur ; un bac à sable indisponible, sous sa ligne.
-  const prendre = rangeeDeReglage("ordinary tickets", [bloc("span", recu.actif ? "taken" : "not taken"), survol(document, recu.explication)], [option], [...refusDeReglage(recu.indisponible ?? ""), ...refusDeReglage(ordinairesRefuses.refus)]);
-  const combien = rangeeDeReglage("cooks at once", [bloc("span", recu.limite === null ? "no limit" : String(recu.limite))], [limite]);
   // Leur niveau, celui de la table (niveaux.js) : le groupe le dit, l'étiquette reste sur la ligne.
-  for (const pose of [prendre, combien]) {
-    pose.dataset.cle = "ordinaires";
-    pose.firstElementChild?.append(niveauDe(document, "ordinaires"));
-  }
+  const prendre = rangeeDeReglage("ordinary tickets", [bloc("span", recu.actif ? "taken" : "not taken"), survol(document, recu.explication)], [option], [...refusDeReglage(recu.indisponible ?? ""), ...refusDeReglage(ordinairesRefuses.refus)], { cle: "ordinaires", niveau: niveauDe(document, "ordinaires") });
+  const combien = rangeeDeReglage("cooks at once", [bloc("span", recu.limite === null ? "no limit" : String(recu.limite))], [limite], [], { cle: "ordinaires", niveau: niveauDe(document, "ordinaires") });
   ordinaires.replaceChildren(prendre, combien);
   poserLesGroupes();
 }
@@ -4463,7 +4473,7 @@ function reposerLaStationLocale(lu) {
 function lireLaStationLocale(projet) {
   const nom = projet.nom;
   /** @type {LuDeLaStationLocale} */
-  const lu = { projet: nom, a: Date.now(), ...(stationLocaleLue.projet === nom ? { refusOrdinaires: stationLocaleLue.refusOrdinaires, connexionDite: stationLocaleLue.connexionDite } : {}) };
+  const lu = { projet: nom, a: Date.now(), ...(stationLocaleLue.projet === nom ? { refusOrdinaires: stationLocaleLue.refusOrdinaires, reglageDit: stationLocaleLue.reglageDit, connexionDite: stationLocaleLue.connexionDite } : {}) };
   stationLocaleLue = lu;
   void Promise.resolve(brigade.dossiersDeLaStation?.(nom) ?? { refus: "its folders could not be read", detail: "this app does not read them" }).then(
     (rendu) => (lu.dossiers = rendu),
@@ -4498,6 +4508,7 @@ function blocDeLaStationLocale(projet) {
     ...(lu.dossiers === undefined ? {} : { dossiers: lu.dossiers }),
     ...(lu.ordinaires === undefined ? {} : { ordinaires: lu.ordinaires }),
     ...(lu.refusOrdinaires === undefined ? {} : { refusOrdinaires: lu.refusOrdinaires }),
+    ...(lu.reglageDit === undefined ? {} : { reglageDit: lu.reglageDit }),
     ...(lu.connexionDite === undefined ? {} : { connexionDite: lu.connexionDite }),
   };
   const pose = JSON.stringify(etat);
@@ -4505,11 +4516,24 @@ function blocDeLaStationLocale(projet) {
   blocStationLocalePose = pose;
   // Un bloc reposé à l'identique garde ses gestes : chacun prend la lecture en cours au moment du clic.
   const cree = poserBlocStationLocale(document, etat, {
-    // Le même appel que la ligne des tickets ordinaires de Settings ; son refus se lit sous la ligne, puis elle se relit.
-    regler: async (actif, limite) => {
-      const refus = await brigade.reglerOrdinaires(projet.nom, actif, limite);
+    // Le même appel que la ligne des tickets ordinaires de Settings, dès qu'un contrôle change : la rangée dit qu'il est en
+    // route, puis son refus se lit sous elle ; le bac à sable se relit, ses contrôles à la valeur en vigueur.
+    regler: async (actif, limite, ou) => {
+      const avant = stationLocaleLue;
+      if (avant.reglageDit !== undefined && "enCours" in avant.reglageDit.dit) return;
+      avant.reglageDit = { ou, dit: ORDINAIRES_EN_COURS };
+      reposerLaStationLocale(avant);
+      /** @type {string | undefined} */
+      let refus;
+      try {
+        refus = await brigade.reglerOrdinaires(projet.nom, actif, limite);
+      } catch (erreur) {
+        refus = `nothing was written: ${rateDit(erreur)}`;
+      }
       const enCours = stationLocaleLue;
-      enCours.refusOrdinaires = refus ?? "";
+      delete avant.reglageDit;
+      if (refus === undefined || refus === "") delete enCours.reglageDit;
+      else enCours.reglageDit = { ou, dit: { refus } };
       // Settings se repose sur la valeur écrite à sa prochaine ouverture.
       ordinairesPose = "";
       await lireLesOrdinairesLocaux(enCours);
@@ -5401,14 +5425,15 @@ function poserLesSectionsDeStation(station) {
     gestes: {
       changerGitHub: async () => {
         const debut = (await brigade.seConnecterAGitHub?.()) ?? { refus: "GitHub sign-in could not be started: the app gave no answer." };
-        if ("refus" in debut) return debut.refus;
+        // Un refus se dit sous la rangée, en ligne d'erreur (sections/connexions.js).
+        if ("refus" in debut) return { refus: debut.refus };
         repose();
       },
       renouveler: async () => {
         const panne = vue?.pannes.find(({ sujet }) => sujet === "connexion-max");
         if (panne === undefined) return "Claude Code is signed in: there is nothing to renew yet.";
         const rendu = await brigade.panne(station.id, panne.cle);
-        return "refus" in rendu ? rendu.refus : rendu.fait;
+        return "refus" in rendu ? { refus: rendu.refus } : rendu.fait;
       },
     },
   };
@@ -6254,6 +6279,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
       basculerAutres: (ouvert) => void (ouvert ? autresPlafondsOuverts.add(projet.nom) : autresPlafondsOuverts.delete(projet.nom)),
       choisir: (cle, choisi) => void etats.set(cle, { ...etats.get(cle), choisi }),
       changer: (cle, saisie) => void changerUnPlafond(projet, cle, saisie),
+      ouvrir: (url) => void brigade.ouvrirLaProposition(url),
     }),
     poserLeCloserDeSante(projet),
     deTousLesProjets,
@@ -6283,8 +6309,10 @@ async function lireLesPlafondsDuree(projet) {
   plafondsLus.set(projet.nom, lue);
   reposerLaSante(projet, true);
 }
-// « save » : le process principal écrit le plafond dans le dépôt. Tant qu'il n'a pas répondu, le bouton dit qu'il s'y
-// met ; écrit, la ligne le dit et la valeur est relue ; refusé, le refus se dit sous le champ, son détail au survol.
+// Un champ changé : le process principal propose le plafond par une pull request sur le dépôt (ticket 2920). Tant qu'il
+// n'a pas répondu, la rangée dit qu'il s'y met ; ouverte, la PR se dit sous le champ, qui revient à la valeur en vigueur
+// — elle ne change qu'une fois la PR mergée ; déjà là, la rangée le dit ; refusé, le refus se dit sous le champ, son
+// détail au survol, et ce qui a été tapé reste.
 /** @param {Projet} projet @param {string} cle @param {string} saisie */
 async function changerUnPlafond(projet, cle, saisie) {
   const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
@@ -6299,17 +6327,16 @@ async function changerUnPlafond(projet, cle, saisie) {
   } catch (erreur) {
     rendu = { refus: "nothing was changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  if ("fait" in rendu) {
-    etats.set(cle, { dit: { fait: rendu.fait } });
-    const lue = plafondsLus.get(projet.nom);
-    if (lue !== undefined && "plafonds" in lue) plafondsLus.set(projet.nom, { ...lue, plafonds: lue.plafonds.map((plafond) => (plafond.cle === rendu.cle ? { ...plafond, valeur: rendu.valeur } : plafond)) });
-  } else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
+  if ("pr" in rendu) etats.set(cle, { dit: { pr: rendu.pr, numero: rendu.numero, valeur: rendu.valeur } });
+  else if ("fait" in rendu) etats.set(cle, { dit: { fait: rendu.fait } });
+  else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
   reposerLaSante(projet);
 }
 
 // Le closer du bandeau de santé (ticket 2491) : ses passes, ce qu'il vérifie en premier et en plus, ses réglages — lus sur GitHub
 // par le process principal (closer-sante.ts), à l'ouverture de Rail puis au plus une fois la minute, comme les
-// plafonds. Un geste du chef écrit dans le dépôt ; ce qu'il rend se dit sous sa ligne, et la valeur écrite est reprise.
+// plafonds. Un réglage changé se propose par une pull request (ticket 2920), qui se dit sous sa rangée — la valeur en
+// vigueur ne change qu'au merge ; une vérification ajoutée ou retirée s'écrit dans le dépôt, et la liste écrite est reprise.
 /** @param {Projet} projet */
 function poserLeCloserDeSante(projet) {
   const etats = etatsDuCloser.get(projet.nom) ?? new Map();
@@ -6325,6 +6352,7 @@ function poserLeCloserDeSante(projet) {
     candidatsOuverts: candidatsOuverts.has(projet.nom),
     basculerCandidats: (ouvert) => void (ouvert ? candidatsOuverts.add(projet.nom) : candidatsOuverts.delete(projet.nom)),
     ouvrir: (url) => void brigade.ouvrirBilan(projet.nom, url),
+    ouvrirLaPr: (url) => void brigade.ouvrirLaProposition(url),
     choisir: (cle, choisi) => void etats.set(cle, { ...etats.get(cle), choisi }),
     changer: (cle, saisie) => void changerUnReglageDuCloser(projet, cle, saisie),
     taper: (saisie) => void (verifications.saisie = saisie),
@@ -6364,14 +6392,10 @@ async function changerUnReglageDuCloser(projet, cle, saisie) {
   } catch (erreur) {
     rendu = { refus: "nothing was changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  if ("fait" in rendu) {
-    etats.set(cle, { dit: { fait: rendu.fait } });
-    const lue = closerDeSanteLu.get(projet.nom);
-    if (lue !== undefined && "liste" in lue.reglages) {
-      const liste = lue.reglages.liste.map((reglage) => (reglage.cle === rendu.cle ? { ...reglage, valeur: rendu.valeur } : reglage));
-      closerDeSanteLu.set(projet.nom, { ...lue, reglages: { liste } });
-    }
-  } else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
+  // Comme un plafond : la PR ouverte se dit, la valeur en vigueur reste jusqu'au merge.
+  if ("pr" in rendu) etats.set(cle, { dit: { pr: rendu.pr, numero: rendu.numero, valeur: rendu.valeur } });
+  else if ("fait" in rendu) etats.set(cle, { dit: { fait: rendu.fait } });
+  else etats.set(cle, { ...etats.get(cle), enCours: false, dit: rendu });
   reposerLaSante(projet);
 }
 /** @param {Projet} projet @param {"ajouter" | "retirer"} geste @param {string} saisie */
@@ -6387,12 +6411,16 @@ async function changerUneVerificationDuCloser(projet, geste, saisie) {
   } catch (erreur) {
     rendu = { refus: "nothing was changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  if ("fait" in rendu) {
-    // Ajoutée, le champ se vide ; retirée, ce qui y était tapé reste.
-    verificationsDuCloser.set(projet.nom, { ...(geste === "ajouter" ? {} : { saisie: etat.saisie }), dit: { fait: rendu.fait } });
+  // Proposée par une PR (ticket 2920) : la liste en vigueur ne change qu'au merge, la PR se dit sous le champ. Ajoutée, le
+  // champ se vide ; retirée, ce qui y était tapé reste.
+  const garde = geste === "ajouter" ? {} : { saisie: etat.saisie };
+  if ("pr" in rendu) verificationsDuCloser.set(projet.nom, { ...garde, dit: { pr: rendu.pr, numero: rendu.numero, geste: rendu.geste, verification: rendu.verification } });
+  else if ("fait" in rendu) verificationsDuCloser.set(projet.nom, { ...garde, dit: { fait: rendu.fait } });
+  else verificationsDuCloser.set(projet.nom, { ...etat, enCours: undefined, dit: rendu });
+  if (!("refus" in rendu)) {
     const lue = closerDeSanteLu.get(projet.nom);
     if (lue !== undefined) closerDeSanteLu.set(projet.nom, { ...lue, verifications: { liste: rendu.liste } });
-  } else verificationsDuCloser.set(projet.nom, { ...etat, enCours: undefined, dit: rendu });
+  }
   reposerLaSante(projet);
 }
 

@@ -18,7 +18,7 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { RIEN_NE_TOURNE, BAISSER_LE_PLAFOND, OUVRIR_COOKS, POSER_LE_PLAFOND } from "../src/vue/stations-de-cuisson.js";
+import { RIEN_NE_TOURNE, BAISSER_LE_PLAFOND, OUVRIR_COOKS, PLAFOND } from "../src/vue/stations-de-cuisson.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
@@ -267,6 +267,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
   });
 });
 
+// Sa rangée est la rangée de réglage de l'app (#2920) ; sans déclaration lue de la station, rien ne la règle.
 describe("la ligne de station dit le plafond du projet, sans le régler (ticket 1292)", () => {
   const accueil = (plafond: { dit: string; nombre: number | null; parLeChef: boolean }, retenue?: { depuis: string; ressources: string; detail: string }) => ({
     projets: [],
@@ -287,14 +288,16 @@ describe("la ligne de station dit le plafond du projet, sans le régler (ticket 
     await repos();
     await ouvrirOnglet(vue, "Stations");
     const pose = ligne(vue, "box/claude");
-    assert.match(pose.textContent, /Cooks at once: 3 at most — 8 cores/);
+    const rangee = () => ligne(vue, "box/claude").children.find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks") ?? assert.fail("pas de rangée du plafond");
+    assert.equal(rangee().children[0]?.children.at(-1)?.className.includes("niveau"), true);
+    assert.deepEqual([rangee().children[0]?.textContent.startsWith(PLAFOND), rangee().children[1]?.textContent], [true, "3 at most — 8 cores"]);
     assert.match(pose.textContent, /Saturated on CPU — load of 19\.4 for at most 12\. /);
     assert.ok(pose.textContent.includes(BAISSER_LE_PLAFOND));
     assert.equal(pose.dessous("input").length, 0);
-    assert.equal(pose.dessous("button").some((bouton) => bouton.textContent === POSER_LE_PLAFOND), false);
+    assert.deepEqual(rangee().children[2]?.children, []);
     vue.dire("surAccueil", accueil({ dit: "1 at most — set by you, replaces 3 (8 cores)", nombre: 1, parLeChef: true }));
     await repos();
-    assert.match(ligne(vue, "box/claude").textContent, /1 at most — set by you, replaces 3/);
+    assert.match(rangee().textContent, /1 at most — set by you, replaces 3/);
     assert.doesNotMatch(ligne(vue, "box/claude").textContent, /Saturated on/);
   });
 });

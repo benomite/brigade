@@ -1,7 +1,7 @@
 // Une capacité hors du catalogue, dans « What it provides » (#1959, épique #1950) : sous les cases du formulaire d'une
-// station, un champ et « Add ». Le nom tapé devient une case cochée, « Save » l'envoie avec les autres ; relue, la
-// station la fournit, cochée à sa prochaine ouverture, et le formulaire d'une autre station l'offre. Un nom vide ou déjà
-// dans le formulaire est refusé en une ligne, et rien n'est envoyé. La règle du nom est celle du runtime
+// station, un champ et « Add ». Le nom tapé devient une case cochée, et part aussitôt avec les autres — aucun « Save »
+// (#2920) ; relue, la station la fournit, cochée à sa prochaine ouverture, et le formulaire d'une autre station l'offre.
+// Un nom vide ou déjà dans le formulaire est refusé en une ligne, et rien n'est envoyé. La règle du nom est celle du runtime
 // (runtime/src/capacite-libre/), que la vue ne peut pas importer : ce test les tient identiques. La vue jouée telle
 // qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -121,7 +121,7 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     for (const tape of tapes) assert.deepEqual(capaciteLibre(tape, presentes), duRuntime(tape, presentes), JSON.stringify(tape));
   });
 
-  test("tapée et ajoutée, elle devient une case cochée ; « Save » l'envoie ; relue, elle est cochée chez sa station et offerte à l'autre", async () => {
+  test("tapée et ajoutée, elle devient une case cochée et part aussitôt ; relue, elle est cochée chez sa station et offerte à l'autre", async () => {
     const { vue, envoyes } = await ouvrir();
     let forme = await editer(vue, "box/claude");
     assert.deepEqual(cases(forme), [
@@ -131,18 +131,19 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     ]);
     assert.equal(champ(forme).placeholder, "a capability not listed");
 
+    // Aucun « Save » dans le formulaire.
+    assert.equal(forme.dessous("button").some(({ textContent }) => textContent === "Save"), false);
     taper(forme, " enregistrement ecran ");
     bouton(forme, AJOUTER).click();
+    await attendre();
     forme = formulaire(vue, "box/claude");
     assert.deepEqual(cases(forme).at(-1), ["enregistrement-ecran", true]);
     assert.equal(champ(forme).value, "");
     assert.equal(refus(forme), undefined);
-    // Rien n'est parti : seul « Save » envoie.
-    assert.equal(envoyes.length, 0);
-
-    bouton(forme, "Save").click();
-    await attendre();
+    // Ajoutée, elle part aussitôt : la déclaration entière de la station, elle dedans.
     assert.deepEqual(envoyes, [[PARADE, "box/claude", { cooks: 3, fournit: ["code", "enregistrement-ecran"] }]]);
+    const rangee = forme.children.find(({ dataset }) => dataset.cle === "capacites") ?? assert.fail("pas de rangée des capacités");
+    assert.ok(rangee.children.some(({ className, textContent }) => className === "dit fait" && /saved/.test(textContent)));
 
     // La station relue fournit la capacité : sa ligne la dit, son formulaire la coche, celui de l'autre l'offre.
     vue.dire("surGuide", guide(declarees(["code", "enregistrement-ecran"])));
@@ -154,6 +155,9 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
         .map(({ textContent }) => textContent),
       ["code", "enregistrement-ecran"],
     );
+    // Le formulaire reste ouvert après un changement : refermé, puis rouvert, il la coche.
+    bouton(formulaire(vue, "box/claude"), "Close").click();
+    await attendre();
     forme = await editer(vue, "box/claude");
     assert.deepEqual(cases(forme).slice(0, 2), [
       ["code", true],
@@ -183,23 +187,27 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     // Le texte refusé reste dans le champ, à corriger.
     assert.equal(champ(forme).value, "docker");
 
-    // Une capacité qu'il vient d'ajouter aussi.
+    assert.equal(envoyes.length, 0);
+
+    // Une capacité qu'il vient d'ajouter aussi : l'ajout est parti, le second est refusé sans rien envoyer.
     taper(forme, "enregistrement-ecran");
     bouton(forme, AJOUTER).click();
+    await attendre();
+    forme = formulaire(vue, "box/claude");
     taper(forme, "`enregistrement-ecran`");
     bouton(forme, AJOUTER).click();
     forme = formulaire(vue, "box/claude");
     assert.equal(refus(forme), "Nothing added: “enregistrement-ecran” is already in the form — tick its box.");
     assert.equal(cases(forme).filter(([nom]) => nom === "enregistrement-ecran").length, 1);
-    assert.equal(envoyes.length, 0);
+    assert.equal(envoyes.length, 1);
 
-    // « Cancel » : rien n'est envoyé, et le formulaire rouvert ne garde rien de ce qui a été tapé.
-    bouton(forme, "Cancel").click();
+    // « Close » : rien de plus n'est envoyé, et le formulaire rouvert ne garde rien de ce qui a été tapé.
+    bouton(forme, "Close").click();
     await attendre();
     forme = await editer(vue, "box/claude");
     assert.deepEqual(cases(forme), avant);
     assert.equal(refus(forme), undefined);
-    assert.equal(envoyes.length, 0);
+    assert.equal(envoyes.length, 1);
   });
 
   test("le formulaire reposé — la confirmation d'un retrait ouverte — garde la case ajoutée, cochée, et ce qui était tapé", async () => {
@@ -207,6 +215,8 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     let forme = await editer(vue, "box/claude");
     taper(forme, "enregistrement-ecran");
     bouton(forme, AJOUTER).click();
+    await attendre();
+    forme = formulaire(vue, "box/claude");
     taper(forme, "machine-vier");
     bouton(forme, "Remove").click();
     await attendre();

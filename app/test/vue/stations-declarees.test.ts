@@ -15,7 +15,7 @@ import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
-import { OU, ouTourne, plafondDit, poserLesDeclarees } from "../../src/vue/stations-declarees.js";
+import { APPLIQUE, OU, ouTourne, plafondDit, poserLesDeclarees, type Edition } from "../../src/vue/stations-declarees.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-23T10:04:12.000Z";
@@ -87,13 +87,13 @@ async function ouvrir(stations: StationsLues | undefined, projet: Projet = PROJE
 
 const bloc = (vue: Jouee) => vue.element("rail").dessous("section").find((pose) => pose.className === "stations-de-cuisson");
 // Une ligne de station telle qu'elle se lit : son nom, où elle tourne, ses capacités. Le plafond, lui, est celui des
-// lignes que le journal déclare (« Cooks at once »).
+// lignes que le journal déclare : la rangée de réglage « Cooks at once » (composants/reglage), son nom et sa valeur.
 const lignesDe = (pose: Faux) => pose.dessous("li").filter(({ className }) => className === "station-de-cuisson");
 const lu = (pose: Faux) =>
   lignesDe(pose).map((ligne) => ({
     nom: ligne.dessous("strong").find(({ className }) => className === "mono")?.textContent,
     ou: ligne.dessous("span").find(({ className }) => className === "ou")?.textContent,
-    plafond: ligne.dessous("p").find(({ className }) => className === "plafond-de-station")?.textContent,
+    plafond: ((rangee) => (rangee === undefined ? undefined : `${rangee.children[0]?.textContent}: ${rangee.children[1]?.textContent}`))(ligne.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks")),
     capacites: ligne.dessous("li").filter(({ className }) => className === "capacite mono").map(({ textContent }) => textContent),
   }));
 
@@ -109,9 +109,9 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () =
     const vue = await ouvrir(DECLAREES);
     const pose = bloc(vue) ?? assert.fail("pas de stations déclarées sur Stations");
     assert.deepEqual(lu(pose), [
-      { nom: "box/claude", ou: "box station", plafond: "Cooks at once: 3this machine", capacites: ["code", "raisonnement"] },
-      { nom: "mac/claude", ou: "remote", plafond: "Cooks at once: 1this machine", capacites: ["navigateur-headless", "chrome-connecté"] },
-      { nom: "pc/claude", ou: "remote", plafond: "Cooks at once: 2this machine", capacites: ["code"] },
+      { nom: "box/claude", ou: "box station", plafond: "Cooks at oncethis machine: 3", capacites: ["code", "raisonnement"] },
+      { nom: "mac/claude", ou: "remote", plafond: "Cooks at oncethis machine: 1", capacites: ["navigateur-headless", "chrome-connecté"] },
+      { nom: "pc/claude", ou: "remote", plafond: "Cooks at oncethis machine: 2", capacites: ["code"] },
     ]);
     // Les mots sont distincts.
     assert.equal(new Set(Object.values(OU)).size, 3);
@@ -147,5 +147,45 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () =
     assert.equal(ouTourne(box ?? assert.fail(), { ici: true }), "poste");
     assert.equal(ouTourne(box ?? assert.fail(), { ici: false }), "box");
     assert.equal(ouTourne(mac ?? assert.fail(), { ici: false }), "ailleurs");
+  });
+
+  // Le formulaire d'une station (#1510), fait de rangées de réglage (#2920) : chaque contrôle s'applique dès qu'il change.
+  test("le formulaire ouvert : deux rangées, aucun « Save » ; un changement envoie la déclaration entière, et sa rangée dit ce qu'il rend", () => {
+    const doc = { createElement: (balise: string) => new Faux(balise) };
+    const appliques: unknown[][] = [];
+    const editee: Edition = { nom: "pc/claude", cooks: "2", fournit: ["code"], choix: [{ capacite: "code", dite: "" }, { capacite: "raisonnement", dite: "" }], confirmer: false, envoi: false };
+    const poser = () => {
+      const pose = poserLesDeclarees(doc as never, {
+        stations: DECLAREES,
+        editer: { editee, ouvrir() {}, fermer() {}, appliquer: (...args) => void appliques.push(args), confirmer() {}, retirer() {} },
+      }) as unknown as Faux;
+      return pose.dessous("div").find(({ className }) => className === "edition") ?? assert.fail("pas de formulaire");
+    };
+    let forme = poser();
+    const rangee = (cle: string) => forme.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === cle) ?? assert.fail(`pas de rangée ${cle}`);
+    assert.deepEqual(forme.children.filter(({ className }) => className === "reglage").map(({ dataset }) => dataset.cle), ["cooks", "capacites"]);
+    assert.deepEqual(forme.dessous("button").filter(({ textContent }) => /^(save|saving…)$/i.test(textContent)), []);
+    // Le plafond, au `change` du champ : la déclaration entière, ce plafond dedans.
+    const champ = rangee("cooks").dessous("input")[0] ?? assert.fail("pas de champ");
+    champ.value = "5";
+    champ.declencher("change");
+    // Une case cochée : de même, les capacités dedans.
+    const coche = rangee("capacites").dessous("input").find(({ ariaLabel }) => ariaLabel === "raisonnement") ?? assert.fail("pas de case");
+    coche.checked = true;
+    coche.declencher("change");
+    assert.deepEqual(appliques, [
+      ["pc/claude", "cooks", { cooks: 5, fournit: ["code"] }],
+      ["pc/claude", "capacites", { cooks: 5, fournit: ["code", "raisonnement"] }],
+    ]);
+    // En route : « applying… » sous sa rangée, ses contrôles attendent.
+    Object.assign(editee, { envoi: true, ou: "cooks" });
+    forme = poser();
+    assert.deepEqual(rangee("cooks").children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]), [["dit en-cours", APPLIQUE]]);
+    assert.ok(forme.dessous("input").every(({ disabled }) => disabled));
+    // Refusé : le refus sous sa rangée, rien sous l'autre.
+    Object.assign(editee, { envoi: false, ou: "capacites", rendu: { refus: "Nothing was saved: pc/claude provides at least one capability — tick one." } });
+    forme = poser();
+    assert.equal(rangee("capacites").children.find(({ className }) => className === "dit refus")?.dataset.ligne, "erreur");
+    assert.deepEqual(rangee("cooks").children.filter(({ className }) => className.startsWith("dit")), []);
   });
 });
