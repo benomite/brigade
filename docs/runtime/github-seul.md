@@ -25,7 +25,8 @@ base, the stale-branch pruning).
   (`Closes #n`). It sets no label and never reviews or merges. A claim counts only when posted by the account it
   names; it holds until that station releases it (`<!-- brigade:rend … -->`, posted when its cook delivers nothing, or
   when its claim lost the race) or until it expires, 6 hours after it was posted — a station whose cook runs longer
-  posts it again after half that time. A delivered ticket keeps its claim, then its open pull request keeps it off the
+  posts it again after half that time. A station does not take again a ticket whose cook blocked on a question, nor
+  one whose cooks delivered nothing `ECHECS_MAX` times; that count lives with the station. A delivered ticket keeps its claim, then its open pull request keeps it off the
   other contributor stations. Rights that cannot be read fail the turn, and the next turn reads them again.
 - **`blocked-on-human` needs a question.** The label is only set with a question written on the card
   (`poserALaMain`, `runtime/src/blocages-sans-question.ts`): the question is commented first, then the label set.

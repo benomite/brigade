@@ -97,17 +97,17 @@ function ecrivaine(tours: string[], login: string): StationGitHub {
 }
 
 // Le cook : il commite dans son worktree (`livrer`) ou n'y fait rien, et conclut.
-function lanceur(cooks: string[], login: string, livrer = true): Lancer {
+function lanceur(cooks: string[], login: string, livrer = true, dernierMessage = "done"): Lancer {
   return ({ cwd, flux }) => {
     cooks.push(`${login}:${/cook\/(\d+)-github|(\d+)-github/.exec(cwd)?.[0] ?? cwd}`);
     if (livrer) commiter(cwd, `livraison-${login}.txt`);
-    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "done" })}\n`);
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: dernierMessage })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
 }
 
 // Une station contributrice sur sa machine : son clone du projet, sa fourche nue.
-function station(t: TestContext, projet: Projet, login: string, origine: string, options: { livrer?: boolean; fourche?: string; ecriture?: boolean; droits?: () => Promise<never>; maintenant?: () => Date } = {}) {
+function station(t: TestContext, projet: Projet, login: string, origine: string, options: { livrer?: boolean; message?: string; fourche?: string; ecriture?: boolean; droits?: () => Promise<never>; maintenant?: () => Date } = {}) {
   const racine = repertoireTemporaire(t);
   const clone = join(racine, "clone");
   git(racine, "clone", "-q", origine, clone);
@@ -129,7 +129,7 @@ function station(t: TestContext, projet: Projet, login: string, origine: string,
     plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
     graceMs: 1,
     flux: join(racine, "flux"),
-    lancer: lanceur(cooks, login, options.livrer),
+    lancer: lanceur(cooks, login, options.livrer, options.message),
     avertir: (ligne) => void dits.push(ligne),
     // L'heure de la station est celle du faux GitHub, qui date les prises.
     maintenant: options.maintenant ?? (() => new Date(projet.horloge)),
@@ -264,6 +264,30 @@ test("a cook that commits nothing releases its claim, and no PR opens", async (t
   // Lâché, il se reprend au tour suivant, depuis la base.
   await bob.servir();
   assert.deepEqual(bob.cooks, ["bob:7-github", "bob:7-github"]);
+});
+
+test("a ticket whose cooks deliver nothing three times is no longer taken by this station", async (t) => {
+  const projet = new Projet();
+  projet.ajouter(7);
+  const { origine } = depotGit(t);
+  const bob = station(t, projet, "bob", origine, { livrer: false });
+  for (let tour = 0; tour < 4; tour += 1) await bob.servir();
+  assert.deepEqual(bob.cooks, ["bob:7-github", "bob:7-github", "bob:7-github"]);
+  assert.ok(bob.dits.some((dit) => dit.includes("this station no longer takes it (3 cooks without a delivery)")), bob.dits.join("\n"));
+  assert.equal(projet.premieresLignes(7).at(-1), "bob: <!-- brigade:rend station=bob-pc/claude login=bob -->");
+});
+
+test("a blocked cook releases the ticket, says its question, and the station does not take it again", async (t) => {
+  const projet = new Projet();
+  projet.ajouter(7);
+  const { origine } = depotGit(t);
+  const bob = station(t, projet, "bob", origine, { message: "<livrable>rien</livrable>\n<bloque>which base should the PR target?</bloque>" });
+  await bob.servir();
+  await bob.servir();
+  assert.deepEqual(bob.cooks, ["bob:7-github"]);
+  assert.deepEqual(projet.prs, []);
+  assert.equal(projet.premieresLignes(7).at(-1), "bob: <!-- brigade:rend station=bob-pc/claude login=bob -->");
+  assert.ok(bob.dits.some((dit) => dit.includes("the cook is blocked: which base should the PR target?; the ticket is released; this station no longer takes it (blocked)")), bob.dits.join("\n"));
 });
 
 test("a fork the push cannot reach releases the claim, says why, and opens no PR", async (t) => {

@@ -9,12 +9,14 @@
 // rail (`fire`), ni épique, ni tenu par une station du dépôt (`taken`,
 // `in-pass`), ni en attente (`waiting`, `blocked-on-human`, `hors-cuisine`),
 // calibré, sans dépendance ouverte, sans PR ouverte de sa branche, et que
-// personne ne tient. Un cook qui ne livre pas lâche le ticket ; un cook qui
+// personne ne tient. Un cook qui ne livre pas lâche le ticket — la station ne
+// le reprend plus s'il était bloqué, ni après `ECHECS_MAX` cooks sans
+// livraison — ; un cook qui
 // livre garde sa prise jusqu'à son échéance, et sa PR ouverte le retient
 // ensuite : le ticket ne s'offre plus aux autres stations.
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { brancheDuTicket, dependancesDuCorps, runDuTicket, A_LA_MAIN, type Lancer, type StationGitHub } from "../brigade-github.ts";
+import { brancheDuTicket, dependancesDuCorps, ECHECS_MAX, runDuTicket, A_LA_MAIN, type Lancer, type StationGitHub } from "../brigade-github.ts";
 import { environnementHorsGitHub, ticketJoint } from "../bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "../calibrage.ts";
@@ -89,14 +91,25 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketDuRail[] = [];
   const enVol = new Map<number, Promise<void>>();
+  // Les cooks sans livraison de chaque ticket, et les tickets que la station ne
+  // prend plus : bloqués sur une question qu'elle ne peut pas poser au chef du
+  // projet, ou sans livraison `ECHECS_MAX` fois. Sans eux, elle reprendrait le
+  // même ticket à chaque tour. Le compte vit avec la station.
+  const echecs = new Map<number, number>();
+  const ecartes = new Set<number>();
 
   const dire = (numero: number, texte: string) => avertir(`brigade : #${numero} sur ${nom} (contributor) — ${texte}`);
-  const lacher = async (numero: number, pourquoi: string) => {
+  const lacher = async (numero: number, pourquoi: string, { ecarter = false } = {}) => {
+    const fois = (echecs.get(numero) ?? 0) + 1;
+    echecs.set(numero, fois);
+    const ecarte = ecarter || fois >= ECHECS_MAX;
+    if (ecarte) ecartes.add(numero);
+    const suite = ecarte ? `; this station no longer takes it (${ecarter ? "blocked" : `${fois} cooks without a delivery`})` : "";
     try {
       await rendre(numero, contexte);
-      dire(numero, `${pourquoi}; the ticket is released`);
+      dire(numero, `${pourquoi}; the ticket is released${suite}`);
     } catch (erreur) {
-      dire(numero, `${pourquoi}; the release could not be posted (${message(erreur)}): the claim lapses at its expiry`);
+      dire(numero, `${pourquoi}; the release could not be posted (${message(erreur)}): the claim lapses at its expiry${suite}`);
     }
   };
 
@@ -132,7 +145,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
     }
     await depot.ranger(worktree, branche);
     const question = lireBlocage(lu.message);
-    if (question !== null) return lacher(ticket.number, `the cook is blocked: ${question}`);
+    if (question !== null) return lacher(ticket.number, `the cook is blocked: ${question}`, { ecarter: true });
     if (depot.commits(branche) === 0) return lacher(ticket.number, "the cook committed nothing");
     try {
       pousserDansLaFourche({ clone, fourche: sa, branche, env: options.env });
@@ -150,7 +163,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
 
   // Ce qui retient un ticket d'être pris par cette station, ou null.
   const prenable = (ticket: TicketDuRail, ouvertes: ReadonlySet<string>): Calibrage | null => {
-    if (ticket.pr || ticket.epique || enVol.has(ticket.number)) return null;
+    if (ticket.pr || ticket.epique || enVol.has(ticket.number) || ecartes.has(ticket.number)) return null;
     if (ticket.labels.some((label) => NON_PRENABLES.includes(label))) return null;
     if (ouvertes.has(brancheDuTicket(ticket.number))) return null;
     const calibrage = calibrageDesLabels(ticket.labels);
