@@ -537,6 +537,14 @@ red CI that #2855 fixed on main by giving a git identity to the fake cook of `te
 which committed under `process.env` (a3c5dd3). The station's global `git` config carries an identity; that commit
 needs one the CI runner does not give. The repository's `CLAUDE.md` now says a test's `git`, and that of every child
 it launches, runs under `ENV_GIT` (`test/outils.ts`), which carries one. No guard is changed.
+#2859 (67% over 3 tickets, blocking review 2 times, conflict with the base once) carries no `brigade:qualite-comptes`
+marker, none of #2824's rule and no "Evidence" section: it was filed by a station on code older than #2804. The box's
+station runs 0.20261108.035547+gfa89c71 since 04:01 UTC (`/var/lib/brigade-station/etat.json`), which holds #2804, #2824
+and #2839, and filed #2858, above, in the same hour with all three. With no marker and no evidence, #2859 names
+neither its station nor its 3 tickets. The last blocking review on the brigade is #2848's, which #2852 counted and
+corrected (merged 2026-11-08 03:55 UTC). The two tickets cooked after that, #2854 and #2855, passed their only review
+green. #2855 was sent back twice, for a red CI and for a conflict: those are #2858's send-backs, whose fix is above.
+Nothing to correct on main.
 
 ## The daily report of the decisions brigade told about
 
