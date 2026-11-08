@@ -202,6 +202,15 @@ the server exposes (#494, #546), a migration never run over old rows (#502), a s
 and its table left "not measured" (#574), 11.9 s measured for "under 10 s" (#605), no test
 triggering the failure whose alert the criterion asks for (#740).
 
+The same instruction tells the cook that a diff touching an existing test keeps every case that test
+held and the ticket does not remove, and writes the new case in a test next to it. A test rewritten
+for the new case leaves the criterion it held without a proof — often the only test that goes through
+the entry point — and is blocking. Blocking review was still the first send-back reason after #2819
+(#2852: 23 over 91 merged tickets, 22 of them already counted by #2846), and the one left is #2848's,
+cooked after all the rules above: its first commit rewrote the idle-kitchen integration test that filed
+an inertia bug from the station into the `waiting` case that files none, so the ticket's positive case
+was tested from the station no more, and its second commit added it back next to the new one.
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
