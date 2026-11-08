@@ -7,6 +7,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { NON_COMMUNIQUE } from "./tete.js";
+import { bouton } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number | null, perdus: number | null }} Seuils */
@@ -67,10 +68,8 @@ export function poserAlerte(doc, depasse, connu, libelle, ouvrir) {
   ligne.className = "alerte-cout";
   ligne.role = "alert";
   ligne.textContent = `${depasse.projet} · over its ceiling of ${nombre(depasse.seuil)}`;
-  const geste = doc.createElement("button");
+  const geste = bouton(doc, libelle, () => ouvrir(geste));
   geste.className = "alerte-geste";
-  geste.textContent = libelle;
-  geste.addEventListener("click", () => ouvrir(geste));
   ligne.append(geste);
   return ligne;
 }

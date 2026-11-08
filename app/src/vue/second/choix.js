@@ -10,6 +10,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { survol } from "../briques.js";
+import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../second/propositions.ts").Proposition} Proposition */
@@ -134,8 +135,7 @@ export function poserChoixDuSecond(doc, proposition, { choisir }) {
   liste.append(
     ...proposition.choices.map(({ value, label }) => {
       const choix = cree(doc, "li");
-      const bouton = cree(doc, "button");
-      bouton.type = "button";
+      const bouton = boutonDeLaFamille(doc, "", undefined);
       bouton.className = "choix";
       bouton.dataset.valeur = value;
       bouton.title = `answers ${value}`;

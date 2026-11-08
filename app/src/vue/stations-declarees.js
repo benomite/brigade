@@ -14,6 +14,7 @@
 
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, survol } from "./briques.js";
 import { casesDuFormulaire, champDeCapaciteLibre } from "./capacite-libre/capacite-libre.js";
+import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../service.ts").StationsLues} StationsLues */
@@ -228,8 +229,7 @@ export function ceQuElleFournit(doc, station, projet) {
   const { editer } = projet;
   if (editer === undefined) return [capacites];
   const ouverte = editer.editee?.nom === station.nom ? editer.editee : undefined;
-  const bouton = cree(doc, "button", EDITER);
-  bouton.type = "button";
+  const bouton = boutonDeLaFamille(doc, EDITER, undefined);
   bouton.className = "editer";
   bouton.ariaLabel = `edit ${station.nom}`;
   bouton.ariaExpanded = ouverte === undefined ? "false" : "true";

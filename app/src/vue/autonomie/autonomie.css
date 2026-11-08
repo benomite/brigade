@@ -41,20 +41,7 @@
   margin-right: 4px;
 }
 .autonomie .profil > button {
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: 600;
   white-space: nowrap;
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
-}
-.autonomie .profil > button:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.autonomie .profil > button:disabled {
-  color: var(--discret);
-  border-style: dashed;
-  cursor: default;
 }
 .autonomie .rangee {
   display: grid;

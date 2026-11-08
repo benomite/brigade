@@ -11,6 +11,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { survol, uneLigne } from "./briques.js";
+import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../apprentissage.ts").Apprentissage} Apprentissage */
@@ -98,8 +99,7 @@ function lesTickets(doc, libelle, tickets, vide, ouvrir) {
     ligne.append(aucun);
   }
   for (const ticket of tickets) {
-    const bouton = cree(doc, "button", `#${ticket}`);
-    bouton.type = "button";
+    const bouton = boutonDeLaFamille(doc, `#${ticket}`, undefined);
     bouton.className = "mono";
     bouton.title = `open the sheet of #${ticket}`;
     bouton.addEventListener("click", () => ouvrir(ticket, bouton));

@@ -15,6 +15,7 @@
 
 import { FERMER_LA_LISTE, OUVRIR_LA_LISTE, poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { bouton } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./tete.js").Lecture} Lecture */
@@ -162,9 +163,8 @@ export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule, ouv
     }
     liste.append(ligne);
   }
-  const fermer = cree(doc, "button", FERMER);
+  const fermer = bouton(doc, FERMER, bascule, { sorte: "discret" });
   fermer.className = "perdus-fermer";
-  fermer.addEventListener("click", bascule);
   bloc.append(liste, fermer);
   return bloc;
 }

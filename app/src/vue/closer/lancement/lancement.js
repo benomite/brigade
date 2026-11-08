@@ -13,6 +13,7 @@
 // reçoit de quoi créer un élément (briques.js) et ce que chaque bouton appelle, et rend des éléments.
 
 import { confirmationDeGeste, survol } from "../../briques.js";
+import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../closer-lancement.ts").Rendu} Rendu */
@@ -174,9 +175,7 @@ function confirmation(doc, apercu, gestes) {
 function boutonLancer(doc, closer, lancer, enRoute = false) {
   const groupe = cree(doc, "span");
   groupe.className = "action";
-  const bouton = cree(doc, "button", LANCER);
-  bouton.type = "button";
-  bouton.className = "recommande";
+  const bouton = boutonDeLaFamille(doc, LANCER, undefined, { sorte: "recommande" });
   bouton.disabled = enRoute;
   bouton.addEventListener("click", () => {
     if (!bouton.disabled) lancer();
@@ -187,10 +186,8 @@ function boutonLancer(doc, closer, lancer, enRoute = false) {
 
 /** @param {Fabrique} doc @param {() => void} annuler */
 function boutonAnnuler(doc, annuler) {
-  const bouton = cree(doc, "button", ANNULER);
-  bouton.type = "button";
+  const bouton = boutonDeLaFamille(doc, ANNULER, annuler, { sorte: "discret" });
   bouton.className = "annuler";
-  bouton.addEventListener("click", annuler);
   return bouton;
 }
 

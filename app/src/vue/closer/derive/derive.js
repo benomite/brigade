@@ -8,6 +8,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { survol } from "../../briques.js";
+import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../lancement/lancement.js").Demande} Demande */
@@ -52,10 +53,7 @@ export function poserDerive(doc, derive, demande, etat, lancer) {
   bloc.className = "closer-derive";
   const dit = cree(doc, "p", PROPOSITION);
   dit.className = "attendu";
-  const bouton = cree(doc, "button", PROPOSER);
-  bouton.type = "button";
-  bouton.className = "proposer";
-  bouton.addEventListener("click", lancer);
+  const bouton = boutonDeLaFamille(doc, PROPOSER, lancer, { sorte: "recommande" });
   const geste = cree(doc, "span");
   geste.className = "action";
   geste.append(bouton);

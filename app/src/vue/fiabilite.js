@@ -10,6 +10,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { lectureIndisponible } from "./briques.js";
+import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../fiabilite.ts").Vu} Vu */
@@ -98,7 +99,7 @@ function lesCauses(doc, causes, ouvrir) {
     const derniers = cree(doc, "span");
     derniers.className = "tickets";
     for (const ticket of tickets) {
-      const bouton = cree(doc, "button", `#${ticket}`);
+      const bouton = boutonDeLaFamille(doc, `#${ticket}`, undefined);
       bouton.className = "mono";
       bouton.title = `open the sheet of #${ticket}`;
       bouton.addEventListener("click", () => ouvrir(ticket, bouton));

@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
     <!-- Les jetons d'abord — les couleurs et les polices, embarquées —, puis la peau qui les nomme. -->
     <link rel="stylesheet" href="jetons.css" />
+    <!-- Le bouton, une seule famille (ticket 2916) : avant la peau, qu'une règle d'écran (`.mono`) le précise sans le redessiner. -->
+    <link rel="stylesheet" href="composants/bouton/bouton.css" />
     <link rel="stylesheet" href="vue.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
@@ -38,10 +40,11 @@
       <div id="parcours-de-l-ajout"></div>
       <form id="formulaire" novalidate>
         <h3>Add a project from a folder</h3>
+        <!-- Ses boutons sont ceux de la famille unique (composants/bouton, ticket 2916) : `data-bouton` dit leur sorte. -->
         <p id="ou"></p>
         <div>
           <span>Its folder on this workstation</span>
-          <button type="button" id="dossier">Choose…</button>
+          <button type="button" id="dossier" data-bouton="secondaire">Choose…</button>
           <output id="choisi"></output>
         </div>
         <p id="refus-dossier" class="refus-champ" aria-live="polite"></p>
@@ -53,7 +56,7 @@
         <input id="base" autocomplete="off" spellcheck="false" />
         <small>The branch the kitchen delivers to. The app reads the one the folder's origin points to; correct it if it is not the right one.</small>
         <p id="refus-base" class="refus-champ" aria-live="polite"></p>
-        <button type="submit" id="ajouter">Add to the app</button>
+        <button type="submit" id="ajouter" class="recommande" data-bouton="recommande">Add to the app</button>
         <small>The project gets its tab, and nothing is sent anywhere. Who cooks it is asked above, once it is added.</small>
         <section id="issue-ajout" aria-live="polite"></section>
       </form>
@@ -72,7 +75,7 @@
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
-        <button type="button" id="journal" title="open the log — breakdown tooling, only the end of the log" hidden>log</button>
+        <button type="button" id="journal" data-bouton="discret" title="open the log — breakdown tooling, only the end of the log" hidden>log</button>
       </header>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
            une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
@@ -135,7 +138,7 @@
     <aside id="second" aria-label="The second and the shells" hidden>
       <header id="tete-du-second">
         <div id="terminaux" role="tablist" aria-label="Terminals"></div>
-        <button id="fermer-shell" type="button" title="Closes this shell for good: its session is destroyed on its machine, and it will not come back" hidden></button>
+        <button id="fermer-shell" type="button" data-bouton="discret" title="Closes this shell for good: its session is destroyed on its machine, and it will not come back" hidden></button>
       </header>
       <!-- « + shell » : la machine où l'ouvrir — ce poste, la box, les stations du projet. -->
       <div id="machines" role="group" aria-label="Open a shell on" hidden></div>

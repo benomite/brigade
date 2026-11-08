@@ -3492,6 +3492,12 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
   and its accent color, drawn from the palette of `app/src/couleurs.ts` and written in `app.json`
   ("A project's colors"): the view puts them on two variables, `--teinte` and `--accent`, and never
   on a state color.
+- **One button family** (#2916, `Components.dc.html` of the mockup): every gesture of every screen is a button of
+  `app/src/vue/composants/bouton/`, its skin in `bouton.css` beside it and nowhere else. Four kinds: the
+  **recommended** one, filled with the accent, one per place; the **secondary**, for every other gesture; the
+  **quiet** one, to cancel, close or fold; the **danger** one, to stop or remove. A button is 32 px tall on the
+  computer, 44 px at phone width and on first launch. A tab, a tile of the icon bar, a color swatch, a switch, a
+  clickable row or a ticket number that opens its issue is not a button of the family: each keeps its own shape.
 - **Two fonts, embedded** (`app/src/vue/polices/`, under the OFL license): nothing is requested
   from the network, the page opens no origin. **Archivo** for the interface. **JetBrains Mono** for
   what is copied as is — a ticket number, a run identifier, a port, a project's name, a command —

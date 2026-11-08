@@ -19,6 +19,7 @@
 
 import { boutonAction, caseACocher, lectureIndisponible, survol } from "./briques.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcours-projet/connexion.js";
+import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-du-compte.ts").StationsDuCompte} StationsDuCompte */
@@ -417,8 +418,7 @@ function rechercheDe(doc, station, atteints, cases, etat, geste) {
     const tous = trouvesDe(atteints, cases, texte);
     trouves.replaceChildren(
       ...tous.slice(0, TROUVES_AU_PLUS).map((depot) => {
-        const bouton = /** @type {HTMLButtonElement} */ (cree(doc, "button"));
-        bouton.type = "button";
+        const bouton = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(doc, "", undefined));
         bouton.className = "trouve";
         bouton.ariaLabel = `${AJOUTER} ${depot}`;
         bouton.title = `serve it on ${station.name}`;

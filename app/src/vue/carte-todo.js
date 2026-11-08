@@ -154,7 +154,8 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   const choix = cree(doc, "div");
   choix.className = "choix-carte";
   carte.choix.forEach(({ texte, prix }, rang) => {
-    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix });
+    // Une carte à un seul geste : il est le geste attendu, le recommandé.
+    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix, recommande: carte.choix.length === 1 });
     const bouton = groupe.children?.[0];
     if (bouton !== undefined) {
       bouton.className = "choix";
