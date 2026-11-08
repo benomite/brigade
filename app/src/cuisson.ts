@@ -24,7 +24,7 @@ const TONS = new Map([
 // donne (vide hors du rail, et pour le closer, qui n'en a pas), ce qu'il fait, depuis quand, et cette durée à la lecture.
 export type AgentDeStation = { role: string; ticket: number | null; titre: string; fait: string; depuis: string; pour: string };
 
-// Une station sur l'onglet Cooks : son nom ; distante ou de la box ; son mot, sa couleur ; ce qu'il veut dire
+// Une station sur l'onglet Stations : son nom ; distante ou de la box ; son mot, sa couleur ; ce qu'il veut dire
 // en quelques mots, et au survol ; ses cooks en cours ; et ce que la principale
 // sait d'elle, quand son runtime le dit : ce qu'elle fournit, si elle la voit, sa dernière demande. `agents` : ce
 // qu'elle fait tourner à côté de ses cooks (#1971) — vide quand rien ne tourne.

@@ -8,6 +8,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { lectureIndisponible, survol } from "./briques.js";
+import { bouton } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../tableau/lecture.ts").ActiviteDuCook} Activite */
@@ -139,11 +140,9 @@ export function poserLActiviteDuCook(doc, { publiees, ticket, pastille, ouvrirPr
   }
   // Sa PR, dès que la box la connaît ; fini sans PR, une ligne le dit.
   if (cook.pr !== null) {
-    const ouvre = cree(doc, "button", cook.pr.numero === null ? "open its PR" : `open PR #${cook.pr.numero}`);
-    ouvre.type = "button";
+    const ouvre = bouton(doc, cook.pr.numero === null ? "open its PR" : `open PR #${cook.pr.numero}`, () => ouvrirPr());
     ouvre.className = "pr";
     ouvre.title = `open #${ticket}'s PR in the browser`;
-    ouvre.addEventListener("click", () => ouvrirPr());
     section.append(ouvre);
   } else if (fini) {
     const sans = cree(doc, "p", SANS_PR);

@@ -11,6 +11,7 @@
 // le bouton n'y est pas posé.
 
 import { lectureIndisponible } from "../briques.js";
+import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./ouverture.ts").Demande} Demande */
@@ -57,8 +58,7 @@ export function tenirLeSignalement({ doc, pont, actif = () => true }) {
     const cle = cleDe(demande);
     const racine = doc.createElement("span");
     racine.className = "signaler";
-    const bouton = doc.createElement("button");
-    bouton.type = "button";
+    const bouton = boutonDeLaFamille(doc, "", undefined, { sorte: "discret" });
     bouton.className = "signaler-a-brigade";
     bouton.title = SURVOL;
     bouton.addEventListener("click", async () => {

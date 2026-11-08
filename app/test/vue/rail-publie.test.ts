@@ -24,7 +24,7 @@ import type { DitDuSecond, Terminal } from "../../src/terminaux.ts";
 import { poserOutilsDuSecond, PAGE_DE, REESSAYER_LE_SECOND } from "../../src/vue/outils-du-second.js";
 import { RELIRE } from "../../src/vue/premier-lancement.js";
 import { LECTURE_PUBLIEE, poserRailPublie, TABLEAU_EN_LECTURE, TABLEAU_NON_LU, type GestesDuRailPublie } from "../../src/vue/rail-publie.js";
-import { carteDuTicket, Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee, type Reponses } from "../aides/fausse-vue.ts";
+import { carteDuTicket, Faux, jouerLaVue, repos, type Jouee, type Reponses } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const PARADE = "parade";
@@ -228,7 +228,7 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.deepEqual(colonnesDe(vue), []);
 
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.deepEqual(nomsEtComptes(vue), [["On the rail", "0"], ["Taken", "1"], ["Pass", "0"], ["Todo", "1"], ["Waiting", "0"], ["Served", "0"]]);
+    assert.deepEqual(nomsEtComptes(vue), [["On the rail", "0"], ["Taken", "1"], ["Pass", "0"], ["Awaiting you", "1"], ["Waiting", "0"], ["Served", "0"]]);
     const todo = colonnesDe(vue)[3] ?? assert.fail("pas de Todo");
     const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14");
     assert.equal(todo.contains(carte), true);
@@ -241,7 +241,7 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     const vue = await ouvrir({ railDuProjet: () => liste() });
     recevoir(vue, duTableau({ ...FAITS, attend: [] }, RIEN));
     const todo = colonnesDe(vue)[3] ?? assert.fail("pas de Todo");
-    assert.deepEqual(todo.children[0]?.children.map((pose) => pose.textContent), ["Todo", "0"]);
+    assert.deepEqual(todo.children[0]?.children.map((pose) => pose.textContent), ["Awaiting you", "0"]);
     assert.deepEqual(todo.dessous("p").map((pose) => pose.textContent), ["nothing awaits you"]);
   });
 
@@ -258,10 +258,10 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
     // Relu, le tableau pose le rail.
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.equal(nomsEtComptes(vue)[3]?.[0], "Todo");
+    assert.equal(nomsEtComptes(vue)[3]?.[0], "Awaiting you");
   });
 
-  test("indisponible, la phrase du runtime ; « read again » relit — et Cooks garde sa phrase", async () => {
+  test("indisponible, la phrase du runtime ; « read again » relit", async () => {
     let lectures = 0;
     const vue = await ouvrir({ railDuProjet: () => (++lectures === 1 ? SANS_GH : liste()) });
     const rail = vue.element("rail");
@@ -270,8 +270,6 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     await repos();
     assert.equal(lectures, 2);
     assert.equal(rail.textContent.startsWith(TABLEAU_EN_LECTURE(PARADE)), true);
-    await ouvrirOnglet(vue, "Cooks");
-    assert.match(vue.element("rail").textContent, /^the rail is not read: no station is known to serve this project yet/);
   });
 
   test("connexion requise, son bouton lance la connexion du runtime ; connecté, le rail et le tableau sont relus", async () => {

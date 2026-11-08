@@ -148,7 +148,7 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
   test("un clic sur le chiffre déploie la liste, un second la replie ; le bouton de fermeture aussi", async () => {
     const vue = await ouvrirLaPage();
     const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530"))), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530"))), demande }, undefined);
     await repos();
     const lignes = () => vue.element("cout").dessous("li").filter((l: Faux) => l.dessous("span").some((s: Faux) => s.className === "cause"));
     const chiffre = () => vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-total") ?? assert.fail("pas de chiffre");
@@ -171,7 +171,7 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
   test("une ligne de la liste ouvre son projet, puis la fiche de son ticket", async () => {
     const vue = await ouvrirLaPage();
     const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"))), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"))), demande }, undefined);
     await repos();
     (vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-total") ?? assert.fail("pas de chiffre")).click();
     await repos();

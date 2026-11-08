@@ -120,7 +120,7 @@ test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni 
   assert.deepEqual([...ecran.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
   assert.doesNotMatch(ecran, /\bbox|machine/i);
   assert.equal(formulaire.hidden, false);
-  assert.match(ecran, /<button type="submit" id="ajouter">Add to the app<\/button>/);
+  assert.match(ecran, /<button type="submit" id="ajouter"[^>]*>Add to the app<\/button>/);
 });
 
 test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, le parcours demande qui le cuit (#2477), et confié, sa page s'ouvre", async () => {
@@ -456,9 +456,9 @@ test("cet ordinateur illisible : la raison en une ligne, son détail au survol �
   assert.equal((jouee.dernier("confierAUneStation") as [{ capacites: string[] }])[0].capacites.length, 0);
 });
 
-test("sur l'onglet Cooks, « + station » ouvre le même parcours que sur Rail, et la box est relue dès que la demande est écrite", async () => {
+test("sur l'onglet Stations, « + station » ouvre son parcours, et la box est relue dès que la demande est écrite", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
-  await ouvrirOnglet(jouee, "Cooks");
+  await ouvrirOnglet(jouee, "Stations");
   const bouton = boutonSous(bloc, "+ station");
   assert.equal(bouton.hidden, false);
   bouton.click();

@@ -221,7 +221,7 @@ describe("un ticket mis de côté par `hors-cuisine` ou `blocked-on-human`, sur 
   test("seul `blocked-on-human` entre dans TODO ; les autres restent sur le rail, jamais sous « outside the columns » ; dans WAITING si le chef l'y a mis", async () => {
     const vu = dessine(await lireMisDeCote());
     const lues = colonnes(vu);
-    assert.deepEqual(lues["Todo"], ["#8 set aside"]);
+    assert.deepEqual(lues["Awaiting you"], ["#8 set aside"]);
     assert.deepEqual(lues["Waiting"], ["#10 waiting"]);
     assert.deepEqual(lues["On the rail"], ["#1 queued", "#7 set aside", "#9 set aside"]);
     assert.deepEqual(lues["Pass"], []);
@@ -230,7 +230,7 @@ describe("un ticket mis de côté par `hors-cuisine` ou `blocked-on-human`, sur 
 
   test("sa carte dit pourquoi : celle de TODO pose sa question, celles du rail disent leur raison — ou qu'elles ont été posées à la main", async () => {
     const vu = dessine(await lireMisDeCote());
-    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(
       todo.map(({ ticket, ligne, miseDeCote, fiche }) => ({ ticket, ligne, miseDeCote, attendu: fiche.attendu })),
       [{ ticket: 8, ligne: "Merge PR #2326 by hand? It changes what judges it.", miseDeCote: { label: "blocked-on-human", liens: [2326] }, attendu: "Merge PR #2326 by hand? It changes what judges it." }],
@@ -282,7 +282,7 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
 
   test("Todo montre deux cartes, #2408 et #2322, chacune une question qui nomme sa PR", async () => {
     const vu = await lireLeTodo();
-    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(todo.map(({ ticket, ligne }) => [ticket, ligne]), [
       [2322, "Merge PR #2325 by hand? It changes what judges it."],
       [2408, "Merge PR #2416 by hand? It changes what judges it."],
@@ -301,7 +301,7 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
       "off the kitchen after 2 sends back — the review requested changes on 7579211 (PR #2401)",
       "off the kitchen after 3 cooks without a delivery — the cook committed nothing",
     ]);
-    assert.ok(!(vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? []).some(({ ticket }) => ticket in techniques));
+    assert.ok(!(vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? []).some(({ ticket }) => ticket in techniques));
   });
 
   test("#1683, l'issue du tableau de la cuisine, ne se montre nulle part", async () => {
@@ -313,7 +313,7 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
   test("un `hors-cuisine` dont le commentaire marqué pose une question de produit entre dans Todo, avec cette question", async () => {
     const question = { id: 40, body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old column order?\n\nBoth are defensible.", author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" };
     const vu = dessine(await lire(github({ issues: () => [issue(2312, ["fire", "hors-cuisine"])], commentaires: { 2312: [renvoi(1, conflit), question] } })));
-    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     // La question n'est dite qu'une fois, sur la carte (#2434) : la ligne dit ce que sa sorte attend.
     assert.deepEqual(todo.map(({ ticket, ligne, chef, todo: carte }) => ({ ticket, ligne, chef, question: carte?.question })), [
       { ticket: 2312, ligne: "A product question waits for your answer.", chef: { sorte: "product-question", texte: "Should the export keep the old column order?\n\nBoth are defensible." }, question: "Should the export keep the old column order?" },
@@ -331,7 +331,7 @@ describe("ce qui attend le chef : la lecture du second", () => {
     assert.ok(attente.lue);
     assert.deepEqual(lu.file.map(({ ticket }) => ticket), [2312]);
     assert.deepEqual(statusDuTableau(lu).split("\n").filter((ligne) => ligne.includes("#2312")), blocDuChef(attente).filter((ligne) => ligne.includes("#2312")));
-    const todo = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    const todo = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(todo.map(({ ticket }) => ticket), [2312]);
   });
 

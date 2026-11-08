@@ -55,7 +55,7 @@ test("une demande qui attend se lit dans la file : depuis quand, et ce qui la re
   assert.match(bloc, /^awaiting {3}1 decision awaits the chef — for 1 min\n/);
   assert.match(
     bloc,
-    /\n {2}closing {2}for 1 min {2}closing pass requested on \d{4}-\d\d-\d\dT[\d:.]+Z, it waits — start condition not met: 1 cook in flight for a threshold of 1 — the pass leaves when there are fewer than the threshold, or when the rail is empty \(it carries 1 unserved ticket\); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it with the `Cancel the cleanup` button in the closer section of the project's Cooks tab\n/,
+    /\n {2}closing {2}for 1 min {2}closing pass requested on \d{4}-\d\d-\d\dT[\d:.]+Z, it waits — start condition not met: 1 cook in flight for a threshold of 1 — the pass leaves when there are fewer than the threshold, or when the rail is empty \(it carries 1 unserved ticket\); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it: no app button for it yet\n/,
   );
 
   // Et là où le chef observe.

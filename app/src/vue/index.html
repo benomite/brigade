@@ -10,7 +10,11 @@
     <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
     <!-- Les jetons d'abord — les couleurs et les polices, embarquées —, puis la peau qui les nomme. -->
     <link rel="stylesheet" href="jetons.css" />
+    <!-- Le bouton, une seule famille (ticket 2916) : avant la peau, qu'une règle d'écran (`.mono`) le précise sans le redessiner. -->
+    <link rel="stylesheet" href="composants/bouton/bouton.css" />
     <link rel="stylesheet" href="vue.css" />
+    <link rel="stylesheet" href="settings-humans/humains.css" />
+    <link rel="stylesheet" href="reglages-stations/stations.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
       {
@@ -38,10 +42,11 @@
       <div id="parcours-de-l-ajout"></div>
       <form id="formulaire" novalidate>
         <h3>Add a project from a folder</h3>
+        <!-- Ses boutons sont ceux de la famille unique (composants/bouton, ticket 2916) : `data-bouton` dit leur sorte. -->
         <p id="ou"></p>
         <div>
           <span>Its folder on this workstation</span>
-          <button type="button" id="dossier">Choose…</button>
+          <button type="button" id="dossier" data-bouton="secondaire">Choose…</button>
           <output id="choisi"></output>
         </div>
         <p id="refus-dossier" class="refus-champ" aria-live="polite"></p>
@@ -53,7 +58,7 @@
         <input id="base" autocomplete="off" spellcheck="false" />
         <small>The branch the kitchen delivers to. The app reads the one the folder's origin points to; correct it if it is not the right one.</small>
         <p id="refus-base" class="refus-champ" aria-live="polite"></p>
-        <button type="submit" id="ajouter">Add to the app</button>
+        <button type="submit" id="ajouter" class="recommande" data-bouton="recommande">Add to the app</button>
         <small>The project gets its tab, and nothing is sent anywhere. Who cooks it is asked above, once it is added.</small>
         <section id="issue-ajout" aria-live="polite"></section>
       </form>
@@ -64,35 +69,34 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
-        <!-- Le menu du projet (ticket 2485) : Rail · Stations · Kitchen · Settings. Un seul onglet est montré au centre ; le
+        <!-- Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings. Un seul onglet est montré au centre ; le
              second, à droite, ne change pas de l'un à l'autre. Settings s'ouvre par-dessus. -->
         <div id="onglets-du-projet" role="tablist" aria-label="Project menu" hidden></div>
-        <!-- Les deux sous-onglets de Kitchen (ticket 2485) : Health et Cooks, montrés quand Kitchen l'est. -->
-        <div id="onglets-cuisine" role="tablist" aria-label="Kitchen" hidden></div>
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
-        <button type="button" id="journal" title="open the log — breakdown tooling, only the end of the log" hidden>log</button>
+        <button type="button" id="journal" data-bouton="discret" title="open the log — breakdown tooling, only the end of the log" hidden>log</button>
       </header>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
            une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
            l'onglet Cooks (ticket 1184) — sauf tant que le projet ne cuit nulle part : elles sont alors ce qui t'attend. -->
       <section id="stations-du-projet" aria-label="Its stations" hidden></section>
       <!-- Ce qui bloque le projet (ticket 1399) : une ligne par blocage, sa phrase, sa cause, son bouton ou le lien qui
-           nomme la page où le lever. Sur Rail comme sur Cooks ; aucun blocage, rien. -->
+           nomme la page où le lever. Sur Rail comme sur Stations ; aucun blocage, rien. -->
       <!-- Ce qui manque à sa station pour ses tests (ticket 1400) : une carte par besoin, ses issues en boutons, ce qui
            suit de chacune sous elle. Au-dessus de ses blocages ; aucun choix qui t'attend, rien. -->
       <section id="choix-du-projet" aria-label="What its station lacks" aria-live="polite" hidden></section>
       <!-- Le temps de l'ajout au premier ticket servi (ticket 1401) : court tant qu'aucun n'est servi, figé ensuite. -->
       <section id="delai-du-projet" aria-label="Time to its first served ticket" hidden></section>
-      <!-- Les temps des derniers tickets du projet (ticket 2346) : médiane, plus lent, partage en phases, plafond. -->
-      <section id="temps-ticket-du-projet" aria-label="Ticket times" hidden></section>
       <section id="blocages-du-projet" aria-label="What blocks it" aria-live="polite" hidden></section>
       <p id="note" aria-live="polite" hidden></p>
       <!-- Le centre : l'onglet montré (ticket 1184). Rail : ce qui t'attend, puis On the rail, TODO, WAITING, Served ;
-           Cooks : l'état du projet et ses cooks, Taken et Pass, les pages servies, la lecture de `station`. Une page
+           Stations : ses stations et leurs réglages. Une page
            ouverte se pose par-dessus, sans le défaire : fermée, elle rend l'onglet tel qu'il était. -->
       <div id="centre">
+      <!-- Le bandeau de santé de la cuisine (ticket 2921), au-dessus du rail : le temps des tickets, ce qui est bloqué sans
+           question, les plafonds de durée et le closer, puis les lignes de tous les projets. Montré sur Rail seulement. -->
+      <section id="bandeau-sante" aria-label="The kitchen's health" hidden></section>
       <div id="bloc-du-rail"></div>
       <section id="rail" role="tabpanel" aria-label="The rail" hidden></section>
       <!-- La fiche d'un ticket : un clic sur sa carte l'ouvre par-dessus le rail, sans le défaire ; fermée — son
@@ -109,6 +113,8 @@
             <h2 id="niveau-project" class="niveau-du-groupe"></h2>
             <p id="vide-project" class="vide" hidden></p>
             <div id="reglages-du-projet" aria-live="polite" hidden></div>
+            <div id="humains-du-projet" aria-live="polite" hidden></div>
+            <div id="stations-contributrices" aria-live="polite" hidden></div>
             <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
             <div id="sigle" aria-label="The project's label in the bar" hidden></div>
             <div id="couleurs" aria-label="The project colors" hidden></div>
@@ -134,7 +140,7 @@
     <aside id="second" aria-label="The second and the shells" hidden>
       <header id="tete-du-second">
         <div id="terminaux" role="tablist" aria-label="Terminals"></div>
-        <button id="fermer-shell" type="button" title="Closes this shell for good: its session is destroyed on its machine, and it will not come back" hidden></button>
+        <button id="fermer-shell" type="button" data-bouton="discret" title="Closes this shell for good: its session is destroyed on its machine, and it will not come back" hidden></button>
       </header>
       <!-- « + shell » : la machine où l'ouvrir — ce poste, la box, les stations du projet. -->
       <div id="machines" role="group" aria-label="Open a shell on" hidden></div>

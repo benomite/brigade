@@ -15,6 +15,7 @@
 // `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { lectureIndisponible, survol } from "../briques.js";
+import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../box.ts").Lecture} Lecture */
@@ -174,8 +175,7 @@ function lesTrouvailles(doc, trouvailles, ouvert, basculer) {
     bloc.append(vide);
     return bloc;
   }
-  const bouton = cree(doc, "button", `${ouvert ? "hide" : "show"} what was found (${trouvailles.length})`);
-  bouton.type = "button";
+  const bouton = boutonDeLaFamille(doc, `${ouvert ? "hide" : "show"} what was found (${trouvailles.length})`, undefined, { sorte: "discret" });
   bouton.className = "deplier";
   bouton.ariaExpanded = String(ouvert);
   bouton.addEventListener("click", basculer);
@@ -221,9 +221,7 @@ function sansCloser(doc, valeurs, regler, choix, choisir) {
   dit.className = "attendu";
   const modele = liste(doc, CHOISIR_MODELE, valeurs.modeles, choix.modele);
   const effort = liste(doc, CHOISIR_EFFORT, valeurs.efforts, choix.effort);
-  const bouton = cree(doc, "button", REGLER);
-  bouton.type = "button";
-  bouton.className = "recommande";
+  const bouton = boutonDeLaFamille(doc, REGLER, undefined, { sorte: "recommande" });
   const pret = () => void (bouton.disabled = modele.value === "" || effort.value === "");
   pret();
   for (const changee of [modele, effort]) {

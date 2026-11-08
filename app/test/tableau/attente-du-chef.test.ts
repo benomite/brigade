@@ -146,7 +146,7 @@ describe("l'app et le second ne se contredisent pas : la même lecture, les mêm
     assert.ok(!("erreur" in montree) && montree.attend !== undefined, "status carries its awaiting block");
     const faits = comprendre(JSON.stringify(lu.faits));
     assert.ok(!("informe" in faits), `facts are in shape: ${"informe" in faits ? faits.informe : ""}`);
-    const todo = tableauDe(faits as Faits, { bloc: montree.attend, a: LU }, { texte: status, a: LU }).rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+    const todo = tableauDe(faits as Faits, { bloc: montree.attend, a: LU }, { texte: status, a: LU }).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(todo.map(({ ticket }) => ticket), [30, 12, 8, 20]);
     // Le second : la même lecture, le même bloc.
     const file = await lireLaFile(github(), DEPOT, maintenant);

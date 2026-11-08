@@ -14,6 +14,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et l'élément où se poser.
 
 import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
@@ -119,8 +120,7 @@ function positionsDe(doc, { row, position, demandee, choisir }) {
   groupe.ariaLabel = `${LIBELLES_DES_RANGEES[row].titre}: who decides`;
   groupe.append(
     ...POSITIONS.map((possible) => {
-      const bouton = cree(doc, "button", LIBELLES_DES_POSITIONS[possible]);
-      bouton.type = "button";
+      const bouton = boutonDeLaFamille(doc, LIBELLES_DES_POSITIONS[possible], undefined);
       bouton.dataset.position = possible;
       bouton.ariaPressed = String(possible === position);
       if (possible === demandee) bouton.className = "demandee";

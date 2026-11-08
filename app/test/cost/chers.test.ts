@@ -123,7 +123,7 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
   test("cliquer une ligne ouvre son projet, puis la fiche de son ticket, par-dessus le rail", async () => {
     const vue = await ouvrirLaPage();
     const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(cook(30, "412 806"), cook(12, "9"))), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", station(cook(30, "412 806"), cook(12, "9"))), demande }, undefined);
     await repos();
     const lignes = vue.element("cout").dessous("button").filter(({ className }) => className.startsWith("ticket-cher"));
     assert.equal(lignes.length, 2);

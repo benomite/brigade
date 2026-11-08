@@ -23,7 +23,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { Lecture } from "../../src/box.ts";
 import { SANS_FAIT } from "../../src/gestes-github.ts";
-import { apresRendu, CHAMP, DEMANDE_EN_ROUTE, DEMANDER, EN_ATTENTE, EN_ATTENTE_DETAIL, ENVOYER, EN_ROUTE, JOUEE, PAS_JOUEE, poserCarteDeTodo, REPOS, vuDeLaCarte } from "../../src/vue/carte-todo.js";
+import { apresRendu, CHAMP, DEMANDE_EN_ROUTE, DEMANDER, EN_ATTENTE, EN_ATTENTE_DETAIL, EN_MES_MOTS, ENVOYER, EN_ROUTE, JOUEE, PAS_JOUEE, poserCarteDeTodo, REPOS, vuDeLaCarte } from "../../src/vue/carte-todo.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
@@ -121,7 +121,7 @@ const attente = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: 
 const joue = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "joue", dit: "Done — choose #21 2 — cost: the kitchen takes #21 up again" });
 const refuse = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "refuse", dit: "Not done — choose #21 2: a cook is working on #21", raison: "a cook is working on #21" });
 // La colonne TODO, son compte et ses bons.
-const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Todo") ?? assert.fail("pas de colonne TODO");
+const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne TODO");
 const compte = (vue: Jouee) => todo(vue).dessous("h4")[0]?.dessous("span")[1]?.textContent;
 const bon = (vue: Jouee, ticket: number): Faux | undefined => todo(vue).dessous("li").find((pose) => pose.className === "bon" && pose.dessous("button")[0]?.textContent === `#${ticket}`);
 const carte = (vue: Jouee, ticket: number): Faux => bon(vue, ticket)?.dessous("section").find((pose) => pose.className === "carte-todo") ?? assert.fail(`pas de carte de TODO sur #${ticket}`);
@@ -159,6 +159,17 @@ describe("la carte de TODO, sur le rail du projet", () => {
     // Ce qu'on attend du chef, en tête du bon, dans les mots de l'app.
     assert.ok(bon(vue, 12)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "Validate its screen: answer its question."));
     assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "A product choice is yours: answer its question."));
+  });
+
+  test("chaque choix tient sur une ligne, coupé, sa réponse entière au survol et pour un lecteur d'écran (ticket 2916)", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    const poses = choix(carte(vue, 21));
+    assert.deepEqual(
+      poses.map((pose) => [pose.title, pose.ariaLabel, pose.dessous("span").find((span) => span.className === "coupe")?.textContent]),
+      PRODUIT.choix.map(({ texte }) => [texte, texte, texte]),
+    );
+    assert.equal(poses[0]?.dataset.bouton, "recommande");
   });
 
   test("le prix d'un choix est au survol, jamais écrit sous le bouton : un merge le dit", async () => {
@@ -304,7 +315,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
     recevoir(vue, FORME);
     const posee = carte(vue, 21);
     const ordre = posee.children.map((pose) => pose.className);
-    assert.deepEqual(ordre, ["resume-carte", "question-carte", "choix-carte", "phrase", "secondaire"]);
+    assert.deepEqual(ordre, ["resume-carte", "question-carte", "choix-carte", "en-mes-mots", "phrase", "secondaire"]);
     assert.equal(posee.children[0]?.textContent, PRODUIT_EN_FORME.resume);
     assert.equal(posee.children[1]?.textContent, PRODUIT_EN_FORME.question);
     assert.deepEqual(
@@ -318,8 +329,29 @@ describe("la carte de TODO, sur le rail du projet", () => {
     await repos();
     assert.deepEqual(
       carte(vue, 12).children.map((pose) => pose.className),
-      ["resume-carte", "question-carte", "captures", "choix-carte", "phrase", "secondaire"],
+      ["resume-carte", "question-carte", "captures", "choix-carte", "en-mes-mots", "phrase", "secondaire"],
     );
+  });
+
+  test("dans Awaiting you, la réponse recommandée est le premier choix, et lui seul ; le champ attend derrière « answer in my own words » (#2922)", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, FORME);
+    const posee = carte(vue, 21);
+    assert.deepEqual(
+      choix(posee).map((pose) => [pose.textContent, pose.dataset.bouton === "recommande"]),
+      PRODUIT_EN_FORME.choix.map(({ texte }, rang) => [texte, rang === 0]),
+    );
+    const phrase = posee.children.find((pose) => pose.className === "phrase") ?? assert.fail("pas de champ");
+    const ouvre = bouton(posee, EN_MES_MOTS);
+    assert.equal(phrase.hidden, true, "replié tant que rien n'est tapé");
+    assert.equal(ouvre.hidden, false);
+    ouvre.click();
+    assert.equal(phrase.hidden, false);
+    assert.equal(ouvre.hidden, true);
+    // Le champ ouvert se tape et part par « send », comme avant.
+    champ(posee).value = "Both.";
+    champ(posee).declencher("input");
+    assert.equal(bouton(posee, ENVOYER).disabled, false);
   });
 
   test("une carte à un seul geste montre ce qui se passe et un seul bouton, sans question", async () => {
@@ -401,6 +433,17 @@ describe("le module de la carte, sur un faux document", () => {
     assert.equal(posee?.dessous("textarea")[0]?.value, "déjà tapé");
     assert.equal(posee?.dessous("textarea")[0]?.dataset.cle, "p#12");
     assert.equal(bouton(posee as Faux, ENVOYER).disabled, false);
+  });
+
+  test("le champ ne se replie que sur une carte qui a ses choix et rien de tapé : sans choix, il est sa seule réponse (#2922)", () => {
+    const champOuvert = (posee: Faux) => [posee.children.find((pose) => pose.className === "phrase")?.hidden, posee.children.find((pose) => pose.className === "en-mes-mots")?.hidden];
+    const [replie] = poserCarteDeTodo(doc, 12, todoDe(DESIGN), REPOS, { captures: [], brouillon: "", cle: "p#12" }, rien) as Faux[];
+    assert.deepEqual(champOuvert(replie as Faux), [true, false]);
+    const [tape] = poserCarteDeTodo(doc, 12, todoDe(DESIGN), REPOS, { captures: [], brouillon: "déjà tapé", cle: "p#12" }, rien) as Faux[];
+    assert.deepEqual(champOuvert(tape as Faux), [false, true]);
+    const [sansChoix] = poserCarteDeTodo(doc, 40, { ...todoDe(DESIGN), choix: [] }, REPOS, { captures: [], brouillon: "", cle: "p#40" }, rien) as Faux[];
+    assert.deepEqual(champOuvert(sansChoix as Faux), [false, true]);
+    assert.equal(bouton(sansChoix as Faux, EN_MES_MOTS).hidden, true);
   });
 
   test("« ask the second » appelle son geste ; en route, il attend et le dit, sans toucher aux choix", () => {

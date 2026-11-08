@@ -25,9 +25,19 @@ export type Depot = {
   // porte ; sinon la branche naît ici sur la base, sans commit : une livraison
   // sans diff. Aucun worktree n'est créé.
   recevoir(branche: string): Promise<boolean>;
+  // Rapatrie la tête d'une PR externe (#2933) — un fork, que l'origine porte
+  // sous `refs/pull/<n>/head` et sous aucune branche — et en pose un worktree
+  // détaché, sans branche du clone. Rend le worktree et la référence où la
+  // tête est rangée, que `tete`, `changes` et `diff` lisent comme une branche.
+  recevoirPR(run: string, numero: number): Promise<{ worktree: string; reference: string }>;
   // Défait ce que `preparer` ou `reprendre` a fait, pour un worktree où aucun
   // cook n'est entré : le worktree, et sa branche si elle est nommée.
   retirer(worktree: string, branche?: string): void;
+  // Lance `git <args>` dans le worktree d'un cook, sous le dépôt que le clone
+  // désigne (jamais celui que le worktree prétendrait) et sans crochet. Un
+  // `fetch` part sous le jeton du dépôt. Ne lève pas sur un code non nul : il
+  // rend le code et les deux sorties (#2953).
+  lancerGit?(args: string[], worktree: string): Promise<{ code: number; stdout: string; stderr: string }>;
   // Commite sur sa branche ce qui traîne dans le worktree d'un cook : fichiers
   // suivis modifiés, fichiers neufs que le projet n'ignore pas. Rend ce
   // commit, ou null s'il n'y avait rien. Lève si le worktree n'est plus sur sa
@@ -713,6 +723,26 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         await gitAsync("branch", "--quiet", "--force", branche, suivie(branche));
         return true;
       }),
+    recevoirPR: (run, numero) =>
+      aSonTour(async () => {
+        const worktree = join(worktrees, run);
+        await liberer(worktree);
+        // La base rapatriée : c'est contre elle que la PR se compte.
+        await rapatrier();
+        const reference = `refs/brigade/pr/${numero}`;
+        await gitAvec(await reseau(), "fetch", "--quiet", "origin", `+refs/pull/${numero}/head:${reference}`);
+        await gitAsync("worktree", "add", "--quiet", "--detach", worktree, reference);
+        return { worktree, reference };
+      }),
+    lancerGit: async (args, worktree) => {
+      const debut = [...SANS_COMMANDE, ...IDENTITE, `--git-dir=${administration(worktree)}`, `--work-tree=${resolve(worktree)}`];
+      const env = { ...(args[0] === "fetch" ? ((await reseau()) ?? envGit) : envGit), GIT_COMMON_DIR: commun };
+      return new Promise((resoudre) => {
+        execFile("git", [...debut, ...args], { ...reglages, env, cwd: resolve(worktree) }, (erreur, stdout, stderr) =>
+          resoudre({ code: erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : 1, stdout: String(stdout), stderr: String(stderr) || (erreur?.message ?? "") }),
+        );
+      });
+    },
     retirer(worktree, branche) {
       git("worktree", "remove", "--force", worktree);
       if (branche !== undefined) git("branch", "--quiet", "-D", branche);

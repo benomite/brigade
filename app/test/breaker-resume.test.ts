@@ -181,7 +181,7 @@ async function ouvrir(reprendre: (projet: string) => Promise<RenduDeLaReprise | 
   return vue;
 }
 
-const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Todo") ?? assert.fail("pas de colonne TODO");
+const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne TODO");
 const ligneDe = (vue: Jouee): Faux | undefined => todo(vue).dessous("div").find(({ className }) => className === "ligne-disjoncteur");
 const ligne = (vue: Jouee): Faux => ligneDe(vue) ?? assert.fail("pas de ligne du disjoncteur dans TODO");
 // Les boutons d'une ligne, hors survols.
@@ -279,9 +279,9 @@ describe("la ligne du disjoncteur, en tête de TODO", () => {
     assert.deepEqual(boutons(ligne(vue)).map(({ textContent }) => textContent), [REPRENDRE]);
   });
 
-  test("sur Cooks, sans colonne TODO : la bande porte la ligne, avec le même « Resume »", async () => {
+  test("sur Stations, sans colonne TODO : la bande porte la ligne, avec le même « Resume »", async () => {
     const vue = await ouvrir(async () => ({ demandee: { issue: 2150, url: null } }));
-    await ouvrirOnglet(vue, "Cooks");
+    await ouvrirOnglet(vue, "Stations");
     const bande = vue.element("alertes").children.find((pose) => pose.textContent.includes("breaker open")) ?? assert.fail("la bande ne dit pas le disjoncteur");
     const bouton = reprendre(bande);
     bouton.click();

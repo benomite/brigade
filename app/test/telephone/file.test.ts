@@ -90,7 +90,7 @@ async function ouvrir({ etroit }: { etroit: boolean }): Promise<Jouee> {
 }
 
 async function taper(vue: Jouee, titre: string): Promise<void> {
-  await ouvrirOnglet(vue, titre as "Rail" | "Cooks");
+  await ouvrirOnglet(vue, titre as "Rail" | "Stations");
 }
 
 const sections = (vue: Jouee) => vue.element("rail").dessous("section").filter((pose) => pose.className === "colonne");
@@ -125,23 +125,23 @@ describe("la file d'un projet sur le téléphone", () => {
         ["On the rail", "2"],
         ["Taken", "2"],
         ["Pass", "0"],
-        ["Todo", "1"],
+        ["Awaiting you", "1"],
         ["Waiting", "0"],
         ["Served", "1"],
       ],
     );
-    const [todo] = colonnes(vue).filter(({ nom }) => nom === "Todo");
+    const [todo] = colonnes(vue).filter(({ nom }) => nom === "Awaiting you");
     assert.match(todo?.cartes.join() ?? "", /#12.*Validation SIRET/);
     // La peau la met en tête d'après cette marque, et elle ne marque qu'elle.
     assert.deepEqual(
       sections(vue).filter((colonne) => "attend" in colonne.dataset).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["Todo"],
+      ["Awaiting you"],
     );
   });
 
-  test("Cooks : les cooks en cours, station par station", async () => {
+  test("Stations : les cooks en cours, station par station", async () => {
     const vue = await ouvrir({ etroit: true });
-    await taper(vue, "Cooks");
+    await taper(vue, "Stations");
     assert.deepEqual(stations(vue), [
       { station: "box/claude", etat: "cooking", cooks: ["#14Le journal en ajout seul"] },
       { station: "mac/claude", etat: "cooking", cooks: ["#15La carte des desserts"] },
@@ -152,8 +152,8 @@ describe("la file d'un projet sur le téléphone", () => {
     const telephone = await ouvrir({ etroit: true });
     const desktop = await ouvrir({ etroit: false });
     assert.deepEqual(colonnes(telephone), colonnes(desktop));
-    await taper(telephone, "Cooks");
-    await taper(desktop, "Cooks");
+    await taper(telephone, "Stations");
+    await taper(desktop, "Stations");
     assert.deepEqual(stations(telephone), stations(desktop));
   });
 });

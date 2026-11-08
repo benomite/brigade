@@ -25,6 +25,7 @@
 import { boutonAction } from "./briques.js";
 import { niveauDe } from "./niveaux.js";
 import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
+import { bouton } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
@@ -123,7 +124,8 @@ function motDuRole(doc, role) {
 /** @param {Fabrique} doc @param {readonly Cook[]} siens @param {readonly Agent[]} agents */
 export function lignesDeCooks(doc, siens, agents) {
   const cooks = cree(doc, "ul");
-  cooks.className = siens.length === 0 && agents.length === 0 ? "cooks vide" : "cooks";
+  cooks.className = "cooks";
+  if (siens.length === 0 && agents.length === 0) cooks.className = "cooks vide";
   cooks.append(
     ...agents.map((agent) => {
       const ligne = cree(doc, "li");
@@ -147,49 +149,6 @@ export function lignesDeCooks(doc, siens, agents) {
         })),
   );
   return cooks;
-}
-
-// La carte de ce qu'une station fait tourner hors de ses cooks : son rôle et sa station, comme les cartes du rail
-// l'étiquettent — le nom court, le nom entier au survol —, son ticket et son titre, ce qu'il fait et depuis quand.
-/** @param {Fabrique} doc @param {string} station @param {Agent} agent */
-function carteDAgent(doc, station, agent) {
-  const carte = cree(doc, "li");
-  carte.className = "carte-agent";
-  carte.dataset.role = agent.role;
-  const tete = cree(doc, "p");
-  tete.className = "agent-tete";
-  const etiquette = cree(doc, "span", station.split("/")[0]);
-  etiquette.className = "etiquette-de-station mono";
-  etiquette.title = station;
-  tete.append(motDuRole(doc, agent.role), etiquette);
-  carte.append(tete);
-  if (agent.ticket !== null) {
-    const sujet = cree(doc, "p");
-    sujet.className = "agent-ticket";
-    const numero = cree(doc, "strong", `#${agent.ticket}`);
-    numero.className = "mono";
-    sujet.append(numero, ...(agent.titre === "" ? [] : [cree(doc, "span", agent.titre)]));
-    if (agent.titre !== "") sujet.title = agent.titre;
-    carte.append(sujet);
-  }
-  carte.append(ceQuIlFait(doc, agent));
-  return carte;
-}
-
-// Les cooks en cours d'une station, la carte de son ticket chacun, telle que `carte` la pose — après la carte de chaque
-// agent qu'elle fait tourner d'autre. Rien du tout : une ligne le dit.
-/** @param {Fabrique} doc @param {string} station @param {readonly Cook[]} siens @param {readonly Agent[]} agents @param {(cook: Cook) => any} carte */
-export function cartesDeCooks(doc, station, siens, agents, carte) {
-  if (siens.length === 0 && agents.length === 0) {
-    const vide = cree(doc, "p", RIEN_NE_TOURNE);
-    vide.className = "aucun-cook";
-    return vide;
-  }
-  const cartes = cree(doc, "ol");
-  cartes.className = "cartes";
-  cartes.ariaLabel = `in progress on ${station}`;
-  cartes.append(...agents.map((agent) => carteDAgent(doc, station, agent)), ...siens.map(carte));
-  return cartes;
 }
 
 // Sous une station : le plafond du projet sur elle comme sa box le dit (`3 at most — 8 cores`), et en une phrase ce qui
@@ -281,8 +240,7 @@ function ligneDeRetenue(doc, rang, retenue, { relire, autoriser }) {
   pose.append(pourquoi);
   const { appairee } = rang;
   if (retenue.parGitHub && appairee !== undefined && appairee.id !== "" && relire !== undefined) {
-    const relu = cree(doc, "button", RELIRE.libelle);
-    relu.type = "button";
+    const relu = bouton(doc, RELIRE.libelle, undefined);
     relu.className = "relire-la-station";
     relu.title = RELIRE.survol;
     relu.addEventListener("click", () => {
@@ -293,10 +251,7 @@ function ligneDeRetenue(doc, rang, retenue, { relire, autoriser }) {
   }
   if (retenue.parGitHub && appairee !== undefined && autoriser !== undefined) {
     for (const url of appairee.autoriser) {
-      const ouvre = cree(doc, "button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
-      ouvre.type = "button";
-      ouvre.addEventListener("click", () => autoriser(url));
-      pose.append(ouvre);
+      pose.append(bouton(doc, `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`, () => autoriser(url)));
     }
   }
   return pose;
@@ -345,22 +300,20 @@ function cooksDeclares(doc, declaree, editer) {
   return [plafond, regle];
 }
 
-// La section des stations, ou null : `facts` ne les donne pas. `pastille` : celle de la vue. `carte` :
-// la carte du ticket d'un cook, celle du kanban — sans elle, une ligne par cook. `tete` : ce qui se lit sous son titre,
+// La section des stations, ou null : `facts` ne les donne pas. `pastille` : celle de la vue. `tete` : ce qui se lit sous son titre,
 // avant les stations — la ligne de la cuisine du projet, où sa carte est fondue (ticket 1456).
 // `declarees` : les stations que le journal déclare (installation stations --json) ; `appairees` : celles que l'app
 // connaît par GitHub ; `lieu` : où elles tournent, et de quoi les éditer ;
 // `relire`, `autoriser` : les gestes d'une station ajoutée qui ne cuit pas encore (ticket 1786).
 /**
  * @param {Fabrique} doc
- * @param {{ lignes: readonly Ligne[] | undefined, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
+ * @param {{ lignes: readonly Ligne[] | undefined, pastille: (mot: string, ton: string | undefined) => any, plafonds?: Readonly<Record<string, Plafonds>>, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
  */
-export function poserLesStations(doc, { lignes, pastille, carte, plafonds, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
+export function poserLesStations(doc, { lignes, pastille, plafonds, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
   if (lignes === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
   section.ariaLabel = TITRE;
-  if (carte !== undefined) section.dataset.cartes = "";
   const rangs = stationsDuBloc(lignes, declarees, appairees);
   const liste = cree(doc, "ol");
   liste.append(
@@ -394,10 +347,8 @@ export function poserLesStations(doc, { lignes, pastille, carte, plafonds, tete 
         pilule.title = ligne.survol;
         etat.append(pilule, ...(ligne.dit === "" ? [] : [cree(doc, "small", ligne.dit)]));
       }
-      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent — et ce qu'elle fait tourner d'autre. Leurs cartes ferment
-      // le bloc, sous son geste.
-      const cooks = carte === undefined ? lignesDeCooks(doc, ligne?.cooks ?? [], ligne?.agents ?? []) : cartesDeCooks(doc, rang.nom, ligne?.cooks ?? [], ligne?.agents ?? [], carte);
-      pose.append(nom, etat, ...(carte === undefined ? [cooks] : []));
+      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent — et ce qu'elle fait tourner d'autre.
+      pose.append(nom, etat, lignesDeCooks(doc, ligne?.cooks ?? [], ligne?.agents ?? []));
       // Pourquoi elle ne cuit pas, en une ligne.
       const retenue = retenueDe(rang);
       if (retenue !== undefined) pose.append(ligneDeRetenue(doc, rang, retenue, { ...(relire === undefined ? {} : { relire }), ...(autoriser === undefined ? {} : { autoriser }) }));
@@ -406,7 +357,6 @@ export function poserLesStations(doc, { lignes, pastille, carte, plafonds, tete 
       const cap = plafonds?.[rang.nom];
       if (cap !== undefined) pose.append(...plafondDeLaStation(doc, cap));
       else if (rang.declaree !== undefined) pose.append(...cooksDeclares(doc, rang.declaree, lieu?.editer));
-      if (carte !== undefined) pose.append(cooks);
       return pose;
     }),
   );
@@ -438,10 +388,8 @@ export function ligneDAlerte(doc, { alerte, refusee, acces, clone = null, refus,
   pose.className = "alerte-de-cuisine";
   pose.role = "alert";
   const dit = cree(doc, "span", `${causes.join(" · ")}.`);
-  const lien = cree(doc, "button", OUVRIR_COOKS);
-  lien.type = "button";
+  const lien = bouton(doc, OUVRIR_COOKS, ouvrir);
   lien.className = "lien";
-  lien.addEventListener("click", ouvrir);
   pose.append(dit, lien);
   return pose;
 }

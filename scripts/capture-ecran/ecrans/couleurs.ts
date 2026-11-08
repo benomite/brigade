@@ -15,6 +15,6 @@ export const ecran: Ecran = {
   dit: "La palette entière (#1106) : un projet par teinte dans la barre, et les couleurs de « parade » sous Settings — ses deux rangées de pastilles, « other… », et son accent dans l'espace",
   largeur: 1440,
   hauteur: 1040,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(4)" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(3)" }],
   donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(projetsDeLaPalette())), espace: [] }, envois: cuisine(RENDUS) }),
 };

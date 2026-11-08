@@ -312,6 +312,18 @@ test("les fichiers d'une PR ouverte ne sont relus que quand sa tête change (#22
   assert.deepEqual((await github.prsOuvertes?.())?.[0]?.fichiers, ["b.ts"]);
 });
 
+test("une PR ouverte depuis un fork se lit externe, celle du dépôt non, et un fork supprimé reste externe (#2933)", async (t) => {
+  const { gh, github } = sonde(t);
+  const depot = { full_name: DEPOT };
+  gh.repondre(`repos/${DEPOT}/pulls?state=open&per_page=100`, { corps: [
+    { number: 7, head: { ref: "cook/7-github", sha: "1".repeat(40), repo: depot }, base: { repo: depot } },
+    { number: 8, head: { ref: "cook/7-github", sha: "2".repeat(40), repo: { full_name: "someone/fork" } }, base: { repo: depot } },
+    { number: 9, head: { ref: "patch-1", sha: "3".repeat(40), repo: null }, base: { repo: depot } },
+  ] });
+  for (const numero of [7, 8, 9]) gh.repondre(`repos/${DEPOT}/pulls/${numero}/files?per_page=100`, { corps: [] });
+  assert.deepEqual((await github.prsOuvertes?.())?.map(({ number, sha, externe }) => [number, sha?.slice(0, 1), externe]), [[7, "1", false], [8, "2", true], [9, "3", true]]);
+});
+
 test("merger une PR exige le commit jugé", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/pulls/40/merge`;

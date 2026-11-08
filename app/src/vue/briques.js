@@ -5,7 +5,10 @@
 // un bouton recommandé se distingue des autres, et son prix, s'il en a un, est dans son survol ;
 // une confirmation qui coûte dit son prix en une seule ligne, une qui ne coûte rien n'en dit aucune.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien
-// et les tests un faux. Il ne pose rien dans la page, et ne câble aucun écran : il rend des éléments.
+// et les tests un faux. Il ne pose rien dans la page, et ne câble aucun écran : il rend des éléments. Ses boutons sont
+// ceux de la famille unique (composants/bouton, ticket 2916).
+
+import { bouton } from "./composants/bouton/bouton.js";
 
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
@@ -70,19 +73,15 @@ export function lectureIndisponible(doc, ligne, detail) {
   return racine;
 }
 
-// Un bouton d'action. `recommande` le distingue des autres (classe `recommande`, et `aria-` de rien
-// d'autre : c'est une question de peau). `prix` : nul ou absent, il n'y a ni survol ni icône ; sinon
-// le prix est dans le survol, pas écrit sous le bouton.
-/** @param {Fabrique} doc @param {string} libelle @param {() => void} geste @param {{ recommande?: boolean, prix?: number | string | null }} [options] */
-export function boutonAction(doc, libelle, geste, { recommande = false, prix } = {}) {
+// Un bouton d'action. `recommande` le distingue des autres (la sorte recommandée de la famille, et `aria-` de rien
+// d'autre : c'est une question de peau) ; `sorte` en choisit une autre (discret, danger). `prix` : nul ou absent, il
+// n'y a ni survol ni icône ; sinon le prix est dans le survol, pas écrit sous le bouton. `coupe` : son libellé tient sur
+// une ligne, coupé, entier au survol (la famille, `bouton.js`).
+/** @param {Fabrique} doc @param {string} libelle @param {() => void} geste @param {{ recommande?: boolean, sorte?: import("./composants/bouton/bouton.js").Sorte, grand?: boolean, coupe?: boolean, prix?: number | string | null }} [options] */
+export function boutonAction(doc, libelle, geste, { recommande = false, sorte, grand = false, coupe = false, prix } = {}) {
   const groupe = doc.createElement("span");
   groupe.className = "action";
-  const bouton = doc.createElement("button");
-  bouton.type = "button";
-  bouton.textContent = libelle;
-  bouton.className = recommande ? "recommande" : "";
-  bouton.addEventListener("click", geste);
-  groupe.append(bouton);
+  groupe.append(bouton(doc, libelle, geste, { sorte: recommande ? "recommande" : sorte, grand, coupe }));
   const cout = prixDit(prix);
   if (cout !== "") groupe.append(survol(doc, cout));
   return groupe;
@@ -105,16 +104,7 @@ export function confirmationDeGeste(doc, { titre, prix, oui, non }, gestes) {
     ligne.textContent = cout.replace(/\s*\n\s*/g, " ");
     racine.append(ligne);
   }
-  const accepter = doc.createElement("button");
-  accepter.type = "button";
-  accepter.className = "recommande";
-  accepter.textContent = oui;
-  accepter.addEventListener("click", gestes.oui);
-  const renoncer = doc.createElement("button");
-  renoncer.type = "button";
-  renoncer.textContent = non;
-  renoncer.addEventListener("click", gestes.non);
-  racine.append(accepter, renoncer);
+  racine.append(bouton(doc, oui, gestes.oui, { sorte: "recommande" }), bouton(doc, non, gestes.non, { sorte: "discret" }));
   return racine;
 }
 

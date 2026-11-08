@@ -17,6 +17,8 @@
     "log": "node src/relire.ts",
     "station": "node src/montrer-station.ts",
     "setting": "node src/reglage-cli.ts",
+    "humans": "node src/humains-cli.ts",
+    "contributor-stations": "node src/contributor-stations-cli.ts",
     "switch": "node src/interrupteur-cli.ts",
     "manager": "node src/manager-cli.ts",
     "waiting": "node src/attente-cli.ts",

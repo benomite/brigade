@@ -12,6 +12,7 @@
 
 import { lectureIndisponible, survol } from "../../briques.js";
 import { niveauDe } from "../../niveaux.js";
+import { bouton } from "../../composants/bouton/bouton.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../ordinaires.ts").Bloc} BlocDesOrdinaires */
@@ -138,10 +139,7 @@ function connexion(doc, station, dite, gestes) {
   const panne = station?.pannes.find(({ sujet }) => sujet === "connexion-max");
   const controle = [];
   if (panne !== undefined) {
-    const bouton = avec(doc, "button", panne.bouton.libelle, "recommande");
-    bouton.type = "button";
-    bouton.addEventListener("click", () => gestes.seConnecter(panne.cle));
-    controle.push(bouton);
+    controle.push(bouton(doc, panne.bouton.libelle, () => gestes.seConnecter(panne.cle), { sorte: "recommande" }));
   }
   return rangee(doc, { nom: "Claude connection", cle: "claude", niveau: niveauDe(doc, "claude"), valeur: [valeur, ...(station === undefined ? [] : [survol(doc, vu.survol)])], controle, dessous: [{ texte: dite }] });
 }

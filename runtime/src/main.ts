@@ -7,6 +7,8 @@ import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
 import { brancherRepriseParGitHub } from "./breaker-resume-github.ts";
 import { noterGitHubSeul } from "./github-seul-etat.ts";
+import { fichierDesRefus, lireLesRefus } from "./station-contributrice/refus.ts";
+import { aiguillerLaStation } from "./station-contributrice/aiguillage.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot } from "./brigade-github.ts";
 import { configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
@@ -45,6 +47,7 @@ import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
+import { humainsDuProjet } from "./aiguillage-humains/aiguillage.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -171,46 +174,69 @@ try {
     station: () =>
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
-        : stationDuDepot({
-            nom: ici.nom,
-            // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
-            // une station déclarée à 30 en tiendrait 30.
-            places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
-            capacites: ici.fournit,
-            base: station.base,
-            depotGitHub: rail.depot,
-            githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
-            github: githubs.pass,
-            depot,
-            // La prise de #2056, liée à la station et au client du tour.
-            prise: priseDeLaStation,
-            claude: station.bin,
-            env,
-            cloison,
-            plafonds: reglages.plafonds,
-            graceMs: reglages.graceMs,
-            reviewer: reviewer.calibrage,
-            // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
-            manager: () => decisions.manager(),
-            flux: join(repertoireEtat, "github-seul"),
-            observer: suiviDuTour.envelopper,
-            sauter: suiviDuTour.sauter,
-            // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
-            clone: station.clone,
-            // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
-            gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
-            // Le setup du worktree de chaque cook, joué avant lui (#2535).
-            setup: { delaiMs: delaiGatesMs },
-            // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
-            gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
-          }),
+        : (() => {
+            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) });
+            const ecrivaine = stationDuDepot({
+              nom: ici.nom,
+              // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
+              // une station déclarée à 30 en tiendrait 30.
+              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+              capacites: ici.fournit,
+              base: station.base,
+              depotGitHub: rail.depot,
+              githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
+              github: githubs.pass,
+              depot,
+              // La prise de #2056, liée à la station et au client du tour.
+              prise: priseDeLaStation,
+              claude: station.bin,
+              env,
+              cloison,
+              plafonds: reglages.plafonds,
+              graceMs: reglages.graceMs,
+              reviewer: reviewer.calibrage,
+              // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+              manager: () => decisions.manager(),
+              flux: join(repertoireEtat, "github-seul"),
+              observer: suiviDuTour.envelopper,
+              sauter: suiviDuTour.sauter,
+              // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+              clone: station.clone,
+              // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
+              gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
+              // Le setup du worktree de chaque cook, joué avant lui (#2535).
+              setup: { delaiMs: delaiGatesMs },
+              // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
+              projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
+              // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
+              gardes,
+            });
+            // Sans l'écriture sur le dépôt, la station est contributrice : elle cuisine dans sa fourche et livre par une PR du dehors (#2935).
+            return aiguillerLaStation(githubs.pass, ecrivaine, {
+              nom: ici.nom,
+              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+              base: station.base,
+              depotGitHub: rail.depot,
+              depot,
+              clone: station.clone,
+              claude: station.bin,
+              env,
+              cloison,
+              plafonds: reglages.plafonds,
+              graceMs: reglages.graceMs,
+              flux: join(repertoireEtat, "github-seul"),
+              gardes,
+              // Les stations que le chef refuse sous Settings ne prennent aucun ticket (#2936).
+              refusees: () => lireLesRefus(fichierDesRefus(repertoireEtat)),
+            });
+          })(),
   });
   projetGitHub = ouvert;
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
   brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
-  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages) });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,

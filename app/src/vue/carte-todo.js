@@ -4,7 +4,8 @@
 // phrases au plus ; la question ; ses captures avant et après quand il y en a ; un bouton par choix ;
 // un champ pour répondre dans tes mots, avec son bouton « send » ; et, en retrait, « ask the second ».
 // Une carte à un seul geste — merger à la main une livraison verte — n'a rien à demander : son bouton,
-// sans question. Un clic sur un choix est la réponse : rien d'autre n'est demandé, ni confirmation
+// sans question. Le premier choix est la réponse recommandée, le seul bouton plein d'accent (ticket 2922) ; le champ
+// d'une carte qui a ses choix est replié derrière « answer in my own words ». Un clic sur un choix est la réponse : rien d'autre n'est demandé, ni confirmation
 // ni second clic ; son prix est au survol. Le texte part par son bouton — Entrée ne l'envoie pas.
 // « Ask the second » n'est jamais un des choix ni le seul chemin : il écrit dans le second une demande
 // sur le ticket, pour quand la carte ne se comprend pas.
@@ -22,6 +23,7 @@
 // captures déjà posées et ce que chaque geste appelle, et rend un élément.
 
 import { boutonAction, survol } from "./briques.js";
+import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../carte-todo.ts").CarteDeTodo} CarteDeTodo */
@@ -63,6 +65,8 @@ export const EN_ATTENTE_DETAIL = "your answer is posted on the ticket's issue on
 export const JOUEE = "played by the kitchen";
 export const PAS_JOUEE = "not played by the kitchen";
 export const VOTRE_REPONSE = "your answer";
+// Le bouton discret qui ouvre le champ d'une carte qui a ses choix (ticket 2922).
+export const EN_MES_MOTS = "answer in my own words";
 // L'action secondaire de toute carte : le mot est celui du runtime (runtime/src/carte-todo/forme.ts,
 // `DEMANDER_AU_SECOND`) et de la fiche (gestes-fiche.ts).
 export const DEMANDER = "ask the second";
@@ -153,8 +157,11 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
 
   const choix = cree(doc, "div");
   choix.className = "choix-carte";
+  // La réponse recommandée est le premier choix (ticket 2922, maquette Project.dc.html) : plein d'accent, au-dessus des
+  // autres, qui restent des boutons ordinaires. Une réponse trop longue tient sur une ligne, coupée, entière au survol : le
+  // bouton garde ses 32 px, 44 sur un téléphone (ticket 2916).
   carte.choix.forEach(({ texte, prix }, rang) => {
-    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix });
+    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix, recommande: rang === 0, coupe: true });
     const bouton = groupe.children?.[0];
     if (bouton !== undefined) {
       bouton.className = "choix";
@@ -181,6 +188,18 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     if (bouton !== undefined) bouton.disabled = saisie.value.trim() === "";
   });
   phrase.append(saisie, envoyer);
+  // Une carte qui a ses choix replie son champ derrière « answer in my own words » (ticket 2922) : un clic l'ouvre et y
+  // met le clavier. Sans choix, le champ est la seule réponse : il reste ouvert ; un texte déjà tapé le garde ouvert.
+  const replie = carte.choix.length > 0 && brouillon === "" && !enRoute;
+  phrase.hidden = replie;
+  const ouvrir = boutonDeLaFamille(doc, EN_MES_MOTS, undefined, { sorte: "discret" });
+  ouvrir.className = "en-mes-mots";
+  ouvrir.hidden = !replie;
+  ouvrir.addEventListener("click", () => {
+    phrase.hidden = false;
+    ouvrir.hidden = true;
+    saisie.focus?.();
+  });
 
   if (vu.vu === "attente" || vu.vu === "jouee") {
     // Répondue : plus rien à trancher ici. La réponse rappelée, puis où elle en est, à voix basse, le détail au survol.
@@ -190,7 +209,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     ou.className = "ou-en-est";
     ou.append(cree(doc, "span", vu.vu === "attente" ? EN_ATTENTE : JOUEE), survol(doc, vu.vu === "attente" ? EN_ATTENTE_DETAIL : vu.dit));
     racine.append(...tete, ...captures, rappel, ou);
-  } else racine.append(...tete, ...captures, choix, phrase);
+  } else racine.append(...tete, ...captures, choix, ouvrir, phrase);
   if (enRoute) {
     const envoi = cree(doc, "span", EN_ROUTE);
     envoi.className = "en-route";
@@ -207,8 +226,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   // L'action secondaire, en retrait sous tout le reste : la carte se tranche sans elle.
   const secondaire = cree(doc, "p");
   secondaire.className = "secondaire";
-  const demander = cree(doc, "button", DEMANDER);
-  demander.type = "button";
+  const demander = boutonDeLaFamille(doc, DEMANDER, undefined, { sorte: "discret" });
   demander.className = "demander";
   demander.dataset.geste = "demande-second";
   demander.title = `if this card is not clear: write into the second a request about #${ticket}, with what is in the field — nothing is sent, you press Enter`;

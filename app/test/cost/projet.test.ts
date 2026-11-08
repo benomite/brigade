@@ -15,41 +15,13 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { type Jouee, jouerLaVue, ouvrirLecture, repos } from "../aides/fausse-vue.ts";
+import { type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-17T10:00:00.000Z";
-const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
 
-// Un cook de « derniers cooks », mot pour mot (runtime/src/montrer-station.ts).
-const cook = (ticket: number, fin: string, tokens: string) =>
-  `  2026-10-13T09:48:02.000Z  #${ticket}  r-${ticket}  sonnet / medium  ${fin}  31 tours · ${n(tokens)} tokens · 9,2 min`;
-// Une `station` : ses derniers cooks, puis les décisions du chef — le seuil du ticket le plus cher, posé ou non.
-const station = (seuilTicket: string | null, ...cooks: string[]) =>
-  [
-    "station               box/claude — moteur claude, fournit : claude",
-    "derniers cooks        ",
-    ...cooks,
-    "consommé              en cours : rien",
-    "décisions du chef     `station -- <geste> <valeur>` pour en poser une",
-    `  seuil-ticket        ${seuilTicket ?? "non posée — BRIGADE_DRIFT_TICKET_TOKENS ne se lit que du journal"}`,
-    "  seuil-perdus        non posée — BRIGADE_DRIFT_LOST_TOKENS ne se lit que du journal",
-    "",
-  ].join("\n");
-// Ce que la lecture de Cooks rend : `station`, puis `measures` sur sa fenêtre, puis `closing --json`.
-const lu = (projet: string, texte: string, demande: number) => ({
-  projet,
-  demande,
-  a: A,
-  sorties: [
-    { commande: "station", texte },
-    { commande: "measures --last 10 --by 1", texte: "" },
-    { commande: "closing --json", texte: "" },
-  ],
-});
-
-async function ouvrirCooks(): Promise<Jouee> {
+async function ouvrirStations(): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true),
@@ -66,21 +38,18 @@ async function ouvrirCooks(): Promise<Jouee> {
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
   await repos();
-  await ouvrirLecture(vue, "Cooks");
+  await ouvrirOnglet(vue, "Stations");
   return vue;
 }
 
 describe("le coût d'un projet n'est plus sur sa page (#1699)", () => {
   test("le projet n'a plus d'onglet Cost : son seul onglet est Settings", async () => {
-    const vue = await ouvrirCooks();
-    assert.deepEqual(vue.element("onglets-du-projet").children.map(({ textContent }) => textContent), ["Rail", "Stations", "Kitchen", "Settings"]);
+    const vue = await ouvrirStations();
+    assert.deepEqual(vue.element("onglets-du-projet").children.map(({ textContent }) => textContent), ["Rail", "Stations", "Settings"]);
   });
 
-  test("Cooks, lu, ne pose ni ses tokens perdus de `station` ni ses tickets les plus chers ; Settings non plus", async () => {
-    const vue = await ouvrirCooks();
-    const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", lu("parade", station("100000", cook(7, "fini", "120 000"), cook(8, "échoué", "30 000")), demande), undefined, undefined);
-    await repos();
+  test("Stations ne pose ni ses tokens perdus ni ses tickets les plus chers ; Settings non plus", async () => {
+    const vue = await ouvrirStations();
     const poses = vue.poses();
     assert.deepEqual(poses.filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
     assert.doesNotMatch(vue.element("rail").textContent, /cost of this project|most expensive|120,000/);

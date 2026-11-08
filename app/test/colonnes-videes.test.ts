@@ -33,7 +33,7 @@ describe("le journal des colonnes vidées (#2151)", () => {
 
     assert.deepEqual(rendues, dites);
     assert.deepEqual(dites, [
-      `brigade: parade — the Todo column went from 1 card to none (#21 now in Taken), by the reading of ${a(5)}, published by the box at ${a(4)}; the one before was read at ${a(2)}, published by the box at ${a(1)}. Columns now: On the rail 0 · Taken 2 · Pass 0 · Todo 0 · Waiting 0 · Served 0`,
+      `brigade: parade — the Awaiting you column went from 1 card to none (#21 now in Taken), by the reading of ${a(5)}, published by the box at ${a(4)}; the one before was read at ${a(2)}, published by the box at ${a(1)}. Columns now: On the rail 0 · Taken 2 · Pass 0 · Awaiting you 0 · Waiting 0 · Served 0`,
     ]);
   });
 
@@ -44,7 +44,7 @@ describe("le journal des colonnes vidées (#2151)", () => {
     colonnes.voir(lu(faits([]), 3));
     assert.deepEqual(
       dites.map((ligne) => ligne.split(", by the reading")[0]),
-      ["brigade: parade — the Taken column went from 1 card to none (#14 not in this reading)", "brigade: parade — the Todo column went from 1 card to none (#21 not in this reading)"],
+      ["brigade: parade — the Taken column went from 1 card to none (#14 not in this reading)", "brigade: parade — the Awaiting you column went from 1 card to none (#21 not in this reading)"],
     );
   });
 
