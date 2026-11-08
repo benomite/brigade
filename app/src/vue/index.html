@@ -66,11 +66,9 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
-        <!-- Le menu du projet (ticket 2485) : Rail · Stations · Kitchen · Settings. Un seul onglet est montré au centre ; le
+        <!-- Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings. Un seul onglet est montré au centre ; le
              second, à droite, ne change pas de l'un à l'autre. Settings s'ouvre par-dessus. -->
         <div id="onglets-du-projet" role="tablist" aria-label="Project menu" hidden></div>
-        <!-- Les deux sous-onglets de Kitchen (ticket 2485) : Health et Cooks, montrés quand Kitchen l'est. -->
-        <div id="onglets-cuisine" role="tablist" aria-label="Kitchen" hidden></div>
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
@@ -81,20 +79,21 @@
            l'onglet Cooks (ticket 1184) — sauf tant que le projet ne cuit nulle part : elles sont alors ce qui t'attend. -->
       <section id="stations-du-projet" aria-label="Its stations" hidden></section>
       <!-- Ce qui bloque le projet (ticket 1399) : une ligne par blocage, sa phrase, sa cause, son bouton ou le lien qui
-           nomme la page où le lever. Sur Rail comme sur Cooks ; aucun blocage, rien. -->
+           nomme la page où le lever. Sur Rail comme sur Stations ; aucun blocage, rien. -->
       <!-- Ce qui manque à sa station pour ses tests (ticket 1400) : une carte par besoin, ses issues en boutons, ce qui
            suit de chacune sous elle. Au-dessus de ses blocages ; aucun choix qui t'attend, rien. -->
       <section id="choix-du-projet" aria-label="What its station lacks" aria-live="polite" hidden></section>
       <!-- Le temps de l'ajout au premier ticket servi (ticket 1401) : court tant qu'aucun n'est servi, figé ensuite. -->
       <section id="delai-du-projet" aria-label="Time to its first served ticket" hidden></section>
-      <!-- Les temps des derniers tickets du projet (ticket 2346) : médiane, plus lent, partage en phases, plafond. -->
-      <section id="temps-ticket-du-projet" aria-label="Ticket times" hidden></section>
       <section id="blocages-du-projet" aria-label="What blocks it" aria-live="polite" hidden></section>
       <p id="note" aria-live="polite" hidden></p>
       <!-- Le centre : l'onglet montré (ticket 1184). Rail : ce qui t'attend, puis On the rail, TODO, WAITING, Served ;
-           Cooks : l'état du projet et ses cooks, Taken et Pass, les pages servies, la lecture de `station`. Une page
+           Stations : ses stations et leurs réglages. Une page
            ouverte se pose par-dessus, sans le défaire : fermée, elle rend l'onglet tel qu'il était. -->
       <div id="centre">
+      <!-- Le bandeau de santé de la cuisine (ticket 2921), au-dessus du rail : le temps des tickets, ce qui est bloqué sans
+           question, les plafonds de durée et le closer, puis les lignes de tous les projets. Montré sur Rail seulement. -->
+      <section id="bandeau-sante" aria-label="The kitchen's health" hidden></section>
       <div id="bloc-du-rail"></div>
       <section id="rail" role="tabpanel" aria-label="The rail" hidden></section>
       <!-- La fiche d'un ticket : un clic sur sa carte l'ouvre par-dessus le rail, sans le défaire ; fermée — son

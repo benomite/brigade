@@ -1,5 +1,5 @@
 // @ts-check
-// Ce que chaque station déclarée fournit, sur l'onglet Cooks, sous ses stations (ticket 1509, épique 1506) : une ligne
+// Ce que chaque station déclarée fournit, sur l'onglet Stations, sous ses stations (ticket 1509, épique 1506) : une ligne
 // par station que la box du projet déclare, dans l'ordre de sa déclaration — son nom, où elle tourne, son plafond de
 // cooks et ses capacités. Où elle tourne a trois mots distincts : sur la box (« box station ») ; sur ce poste
 // (« this workstation » : la cuisine du projet y tourne) ; sur un autre poste (« remote »). Un projet qui ne déclare aucune station le dit en une ligne, jamais par un blanc ; une déclaration
@@ -204,7 +204,7 @@ export function motDuLieu(doc, station, projet) {
 }
 
 // Ce qu'une station fournit — ses capacités en liste —, et, à éditer, « edit » et son formulaire ouvert sous elle, ou ce que
-// le dernier geste y a rendu. Le bloc de ses stations sur Cooks (stations-de-cuisson.js, ticket 1786) le pose dans la ligne de chacune.
+// le dernier geste y a rendu. Le bloc de ses stations sur Stations (stations-de-cuisson.js, ticket 1786) le pose dans la ligne de chacune.
 /**
  * @param {Fabrique} doc @param {StationDeclaree} station
  * @param {{ ici: boolean, projet?: string, seule?: boolean, editer?: Editer }} projet

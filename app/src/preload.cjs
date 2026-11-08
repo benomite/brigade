@@ -41,7 +41,6 @@ const pont = {
   machines: (projet) => ipcRenderer.invoke("machines", projet),
   shell: (projet, machine) => ipcRenderer.invoke("shell", projet, machine),
   fermerShell: (id) => ipcRenderer.invoke("fermerShell", id),
-  inscrire: (projet, bouton, valeurs) => ipcRenderer.invoke("inscrire", projet, bouton, valeurs),
   demander: (projet, ticket) => ipcRenderer.invoke("demander", projet, ticket),
   demanderAlerte: (projet, sujet, dit) => ipcRenderer.invoke("demanderAlerte", projet, sujet, dit),
   lireQuestion: (projet, ticket) => ipcRenderer.invoke("lireQuestion", projet, ticket),
@@ -99,7 +98,6 @@ const pont = {
   demenagerLaCuisine: (nom, vers) => ipcRenderer.invoke("demenagerLaCuisine", nom, vers),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),
-  reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
   reglagesDuProjet: (projet) => ipcRenderer.invoke("reglagesDuProjet", projet),
   proposerUnReglage: (projet, choix) => ipcRenderer.invoke("proposerUnReglage", projet, choix),
   // Les humains du projet, sous Settings (ticket 2930) : lus, et chaque changement écrit par une PR (humains-du-projet.ts).
@@ -117,9 +115,6 @@ const pont = {
   closerDeSante: (projet) => ipcRenderer.invoke("closerDeSante", projet),
   changerReglageDuCloser: (projet, cle, saisie) => ipcRenderer.invoke("changerReglageDuCloser", projet, cle, saisie),
   changerVerificationDuCloser: (projet, geste, saisie) => ipcRenderer.invoke("changerVerificationDuCloser", projet, geste, saisie),
-  // Les spécialisations des cooks du projet, sur Kitchen > Cooks (ticket 2492) : lues et ajoutées dans son dépôt, sur GitHub.
-  specialisations: (projet) => ipcRenderer.invoke("specialisations", projet),
-  ajouterSpecialisation: (projet, demande) => ipcRenderer.invoke("ajouterSpecialisation", projet, demande),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
@@ -146,11 +141,9 @@ const pont = {
   // Le rail d'un projet sans box ni station ici, tel que sa station le publie sur GitHub (ticket 1435).
   railDuProjet: (nom) => ipcRenderer.invoke("railDuProjet", nom),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
-  closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
   repondreCarte: (projet, ticket, reponse) => ipcRenderer.invoke("repondreCarte", projet, ticket, reponse),
   reprendreLeDisjoncteur: (projet) => ipcRenderer.invoke("reprendreLeDisjoncteur", projet),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
-  ouvrirLecon: (projet, id) => ipcRenderer.invoke("ouvrirLecon", projet, id),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),
   onglet: (projet, id, demande) => ipcRenderer.send("onglet", projet, id, demande),
@@ -166,7 +159,7 @@ const pont = {
   surSortie: (recevoir) => void ipcRenderer.on("sortie", (_, id, donnees) => recevoir(id, donnees)),
   surEtat: (recevoir) => void ipcRenderer.on("etat", (_, terminal) => recevoir(terminal)),
   surActivites: (recevoir) => void ipcRenderer.on("activites", (_, publiees) => recevoir(publiees)),
-  surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture, manager, fiabilite) => recevoir(lecture, manager, fiabilite)),
+  surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture, manager) => recevoir(lecture, manager)),
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
   surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),

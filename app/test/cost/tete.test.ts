@@ -189,8 +189,8 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     // Avant toute lecture, les chiffres sont en lecture.
     assert.equal(cout.dessous("p")[0]?.textContent, "reading…");
 
-    vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande }, undefined, undefined);
-    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande }, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande }, undefined);
     await repos();
     const totaux = cout.dessous("p").filter(({ className }) => className.startsWith("total")).map(({ textContent }) => textContent);
     assert.deepEqual(totaux, ["1,604,530", "4,912,044", NON_COMMUNIQUE]);
@@ -217,7 +217,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     const vue = await ouvrirLaPage();
     const page = vue.element("cout");
     const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined);
     await repos();
     assert.equal(page.dessous("p")[0]?.textContent, "reading…");
 

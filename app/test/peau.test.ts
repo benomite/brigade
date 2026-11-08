@@ -262,9 +262,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(vue.xterms.map(({ ecrits }) => ecrits), [[RELAYE, "\r\n"]]);
   });
 
-  test("dans Cooks, Settings (#1700) et Log : la sortie brute de leur commande n'est pas montrée", async () => {
+  test("dans Log : la sortie brute de leur commande n'est pas montrée", async () => {
     const vue = await ouvrirUnEspace();
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Cooks", "Log"]);
+    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Log"]);
 
     for (const { id, titre, commande } of ONGLETS) {
       await ouvrirLecture(vue, titre);
@@ -274,12 +274,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
       const lecture: Lecture = { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte }] };
       vue.dire("surContenu", lecture, undefined);
 
-      // Cooks est un onglet du projet (#1184) : sa lecture est posée sur lui, aucune page ne s'ouvre.
-      const cuisine = id === "cooks";
-      assert.equal(vue.element("contenu").hidden, cuisine, titre);
       // La sortie brute de la commande n'est montrée nulle part : ni bloc, ni texte.
-      assert.deepEqual(textes(relayes(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet"))), [], titre);
-      assert.doesNotMatch(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet").textContent, /what the station said/, titre);
+      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [], titre);
+      assert.doesNotMatch(vue.element("lecture-onglet").textContent, /what the station said/, titre);
     }
   });
 
@@ -401,29 +398,30 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     const vue = await ouvrirUnEspace();
 
     for (const { id, titre, commande } of ONGLETS) {
+      if (id === "cooks") continue;
       await ouvrirLecture(vue, titre);
       const numero = (vue.dernier("onglet") as [string, string, number])[2];
-      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined, undefined);
-      assert.deepEqual(textes(relayes(vue.element(id === "cooks" ? "lecture-cuisine" : "lecture-onglet"))), [], titre);
+      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined);
+      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [], titre);
     }
   });
 });
 
 describe("le monospace est une information, pas un style", () => {
   // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert et ses faits lus — sur l'un et l'autre
-  // onglet du projet (#1184) : la carte du projet est sur Cooks, le kanban entier sur Rail.
+  // onglet du projet (#1184) : la carte du projet est sur Stations, le kanban entier sur Rail.
   // Sur Rail, rien ne s'ouvre par-dessus ; Settings ouvert ne lit rien (#1700).
   async function toutPose(onglet: "Rail" | "Settings"): Promise<Faux[]> {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
-    await ouvrirOnglet(vue, "Cooks");
-    const surCooks = vue.poses();
+    await ouvrirOnglet(vue, "Stations");
+    const surStations = vue.poses();
     await ouvrirOnglet(vue, "Rail");
     if (onglet === "Settings") {
       await ouvrirLecture(vue, onglet);
       await repos();
     }
-    return [...new Set([...surCooks, ...vue.poses()])];
+    return [...new Set([...surStations, ...vue.poses()])];
   }
   const mono = (element: Faux) => element.className.split(" ").includes("mono");
   const portant = (poses: Faux[], texte: string) => poses.filter((element) => element.textContent === texte && element.children.length === 0);
@@ -445,11 +443,8 @@ describe("le monospace est une information, pas un style", () => {
   test("un identifiant de run aussi", async () => {
     const poses = await toutPose("Rail");
 
-    for (const exact of ["box/claude-opus"]) {
-      const trouves = portant(poses, exact);
-      assert.ok(trouves.length > 0, `${exact} n'est posé nulle part`);
-      for (const pose of trouves) assert.ok(mono(pose), exact);
-    }
+    // Le cook de la carte du projet n'est plus posé nulle part (la page Cooks n'existe plus) : quoi qu'il en reste, c'est en monospace.
+    for (const pose of poses) if (pose.textContent === "box/claude-opus" && pose.children.length === 0) assert.ok(mono(pose), pose.textContent);
   });
 
   test("le nom du projet, qui est son identifiant sur la box, et les contrôles de réglage", async () => {
@@ -466,7 +461,7 @@ describe("le monospace est une information, pas un style", () => {
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
     const poses = [...(await toutPose("Settings")), ...(await toutPose("Rail"))];
 
-    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "open", "Sur le rail", "T'attend", "au travail", "Rail", "Settings", "second · claude"]) {
+    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "Sur le rail", "T'attend", "Rail", "Settings", "second · claude"]) {
       const trouves = portant(poses, lu);
       assert.ok(trouves.length > 0, `« ${lu} » n'est posé nulle part`);
       for (const pose of trouves) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${lu} » est en monospace`);
@@ -496,11 +491,9 @@ describe("rien de ce qui est au parking n'apparaît", () => {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
     for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
-    // Sur l'onglet Cooks (#1184) non plus, où est la carte du projet.
-    await ouvrirOnglet(vue, "Cooks");
+    // Sur l'onglet Stations non plus.
+    await ouvrirOnglet(vue, "Stations");
     for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
-    // Un compteur est un nombre, posé tel quel : ni barre, ni pourcentage.
-    assert.deepEqual(textes(vue.element("carte").dessous("dd")), ["9", "2", "1", "1", "11"]);
   });
 
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {

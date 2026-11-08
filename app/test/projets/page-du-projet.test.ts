@@ -456,9 +456,9 @@ test("cet ordinateur illisible : la raison en une ligne, son détail au survol �
   assert.equal((jouee.dernier("confierAUneStation") as [{ capacites: string[] }])[0].capacites.length, 0);
 });
 
-test("sur l'onglet Cooks, « + station » ouvre le même parcours que sur Rail, et la box est relue dès que la demande est écrite", async () => {
+test("sur l'onglet Stations, « + station » ouvre son parcours, et la box est relue dès que la demande est écrite", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
-  await ouvrirOnglet(jouee, "Cooks");
+  await ouvrirOnglet(jouee, "Stations");
   const bouton = boutonSous(bloc, "+ station");
   assert.equal(bouton.hidden, false);
   bouton.click();

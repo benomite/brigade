@@ -191,14 +191,14 @@ describe("la courbe, sur la page des coûts de l'app", () => {
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, LECTURE);
     const demande = vue.dernier("onglet")[2] as number;
 
-    vue.dire("surContenu", { ...lu("parade", station()), demande }, undefined, undefined);
-    vue.dire("surContenu", { ...lu("cantine", station()), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", station()), demande }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", station()), demande }, undefined);
     await repos();
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, NON_COMMUNIQUE);
     assert.equal(courbe(vue).dessous("svg").length, 0);
 
-    vue.dire("surContenu", { ...lu("parade", PARADE_JOURS), demande }, undefined, undefined);
-    vue.dire("surContenu", { ...lu("cantine", CANTINE_JOURS), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_JOURS), demande }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", CANTINE_JOURS), demande }, undefined);
     await repos();
     assert.equal(courbe(vue).dessous("path").length, 4);
     assert.deepEqual(courbe(vue).dessous("li").map(({ textContent }) => textContent), ["parade", "cantine"]);

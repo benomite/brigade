@@ -90,7 +90,7 @@ async function ouvrir({ etroit }: { etroit: boolean }): Promise<Jouee> {
 }
 
 async function taper(vue: Jouee, titre: string): Promise<void> {
-  await ouvrirOnglet(vue, titre as "Rail" | "Cooks");
+  await ouvrirOnglet(vue, titre as "Rail" | "Stations");
 }
 
 const sections = (vue: Jouee) => vue.element("rail").dessous("section").filter((pose) => pose.className === "colonne");
@@ -139,9 +139,9 @@ describe("la file d'un projet sur le téléphone", () => {
     );
   });
 
-  test("Cooks : les cooks en cours, station par station", async () => {
+  test("Stations : les cooks en cours, station par station", async () => {
     const vue = await ouvrir({ etroit: true });
-    await taper(vue, "Cooks");
+    await taper(vue, "Stations");
     assert.deepEqual(stations(vue), [
       { station: "box/claude", etat: "cooking", cooks: ["#14Le journal en ajout seul"] },
       { station: "mac/claude", etat: "cooking", cooks: ["#15La carte des desserts"] },
@@ -152,8 +152,8 @@ describe("la file d'un projet sur le téléphone", () => {
     const telephone = await ouvrir({ etroit: true });
     const desktop = await ouvrir({ etroit: false });
     assert.deepEqual(colonnes(telephone), colonnes(desktop));
-    await taper(telephone, "Cooks");
-    await taper(desktop, "Cooks");
+    await taper(telephone, "Stations");
+    await taper(desktop, "Stations");
     assert.deepEqual(stations(telephone), stations(desktop));
   });
 });

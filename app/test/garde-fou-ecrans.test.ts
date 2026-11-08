@@ -55,8 +55,6 @@ async function ouvrir(reponses: Reponses = {}, entrer = true): Promise<Jouee> {
     espace: () => [SECOND, SHELL],
     machines: () => [{ id: "poste", titre: "this Mac" }],
     gestesDeFiche: (carte) => gestesDeCarte(carte),
-    // Les spécialisations de Cooks (#2492) se lisent sur GitHub, pas sur la box : le dépôt n'en déclare aucune.
-    specialisations: () => ({ branche: "main", specialisations: [] }),
     ...reponses,
   });
   if (entrer) {
@@ -158,16 +156,6 @@ const ficheEnEchec = () =>
     lireHistoire: () => ({ sans: `not read: ${BRUT}` }) as never,
   });
 
-async function cooks(): Promise<Joue> {
-  const vue = await ouvrir();
-  await ouvrirLecture(vue, "Cooks");
-  const numero = (vue.dernier("onglet") as [string, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined, undefined);
-  await repos();
-  // L'onglet Cooks (#1184) : sa lecture de `station` est posée au centre, sous ses colonnes.
-  return { vue, racine: ecran(vue, "rail", ...LECTURE) };
-}
-
 // Settings (#1700) : une seule page, qui ne lit rien : sa lecture ratée n'a rien à dire.
 async function settings(): Promise<Joue> {
   const vue = await ouvrir();
@@ -183,7 +171,7 @@ async function couts(): Promise<Joue> {
   const vue = await ouvrir({}, false);
   const page = await ouvrirLesCouts(vue);
   const numero = (vue.dernier("onglet") as [undefined, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined, undefined);
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined);
   await repos();
   return { vue, racine: page };
 }
@@ -205,7 +193,6 @@ const ECRANS: Ecran[] = [
   { nom: "bande d'alertes", echec: alertes, lectures: 0 },
   { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
   { nom: "Cost, au niveau de l'app", echec: couts, lectures: 0 },
-  { nom: "Cooks", echec: cooks, lectures: 1 },
   { nom: "Settings", echec: settings, lectures: 0 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];

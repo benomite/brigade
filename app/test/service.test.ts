@@ -968,11 +968,11 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
   });
 });
 
-// L'onglet Cooks (#1510, épique #1506) : une station déclarée s'édite sous sa ligne — son plafond, ses capacités
-// — ou se retire, après confirmation. Tout est vrai sauf la box : la vue telle qu'elle est, l'installation
+// L'onglet Stations (#1510, épique #1506 ; #2488) : une station déclarée se règle dans son bloc de réglages — son plafond, ses capacités
+// — ou se retire (« serves this project »), après confirmation. Tout est vrai sauf la box : la vue telle qu'elle est, l'installation
 // de l'app (service.ts), les commandes `installation stations` du runtime sur un vrai journal, et le fichier des
 // projets écrit par l'opération du runtime (`une-station.ts`), relu par l'app comme main.ts le relit.
-describe("l'onglet Cooks : une station déclarée, changée seule", () => {
+describe("l'onglet Stations : une station déclarée, changée seule", () => {
   const DEFAUTS = {
     cooks: 4,
     cooksDit: "from this machine's 10 cores",
@@ -1045,7 +1045,7 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
     await repos();
     const recue = tenirFaits().recevoir({ projet: "calculus", demande: 0, a: "2026-10-23T10:04:12.000Z", sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
     vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-    await ouvrirOnglet(vue, "Cooks");
+    await ouvrirOnglet(vue, "Stations");
     const jouee = vue;
     // Ce qui est parti vers la box a répondu, et la vue s'est reposée.
     const fini = async () => {
@@ -1061,22 +1061,19 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
     return { vue: jouee, fini, declaree, projet, box };
   }
 
-  const bloc = (vue: Faux) => vue.dessous("section").find((pose) => pose.className === "stations-declarees") ?? assert.fail("pas de stations déclarées sur Cooks");
-  const lignes = (vue: Faux) => bloc(vue).dessous("li").filter(({ className }) => className === "station-declaree");
-  // Une ligne telle qu'elle se lit : son nom, où elle tourne, son plafond, ses capacités.
+  const bloc = (vue: Faux) => vue.children.find(({ dataset }) => dataset.bloc === "reglages-station") ?? assert.fail("pas de réglages de station sur Stations");
+  const sections = (vue: Faux) => bloc(vue).dessous("section").filter(({ className }) => className === "station-reglee");
+  const section = (vue: Faux, nom: string) => sections(vue).find(({ dataset }) => dataset.station === nom) ?? assert.fail(`pas de réglages pour ${nom}`);
+  const reglage = (pose: Faux, cle: string) => pose.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === cle) ?? assert.fail(`pas de ligne « ${cle} »`);
+  // Une station telle qu'elle se lit : son nom, son plafond, ses capacités.
   const lues = (vue: Faux) =>
-    lignes(vue).map((ligne) => {
-      const [qui, plafond, capacites] = ligne.children;
-      return { nom: qui?.children[0]?.textContent, ou: qui?.children[1]?.textContent, plafond: plafond?.textContent, capacites: capacites?.children.map(({ textContent }) => textContent) };
-    });
-  const ligne = (vue: Faux, nom: string) => lignes(vue).find(({ dataset }) => dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
-  const formulaire = (vue: Faux, nom: string) => ligne(vue, nom).dessous("div").find(({ className }) => className === "edition") ?? assert.fail(`le formulaire de ${nom} n'est pas ouvert`);
+    sections(vue).map((pose) => ({
+      nom: pose.dataset.station,
+      plafond: reglage(pose, "cooks").children[1]?.textContent,
+      capacites: reglage(pose, "capacites").children[1]?.textContent,
+    }));
+  const formulaire = (vue: Faux, nom: string) => section(vue, nom);
   const bouton = (dans: Faux, texte: string) => dans.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
-  const editer = async (vue: Faux, nom: string) => {
-    (ligne(vue, nom).children.find(({ className }) => className === "editer") ?? assert.fail(`pas de « edit » sur ${nom}`)).click();
-    for (let tour = 0; tour < 5; tour++) await repos();
-    return formulaire(vue, nom);
-  };
   const cocher = (forme: Faux, quoi: string, cochee: boolean) => {
     const coche = forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && (ariaLabel === quoi || ariaLabel.startsWith(`${quoi}:`))) ?? assert.fail(`pas de case « ${quoi} »`);
     coche.checked = cochee;
@@ -1089,44 +1086,42 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
   };
   const sans = <T extends { nom?: string }>(liste: T[], nom: string) => liste.filter((station) => station.nom !== nom);
 
-  // Le même parcours, sur la station `editee` d'un projet qui en déclare trois : la régler, la faire jouer par ce poste,
-  // la retirer — chaque fois, les deux autres restent identiques, sur l'écran comme au journal de la box.
+  // Le même parcours, sur la station `editee` d'un projet qui en déclare trois : la régler, la retirer — chaque fois,
+  // les deux autres restent identiques, sur l'écran comme au journal de la box.
   async function parcours(t: TestContext, declaration: string, editee: string) {
-    const { vue: jouee, fini, declaree, projet } = await cuisine(t, declaration);
+    const { vue: jouee, fini, declaree } = await cuisine(t, declaration);
     const vue = jouee.element("rail");
     const avant = lues(vue);
     const auJournal = await declaree();
     assert.equal(avant.length, 3);
 
-    // Ouvert, le formulaire est rempli de ce qu'elle déclare.
+    // Ses réglages sont remplis de ce qu'elle déclare.
     const station = auJournal.find(({ nom }) => nom === editee) ?? assert.fail();
-    let forme = await editer(vue, editee);
+    let forme = formulaire(vue, editee);
     assert.equal(forme.dessous("input").find(({ type }) => type === "number")?.value, String(station.cooks));
-    const cochees = forme.dessous("label").filter(({ className }) => className === "capacite").filter((pose) => pose.dessous("input")[0]?.checked).map((pose) => pose.dessous("span")[0]?.textContent);
+    const cochees = reglage(forme, "capacites").dessous("label").filter(({ className }) => className === "capacite").filter((pose) => pose.dessous("input")[0]?.checked).map((pose) => pose.dessous("span")[0]?.textContent);
     assert.deepEqual(cochees, station.fournit);
-    // Ce que cet ordinateur sait déclarer est offert aussi, décoché.
-    assert.ok(forme.dessous("input").some(({ ariaLabel, checked }) => ariaLabel === "docker" && !checked));
+    // Ce que les autres stations du projet fournissent est offert aussi, décoché.
+    assert.ok(forme.dessous("input").some(({ ariaLabel, checked }) => (ariaLabel === "raisonnement" || ariaLabel.startsWith("raisonnement:")) && !checked));
 
     // Régler : un autre plafond, une capacité de plus.
     plafond(forme, "4");
-    cocher(forme, "docker", true);
+    cocher(forme, "raisonnement", true);
     bouton(forme, "Save").click();
     await fini();
     const reglee = lues(vue);
-    assert.deepEqual(reglee.find(({ nom }) => nom === editee), { ...avant.find(({ nom }) => nom === editee), plafond: "4 cooks at once", capacites: [...station.fournit, "docker"] });
+    assert.deepEqual(reglee.find(({ nom }) => nom === editee), { ...avant.find(({ nom }) => nom === editee), plafond: "4 cooks at once", capacites: [...station.fournit, "raisonnement"].join(", ") });
     assert.deepEqual(sans(reglee, editee), sans(avant, editee));
     assert.deepEqual(sans(await declaree(), editee), sans(auJournal, editee));
-    assert.match(ligne(vue, editee).dessous("p").at(-1)?.textContent ?? "", /saved; the other stations are unchanged/);
+    assert.match(section(vue, editee).dessous("p").at(-1)?.textContent ?? "", /saved; the other stations are unchanged/);
 
     // La retirer : rien ne part avant la confirmation.
-    forme = await editer(vue, editee);
-    bouton(forme, "Remove").click();
+    cocher(section(vue, editee), `${editee} serves calculus`, false);
     await fini();
     forme = formulaire(vue, editee);
-    const confirmation = forme.dessous("section").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(confirmation.textContent, new RegExp(`Remove ${editee} from calculus\\?`));
+    assert.match(forme.dessous("p").map(({ textContent }) => textContent).join(" "), new RegExp(`Stop serving calculus on ${editee}\\?`));
     assert.equal((await declaree()).length, 3);
-    bouton(confirmation, "Remove").click();
+    bouton(forme, "Stop serving").click();
     await fini();
     assert.deepEqual(lues(vue), sans(avant, editee));
     assert.deepEqual(await declaree(), sans(auJournal, editee));
@@ -1143,8 +1138,8 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
   test("la dernière station ne se retire pas, et ce qui ne se déclare pas est refusé en une ligne, sans rien écrire", async (t) => {
     const { vue: jouee, fini, declaree } = await cuisine(t, "box/claude:3:code");
     const vue = jouee.element("rail");
-    const forme = await editer(vue, "box/claude");
-    assert.equal(bouton(forme, "Remove").disabled, true);
+    const forme = formulaire(vue, "box/claude");
+    assert.equal(reglage(forme, "sert").dessous("input")[0]?.disabled, true);
     // Aucune capacité cochée : refusé avant de partir, rien n'est écrit.
     cocher(forme, "code", false);
     bouton(forme, "Save").click();

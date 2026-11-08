@@ -210,7 +210,7 @@ describe("la page des ratios, dans la vue jouée", () => {
     const page = vue.element("ratios");
     assert.equal(page.dessous("p").find(({ className }) => className === "sans")?.textContent, LECTURE);
 
-    for (const [nom, texte] of [["brigade", BAISSE], ["parade", MONTE], ["espace", SANS_CLOSER]] as const) vue.dire("surContenu", { ...lecture(nom, texte), demande }, undefined, undefined);
+    for (const [nom, texte] of [["brigade", BAISSE], ["parade", MONTE], ["espace", SANS_CLOSER]] as const) vue.dire("surContenu", { ...lecture(nom, texte), demande }, undefined);
     await repos();
     assert.deepEqual(lignes(page).map(nomDe), ["brigade", "parade"]);
     assert.deepEqual(lignes(page).map((ligne) => sensDe(ligne)?.dataset.sens), ["down", "up"]);

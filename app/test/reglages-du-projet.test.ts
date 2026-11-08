@@ -20,7 +20,7 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { commandeDuReglage, lireLesReglages, PROPOSE, proposerLeReglage, reglagesVus, type LectureDesReglages, type RenduDuReglage } from "../src/reglages-du-projet.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { BOUTON, TITRE } from "../src/vue/projet/reglages.js";
-import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const BOX: Lu = { nom: PARADE, cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
@@ -280,25 +280,5 @@ describe("Settings : les réglages du closer, changés par la même PR (#1685)",
     assert.equal(dit(apres)?.children[0]?.textContent, "This value must be an integer greater than zero");
     assert.equal(apres.dessous("button").some((bouton) => bouton.textContent.startsWith("pull request")), false);
     assert.equal(apres.dessous("input")[0]?.value, "1");
-  });
-});
-
-describe("Cooks : le plafond de calibrage est le même réglage, changé par la même PR", () => {
-  test("sous sa ligne repliée, la rangée du plafond ; « propose » part comme sous Settings, et la PR s'y dit aussi", async () => {
-    const { vue, propositions } = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    const bloc = vue.element("plafond-du-projet");
-    const plafond = bloc.dessous("div").find((pose) => pose.dataset.cle === "plafond") ?? assert.fail("pas de rangée du plafond sur Cooks");
-    assert.match(bloc.dessous("summary")[0]?.textContent ?? "", /opus \/ high · default/);
-    choisir(liste(plafond, "effort"), "max");
-    await repos();
-    proposer(plafond).click();
-    await repos();
-    assert.deepEqual(propositions[0]?.choix, { cle: "plafond", modele: "opus", effort: "max" });
-    propositions[0]?.rendre({ propose: PROPOSE, pr: PR, numero: 51 });
-    await repos();
-    const apres = vue.element("plafond-du-projet").dessous("div").find((pose) => pose.dataset.cle === "plafond") ?? assert.fail();
-    assert.match(dit(apres)?.textContent ?? "", /proposed as a pull request/);
-    assert.match(dit(rangee(vue, "plafond"))?.textContent ?? "", /proposed as a pull request/);
   });
 });

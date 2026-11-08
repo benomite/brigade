@@ -1,6 +1,5 @@
-// La page d'un projet en deux onglets (#1184) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris — et
-// Cooks — ce qui tourne : la carte du projet et ses cooks, les stations, la
-// lecture de `station` (plafond, saturation, consommation). Un seul est montré au centre ; le second reste à droite,
+// La page d'un projet en deux onglets (#1184, #2921) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris,
+// sous le bandeau de santé — et Stations. Un seul est montré au centre ; le second reste à droite,
 // le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -68,9 +67,6 @@ const STATUS = [
   "rail       2 en attente · 1 pris · 2 en pass · 1 servi",
   "",
 ].join("\n");
-// Ce que `station` rend : le plafond de cooks, la machine et sa saturation, le quota consommé.
-const STATION = "cooks      1 running — box: 3 at most — 8 cores\nmachine    saturée · charge 7.9\nquota      62 % consommé\n";
-
 function dessinable(): Dessinable {
   const tenus = tenirFaits(() => new Map());
   tenus.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
@@ -95,12 +91,8 @@ async function ouvrir(stockage?: FauxStockage): Promise<Jouee> {
 }
 
 const onglets = (vue: Jouee) => vue.element("onglets-du-projet").children;
-const sousOnglets = (vue: Jouee) => vue.element("onglets-cuisine").children;
-// L'onglet montré : le sous-onglet de Kitchen quand Kitchen l'est (Health ou Cooks), sinon l'entrée du menu marquée.
-const montre = (vue: Jouee) => {
-  const choisis = (ou: Faux[]) => ou.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
-  return vue.element("onglets-cuisine").hidden ? choisis(onglets(vue)) : choisis(sousOnglets(vue));
-};
+// L'onglet montré : l'entrée du menu marquée.
+const montre = (vue: Jouee) => onglets(vue).filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
 const centre = (vue: Jouee) => vue.element("rail");
 const colonnes = (vue: Jouee) => centre(vue).dessous("section").filter((pose) => pose.className === "colonne").map((colonne) => colonne.children[0]?.children[0]?.textContent);
 // Les cartes des colonnes montrées, dans leur ordre.
@@ -111,25 +103,19 @@ const cartes = (vue: Jouee) =>
     .flatMap((colonne) => colonne.dessous("li").filter((li) => li.className === "bon").map((bon) => bon.children[0]?.children[0]?.textContent));
 const carteDe = (vue: Jouee, numero: number): Faux => centre(vue).dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de carte #${numero} sur l'onglet montré`);
 const pose = (vue: Jouee, id: string) => vue.poses().some((element) => element.id === id && !element.hidden && centre(vue).contains(element));
-// Ce que `station` a rendu sur l'onglet Cooks.
-function lireStation(vue: Jouee): void {
-  const [projet, demande, numero] = vue.dernier("onglet") as [string, string, number];
-  assert.deepEqual([projet, demande], [PARADE, "cooks"]);
-  vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande: "station", texte: STATION }] }, undefined, undefined);
-}
 
-describe("deux onglets, Rail et Cooks, à côté du nom du projet", () => {
-  test("un projet s'ouvre sur Rail ; un clic montre Cooks, un autre rend Rail — un seul est montré à la fois", async () => {
+describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
+  test("un projet s'ouvre sur Rail ; un clic montre Stations, un autre rend Rail — un seul est montré à la fois", async () => {
     const vue = await ouvrir();
 
     assert.equal(vue.element("onglets-du-projet").hidden, false);
-    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Kitchen", "tab"], ["Settings", "tab"]]);
+    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Settings", "tab"]]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.equal(centre(vue).dataset.onglet, "rail");
 
-    await ouvrirOnglet(vue, "Cooks");
-    assert.deepEqual(montre(vue), ["Cooks"]);
-    assert.equal(centre(vue).dataset.onglet, "cooks");
+    await ouvrirOnglet(vue, "Stations");
+    assert.deepEqual(montre(vue), ["Stations"]);
+    assert.equal(centre(vue).dataset.onglet, "stations");
     assert.equal(vue.element("contenu").hidden, true);
 
     await ouvrirOnglet(vue, "Rail");
@@ -144,9 +130,9 @@ describe("deux onglets, Rail et Cooks, à côté du nom du projet", () => {
     // Couvert par la page, seul Settings est marqué montré.
     assert.deepEqual(montre(vue), ["Settings"]);
 
-    await ouvrirOnglet(vue, "Cooks");
+    await ouvrirOnglet(vue, "Stations");
     assert.equal(vue.element("contenu").hidden, true);
-    assert.deepEqual(montre(vue), ["Cooks"]);
+    assert.deepEqual(montre(vue), ["Stations"]);
   });
 
   test("hors d'un projet, sur « Tous les projets », il n'y a pas d'onglets", async () => {
@@ -169,47 +155,9 @@ describe("ce que chaque onglet montre", () => {
     // Rien d'exécution : ni la carte du projet, ni `station`.
     assert.doesNotMatch(centre(vue).textContent, /cap of cooks|saturée|consommé/);
     for (const id of ["carte", "lu-cuisine", "lecture-cuisine"]) assert.equal(pose(vue, id), false, id);
-    // Les stations du projet, quand il cuit quelque part, sont sur Cooks.
+    // Les stations du projet sont sur Stations ; rien n'est lu de `station` : aucune lecture ne court sur aucun onglet.
     assert.equal(vue.element("stations-du-projet").hidden, true);
-    // Et rien n'est lu de `station` tant que Rail est montré.
-    assert.notDeepEqual(vue.appels.findLast(({ geste }) => geste === "onglet")?.args.slice(0, 2), [PARADE, "cooks"]);
-  });
-
-  test("Cooks : le projet et ses cooks en cours, aucune colonne du kanban, aucune page servie, les stations, le plafond, la saturation, la consommation", async () => {
-    const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    lireStation(vue);
-
-    // Aucune colonne du kanban : Taken et Pass sont sur Rail.
-    assert.deepEqual(colonnes(vue), []);
-    // Un runtime qui ne donne pas ses stations : la carte du projet en tête, entière — son état, ses compteurs, son
-    // cook en cours et sa station (#1456 : avec des stations, elle est fondue dans leur bloc).
-    assert.equal(pose(vue, "carte"), true);
-    assert.match(vue.element("carte").textContent, /box\/claude/);
-    // Aucune carte de colonne, et aucune page de worktree à ouvrir (#1846).
-    assert.deepEqual(cartes(vue), []);
-    assert.ok(!centre(vue).dessous("button").some((bouton) => /browser/.test(bouton.textContent)));
-    assert.doesNotMatch(centre(vue).textContent, /port \d/);
-    // La lecture de `station`, en bas, repliée derrière sa ligne et fermée (#1456) : aucun bloc de sortie brute, et plus
-    // le bouton qui écrivait le plafond de cooks dans le second — il se règle sur la ligne de sa station.
-    assert.equal(pose(vue, "lecture-cuisine"), true);
-    const lecture = centre(vue).children.at(-1) ?? assert.fail("rien en bas de Cooks");
-    assert.deepEqual([lecture.balise, lecture.className, (lecture as Faux & { open?: boolean }).open], ["details", "replie lecture-de-la-cuisine", false]);
-    assert.ok(lecture.contains(vue.element("lecture-cuisine")));
-    assert.deepEqual(vue.element("lecture-cuisine").dessous("pre"), []);
-    assert.deepEqual(vue.element("lecture-cuisine").dessous("details"), []);
-    assert.doesNotMatch(centre(vue).textContent, /Set the cooks of a station/);
-    // Les stations du projet.
-    assert.equal(vue.element("stations-du-projet").hidden, false);
-    assert.doesNotMatch(centre(vue).textContent, /\bTaken\b|\bPass\b|TODO|WAITING|On the rail|Served/);
-  });
-
-  test("la lecture de `station` ne court que tant que Cooks est montré : Rail l'arrête", async () => {
-    const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    assert.deepEqual(vue.dernier("onglet").slice(0, 2), [PARADE, "cooks"]);
-    await ouvrirOnglet(vue, "Rail");
-    assert.equal(vue.dernier("onglet")[1], undefined);
+    assert.equal(vue.appels.some(({ geste, args }) => geste === "onglet" && args[1] !== undefined), false);
   });
 });
 
@@ -224,14 +172,14 @@ describe("le second reste à droite, le même, quel que soit l'onglet", () => {
     vue.dire("surSortie", SECOND.id, "> combien de cooks ?\r\n");
     terminal.taper("et la pass");
     vue.dire("surSortie", SECOND.id, "Deux cooks tournent, ");
-    await ouvrirOnglet(vue, "Cooks");
-    // La réponse continue d'arriver pendant que Cooks est montré ; le chef continue de taper.
+    await ouvrirOnglet(vue, "Stations");
+    // La réponse continue d'arriver pendant que Stations est montré ; le chef continue de taper.
     vue.dire("surSortie", SECOND.id, "et la pass a ses gates en cours.");
     terminal.taper(" ?");
     await ouvrirOnglet(vue, "Rail");
-    await ouvrirOnglet(vue, "Cooks");
+    await ouvrirOnglet(vue, "Stations");
 
-    for (const etat of ["Cooks", "Rail"]) {
+    for (const etat of ["Stations", "Rail"]) {
       if (etat === "Rail") await ouvrirOnglet(vue, "Rail");
       assert.equal(vue.element("second").hidden, false, etat);
       assert.deepEqual(vue.xterms, [terminal], etat);
@@ -249,15 +197,15 @@ describe("le second reste à droite, le même, quel que soit l'onglet", () => {
 });
 
 describe("l'app rouvre un projet sur le dernier onglet que le chef y a ouvert", () => {
-  test("Cooks choisi, quitter le projet et y revenir : il s'ouvre sur Cooks ; de même pour Rail", async () => {
+  test("Stations choisi, quitter le projet et y revenir : il s'ouvre sur Stations ; de même pour Rail", async () => {
     const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
+    await ouvrirOnglet(vue, "Stations");
     await entrer(vue, FANFARE);
     // Un projet jamais ouvert s'ouvre sur Rail.
     assert.deepEqual(montre(vue), ["Rail"]);
     await entrer(vue, PARADE);
-    assert.deepEqual(montre(vue), ["Cooks"]);
-    assert.equal(centre(vue).dataset.onglet, "cooks");
+    assert.deepEqual(montre(vue), ["Stations"]);
+    assert.equal(centre(vue).dataset.onglet, "stations");
 
     await ouvrirOnglet(vue, "Rail");
     await entrer(vue, FANFARE);
@@ -268,12 +216,12 @@ describe("l'app rouvre un projet sur le dernier onglet que le chef y a ouvert", 
   test("l'app fermée puis rouverte, chaque projet reprend son onglet ; un projet jamais ouvert s'ouvre sur Rail", async () => {
     const stockage = new FauxStockage();
     const avant = await ouvrir(stockage);
-    await ouvrirOnglet(avant, "Cooks");
+    await ouvrirOnglet(avant, "Stations");
 
     const apres = await jouer(stockage);
     await entrer(apres, PARADE);
-    assert.deepEqual(montre(apres), ["Cooks"]);
-    assert.equal(centre(apres).dataset.onglet, "cooks");
+    assert.deepEqual(montre(apres), ["Stations"]);
+    assert.equal(centre(apres).dataset.onglet, "stations");
     await entrer(apres, FANFARE);
     assert.deepEqual(montre(apres), ["Rail"]);
 
@@ -291,8 +239,8 @@ describe("l'app rouvre un projet sur le dernier onglet que le chef y a ouvert", 
     const vue = await jouer(stockage);
     await entrer(vue, PARADE);
     assert.deepEqual(montre(vue), ["Rail"]);
-    await ouvrirOnglet(vue, "Cooks");
-    assert.deepEqual(montre(vue), ["Cooks"]);
+    await ouvrirOnglet(vue, "Stations");
+    assert.deepEqual(montre(vue), ["Stations"]);
 
     const sans = await jouer();
     await entrer(sans, PARADE);

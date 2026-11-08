@@ -13,15 +13,12 @@ import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
-import { ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
-import { agirSurLeCloser } from "./closer-lancement.ts";
 import { situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, noteDeLaQuestion } from "./discussion.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
-import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
@@ -48,9 +45,7 @@ import { gestesDeCarte } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
-import { ajouterUneSpecialisation, lireLesSpecialisations } from "./specialisations.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
-import { voir as voirFiabilite } from "./fiabilite.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
@@ -60,7 +55,7 @@ import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
-import { commandesDe, CUISINE, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
+import { commandesDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
@@ -231,7 +226,7 @@ const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLO
 // aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
-// Ses stations, sur l'onglet Cooks, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
+// Ses stations, sur l'onglet Stations, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
 // (#2358, vue/cooks/signes-de-vie.ts) : relu au pas où les stations l'écrivent, deux minutes, par la lecture des stations
 // du compte que la vue fait déjà.
 const signesDeVie = tenirLesSignesDeVie({
@@ -276,12 +271,12 @@ const veille = ouvrirVeilleDuTableau({
     direLAccueil(accueil.status(montree));
   },
 });
-// L'onglet de contenu affiché — Rail, Cooks, Manager ou Log — a sa propre veille,
+// L'onglet de contenu affiché — Manager ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
 // La page des coûts de l'app (#1022) est lue par elle aussi : elle prend la place d'un onglet, l'espace fermé.
 // La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
-// manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Cooks, avec la fiabilité des cooks (fiabilite.ts, #1699).
+// manager, lu dans cette sortie (manager.ts).
 // `ongletLu` : l'onglet que la veille lit, et sa demande.
 let ongletLu: { id: unknown; demande: number } | undefined;
 const veilleDOnglet = ouvrirVeille({
@@ -291,7 +286,7 @@ const veilleDOnglet = ouvrirVeille({
   cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
-    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === CUISINE ? voirFiabilite(lecture) : undefined);
+    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined);
     // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
     if (lu === "manager") direLaBande(bandes.manager(lecture));
   },
@@ -757,7 +752,7 @@ ipcMain.handle("declarerStations", (_, nom: unknown, choix: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : services.declarerStations(vise, choix);
 });
-// Une station déclarée, changée seule depuis l'onglet Cooks (#1510) : son plafond, ses capacités, ce poste qui la joue,
+// Une station déclarée, changée seule depuis l'onglet Stations (#1510) : son plafond, ses capacités, ce poste qui la joue,
 // ou son retrait (service.ts, `changerUneStation`).
 ipcMain.handle("changerUneStation", (_, nom: unknown, station: unknown, voulu: unknown) => {
   const vise = connu(nom);
@@ -802,16 +797,6 @@ ipcMain.handle("shell", (_, nom: unknown, machine: unknown) => {
 });
 // Fermer un shell pour de bon : il quitte l'espace, et sa session est détruite sur sa machine.
 ipcMain.handle("fermerShell", (_, id: unknown) => (typeof id === "number" ? terminaux.fermerShell(id) : { refus: "nothing was closed: no shell is named" }));
-// Régler le closer : sa commande est écrite dans le second du projet, et rien ne l'envoie — le chef fait Entrée.
-// La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi rien ne l'est. Rien, pour un
-// projet dont la cuisine n'est pas sur cet ordinateur. Le modèle et l'effort sont ceux que le chef a choisis sur la
-// partie closer de la page.
-ipcMain.handle("inscrire", (_, nom: unknown, id: unknown, valeurs: unknown) => {
-  const vise = projet(nom);
-  const [modele, effort] = Array.isArray(valeurs) ? valeurs : [];
-  const ecrit = id === REGLER_LE_CLOSER ? ecritPourLeCloser(cuisines.cuisineDe(vise), vise, modele, effort) : undefined;
-  return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
-});
 // Une carte de T'attend : une demande en prose est écrite dans le second, qui est affiché, et rien
 // ne l'envoie. La vue nomme le projet et le ticket ; la phrase se compose ici (demande.ts) de ce que
 // le bloc `attend` en dit — jamais d'un texte venu de la vue. Rien pour un ticket que le bloc ne nomme pas.
@@ -1290,28 +1275,8 @@ ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unk
   if (vise === undefined) return parti(nom);
   return changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
 });
-// Les spécialisations des cooks du projet, sur Kitchen > Cooks (#2492, specialisations.ts) : les `agents/cook-<nom>.md` de
-// son dépôt, lus et ajoutés sur sa branche d'intégration par le jeton du `gh` de ce poste — ni box.
-ipcMain.handle("specialisations", async (_, nom: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return { sans: `${String(nom)} is no longer in the projects file` };
-  return lireLesSpecialisations({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), client: clientDesLabels });
-});
-ipcMain.handle("ajouterSpecialisation", async (_, nom: unknown, demande: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return parti(nom);
-  return ajouterUneSpecialisation({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), demande, client: clientDesLabels });
-});
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
-// Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
-const lancerSurLaCuisine = (lu: Lu, commande: string) => {
-  const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ delaiMs: 30_000 }, lu, commande));
-  passage.set(lu.nom, rendu);
-  return rendu;
-};
-// Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
-// ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977, vue/signalement/) : le journal du projet est lu
 // là où sa cuisine tourne — hors de son passage, qu'une lecture longue ne le retienne pas —, et l'issue préremplie
 // s'ouvre dans le navigateur du poste. Rien n'est envoyé à GitHub d'ici : le chef l'envoie lui-même.
@@ -1335,12 +1300,12 @@ ipcMain.handle("signaler", (_, demande: unknown) =>
     ouvrir: (url) => shell.openExternal(url),
   }),
 );
-ipcMain.handle("reglerLePlafondDeCalibrage", (_, nom: unknown, choix: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return parti(nom);
-  const cuisine = cuisines.cuisineDe(vise);
-  return reglerLePlafondDeCalibrage(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.plafondDeCalibrage(vise.nom), choix, lancerSurLaCuisine);
-});
+// Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
+const lancerSurLaCuisine = (lu: Lu, commande: string) => {
+  const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ delaiMs: 30_000 }, lu, commande));
+  passage.set(lu.nom, rendu);
+  return rendu;
+};
 // Les réglages du projet, sur sa page (#1309) : lus par `setting` là où sa cuisine tourne, et changés par une PR sur
 // son dépôt — rien ne se pose sur la box (reglages-du-projet.ts). La proposition attend que le runtime du projet ait
 // ouvert la PR — il l'attend lui-même deux minutes au plus — : elle ne passe pas par le passage du projet, que ses
@@ -1444,17 +1409,6 @@ ipcMain.handle("compter", (_, nom: unknown) => {
   passage.set(servi.nom, rendu);
   return rendu;
 });
-// Lancer un nettoyage depuis la partie closer (closer-lancement.ts) : l'aperçu, la demande — au seul
-// « oui » du chef, `oui` à `true` —, son annulation, lancés une fois sur la station de cet ordinateur par le passage du
-// projet, comme `manager backlog` : la lecture de l'onglet qui suit le geste le voit.
-ipcMain.handle("closer", (_, nom: unknown, action: unknown, oui: unknown) => {
-  const { lu } = cuisineDuProjet(nom);
-  if (lu === undefined) return undefined;
-  const servi = lu;
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => agirSurLeCloser({ delaiMs: 30_000 }, servi, action, oui));
-  passage.set(servi.nom, rendu);
-  return rendu;
-});
 // « Resume », sur la ligne du disjoncteur de TODO (#2140) : `/resume` posté sur l'issue `brigade:breaker-open` du dépôt du
 // projet, par le jeton du `gh` de ce poste — sans box jointe. La station le lit à sa veille suivante et referme le
 // disjoncteur (#2139) ; la ligne part avec la lecture qui ne le dit plus ouvert.
@@ -1485,22 +1439,10 @@ ipcMain.handle("ouvrirBilan", (_, nom: unknown, url: unknown) => {
     () => false,
   );
 });
-// La ligne d'une leçon promue dans le carnet du projet (#1058) : l'adresse que ses derniers faits lus
-// donnent pour cette leçon, et aucune autre. Elle s'ouvre dans le navigateur, rien n'est créé.
-ipcMain.handle("ouvrirLecon", (_, nom: unknown, id: unknown) => {
-  const url = faits.lecon(nom, id);
-  if (url === undefined) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-// Cooks lit `station`, puis `measures` sur la fenêtre que `station` dit et `closing --json` : ses sections
-// de fiabilité et de closer (onglets.ts, #1699).
 // La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
 // projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js). Celle des ratios
 // (#1682) lit de même `closing --json` sur la box de chacun (vue/closer/tendance/tendance.js).

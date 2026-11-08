@@ -268,7 +268,6 @@ const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
 const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `kitchen` line of the project's Settings";
 const BOUTON_PROPOSE = (reglage: string) => `the \`propose\` button on the \`${reglage}\` line of the project's Settings`;
-const BOUTON_ANNULER_LE_NETTOYAGE = "the `Cancel the cleanup` button in the closer section of the project's Cooks tab";
 const SANS_BOUTON = "no app button for it yet";
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
@@ -562,7 +561,7 @@ function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refu
   if (retenue === null) return `${demandee}: its start condition is met, the runtime starts it at its next wake-up, within the second`;
   const refus = direRefusDeLaFermetureEn(retenue);
   if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
-  const renoncer = `withdraw it with ${BOUTON_ANNULER_LE_NETTOYAGE}`;
+  const renoncer = `withdraw it: ${SANS_BOUTON}`;
   if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
   return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold with ${BOUTON_PROPOSE("closer's start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
 }
