@@ -293,6 +293,11 @@ export type Pont = {
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
+  // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
+  listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;
+  refuserUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
+  accepterUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
   // (`.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (plafonds-duree.ts).
   plafondsDuree(projet: string): Promise<import("../plafonds-duree.ts").LectureDesPlafonds>;

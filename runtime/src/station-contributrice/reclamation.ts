@@ -22,7 +22,7 @@ import type { Commentaire } from "../github.ts";
 // Ce qu'une prise tient au plus sans être renouvelée.
 export const BAIL_DE_PRISE_MS = 6 * 60 * 60_000;
 
-const NOM_DE_STATION = /^[A-Za-z0-9._/-]+$/;
+export const NOM_DE_STATION = /^[A-Za-z0-9._/-]+$/;
 const LOGIN = /^[A-Za-z0-9-]+$/;
 const MARQUE_DE_PRISE = /^<!-- brigade:reclame station=([A-Za-z0-9._/-]+) login=([A-Za-z0-9-]+) -->/;
 const MARQUE_DE_LACHER = /^<!-- brigade:rend station=([A-Za-z0-9._/-]+) login=([A-Za-z0-9-]+) -->/;
@@ -41,7 +41,8 @@ export type GitHubDeLaReclamation = {
 // La prise qui tient le ticket : la station, son compte, quand elle a été postée.
 export type Reclamation = { station: string; login: string; createdAt: string };
 
-export type ContexteDeReclamation = { github: GitHubDeLaReclamation; station: string; login: string; maintenant: () => Date; bailMs?: number };
+// `refusees` : les stations que le chef refuse (`refus.ts`) — celle-ci n'en prend aucun ticket.
+export type ContexteDeReclamation = { github: GitHubDeLaReclamation; station: string; login: string; maintenant: () => Date; bailMs?: number; refusees?: () => readonly string[] };
 
 const memeCompte = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
@@ -79,7 +80,9 @@ async function lire(numero: number, { github, maintenant, bailMs }: ContexteDeRe
 
 // Prend le ticket : si personne ne le tient, poste la prise, puis relit l'issue
 // — c'est la relecture qui dit qui l'emporte. Déjà tenu par une autre, n'écrit rien.
-export async function reclamer(numero: number, contexte: ContexteDeReclamation): Promise<{ prise: boolean; tenant: Reclamation | null }> {
+// Une station que le chef refuse ne prend pas : rien n'est lu ni écrit sur l'issue.
+export async function reclamer(numero: number, contexte: ContexteDeReclamation): Promise<{ prise: boolean; tenant: Reclamation | null; refusee?: true }> {
+  if (contexte.refusees?.().includes(contexte.station)) return { prise: false, tenant: null, refusee: true };
   if (!NOM_DE_STATION.test(contexte.station)) throw new Error(`station name not usable in a claim comment: ${JSON.stringify(contexte.station)}`);
   if (!LOGIN.test(contexte.login)) throw new Error(`GitHub login not usable in a claim comment: ${JSON.stringify(contexte.login)}`);
   let tient = await lire(numero, contexte);
@@ -114,3 +117,15 @@ export async function rendre(numero: number, contexte: ContexteDeReclamation): P
 // Un commentaire de prise ou de lâcher de station contributrice : il n'a rien à
 // dire au cook, et sort du ticket qu'on lui remet.
 export const estUneReclamation = (corps: string) => MARQUE_DE_PRISE.test(corps) || MARQUE_DE_LACHER.test(corps);
+
+// Les stations qui ont pris un ticket dans ces commentaires, avec le compte qui
+// signe chaque prise — une prise postée par un autre compte que celui qu'elle
+// nomme ne compte pas, comme pour `reclamant`. Chaque station une fois.
+export function stationsQuiOntPris(commentaires: readonly Commentaire[]): { station: string; login: string }[] {
+  const vues = new Map<string, string>();
+  for (const { body, author } of commentaires) {
+    const [, station = "", login = ""] = MARQUE_DE_PRISE.exec(body) ?? [];
+    if (station !== "" && memeCompte(author, login) && !vues.has(station)) vues.set(station, login);
+  }
+  return [...vues].map(([station, login]) => ({ station, login }));
+}

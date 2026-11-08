@@ -25,6 +25,7 @@ import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-cali
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
+import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
@@ -1376,6 +1377,18 @@ const ecrireUnHumain = async (nom: unknown, geste: { save: unknown } | { remove:
 };
 ipcMain.handle("enregistrerUnHumain", (_, nom: unknown, humain: unknown) => ecrireUnHumain(nom, { save: humain }));
 ipcMain.handle("retirerUnHumain", (_, nom: unknown, login: unknown) => ecrireUnHumain(nom, { remove: login }));
+// Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
+// refusées ou réacceptées par elle (stations-contributrices.ts).
+ipcMain.handle("listerLesStationsContributrices", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesStations(vise.nom, lu, lancerSurLaCuisine);
+});
+const changerUneStation = (nom: unknown, geste: { refuse: unknown } | { accept: unknown }) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : ecrireLesStations(vise.nom, lu, geste, lancerSurLaCuisine);
+};
+ipcMain.handle("refuserUneStationContributrice", (_, nom: unknown, station: unknown) => changerUneStation(nom, { refuse: station }));
+ipcMain.handle("accepterUneStationContributrice", (_, nom: unknown, station: unknown) => changerUneStation(nom, { accept: station }));
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !propositionsDeReglage.has(url)) return false;
   return shell.openExternal(url).then(

@@ -74,6 +74,9 @@ export type OptionsContributrice = {
   avertir?: (message: string) => void;
   maintenant?: () => Date;
   bailMs?: number;
+  // Les stations que le chef refuse (`refus.ts`), relues à chaque prise. Une liste
+  // qui ne se lit pas retient la station : elle ne prend rien tant qu'elle ne se lit pas.
+  refusees?: () => readonly string[];
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -82,7 +85,9 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
   const { nom, login, base, depotGitHub, github, depot, clone, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const maintenant = options.maintenant ?? (() => new Date());
-  const contexte: ContexteDeReclamation = { github, station: nom, login, maintenant, ...(options.bailMs === undefined ? {} : { bailMs: options.bailMs }) };
+  // Lue une fois par tour : la liste peut changer entre deux tours, pas pendant l'un.
+  let refusees: readonly string[] = [];
+  const contexte: ContexteDeReclamation = { github, station: nom, login, maintenant, refusees: () => refusees, ...(options.bailMs === undefined ? {} : { bailMs: options.bailMs }) };
   const lancer: Lancer = options.lancer ?? gardes?.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
   const envDuCook = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
   mkdirSync(options.flux, { recursive: true });
@@ -182,6 +187,16 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
         }
       }
       if (enVol.size >= options.places) return;
+      try {
+        refusees = options.refusees?.() ?? [];
+      } catch (erreur) {
+        avertir(`brigade : ${nom} (contributor) takes nothing this turn — the list of refused stations is not read (${message(erreur)})`);
+        return;
+      }
+      if (refusees.includes(nom)) {
+        avertir(`brigade : ${nom} (contributor) is refused by the chef — it takes no ticket`);
+        return;
+      }
       const sonde = await github.tickets();
       if (!sonde.inchange) {
         derniers = sonde.issues;

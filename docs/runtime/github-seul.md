@@ -190,8 +190,13 @@ and says so below.
   that human answers.
 - **A contributor station runs from a fork.** Decided, not yet in the runtime: a contributor without write access runs a
   station from a fork, claims a ticket, and delivers an outside PR, which the path above judges.
-- **The chef can refuse a contributor station.** Decided, not yet in the runtime: the project's `chef` refuses any
-  contributor station in Settings.
+- **The chef can refuse a contributor station** (#2936). The refused stations are a list in the state directory
+  (`stations-refusees.json`, `runtime/src/station-contributrice/refus.ts`): only the `chef` role changes it, and a file
+  that cannot be read is an error, never an empty list. A contributor station reads it at each turn: a refused station
+  claims nothing (no claim comment is posted), and one whose list cannot be read takes nothing that turn. The command
+  `contributor-stations` lists the stations that claimed a ticket in the last 30 days (their claim comments) plus the
+  refused ones, and `refuse <station>` / `accept <station>` change the list; Settings in the app calls it. The list lives
+  in the state directory of the kitchen that holds it: it binds the stations that read that directory.
 
 ## What is gone (#2061)
 
