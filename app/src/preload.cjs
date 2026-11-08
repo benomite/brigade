@@ -102,6 +102,10 @@ const pont = {
   reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
   reglagesDuProjet: (projet) => ipcRenderer.invoke("reglagesDuProjet", projet),
   proposerUnReglage: (projet, choix) => ipcRenderer.invoke("proposerUnReglage", projet, choix),
+  // Les humains du projet, sous Settings (ticket 2930) : lus, et chaque changement écrit par une PR (humains-du-projet.ts).
+  listerLesHumains: (projet) => ipcRenderer.invoke("listerLesHumains", projet),
+  enregistrerUnHumain: (projet, humain) => ipcRenderer.invoke("enregistrerUnHumain", projet, humain),
+  retirerUnHumain: (projet, login) => ipcRenderer.invoke("retirerUnHumain", projet, login),
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
   plafondsDuree: (projet) => ipcRenderer.invoke("plafondsDuree", projet),
   changerPlafondDuree: (projet, cle, saisie) => ipcRenderer.invoke("changerPlafondDuree", projet, cle, saisie),

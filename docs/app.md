@@ -2364,6 +2364,23 @@ unavailable` in one line, the detail on hover; one from before #1685, which does
 the first four rows only. The modules are `app/src/reglages-du-projet.ts` and `app/src/vue/projet/reglages.js`;
 the command, `runtime/src/reglage-cli.ts`.
 
+**The project's humans, each change by a pull request** (#2930, epic #2926). Under the project's settings, a `humans`
+section lists the humans the project's `.claude/brigade/projet.json` declares (`humans`, #2759): one row each, its login
+and its roles as four checkboxes — `product`, `design`, `review`, `client-contact` — and `remove`. Every change applies
+as you make it, with no Save button: ticking or unticking a role sends the human with its new roles; `add a human` opens a
+new row, which sends nothing until its login is written (Enter, or leaving the field), then sends it with the roles ticked
+on it — `cancel` drops it; `remove` sends the removal. Each row says `written to projet.json through a pull request`,
+then `writing to projet.json…` while the service answers, then `proposed in` (or `removal proposed in`) with a `PR #<n>`
+button that opens the pull request. A refusal — an unknown login, no access to the repository — is said in one line on
+that row only, the rest on hover; the row goes back to its roles before the change and names no pull request. With no
+declared human, the section says `No human is declared for this project.` with `add the first human`; a list that cannot
+be read says `humans unavailable` in one line, the detail on hover. The section is `app/src/vue/settings-humans/`; it calls
+the service through three bridge methods — `listerLesHumains(project)`, `enregistrerUnHumain(project, {login, roles})`
+and `retirerUnHumain(project, login)`, each write answering `{pr}` or `{refus}`. The desktop app carries them to the
+runtime's `humans` command (#2929) where the project's kitchen runs — `humans`, `humans save <login> [<role>…]`, `humans
+remove <login>` — in `app/src/humains-du-projet.ts`; a project with no station, or a runtime from before the command, is
+said in one line. A bridge without `listerLesHumains` (the phone) does not show the section.
+
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
