@@ -216,7 +216,7 @@ test("un projet refusé par la station : la page dit pourquoi et ce que le chef 
   const brut = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
   const { bloc } = await laPage(vue({ etat: "refuse", dit: brut, refus: REFUS }));
   const lignes = dit(bloc);
-  assert.ok(lignes.includes(REFUS.message), lignes.join(" | "));
+  assert.ok(lignes.some((ligne) => ligne.startsWith(REFUS.message)), lignes.join(" | "));
   assert.ok(lignes.includes(REFUS.action), lignes.join(" | "));
   assert.doesNotMatch(bloc.textContent, /en-service|\/etc\//);
   assert.doesNotMatch(bloc.textContent, /within a minute/);

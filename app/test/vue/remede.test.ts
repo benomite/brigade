@@ -80,7 +80,7 @@ const visible = (ou: Faux, element: Faux) => {
   return true;
 };
 const lignes = (ou: Faux) => ou.dessous("p").filter((p) => visible(ou, p)).map((p) => p.textContent);
-const boutons = (ou: Faux) => ou.dessous("button").filter((b) => visible(ou, b));
+const boutons = (ou: Faux) => ou.dessous("button").filter((b) => visible(ou, b) && b.className !== "aide");
 const bouton = (ou: Faux, libelle: string) => boutons(ou).find((b) => b.textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} » : ${boutons(ou).map((b) => b.textContent).join(" | ")}`);
 const retenu = (ou: Faux) => ou.dessous("div").find((d) => d.className === "depot-retenu" && visible(ou, d));
 
@@ -103,7 +103,7 @@ async function laPage(refus: object) {
 test("un refus avec remède : son bouton porte la phrase du descripteur avant tout clic, recommandé, à côté de la consigne", async () => {
   const { bloc, leves } = await laPage(DESTRUCTIF);
   const dits = lignes(bloc);
-  assert.ok(dits.includes(DESTRUCTIF.message), dits.join(" | "));
+  assert.ok(dits.some((ligne) => ligne.startsWith(DESTRUCTIF.message)), dits.join(" | "));
   assert.ok(dits.includes(DESTRUCTIF.action), dits.join(" | "));
   assert.equal(bouton(bloc, remede(DESTRUCTIF).description).className, "recommande");
   assert.deepEqual(leves(), []);
@@ -168,7 +168,7 @@ test("la station répond qu'il tient : la page le dit en une phrase, sous le ref
   repondre({ outcome: "holds", reason: raison });
   await repos();
   assert.ok(lignes(bloc).includes(raison), lignes(bloc).join(" | "));
-  assert.ok(lignes(bloc).includes(DESTRUCTIF.message));
+  assert.ok(lignes(bloc).some((ligne) => ligne.startsWith(DESTRUCTIF.message)));
   assert.equal(bouton(bloc, description).disabled, false);
   // Relue, la station refuse encore : la phrase reste. Le refus parti, elle s'en va avec lui.
   jouee.dire("surProjetsDesStations", vue(DESTRUCTIF));
@@ -200,7 +200,7 @@ test("un refus sans remède : la consigne écrite, et pourquoi il n'y a pas de b
 
 test("un type de refus jamais vu, avec son descripteur : son bouton paraît et joue son remède — l'écran ne connaît aucun code", async () => {
   const { bloc, leves } = await laPage(JAMAIS_VU);
-  assert.ok(lignes(bloc).includes(JAMAIS_VU.message));
+  assert.ok(lignes(bloc).some((ligne) => ligne.startsWith(JAMAIS_VU.message)));
   bouton(bloc, JAMAIS_VU.remedy.description).click();
   await repos();
   assert.deepEqual(leves(), [["parade", "moon-in-the-wrong-phase", "ignore-the-moon"]]);

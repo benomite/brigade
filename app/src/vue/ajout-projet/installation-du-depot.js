@@ -10,6 +10,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { boutonAction, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /**
@@ -73,12 +74,17 @@ export function poserInstallationDuDepot(doc, { depot, verifier, installer, cont
   /** @param {string} etat @param {string} phrase @param {{ detail?: string, bouton?: { libelle: string, geste: () => void } }} [suite] */
   const montrer = (etat, phrase, { detail = "", bouton } = {}) => {
     racine.dataset.etat = etat;
-    const dit = doc.createElement("p");
-    dit.className = "dit";
-    const texte = doc.createElement("span");
-    texte.textContent = phrase;
-    dit.append(texte);
-    if (detail.trim() !== "") dit.append(survol(doc, detail));
+    /** @type {any} */
+    let dit;
+    if (etat === "echec") dit = ligneErreur(doc, phrase, detail, { classe: "dit" });
+    else {
+      dit = doc.createElement("p");
+      dit.className = "dit";
+      const texte = doc.createElement("span");
+      texte.textContent = phrase;
+      dit.append(texte);
+      if (detail.trim() !== "") dit.append(survol(doc, detail));
+    }
     racine.replaceChildren(dit);
     if (bouton !== undefined) racine.append(boutonAction(doc, bouton.libelle, bouton.geste, { recommande: true }));
   };

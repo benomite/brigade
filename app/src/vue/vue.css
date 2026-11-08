@@ -571,14 +571,6 @@ main > header,
   gap: var(--pas-2);
   color: var(--texte-doux);
 }
-/* Une station du compte à qui le projet est choisi, et qui refuse de rejoindre sa cuisine (ticket 1790) : sous la ligne,
-   son nom et sa phrase, en rouge clair — la ligne, elle, ne change pas. */
-#stations-du-projet .ajout-refuse {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--rouge-clair);
-  overflow-wrap: anywhere;
-}
 /* Le parcours d'un projet neuf (ticket 1111), sous la ligne : en tête ce qu'on attend du chef, puis
    ses quatre étapes, une par ligne, chacune avec son état — la courante sous un trait de l'accent,
    comme dans l'installation guidée, celles à venir plus discrètes.
@@ -667,7 +659,6 @@ main > header,
   flex-direction: column;
   gap: var(--pas-1);
   padding: var(--pas-2) var(--pas-3);
-  color: var(--rouge-clair);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
@@ -685,7 +676,6 @@ main > header,
   text-align: left;
   white-space: normal;
 }
-#stations-du-projet .depot-retenu .sans-remede,
 #stations-du-projet .depot-retenu .remede-en-cours,
 #stations-du-projet .depot-retenu .remede-dit {
   color: var(--texte-doux);
@@ -3581,9 +3571,6 @@ main > header,
   margin: 0;
   color: var(--vert);
 }
-/* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
-   de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
-   le « non ». Rien n'en part sans un clic sur un « oui ». */
 /* La bande d'alertes : en tête de l'espace, une ligne par chose à faire, bordée du ton de sa
    panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Chaque alerte tient
    en une ligne (#907) : sa pastille, ce qui ne va pas — jamais coupé —, « detail », et son
@@ -4769,9 +4756,6 @@ main > header {
 .bloc-du-projet :is(p, table) {
   margin: 0;
 }
-[data-bloc="temps-tickets"] .temps-vide {
-  color: var(--texte-doux);
-}
 [data-bloc="temps-tickets"] .temps-chiffres {
   display: flex;
   flex-wrap: wrap;
@@ -4800,8 +4784,7 @@ main > header {
   font-weight: 400;
   color: var(--texte);
 }
-[data-bloc="bloque-sans-question"] .sans-question-legende,
-[data-bloc="bloque-sans-question"] .sans-question-inconnu {
+[data-bloc="bloque-sans-question"] .sans-question-legende {
   color: var(--texte-doux);
 }
 [data-bloc="bloque-sans-question"][data-sans-question="alerte"] {
@@ -5355,9 +5338,6 @@ main > header {
 .installation-du-depot[data-etat="pret"] .dit {
   color: var(--vert);
 }
-.installation-du-depot[data-etat="echec"] .dit {
-  color: var(--rouge-clair);
-}
 
 /* L'avis « pas préparé pour Brigade » (ticket 2628), sur la page du projet et en tête de TODO : ce qui manque en une phrase,
    le détail au survol, un seul bouton recommandé. La préparation en route, ou son refus en une phrase, à côté. */
@@ -5425,9 +5405,3 @@ main > header {
 .connexions .reglage .valeur { display: inline-flex; align-items: center; gap: var(--pas-2); }
 .connexions .reglage .geste-dit { flex-basis: 100%; margin: 0; }
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
-/* La place d'une ligne vide ou d'une ligne d'erreur (composants/ligne-vide, composants/ligne-erreur) sous le titre d'un bloc du
-   projet : en retrait, dans l'alignement du titre. */
-.bloc-du-projet > :is([data-ligne="vide"], [data-ligne="erreur"]),
-.reglages-station > [data-ligne="vide"] {
-  margin: var(--pas-2) 0 0 var(--pas-4);
-}

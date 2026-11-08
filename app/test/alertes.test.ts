@@ -367,7 +367,7 @@ describe("la bande, à l'écran", () => {
     await repos();
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
-    const ouverte = bande.children[0]?.dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    const ouverte = bande.children[0]?.dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
     assert.match(ouverte.textContent, /resume the kitchen/);
     assert.match(ouverte.textContent, /queued tickets start again, on your quota/);
 
@@ -403,7 +403,7 @@ describe("la bande, à l'écran", () => {
     demande().click();
     await repos();
     // La confirmation dit le prix du geste, en une ligne ; rien n'est encore écrit.
-    const ouverte = ligne().dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    const ouverte = ligne().dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
     assert.equal(ouverte.dessous("p").find(({ className }) => className === "prix")?.textContent, "a runtime restart: what is in flight is interrupted — the station does not say what is?");
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "demanderAlerte"), []);
     (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();

@@ -6,6 +6,7 @@
 // un élément (briques.js) et rend le bloc.
 
 import { survol } from "../../briques.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 
@@ -26,16 +27,14 @@ export function poserBlocBloqueSansQuestion(doc, valeur) {
   const titre = doc.createElement("h3");
   titre.textContent = TITRE;
   titre.append(survol(doc, AIDE));
+  if (!entier(valeur)) {
+    bloc.dataset.sansQuestion = "inconnu";
+    bloc.append(titre, ligneVide(doc, "Not available yet", { classe: "sans-question-inconnu", detail: "The project's station does not publish this count yet: this is not a count of zero" }));
+    return bloc;
+  }
   const ligne = doc.createElement("p");
   ligne.className = "sans-question-ligne";
   bloc.append(titre, ligne);
-  if (!entier(valeur)) {
-    bloc.dataset.sansQuestion = "inconnu";
-    ligne.className = "sans-question-ligne sans-question-inconnu";
-    ligne.textContent = "Not available yet";
-    ligne.append(survol(doc, "The project's station does not publish this count yet: this is not a count of zero"));
-    return bloc;
-  }
   const alerte = valeur > 0;
   bloc.dataset.sansQuestion = alerte ? "alerte" : "zero";
   const chiffre = doc.createElement("strong");

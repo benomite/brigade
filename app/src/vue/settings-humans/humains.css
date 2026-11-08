@@ -5,7 +5,7 @@
 #etat #humains-du-projet {
   margin: 0;
 }
-#etat .humains-du-projet > :is(.tete, .humain, .aucun, .indisponible) {
+#etat .humains-du-projet > :is(.tete, .humain, .aucun) {
   display: grid;
   /* La colonne du milieu est plus étroite que celle d'un réglage : les quatre rôles et « remove » tiennent sur une
      ligne à côté du second. */
@@ -97,7 +97,7 @@
   grid-column: 2 / -1;
 }
 @media (max-width: 720px) {
-  #etat .humains-du-projet > :is(.tete, .humain, .aucun, .indisponible) {
+  #etat .humains-du-projet > :is(.tete, .humain, .aucun) {
     grid-template-columns: minmax(0, 1fr);
   }
   #etat .humains-du-projet .tete > .ajouter,

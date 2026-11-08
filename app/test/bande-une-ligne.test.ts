@@ -163,7 +163,7 @@ describe("le prix est dans la confirmation, au clic", () => {
     await repos();
     assert.deepEqual(appelsDe(vue, "demanderAlerte", "geste", "confirmer"), [], "rien ne part avant le « oui »");
     const ouverte = confirmationDe_(ligneDe(vue, "base red")) ?? assert.fail("pas de confirmation sous la ligne");
-    assert.equal(ouverte.dessous("strong")[0]?.textContent, "⚠️ ask the second to lift it");
+    assert.equal(ouverte.dessous("p").find(({ className }) => className === "titre")?.textContent, "⚠️ ask the second to lift it");
     const prix = ouverte.dessous("p").filter(({ className }) => className === "prix");
     assert.deepEqual(prix.map(({ textContent }) => textContent), ["no cook is interrupted: its gates are replayed?"]);
 

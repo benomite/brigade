@@ -706,7 +706,7 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
 
     assert.equal(section(vue)?.dessous("blockquote")[0]?.textContent, "Une autre question ? (a) oui (b) non");
     assert.deepEqual(choix(vue).map((pose) => pose.textContent), ["a) oui", "b) non"]);
-    assert.equal(section(vue)?.dessous("small").find((pose) => pose.className === "refus")?.textContent, "nothing was posted: the question on the issue is no longer the one you read");
+    assert.equal(section(vue)?.dessous("p").find((pose) => pose.className === "refus")?.textContent, "nothing was posted: the question on the issue is no longer the one you read");
   });
 
   test("une issue sans question n'ajoute rien à la fiche ; une issue pas lue le dit, et la demande au second reste", async () => {

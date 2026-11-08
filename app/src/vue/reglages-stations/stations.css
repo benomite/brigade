@@ -4,7 +4,7 @@
 #etat #stations-contributrices {
   margin: 0;
 }
-#etat .stations-contributrices > :is(.tete, .station-contributrice, .aucune, .indisponible) {
+#etat .stations-contributrices > :is(.tete, .station-contributrice) {
   display: grid;
   grid-template-columns: 220px minmax(0, 180px) minmax(0, 1fr) auto;
   align-items: center;
@@ -37,7 +37,7 @@
   grid-column: 1 / -1;
 }
 @media (max-width: 720px) {
-  #etat .stations-contributrices > :is(.tete, .station-contributrice, .aucune, .indisponible) {
+  #etat .stations-contributrices > :is(.tete, .station-contributrice) {
     grid-template-columns: minmax(0, 1fr);
   }
 }

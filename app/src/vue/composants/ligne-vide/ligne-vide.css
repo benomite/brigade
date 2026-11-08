@@ -13,6 +13,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Avec son détail au survol, la ligne met sa phrase en ellipse et laisse le survol déborder. */
+[data-ligne="vide"]:has(> .survol) {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  overflow: visible;
+}
+[data-ligne="vide"] > span:first-child:not(.survol) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Sur le papier clair d'un bon, la ligne prend l'encre discrète du bon, sans son trait de coupe. */
 .bon [data-ligne="vide"] {
   padding-top: 0;

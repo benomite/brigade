@@ -79,7 +79,6 @@ import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/p
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, prixDit, replie, survol } from "./briques.js";
 import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
-import { enveloppeDeConfirmation, rangeeDeReponse } from "./composants/confirmation/confirmation.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
 import { bon as bonDeLaFamille, teteDuBon } from "./composants/bon/bon.js";
@@ -695,7 +694,6 @@ reglagesAvances.append(
   calibrageDit,
 );
 const confianceRefusee = document.createElement("div");
-confianceRefusee.className = "refus";
 confianceRefusee.ariaLive = "polite";
 const validerConfiance = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "", undefined, { sorte: "recommande", type: "submit" }));
 const annulerConfiance = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
@@ -722,7 +720,6 @@ demenagementDit.ariaLive = "polite";
 // Une station du compte à qui le chef a choisi le projet alors qu'une autre le servait déjà, et qui ne peut pas en
 // rejoindre la cuisine (ticket 1790) : sa phrase, sous la ligne — la ligne ne la compte pas parmi ses stations.
 const stationRefusee = document.createElement("div");
-stationRefusee.className = "ajout-refuse";
 stationRefusee.ariaLive = "polite";
 stationRefusee.hidden = true;
 // Le parcours d'un projet neuf (ticket 1111) : de sa station choisie à son premier ticket, en quatre
@@ -1669,62 +1666,54 @@ async function ouvrirConfirmation(projet, cle, id) {
 // quand ce n'est pas un geste du socle.
 /** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {(id: string) => void} [partir] */
 function poserConfirmation(projet, { rendu, compte }, partir) {
-  const confirmation = enveloppeDeConfirmation(document);
   const fermer = () => {
     aConfirmer = undefined;
     montrer();
   };
-  if (rendu === undefined) {
-    confirmation.append(bloc("p", "what it costs: reading…"));
-    return confirmation;
+  if (rendu === undefined || "refus" in rendu) {
+    const attente = document.createElement("section");
+    attente.className = "confirmation";
+    if (rendu === undefined) attente.append(ligneVide(document, "what it costs: reading…"));
+    else attente.append(ligneErreur(document, rendu.refus, "", { classe: "refus" }), bouton("close", fermer, "discret"));
+    return attente;
   }
-  if ("refus" in rendu) {
-    confirmation.append(ligneErreur(document, rendu.refus, "", { classe: "refus" }), bouton("close", fermer, "discret"));
-    return confirmation;
-  }
-  confirmation.ariaLabel = rendu.titre;
-  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`));
   // Chiffré (« allumer »), le prix est la phrase des nombres — ce qu'il va juger — et ce que le geste
   // engage passe au survol (ticket 906). Sinon, il se dit en une ligne ; le reste, et d'où c'est tiré, au survol.
+  let phrase;
+  let aide;
   if (rendu.chiffrer === true && ALLUMAGE !== undefined) {
-    const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? "the count could not be read" : compte.dit);
-    nombres.className = "nombres";
+    phrase = compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? "the count could not be read" : compte.dit;
     const lu = compte === undefined || compte === null ? "" : `according to ${geste(projet, ALLUMAGE.commande)}, run for you on opening — read at ${heureDe(compte.a)}`;
     const raison = compte === undefined || compte === null || !("sans" in compte) ? "" : [compte.sans, compte.obtenu].filter((texte) => texte !== "").join("\n");
-    const aide = [...rendu.prix, lu, raison].filter((texte) => texte !== "").join("\n");
-    if (aide !== "") nombres.append(survol(document, aide));
-    confirmation.append(nombres);
+    aide = [...rendu.prix, lu, raison].filter((texte) => texte !== "").join("\n");
   } else {
     const [prix = "", ...suite] = rendu.prix;
     const source = rendu.lu === undefined ? [] : [`according to ${geste(projet, "facts")}, read at ${heureDe(rendu.lu)}`];
-    const ligne = bloc("p", prix);
-    ligne.className = "prix";
-    const detail = [...suite, ...source].join("\n");
-    if (detail !== "") ligne.append(survol(document, detail));
-    confirmation.append(ligne);
+    phrase = prix;
+    aide = [...suite, ...source].join("\n");
   }
   // Chiffrée, la confirmation n'écrit que sa phrase de prix : ce que chaque réponse engage passe au
   // survol de son bouton, pas à côté de lui (ticket 906).
-  const aCote = rendu.chiffrer !== true;
-  /** @param {HTMLElement} reponse @param {string} dit */
-  const engage = (reponse, dit) => {
-    if (aCote) return [reponse, bloc("span", dit)];
-    reponse.title = dit;
-    return [reponse];
-  };
-  confirmation.append(
-    ...rendu.choix.map(({ id, libelle, dit }) => {
-      const oui = bouton(libelle, () => {
-        aConfirmer = undefined;
-        if (partir === undefined) void ecrireGeste(id, true);
-        else partir(id);
-      }, "recommande");
-      oui.dataset.oui = "";
-      return rangeeDeReponse(document, engage(oui, dit));
-    }),
+  return confirmationDeGeste(
+    document,
+    {
+      titre: `⚠️ ${rendu.titre}`,
+      phrase,
+      aide,
+      non: rendu.renoncer,
+      aCote: rendu.chiffrer !== true,
+      choix: rendu.choix.map(({ id, libelle, dit }) => ({
+        libelle,
+        dit,
+        partir: () => {
+          aConfirmer = undefined;
+          if (partir === undefined) void ecrireGeste(id, true);
+          else partir(id);
+        },
+      })),
+    },
+    { non: fermer },
   );
-  confirmation.append(rangeeDeReponse(document, engage(bouton(rendu.renoncer, fermer, "discret"), "nothing goes")));
-  return confirmation;
 }
 
 // Un geste part dans le second, à droite : sa sortie s'y lit, sa note dit ce qui est parti, et le
@@ -3732,9 +3721,7 @@ function poserCommentaire(projet, ticket) {
     dit.className = "postee";
     poses.push(dit);
   } else if (demandee !== undefined && "refus" in demandee) {
-    const refus = bloc("p", demandee.refus);
-    refus.className = "refus";
-    poses.push(refus);
+    poses.push(ligneErreur(document, demandee.refus, "", { classe: "refus" }));
   }
   if (envoi) poses.push(bloc("p", "posting your comment on the issue…"));
   else if (etat !== undefined && etat.rendu.poste) {
@@ -4087,9 +4074,7 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
   section.append(reponse, phrase);
   if (envoi === true) section.append(bloc("small", "posting your answer on the issue…"));
   if (rendue?.poste === false) {
-    const refus = bloc("small", rendue.refus);
-    refus.className = "refus";
-    section.append(refus);
+    section.append(ligneErreur(document, rendue.refus, "", { classe: "refus" }));
   }
   return section;
 }
@@ -6151,13 +6136,7 @@ function poserStationsDuProjet() {
   // Une station du compte qui refuse de l'avoir (ticket 1790) : son nom et sa phrase, une ligne chacune.
   const { refusees } = ajoutsDuProjet(projet);
   stationRefusee.replaceChildren(
-    ...refusees.map(({ station, phrase }) => {
-      const ligne = document.createElement("p");
-      const appele = bloc("strong", station.name);
-      appele.className = "mono";
-      ligne.append(appele, bloc("span", ` was not added: ${phrase}`));
-      return ligne;
-    }),
+    ...refusees.map(({ station, phrase }) => ligneErreur(document, `${station.name} was not added: ${phrase}`, "", { classe: "ajout-refuse" })),
   );
   stationRefusee.hidden = refusees.length === 0;
   poserLesChoix(projet);
