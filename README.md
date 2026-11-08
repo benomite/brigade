@@ -56,7 +56,7 @@ On a project brigade runs in open source, a contributor who has no write access 
 
 - **Open a pull request** from a fork. The kitchen reviews it and runs the project's gates on it, without the project's secrets, and posts the verdict on the PR. The kitchen never merges it: a human with the `review` role merges it.
 - **Open an issue.** Planned: the manager proposes a triage, and the project's `product` human answers before anything is cooked.
-- **Run a station from a fork, and claim a ticket.** Planned: the project's `chef` can refuse any contributor station in its settings.
+- **Run a station from a fork, and claim a ticket.** The project's `chef` can refuse any contributor station in its settings: a refused station claims no ticket.
 
 How the kitchen runs an open-source project is in [`docs/runtime/github-seul.md`](docs/runtime/github-seul.md#running-brigade-on-an-open-source-project).
 

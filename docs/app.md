@@ -2390,6 +2390,16 @@ runtime's `humans` command (#2929) where the project's kitchen runs — `humans`
 remove <login>` — in `app/src/humains-du-projet.ts`; a project with no station, or a runtime from before the command, is
 said in one line. A bridge without `listerLesHumains` (the phone) does not show the section.
 
+Under the humans, the **contributor stations** block (#2936) lists each contributor station that claimed a ticket — its name,
+its GitHub account, `refused` when it is — with a `Refuse` button, or `Accept again` once refused. The gesture is sent at once;
+a refusal of the runtime (a role other than `chef`, say) is one line on that row, which stays as it was. With none, the block
+says `No contributor station has taken a ticket yet.`; a list that cannot be read says `contributor stations unavailable`, the
+detail on hover. The block is `app/src/vue/reglages-stations/`; it calls three bridge methods —
+`listerLesStationsContributrices(project)`, `refuserUneStationContributrice(project, station)` and
+`accepterUneStationContributrice(project, station)`, each write answering `{ok}` or `{refus}`. The desktop app carries them to the
+runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributrices.ts`. A bridge
+without `listerLesStationsContributrices` (the phone) does not show the block.
+
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —

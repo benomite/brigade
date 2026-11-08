@@ -14,6 +14,7 @@ import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
+import { fichierDesRefus, lireLesRefus } from "../station-contributrice/refus.ts";
 import { aiguillerLaStation } from "../station-contributrice/aiguillage.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot, type ProjetOuvert } from "../brigade-github.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
@@ -258,6 +259,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 graceMs: reglages.graceMs,
                 flux: join(repertoireEtat, "github-seul"),
                 gardes,
+                // Les stations que le chef refuse sous Settings ne prennent aucun ticket (#2936).
+                refusees: () => lireLesRefus(fichierDesRefus(repertoireEtat)),
                 avertir: dire,
               });
             })(),

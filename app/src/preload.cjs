@@ -106,6 +106,10 @@ const pont = {
   listerLesHumains: (projet) => ipcRenderer.invoke("listerLesHumains", projet),
   enregistrerUnHumain: (projet, humain) => ipcRenderer.invoke("enregistrerUnHumain", projet, humain),
   retirerUnHumain: (projet, login) => ipcRenderer.invoke("retirerUnHumain", projet, login),
+  // Les stations contributrices du projet, sous Settings (ticket 2936) : lues, refusées ou réacceptées (stations-contributrices.ts).
+  listerLesStationsContributrices: (projet) => ipcRenderer.invoke("listerLesStationsContributrices", projet),
+  refuserUneStationContributrice: (projet, station) => ipcRenderer.invoke("refuserUneStationContributrice", projet, station),
+  accepterUneStationContributrice: (projet, station) => ipcRenderer.invoke("accepterUneStationContributrice", projet, station),
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
   plafondsDuree: (projet) => ipcRenderer.invoke("plafondsDuree", projet),
   changerPlafondDuree: (projet, cle, saisie) => ipcRenderer.invoke("changerPlafondDuree", projet, cle, saisie),

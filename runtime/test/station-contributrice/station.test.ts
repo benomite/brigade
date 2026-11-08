@@ -107,7 +107,7 @@ function lanceur(cooks: string[], login: string, livrer = true, dernierMessage =
 }
 
 // Une station contributrice sur sa machine : son clone du projet, sa fourche nue.
-function station(t: TestContext, projet: Projet, login: string, origine: string, options: { livrer?: boolean; message?: string; fourche?: string; ecriture?: boolean; droits?: () => Promise<never>; maintenant?: () => Date } = {}) {
+function station(t: TestContext, projet: Projet, login: string, origine: string, options: { livrer?: boolean; message?: string; fourche?: string; ecriture?: boolean; droits?: () => Promise<never>; maintenant?: () => Date; refusees?: () => string[] } = {}) {
   const racine = repertoireTemporaire(t);
   const clone = join(racine, "clone");
   git(racine, "clone", "-q", origine, clone);
@@ -131,6 +131,7 @@ function station(t: TestContext, projet: Projet, login: string, origine: string,
     flux: join(racine, "flux"),
     lancer: lanceur(cooks, login, options.livrer, options.message),
     avertir: (ligne) => void dits.push(ligne),
+    ...(options.refusees === undefined ? {} : { refusees: options.refusees }),
     // L'heure de la station est celle du faux GitHub, qui date les prises.
     maintenant: options.maintenant ?? (() => new Date(projet.horloge)),
   });
@@ -330,4 +331,48 @@ test("a cook branch an earlier cook left in the clone does not hold the ticket: 
   await bob.servir();
   assert.deepEqual(bob.cooks, ["bob:7-github"], bob.dits.join("\n"));
   assert.equal(projet.prs.length, 1);
+});
+
+test("a station the chef refuses claims nothing and cooks nothing; accepted again, its next turn claims the ticket", async (t) => {
+  const projet = new Projet();
+  projet.ajouter(7);
+  const { origine } = depotGit(t);
+  let refusees = ["bob-pc/claude"];
+  const bob = station(t, projet, "bob", origine, { refusees: () => refusees });
+  await bob.servir();
+  assert.deepEqual(bob.cooks, []);
+  assert.deepEqual(projet.premieresLignes(7), [], "a refused station posts no claim comment");
+  assert.ok(bob.dits.some((dit) => dit.includes("is refused by the chef")), bob.dits.join("\n"));
+  refusees = [];
+  await bob.servir();
+  assert.deepEqual(bob.cooks, ["bob:7-github"], bob.dits.join("\n"));
+  assert.equal(projet.prs.length, 1);
+});
+
+test("refusing one station leaves the others' claims through", async (t) => {
+  const projet = new Projet();
+  projet.ajouter(7);
+  const { origine } = depotGit(t);
+  const refusee = station(t, projet, "bob", origine, { refusees: () => ["bob-pc/claude"] });
+  const acceptee = station(t, projet, "alice", origine, { refusees: () => ["bob-pc/claude"] });
+  await refusee.servir();
+  await acceptee.servir();
+  assert.deepEqual(refusee.cooks, []);
+  assert.deepEqual(acceptee.cooks, ["alice:7-github"], acceptee.dits.join("\n"));
+  assert.deepEqual(projet.premieresLignes(7), ["alice: <!-- brigade:reclame station=alice-pc/claude login=alice -->"]);
+});
+
+test("a list of refused stations that cannot be read holds the station: it says why and claims nothing", async (t) => {
+  const projet = new Projet();
+  projet.ajouter(7);
+  const { origine } = depotGit(t);
+  const bob = station(t, projet, "bob", origine, {
+    refusees: () => {
+      throw new Error("the list of refused stations (/state/stations-refusees.json) cannot be read: Unexpected end of JSON input");
+    },
+  });
+  await bob.servir();
+  assert.deepEqual(bob.cooks, []);
+  assert.deepEqual(projet.premieresLignes(7), []);
+  assert.ok(bob.dits.some((dit) => dit.includes("the list of refused stations is not read")), bob.dits.join("\n"));
 });
