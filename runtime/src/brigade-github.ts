@@ -473,17 +473,24 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // la prise que leur issue porte, quelques-uns à la fois (#2734) : sans elle,
   // un ticket cuit par une autre station ou avant un redémarrage gardait des
   // heures de cuisson pour l'attente d'une prise, une journée durant.
+  // Ils la reçoivent aussi à chaque tour, avant que la règle du temps perdu ne
+  // les lise (#2870) : sur un projet sans merge depuis, espace#822 — 8,2 min
+  // d'attente d'une prise sur 8,3, pris 1,9 min après `fire` — ouvrait seul un
+  // ticket de correction. Une issue que GitHub ne rend pas (null) ne se relit
+  // plus de la vie de la station ; une lecture qui lève se retente.
+  const prisesIntrouvables = new Set<number>();
   const rattraperLesPrises = async (dossier: string) => {
     const lire = github.depotDuTicket;
     if (lire === undefined) return;
     const manquants = ticketsRecents(lesTempsDesTickets(dossier).enregistrements)
-      .filter((t): t is EnregistrementTemps => t.priseAt === undefined && typeof t.claimedAt === "string" && typeof t.mergedAt === "string")
+      .filter((t): t is EnregistrementTemps => t.priseAt === undefined && typeof t.claimedAt === "string" && typeof t.mergedAt === "string" && !prisesIntrouvables.has(t.ticket))
       .slice(-RATTRAPAGE_PAR_MERGE);
     const ajouts = new Map<number, EnregistrementTemps>();
     for (const t of manquants) {
       try {
         const depot = await lire(t.ticket);
-        if (depot !== null) ajouts.set(t.ticket, rattraperLaPrise(t, depot.priseAt ?? null));
+        if (depot === null) prisesIntrouvables.add(t.ticket);
+        else ajouts.set(t.ticket, rattraperLaPrise(t, depot.priseAt ?? null));
       } catch (erreur) {
         if (erreur instanceof LimiteGitHubAtteinte) break;
       }
@@ -882,6 +889,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
     const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()));
     await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a hors-cuisine lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
+    // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
+    if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
     await Promise.all([
       corrigerLeTemps?.(lus.map((ticket) => ticket.number)).then((decision) => noterLAttente(decision)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
       alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),

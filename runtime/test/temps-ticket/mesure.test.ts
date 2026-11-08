@@ -251,3 +251,77 @@ test("after the station merges a ticket, the project's file holds its record, ph
     ],
   );
 });
+
+// espace#822 (#2870), mesuré avant #2732 sur un projet sans merge depuis : 8,2 min d'attente d'une prise
+// sur 8,3 — la station ne l'a vu qu'à 14:46:00, pris par une autre à 14:39:43. Le tour lui donne sa
+// prise avant que la règle du temps perdu ne le lise : 1,9 min perdues, sous le seuil de 2 min, et
+// aucun ticket de correction ne s'ouvre. Une issue que GitHub ne rend pas ne se relit pas au tour suivant.
+test("each turn catches up the claim of a record measured before #2732 before the lost-time rule reads it, with no merge (#2870)", async (t) => {
+  const clone = dossier(t);
+  enregistrerTemps(clone, {
+    ticket: 822,
+    depuis: "2026-11-07T14:37:49.000Z",
+    claimedAt: "2026-11-07T14:46:00.000Z",
+    mergedAt: "2026-11-07T14:46:04.485Z",
+    attenteQualification: 1,
+    attentePrise: 490,
+    cuissonsRatees: 0,
+    cuisson: 0,
+    cuissonTests: 0,
+    renvois: 0,
+    attentePasse: 0,
+    revue: 0,
+    ci: 0,
+    merge: 4,
+    phases: [
+      { nom: "claim wait", minutes: 8.2 },
+      { nom: "merge", minutes: 0.1 },
+    ],
+    perdu: { attente: 491, ratees: 0, renvois: 0 },
+  });
+  enregistrerTemps(clone, { ticket: 823, claimedAt: "2026-11-07T14:50:00.000Z", mergedAt: "2026-11-07T14:55:00.000Z", cuisson: 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 });
+  const lectures: number[] = [];
+  const ouvertes: string[] = [];
+  const github = {
+    checksDeLaBase: async () => [{ name: "tests", outcome: "green" as const }],
+    fires: async () => [],
+    prsOuvertes: async () => [],
+    issuesDepuis: async () => [],
+    creerIssue: async (issue: { titre: string }) => {
+      ouvertes.push(issue.titre);
+      return 900;
+    },
+    corpsDuTicket: async () => "",
+    commentaires: async () => [],
+    depotDuTicket: async (numero: number) => {
+      lectures.push(numero);
+      return numero === 822 ? { deposeAt: "2026-11-07T14:37:49.000Z", fireAt: "2026-11-07T14:37:50.000Z", priseAt: "2026-11-07T14:39:43.000Z" } : null;
+    },
+  } as unknown as GitHubDuTour;
+  const station = stationGitHub({
+    nom: "A",
+    places: 1,
+    base: "main",
+    github,
+    prise: { prendre: async () => assert.fail("nothing to take"), lacher: async () => true },
+    cuisiner: async () => assert.fail("nothing to cook"),
+    juger: async () => assert.fail("nothing to judge"),
+    avertir: (texte) => assert.fail(texte),
+    clone,
+    maintenant: () => new Date("2026-11-07T15:00:00.000Z"),
+  });
+
+  await station.tour();
+  const lus = enregistrementsDuTexte(readFileSync(join(clone, FICHIER_DES_TEMPS), "utf8"));
+  const lu = lus.find((e) => e.ticket === 822);
+  assert.deepEqual(
+    lu && { attentePrise: lu.attentePrise, cuisson: lu.cuisson, perdu: lu.perdu, priseAt: lu.priseAt },
+    { attentePrise: 113, cuisson: 377, perdu: { attente: 114, ratees: 0, renvois: 0 }, priseAt: "2026-11-07T14:39:43.000Z" },
+  );
+  assert.deepEqual(ouvertes, []);
+  assert.equal((JSON.parse(readFileSync(join(clone, FICHIER_DES_TEMPS), "utf8")) as { resume: { perduMedianMin: number } }).resume.perduMedianMin, 1);
+  assert.deepEqual(lectures.sort(), [822, 823]);
+  // Au tour suivant, rien ne se relit : 822 porte sa prise, 823 est introuvable sur GitHub.
+  await station.tour();
+  assert.deepEqual(lectures.sort(), [822, 823]);
+});
