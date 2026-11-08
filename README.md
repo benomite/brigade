@@ -50,6 +50,16 @@ The full vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/super
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object (*cook*, *rail*, *station*, *pass*…).
 
+## For contributors
+
+On a project brigade runs in open source, a contributor who has no write access can:
+
+- **Open a pull request** from a fork. The kitchen reviews it and runs the project's gates on it, without the project's secrets, and posts the verdict on the PR. The kitchen never merges it: a human with the `review` role merges it.
+- **Open an issue.** Planned: the manager proposes a triage, and the project's `product` human answers before anything is cooked.
+- **Run a station from a fork, and claim a ticket.** Planned: the project's `chef` can refuse any contributor station in its settings.
+
+How the kitchen runs an open-source project is in [`docs/runtime/github-seul.md`](docs/runtime/github-seul.md#running-brigade-on-an-open-source-project).
+
 ## Contributing and project files
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to propose a change.
