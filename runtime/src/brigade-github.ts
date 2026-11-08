@@ -25,7 +25,8 @@ import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
-import { lireBlocage } from "./livrable.ts";
+import { lireBlocage, lireLivrable } from "./livrable.ts";
+import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
 import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
@@ -197,7 +198,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // conflit ou rouge (#2454) : ce n'est pas un échec, il reste du travail.
 // `bloque` : le cook s'est déclaré bloqué (`<bloque>` dans son dernier message), avec
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string } | { bloque: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { reste: string } | { bloque: string } | { constat: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -639,6 +640,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (!pose.pose) avertir(`brigade : ${pose.echec}`);
         chrono.rater(issue);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        return;
+      }
+      // Un constat écrit, que les critères du ticket admettent pour tout
+      // livrable, le sert (#2854) : il est posté sur l'issue, qui est fermée.
+      // Compté pour un échec, chaque cook juste le menait à `hors-cuisine`.
+      if ("constat" in fait) {
+        avertir(`brigade : #${issue} sur ${nom} — the cook committed nothing and delivered a written finding, which the ticket's acceptance criteria accept: it is posted and the ticket is closed`);
+        await github.commenter(issue, `${MARQUE_DE_CONSTAT} -->\nStation \`${nom}\`: the cook committed nothing and delivered a written finding, which this ticket's acceptance criteria accept as its outcome. The ticket is closed with it; reopen it if the finding does not answer it.\n\n${fait.constat}`);
+        await github.fermerIssue(issue);
+        await servir(issue, ticket.labels);
+        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        liberee = true;
         return;
       }
       // Un cook qui s'arrête dans ses premiers tours après un renvoi, sans rien
@@ -1652,10 +1665,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
     // identifiant, et `gh issue view` lui serait refusé.
     let joint: string;
+    // Ses critères admettent un constat écrit pour tout livrable (#2854).
+    let constatAdmis: boolean;
     try {
       const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
       if (lue === null) throw new Error("the issue no longer exists");
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
+      constatAdmis = admetUnConstat(lue.body ?? "");
     } catch (erreur) {
       const dit = `its ticket could not be read on GitHub: ${message(erreur)}`;
       return erreur instanceof LimiteGitHubAtteinte ? { subi: dit } : { echec: dit };
@@ -1800,7 +1816,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // motif nommé, qui ne compte pas vers `hors-cuisine` (#2738).
     const refusee = lireLeFlux(lance.flux ?? flux).ecritureRefusee;
     if (depot.commits(branche) === 0 && refusee !== null) return { subi: `write refused by sandbox: ${refusee} (the cook committed nothing)` };
-    if (depot.commits(branche) === 0) return { echec: motifArretCook("the cook committed nothing", arretDuCook()) };
+    if (depot.commits(branche) === 0) {
+      // Sans commit, le constat qu'il a délimité est le livrable d'un ticket
+      // dont les critères l'admettent (#2854). Une PR encore ouverte attend
+      // une livraison sur sa branche : là, rien commité reste un échec.
+      const constat = constatAdmis && prOuverte === null ? lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte : null;
+      if (constat !== null) return { constat };
+      return { echec: motifArretCook("the cook committed nothing", arretDuCook()) };
+    }
     // Sa réponse aux remarques, que la station poste pour lui sur la PR (#2592).
     const reponse = prOuverte === null ? null : reponseDuMessage(lireLeFlux(lance.flux ?? flux).message ?? null);
     const tete = depot.tete?.(branche);
