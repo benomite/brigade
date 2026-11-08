@@ -179,11 +179,10 @@ test("a kitchen with a ticket to take and nothing at work for 90 minutes files o
   assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(all-blocked\) — bug #\d+ filed/.test(ligne)));
 });
 
-test("tickets the station would skip (waiting for the chef, uncalibrated) do not file an inertia bug on an empty rail", async () => {
+test("tickets the station would skip (blocked on the chef, uncalibrated) do not file an inertia bug on an empty rail", async () => {
   const p = projet("zeta/lab", "mac/claude", "develop");
   p.faux.feu(40, [...CALIBRE, "blocked-on-human"]);
   p.faux.feu(41, ["fire"]);
-  p.faux.feu(42, [...CALIBRE, "chef-todo"]);
   await p.passer();
   p.avancer(INERTIE_MINUTES * MINUTE);
   await p.passer();

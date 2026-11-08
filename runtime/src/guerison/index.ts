@@ -20,7 +20,6 @@
 // de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
 import { A_LA_MAIN, brancheDuTicket } from "../brigade-github.ts";
 import { calibrage, complet } from "../calibrage.ts";
-import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict } from "../github-etat/fusion.ts";
@@ -193,7 +192,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       // dont le calibrage est incomplet, n'est pas prenable — la station le
       // saute — et ne vaut pas une inertie. Un `waiting` reste compté : c'est
       // lui qui fait la cause `all-blocked`.
-      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, A_LA_MAIN, CHEF_TODO].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
+      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, A_LA_MAIN].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
       const fait = await signalerInertie({
         maintenant: new Date(instant),
         github: {
