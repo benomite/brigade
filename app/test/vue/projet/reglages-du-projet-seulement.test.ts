@@ -32,6 +32,8 @@ const STOCKAGE: Record<string, string> = {
   sigle: FICHIER_DES_PROJETS,
   couleurs: FICHIER_DES_PROJETS,
   retrait: FICHIER_DES_PROJETS,
+  // Les stations contributrices que le chef refuse (#2936) : une liste que garde la station, dans son répertoire d'état.
+  "stations-contributrices": STATION,
 };
 
 describe("Settings : les réglages du projet seulement", () => {
@@ -61,6 +63,6 @@ describe("Settings : les réglages du projet seulement", () => {
   // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
   test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
     const dehors = BLOCS.filter((id) => STOCKAGE[id] !== PROJET_JSON).sort();
-    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "retrait", "sigle"]);
+    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "retrait", "sigle", "stations-contributrices"]);
   });
 });
