@@ -174,6 +174,30 @@ describe("l'arbitre", () => {
     );
   });
 
+  test("un projet refusé qui attend une place est réveillé dès qu'elle s'ouvre pour lui, pas avant ; sans elle, son attente finit fausse (#2832)", async (t) => {
+    const { ouvert } = arbitre(t, 1);
+    assert.equal(ouvert.demander("a", mot(0)).accorde, true);
+    assert.deepEqual(ouvert.demander("b", mot(0)), { accorde: false, motif: "compte" });
+    let reveille: boolean | null = null;
+    const attente = ouvert.attendre("b", 60_000).then((libre) => (reveille = libre));
+    // Un mot qui ne libère rien ne réveille personne.
+    ouvert.dire("a", mot(1));
+    await new Promise((suite) => setImmediate(suite));
+    assert.equal(reveille, null);
+    // A a fini son cook : la place est à B.
+    ouvert.dire("a", mot(0, { demande: false }));
+    await attente;
+    assert.equal(reveille, true);
+    assert.equal(ouvert.demander("b", mot(0)).accorde, true);
+    // Plus de place : l'attente finit fausse à son terme, et une seconde rend la première.
+    assert.equal(await ouvert.attendre("a", 10), false);
+    const premiere = ouvert.attendre("a", 60_000);
+    const seconde = ouvert.attendre("a", 60_000);
+    assert.equal(await premiere, false);
+    ouvert.quitter("b");
+    assert.equal(await seconde, true);
+  });
+
   test("un second arbitre sur le même répertoire est refusé", (t) => {
     const { repertoire } = arbitre(t);
     assert.throws(() => ouvrirArbitre({ repertoire, plafond: 10 }), /an arbiter already holds/);
@@ -198,6 +222,30 @@ describe("l'arbitre sur son port", () => {
     assert.deepEqual((await client.etat()).projets.map(({ projet, presence }) => [projet, presence]), [["brigade", "entendu"], ["compta", "absent"]]);
   });
 
+  test("un runtime refusé attend une place sur le port : la réponse vient quand un autre projet la rend, et une attente abandonnée n'est plus tenue (#2832)", async (t) => {
+    const { ouvert, serveur, client } = await servi(t, 1);
+    assert.deepEqual(await client.echanger("compta", { ...mot(0), veut: true }), { accorde: true, motif: null });
+    assert.deepEqual(await client.echanger("brigade", { ...mot(0), veut: true }), { accorde: false, motif: "compte" });
+    const attendue = client.attendreUnePlace("brigade");
+    await new Promise((suite) => setTimeout(suite, 50));
+    await client.echanger("compta", { ...mot(0, { demande: false }), veut: false });
+    assert.equal(await attendue, true);
+    // Le runtime qui part avant la réponse : son attente est rendue, celle d'après tient.
+    await client.echanger("brigade", { ...mot(1), veut: false });
+    const abandon = new AbortController();
+    const partie = fetch(`http://127.0.0.1:${serveur.port}/projets/compta/attendre`, { method: "POST", signal: abandon.signal }).catch(() => "abandonnée");
+    await new Promise((suite) => setTimeout(suite, 50));
+    abandon.abort();
+    assert.equal(await partie, "abandonnée");
+    let reveillee: boolean | null = null;
+    const suivante = ouvert.attendre("compta", 60_000).then((libre) => (reveillee = libre));
+    await new Promise((suite) => setTimeout(suite, 50));
+    assert.equal(reveillee, null);
+    ouvert.dire("brigade", mot(0, { demande: false }));
+    await suivante;
+    assert.equal(reveillee, true);
+  });
+
   test("ce qu'il ne comprend pas est refusé, sans rien compter", async (t) => {
     const { serveur, client } = await servi(t);
     const poster = (chemin: string, corps: string) => fetch(`http://127.0.0.1:${serveur.port}${chemin}`, { method: "POST", body: corps }).then((reponse) => reponse.status);
@@ -218,6 +266,7 @@ describe("l'arbitre sur son port", () => {
     await assert.rejects(client.echanger("brigade", { ...mot(0), veut: true }), refusee);
     await assert.rejects(client.etat(), refusee);
     await assert.rejects(client.quitter("brigade"), refusee);
+    await assert.rejects(client.attendreUnePlace("brigade"), refusee);
   });
 });
 

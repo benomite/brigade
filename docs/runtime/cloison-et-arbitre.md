@@ -190,7 +190,10 @@ tickets, or is known and has not spoken again.
   running** and nobody borrows.
 
 A refused project reads a hold: `station.held`, reason `arbiter`, in `run status` and `run
-station`, and asks again at its next wake-up — a minute at most.
+station`, and **waits for a place**: the arbiter holds its request (`POST /projets/<project>/attendre`)
+and answers as soon as a word it hears — another project's cook done, a project stopping — opens a
+place for it. Its station then takes a turn at once. Without a place within two minutes, or with the
+arbiter unreachable, it asks again at its next turn (#2832, [diagnosis](claim-wait-2026-11-07.md)).
 
 ### Arbiter unreachable: the project launches anyway
 

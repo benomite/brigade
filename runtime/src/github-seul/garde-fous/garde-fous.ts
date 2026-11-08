@@ -48,6 +48,10 @@ export type GardesDuTour = {
   lancer: Lancer;
   // Le tour s'arrête : le projet rend sa part à l'arbitre.
   quitter(): Promise<void>;
+  // L'arbitre vient de refuser la prise : vrai dès qu'une place s'ouvre pour
+  // le projet, faux s'il n'en voit aucune dans son attente, s'il ne retient plus
+  // la station ou s'il ne répond pas (#2832). Une seule attente à la fois.
+  attendreUnePlace(): Promise<boolean>;
 };
 
 export type OptionsDesGardes = {
@@ -93,6 +97,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // Ce tour a buté sur l'arbitre : le projet a des tickets qui attendent.
   let enAttente = false;
   let degrade = false;
+  // L'attente d'une place en cours chez l'arbitre, s'il y en a une.
+  let placeAttendue: Promise<boolean> | null = null;
 
   const dire = (retenue: RetenueDuTour | null) => {
     if (retenue === tenue) return;
@@ -190,6 +196,20 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       lueCeTour = false;
       if (arbitre !== null) await echanger(cooks, false);
       enAttente = false;
+    },
+    attendreUnePlace: () => {
+      if (arbitre === null || tenue !== "arbiter") return Promise.resolve(false);
+      placeAttendue ??= arbitre
+        .attendreUnePlace(projet)
+        .catch((erreur) => {
+          // Le tour suivant redemande à son heure : rien n'est perdu, la station ne presse pas.
+          avertir(`brigade : ${message(erreur)} — GitHub-only station ${station} waits for its next turn to ask the arbiter again`);
+          return false;
+        })
+        .finally(() => {
+          placeAttendue = null;
+        });
+      return placeAttendue;
     },
     quitter: async () => {
       if (arbitre === null) return;

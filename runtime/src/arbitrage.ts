@@ -2,7 +2,7 @@
 // parler. L'arbitre est facultatif — un seul projet sur la machine n'en a pas
 // besoin — et il vit sur la boucle locale, que la cloison laisse ouverte.
 import type { Socket } from "node:net";
-import { estUnPort, type Decision, type EtatArbitre, type Mot } from "./arbitre.ts";
+import { ATTENTE_DE_PLACE_MS, estUnPort, type Decision, type EtatArbitre, type Mot } from "./arbitre.ts";
 import { lire } from "./plafonds.ts";
 
 // `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
@@ -31,6 +31,9 @@ export type Arbitrage = {
   echanger(projet: string, mot: Mot & { veut: boolean }): Promise<Reponse>;
   // Le runtime s'arrête proprement : le projet rend sa part.
   quitter(projet: string): Promise<void>;
+  // Refusé, le projet attend qu'une place s'ouvre pour lui : vrai dès qu'il y
+  // passerait, faux si l'arbitre n'en a vu aucune dans son attente (#2832).
+  attendreUnePlace(projet: string): Promise<boolean>;
   etat(): Promise<EtatArbitre>;
 };
 
@@ -51,12 +54,14 @@ export function joindreArbitre(port: number, options: { delaiMs?: number; joindr
   // l'arbitre est sur la boucle locale.
   const agent = new Agent({ keepAlive: false });
   if (joindre) agent.createConnection = () => joindre("127.0.0.1", port);
-  const appeler = (methode: string, chemin: string, corps?: unknown) =>
+  // `attenteMs` : l'arbitre tient la réponse jusque-là, la garde vient après.
+  const appeler = (methode: string, chemin: string, corps?: unknown, attenteMs = 0) =>
     new Promise<unknown>((resoudre, rejeter) => {
       const refuser = (motif: string) => rejeter(new ArbitreInjoignable(port, motif));
       const envoi = corps === undefined ? "" : JSON.stringify(corps);
+      const delai = attenteMs + (options.delaiMs ?? DELAI_MS);
       const requete = request(
-        { host: "127.0.0.1", port, method: methode, path: chemin, agent, timeout: options.delaiMs ?? DELAI_MS, headers: { "content-type": "application/json", "content-length": Buffer.byteLength(envoi) } },
+        { host: "127.0.0.1", port, method: methode, path: chemin, agent, timeout: delai, headers: { "content-type": "application/json", "content-length": Buffer.byteLength(envoi) } },
         (reponse) => {
           let recu = "";
           reponse.setEncoding("utf8");
@@ -74,7 +79,7 @@ export function joindreArbitre(port: number, options: { delaiMs?: number; joindr
           });
         },
       );
-      requete.on("timeout", () => requete.destroy(new Error(`aucune réponse en ${(options.delaiMs ?? DELAI_MS) / 1000} s`)));
+      requete.on("timeout", () => requete.destroy(new Error(`aucune réponse en ${delai / 1000} s`)));
       requete.on("error", (erreur: NodeJS.ErrnoException) => refuser(erreur.code === "ECONNREFUSED" ? "connexion refusée" : erreur.message || String(erreur.code)));
       requete.end(envoi);
     });
@@ -86,6 +91,7 @@ export function joindreArbitre(port: number, options: { delaiMs?: number; joindr
     port,
     echanger: async (projet, mot) => lisible<Reponse>(await appeler("POST", `/projets/${encodeURIComponent(projet)}`, mot), "accorde"),
     quitter: async (projet) => void (await appeler("DELETE", `/projets/${encodeURIComponent(projet)}`)),
+    attendreUnePlace: async (projet) => lisible<{ libre: boolean }>(await appeler("POST", `/projets/${encodeURIComponent(projet)}/attendre`, undefined, ATTENTE_DE_PLACE_MS), "libre").libre === true,
     etat: async () => lisible<EtatArbitre>(await appeler("GET", "/etat"), "projets"),
   };
 }

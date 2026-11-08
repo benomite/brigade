@@ -233,7 +233,7 @@ export type OptionsDeStation = {
   sauter?: (ticket: number, ligne: string) => void;
   // Les garde-fous (#2213) : le « stop », le disjoncteur,
   // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
-  gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter">;
+  gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter"> & Partial<Pick<GardesDuTour, "attendreUnePlace">>;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
   // Le clone du projet : le temps de chaque ticket que la station merge
@@ -1209,7 +1209,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
-      if (gardes !== undefined && (await gardes.retenue(enVol.size)) !== null) break;
+      const retenue = gardes === undefined ? null : await gardes.retenue(enVol.size);
+      if (retenue !== null) {
+        // L'arbitre donne les places à d'autres projets : la première qui
+        // s'ouvre pour celui-ci presse un tour tout de suite. Sans elle, le
+        // ticket attendait sa prise jusqu'à l'intervalle (#2832).
+        if (retenue === "arbiter") void gardes?.attendreUnePlace?.().then((libre) => libre && station.presser?.(true));
+        break;
+      }
       let pris: { prise: boolean };
       try {
         pris = await prise.prendre(ticket);
