@@ -37,7 +37,7 @@ const FAITS_PARADE: Faits = {
       pr: "https://github.com/chef/parade/pull/19",
       relecture: { resume: "Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`.", constats: [{ gravite: "remarque", fichier: "runtime/src/mesures.ts", constat: "Le seuil par défaut est répété dans deux fichiers." }] },
     },
-    { ticket: 7, titre: "Les grants sous plafond", url: issue(7), livre: "2026-10-13T07:12:40.000Z", station: "box/claude", pr: "https://github.com/chef/parade/pull/8", relecture: { resume: "Un grant porte désormais un plafond d'usages.", constats: [] } },
+    { ticket: 7, titre: "Les accès sous plafond", url: issue(7), livre: "2026-10-13T07:12:40.000Z", station: "box/claude", pr: "https://github.com/chef/parade/pull/8", relecture: { resume: "Un accès porte désormais un plafond d'usages.", constats: [] } },
   ],
   urgence: null,
 };
@@ -47,7 +47,7 @@ const STATUS_PARADE = [
   "kitchen    open",
   "",
   "attend     1 décision attend le chef depuis 2 j",
-  "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : gh pr merge 31",
+  "  #12  depuis 2 j  livraison verte, non mergée — à merger à la main : gh pr merge 31",
   "fin attend",
   "",
   "rail       1 taken · 2 in pass · 2 queued",

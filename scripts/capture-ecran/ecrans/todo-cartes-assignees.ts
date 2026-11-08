@@ -12,7 +12,7 @@ const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticke
 const STATUS = ["project    parade", "kitchen    open", "", "awaiting   nothing awaits the chef", "end awaiting", ...PARADE.status.split("\n").slice(5)].join("\n");
 const TOUTES = [
   { ticket: 41, titre: "Export the journal as CSV", url: issue(41), assignes: ["alice"], chef: { sorte: "product-question", texte: "Which separator should the CSV export use?\n- [resume] Semicolons, for spreadsheet users\n- [drop] Commas, the standard" } },
-  { ticket: 44, titre: "Validation SIRET", url: issue(44), assignes: ["bob"], chef: { sorte: "merge-by-hand", texte: "Delivery is green but the project holds no merge grant: merge PR 46 yourself." } },
+  { ticket: 44, titre: "Validation SIRET", url: issue(44), assignes: ["bob"], chef: { sorte: "merge-by-hand", texte: "Delivery is green but the pass does not merge it: merge PR 46 yourself." } },
   { ticket: 47, titre: "Which plan for the free tier?", url: issue(47), assignes: ["alice", "carol"], chef: { sorte: "product-question", texte: "Does the free tier keep the export?\n- [resume] Yes, keep it\n- [close] No, paid plans only" } },
   { ticket: 52, titre: "Archive old boards", url: issue(52), chef: { sorte: "abandoned", texte: "The kitchen gave this ticket up after five attempts; its issue stays open." } },
 ];

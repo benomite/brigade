@@ -107,9 +107,6 @@ describe("a kind set to `I decide`", () => {
   for (const row of RANGEES) {
     test(`${row}: nothing is applied, and a card lists its choices`, async (t) => {
       const { router, poser, appliques, journal } = projet(t);
-      // With no grant, Merge already reads `I decide` and setting it writes
-      // nothing: the chef moves it there from a `brigade` position.
-      if (row === "merge") poser(row, "brigade-decides");
       poser(row, "i-decide");
 
       const route = await router(row);
@@ -204,18 +201,11 @@ describe("a project with no table", () => {
 
     for (const row of RANGEES) {
       const route = await router(row);
-      assert.deepEqual(route, { voie: "today", position: row === "merge" ? "i-decide" : AUJOURDHUI[row] }, row);
+      assert.deepEqual(route, { voie: "today", position: AUJOURDHUI[row] }, row);
     }
     assert.deepEqual(appliques, []);
     assert.deepEqual(ecrits(), []);
     assert.equal(journal.dernierSeq(), avant);
-  });
-
-  test("the `merge` grant enabled by `grant` alone still routes `today`: the pass keeps its own reading of it", async (t) => {
-    const { router, journal } = projet(t);
-    journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge", uses: 2 } });
-
-    assert.deepEqual(await router("merge"), { voie: "today", position: "brigade-decides" });
   });
 
   test("a row the chef sets leaves the others on today's path", async (t) => {
@@ -224,15 +214,14 @@ describe("a project with no table", () => {
 
     assert.equal((await router("cost")).voie, "i-decide");
     assert.deepEqual(await router("screens"), { voie: "today", position: AUJOURDHUI.screens });
-    assert.deepEqual(await router("merge"), { voie: "today", position: "i-decide" });
+    assert.deepEqual(await router("merge"), { voie: "today", position: "brigade-decides" });
   });
 
-  test("once the table has set the Merge row, merging follows it — `grant` commanding it afterwards included", async (t) => {
-    const { router, poser, journal } = projet(t);
+  test("once the table has set the Merge row, merging follows it", async (t) => {
+    const { router, poser } = projet(t);
     poser("merge", "brigade-decides-and-tells-me");
     assert.equal((await router("merge", "merge:a")).voie, "brigade-decides-and-tells-me");
-
-    journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.revoked", payload: { action: "merge" } });
+    poser("merge", "i-decide");
     assert.equal((await router("merge", "merge:b")).voie, "i-decide");
   });
 });

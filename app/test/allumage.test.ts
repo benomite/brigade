@@ -96,14 +96,14 @@ describe("l'avertissement de l'allumage", () => {
   test("il se pose au geste « allumer » du socle, et à lui seul : éteindre n'engage rien, et ne se confirme pas", () => {
     assert.equal(GESTE, "projet-allumer");
     assert.equal(ALLUMAGE.geste, GESTE);
-    assert.deepEqual(confirmationDe(GESTE, PARADE, { sans: "pas lus" }, undefined, CUISINE), {
+    assert.deepEqual(confirmationDe(GESTE, PARADE, { sans: "pas lus" }, CUISINE), {
       titre: "switch the project on",
       prix: [AVERTISSEMENT],
       chiffrer: true,
       choix: [{ id: GESTE, libelle: "yes, switch the project on", dit: "what the manager judges executable is taken up right away, and green deliveries are merged" }],
       renoncer: "no, leave it off",
     });
-    assert.equal(confirmationDe("projet-eteindre", PARADE, { sans: "pas lus" }, undefined, CUISINE), undefined);
+    assert.equal(confirmationDe("projet-eteindre", PARADE, { sans: "pas lus" }, CUISINE), undefined);
     assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "switch on");
   });
 });
@@ -237,11 +237,11 @@ describe("le geste « allumer », avec son avertissement", () => {
     });
     terminaux.espace(PARADE);
 
-    assert.deepEqual(ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, undefined, cuisine), { refus: SANS_OUI });
+    assert.deepEqual(ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, cuisine), { refus: SANS_OUI });
     assert.deepEqual(ecrits, [[]]);
 
     // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
-    const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, true, cuisine);
+    const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, true, cuisine);
     assert.ok(rendu !== undefined && "refus" in rendu);
     const geste = GESTE_DE_LA_STATION.replace(/[\\/.]/g, "\\$&");
     assert.match(rendu.refus, new RegExp(`the command did not go, and nothing is written: \`!\\(cd '.*' && BRIGADE_STATION_DIR='.*' '.*' ${geste} parade switch on\\)\`$`));

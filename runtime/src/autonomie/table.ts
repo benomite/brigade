@@ -11,19 +11,9 @@
 //
 // A row that nothing has set holds today's behavior (`AUJOURDHUI`): a project
 // with no table behaves as before the table existed.
-//
-// The Merge row is the `merge` grant (`grant.ts`): the grant stays its store,
-// so `grant` keeps commanding it and a log written before the table — a
-// grant enabled, lapsed or revoked — reads as the matching position, with
-// nothing to rewrite. Setting the row writes the grant: `I decide` revokes
-// it, a `brigade` position enables it when it is not active, with no
-// deadline. What the grant does not say — whether brigade tells — is the
-// last `autonomy.changed` of that row since the grant was enabled.
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
-import { constaterExtinction } from "../grant.ts";
 import type { Journal } from "../journal.ts";
-import { etatDuGrant } from "../projections/pass.ts";
 
 export const POSITIONS = ["brigade-decides", "brigade-decides-and-tells-me", "i-decide"] as const;
 export type Position = (typeof POSITIONS)[number];
@@ -40,13 +30,13 @@ export const RANGEES = ["screens", "merge", "specification", "priorities", "cost
 export type Rangee = (typeof RANGEES)[number];
 
 // The rows that are always `I decide`. The list is here, in the code: it
-// changes only by a delivery, like what no grant allows (`grant.ts`).
+// changes only by a delivery,.
 export const FIXES = ["production", "secrets", "published-outside-the-repository"] as const;
 export type Fixe = (typeof FIXES)[number];
 
 export const LIBELLES_DES_RANGEES: Record<Rangee | Fixe, { titre: string; dit: string }> = {
   screens: { titre: "Screens", dit: "validating the captures of an interface change before merge" },
-  merge: { titre: "Merge", dit: "merging a green delivery (the `merge` grant)" },
+  merge: { titre: "Merge", dit: "merging a green delivery" },
   specification: { titre: "Specification", dit: "adjusting a ticket's criteria, splitting it again, closing a ticket judged useless" },
   priorities: { titre: "Priorities", dit: "changing ticket priorities, posing tickets born in the kitchen" },
   cost: { titre: "Cost", dit: "raising a ticket's calibration, relaunching it beyond its resends, the share of the Max quota" },
@@ -59,10 +49,13 @@ export const LIBELLES_DES_RANGEES: Record<Rangee | Fixe, { titre: string; dit: s
 
 // What each row holds when nothing has set it: what the kitchen does today,
 // read as the closest position — does the decision reach the chef as a card,
-// or does the kitchen take it alone? Merge is not here: the grant says it.
+// or does the kitchen take it alone?
 // `source: "default"` tells whoever routes a decision that the chef chose
 // nothing for that row: it keeps today's path, whatever the position says.
-export const AUJOURDHUI: Record<Exclude<Rangee, "merge">, Position> = {
+export const AUJOURDHUI: Record<Rangee, Position> = {
+  // A green delivery is merged by the stations once its verdict is approved and
+  // its CI is green (`github-etat/fusion.ts`).
+  merge: "brigade-decides",
   // The reviewer judges the captures (`reviewer.ts`); no card asks the chef.
   screens: "brigade-decides",
   // The manager calibrates, poses `fire` and splits alone, saying why on the
@@ -95,10 +88,8 @@ function profil(sauf: Partial<Record<Rangee, Position>>): Record<Rangee, Positio
 }
 
 // Where a row's position comes from. `default`: nothing set it, it holds
-// today's behavior. `set`: an `autonomy.changed`. `grant`: the Merge row,
-// read from the grant — enabled, lapsed or revoked by `grant` or by the
-// table. `fixed`: a row no command changes.
-export type Source = "default" | "set" | "grant" | "fixed";
+// today's behavior. `set`: an `autonomy.changed`. `fixed`: a row no command changes.
+export type Source = "default" | "set" | "fixed";
 export type Ligne<R extends Rangee | Fixe = Rangee | Fixe> = { row: R; position: Position; source: Source; fixed: boolean };
 export type Table = { rows: Ligne<Rangee>[]; fixed: Ligne<Fixe>[] };
 
@@ -106,7 +97,6 @@ export type Table = { rows: Ligne<Rangee>[]; fixed: Ligne<Fixe>[] };
 export class AutonomieRefusee extends Error {}
 
 const CHANGEE = "autonomy.changed";
-const AUTEUR_DU_CONSTAT = "runtime";
 
 export const estUneRangee = (nom: string): nom is Rangee => (RANGEES as readonly string[]).includes(nom);
 export const estFixe = (nom: string): nom is Fixe => (FIXES as readonly string[]).includes(nom);
@@ -124,24 +114,12 @@ function changements(base: Base): Changement[] {
     .filter((fait): fait is Changement => typeof fait.row === "string" && typeof fait.position === "string" && estUneRangee(fait.row) && estUnePosition(fait.position));
 }
 
-// The Merge row, read from the grant at `maintenant`: not active, it is `I
-// decide`; active, it is the last `brigade` position the table set on it
-// since it was enabled — `brigade decides` if none, as the grant has always
-// meant.
-function positionDuMerge(base: Base, faits: Changement[], maintenant: Date): Position {
-  if (!etatDuGrant(base, "merge", maintenant)?.active) return "i-decide";
-  const accorde = base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM events WHERE type = 'grant.activated' AND json_extract(payload, '$.action') = 'merge'")[0]?.seq ?? 0;
-  const dit = faits.filter((fait) => fait.row === "merge" && fait.seq > accorde && fait.position !== "i-decide").at(-1);
-  return (dit?.position as Position | undefined) ?? "brigade-decides";
-}
-
 // The table as the log carries it at `maintenant`, read again on every call.
 export function lireAutonomie(base: Base, maintenant: Date): Table {
   const faits = changements(base);
   const posees = new Map<Rangee, Position>();
   for (const { row, position } of faits) posees.set(row as Rangee, position as Position);
   const rows = RANGEES.map((row): Ligne<Rangee> => {
-    if (row === "merge") return { row, position: positionDuMerge(base, faits, maintenant), source: "grant", fixed: false };
     const posee = posees.get(row);
     return posee === undefined ? { row, position: AUJOURDHUI[row], source: "default", fixed: false } : { row, position: posee, source: "set", fixed: false };
   });
@@ -171,8 +149,7 @@ function exigerPosition(position: string): Position {
 
 export type Geste = { projet: string; auteur: string; maintenant: Date };
 
-// Moves one row, in the transaction its caller holds. The Merge row writes
-// the grant first: its `autonomy.changed` then follows the grant's enabling.
+// Moves one row, in the transaction its caller holds.
 function deplacer(journal: Journal, geste: Geste, row: Rangee, position: Position, profil: Profil | null): Evenement | null {
   const { projet, auteur, maintenant } = geste;
   const avant = lireAutonomie(journal.base, maintenant).rows.find((ligne) => ligne.row === row);
@@ -180,15 +157,6 @@ function deplacer(journal: Journal, geste: Geste, row: Rangee, position: Positio
   // A row already set to that position: nothing is written. A row that holds
   // its default is written all the same: the chef has now chosen it.
   if (avant.position === position && avant.source !== "default") return null;
-  if (row === "merge") {
-    // A lapsed grant the log does not say yet is first written lapsed: the
-    // table's gesture does not cover a lapse.
-    constaterExtinction(journal, projet, AUTEUR_DU_CONSTAT, "merge", maintenant);
-    const actif = etatDuGrant(journal.base, "merge", maintenant)?.active ?? false;
-    const ajouter = (type: "grant.activated" | "grant.revoked") => journal.ajouter({ project: projet, ticket: null, author: auteur, type, payload: { action: "merge" } });
-    if (position === "i-decide" && actif) ajouter("grant.revoked");
-    if (position !== "i-decide" && !actif) ajouter("grant.activated");
-  }
   return journal.ajouter({ project: projet, ticket: null, author: auteur, type: CHANGEE, payload: { row, previous: avant.position, position, profile: profil } });
 }
 

@@ -1,7 +1,7 @@
 // Toute la bande d'alertes suit la même règle (#907) : une alerte tient en une ligne — ce qui ne va
 // pas — et un contrôle — le geste qui le lève. Le prix de ce geste n'est pas posé à côté : la
-// confirmation, au clic, le dit. Ce que la box en écrit, mot pour mot, est derrière « detail ». Et le
-// grant `merge` n'est plus un interrupteur : l'espace n'en a qu'un, celui du projet (#1406).
+// confirmation, au clic, le dit. Ce que la box en écrit, mot pour mot, est derrière « detail ». Et l'espace
+// n'a qu'un interrupteur, celui du projet (#1406).
 // La bande est celle que le process principal dirait (alertes.ts), d'après des sorties de `status`
 // telles que le runtime les écrit ; la vue est jouée telle qu'elle est, devant un faux document.
 import assert from "node:assert/strict";
@@ -17,8 +17,7 @@ import { confirmationDe } from "../src/confirmation.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
@@ -31,9 +30,7 @@ const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade
 // Les lignes de tête de `status` (runtime/src/etat.ts, `decrireEtat`), mot pour mot.
 const CONNEXION = "connexion  Max DÉCONNECTÉE depuis 18 min sur box/claude — plus aucun ticket n'est pris : `claude /login` sous le compte du service";
 const BASE_ROUGE = "base       ROUGE depuis 1 h 10 sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge";
-const MERGE_SEUL = "grant      merge ÉTEINT SEUL il y a 40 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi";
-const MERGE_ACTIF = "grant      merge ACTIF, sans échéance, depuis 2 h — une pass verte est mergée sans toi";
-const MERGE_BIENTOT = "grant      merge ACTIF, BIENTÔT ÉTEINT : encore 30 min — une pass verte est mergée sans toi";
+const GRANT_D_AVANT = "grant      merge ACTIF, BIENTÔT ÉTEINT : encore 30 min — une pass verte est mergée sans toi";
 const statusAvec = (...tetes: string[]) => ["projet     parade", "cuisine    ouverte", ...tetes, "", "rail       vide", ""].join("\n");
 const valeur = (ligne: string) => ligne.slice(11);
 
@@ -69,13 +66,13 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
     }),
     espace: () => [],
-    confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE),
+    confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE),
     geste: () => undefined,
     ...reponses,
   });
@@ -97,12 +94,12 @@ const appelsDe = (vue: Jouee, ...gestes: string[]) => vue.appels.filter(({ geste
 describe("une alerte : une ligne, un contrôle", () => {
   test("chaque ligne de la bande tient en une ligne — sa pastille, ce qui ne va pas, « detail », son contrôle — sans phrase de plus, ni sortie brute, ni prix", async () => {
     const vue = await ouvrir();
-    vue.dire("surAlertes", bandeLue(statusAvec(CONNEXION, BASE_ROUGE, MERGE_BIENTOT)));
+    vue.dire("surAlertes", bandeLue(statusAvec(CONNEXION, BASE_ROUGE)));
     await repos();
 
     assert.deepEqual(
       lignes(vue).map((ligne) => ligne.children[0]?.children.find(({ balise }) => balise === "strong")?.textContent),
-      ["Max connection down: no ticket is taken any more", "base red: the station takes no more tickets, the pass neither judges nor merges", "grant `merge` expiring soon: then, the pass will stop at the open PR"],
+      ["Max connection down: no ticket is taken any more", "base red: the station takes no more tickets, the pass neither judges nor merges"],
     );
     for (const ligne of lignes(vue)) {
       // Un seul enfant : la ligne. Rien dessous tant que le chef ne déplie ni ne clique.
@@ -113,8 +110,8 @@ describe("une alerte : une ligne, un contrôle", () => {
       assert.deepEqual(ligne.dessous("pre"), []);
     }
     const ecrit = vue.element("alertes").textContent;
-    assert.doesNotMatch(ecrit, /DÉCONNECTÉE|ROUGE|abc1234|claude \/login|BIENTÔT/, "la sortie brute de la box est dans la bande");
-    assert.doesNotMatch(ecrit, /start again|interrupted|replayed|merged without you/, "un prix est posé dans la bande");
+    assert.doesNotMatch(ecrit, /DÉCONNECTÉE|ROUGE|abc1234|claude \/login/, "la sortie brute de la box est dans la bande");
+    assert.doesNotMatch(ecrit, /start again|interrupted|replayed/, "un prix est posé dans la bande");
   });
 
   test("« detail » déplie, dessous, ce que la ligne sait de plus — la box mot pour mot, jamais le geste à recopier ; une relecture ne le replie pas, un second clic si", async () => {
@@ -208,13 +205,13 @@ describe("le prix est dans la confirmation, au clic", () => {
   });
 });
 
-// Un seul interrupteur pour tout le projet (#1406) : le grant `merge` n'en est plus un. L'interrupteur du
-// projet l'active en s'allumant ; le grant échu de lui-même, ou bientôt échu, reste une ligne de la bande.
-describe("le grant `merge` n'est plus un interrupteur", () => {
-  test("la bande ne porte plus son état, et l'espace n'a qu'un interrupteur : celui du projet", async () => {
-    assert.equal("merge" in bandeLue(statusAvec(MERGE_ACTIF), "ouverte"), false);
+// Un seul interrupteur pour tout le projet (#1406). Le grant `merge` n'existe plus : une ligne `grant` de `status`,
+// que le runtime n'écrit plus, ne dit rien de plus.
+describe("l'espace n'a qu'un interrupteur", () => {
+  test("la bande ne porte que l'état du projet, et l'espace n'a que l'interrupteur du projet", async () => {
+    assert.equal("merge" in bandeLue(statusAvec(), "ouverte"), false);
     const vue = await ouvrir();
-    vue.dire("surAlertes", bandeLue(statusAvec(MERGE_ACTIF), "ouverte"));
+    vue.dire("surAlertes", bandeLue(statusAvec(), "ouverte"));
     await repos();
 
     assert.throws(() => vue.element("interrupteur-merge"), /aucun élément/);
@@ -224,19 +221,11 @@ describe("le grant `merge` n'est plus un interrupteur", () => {
     assert.equal(bascule(vue, "interrupteur-projet").textContent, "project on");
   });
 
-  test("échu de lui-même, il est une ligne de la bande, qui le réaccorde ; bientôt échu, une ligne à prolonger", async () => {
+  test("une ligne `grant` d'avant, dans `status`, ne fait ni ligne de bande ni interrupteur", async () => {
     const vue = await ouvrir();
-    vue.dire("surAlertes", bandeLue(statusAvec(MERGE_SEUL), "ouverte"));
+    vue.dire("surAlertes", bandeLue(statusAvec(GRANT_D_AVANT), "ouverte"));
     await repos();
-    assert.equal(vue.element("alertes").hidden, false);
-    const echu = ligneDe(vue, "grant `merge` lapsed");
-    assert.equal(controleDe(echu).textContent, "enable merge again…");
-    controleDe(echu).click();
-    await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-activer", "merge"]);
-
-    vue.dire("surAlertes", bandeLue(statusAvec(MERGE_BIENTOT), "ouverte"));
-    await repos();
-    assert.equal(controleDe(ligneDe(vue, "grant `merge` expiring soon")).textContent, "ask the second…");
+    assert.equal(vue.element("alertes").hidden, true);
+    assert.throws(() => vue.element("interrupteur-merge"), /aucun élément/);
   });
 });

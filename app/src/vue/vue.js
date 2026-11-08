@@ -5,7 +5,7 @@
 // Au centre de l'espace, le rail : c'est la vue centrale, en six colonnes. Chaque carte y
 // tient en deux lignes — une phrase qui dit ce qui se passe, un signal s'il faut l'attention — ;
 // ce que la file dit du ticket en plus (qui le tient, depuis quand, son bail) est dans sa fiche. En haut, les onglets de pages — Rail, Cooks,
-// Manager, Grants, Log : chacune la sortie d'une commande, lue tant qu'elle est affichée — ; une
+// Manager, Log : chacune la sortie d'une commande, lue tant qu'elle est affichée — ; une
 // page s'ouvre par-dessus le rail, et fermée, le rend tel qu'il était. À droite, en permanence,
 // les terminaux : le second, et à côté de lui les shells. Un shell montré ne remplace pas le
 // second — son onglet le rend, avec sa conversation. Ce qu'un clic écrit dans le second s'y lit,
@@ -28,9 +28,7 @@
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
 // Settings (tickets 1700, 2494) ne tient que les réglages du projet, dans un seul groupe, une
-// ligne par réglage : son nom, sa valeur en vigueur, un seul contrôle. Les grants y sont une ligne chacun, déjà lus par
-// le process principal (grants.ts) : son état, ce qu'il lui reste, et un interrupteur dont le clic ouvre la
-// confirmation qui dit ce que le grant change avant de partir.
+// ligne par réglage : son nom, sa valeur en vigueur, un seul contrôle.
 // La barre est faite d'icônes : « Tous les projets » en tête — l'accueil, la vue d'ensemble de
 // brigade : une ligne par projet, une par station, et la ligne de santé, dites par le process
 // principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page, et « Cost » celle
@@ -44,7 +42,7 @@
 // n'envoie rien à sa station, après un « yes » — ce qui se refuse et ce qui s'en dit se décident dans retrait.ts.
 // La page d'un worktree servi n'est plus nulle part dans l'app (ticket 1846) : le chef suit ce que fait le cook, sur la
 // fiche de son ticket (activite-du-cook.js), et sa PR, et essaie l'app construite une fois mergée.
-// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? La cuisine, le grant —
+// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? La cuisine —
 // une alerte par chose à faire, et
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
 // place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose.
@@ -156,13 +154,10 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../alertes.ts").Alerte} Alerte */
-/** @typedef {import("../grants.ts").Vu} VuDesGrants */
 /** @typedef {import("../fiabilite.ts").Vu} VuDeLaFiabilite */
 // Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
 const JOURNAL = "log";
 const PARAMETRES = "parametres";
-// La lecture que Settings suit (ticket 1700) : celle des grants, `grant` sur la station du projet (onglets.ts).
-const GRANTS_LUS = "grants";
 // Et la lecture de la page des coûts de l'app (ticket 1022) : `station`, sur la box de chaque projet (onglets.ts, `COUTS`).
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
@@ -237,7 +232,6 @@ const rail = element("rail");
 // La bande de Rail (ticket 2485) : son bloc se monte ici, au-dessus du rail, sans en être un enfant.
 const blocDuRail = element("bloc-du-rail");
 const fiche = element("fiche");
-const grants = element("grants");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const interrupteurProjet = element("interrupteur-projet");
@@ -921,12 +915,6 @@ let aConfirmer;
 // cuisine, dans Settings ; reprendre est aussi sur ce qui dit la cuisine à l'arrêt.
 /** @type {readonly { id: string, libelle: string }[]} */
 let GESTES_DE_LA_CUISINE = [];
-// Les deux gestes d'un grant, dits de même (grants.ts), et les grants que la doc nomme (gestes.ts) :
-// sans état lu, c'est pour ceux-là que les gestes restent offerts.
-/** @type {readonly { id: string, libelle: string }[]} */
-let GESTES_DES_GRANTS = [];
-/** @type {readonly string[]} */
-let GRANTS_NOMMES = [];
 // Les trois gestes de WAITING, dits de même (attente.ts) : « waiting for… » sur une carte de TODO,
 // « resume » et « it arrived » sur une carte de WAITING. La vue les nomme, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly { id: string, libelle: string }[]} */
@@ -948,10 +936,6 @@ const arriveesDeCartes = new Map();
 let DIRECTS = [];
 /** @type {readonly string[]} */
 let CONFIRMES = [];
-// Ce que la dernière lecture des grants donne à poser dans Settings. Indéfini : pas encore lu depuis
-// que Settings est affiché — rien ne reste de ce qui s'y lisait avant.
-/** @type {VuDesGrants | undefined} */
-let grantsVus;
 // Ce que la dernière lecture de l'onglet Cooks donne à poser dans sa section de fiabilité. Indéfini : pas encore lu
 // depuis que l'onglet est affiché.
 /** @type {VuDeLaFiabilite | undefined} */
@@ -1377,15 +1361,15 @@ function vue(id) {
 
 const duCourant = () => [...vues.values()].filter(({ terminal }) => terminal.projet === courant?.nom);
 const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom));
-// La lecture suivie : celle de la page ouverte par-dessus — Settings lit les grants (ticket 1700) ; sans page, sur
+// La lecture suivie : celle de la page ouverte par-dessus — Settings ne lit rien ; sans page, sur
 // l'onglet Cooks, `station` (ticket 1184). Sur un écran étroit, Cooks ne la suit pas : le plafond et le quota sont des
 // réglages (ticket 1186).
 const lue = () => {
   const ouverte = actif();
-  if (ouverte === PARAMETRES) return GRANTS_LUS;
+  if (ouverte === PARAMETRES) return undefined;
   return ouverte ?? (courant !== undefined && ongletDe(courant) === CUISINE && !etroit() ? CUISINE : undefined);
 };
-// Settings est ouvert : sa lecture, celle des grants, ne pose que leurs lignes — ni sa sortie, ni son heure.
+// Settings est ouvert : il ne lit rien, et n'a ni sortie ni heure à poser.
 const reglagesMontres = () => courant !== undefined && actif() === PARAMETRES;
 // L'onglet Cooks est montré, avec la lecture de `station` : aucune page ne le couvre, et l'écran est large.
 const cuisineMontree = () => courant !== undefined && actif() === undefined && ongletDe(courant) === CUISINE && !etroit();
@@ -1798,30 +1782,30 @@ async function demanderAlerte({ sujet, dit }) {
 // Un geste du socle, collé à l'état qu'il change : son bouton, et — confirmé et ouvert — sa
 // confirmation, dessous. Direct, il part au clic. Confirmé, le clic ouvre ce qu'il coûte, et rien
 // ne part ; recliqué, la confirmation se referme. `ou` : l'endroit où il est posé — la même
-// confirmation ne s'ouvre que sous le bouton cliqué. `grant` : celui sur lequel il porte.
-/** @param {Projet} projet @param {{ id: string, libelle: string, ou: string, grant?: string }} geste */
-function poserGeste(projet, { id, libelle, ou, grant }) {
+// confirmation ne s'ouvre que sous le bouton cliqué.
+/** @param {Projet} projet @param {{ id: string, libelle: string, ou: string }} geste */
+function poserGeste(projet, { id, libelle, ou }) {
   if (!CONFIRMES.includes(id)) {
-    const direct = bouton(libelle, () => void ecrireGeste(id, grant));
+    const direct = bouton(libelle, () => void ecrireGeste(id));
     direct.dataset.geste = "direct";
     direct.title = "goes straight into the second, if it is free — its output is read there";
     return [direct];
   }
-  const cle = JSON.stringify([id, grant ?? "", ou]);
+  const cle = JSON.stringify([id, "", ou]);
   const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
-  const confirme = bouton(`${libelle}…`, () => void ouvrirConfirmation(projet, cle, id, grant));
+  const confirme = bouton(`${libelle}…`, () => void ouvrirConfirmation(projet, cle, id));
   confirme.dataset.geste = "confirme";
   confirme.ariaExpanded = String(ouverte !== undefined);
   confirme.title = "says what it costs first: nothing goes before your “yes”";
-  return ouverte === undefined ? [confirme] : [confirme, poserConfirmation(projet, ouverte, grant)];
+  return ouverte === undefined ? [confirme] : [confirme, poserConfirmation(projet, ouverte)];
 }
 
 // Le clic d'un geste confirmé : sa confirmation s'ouvre — ce qu'elle dit vient du process
 // principal (confirmation.ts) —, et celle qui était ouverte se referme. Rien ne part. Recliqué,
 // il la referme. « Allumer » se chiffre aussi : `manager backlog` est demandée à la box, et ses
 // nombres rejoignent la confirmation quand elle répond — le « oui » ne les attend pas.
-/** @param {Projet} projet @param {string} cle @param {string} id @param {string} [grant] */
-async function ouvrirConfirmation(projet, cle, id, grant) {
+/** @param {Projet} projet @param {string} cle @param {string} id */
+async function ouvrirConfirmation(projet, cle, id) {
   nonEcrit = nonEcritSecond = "";
   gesteRate = undefined;
   if (aConfirmer?.projet === projet.nom && aConfirmer.cle === cle) {
@@ -1834,7 +1818,7 @@ async function ouvrirConfirmation(projet, cle, id, grant) {
   /** @type {Confirmation | { refus: string } | undefined} */
   let rendu;
   try {
-    rendu = await brigade.confirmer(projet.nom, id, grant);
+    rendu = await brigade.confirmer(projet.nom, id);
   } catch (erreur) {
     rendu = { refus: `nothing offered: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
@@ -1855,8 +1839,8 @@ async function ouvrirConfirmation(projet, cle, id, grant) {
 // Rien n'y est calculé : tout est dit par le process principal (confirmation.ts, allumage.ts) — ou,
 // pour une demande au second, par la ligne de la bande qui la porte. `partir` : ce que fait un « oui »,
 // quand ce n'est pas un geste du socle.
-/** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {string} [grant] @param {(id: string) => void} [partir] */
-function poserConfirmation(projet, { rendu, compte }, grant, partir) {
+/** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {(id: string) => void} [partir] */
+function poserConfirmation(projet, { rendu, compte }, partir) {
   const confirmation = document.createElement("div");
   confirmation.className = "confirmation";
   confirmation.role = "group";
@@ -1910,7 +1894,7 @@ function poserConfirmation(projet, { rendu, compte }, grant, partir) {
       choix.className = "gestes";
       const oui = bouton(libelle, () => {
         aConfirmer = undefined;
-        if (partir === undefined) void ecrireGeste(id, grant, true);
+        if (partir === undefined) void ecrireGeste(id, true);
         else partir(id);
       });
       oui.dataset.oui = "";
@@ -1928,9 +1912,9 @@ function poserConfirmation(projet, { rendu, compte }, grant, partir) {
 // Un geste part dans le second, à droite : sa sortie s'y lit, sa note dit ce qui est parti, et le
 // centre ne change pas. Le second n'est pas libre : rien n'y est écrit, et la raison se lit sous
 // son titre — occupé, la commande n'est pas partie. `oui` : le « oui » d'une confirmation — un geste
-// confirmé ne part qu'avec lui. `grant` : celui sur lequel porte un geste de grant.
-/** @param {string} id @param {string} [grant] @param {true} [oui] */
-async function ecrireGeste(id, grant, oui) {
+// confirmé ne part qu'avec lui.
+/** @param {string} id @param {true} [oui] */
+async function ecrireGeste(id, oui) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
@@ -1938,10 +1922,10 @@ async function ecrireGeste(id, grant, oui) {
   /** @param {string} raison */
   const rate = (raison) => {
     nonEcritSecond = raison;
-    gesteRate = { texte: raison, rejouer: () => void ecrireGeste(id, grant, oui) };
+    gesteRate = { texte: raison, rejouer: () => void ecrireGeste(id, oui) };
   };
   try {
-    const rendu = await brigade.geste(projet.nom, id, grant, oui);
+    const rendu = await brigade.geste(projet.nom, id, oui);
     if (rendu === undefined) return montrer();
     // Le chef a pu changer d'espace entre-temps : le second de ce projet le garde.
     if ("refus" in rendu) rate(rendu.refus);
@@ -2027,9 +2011,6 @@ function lireOnglet() {
   const voulu = page !== undefined ? JSON.stringify(["", page]) : courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
   if (voulu === suivi) return;
   suivi = voulu;
-  // L'état des grants lu avant n'est plus celui de cette lecture : il revient avec elle.
-  grantsVus = undefined;
-  poserGrants();
   // Ni la fiabilité.
   fiabiliteVue = undefined;
   cooksEnEchec = false;
@@ -2575,14 +2556,14 @@ function refusDeReglage(texte) {
 // Le groupe de Settings : son titre est le mot du niveau (niveaux.js), son survol dit où ses réglages sont gardés. Sans
 // réglage, il le dit en une ligne.
 for (const [niveau, aide] of /** @type {const} */ ([
-  ["project", "the project's settings — those in its repository change by a pull request, held for you; its grants and its kitchen are set on the station that serves it"],
+  ["project", "the project's settings — those in its repository change by a pull request, held for you; its kitchen is set on the station that serves it"],
 ])) {
   const titre = element(`niveau-${niveau}`);
   titre.dataset.niveau = niveau;
   titre.replaceChildren(NIVEAUX_DITS[niveau].libelle, survol(document, aide));
 }
 function poserLesGroupes() {
-  videProjet.hidden = !reglagesDuProjet.hidden || !grants.hidden || !arreterCuisine.hidden;
+  videProjet.hidden = !reglagesDuProjet.hidden || !arreterCuisine.hidden;
   videProjet.textContent = videProjet.hidden ? "" : "nothing to set: no station reads this project";
 }
 // Le projet dans ton app (ticket 1700) : une ligne du groupe du projet — il est dans la barre, et « Remove from the app »
@@ -2895,7 +2876,7 @@ const sansDessin = (projet) => `The app draws nothing of this project: no color 
 
 // La forme d'un ton : la couleur ne porte jamais seule l'information. Un disque plein, un
 // losange, un carré, un anneau creux, un triangle — distincts en niveaux de gris. C'est le ton
-// que l'app a déjà (faits.ts, grants.ts, manager.ts) qui choisit la forme : rien n'est déduit ici.
+// que l'app a déjà (faits.ts, manager.ts) qui choisit la forme : rien n'est déduit ici.
 /** @type {Record<string, string>} */
 const FORMES = { vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" };
 /** @param {string | undefined} ton */
@@ -5501,9 +5482,6 @@ async function reprendreLeDisjoncteur(projet) {
   poser(apresLaReprise(rendu));
 }
 
-// Un instant que la box a écrit, à l'heure de ce poste — tel quel, s'il n'en est pas un.
-/** @param {string} instant */
-const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : dateHeure(instant));
 
 // La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
 // tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
@@ -5672,60 +5650,6 @@ function poserLeLancement(nom, lu) {
       annuler: () => void agir("annuler"),
     }),
   ];
-}
-
-// Les grants du projet, dans le groupe du projet de Settings (ticket 1700) : une ligne par grant — son nom, son état en
-// un mot et ce qu'il lui reste, et un seul contrôle, son interrupteur. Accordé, un clic ouvre la confirmation qui le
-// révoque ; sinon, celle qui l'accorde : rien ne part avant son « oui ». Le détail de la ligne de `grant` — depuis
-// quand, par qui, jusqu'à quand — est au survol. Ses usages, ce qu'aucun grant n'autorise et le bilan des livraisons
-// arrêtées ne se posent plus : ce n'est pas un réglage. Tout est déjà lu par le process principal (grants.ts) : la vue
-// pose. Sans état lu, chaque grant nommé a sa ligne, son interrupteur muet, et la raison au survol.
-function poserGrants() {
-  const projet = courant;
-  // Sans station, rien n'est lu et rien ne s'écrit : le groupe le dit.
-  grants.hidden = projet === undefined || !seLit(projet);
-  if (projet === undefined || grants.hidden) {
-    grants.replaceChildren();
-    return poserLesGroupes();
-  }
-  const vu = grantsVus?.projet === projet.nom ? grantsVus : undefined;
-
-  /** @param {string} action @param {boolean | undefined} allume @param {(Node | string)[]} valeur @param {string | undefined} pourquoi indéfini : il se commande */
-  const ligne = (action, allume, valeur, pourquoi) => {
-    const cle = JSON.stringify(["grant", action, "reglages"]);
-    const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
-    const id = allume ? "grant-revoquer" : "grant-activer";
-    const [bascule] = interrupteur(action, pourquoi === undefined ? allume : undefined, {
-      pourquoi: pourquoi ?? `the ${action} grant: ${allume ? "enabled" : "not enabled"}`,
-      eteindre: `click to revoke it: says first what it changes — nothing goes before your “yes”`,
-      allumer: `click to enable it: says first what it changes — nothing goes before your “yes”`,
-      clic: () => (CONFIRMES.includes(id) ? void ouvrirConfirmation(projet, cle, id, action) : void ecrireGeste(id, action)),
-    });
-    return rangeeDeReglage(`grant ${action}`, valeur, bascule === undefined ? [] : [bascule], ouverte === undefined ? [] : [poserConfirmation(projet, ouverte, action)]);
-  };
-
-  if (vu === undefined || "sans" in vu) {
-    const valeur = vu === undefined ? [bloc("span", "first read in progress…")] : [lectureIndisponible(document, "not read", vu.sans)];
-    grants.replaceChildren(...GRANTS_NOMMES.map((action) => ligne(action, undefined, valeur, vu === undefined ? `the ${action} grant: first read in progress` : `the ${action} grant is not read`)));
-    return poserLesGroupes();
-  }
-  grants.replaceChildren(
-    ...vu.grants.map((grant) => {
-      if ("sans" in grant) return ligne(grant.action, undefined, [lectureIndisponible(document, "not read", grant.sans)], `the ${grant.action} grant is not read`);
-      const { mot, ton, depuis, par, bientot, echeance, limites, dit } = grant;
-      // L'état en un mot, puis ce qu'il en reste — la durée, comptée par la box à l'heure de la lecture.
-      const detail = [
-        `${mot}${depuis === undefined ? "" : ` since ${quand(depuis)}`}${par === undefined ? "" : ` · by ${par}`}`,
-        ...(bientot === undefined ? [] : [bientot]),
-        ...(echeance === undefined ? [] : [`${echeance.reste} (${echeance.jusqua})`]),
-        ...limites,
-        ...(dit === "" ? [] : [dit]),
-      ].join("\n");
-      const valeur = [pastille(mot, ton), bloc("strong", mot), ...(echeance === undefined ? [] : [bloc("small", echeance.reste)]), survol(document, detail)];
-      return ligne(grant.action, grant.actif, valeur, grant.commandable ? undefined : `no action here for the ${grant.action} grant`);
-    }),
-  );
-  poserLesGroupes();
 }
 
 /** @param {Projet} projet @param {number} ticket */
@@ -7732,7 +7656,7 @@ function poserControle(projet, alerte, endroit) {
   /** @type {HTMLElement[]} */
   let pose;
   // L'endroit d'un geste du socle est la ligne par son sujet : la confirmation d'un même geste s'ouvre sous la ligne cliquée.
-  if ("geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: mot, ou: `alerte:${sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
+  if ("geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: mot, ou: `alerte:${sujet}` });
   else if ("demande" in appel) {
     // Un prix « none… » est un prix nul : pas de confirmation, la demande s'écrit au clic.
     const cout = /^none\b/i.test(prix.trim()) ? "" : prixDit(prix);
@@ -7748,7 +7672,7 @@ function poserControle(projet, alerte, endroit) {
     demande.dataset.geste = "demande";
     demande.ariaExpanded = cout === "" ? null : String(ouverte !== undefined);
     demande.title = cout === "" ? "writes into the second a request about this line — nothing is sent: you press Enter" : "says first what lifting it costs — then writes the request into the second, without sending it";
-    pose = ouverte === undefined ? [demande] : [demande, poserConfirmation(projet, ouverte, undefined, () => void demanderAlerte(alerte))];
+    pose = ouverte === undefined ? [demande] : [demande, poserConfirmation(projet, ouverte, () => void demanderAlerte(alerte))];
   } else if ("relire" in appel) {
     // Réessayer maintenant : la box est relue tout de suite, au lieu d'attendre le tour des trente secondes.
     pose = [bouton(mot, () => lireLesFaits())];
@@ -7796,7 +7720,6 @@ function dessiner() {
   bande.hidden = true;
   arret.hidden = true;
   rail.hidden = true;
-  poserGrants();
   poserInterrupteur();
   poserStationsDuProjet();
   if (courant === undefined) return;
@@ -8547,10 +8470,9 @@ brigade.surFaits((recue) => {
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
-// dans le panneau, et n'en retire rien. Celle de Settings vient avec l'état des grants, lu dans sa sortie : leurs
-// lignes se reposent. Celle de l'onglet Cooks, avec la fiabilité des cooks, et la partie de son closer, lue ici même
+// dans le panneau, et n'en retire rien. Celle de l'onglet Cooks, avec la fiabilité des cooks, et la partie de son closer, lue ici même
 // dans sa sortie de `closing --json` (closer/section.js, ticket 1699).
-brigade.surContenu((recue, _manager, desGrants, laFiabilite) => {
+brigade.surContenu((recue, _manager, laFiabilite) => {
   if (recue.demande !== demandeOnglet) return;
   // La page des coûts lit `station` sur la box de chaque projet : chacune entre dans ses chiffres.
   if (ongletDemande === COUTS) {
@@ -8563,12 +8485,9 @@ brigade.surContenu((recue, _manager, desGrants, laFiabilite) => {
     return poserRatios();
   }
   if (recue.projet !== courant?.nom || courant.sansStation === true) return;
-  // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184). Settings ne pose que
-  // les lignes des grants (ticket 1700).
+  // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184). Settings ne lit rien.
   if (actif() === undefined) rendre(recue, luCuisine, lectureCuisine);
   else if (!reglagesMontres()) rendre(recue, luOnglet, lectureOnglet);
-  grantsVus = desGrants;
-  poserGrants();
   fiabiliteVue = laFiabilite;
   cooksEnEchec = ongletDemande === CUISINE && "erreur" in recue;
   poserLaFiabilite();
@@ -8849,8 +8768,6 @@ RUBRIQUES = demarrage.rubriques;
 ALLUMAGE = demarrage.gestes.allumage;
 GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
 CONFIRMES = demarrage.gestes.confirmes;
-GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
-GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 GESTES_D_ATTENTE = demarrage.gestes.attente ?? [];
 DIRECTS = demarrage.gestes.directs;
 BANNIERE = demarrage.banniere;

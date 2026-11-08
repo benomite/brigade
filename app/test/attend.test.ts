@@ -13,13 +13,12 @@ const AVANT = "projet     brigade\nruntime    en marche depuis 3 h 12 (pid 4211)
 const APRES = "\nrail       2 tickets : 1 en cuisine, 1 en attente\n  #14  en cuisine  depuis 12 min  Le journal en ajout seul\n\nderniers événements\n  09:12:04  ticket.taken  #14\n";
 const PLEIN =
   "attend     2 décisions attendent le chef — la plus ancienne depuis 2 j\n" +
-  "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Le journal en ajout seul\n" +
+  "  #12  depuis 2 j  livraison verte, non mergée — à merger à la main : https://github.com/benomite/brigade/pull/31  Le journal en ajout seul\n" +
   "  #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal\n" +
   "fin attend\n";
 const VIDE = "attend     rien n'attend le chef\nfin attend\n";
-const GRANT = "grant merge           ABSENT — jamais donné\n";
 
-const lue = (status: string, autre = { commande: "grant", texte: GRANT }): Lecture => ({ projet: "brigade", demande: 7, a: "2026-10-12T09:14:00.000Z", sorties: [{ commande: "status", texte: status }, autre] });
+const lue = (status: string, autre = { commande: "station", texte: "station    claude\n" }): Lecture => ({ projet: "brigade", demande: 7, a: "2026-10-12T09:14:00.000Z", sorties: [{ commande: "status", texte: status }, autre] });
 
 describe("ce qui attend le chef, mis à part", () => {
   test("le bloc sort de `status` par son bord, bornes comprises — et le reste de la sortie reste tel quel, à sa place", () => {
@@ -30,7 +29,7 @@ describe("ce qui attend le chef, mis à part", () => {
       attend: PLEIN,
       sorties: [
         { commande: "status", texte: AVANT + APRES },
-        { commande: "grant", texte: GRANT },
+        { commande: "station", texte: "station    claude\n" },
       ],
     });
   });
@@ -99,34 +98,32 @@ const DEPUIS = "2026-10-12T08:00:00.000Z";
 const PR = "https://github.com/benomite/brigade/pull/31";
 const livraison = { since: DEPUIS, cause: null, pr: PR };
 const DE_TICKET: Attente[] = [
-  { ticket: 12, title: "Le journal en ajout seul", ...livraison, quoi: "merge", reason: "no-grant", expired: null },
-  { ticket: 13, title: "Un motif que personne ne connaît", ...livraison, quoi: "merge", reason: "motif-neuf", expired: null },
+  { ticket: 12, title: "Le journal en ajout seul", ...livraison, quoi: "merge", reason: "review-required" },
+  { ticket: 13, title: "Un motif que personne ne connaît", ...livraison, quoi: "merge", reason: "motif-neuf" },
   { ticket: 14, title: "La pass rouge", ...livraison, quoi: "remontee", reason: "still-red" },
-  { ticket: 15, title: "La PR fermée", ...livraison, quoi: "fermee", reason: "no-grant" },
+  { ticket: 15, title: "La PR fermée", ...livraison, quoi: "fermee", reason: "merge-refused" },
   // Un ticket mis de côté par la cuisine, ou qui en attend un autre, n'attend jamais le chef (#1834) : aucune entrée.
   { ticket: 30, title: null, since: DEPUIS, quoi: "ecartee", reason: "question" },
   { ticket: 31, title: null, since: DEPUIS, quoi: "illisible", epique: true },
   { ticket: 32, title: null, since: DEPUIS, quoi: "question" },
 ];
 const DE_STATION: Attente = { ticket: null, title: null, since: DEPUIS, quoi: "connexion", station: "claude", reason: null };
-const SANS_GRANT = { arretees: 3, mergees: 1, parLaPass: 0, refusees: 1, ouvertes: 1 };
-const ecrit = (attentes: Attente[], sansGrant: Parameters<typeof decrireAttentes>[2] = null) => decrireAttentes(attentes, () => "2 j", sansGrant).join("\n");
+const ecrit = (attentes: Attente[]) => decrireAttentes(attentes, () => "2 j").join("\n");
 
 describe("les tickets que le bloc nomme, pour le rail", () => {
   test("chaque ligne qu'écrit `status` pour un ticket donne son numéro, quelle que soit l'attente — et le reste de la ligne, mot pour mot", () => {
-    const bloc = ecrit([DE_STATION, ...DE_TICKET], SANS_GRANT);
+    const bloc = ecrit([DE_STATION, ...DE_TICKET]);
     const lus = ticketsDe(bloc);
 
     assert.deepEqual(lus.map(({ ticket }) => ticket), DE_TICKET.map(({ ticket }) => ticket));
     for (const { ticket, ligne } of lus) assert.ok(bloc.split("\n").includes(`  #${ticket}  ${ligne}`), `#${ticket}`);
-    assert.equal(lus[0]?.ligne, `for 2 j  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${PR} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Le journal en ajout seul`);
+    assert.match(lus[0]?.ligne ?? "", /^for 2 j  .*Le journal en ajout seul$/);
   });
 
-  test("une ligne sans numéro en tête n'est à aucun ticket : la station sans connexion Max, le bilan faute de grant, la tête du bloc", () => {
-    const bloc = ecrit([DE_STATION], SANS_GRANT);
+  test("une ligne sans numéro en tête n'est à aucun ticket : la station sans connexion Max, la tête du bloc", () => {
+    const bloc = ecrit([DE_STATION]);
 
     assert.match(bloc, /^ {2}claude {2}for 2 j {2}Max connection /m);
-    assert.match(bloc, /^ {2}without a grant, 3 green deliveries stopped/m);
     assert.deepEqual(ticketsDe(bloc), []);
     assert.deepEqual(ticketsDe(ecrit([])), []);
     assert.deepEqual(ticketsDe(VIDE), []);
@@ -134,7 +131,7 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
 
   test("un numéro ailleurs qu'en tête n'est pas lu : celui qu'un ticket BLOQUÉ attend, celui d'une PR, celui d'un titre", () => {
     assert.deepEqual(ticketsDe(PLEIN), [
-      { ticket: 12, ligne: "depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Le journal en ajout seul", suite: [] },
+      { ticket: 12, ligne: "depuis 2 j  livraison verte, non mergée — à merger à la main : https://github.com/benomite/brigade/pull/31  Le journal en ajout seul", suite: [] },
       { ticket: 21, ligne: "depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal", suite: [] },
     ]);
   });
@@ -156,8 +153,6 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
       "  version  depuis 2 j  une version attend",
       "      │ ce qui précise la version n'est à aucun ticket",
       "  #21  depuis 3 h 02  BLOQUÉ",
-      "  sans grant, 1 livraison verte arrêtée",
-      "      ce qui précise le bilan non plus",
       "fin attend",
       "      hors du bloc",
     ].join("\n");

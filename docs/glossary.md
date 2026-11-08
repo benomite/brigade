@@ -3,7 +3,7 @@
 This file fixes **the English word for each French term** of the product (`installation`, `garde-fous`, `cuisine`, `attend`…). Tickets that translate the app, the box commands, the code and the docs apply it.
 
 - **One French term, one English word**, and **one English word, one object.** When two French names name the *same* object (`pris` and `en cuisine`), they share one English word, and the table says so.
-- **Words already English stay.** `cook`, `grant`, `pass`, `status`, `rail`, `station`, `manager`, `reviewer`, `closer`, `second`, `chef`, `ticket`, `box`, `runtime`, `worktree`, `fire`, `86`, `base`, `gates` are kept as they are.
+- **Words already English stay.** `cook`, `pass`, `status`, `rail`, `station`, `manager`, `reviewer`, `closer`, `second`, `chef`, `ticket`, `box`, `runtime`, `worktree`, `fire`, `86`, `base`, `gates` are kept as they are.
 - **Technical identifiers already in English do not change** — journal events (`kitchen.stopped`), the fields of `faits`, the closing settings (`BRIGADE_CLOSING_*`).
 - This file is the reference. It does not rename anything by itself.
 
@@ -92,7 +92,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
-| `grant` | `grant` | The `merge` grant | `activer` → `enable`; `prolonger` → `extend`; `revoquer` → `revoke`; `--jusqu-a` → `--until`; `--pour` → `--for`; `--usages` → `--uses`; `--sans-echeance` → `--no-expiry` |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
 | `fermeture` | `closing` | The closing pass | — |
@@ -110,7 +109,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `runtime` | `runtime` |
 | `cuisine` | `kitchen` |
 | `connexion` | `connection` |
-| `grant` | `grant` |
 | `base` | `base` |
 | `sauvegarde` | `backup` (`TROP VIEILLE` → `TOO OLD`; `JAMAIS FAITE` → `NEVER DONE`) |
 | `attend` / `fin attend` | `awaiting` / `end awaiting` |
@@ -123,7 +121,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `dérive` | `drift` |
 | `derniers événements` | `latest events` |
 | `rien n'attend le chef` | `nothing awaits the chef` |
-| `sans grant, …` | `without a grant, …` |
 | `aucun en cours` | `none running` |
 | `ouverte` / `retenue` / `arrêtée` / `éteinte` | `open` / `held` / `stopped` / `off` |
 | `ALLUMÉ` / `ÉTEINT` | `ON` / `OFF` |

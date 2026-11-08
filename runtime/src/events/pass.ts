@@ -1,5 +1,4 @@
-// Les faits de la pass : ce qu'elle juge d'une livraison, ce qu'elle en décide,
-// et le grant sous lequel elle merge.
+// Les faits de la pass : ce qu'elle juge d'une livraison, ce qu'elle en décide.
 import type { CoureurDesGates } from "./gates.ts";
 import type { Ressource } from "./station.ts";
 
@@ -7,11 +6,6 @@ import type { Ressource } from "./station.ts";
 // contrôle n'est pas affaibli, il l'est, ou cela ne peut pas s'établir.
 export const VERDICTS_DU_SECOND_JUGE = ["not-weakened", "weakened", "cannot-establish"] as const;
 export type VerdictDuSecondJuge = (typeof VERDICTS_DU_SECOND_JUGE)[number];
-
-// La seule action qu'un grant couvre au jalon 1.
-export type ActionDeGrant = "merge";
-// Ce qui éteint un grant sans le chef : sa date, ou son compte d'usages.
-export type CauseDExtinction = "until" | "uses";
 
 // Le plafond de durée que les gates se donnent, franchi : ce qu'elles ont
 // coûté de processeur, leur plafond, et la ligne où elles le disent.
@@ -70,18 +64,16 @@ export type Finding = { severity: "blocking" | "remark"; file: string | null; te
 export type Review = { outcome: "green" | "red" | "skipped"; run: string | null; summary: string | null; findings: Finding[] };
 
 // Pourquoi la pass s'arrête sur une livraison verte sans la merger : un motif
-// par geste du chef. `no-grant` : accorder le grant, ou merger à la main.
-// `review-required` : la relire, puis la merger à la main — elle touche à ses
+// par geste du chef. `review-required` : la relire, puis la merger à la main — elle touche à ses
 // juges, ou à ce que le projet déclare au runtime pour s'ouvrir (son réseau,
 // ses secrets). `merge-refused` : GitHub a refusé le merge — lever ce qu'il
 // dit, puis merger à la main. `cause` précise sans rien changer au geste.
 // Les renvois au cook que la pass de l'ancien chemin faisait avant de passer
 // la main au manager : ce que son historique compte (`montrer-pass.ts`).
 export const RENVOIS_MAX = 2;
-export const SANS_GRANT = "no-grant";
 export const A_RELIRE = "review-required";
 export const MERGE_REFUSE = "merge-refused";
-export type MotifDArret = typeof SANS_GRANT | typeof A_RELIRE | typeof MERGE_REFUSE;
+export type MotifDArret = typeof A_RELIRE | typeof MERGE_REFUSE;
 // Ce que `cause` dit d'une livraison à relire : ses juges, ou les fichiers de
 // déclaration qu'elle touche.
 export const JUGES_MODIFIES = "judge-modified";
@@ -174,22 +166,6 @@ export function motifDeRemontee(payload: { reason?: unknown; cause?: unknown }):
 }
 
 export type FaitPass =
-  // Les commandes du chef. Sans `grant.activated`, il n'y a pas de grant.
-  // `until` : l'instant où il s'éteint seul. `uses` : le nombre de merges
-  // qu'il couvre. Sans l'un ni l'autre, il est sans échéance.
-  | { type: "grant.activated"; payload: { action: ActionDeGrant; until?: string; uses?: number } }
-  | { type: "grant.revoked"; payload: { action: ActionDeGrant } }
-  // Le chef a demandé ce qu'aucun grant n'autorise : refusé, rien n'est
-  // accordé. `line` : la ligne de la liste qui l'interdit.
-  | { type: "grant.refused"; payload: { action: string; line: string } }
-  // Le chef prolonge un grant actif. `until` : sa nouvelle échéance ; `uses` :
-  // les usages qui s'ajoutent à ceux qui restent. Nuls, la limite est levée ;
-  // absents, elle ne change pas.
-  | { type: "grant.extended"; payload: { action: ActionDeGrant; until?: string | null; uses?: number | null } }
-  // Le grant s'est éteint seul : son échéance est passée (`until`), ou son
-  // dernier usage est consommé (`uses`). `since` : l'instant où il a cessé de
-  // valoir — l'échéance, pas l'heure où le runtime l'a constatée.
-  | { type: "grant.expired"; payload: { action: ActionDeGrant; cause: CauseDExtinction; since: string } }
   // Une livraison hors du rail entre en pass : la PR d'une passe de fermeture,
   // qui n'a pas de ticket. Elle y est suivie sous le numéro de sa PR — le
   // `ticket` de ce fait et de tous ceux de sa pass, que GitHub ne donne à
@@ -357,9 +333,6 @@ export type FaitPass =
         change?: string;
       };
     }
-  // L'intention de merger, écrite avant l'appel à GitHub : c'est l'usage du
-  // grant. `verdict` : le numéro de séquence du `pass.judged` qui l'autorise.
-  | { type: "grant.used"; payload: { action: ActionDeGrant; pr: string; number: number; sha: string; base: string; verdict: number } }
   // Le résultat. `by` : la pass, ou quelqu'un d'autre (le chef, à la main).
   // `actor` : le compte GitHub qui a mergé — celui que GitHub nomme, ou
   // l'identité de la pass quand elle vient de le faire. Quand la pass a une
@@ -375,9 +348,8 @@ export type FaitPass =
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
   // relecture. `verdict` : le numéro de séquence du `pass.judged` qui le sert.
   | { type: "pass.served"; payload: { verdict: number } }
-  // Verte, mais non mergée : la pass s'arrête là et dit pourquoi. `expired` :
-  // faute de grant, parce qu'il s'était éteint seul à cet instant.
-  | { type: "pass.held"; payload: { reason: MotifDArret; cause?: string; expired?: string } }
+  // Verte, mais non mergée : la pass s'arrête là et dit pourquoi.
+  | { type: "pass.held"; payload: { reason: MotifDArret; cause?: string } }
   // GitHub exige une branche à jour et refuse le merge : le verdict devient
   // rouge, `findings` repart au cook.
   | { type: "pass.outdated"; payload: { sha: string; findings: string[] } }

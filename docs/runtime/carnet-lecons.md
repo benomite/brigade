@@ -123,9 +123,9 @@ Modules: `runtime/src/promotion/`; the decision, `runtime/src/peremption/`.
    `retirée`). The body states each decision and **the retros that justify it**, with their ticket.
    Log: `carnet.started`, then `carnet.delivered` or `carnet.undelivered` (why).
 5. **The pass.** It enters pass **off the rail** as it opens (`pass.entered`): merge with the base,
-   gates, reviewer (reading it as a notebook change), CI, `merge` grant. **No gesture from you.**
+   gates, reviewer (reading it as a notebook change), CI. **No gesture from you.**
    Being under `.claude/brigade/`, it also calls the **second judge** (see
-   [`pass-merge.md`](pass-merge.md)): not weakening, merged under the grant, stopped without it. Red,
+   [`pass-merge.md`](pass-merge.md)): not weakening, merged. Red,
    no cook picks it up: it comes up to you.
 
 An unreadable base notebook is never rewritten: `carnet.undelivered` names the faulty line, judgement

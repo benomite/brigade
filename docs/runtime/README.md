@@ -24,7 +24,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery |
 | [`manager.md`](manager.md) | The manager and the tickets of the epic |
 | [`pass.md`](pass.md) | The pass: review, decision, merge |
-| [`pass-merge.md`](pass-merge.md) | The `merge` grant, seeing the pass |
+| [`pass-merge.md`](pass-merge.md) | The merge, seeing the pass |
 | [`etat-et-mesures.md`](etat-et-mesures.md) | Kitchen state, measures |
 | [`carnet-lecons.md`](carnet-lecons.md) | The lessons notebook |
 | [`fermeture.md`](fermeture.md) | The closing that observes, the closing that writes |

@@ -1,12 +1,11 @@
 // La projection de la pass : où en est chaque livraison, les renvois
-// consommés, et le grant `merge` avec ses usages.
+// consommés.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { motifDArret, motifDeRemontee } from "../src/events/pass.ts";
-import { direSansGrant } from "../src/attend.ts";
-import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
+import { controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
@@ -31,23 +30,6 @@ function histoire(t: TestContext) {
   return { journal, base: journal.base, noter, lancer, livrer, juger };
 }
 
-test("sans fait, il n'y a pas de grant ; activé puis révoqué, il dit depuis quand et par qui", (t) => {
-  const { base, noter } = histoire(t);
-  const lu = () => {
-    const grant = etatDuGrant(base, "merge", new Date());
-    return grant && [grant.active, grant.since, grant.by, grant.ended];
-  };
-  assert.equal(lu(), null);
-  assert.equal(etatDuGrant(base, "merge", new Date())?.active ?? false, false);
-
-  noter({ type: "grant.activated", payload: { action: "merge" } }, null, "chef");
-  assert.deepEqual(lu(), [true, `${JOUR_HORLOGE}T10:00:00.000Z`, "chef", null]);
-  assert.equal(etatDuGrant(base, "merge", new Date())?.active ?? false, true);
-
-  noter({ type: "grant.revoked", payload: { action: "merge" } }, null, "chef");
-  assert.deepEqual(lu(), [false, `${JOUR_HORLOGE}T10:00:01.000Z`, "chef", "revoked"]);
-});
-
 test("une livraison suit ses phases : cuisinée, livrée, jugée, mergée", (t) => {
   const { base, noter, lancer, livrer, juger } = histoire(t);
   const phase = () => passDuTicket(base, 17)?.phase;
@@ -61,27 +43,20 @@ test("une livraison suit ses phases : cuisinée, livrée, jugée, mergée", (t) 
   const verdict = juger("a", "green");
   // L'attente de la CI se compte depuis le premier jugement de la livraison.
   assert.deepEqual([phase(), passDuTicket(base, 17)?.startedAt, passDuTicket(base, 17)?.verdictSeq], ["green", `${JOUR_HORLOGE}T10:00:03.000Z`, verdict?.seq]);
-  noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", base: "v2", verdict: verdict?.seq ?? 0 } });
-  assert.equal(phase(), "merging");
-  assert.deepEqual(usagesDuGrant(base, 10).map((u) => [u.ticket, u.pr, u.sha, u.base, u.verdict, u.outcome]), [[17, PR, "sha-a", "v2", verdict?.seq, null]]);
   noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: false } });
   assert.equal(phase(), "merged");
-  assert.equal(usagesDuGrant(base, 10)[0]?.outcome, "done");
 });
 
-test("un merge qui échoue rend la décision à reprendre, et l'usage du grant garde sa trace", (t) => {
+test("un merge qui échoue rend la décision à reprendre", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");
-  const verdict = juger("a", "green");
-  const intention = { type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", base: "v2", verdict: verdict?.seq ?? 0 } } as const;
-  noter(intention);
+  juger("a", "green");
   noter({ type: "merge.failed", payload: { pr: PR, sha: "sha-a", reason: "interrupted" } });
 
   assert.equal(passDuTicket(base, 17)?.phase, "green");
 
-  noter(intention);
   noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: true } });
-  assert.deepEqual(usagesDuGrant(base, 10).map((u) => u.outcome), ["done", "failed"]);
+  assert.equal(passDuTicket(base, 17)?.phase, "merged");
 });
 
 test("un renvoi se compte, garde ses findings, et attend tant qu'aucun cook n'a livré", (t) => {
@@ -134,11 +109,11 @@ test("un verdict porte les déclarations du projet que la livraison touche ; un 
   assert.deepEqual(passDuTicket(base, 17)?.declarations, []);
 });
 
-test("l'essai à blanc d'un journal d'avant, quand il était un fait à lui, se relit sans rien changer : ni la phase de la livraison, ni le grant, ni ses usages", (t) => {
+test("l'essai à blanc d'un journal d'avant, quand il était un fait à lui, se relit sans rien changer : pas la phase de la livraison", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");
   juger("a", "green");
-  const lire = () => [passDuTicket(base, 17), etatDuGrant(base, "merge", new Date()), usagesDuGrant(base, 10)];
+  const lire = () => passDuTicket(base, 17);
   const avant = lire();
 
   noter({ type: "pass.rehearsed", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", branch: "cook/a", base: "v2", verdict: 3, outcome: "merge", head: "base-1", behind: 0, reason: null } });
@@ -151,8 +126,8 @@ test("une pass arrêtée ou remontée dit pourquoi", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");
   juger("a", "green");
-  noter({ type: "pass.held", payload: { reason: "no-grant" } });
-  assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.reason], ["held", "no-grant"]);
+  noter({ type: "pass.held", payload: { reason: "merge-refused" } });
+  assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.reason], ["held", "merge-refused"]);
 
   noter({ type: "pass.escalated", payload: { reason: "unjudged", cause: "ci-silent" } });
   assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.reason, passDuTicket(base, 17)?.cause], ["escalated", "unjudged", "ci-silent"]);
@@ -161,7 +136,6 @@ test("une pass arrêtée ou remontée dit pourquoi", (t) => {
 // Un motif par geste du chef : trois pour une livraison verte arrêtée, trois
 // pour une remontée. Ce qui les précise est en `cause`.
 const ARRETS_D_AVANT = [
-  ["no-grant", "no-grant", null],
   ["judge-modified", "review-required", "judge-modified"],
   ["declaration-modified: .claude/brigade/reseau", "review-required", "declaration-modified: .claude/brigade/reseau"],
   ["merge-refused: HTTP 405", "merge-refused", "HTTP 405"],
@@ -198,85 +172,11 @@ test("un journal écrit avant le regroupement des motifs se relit : chaque ancie
     assert.deepEqual(lue(), ["escalated", motif, cause]);
   }
   // Les motifs qui restent : pas plus de noms que de gestes.
-  assert.deepEqual([...new Set(ARRETS_D_AVANT.map(([, motif]) => motif))], ["no-grant", "review-required", "merge-refused"]);
+  assert.deepEqual([...new Set(ARRETS_D_AVANT.map(([, motif]) => motif))], ["review-required", "merge-refused"]);
   assert.deepEqual([...new Set(REMONTEES_D_AVANT.map(([, motif]) => motif))], ["still-red", "unjudged", "manager-split"]);
   // Écrit d'aujourd'hui, un motif se relit tel quel, et sa cause avec lui.
   assert.deepEqual(motifDeRemontee({ reason: "unjudged", cause: "ci-silent" }), { reason: "unjudged", cause: "ci-silent" });
   assert.deepEqual(motifDArret({ reason: "review-required", cause: "judge-modified" }), { reason: "review-required", cause: "judge-modified" });
-});
-
-// Le bilan des arrêts faute de grant : le chiffre sur lequel le chef accorde.
-function arrets(t: TestContext) {
-  const { base, noter, lancer } = histoire(t);
-  const pr = (n: number) => `https://github.com/o/r/pull/${n}`;
-  // Une livraison du ticket, verte, arrêtée faute de grant, sur sa PR.
-  const arreter = (ticket: number, n: number, run = `run-${n}`) => {
-    noter({ type: "pass.started", payload: { run, pr: pr(n), number: n, sha: `sha-${n}` } }, ticket);
-    noter({ type: "pass.held", payload: { reason: "no-grant" } }, ticket);
-  };
-  const merger = (ticket: number, n: number, by: "pass" | "outside") => noter({ type: "merge.done", payload: { pr: pr(n), sha: `sha-${n}`, by, reconciled: false } }, ticket);
-  const fermer = (ticket: number, n: number) => noter({ type: "pass.pr-closed", payload: { pr: pr(n) } }, ticket);
-  return { noter, lancer, pr, arreter, merger, fermer, bilan: () => bilanSansGrant(base) };
-}
-const RIEN = { arretees: 0, mergees: 0, parLaPass: 0, refusees: 0, ouvertes: 0 };
-
-test("une PR arrêtée faute de grant, fermée, puis rouverte et mergée n'est pas un désaccord : elle est mergée", (t) => {
-  const { arreter, merger, fermer, bilan } = arrets(t);
-  arreter(17, 40);
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, ouvertes: 1 });
-  fermer(17, 40);
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, refusees: 1 });
-
-  merger(17, 40, "outside");
-
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, mergees: 1 });
-  // Constaté deux fois, un merge ne compte qu'une fois.
-  merger(17, 40, "outside");
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, mergees: 1 });
-});
-
-test("le bilan dit qui a mergé : une livraison que la pass merge elle-même, le grant accordé depuis, n'est pas un merge du chef", (t) => {
-  const { arreter, merger, bilan } = arrets(t);
-  arreter(17, 40);
-  arreter(18, 41);
-
-  merger(17, 40, "pass");
-  merger(18, 41, "outside");
-
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 2, mergees: 1, parLaPass: 1 });
-  assert.equal(direSansGrant(bilan()), "sans grant, 2 livraisons vertes arrêtées : 1 mergée à la main, 0 fermée sans merge — aucun désaccord —, 0 encore ouverte, 1 mergée par la pass, le grant accordé depuis");
-});
-
-test("le bilan suit la livraison arrêtée, par sa PR : le merge d'une autre PR du même ticket ne dit rien d'elle, et une seconde livraison arrêtée du ticket compte", (t) => {
-  const { arreter, merger, lancer, noter, bilan } = arrets(t);
-  arreter(17, 40);
-  // Arrêtée de nouveau au réveil suivant, la même PR ne compte qu'une fois.
-  noter({ type: "pass.held", payload: { reason: "no-grant" } });
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, ouvertes: 1 });
-
-  // Une autre PR du ticket, mergée à la main : la livraison arrêtée reste ouverte.
-  merger(17, 99, "outside");
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, ouvertes: 1 });
-
-  // Un cook repart sur le ticket : la première livraison n'est plus suivie, la seconde, arrêtée à son tour, compte.
-  lancer("b");
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 1 });
-  arreter(17, 41, "b");
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 2, ouvertes: 1 });
-  assert.equal(direSansGrant(bilan()), "sans grant, 2 livraisons vertes arrêtées : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte, 1 plus suivie");
-});
-
-test("un ticket qui quitte le rail dit ce que sa PR arrêtée était ce jour-là : mergée, fermée sans merge, ou laissée ouverte ; et un arrêt qu'aucun grant ne lève n'est pas compté", (t) => {
-  const { arreter, noter, pr, bilan } = arrets(t);
-  for (const [ticket, n] of [[17, 40], [18, 41], [19, 42]] as const) arreter(ticket, n);
-  noter({ type: "pass.started", payload: { run: "r", pr: pr(43), number: 43, sha: "sha-43" } }, 20);
-  noter({ type: "pass.held", payload: { reason: "review-required", cause: "judge-modified" } }, 20);
-
-  noter({ type: "pass.abandoned", payload: { branch: "cook/a", pr: null, merged: true } }, 17);
-  noter({ type: "pass.abandoned", payload: { branch: "cook/b", pr: null, closed: true } }, 18);
-  noter({ type: "pass.abandoned", payload: { branch: "cook/c", pr: pr(42) } }, 19);
-
-  assert.deepEqual(bilan(), { ...RIEN, arretees: 3, mergees: 1, refusees: 1 });
 });
 
 test("une livraison qui repart ne garde pas la cause de son arrêt", (t) => {
@@ -289,17 +189,15 @@ test("une livraison qui repart ne garde pas la cause de son arrêt", (t) => {
   assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.reason, passDuTicket(base, 17)?.cause], ["merged", null, null]);
 });
 
-test("un ticket qui quitte le rail emporte sa pass ; les usages du grant restent", (t) => {
+test("un ticket qui quitte le rail emporte sa pass", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");
-  const verdict = juger("a", "green");
-  noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", base: "v2", verdict: verdict?.seq ?? 0 } });
+  juger("a", "green");
   noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: false } });
 
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 17, "github");
 
   assert.deepEqual(lirePass(base), []);
-  assert.equal(usagesDuGrant(base, 10).length, 1);
   // Mergée, elle ne laisse rien derrière elle.
   assert.deepEqual(orphelines(base), []);
 });
@@ -309,7 +207,7 @@ test("un ticket qui quitte le rail avec une livraison non mergée la laisse orph
   const partir = (ticket: number, reason: "closed" | "unfired" = "closed") => noter({ type: "ticket.left", payload: { reason } }, ticket, "github");
   livrer("a");
   juger("a", "green");
-  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  noter({ type: "pass.held", payload: { reason: "merge-refused" } });
   const depart = partir(17);
 
   assert.deepEqual(lirePass(base), []);
@@ -344,15 +242,13 @@ test("un ticket qui quitte le rail avec une livraison non mergée la laisse orph
 test("des faits illisibles n'empêchent pas le journal de se rejouer", (t) => {
   const { journal, base, noter } = histoire(t);
   const illisible = (type: string, payload: unknown, ticket: number | null = 17) => noter({ type, payload } as unknown as Fait, ticket);
-  illisible("grant.activated", {});
   illisible("cook.launched", { run: 3 });
   illisible("pass.judged", { verdict: 12 }, null);
-  illisible("grant.used", { action: "merge" });
   illisible("pass.returned", { n: "deux", findings: "aucun" });
 
   journal.reconstruire();
 
-  assert.deepEqual([etatDuGrant(base, "merge", new Date()), lirePass(base), usagesDuGrant(base, 10)], [null, [], []]);
+  assert.deepEqual(lirePass(base), []);
 });
 
 test("la relecture du reviewer se range sur la livraison sans en changer la phase ; un verdict sans diff se retient, et servi sans merge, le ticket est en phase `served`", (t) => {
@@ -432,7 +328,7 @@ test("un merge fait hors du runtime est à vérifier sur la base ; le contrôle 
   assert.equal(etatDeLaBase(base), null);
   livrer("a");
   juger("a", "green");
-  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  noter({ type: "pass.held", payload: { reason: "merge-refused" } });
   // Un merge d'avant ce contrôle ne dit pas s'il est à vérifier : il ne l'est
   // pas — un journal ancien, rejoué, ne réveille aucun de ses vieux merges.
   noter({ type: "merge.done", payload: { pr: PR, sha: "sha-y", by: "outside", reconciled: false } }, 16);
@@ -598,7 +494,7 @@ test("une livraison dont la PR est fermée, puis dont le ticket quitte le rail, 
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");
   juger("a", "green");
-  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  noter({ type: "pass.held", payload: { reason: "merge-refused" } });
   noter({ type: "pass.pr-closed", payload: { pr: PR } });
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 17, "github");
 

@@ -496,8 +496,8 @@ export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
   return trouve();
 }
 
-// Ouvre une lecture comme le chef le fait depuis l'écran principal : les grants, par l'onglet Settings — une seule
-// page, qui les lit (#1700) ; Cooks — `station` —, par l'onglet Cooks ; Log, par le geste « journal ». Rend l'élément
+// Ouvre une lecture comme le chef le fait depuis l'écran principal : Settings — une seule
+// page, qui ne lit rien (#1700) ; Cooks — `station` —, par l'onglet Cooks ; Log, par le geste « journal ». Rend l'élément
 // cliqué en dernier. Les pages Rail, Manager et General de Settings n'existent plus : les demander lève.
 export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
   const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
@@ -514,7 +514,7 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     await repos();
     return geste;
   }
-  if (titre !== "Settings" && titre !== "Grants") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
+  if (titre !== "Settings") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
   return cliquer(vue.element("onglets-du-projet"), "Settings");
 }
 

@@ -21,9 +21,8 @@ import type { Projet } from "./config.ts";
 import { CONTROLE, SANS_ECRIRE, type Terminal } from "./terminaux.ts";
 
 // `commande` : ce qui suit `brigade <projet>` sur sa ligne de la doc.
-// `parGrant` : le geste porte sur un grant, que la vue nomme — il s'écrit à la suite.
 // `forme` : direct, il part au clic ; confirmé, il attend le « oui » du chef.
-export type Geste = { id: string; commande: string; parGrant?: true; forme: "direct" | "confirmé" };
+export type Geste = { id: string; commande: string; forme: "direct" | "confirmé" };
 
 export const GESTES: readonly Geste[] = [
   // L'interrupteur du projet (#1406), un seul pour tout le projet. Allumer engage : le manager juge
@@ -31,9 +30,6 @@ export const GESTES: readonly Geste[] = [
   // (allumage.ts). Éteindre ne détruit rien : rien de neuf n'est pris, jugé, découpé ni mergé.
   { id: "projet-allumer", commande: "switch on", forme: "confirmé" },
   { id: "projet-eteindre", commande: "switch off", forme: "direct" },
-  // Accordé, une pass verte est mergée sans le chef ; révoqué, plus rien ne l'est.
-  { id: "grant-activer", commande: "grant enable", parGrant: true, forme: "confirmé" },
-  { id: "grant-revoquer", commande: "grant revoke", parGrant: true, forme: "confirmé" },
   // Arrêter tue les cooks en vol ; reprendre relance les tickets, sur le quota du chef.
   { id: "reprendre", commande: "guardrails resume", forme: "confirmé" },
   { id: "stop", commande: "guardrails stop", forme: "confirmé" },
@@ -47,22 +43,17 @@ export const CONFIRMES: readonly string[] = GESTES.filter(({ forme }) => forme =
 // Ce qu'un geste confirmé dit quand il est nommé sans le « oui » du chef.
 export const SANS_OUI = "nothing was sent: this action waits for your “yes”, in front of what it costs — nothing is written into the second";
 
-// Les grants que la doc nomme : aucune commande ne s'écrit pour un autre.
-export const GRANTS: readonly string[] = ["merge"];
-
 // Un mot tel que le shell du Mac le rendra : entier, sans rien en exécuter.
 export const mot = (texte: string) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
 // Ce que le geste écrit pour ce projet — ou pourquoi il n'écrit rien. La vue
-// nomme un geste, et son grant s'il en a un, jamais une commande ; un projet
+// nomme un geste, jamais une commande ; un projet
 // dont la cuisine n'est nulle part n'a rien à écrire. `cuisine` : là où elle
 // tourne à cet instant (poste/cuisine-ici.ts).
-export function commandeDuGeste(id: unknown, projet: Projet, grant: unknown, cuisine: Cuisine | undefined): { commande: string } | { refus: string } | undefined {
+export function commandeDuGeste(id: unknown, projet: Projet, cuisine: Cuisine | undefined): { commande: string } | { refus: string } | undefined {
   const geste = GESTES.find((candidat) => candidat.id === id);
   if (geste === undefined || cuisine === undefined) return undefined;
-  const nomme = typeof grant === "string" && GRANTS.includes(grant) ? grant : undefined;
-  if (geste.parGrant && nomme === undefined) return { refus: `nothing is written: this action applies to a grant, to be named among those in the docs (${GRANTS.join(", ")})` };
-  return enPoste(cuisine, projet.nom, `${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`);
+  return enPoste(cuisine, projet.nom, geste.commande);
 }
 
 // Une commande du runtime dans sa forme de poste, pour ce projet : `suite` est ce qui suit
@@ -87,8 +78,8 @@ function enLocal(locale: Locale, nom: string, suite: string): { commande: string
 // l'est : un second qui n'est pas dit libre, ou un geste confirmé nommé sans `oui`. Seul
 // `true` vaut « oui » : rien d'autre venu de la vue ne fait partir un geste confirmé.
 type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> };
-export function ecrireGeste(terminaux: Registre, id: unknown, projet: Projet, grant: unknown, oui: unknown, cuisine: Cuisine | undefined): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
-  const ecrit = commandeDuGeste(id, projet, grant, cuisine);
+export function ecrireGeste(terminaux: Registre, id: unknown, projet: Projet, oui: unknown, cuisine: Cuisine | undefined): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
+  const ecrit = commandeDuGeste(id, projet, cuisine);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
   if (projet.refus !== undefined) return { refus: `nothing is written: “${projet.nom}” does not open — ${projet.refus}` };
   if (CONFIRMES.includes(String(id)) && oui !== true) return { refus: SANS_OUI };

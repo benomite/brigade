@@ -42,7 +42,8 @@ export function exemple(t: TestContext, repertoire?: string) {
   noter("10:00", { type: "base.repair-opening", payload: { sha: "abc1234def" } }, null, "pass");
   noter("10:00", { type: "base.repair-opened", payload: { sha: "abc1234def", failures: ["FAIL  tests"], reconciled: false } }, 30, "pass");
   noter("10:00", { type: "ticket.arrived", payload: { title: "Réparer la base", priority: 0, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/30" } }, 30, "github");
-  noter("10:01", { type: "grant.activated", payload: { action: "merge", until: "2026-10-12T10:30:00.000Z" } }, null, "chef");
+  // Un journal d'avant garde ses événements `grant.*` : le runtime les ignore.
+  noter("10:01", { type: "grant.activated", payload: { action: "merge", until: "2026-10-12T10:30:00.000Z" } } as never, null, "chef");
   noter("10:02", { type: "backup.completed", payload: { name: "2026-10-09T10-00-00Z", lastSeq: 7, events: 7, streams: 0 } }, null, "sauvegarde");
   return journal;
 }

@@ -1,11 +1,11 @@
 // The pass: for each delivered ticket, where its judgement stands and how many
-// returns it has consumed. And the `merge` grant: its state, each of its uses.
+// returns it has consumed.
 // This is where the pass reads what it still has to do — so what was in
 // progress is found again after a restart — and where the chef reads "why is
 // this code on the base?".
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
-import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Gates, type Verdict } from "../events/pass.ts";
+import { motifDArret, motifDeRemontee, type FaitPass, type Finding, type Gates, type Verdict } from "../events/pass.ts";
 import type { FaitRail } from "../events/rail.ts";
 import type { FaitStation } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -82,8 +82,6 @@ export type PassDeTicket = {
   // chef's gesture; and `cause`, what refines it without changing the gesture.
   reason: string | null;
   cause: string | null;
-  // Stopped for lack of a grant: the instant it had expired by itself, if it had.
-  grantExpired: string | null;
 };
 
 // A delivery that its ticket left behind on leaving the rail without it being
@@ -144,40 +142,6 @@ export type EchecDeReparation = "partie" | "remontee" | "rouge-apres-merge";
 // `at`, and `reason` is what git said about it.
 export type ControleRetenu = { at: string; reason: string };
 
-// A grant as it stands at the time it is read. `since`: since when it has been
-// in this state — granted, revoked, expired. `by`: who granted or revoked
-// it.
-export type Grant = {
-  action: string;
-  active: boolean;
-  since: string;
-  by: string;
-  // Its limits: the instant it expires, the uses it has left. Null, it has
-  // none.
-  until: string | null;
-  usesLeft: number | null;
-  // The merges in flight: an intent written, no result yet. Each one holds
-  // one of the remaining uses.
-  reserved: number;
-  // Inactive: the chef revoked it, or it expired by itself — and why.
-  ended: "revoked" | "expired" | null;
-  cause: CauseDExtinction | null;
-  // Expired at read time, without the fact yet being in the log.
-  unrecorded: boolean;
-};
-
-export type UsageDeGrant = {
-  seq: number;
-  at: string;
-  ticket: number | null;
-  action: string;
-  pr: string;
-  sha: string;
-  base: string;
-  verdict: number;
-  // `done`, `failed`, or nothing as long as the result is not written.
-  outcome: string | null;
-};
 
 type Ecoutes =
   | FaitPass
@@ -201,49 +165,10 @@ const passer = (base: Base, ticket: number | null, at: string, phase: Phase, aff
   base.executer(`UPDATE pass SET phase = ?, since = ?${affectation === "" ? "" : `, ${affectation}`} WHERE ticket = ?`, phase, at, ...parametres, ticket);
 };
 
-const instantOuRien = (valeur: unknown) => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? new Date(valeur).toISOString() : null);
-const usagesOuRien = (valeur: unknown) => (Number.isSafeInteger(valeur) && (valeur as number) > 0 ? (valeur as number) : null);
-
-// The granted (`ended` null) or revoked grant. A written but unreadable limit
-// does not make an unlimited grant: it is already reached.
-const grant = (base: Base, seq: number, at: string, by: string, ended: "revoked" | null, payload: { action?: unknown; until?: unknown; uses?: unknown }) => {
-  if (!texte(payload.action)) return;
-  const accorde = ended === null;
-  base.executer(
-    `INSERT INTO grants (action, active, since, by, until, uses_left, ended, cause, granted_seq) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
-     ON CONFLICT (action) DO UPDATE SET active = excluded.active, since = excluded.since, by = excluded.by, until = excluded.until,
-       uses_left = excluded.uses_left, ended = excluded.ended, cause = NULL, granted_seq = excluded.granted_seq`,
-    payload.action,
-    accorde ? 1 : 0,
-    at,
-    by,
-    accorde && payload.until !== undefined ? (instantOuRien(payload.until) ?? at) : null,
-    accorde && payload.uses !== undefined ? (usagesOuRien(payload.uses) ?? 0) : null,
-    ended,
-    seq,
-  );
-};
-
-// A merge's result is filed onto the intent left without a result. Merged,
-// it consumes a use of the grant under which the pass wanted it — not of a
-// grant granted since —, whatever the count GitHub names: the pass had asked
-// for this merge, and its answer may have been lost. A merge the pass did not
-// want finds no intent, and consumes nothing.
-const conclureUsage = (base: Base, ticket: number | null, outcome: "done" | "failed") => {
-  if (outcome === "done") {
-    base.executer(
-      `UPDATE grants SET uses_left = uses_left - 1
-       WHERE active = 1 AND uses_left > 0
-         AND EXISTS (SELECT 1 FROM grant_uses WHERE ticket IS ? AND outcome IS NULL AND action = grants.action AND seq > grants.granted_seq)`,
-      ticket,
-    );
-  }
-  base.executer("UPDATE grant_uses SET outcome = ? WHERE ticket IS ? AND outcome IS NULL", outcome, ticket);
-};
 
 export const pass = definirProjection<Ecoutes>({
   nom: "pass",
-  tables: ["pass", "pass_orphans", "grants", "grant_uses", "base_checks", "base_suspects", "base_holds", "base_repairs", "base_repair_opening"],
+  tables: ["pass", "pass_orphans", "base_checks", "base_suspects", "base_holds", "base_repairs", "base_repair_opening"],
   schema: `
     CREATE TABLE IF NOT EXISTS pass (
       ticket         INTEGER PRIMARY KEY,
@@ -268,7 +193,6 @@ export const pass = definirProjection<Ecoutes>({
       returns        INTEGER NOT NULL DEFAULT 0,
       reason         TEXT,
       cause          TEXT,
-      grant_expired  TEXT,
       off_rail       INTEGER NOT NULL DEFAULT 0
     ) STRICT;
     -- Par branche : un ticket revenu puis reparti laisse deux livraisons.
@@ -322,55 +246,8 @@ export const pass = definirProjection<Ecoutes>({
       at     TEXT NOT NULL,
       reason TEXT NOT NULL
     ) STRICT;
-    CREATE TABLE IF NOT EXISTS grants (
-      action TEXT PRIMARY KEY,
-      active INTEGER NOT NULL,
-      since  TEXT NOT NULL,
-      by     TEXT NOT NULL,
-      -- Ses limites, nulles s'il n'en a pas ; pourquoi il ne vaut plus ; et le
-      -- fait qui l'a accordé : ses usages sont les intentions venues après.
-      until       TEXT,
-      uses_left   INTEGER,
-      ended       TEXT,
-      cause       TEXT,
-      granted_seq INTEGER NOT NULL
-    ) STRICT;
-    CREATE TABLE IF NOT EXISTS grant_uses (
-      seq     INTEGER PRIMARY KEY,
-      at      TEXT NOT NULL,
-      ticket  INTEGER,
-      action  TEXT NOT NULL,
-      pr      TEXT NOT NULL,
-      sha     TEXT NOT NULL,
-      base    TEXT NOT NULL,
-      verdict INTEGER NOT NULL,
-      outcome TEXT
-    ) STRICT;
   `,
   sur: {
-    "grant.activated": (base, { seq, at, author, payload }) => grant(base, seq, at, author, null, payload),
-    "grant.revoked": (base, { seq, at, author, payload }) => grant(base, seq, at, author, "revoked", payload),
-    // A refusal grants nothing: the grants state keeps nothing of it.
-    "grant.refused": () => {},
-    // An extension only applies to an active grant, and changes only what it
-    // names: `since` stays the instant it was granted.
-    "grant.extended": (base, { payload }) => {
-      const { action, until, uses } = payload as { action?: unknown; until?: unknown; uses?: unknown };
-      if (!texte(action)) return;
-      if (until === null) base.executer("UPDATE grants SET until = NULL WHERE action = ? AND active = 1", action);
-      else if (instantOuRien(until) !== null) base.executer("UPDATE grants SET until = ? WHERE action = ? AND active = 1", instantOuRien(until), action);
-      if (uses === null) base.executer("UPDATE grants SET uses_left = NULL WHERE action = ? AND active = 1", action);
-      else if (usagesOuRien(uses) !== null) base.executer("UPDATE grants SET uses_left = uses_left + ? WHERE action = ? AND active = 1", usagesOuRien(uses), action);
-    },
-    "grant.expired": (base, { at, payload }) => {
-      if (!texte(payload.action)) return;
-      base.executer(
-        "UPDATE grants SET active = 0, since = ?, ended = 'expired', cause = ? WHERE action = ? AND active = 1",
-        instantOuRien(payload.since) ?? at,
-        payload.cause === "uses" ? "uses" : "until",
-        payload.action,
-      );
-    },
     // A cook leaves on the ticket. Relaunched on a return — the same branch —,
     // it leaves the phase as is: if it fails without delivering, the return is
     // still to be done. On another branch, it is a new delivery: nothing that
@@ -489,26 +366,10 @@ export const pass = definirProjection<Ecoutes>({
         liste(payload.findings),
       );
     },
-    "grant.used": (base, { ticket, at, seq, payload }) => {
-      if (!texte(payload.action) || !texte(payload.pr) || !texte(payload.sha)) return;
-      base.executer(
-        "INSERT OR REPLACE INTO grant_uses (seq, at, ticket, action, pr, sha, base, verdict) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        seq,
-        at,
-        ticket,
-        payload.action,
-        payload.pr,
-        payload.sha,
-        texteOuRien(payload.base) ?? "",
-        entierOuRien(payload.verdict) ?? 0,
-      );
-      passer(base, ticket, at, "merging");
-    },
     // A merge that nothing judged on the base as it was is to be verified
     // afterwards, on the base itself. It is the fact that says so: a log from
     // before, replayed, makes none of its old merges suspect.
     "merge.done": (base, { ticket, at, payload }) => {
-      conclureUsage(base, ticket, "done");
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
       passer(base, ticket, at, "merged", "reason = NULL, cause = NULL");
@@ -518,7 +379,6 @@ export const pass = definirProjection<Ecoutes>({
     },
     // The decision is to be taken again: the verdict still stands.
     "merge.failed": (base, { ticket, at }) => {
-      conclureUsage(base, ticket, "failed");
       passer(base, ticket, at, "green");
     },
     "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL, cause = NULL"),
@@ -612,7 +472,7 @@ export const pass = definirProjection<Ecoutes>({
     },
     "pass.held": (base, { ticket, at, payload }) => {
       const { reason, cause } = motifDArret(payload);
-      passer(base, ticket, at, "held", "reason = ?, cause = ?, grant_expired = ?", reason, cause, instantOuRien(payload.expired));
+      passer(base, ticket, at, "held", "reason = ?, cause = ?", reason, cause);
     },
     "pass.returned": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "returned", "returns = ?, findings = ?, started_at = NULL", entierOuRien(payload.n) ?? 0, liste(payload.findings));
@@ -628,9 +488,8 @@ export const pass = definirProjection<Ecoutes>({
       passer(base, ticket, at, "closed", "pr = coalesce(?, pr)", texteOuRien(payload.pr));
       base.executer("DELETE FROM pass WHERE ticket = ? AND off_rail = 1", ticket);
     },
-    // The ticket leaves the rail: its pass has no object left. The grant's
-    // uses, for their part, stay — and so does its delivery, if it is not
-    // merged, until the pass has said what remains of it. A first cook still
+    // The ticket leaves the rail: its pass has no object left. Its delivery
+    // stays, if it is not merged, until the pass has said what remains of it. A first cook still
     // taken has delivered nothing: its end is the station's business.
     "ticket.left": (base, { ticket, seq, payload }) => {
       if (ticket === null) return;
@@ -644,23 +503,17 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
       );
       base.executer("DELETE FROM pass WHERE ticket = ?", ticket);
-      // Gone without a delivery to let go of, nobody will say what becomes of
-      // a merge intent left in flight: it gives its use back here.
-      if (base.lire("SELECT 1 FROM pass_orphans WHERE ticket = ?", ticket).length === 0) conclureUsage(base, ticket, "failed");
     },
-    // The pass lets go of the delivery of a ticket that left: a merge intent
-    // left in flight finds its end here — consumed if GitHub says the PR is
-    // merged, given back otherwise. It no longer holds a use of the grant.
-    "pass.abandoned": (base, { ticket, payload }) => {
+    // The pass lets go of the delivery of a ticket that left.
+    "pass.abandoned": (base, { payload }) => {
       base.executer("DELETE FROM pass_orphans WHERE branch IS ?", texteOuRien(payload.branch));
-      conclureUsage(base, ticket, payload.merged === true ? "done" : "failed");
     },
   },
 });
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
   verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason, cause,
-  grant_expired AS grantExpired, judged_base AS judgedBase, judged_tree AS judgedTree, off_rail AS horsRail`;
+  judged_base AS judgedBase, judged_tree AS judgedTree, off_rail AS horsRail`;
 
 type Ligne = Omit<PassDeTicket, "horsRail" | "judgeModified" | "declarations" | "noDiff" | "findings" | "review"> & {
   horsRail: number;
@@ -816,88 +669,4 @@ export function controleRetenu(base: Base): ControleRetenu | null {
 // The tickets whose merge remains to be verified on the base.
 export function mergesAVerifier(base: Base): number[] {
   return base.lire<{ ticket: number }>("SELECT ticket FROM base_suspects ORDER BY ticket").map(({ ticket }) => ticket);
-}
-
-// A grant's state at time `maintenant`, or null if it was never given. A
-// passed deadline expires it for whoever reads it, whether the fact is in the
-// log or not: nothing depends on an expiry having been written in time.
-export function etatDuGrant(base: Base, action: ActionDeGrant, maintenant: Date): Grant | null {
-  const ligne = base.lire<{ action: string; active: number; since: string; by: string; until: string | null; usesLeft: number | null; ended: Grant["ended"]; cause: Grant["cause"]; reserved: number }>(
-    `SELECT action, active, since, by, until, uses_left AS usesLeft, ended, cause,
-            (SELECT count(*) FROM grant_uses WHERE action = grants.action AND outcome IS NULL AND seq > grants.granted_seq) AS reserved
-     FROM grants WHERE action = ?`,
-    action,
-  )[0];
-  if (!ligne) return null;
-  const grant = { ...ligne, active: ligne.active === 1, reserved: ligne.active === 1 ? ligne.reserved : 0, unrecorded: false };
-  if (!grant.active) return grant;
-  const eteint = (cause: CauseDExtinction, since: string): Grant => ({ ...grant, active: false, since, reserved: 0, ended: "expired", cause, unrecorded: true });
-  // The last use expires in the transaction of its merge: this is the time
-  // of whoever observes it.
-  if (grant.usesLeft !== null && grant.usesLeft <= 0) return eteint("uses", maintenant.toISOString());
-  if (grant.until !== null && grant.until <= maintenant.toISOString()) return eteint("until", grant.until);
-  return grant;
-}
-
-// The grant's latest uses, most recent first.
-export function usagesDuGrant(base: Base, combien: number): UsageDeGrant[] {
-  return base.lire<UsageDeGrant>("SELECT seq, at, ticket, action, pr, sha, base, verdict, outcome FROM grant_uses ORDER BY seq DESC LIMIT ?", combien);
-}
-
-// What became of the green deliveries the pass stopped for lack of a grant —
-// the figure on which the chef grants it. The count follows the stopped
-// delivery, by its PR: a PR rejudged and stopped again counts only once, and
-// the merge of another PR of the same ticket says nothing about it.
-// `mergees`: the chef merged what it would have merged. `parLaPass`: it merged
-// it itself, the grant being granted since — that is not the chef's gesture.
-// `refusees`: it closed the PR without merging — a disagreement, which a
-// reopening followed by a merge erases. `ouvertes`: nothing is said yet.
-// The rest is no longer followed: the ticket left the rail, or a cook went
-// back onto it.
-export type SansGrant = { arretees: number; mergees: number; parLaPass: number; refusees: number; ouvertes: number };
-type Sort = "open" | "chef" | "pass" | "fermee" | "lachee";
-export function bilanSansGrant(base: Base): SansGrant {
-  const rows = base.lire<{ ticket: number | null; type: string; payload: string }>(
-    `SELECT ticket, type, payload FROM events
-     WHERE type IN ('pass.started', 'pass.pr-opened', 'pass.held', 'merge.done', 'pass.pr-closed', 'pass.abandoned', 'cook.launched') ORDER BY seq`,
-  );
-  // The PR of each ticket's current delivery, then the fate of each stopped PR.
-  const enCours = new Map<number, string>();
-  const arretees = new Map<string, { ticket: number; sort: Sort }>();
-  const duTicket = (ticket: number) => [...arretees.values()].filter((arretee) => arretee.ticket === ticket && arretee.sort === "open");
-  for (const { ticket, type, payload } of rows) {
-    if (ticket === null) continue;
-    const dit = JSON.parse(payload) as { reason?: unknown; pr?: unknown; by?: unknown; merged?: unknown; closed?: unknown };
-    const pr = typeof dit.pr === "string" ? dit.pr : null;
-    const arretee = pr === null ? undefined : arretees.get(pr);
-    switch (type) {
-      case "pass.started":
-      case "pass.pr-opened":
-        if (pr !== null) enCours.set(ticket, pr);
-        break;
-      case "pass.held": {
-        const sienne = enCours.get(ticket);
-        if (motifDArret(dit).reason === SANS_GRANT && sienne !== undefined && !arretees.has(sienne)) arretees.set(sienne, { ticket, sort: "open" });
-        break;
-      }
-      // Closed then reopened and merged, it is merged.
-      case "merge.done":
-        if (arretee && arretee.sort !== "chef" && arretee.sort !== "pass") arretee.sort = dit.by === "pass" ? "pass" : "chef";
-        break;
-      case "pass.pr-closed":
-        if (arretee?.sort === "open") arretee.sort = "fermee";
-        break;
-      // The ticket left the rail: what GitHub said of its PR that day.
-      case "pass.abandoned":
-        for (const laissee of duTicket(ticket)) laissee.sort = dit.merged === true ? "chef" : dit.closed === true ? "fermee" : "lachee";
-        break;
-      // A cook goes back onto the ticket: the stopped delivery stays behind it.
-      case "cook.launched":
-        for (const laissee of duTicket(ticket)) laissee.sort = "lachee";
-        enCours.delete(ticket);
-        break;
-    }
-  }
-  const combien = (sort: Sort) => [...arretees.values()].filter((arretee) => arretee.sort === sort).length;
-  return { arretees: arretees.size, mergees: combien("chef"), parLaPass: combien("pass"), refusees: combien("fermee"), ouvertes: combien("open") };
 }

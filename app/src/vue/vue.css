@@ -270,7 +270,7 @@ main > header,
 /* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
    glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
    glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
-   Sa confirmation s'ouvre dessous, par-dessus le rail. La ligne d'un grant, dans Settings, a la même glissière. */
+   Sa confirmation s'ouvre dessous, par-dessus le rail. */
 .interrupteur-de-tete {
   position: relative;
   flex: none;

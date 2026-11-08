@@ -21,24 +21,24 @@ function poste(racine: string): Cuisine {
 }
 
 describe("les onglets de contenu d'un espace", () => {
-  test("ils sont trois, dans cet ordre : Cooks, Grants, Log — ni Rail ni Manager (#1700), Reliability et Closer sont des sections de Cooks (#1699)", () => {
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Cooks", "Grants", "Log"]);
+  test("ils sont deux, dans cet ordre : Cooks, Log — ni Rail ni Manager (#1700), Reliability et Closer sont des sections de Cooks (#1699)", () => {
+    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Cooks", "Log"]);
     assert.deepEqual(RUBRIQUES.map(({ lectures }) => lectures), [["parametres", "cooks"]]);
   });
 
   test("chacun relaie une commande que le geste de la box accepte : un script du runtime, tel qu'il existe", () => {
     const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
-    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["station", "grant", `log --last ${EVENEMENTS_DU_LOG}`]);
+    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["station", `log --last ${EVENEMENTS_DU_LOG}`]);
     for (const { commande } of ONGLETS) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
     // Et ce que Cooks lit de plus pour ses sections de fiabilité et de closer.
     for (const commande of ["measures", COMMANDE_DU_CLOSER]) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
-    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["station", "grant", "log --last 200"]);
+    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["station", "log --last 200"]);
     // Rail et Manager ne sont plus des onglets (#1700) : leur nom ne lance plus rien.
-    for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null, "fiabilite", "closer", "rail", "manager"]) {
+    for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null, "fiabilite", "closer", "rail", "manager", "grants"]) {
       assert.equal(commandeDe(autre), undefined);
       assert.deepEqual(commandesDe(autre), []);
     }

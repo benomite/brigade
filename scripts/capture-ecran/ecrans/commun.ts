@@ -12,9 +12,8 @@ import { PALETTE } from "../../../app/src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../app/src/cuisine.ts";
 import { GESTES_D_ATTENTE } from "../../../app/src/attente.ts";
 import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../app/src/gestes.ts";
+import { CONFIRMES, DIRECTS } from "../../../app/src/gestes.ts";
 import type { PrioriteMontree } from "../../../app/src/priorite.ts";
-import { GESTES_DES_GRANTS } from "../../../app/src/grants.ts";
 import { EFFORTS, MODELES } from "../../../app/src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../../app/src/onglets.ts";
 import type { Vu as VuDuCode } from "../../../app/src/retard.ts";
@@ -76,7 +75,7 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: CODE,

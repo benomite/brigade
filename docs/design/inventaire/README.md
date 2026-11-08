@@ -12,7 +12,7 @@ PR #2459 (#2061) removed the app's reading of the Kitchen board, the issue in wh
 
 | State | Deleted feature that made it unreachable | PR (issue) |
 |---|---|---|
-| `bande-alertes` | the Kitchen board's `status` header lines (Max connection, red base, lapsed grant, held kitchen) and the manager reading | #2459 (#2061) |
+| `bande-alertes` | the Kitchen board's `status` header lines (Max connection, red base, held kitchen) and the manager reading | #2459 (#2061) |
 | `bande-alertes-ouverte` | same as `bande-alertes` | #2459 (#2061) |
 | `cooks-activite` | `activiteCuisine` in the Kitchen board's `facts` | #2459 (#2061) |
 | `cooks-apprentissage` | `apprentissage` (lessons and profiles) in the Kitchen board's `facts` | #2459 (#2061) |

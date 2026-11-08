@@ -18,9 +18,7 @@
 //
 // A row the chef set nothing for routes `today`: the call site keeps the path
 // it had before the table, and nothing is written here — a project with no
-// table behaves as before. The Merge row is the `merge` grant: it routes
-// `today` until the table has set it once, so the pass keeps its own reading
-// of the grant (its uses, its deadline) for a project that never touched it.
+// table behaves as before.
 import type { Base } from "../../base.ts";
 import type { Journal } from "../../journal.ts";
 import { estFixe, lireAutonomie, type Fixe, type Geste, type Position, type Rangee } from "../table.ts";
@@ -59,12 +57,6 @@ export class DecisionInvalide extends Error {}
 const RAPPORTEE = "autonomy.reported";
 const LEVEE = "autonomy.card-raised";
 
-// Has the table ever set the Merge row? Until then, the row is only the grant
-// the pass reads itself.
-function mergePoseParLaTable(base: Base): boolean {
-  return base.lire("SELECT 1 FROM events WHERE type = 'autonomy.changed' AND json_extract(payload, '$.row') = 'merge' LIMIT 1").length > 0;
-}
-
 // Where a decision of that kind goes at `maintenant`, read from the log now.
 // For a call site that applies the decision itself: on a `brigade decides and
 // tells me`, it then writes the report's entry by `consigner`.
@@ -72,8 +64,7 @@ export function voieDe(base: Base, row: Rangee | Fixe, maintenant: Date): { voie
   if (estFixe(row)) return { voie: "i-decide", position: "i-decide" };
   const ligne = lireAutonomie(base, maintenant).rows.find((ligne) => ligne.row === row);
   if (!ligne) throw new DecisionInvalide(`“${row}” is not a row of the autonomy table`);
-  const today = ligne.source === "default" || (row === "merge" && !mergePoseParLaTable(base));
-  return { voie: today ? "today" : ligne.position, position: ligne.position };
+  return { voie: ligne.source === "default" ? "today" : ligne.position, position: ligne.position };
 }
 
 function exigerDecision(decision: Decision): void {

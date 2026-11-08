@@ -21,7 +21,7 @@ import { PAR_LE_CHEF } from "./events/rail.ts";
 import { geste } from "./geste.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { GitHub } from "./github.ts";
-import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";
+import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./instants.ts";
 import type { Journal } from "./journal.ts";
 import { direALArrivee, direALArriveeEn, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse, nomEtat, nomEtatEn } from "./rail.ts";

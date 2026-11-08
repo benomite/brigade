@@ -164,7 +164,7 @@ and manager's judgements: **no** — they execute nothing of the project.
 ### What cannot be declared
 
 - Runtime names: `BRIGADE_*`, `ANTHROPIC_*`, `CLAUDE_*`, `GH_*`, `GITHUB_*`, `GIT_*`, `PATH`, `HOME`.
-- **Nothing of production** — no grant touches it. The runtime cannot know what a value opens; it
+- **Nothing of production** — The runtime cannot know what a value opens; it
   refuses what it recognizes: a **name** with a word `PROD`, `PRODUCTION` or `LIVE`, a **value**
   starting `sk_live_` or `rk_live_`. The rest is up to you.
 - **A value under 8 characters**: configuration, not a secret; export it from

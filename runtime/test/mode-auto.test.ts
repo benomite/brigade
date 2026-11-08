@@ -97,7 +97,7 @@ test("aucune règle ne généralise : ni un ssh vers une autre cible, ni une com
     `${SSH} autre-box brigade espace status`,
     "ssh evil.example.com brigade espace status",
     `${SSH} mabox brigade autre-projet status`,
-    `${SSH} mabox brigade espace grant merge`,
+    `${SSH} mabox brigade espace switch off`,
     `${SSH} mabox brigade espace guardrails stop`,
     `${SSH} mabox brigade espace station cooks 0`,
     `${SSH} mabox brigade espace base replay`,

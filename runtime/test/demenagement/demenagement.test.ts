@@ -151,7 +151,7 @@ async function deplacer(leCompte: Compte, projet: string, vers: Station, station
 }
 
 // Ce qui fait le projet : son histoire, et tout ce qui en dérive — tickets,
-// grants, réglages.
+// réglages.
 function etatDuProjet(repertoireEtat: string) {
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
   try {
@@ -162,7 +162,7 @@ function etatDuProjet(repertoireEtat: string) {
 }
 
 // Le projet sert sur la box : il y a son histoire — ses décisions posées à
-// l'ajout, un ticket mis de côté, un autre en attente, un grant.
+// l'ajout, un ticket mis de côté, un autre en attente.
 async function unProjetServiSurLaBox(t: TestContext) {
   const leCompte = compte();
   const box = uneStation(t, leCompte, "box");
@@ -177,7 +177,6 @@ async function unProjetServiSurLaBox(t: TestContext) {
     noter(12, { type: "ticket.arrived", payload: { title: "Ticket 12", priority: 1, createdAt: "2026-10-19T10:00:00Z", url: "https://github.com/acme/shop/issues/12", model: "opus", effort: "high", card: null } });
     noter(13, { type: "ticket.arrived", payload: { title: "Ticket 13", priority: 2, createdAt: "2026-10-19T11:00:00Z", url: "https://github.com/acme/shop/issues/13", model: "sonnet", effort: "low", card: null } });
     noter(13, { type: "ticket.86", payload: { reason: "quota", until: "2026-10-20T12:00:00.000Z" } });
-    journal.ajouter({ project: "shop", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge", uses: 3 } });
   } finally {
     journal.fermer();
   }
@@ -201,7 +200,7 @@ async function lireJusquA(stations: Station[], fait: () => boolean, ordre: Stati
 
 const sansDemenagements = (evenements: Evenement[]) => evenements.filter(({ type }) => type !== "kitchen.moved");
 
-test("la cuisine d'un projet ajouté depuis l'app va de la box à cet ordinateur, revient, puis va sur une autre station — sans retrait ni rajout, son histoire, ses tickets, ses grants et ses réglages intacts", { skip: posixOnly("moves a kitchen from the box to this computer, back to the box, then to a third station, and expects its history, tickets, grants and settings intact at each stop; the return sets the box's old state directory aside with a rename, which Windows refuses while a file under it is still open, so the move does not complete") }, async (t) => {
+test("la cuisine d'un projet ajouté depuis l'app va de la box à cet ordinateur, revient, puis va sur une autre station — sans retrait ni rajout, son histoire, ses tickets et ses réglages intacts", { skip: posixOnly("moves a kitchen from the box to this computer, back to the box, then to a third station, and expects its history, tickets and settings intact at each stop; the return sets the box's old state directory aside with a rename, which Windows refuses while a file under it is still open, so the move does not complete") }, async (t) => {
   const { leCompte, box, mac, serveur, stations } = await unProjetServiSurLaBox(t);
   const avant = etatDuProjet(box.etat());
 
@@ -348,7 +347,7 @@ test("une station ne rouvre pas d'elle-même une cuisine qu'elle a remise : elle
 test("une remise demandée pendant que la cuisine tient encore son verrou est retenue, sans rien écrire", async (t) => {
   const etat = repertoireTemporaire(t);
   const journal = ouvrirJournal(etat);
-  journal.ajouter({ project: "shop", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+  journal.ajouter({ project: "shop", ticket: null, author: "chef", type: "kitchen.stopped", payload: {} });
   journal.fermer();
   const verrou = prendreVerrou(etat);
   try {
@@ -356,7 +355,7 @@ test("une remise demandée pendant que la cuisine tient encore son verrou est re
   } finally {
     verrou.relacher();
   }
-  assert.deepEqual(etatDuProjet(etat).evenements.map(({ type }) => type), ["grant.activated"]);
+  assert.deepEqual(etatDuProjet(etat).evenements.map(({ type }) => type), ["kitchen.stopped"]);
 });
 
 test("demenagement.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

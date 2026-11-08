@@ -13,9 +13,8 @@ import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { entete } from "../src/fiche.ts";
 import { BANNIERE, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { gestesDeCarte } from "../src/gestes-fiche.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ligneDeProjet, tenirAccueil, type Accueil, type ProjetDeLAccueil } from "../src/accueil.ts";
@@ -34,7 +33,7 @@ const BRUT = `usage: brigade <projet> station\n${DETAIL}\n→ code de sortie 255
 const PAS_JOINT = { projet: "parade", demande: 1, a: A, erreur: `$ brigade parade facts\n${BRUT}`, atteinte: false, cas: null } as const;
 
 // Les travers : une commande qui se recopie, un mode d'emploi, un code de sortie.
-const TRAVERS = /brigade\s*<|brigade\s+[a-z0-9-]+\s+(?:station|manager|status|facts|pass|grant|rail|log|installation)\b|usage\s*:|exit code|code de sortie/i;
+const TRAVERS = /brigade\s*<|brigade\s+[a-z0-9-]+\s+(?:station|manager|status|facts|pass|rail|log|installation)\b|usage\s*:|exit code|code de sortie/i;
 // Une phrase de prix écrite à plat. Les éléments se concatènent sans blanc : aucune de ces deux règles n'ancre son début sur une limite de mot.
 const PRIX = /costs?\s*:|prix\s*:|price\s*:/i;
 
@@ -44,7 +43,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -169,13 +168,12 @@ async function cooks(): Promise<Joue> {
   return { vue, racine: ecran(vue, "rail", ...LECTURE) };
 }
 
-// Settings (#1700) : une seule page, qui lit les grants — chaque grant nommé garde sa ligne, sa lecture ratée en une ligne.
+// Settings (#1700) : une seule page, qui ne lit rien : sa lecture ratée n'a rien à dire.
 async function settings(): Promise<Joue> {
   const vue = await ouvrir();
   await ouvrirLecture(vue, "Settings");
   const numero = (vue.dernier("onglet") as [string, string, number])[2];
-  const sans = { projet: "parade", demande: numero, a: A, sans: BRUT };
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined, sans);
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined);
   await repos();
   return { vue, racine: ecran(vue, ...LECTURE) };
 }
@@ -190,8 +188,8 @@ async function couts(): Promise<Joue> {
   return { vue, racine: page };
 }
 
-// Ce que pose une page ouverte par-dessus le rail : la lecture relayée, Settings et ses grants.
-const LECTURE = ["lu-onglet", "lecture-onglet", "etat", "grants"];
+// Ce que pose une page ouverte par-dessus le rail : la lecture relayée, et Settings.
+const LECTURE = ["lu-onglet", "lecture-onglet", "etat"];
 
 // Le bandeau du second : le shell dit où il est, son bandeau ne porte ni commande ni code.
 async function second(): Promise<Joue> {
@@ -208,7 +206,7 @@ const ECRANS: Ecran[] = [
   { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
   { nom: "Cost, au niveau de l'app", echec: couts, lectures: 0 },
   { nom: "Cooks", echec: cooks, lectures: 1 },
-  { nom: "Settings", echec: settings, lectures: 1 },
+  { nom: "Settings", echec: settings, lectures: 0 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];
 

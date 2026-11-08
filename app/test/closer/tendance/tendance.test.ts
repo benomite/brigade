@@ -13,8 +13,7 @@ import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
 import { BANNIERE } from "../../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { COMMANDE_DES_RATIOS, ONGLETS, RATIOS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { BRANCHE_ILLISIBLE, COMMANDE, ILLISIBLE, lireFermeture } from "../../../src/vue/closer/section.js";
@@ -195,7 +194,7 @@ describe("la page des ratios, dans la vue jouée", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -211,7 +210,7 @@ describe("la page des ratios, dans la vue jouée", () => {
     const page = vue.element("ratios");
     assert.equal(page.dessous("p").find(({ className }) => className === "sans")?.textContent, LECTURE);
 
-    for (const [nom, texte] of [["brigade", BAISSE], ["parade", MONTE], ["espace", SANS_CLOSER]] as const) vue.dire("surContenu", { ...lecture(nom, texte), demande }, undefined, undefined, undefined);
+    for (const [nom, texte] of [["brigade", BAISSE], ["parade", MONTE], ["espace", SANS_CLOSER]] as const) vue.dire("surContenu", { ...lecture(nom, texte), demande }, undefined, undefined);
     await repos();
     assert.deepEqual(lignes(page).map(nomDe), ["brigade", "parade"]);
     assert.deepEqual(lignes(page).map((ligne) => sensDe(ligne)?.dataset.sens), ["down", "up"]);

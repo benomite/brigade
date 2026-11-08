@@ -211,7 +211,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
-    // `fire` posé, calibrage complet ou grant `merge` compris.
+    // `fire` posé, calibrage complet compris.
     if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "hors-cuisine", fired };
     // Une épique découpée ne se rejuge plus ; il peut rester à finir ce que le
     // découpage a commencé.

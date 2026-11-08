@@ -99,7 +99,7 @@ describe("répondre d'un clic à une carte de TODO", () => {
   test("un choix qui merge est refusé : la box ne merge plus, rien ne part et la carte reste dans TODO", async (t) => {
     const c = atelier(t);
     await c.livrer();
-    c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
+    c.noter(30, { type: "pass.held", payload: { reason: "merge-refused" } }, "pass");
     entrerDansTodo(c.journal, PROJET, 30, CARTE, "pass");
 
     const resultat = await c.repondre({ choix: 3 });
@@ -158,7 +158,7 @@ describe("toute carte de TODO se répond, pas seulement celle de la porte", () =
   test("une livraison verte à merger à la main : son seul bouton merger est refusé, rien ne part", async (t) => {
     const c = atelier(t);
     await c.livrer();
-    c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
+    c.noter(30, { type: "pass.held", payload: { reason: "review-required" } }, "pass");
     assert.match(((await c.repondre({ choix: 2 })) as { reason: string }).reason, /offers choices 1 to 1/);
 
     const resultat = await c.repondre({ choix: 1 });
@@ -201,7 +201,7 @@ describe("toute carte de TODO se répond, pas seulement celle de la porte", () =
   test("une PR fermée sans merge : « Start it over » rend le ticket au rail", async (t) => {
     const c = atelier(t);
     await c.livrer();
-    c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
+    c.noter(30, { type: "pass.held", payload: { reason: "merge-refused" } }, "pass");
     c.noter(30, { type: "pass.pr-closed", payload: { pr: "https://exemple.test/pull/101" } }, "pass");
     assert.equal(carteDuTicket(c.journal.base, 30)?.attente.quoi, "fermee");
 

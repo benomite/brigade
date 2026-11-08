@@ -1,68 +1,18 @@
-### The `merge` grant
+### The merge
 
-Automatic merge exists only **under a grant**. A grant is a runtime object (facts in the log): you
-enable it, extend it and revoke it **without a restart**, and the pass rereads it **at every merge
-decision**.
+A delivery is merged once its verdict is approved and the CI of its head is green
+(`runtime/src/github-etat/fusion.ts`). Nothing else is asked of the chef: there is nothing to enable.
 
-```bash
-npm --prefix runtime run grant                               # its state, what is left, `latest actions`, `latest uses`, the "without a grant, …" tally
-npm --prefix runtime run grant -- enable merge            # no deadline
-npm --prefix runtime run grant -- enable merge --for 4h   # it lapses on its own in four hours
-npm --prefix runtime run grant -- enable merge --until 18h30 --uses 10
-npm --prefix runtime run grant -- extend merge --for 2h   # a grant in force, without revoking it
-npm --prefix runtime run grant -- revoke merge
-```
+- **Approved**: the latest verdict comment on the PR approves it, whichever station rendered it.
+- **Green CI**: a check of the head that is red stops the merge, a CI not finished waits. A project whose
+  PRs carry no CI has its gates played on the head instead.
+- **A branch behind its base** is updated by GitHub, not merged; the merge comes once it is up to date.
+- **A merge GitHub refuses** is not retried until the PR or the base changes.
 
-- **Absent by default**, and **not retroactive**: enabling it holds for the deliveries that
-  follow; the ones already stopped, you merge by hand.
-- **Every use is logged** (`grant.used`: ticket, PR, commit, verdict): the answer to "why is this
-  code on `main`?" — `grant` lists the uses; the verdict is on the delivery's PR.
-- **The merge is written in two steps**: the intent (`grant.used`) before the call to GitHub, the
-  result after (`merge.done`, `merge.failed`). A runtime that died in between rereads the PR on
-  restart. GitHub accepts the merge only if the branch is still on the judged commit; a merge it
-  **refuses** is not retried (`merge-refused`).
-- **Everything `grant`, `base` and `pass` write is in English.** The old words (`activer`,
-  `prolonger`, `revoquer`, `--pour`, `--jusqu-a`, `--usages`, `--sans-echeance`) still answer until
-  2027-01-14, saying the new one.
-- **What no grant authorizes** is read in `run grant`, on the `never granted` line:
-  `identifiants-max` (read the Max account credentials) and `acces-prod` (any action on a project's
-  production). Asking for it is **refused, you included**: exit 1, logged (`grant.refused`). The list
-  is in `runtime/src/grant.ts`. (The two names stay French.)
-
-⚠️ **With a grant active, code written by a cook lands on the integration branch without any
-human having read it**: its judges are the gates, the project's CI, and a reviewer that is a model.
-
-#### A deadline, and it lapses on its own
-
-| You type | What it means |
-|---|---|
-| *(nothing)* | **No deadline**: it holds until you revoke it |
-| `--for 30min` · `4h` · `1h30` · `2d` | A duration from now (`2j` still read). **The recommended form**: no time zone, cannot be misread |
-| `--until 18h` · `18h30` | Today at that time, **in the box's time, UTC — not yours**. The command answers `understood: until 12 Oct 19:20 UTC — in 4 h 00` **before** writing; a time already passed is **refused**, not moved to tomorrow |
-| `--until 2026-10-12T18:00` · `2026-10-12` | That day at that time; with no time, the **end** of the day (23:59:59) |
-| `--uses 10` | For ten merges |
-
-`--for` or `--until`, one or the other. **Wherever a deadline is shown**, the remaining time comes
-first, then the instant with its zone: `58 min left (until 12 Oct 19:20 UTC)`. `--uses` alone or with
-a date: **the first one reached turns the grant off**. An unreadable deadline is refused.
-
-- **It lapses on its own**: the lapse is a fact (`grant.expired`) dated at the **deadline**: `grant`
-  reads `LAPSED since …`, where your own gesture reads `REVOKED`. Lapsed while the runtime was down, it
-  is turned off at restart, before any decision.
-- **With N uses, it counts down on the merge made, not on the attempt.** A refused merge, or a
-  stopped delivery you merge by hand, consumes nothing. An intent without a result **holds** a use
-  until GitHub says what became of it: merged, **consumed**; otherwise **given back**.
-- **A green delivery arriving after the lapse is stopped** (`no-grant`); its issue comment (still
-  French, « Le grant `merge` s'est éteint seul le … ») and its queue line (``the `merge` grant lapsed
-  on its own on …``) say so.
-
-#### Extending it, without revoking it
-
-`extend merge` takes `--for`, `--until`, `--uses <n>` (n **more** than what is left) or
-`--no-expiry`: **one more fact** (`grant.extended`). **Extending does not shorten**: a nearer date,
-or a limit set on a grant that had none, is refused — revoke, then enable again. A lapsed or revoked
-grant is **enabled again** with `enable`; `enable` on an active grant writes nothing and points to
-`extend`.
+⚠️ **Code written by a cook lands on the integration branch without any human having read it**: its
+judges are the gates, the project's CI, and a reviewer that is a model. The brakes are the stop
+(`hors-cuisine` sets a ticket aside, [`station.md`](station.md)) and the second judge, which reads a
+delivery that changes what judges it before it merges ([`pass.md`](pass.md), "The second judge").
 
 ### Deliveries judged in parallel
 
@@ -116,14 +66,11 @@ The events not documented in [`pass.md`](pass.md) (which owns `pass.started`, `p
 
 | Event | Meaning |
 |---|---|
-| `grant.activated`, `grant.revoked` | The chef's commands (no ticket). `until`, `uses`: the deadline, if any |
-| `grant.refused` | The chef asked for what no grant authorizes: `action`, `line` |
-| `grant.extended`, `grant.expired` | Extended (`until`, `uses` **added**; null, limit lifted); lapsed on its own (`cause`: `until` or `uses`; `since`: the deadline) |
 | `pass.entered` | A delivery **off the rail** enters the pass (`run`, `branch`, `pr`, `number`); its `ticket`, and that of every fact of its pass, is the PR number |
 | `pass.relaunched` | The chef relaunched a stuck delivery: `run`. Changes no phase |
 | `pass.pr-opened` | The pass opened the PR the station could not (`reconciled`: found again afterwards) |
 | `pass.judged` | The verdict: `sha`, `base`, `merged` (null: the merge does not go through), `gates`, `ci`, `review`, `findings`, `judgeModified`, `declarations`, `noDiff` |
-| `pass.served`, `grant.used` | Green with no diff, served without a merge; the intent to merge — each with the number of the authorizing verdict |
+| `pass.served` | Green with no diff, served without a merge, with the number of the authorizing verdict |
 | `merge.done` | Merged. `by`: `pass` or `outside`; `actor`: GitHub account; `reconciled`: noted after a restart; `unverified`: done outside, base to be checked |
 | `merge.failed` | Did not go through: `interrupted`, or GitHub's refusal |
 | `pass.waiting` | Neither judged nor merged for now: `base-red`, `machine-saturated`, `gates-cut-saturated` (with `sha`). Goes on by itself |

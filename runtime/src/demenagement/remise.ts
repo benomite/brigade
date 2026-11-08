@@ -2,7 +2,7 @@
 // que celle qu'il quitte remet à celle qui le reprend.
 //
 // Tout ce qui fait le projet vit dans son journal — ses tickets et leur rail,
-// ses grants, les décisions du chef, son histoire (`journal.ts`). C'est donc
+// les décisions du chef, son histoire (`journal.ts`). C'est donc
 // lui qui voyage, tout entier, en instantané (`sauvegarde.ts`), avec le numéro
 // du ticket qui a préparé son dépôt (`preparation-depot/`). Les deux stations
 // ne se joignent pas : celle qu'il quitte publie la remise dans son gist, celle

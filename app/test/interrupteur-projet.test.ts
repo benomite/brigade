@@ -24,8 +24,7 @@ import { confirmationDe } from "../src/confirmation.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
@@ -80,7 +79,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -181,7 +180,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
 
     bascule(vue).click();
     await repos();
-    assert.deepEqual(gestesPartis(vue), [["parade", "projet-eteindre", undefined, undefined]]);
+    assert.deepEqual(gestesPartis(vue), [["parade", "projet-eteindre", undefined]]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "confirmer"), []);
   });
 
@@ -219,7 +218,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
   test("éteint, un clic ouvre la confirmation : une phrase dit ce qu'il va juger, avec le nombre réel d'issues ouvertes — rien ne part avant le « oui »", async (t) => {
     const backlog = { ouvertes: 23, retenues: 0 };
     const vue = await ouvrir({
-      confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE),
+      confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE),
       compter: () => ({ projet: "parade", a: A, ...backlog, dit: dire(backlog) }),
       geste: () => undefined,
     });
@@ -228,7 +227,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
 
     bascule(vue).click();
     await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "projet-allumer", undefined]);
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "projet-allumer"]);
     assert.deepEqual(vue.dernier("compter"), ["parade"]);
     assert.deepEqual(gestesPartis(vue), []);
     const ouverte = confirmation(vue) ?? assert.fail("pas de confirmation sous l'interrupteur");
@@ -252,7 +251,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
     // « oui » le fait partir, dans le second, et referme la confirmation.
     (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
     await repos();
-    assert.deepEqual(gestesPartis(vue), [["parade", "projet-allumer", undefined, true]]);
+    assert.deepEqual(gestesPartis(vue), [["parade", "projet-allumer", true]]);
     assert.equal(confirmation(vue), undefined);
   });
 

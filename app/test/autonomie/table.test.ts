@@ -18,7 +18,6 @@ import {
   LIBELLES_DES_POSITIONS,
   LIBELLES_DES_RANGEES,
   NOMS_DES_PROFILS,
-  PAR_LE_GRANT,
   POSITIONS,
   type Position,
   PROFILS,
@@ -119,20 +118,12 @@ describe("la table : sept rangées, trois positions, celle en vigueur pressée",
       );
       assert.equal(pressee(ligne).length, 1, `${ligne.dataset.row} : une position pressée`);
     }
-    // Ce que la cuisine fait aujourd'hui, et Merge à « I decide » : aucun grant.
-    assert.deepEqual(positionsVues(racine), { ...runtime.AUJOURDHUI, merge: "i-decide" });
+    // Ce que la cuisine fait aujourd'hui, Merge comprise : une rangée comme les autres.
+    assert.deepEqual(positionsVues(racine), { ...runtime.AUJOURDHUI });
     assert.deepEqual(
       lignes.map((ligne) => ligne.dessous("small")[0]?.textContent),
-      RANGEES.map((row) => (row === "merge" ? PAR_LE_GRANT : AUJOURDHUI)),
+      RANGEES.map(() => AUJOURDHUI),
     );
-  });
-
-  test("un projet qui a le grant `merge` : la rangée Merge le dit, « brigade decides » — les autres gardent leur défaut", async (t) => {
-    const { journal, api } = projet(t);
-    journal.ajouter({ project: "parade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-    const { racine } = await monter(api);
-
-    assert.deepEqual(positionsVues(racine), { ...runtime.AUJOURDHUI, merge: "brigade-decides" });
   });
 
   test("les mots de la vue sont ceux du runtime : rangées, positions, profils", () => {
@@ -168,13 +159,13 @@ describe("changer une rangée", () => {
     assert.deepEqual(appels, ["screens i-decide"]);
     assert.equal(positions().screens, "i-decide");
     assert.deepEqual(positionsVues(racine), positions());
-    assert.deepEqual(positionsVues(racine), { ...runtime.AUJOURDHUI, merge: "i-decide", screens: "i-decide" });
+    assert.deepEqual(positionsVues(racine), { ...runtime.AUJOURDHUI, screens: "i-decide" });
     assert.equal(rangee(racine, "screens").dessous("small")[0]?.textContent, "", "posée par le chef : plus « today's behavior »");
     const changement = journal.tout().find((evenement) => evenement.type === "autonomy.changed");
     assert.equal(changement?.author, "app:chef");
   });
 
-  test("chacune des trois positions, posée sur Merge, est celle que l'écran montre ensuite — et le grant la suit", async (t) => {
+  test("chacune des trois positions, posée sur Merge, est celle que l'écran montre ensuite", async (t) => {
     const { api, positions } = projet(t);
     const { racine } = await monter(api);
     for (const position of ["brigade-decides-and-tells-me", "brigade-decides", "i-decide", "brigade-decides-and-tells-me"] as const) {

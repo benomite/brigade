@@ -1,5 +1,5 @@
 // Le haut de `status` est en anglais (#928) : `runtime`, `kitchen`, `connection`, `stations`, `setup`,
-// `aside`, `base`, `grant`, `backup`, la ligne d'urgence et celle qui dit que rien ne cuit. Vérifié
+// `aside`, `base`, `backup`, la ligne d'urgence et celle qui dit que rien ne cuit. Vérifié
 // de deux façons : un état de la box écrit avant la traduction (test/fixtures/etat-d-avant-927/)
 // dit les mêmes états qu'avant, sans qu'on l'édite ; et un état d'exemple qui fait paraître chaque
 // ligne ne laisse passer aucun mot de la colonne « français » du glossaire. `facts` n'a pas bougé.
@@ -69,27 +69,23 @@ test("l'état d'exemple fait paraître chaque ligne du haut de `status`, et aucu
     "           replay its gates without waiting for a commit: brigade <projet> base replay",
     "setup      BLOCKED for 4 min on ba5e000 — no setup is launched from here, for any ticket, as long as the integration branch does not move: the cause and the action are in the `awaiting` block",
     "aside      BLOCKED for 4 min (secrets-unavailable) — only one ticket is taken again at a time, to see whether the cause has changed: the cause and the action are in the `awaiting` block",
-    "grant      merge ACTIVE, EXPIRING SOON: 26 min left (until 12 Oct 10:30 UTC) — a green pass is merged without you",
     "backup     2 min ago (2026-10-09T10-00-00Z, up to event 7)",
     "",
   ]);
   sansMotFrancais(tete);
 });
 
-test("l'état d'exemple, la cuisine arrêtée par le chef, sans station, le grant éteint seul, la sauvegarde trop vieille : les mêmes lignes, en anglais", (t) => {
+test("l'état d'exemple, la cuisine arrêtée par le chef, sans station, la sauvegarde trop vieille : les mêmes lignes, en anglais", (t) => {
   const { journal, noter } = etatDAvant(t);
   noter("10:00", { type: "kitchen.stopped", payload: {} }, null, "chef");
   noter("10:00", { type: "decision.withdrawn", payload: { name: "BRIGADE_STATIONS", previous: "box/claude:2:code+raisonnement" } }, null, "chef");
   noter("10:00", { type: "stations.undeclared", payload: {} });
-  noter("10:00", { type: "grant.activated", payload: { action: "merge", until: "2026-10-12T10:01:00.000Z" } }, null, "chef");
-  noter("10:02", { type: "grant.expired", payload: { action: "merge", cause: "until", since: "2026-10-12T10:01:00.000Z" } }, null, "pass");
   noter("10:03", { type: "runtime.stopped", payload: { signal: "SIGTERM" } });
   const tete = lireTete(journal);
   assert.deepEqual(tete.slice(1), [
     "runtime    stopped 1 min ago",
     "kitchen    STOPPED by the chef 4 min ago · breaker closed (0 failures in a row, opens at 3)",
     "stations   NONE DECLARED for 4 min — no cook leaves, the tickets stay waiting: set them with `brigade <projet> station stations box/claude:30:code+raisonnement`, read at the next wake-up, no restart",
-    "grant      merge LAPSED 3 min ago — its deadline has passed: the pass stops at the open PR, nothing is merged without you any more",
     "backup     NEVER DONE — is the timer `brigade-sauvegarde@brigade` running?",
     "",
   ]);
@@ -112,11 +108,7 @@ test("un projet dont le chef a décidé les stations n'est pas dit sans station,
   assert.equal(lireTete(journal).some((ligne) => ligne.includes("NONE DECLARED")), false);
 });
 
-test("un grant sans échéance, un runtime jamais démarré : `ACTIVE, no deadline`, `never started`", (t) => {
-  const { journal, noter } = etatDAvant(t);
-  noter("10:00", { type: "grant.activated", payload: { action: "merge" } }, null, "chef");
-  assert.ok(lireTete(journal).includes("grant      merge ACTIVE, no deadline, since 4 min ago — a green pass is merged without you"));
-
+test("un runtime jamais démarré : `never started`", (t) => {
   const vide = ouvrirJournal(repertoireTemporaire(t));
   t.after(() => vide.fermer());
   const tete = teteDe(decrireEtat(lireEtat(vide, LU_LE), LU_LE));
@@ -132,7 +124,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du haut dit les mêmes tickets
   const avant = teteDe(readFileSync(join(FIXTURE_928, "status-d-avant.txt"), "utf8").split("\n"));
   const apres = lireTete(exemple(t));
   assert.equal(apres.length, avant.length);
-  const titres = { "rien ne cuit : ": "nothing cooks: ", projet: "project", runtime: "runtime", cuisine: "kitchen", connexion: "connection", base: "base", setup: "setup", "mis de côté": "aside", grant: "grant", sauvegarde: "backup" } as const;
+  const titres = { "rien ne cuit : ": "nothing cooks: ", projet: "project", runtime: "runtime", cuisine: "kitchen", connexion: "connection", base: "base", setup: "setup", "mis de côté": "aside", sauvegarde: "backup" } as const;
   avant.forEach((ligne, rang) => {
     const titre = Object.keys(titres).find((candidat) => ligne.startsWith(candidat));
     // Une ligne de suite (retrait de onze espaces) répond à une ligne de suite.

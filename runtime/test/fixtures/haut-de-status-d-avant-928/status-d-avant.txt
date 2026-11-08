@@ -8,7 +8,6 @@ base       ROUGE depuis 4 min sur abc1234 — la station ne prend plus de ticket
            rejouer ses gates sans attendre un commit : brigade <projet> base replay
 setup      BLOQUÉ depuis 4 min sur ba5e000 — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc `awaiting`
 mis de côtéBLOQUÉ depuis 4 min (secrets-unavailable) — un seul ticket est repris à la fois, pour voir si la cause a changé : la cause et le geste sont dans le bloc `awaiting`
-grant      merge ACTIF, BIENTÔT ÉTEINT : encore 26 min (jusqu'au 12 oct. 10:30 UTC) — une pass verte est mergée sans toi
 sauvegarde il y a 2 min (2026-10-09T10-00-00Z, jusqu'à l'événement 7)
 
 awaiting   8 decisions await the chef — the oldest for 3 d
@@ -20,7 +19,6 @@ awaiting   8 decisions await the chef — the oldest for 3 d
   setup  for 4 min  setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #24 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket
   aside  for 4 min  tickets put aside: the secrets the repository declares cannot be given to the cook (secrets-unavailable, twice identically — seen on #24) — only one is taken again at a time, to probe — to do: set the missing values (the details are on the ticket's issue); the project starts again on its own as soon as a cook leaves, another cause shows up or the integration branch moves
   box/claude  for 4 min  Max connection expired (authentication_failed) — to restore: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”
-  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open
 end awaiting
 
 rail       1 pris · 2 en pass · 3 en attente · 1 BLOQUÉ · 2 86

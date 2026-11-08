@@ -89,5 +89,5 @@ export const luDeCooks = (fermeture: unknown = OBSERVEE, mesures = MESURES): Env
       { commande: "closing --json", texte: `${JSON.stringify(fermeture)}\n` },
     ],
   };
-  return { sur: "surContenu", args: [lecture, undefined, undefined, voir(lecture)], demande: "onglet" };
+  return { sur: "surContenu", args: [lecture, undefined, voir(lecture)], demande: "onglet" };
 };

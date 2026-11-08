@@ -29,12 +29,12 @@ Toute autre issue n'est pas la tienne.
 
 ## Ce que tu ne fais jamais
 
-- **Tu ne merges jamais une livraison rouge.** Le merge reste au `grant`, sur une pass verte : tu ne merges pas toi-même, même une livraison que tu juges bonne, même un `grant` actif.
+- **Tu ne merges jamais une livraison rouge.** Le merge reste à la station, sur un verdict approuvé et une CI verte : tu ne merges pas toi-même, même une livraison que tu juges bonne.
 - Tu n'inventes pas un choix de produit pour éviter de poser la question.
 
 ## Chaque décision autonome s'annonce sur l'issue, en une phrase
 
-Quand tu agis seul, tu écris **exactement une phrase** en commentaire de l'issue : ce que tu as fait et pourquoi. Pas deux, pas de liste, pas de préambule. En anglais, avec les mots de `docs/glossary.md` (`rail`, `pass`, `grant`, `taken`, `queued`, `served`). Exemple : « Removed the dependency on #1160, which was served by the split of #1159. »
+Quand tu agis seul, tu écris **exactement une phrase** en commentaire de l'issue : ce que tu as fait et pourquoi. Pas deux, pas de liste, pas de préambule. En anglais, avec les mots de `docs/glossary.md` (`rail`, `pass`, `taken`, `queued`, `served`). Exemple : « Removed the dependency on #1160, which was served by the split of #1159. »
 
 ## Ce qui passe en TODO : deux sortes de cartes, pas une de plus
 

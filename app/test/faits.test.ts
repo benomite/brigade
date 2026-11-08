@@ -490,8 +490,7 @@ const BLOC = {
     "  claude  depuis 2 j  connexion Max absente — à rétablir : `claude /login` sous le compte du service, puis `brigade <projet> garde-fous reprendre`\n" +
     "  #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 21\n" +
     "  #30  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue\n" +
-    "  #12  depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12\n" +
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte\n" +
+    "  #12  depuis 4 min  livraison verte, non mergée — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12\n" +
     "fin attend\n",
   a: "2026-10-12T10:04:20.000Z",
 };
@@ -557,7 +556,7 @@ describe("le rail en six colonnes", () => {
         titre: "Ticket 12",
         ouvrable: true,
         attendu: true,
-        attend: ["depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
+        attend: ["depuis 4 min  livraison verte, non mergée — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
         ...ATTENDUE,
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
         dit: [{ libelle: "right now", valeur: "activity not given — this station's runtime does not give it in `facts`" }],
@@ -609,7 +608,7 @@ describe("le rail en six colonnes", () => {
     for (const url of [null, "http://exemple.fr/30", "file:///etc/passwd"]) assert.equal(cartesDe({ ...SANS_LIVRES, rail: RAIL, attend: [{ ticket: 30, titre: "", url }] })?.[1]?.ouvrable, false);
   });
 
-  test("une ligne sans numéro — la station, le bilan faute de grant — n'est dans aucune colonne", () => {
+  test("une ligne sans numéro — la station — n'est dans aucune colonne", () => {
     const sansTicket = { ...BLOC, bloc: BLOC.bloc.split("\n").filter((ligne) => !ligne.startsWith("  #")).join("\n") };
     const dessine = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, sansTicket);
 
@@ -946,7 +945,7 @@ describe("la bannière d'arrêt", () => {
 
   test("son geste est celui du socle qui la relance — la commande de la doc, confirmée avant de partir", () => {
     const cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
-    const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade" }, undefined, cuisine);
+    const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade" }, cuisine);
 
     assert.ok(CONFIRMES.includes(BANNIERE.bouton));
     assert.deepEqual(ecrit, { commande: `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} parade guardrails resume)` });

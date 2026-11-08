@@ -139,7 +139,7 @@ this file and replay.
 
 The glossary's own exceptions are not in `WORDS`, so nothing renames them:
 
-- the words already English (`cook`, `grant`, `pass`, `status`, `rail`,
+- the words already English (`cook`, `pass`, `status`, `rail`,
   `station`, `manager`, `chef`, `ticket`, `box`, `base`, `gates`…);
 - `fire`, `86`, `behind`;
 - `Max`.

@@ -1,5 +1,5 @@
 // L'espace de « parade », la vue du rail seule (#1695), et la fiche de #12 ouverte : sa livraison verte attend un merge
-// faute de grant, la décision est connue — la fiche offre ses gestes, « merge the PR » et « remove from the rail ».
+// à la main, la décision est connue — la fiche offre ses gestes, « merge the PR » et « remove from the rail ».
 import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
 import { situationDe } from "../../../app/src/histoire.ts";
 import type { Faits } from "../../../app/src/faits.ts";
@@ -12,7 +12,7 @@ const PARADE = RENDUS.parade as Rendu;
 
 const FAITS = {
   ...PARADE.facts,
-  attend: PARADE.facts.attend.map((ligne) => (ligne.ticket === 12 ? { ...ligne, decision: { quoi: "merge", motif: "no-grant", cause: null, pr: "https://github.com/chef/parade/pull/31" } } : ligne)),
+  attend: PARADE.facts.attend.map((ligne) => (ligne.ticket === 12 ? { ...ligne, decision: { quoi: "merge", motif: "review-required", cause: null, pr: "https://github.com/chef/parade/pull/31" } } : ligne)),
 } as Faits;
 const RENDU: Rendu = { ...PARADE, facts: FAITS };
 

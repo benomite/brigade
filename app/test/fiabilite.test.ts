@@ -23,8 +23,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { commandesDe, ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { CAUSES, ESSAIS, PERDUS, PREMIER_COUP, poserFiabilite } from "../src/vue/fiabilite.js";
@@ -345,7 +344,7 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -372,7 +371,7 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     assert.equal(place("gates-du-projet"), place("fiabilite-du-projet") + 1);
 
     const lecture = lue(demande);
-    vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
+    vue.dire("surContenu", lecture, undefined, { ...voir(lecture), demande });
     await repos();
     assert.match(section.textContent, /delivered on the first try/);
     // Rien de technique à plat : ni commande, ni mode d'emploi.
@@ -391,7 +390,7 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     const vue = await ouvrir();
     const demande = (vue.dernier("onglet") as [string, string, number])[2];
     const ratee = { projet: "parade", demande, a: A, erreur: "connect to host box port 22: Connection refused", atteinte: false, cas: null } as Lecture;
-    vue.dire("surContenu", ratee, undefined, undefined, { ...voir(ratee), demande });
+    vue.dire("surContenu", ratee, undefined, { ...voir(ratee), demande });
     await repos();
     assert.equal(vue.element("fiabilite-du-projet").children.length, 0);
   });
@@ -401,7 +400,7 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     const section = vue.element("fiabilite-du-projet");
     const demande = (vue.dernier("onglet") as [string, string, number])[2];
     const lecture = lue(demande);
-    vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
+    vue.dire("surContenu", lecture, undefined, { ...voir(lecture), demande });
     await repos();
     // Une page ouverte par-dessus — Settings — : Cooks n'est plus lu, sa section se vide.
     (vue.element("onglets-du-projet").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();

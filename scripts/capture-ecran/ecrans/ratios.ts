@@ -40,7 +40,7 @@ const LUS: Record<string, unknown> = {
 
 const lu = (projet: string): Envoi => {
   const lecture: Lecture = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "closing --json", texte: `${JSON.stringify(LUS[projet])}\n` }] };
-  return { sur: "surContenu", args: [lecture, undefined, undefined], demande: "onglet" };
+  return { sur: "surContenu", args: [lecture, undefined], demande: "onglet" };
 };
 
 export const ecran: Ecran = {

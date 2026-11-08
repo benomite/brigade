@@ -259,16 +259,15 @@ code around it changed** (`runtime/src/closing/memory.ts`):
 
 Once its PR is open, the closing pass **hands it to the pass** in the gesture that writes its end
 (`closing.ended` `delivered`, then `pass.entered`). Everything that "The pass" says of a delivery
-holds for it: merge with the current base, **gates**, **reviewer**, **CI**, and green, merged only
-**under the `merge` grant** (`grant.used`, then `merge.done`). Without a grant it stops green
-(`no-grant`) and waits for your merge; a pass that touches its judges or the project's declarations
+holds for it: merge with the current base, **gates**, **reviewer**, **CI**, and green, merged
+(`merge.done`). A pass that touches its judges or the project's declarations
 is never merged by the pass (`review-required`).
 
 What changes comes from a pass having **no ticket**:
 
 - **The pass follows it under the number of its PR** and speaks on the PR. `brigade <projet> pass`
   shows it as `PR #<n>  off the rail (run fermeture-…)`, `brigade <projet> pass <n>` tells its
-  judgement, and its facts (`pass.*`, `grant.used`, `merge.done`) carry that number.
+  judgement, and its facts (`pass.*`, `merge.done`) carry that number.
 - **The reviewer is its real judge**, with a brief that is not a ticket's: it looks for what the diff
   removes and something alive still depends on, a test weakened to get a removal through, and what
   the diff does beyond what the PR announces. Green gates prove nothing there. **A removal that it
@@ -353,7 +352,7 @@ The writing pass above read the log; it went with the old path (#2061). The clos
 ### What this path does not do
 
 - **The summary holds nothing back**: a pass PR in which a guardrail gave way under green gates is
-  judged green and merged under the `merge` grant like any green delivery. The reviewer remains its
+  judged green and merged like any green delivery. The reviewer remains its
   judge.
 - **Only the last finished pass has its summary**; the earlier ones stay in the log.
 - **A pass's zone is released as soon as its PR is open**, not at its merge.

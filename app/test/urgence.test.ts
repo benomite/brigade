@@ -23,8 +23,7 @@ import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { jouerLaVue, repos } from "./aides/fausse-vue.ts";
@@ -137,10 +136,9 @@ describe("l'urgence dans la bande", () => {
     assert.match(bande("10:15:00").alertes[0]?.dit ?? "", / — at a standstill for 1 h 45$/);
   });
 
-  test("au-dessus de tout le reste : même devant un manager éteint et un grant éteint seul, rouges, ou des états non vérifiés", (t) => {
+  test("au-dessus de tout le reste : même devant un manager éteint, rouge, ou des états non vérifiés", (t) => {
     const { noter, rendre, bande } = toutRetenu(t);
     noter({ type: "manager.disabled", payload: {} }, null, "chef");
-    noter({ type: "grant.activated", payload: { action: "merge", until: heure("08:40:00") } }, null, "chef");
 
     const lue = bande("10:00:00").alertes;
     assert.deepEqual(
@@ -148,7 +146,6 @@ describe("l'urgence dans la bande", () => {
       [
         ["urgence", "rouge"],
         ["manager", "rouge"],
-        ["grant", "rouge"],
       ],
     );
     // Ni `status` ni `manager` lus : les lignes « non vérifié » restent dessous.
@@ -159,7 +156,6 @@ describe("l'urgence dans la bande", () => {
       [
         ["urgence", true],
         ["manager", false],
-        ["grant", false],
       ],
     );
   });
@@ -327,7 +323,7 @@ describe("l'urgence à l'écran", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,

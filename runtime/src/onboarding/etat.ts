@@ -146,7 +146,7 @@ function cause(motif: string | null): string {
 
 export const raisonEnClair = (motif: string | null): string => phrase(cause(motif));
 
-// Les phases où la livraison attend le chef : arrêtée faute de grant, ou
+// Les phases où la livraison attend le chef : arrêtée avant son merge, ou
 // remontée jusqu'à lui.
 const ATTEND_LE_CHEF: readonly Phase[] = ["held", "escalated"];
 

@@ -111,7 +111,7 @@ function machine(t: TestContext | null, options: { environnement?: (station: str
   for (const fichier of ["temoin.ts", "ancien-nom.ts"]) writeFileSync(join(runtime, "src", fichier), TEMOIN);
   writeFileSync(
     join(runtime, "package.json"),
-    JSON.stringify({ type: "module", scripts: { test: "node --test", typecheck: "tsc --noEmit", start: "node src/station/main.ts", status: "node src/temoin.ts", grant: "node src/temoin.ts", help: "node src/temoin.ts", "plat-du-jour": "node src/temoin.ts", ailleurs: "node src/../../ailleurs.ts", "plat-d-hier": "node src/ancien-nom.ts" } }),
+    JSON.stringify({ type: "module", scripts: { test: "node --test", typecheck: "tsc --noEmit", start: "node src/station/main.ts", status: "node src/temoin.ts", rail: "node src/temoin.ts", help: "node src/temoin.ts", "plat-du-jour": "node src/temoin.ts", ailleurs: "node src/../../ailleurs.ts", "plat-d-hier": "node src/ancien-nom.ts" } }),
   );
   writeFileSync(join(station, "projets"), `${options.ligne ?? "calculus acme/calculus main BRIGADE_PROXY_PORT=8482"}\n`);
 
@@ -275,18 +275,18 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(env.VIDE, "");
   });
 
-  test("les arguments arrivent à la commande tels qu'ils ont été donnés, espaces compris", { skip: posixOnly("Runs the gesture as `brigade calculus grant` with arguments holding spaces and `$HOME; true` and checks the command receives them verbatim; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
+  test("les arguments arrivent à la commande tels qu'ils ont été donnés, espaces compris", { skip: posixOnly("Runs the gesture as `brigade calculus rail` with arguments holding spaces and `$HOME; true` and checks the command receives them verbatim; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    assert.equal((await m.lancer(["calculus", "grant", "activer", "merge", "--jusqu-a", "2026-10-12 18:00", "$HOME; true"])).code, 0);
+    assert.equal((await m.lancer(["calculus", "rail", "activer", "merge", "--jusqu-a", "2026-10-12 18:00", "$HOME; true"])).code, 0);
 
     assert.deepEqual(m.commande()?.args, ["activer", "merge", "--jusqu-a", "2026-10-12 18:00", "$HOME; true"]);
   });
 
-  test("un `--` devant les arguments, comme `npm run` en demandait un, ne change rien", { skip: posixOnly("Runs the gesture as `brigade calculus grant -- activer merge` and checks the leading `--` is dropped before the command's arguments; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
+  test("un `--` devant les arguments, comme `npm run` en demandait un, ne change rien", { skip: posixOnly("Runs the gesture as `brigade calculus rail -- activer merge` and checks the leading `--` is dropped before the command's arguments; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    assert.equal((await m.lancer(["calculus", "grant", "--", "activer", "merge"])).code, 0);
+    assert.equal((await m.lancer(["calculus", "rail", "--", "activer", "merge"])).code, 0);
 
     assert.deepEqual(m.commande()?.args, ["activer", "merge"]);
   });
@@ -335,7 +335,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
   test("une commande qui n'est pas du runtime est refusée, en nommant celles de la station", { skip: posixOnly("Runs the gesture with commands outside the station runtime (`journal`, `--version`, `toString`, `ailleurs`) and checks exit 66 listing the station's commands; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    const refus = (commande: string) => `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n`;
+    const refus = (commande: string) => `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette station : status, rail, help, plat-du-jour\n`;
     // `journal` est une commande du runtime de ce dépôt, pas de cette station.
     const fin = await m.lancer(["calculus", "journal"]);
     assert.equal(fin.code, PAS_DU_RUNTIME);
@@ -392,7 +392,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     for (const commande of ["test", "typecheck", "start"]) {
       const refus = await juger(m, ["calculus", commande, "/tmp/nimporte.ts"]);
       assert.equal(refus.code, PAS_DU_RUNTIME, commande);
-      assert.match(refus.dit, /^brigade : « [a-z]+ » n'est pas une commande du runtime — celles de cette station : status, grant, help, plat-du-jour\n$/);
+      assert.match(refus.dit, /^brigade : « [a-z]+ » n'est pas une commande du runtime — celles de cette station : status, rail, help, plat-du-jour\n$/);
     }
     assert.equal(m.commande(), null);
   });
