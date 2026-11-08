@@ -545,6 +545,12 @@ neither its station nor its 3 tickets. The last blocking review on the brigade i
 corrected (merged 2026-11-08 03:55 UTC). The two tickets cooked after that, #2854 and #2855, passed their only review
 green. #2855 was sent back twice, for a red CI and for a conflict: those are #2858's send-backs, whose fix is above.
 Nothing to correct on main.
+#2862 counted 42 tickets: the 41 #2858 counted, and #2859. Its 23 blocking reviews are #2858's, whose fix (f5411cc)
+merged before the four tickets cooked since (#2854, #2855, #2858, #2859), none of them sent back by a review. The one
+send-back left is #2859's conflict with the base: #2858 and #2859, two quality tickets cooked at once, both appended
+here, and #2858 merged first (7840cd0); #2859 was redone on it (83a4ec6, merged as 6b65a0b). Two quality tickets open at
+once is what the station's rule already refuses (`deja-ouverte`, #2680), and #2859 came from a station older than #2804,
+above. No ticket was merged after #2859. Nothing to correct on main.
 
 ## The daily report of the decisions brigade told about
 
