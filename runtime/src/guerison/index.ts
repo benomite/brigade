@@ -181,8 +181,9 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       }
     });
 
-    // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni
-    // une épique, ni en attente du chef, calibrés —, et rien au travail depuis `INERTIE_MINUTES`. Un seul bug
+    // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni en
+    // attente (`waiting` : sa colonne, pas le rail, #1924), ni une épique, ni en
+    // attente du chef, calibrés —, et rien au travail depuis `INERTIE_MINUTES`.
     // tant qu'il reste ouvert (#2755).
     await tache("inertie", async () => {
       const instant = maintenant();
@@ -190,14 +191,14 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       if (auTravail) auTravailLe = instant;
       // Comme la retenue (`retenue/tour.ts`) : un ticket qui attend le chef, ou
       // dont le calibrage est incomplet, n'est pas prenable — la station le
-      // saute — et ne vaut pas une inertie. Un `waiting` reste compté : c'est
-      // lui qui fait la cause `all-blocked`.
-      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, A_LA_MAIN].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
+      // saute — et ne vaut pas une inertie. Un `waiting` non plus : il est sur
+      // sa colonne, pas sur le rail.
+      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
       const fait = await signalerInertie({
         maintenant: new Date(instant),
         github: {
           dernierMerge: async () => new Date(auTravailLe).toISOString(),
-          cuisinables: async () => Promise.all(aPrendre.map(async (t) => ({ number: t.number, title: t.title, attend: t.labels.includes(LABEL_WAITING) ? [...(await github.dependancesOuvertes(t.number))] : [] }))),
+          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title, attend: [] })),
           // Rien n'est pris quand l'inertie se lit : un ticket pris est du travail.
           prises: async () => [],
           prsEnPasse: async () => tickets.filter((t) => t.labels.includes(LABEL_IN_PASS)).length,

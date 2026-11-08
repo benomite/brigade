@@ -30,6 +30,7 @@ test("aucun merge depuis 90 minutes et un ticket cuisinable : un seul bug, dont 
   assert.deepEqual(r, { fait: "bug", cause: "empty-rail", bug: 200 });
   assert.equal(d.issues.length, 1);
   assert.deepEqual(d.issues[0]?.labels, [LABEL_DU_BUG]);
+  assert.ok(!d.issues[0]?.labels.includes("blocked-on-human"));
   assert.match(d.issues[0]?.corps ?? "", /empty of in-pass PRs/);
 });
 
