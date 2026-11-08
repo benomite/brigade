@@ -529,6 +529,14 @@ guard, but neither the gates nor the pull request's Linux CI played it: it is no
 #2832 changed (`.claude/brigade/tests-touches.mjs`), and only the Windows CI plays every file. #2832 lowered the
 guard to 2 s on main (c3a6c79). The repository's `CLAUDE.md` said the gates refuse such a guard; it now says they
 do so only through that file, which a change writing a guard plays by hand. No guard is changed.
+#2858 counted 41 tickets: the 40 #2852 counted, and #2855. Its 23 blocking reviews, the first reason it names, are
+the 23 #2852 counted (#2846's 22 and #2848's), whose fix — a cook keeps every case an existing test held (f5411cc) —
+merged on 2026-11-08 at 03:55 UTC (fa89c71); of the two tickets cooked after it, #2854 was served first try and #2855
+had no blocking review. Nothing to correct there. The send-backs left are #2855's own: a conflict with the base, and a
+red CI that #2855 fixed on main by giving a git identity to the fake cook of `test/bac-a-sable/ecriture-brigade.test.ts`,
+which committed under `process.env` (a3c5dd3). The station's global `git` config carries an identity; that commit
+needs one the CI runner does not give. The repository's `CLAUDE.md` now says a test's `git`, and that of every child
+it launches, runs under `ENV_GIT` (`test/outils.ts`), which carries one. No guard is changed.
 
 ## The daily report of the decisions brigade told about
 
