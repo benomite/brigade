@@ -18,6 +18,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { accepterLaMesure } from "../borne-attente-prise.ts";
+import type { FaitDePrise } from "../github-etat/prise.ts";
 import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, phaseLaPlusLenteDesTickets, seuilDuProjet, ticketsRecents } from "../temps-max/mesure.ts";
 import type { EnregistrementTemps, Pertes } from "./synthese.ts";
 
@@ -47,8 +48,9 @@ export const NOMS_DES_ETAPES: Record<Etape, string> = {
 export const RAIL_PLUS_TARD_MS = 60 * 60 * 1000;
 
 // Quand l'issue a été déposée et, si GitHub le dit, mise sur le rail et prise
-// pour la première fois (ISO).
-export type DepotDuTicket = { deposeAt: string; fireAt?: string | null; priseAt?: string | null };
+// pour la première fois (ISO) ; et, lus avec, ses prises, ses cooks rendus sans
+// livraison et ses renvois depuis (`faits`, #2954).
+export type DepotDuTicket = { deposeAt: string; fireAt?: string | null; priseAt?: string | null; faits?: readonly FaitDePrise[] };
 
 // À partir de `at` (ISO), le ticket est dans `etape`, jusqu'à la marque suivante.
 export type Marque = { etape: Etape; at: string };
@@ -67,6 +69,12 @@ const minutes = (secondes: number) => Math.round(secondes / 6) / 10;
 // prise — une autre station l'a prise, ou elle a redémarré depuis — : sans
 // elle, tout le temps jusqu'à la première phase vue passait pour l'attente
 // d'une prise (#2732). Ce qu'elle n'a pas vu après la prise est une cuisson.
+// Quand l'issue dit aussi ce qui a suivi (`faits`), chaque prise ouvre une
+// cuisson, chaque ticket rendu sans livraison en fait un cook raté suivi de
+// l'attente d'une prise — la règle de `rater` —, chaque renvoi ouvre le sien :
+// un cook tué par le redémarrage de sa station, puis repris, passait pour un
+// renvoi, 31 et 35 min de BOBL-tech/calculus-workspace#694 et #696 livrés du
+// premier coup (#2954).
 function marquesDuDepot(depot: DepotDuTicket | undefined): Marque[] {
   const depose = Date.parse(depot?.deposeAt ?? "");
   if (depot === undefined || Number.isNaN(depose)) return [];
@@ -80,8 +88,24 @@ function marquesDuDepot(depot: DepotDuTicket | undefined): Marque[] {
             { etape: "attenteQualification", at: depot.deposeAt },
             { etape: "attentePrise", at: new Date(fire).toISOString() },
           ];
-  const prise = Date.parse(depot.priseAt ?? "");
   const attente = Date.parse(avant.at(-1)?.at ?? "");
+  if (depot.faits !== undefined) {
+    const marques = [...avant];
+    const marquer = (etape: Etape, at: string) => {
+      if (marques.at(-1)?.etape !== etape) marques.push({ etape, at });
+    };
+    for (const fait of depot.faits) {
+      const at = Date.parse(fait.at);
+      if (Number.isNaN(at) || at <= attente) continue;
+      const iso = new Date(at).toISOString();
+      if (fait.quoi === "prise") marquer("cuisson", iso);
+      else if (fait.quoi === "rendu") rater(marques, iso);
+      // Un renvoi ne suit qu'un cook.
+      else if (marques.length > avant.length) marquer("renvoi", iso);
+    }
+    return marques;
+  }
+  const prise = Date.parse(depot.priseAt ?? "");
   return Number.isNaN(prise) || prise <= attente ? avant : [...avant, { etape: "cuisson", at: new Date(prise).toISOString() }];
 }
 
@@ -90,10 +114,21 @@ function marquesDuDepot(depot: DepotDuTicket | undefined): Marque[] {
 // sur les instants, pas sur les durées : la somme des phases est le temps
 // arrondi du début au merge, à la seconde près.
 export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTicket): EnregistrementTemps {
+  return mesurerLeParcours(parcours, mergedAt, depot).temps;
+}
+
+// La mesure, et `reprises` : les secondes d'attente d'une prise après la
+// première, que la borne de l'attente d'une prise ne compte pas (#2954).
+function mesurerLeParcours(parcours: Parcours, mergedAt: string, depot?: DepotDuTicket): { temps: EnregistrementTemps; reprises: number } {
   const premiere = parcours.marques[0];
   const claimedAt = premiere?.at ?? mergedAt;
   const avant = marquesDuDepot(depot).filter((m) => premiere === undefined || Date.parse(m.at) < Date.parse(premiere.at));
-  const marques = [...avant, ...parcours.marques];
+  // La dernière prise que l'issue porte avant la première marque de la
+  // station, quand celle-ci est une cuisson, est la sienne : la même cuisson,
+  // que la station marque quelques secondes après avoir posté sa prise. Deux
+  // cuissons de suite, la première passait pour un renvoi (#2954).
+  const memePrise = depot?.faits !== undefined && avant.at(-1)?.etape === "cuisson" && premiere?.etape === "cuisson";
+  const marques = [...avant, ...(memePrise ? parcours.marques.slice(1) : parcours.marques)];
   const depuis = marques[0]?.at ?? mergedAt;
   const debut = Date.parse(depuis);
   const fin = Math.max(debut, Date.parse(mergedAt));
@@ -105,6 +140,8 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
   // sont celles d'une livraison renvoyée : un renvoi.
   const livree = marques.map((m) => m.etape).lastIndexOf("cuisson");
   const perdu: Pertes = { attente: 0, ratees: 0, renvois: 0 };
+  const prise = marques.findIndex((m) => m.etape !== "attenteQualification" && m.etape !== "attentePrise");
+  let reprises = 0;
   let derniere: { etape: Etape; secondes: number } | null = null;
   const fermer = () => {
     if (derniere !== null && derniere.secondes > 0) phases.push({ nom: NOMS_DES_ETAPES[derniere.etape], minutes: minutes(derniere.secondes) });
@@ -113,6 +150,7 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
     const suivante = marques[rang + 1];
     const secondes = seconde(suivante === undefined ? fin : Date.parse(suivante.at)) - seconde(Date.parse(marque.at));
     durees[marque.etape] += secondes;
+    if (marque.etape === "attentePrise" && prise >= 0 && rang > prise) reprises += secondes;
     if (marque.etape === "attenteQualification" || marque.etape === "attentePrise") perdu.attente += secondes;
     else if (marque.etape === "cuissonRatee") perdu.ratees += secondes;
     else if (marque.etape === "renvoi" || rang < livree) perdu.renvois += secondes;
@@ -124,7 +162,7 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
   });
   fermer();
   const cuissonTests = Math.min(Math.max(0, Math.round(parcours.testsMs / 1000)), durees.cuisson);
-  return {
+  const temps: EnregistrementTemps = {
     ticket: parcours.ticket,
     depuis,
     claimedAt,
@@ -143,6 +181,7 @@ export function mesurer(parcours: Parcours, mergedAt: string, depot?: DepotDuTic
     perdu,
     ...(depot === undefined ? {} : { priseAt: depot.priseAt ?? null }),
   };
+  return { temps, reprises };
 }
 
 // Un enregistrement mesuré avant #2732, corrigé de la prise que l'issue porte
@@ -319,7 +358,8 @@ export function chronometre(maintenant: () => Date = () => new Date()): Chronome
       const ouvert = parcours.get(ticket);
       if (ouvert === undefined) return null;
       parcours.delete(ticket);
-      return accepterLaMesure(mesurer(ouvert, maintenant().toISOString(), depot));
+      const { temps, reprises } = mesurerLeParcours(ouvert, maintenant().toISOString(), depot);
+      return accepterLaMesure(temps, reprises);
     },
     oublier: (ticket) => {
       parcours.delete(ticket);

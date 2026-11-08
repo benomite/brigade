@@ -413,7 +413,16 @@ reviewed it, or the runtime restarted — is 0, never estimated. Its claim, thou
 with the filing: the first claim comment (`brigade:prise`, by the repo, any station) posted since `fire`. Claim wait
 ends there, and the time from that claim to the first phase the station saw is cooking. Before #2732 that whole time
 was claim wait: any station merges, so a ticket cooked by another station, or before a restart, lost hours it had
-spent cooking. With no claim readable, the time from the filing to the first phase seen stays claim wait. The record keeps that claim (`priseAt`, null when none is readable). A recent record without it was measured
+spent cooking. Since #2954 the station also reads what followed that claim on the issue, from the repo's comments
+since `fire`: each claim (`brigade:prise`) opens a cooking, each ticket given back without a delivery (`brigade:lache`
+or `brigade:echec`) turns it into a failed cook followed by a claim wait — the rule of `rater` —, each send-back
+(`brigade:renvoi`) opens one; the last claim before the station's first mark, when that mark is a cooking, is the
+station's own and the same cooking. Before #2954 a cook killed by its station's restart, then claimed again, was a
+send-back: BOBL-tech/calculus-workspace#694 and #696, delivered on the first try, counted 31 and 35 min of
+send-backs; and the station's own claim, posted seconds before its mark, split off 0.1 min of send-back on most
+tickets. The bound on the claim wait (#2784) holds only the wait before the first claim: the wait after a cook
+given back no longer gets the measure of its ticket rejected. With no claim readable, the time from the filing to
+the first phase seen stays claim wait. The record keeps that claim (`priseAt`, null when none is readable). A recent record without it was measured
 before #2732: after each merge the station reads its claim from GitHub and corrects it the same way, a few at a
 time (#2734) — #2709, merged eight minutes before #2732, kept 309 of its 310 min as claim wait and opened a
 correction on its own. The station also does it at each turn, before the lost-time rule reads the times
@@ -421,8 +430,8 @@ correction on its own. The station also does it at each turn, before the lost-ti
 1.9 min after `fire`, and opened a correction on its own. An issue GitHub does not return is not read again while
 the station runs; a read that fails is retried at the next turn. When the filing cannot be read from GitHub at the merge, the time runs from the
 claim and the station warns of it. The station replays nothing: only the tests replay a ticket from its
-recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`) and the
-same failed-cook rule (`rater`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,
+recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`), the
+same failed-cook rule (`rater`) and the same reading of the comments (`faitsDePrise`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,
 `brigade:lache`, `brigade:renvoi`), `in-pass` set and the approving verdict (`brigade:verdict … approve`, on the
 PR) mark its phases, the review inside the pass wait — GitHub does not record when a review starts — and the
 merge request inside the CI. `runtime/test/fixtures/temps-tickets-40` holds the recorded history of brigade's 40
