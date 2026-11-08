@@ -61,7 +61,8 @@ function carte(doc, choix, { choisir, enCours, refus }) {
       const issue = cree(doc, "li");
       issue.className = "issue";
       issue.dataset.issue = option.id;
-      const bouton = boutonDeLaFamille(doc, option.label, undefined);
+      // Une issue tient sur une ligne, coupée, entière au survol : le bouton garde ses 32 px dans une colonne étroite.
+      const bouton = boutonDeLaFamille(doc, option.label, undefined, { coupe: true });
       bouton.disabled = occupe;
       bouton.addEventListener("click", () => choisir(choix.id, option.id));
       const suite = cree(doc, "p", option.consequence);

@@ -3335,7 +3335,9 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
   `app/src/vue/composants/bouton/`, its skin in `bouton.css` beside it and nowhere else. Four kinds: the
   **recommended** one, filled with the accent, one per place; the **secondary**, for every other gesture; the
   **quiet** one, to cancel, close or fold; the **danger** one, to stop or remove. A button is 32 px tall on the
-  computer, 44 px at phone width and on first launch. A project's name that opens it, a link to a page, the lost-tokens
+  computer, 44 px at phone width and on first launch, whatever its label: a TODO card's answer or a project choice's
+  issue too long for one line stays on it, cut by an ellipsis, whole on hover (`title`) and for a screen reader
+  (`aria-label`). A project's name that opens it, a link to a page, the lost-tokens
   figure that unfolds its list and the three positions of an autonomy row are buttons of the family too (quiet, or
   secondary and pressed). A tab, a tile of the icon bar, a color swatch, a switch, the edge that resizes the second's panel, a
   clickable row or a ticket number that opens its issue is not a button of the family: each keeps its own shape.

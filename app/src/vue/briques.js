@@ -75,12 +75,13 @@ export function lectureIndisponible(doc, ligne, detail) {
 
 // Un bouton d'action. `recommande` le distingue des autres (la sorte recommandée de la famille, et `aria-` de rien
 // d'autre : c'est une question de peau) ; `sorte` en choisit une autre (discret, danger). `prix` : nul ou absent, il
-// n'y a ni survol ni icône ; sinon le prix est dans le survol, pas écrit sous le bouton.
-/** @param {Fabrique} doc @param {string} libelle @param {() => void} geste @param {{ recommande?: boolean, sorte?: import("./composants/bouton/bouton.js").Sorte, grand?: boolean, prix?: number | string | null }} [options] */
-export function boutonAction(doc, libelle, geste, { recommande = false, sorte, grand = false, prix } = {}) {
+// n'y a ni survol ni icône ; sinon le prix est dans le survol, pas écrit sous le bouton. `coupe` : son libellé tient sur
+// une ligne, coupé, entier au survol (la famille, `bouton.js`).
+/** @param {Fabrique} doc @param {string} libelle @param {() => void} geste @param {{ recommande?: boolean, sorte?: import("./composants/bouton/bouton.js").Sorte, grand?: boolean, coupe?: boolean, prix?: number | string | null }} [options] */
+export function boutonAction(doc, libelle, geste, { recommande = false, sorte, grand = false, coupe = false, prix } = {}) {
   const groupe = doc.createElement("span");
   groupe.className = "action";
-  groupe.append(bouton(doc, libelle, geste, { sorte: recommande ? "recommande" : sorte, grand }));
+  groupe.append(bouton(doc, libelle, geste, { sorte: recommande ? "recommande" : sorte, grand, coupe }));
   const cout = prixDit(prix);
   if (cout !== "") groupe.append(survol(doc, cout));
   return groupe;

@@ -57,6 +57,16 @@ describe("le bouton", () => {
     assert.equal((bouton(doc, "Add a station", () => {}) as Faux).dataset.taille, undefined);
   });
 
+  test("coupé, son libellé tient dans un `span` sur une ligne, entier au survol et pour un lecteur d'écran ; sinon, rien de tout ça", () => {
+    const long = "Keep the current behaviour and document it in the README, then open a follow-up ticket for the migration";
+    const coupe = bouton(doc, long, () => {}, { sorte: "recommande", coupe: true }) as Faux;
+    assert.equal(coupe.textContent, long);
+    assert.deepEqual([coupe.title, coupe.ariaLabel], [long, long]);
+    assert.deepEqual(coupe.dessous("span").map((span) => [span.className, span.textContent]), [["coupe", long]]);
+    const entier = bouton(doc, "Cancel", () => {}) as Faux;
+    assert.deepEqual([entier.title, entier.ariaLabel, entier.dessous("span").length], ["", "", 0]);
+  });
+
   test("un bouton posé change de sorte : il devient le recommandé, ou cesse de l'être", () => {
     const cree = bouton(doc, "keep it on box", () => {}) as Faux;
     sorteDuBouton(cree, "recommande");
@@ -76,6 +86,13 @@ describe("sa feuille", () => {
     const etroit = FEUILLE.slice(FEUILLE.indexOf(`@media ${seuil}`));
     assert.ok(etroit.length < FEUILLE.length, "pas de page étroite dans la feuille du bouton");
     assert.equal(declarations(etroit, "[data-bouton]").get("min-height"), "44px");
+  });
+
+  test("un libellé coupé reste sur une ligne, d'une ellipse", () => {
+    const coupe = declarations(FEUILLE, "[data-bouton] > .coupe");
+    assert.equal(coupe.get("white-space"), "nowrap");
+    assert.equal(coupe.get("overflow"), "hidden");
+    assert.equal(coupe.get("text-overflow"), "ellipsis");
   });
 
   test("le recommandé est rempli de l'accent, son texte sur le fond", () => {

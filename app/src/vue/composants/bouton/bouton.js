@@ -15,11 +15,20 @@
 export const SORTES = ["recommande", "secondaire", "discret", "danger"];
 
 // Un bouton : son libellé, son geste au clic (aucun pour un `submit`, que son formulaire écoute), sa sorte et sa taille.
-/** @param {Fabrique} doc @param {string} libelle @param {(() => void) | undefined} geste @param {{ sorte?: Sorte, grand?: boolean, type?: "button" | "submit" }} [options] */
-export function bouton(doc, libelle, geste, { sorte = "secondaire", grand = false, type = "button" } = {}) {
+// `coupe` : un libellé qui ne tient pas sur une ligne y reste, coupé d'une ellipse, entier au survol (`title`) et pour un
+// lecteur d'écran (`aria-label`) — le bouton garde sa hauteur, 32 ou 44 px, quelle que soit sa longueur.
+/** @param {Fabrique} doc @param {string} libelle @param {(() => void) | undefined} geste @param {{ sorte?: Sorte, grand?: boolean, coupe?: boolean, type?: "button" | "submit" }} [options] */
+export function bouton(doc, libelle, geste, { sorte = "secondaire", grand = false, coupe = false, type = "button" } = {}) {
   const cree = doc.createElement("button");
   cree.type = type;
-  cree.textContent = libelle;
+  if (coupe) {
+    const texte = doc.createElement("span");
+    texte.className = "coupe";
+    texte.textContent = libelle;
+    cree.append(texte);
+    cree.title = libelle;
+    cree.ariaLabel = libelle;
+  } else cree.textContent = libelle;
   sorteDuBouton(cree, sorte);
   if (grand) cree.dataset.taille = "grand";
   if (geste !== undefined) cree.addEventListener("click", geste);

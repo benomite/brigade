@@ -158,9 +158,10 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   const choix = cree(doc, "div");
   choix.className = "choix-carte";
   // La réponse recommandée est le premier choix (ticket 2922, maquette Project.dc.html) : plein d'accent, au-dessus des
-  // autres, qui restent des boutons ordinaires.
+  // autres, qui restent des boutons ordinaires. Une réponse trop longue tient sur une ligne, coupée, entière au survol : le
+  // bouton garde ses 32 px, 44 sur un téléphone (ticket 2916).
   carte.choix.forEach(({ texte, prix }, rang) => {
-    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix, recommande: rang === 0 });
+    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix, recommande: rang === 0, coupe: true });
     const bouton = groupe.children?.[0];
     if (bouton !== undefined) {
       bouton.className = "choix";

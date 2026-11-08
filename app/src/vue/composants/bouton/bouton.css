@@ -54,6 +54,13 @@
 [data-bouton="danger"]:hover:not(:disabled) {
   border-color: var(--rouge-clair);
 }
+/* Coupé : un libellé trop long reste sur une ligne, d'une ellipse ; le bouton le porte entier au survol. */
+[data-bouton] > .coupe {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Pressé — le choix fait parmi d'autres —, il est cerné de l'accent. */
 [data-bouton][aria-pressed="true"] {
   border-color: var(--accent);
