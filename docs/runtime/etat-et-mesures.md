@@ -562,6 +562,13 @@ merged after #2862 that missed its first try is #2872, whose two failed cooks co
 version, 0.20261108.085053+ge90f46a, did not download (504). Replayed on these 85 tickets, with #2862 served at its
 merge (05:22 UTC), dd576d9's gate opens a ticket and main's waits (`en-attente`, 17 more merged tickets since #2862).
 Nothing to correct on main.
+#2883 counted 88 tickets, on the same reasons: 17 conflicts with the base, 16 blocking reviews, 7 red runtime tests,
+all on tickets merged before #2862 was served. The one ticket it measures that #2879 did not and that missed its first
+try is #2873: two failed cooks on the missing `v2` base branch, both before its delivered cook (72f8e93, 09:51 UTC),
+which ran while #2876's fix was merging (b45f9f1, 09:51 UTC). #2879 was served at 10:00 UTC (584620f) and no ticket was
+merged after it. The box's station still runs dd576d9: the next version, 0.20261108.095107+gb45f9f1, did not download
+either (504). Replayed on these 88 tickets with #2879 served at its merge, dd576d9's gate opens a ticket and main's
+waits (`en-attente`, 20 merged tickets missing since #2879). Nothing to correct on main.
 
 ## The daily report of the decisions brigade told about
 
