@@ -26,7 +26,7 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
     pullRequests(first: 30, states: OPEN) {
       pageInfo { hasNextPage }
       nodes {
-        number headRefName headRefOid mergeable mergeStateStatus
+        number headRefName headRefOid isCrossRepository mergeable mergeStateStatus
         files(first: 100) { pageInfo { hasNextPage } nodes { path changeType } }
         commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 60) { pageInfo { hasNextPage } nodes {
           __typename
@@ -49,6 +49,10 @@ export type PRDeLInstantane = {
   number: number;
   branche: string;
   sha: string;
+  // Une PR externe (#2933) : sa tête vient d'un autre dépôt que celui du
+  // projet — un fork. Elle n'est la PR d'aucun ticket, quel que soit le nom de
+  // sa branche, et se sert par `pr-externe/`.
+  externe: boolean;
   enRetard: boolean;
   enConflit: boolean;
   // Ce qui change dès que GitHub change quoi que ce soit à sa fusion.
@@ -117,6 +121,7 @@ export function lireInstantane(data: unknown): Instantane {
           number: p.number as number,
           branche: p.headRefName as string,
           sha: p.headRefOid as string,
+          externe: p.isCrossRepository === true,
           enRetard: p.mergeStateStatus === "BEHIND",
           enConflit: p.mergeable === "CONFLICTING" || p.mergeStateStatus === "DIRTY",
           version: `${String(p.headRefOid)}/${String(p.mergeable)}/${String(p.mergeStateStatus)}`,

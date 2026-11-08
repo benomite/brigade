@@ -25,6 +25,11 @@ export type Depot = {
   // porte ; sinon la branche naît ici sur la base, sans commit : une livraison
   // sans diff. Aucun worktree n'est créé.
   recevoir(branche: string): Promise<boolean>;
+  // Rapatrie la tête d'une PR externe (#2933) — un fork, que l'origine porte
+  // sous `refs/pull/<n>/head` et sous aucune branche — et en pose un worktree
+  // détaché, sans branche du clone. Rend le worktree et la référence où la
+  // tête est rangée, que `tete`, `changes` et `diff` lisent comme une branche.
+  recevoirPR(run: string, numero: number): Promise<{ worktree: string; reference: string }>;
   // Défait ce que `preparer` ou `reprendre` a fait, pour un worktree où aucun
   // cook n'est entré : le worktree, et sa branche si elle est nommée.
   retirer(worktree: string, branche?: string): void;
@@ -712,6 +717,17 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // reprend — cède à ce que l'origine porte : c'est elle qui est jugée.
         await gitAsync("branch", "--quiet", "--force", branche, suivie(branche));
         return true;
+      }),
+    recevoirPR: (run, numero) =>
+      aSonTour(async () => {
+        const worktree = join(worktrees, run);
+        await liberer(worktree);
+        // La base rapatriée : c'est contre elle que la PR se compte.
+        await rapatrier();
+        const reference = `refs/brigade/pr/${numero}`;
+        await gitAvec(await reseau(), "fetch", "--quiet", "origin", `+refs/pull/${numero}/head:${reference}`);
+        await gitAsync("worktree", "add", "--quiet", "--detach", worktree, reference);
+        return { worktree, reference };
       }),
     retirer(worktree, branche) {
       git("worktree", "remove", "--force", worktree);

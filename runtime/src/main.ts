@@ -201,6 +201,8 @@ try {
             gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
             // Le setup du worktree de chaque cook, joué avant lui (#2535).
             setup: { delaiMs: delaiGatesMs },
+            // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
+            projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
             // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
             gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) }),
           }),

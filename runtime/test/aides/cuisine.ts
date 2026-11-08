@@ -349,6 +349,10 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
       rangees.set(nom, { commits: 1, date: statSync(poussee).mtimeMs, recoltes: [], poussee: true });
       return true;
     },
+    // Sans git, pas de fork à rapatrier (#2933).
+    async recevoirPR(_run, numero) {
+      throw new Error(`no outside PR #${numero} in a clone without git`);
+    },
     retirer(worktree, nom) {
       const sienne = de(worktree);
       if (sienne !== undefined) quitter(worktree, sienne);

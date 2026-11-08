@@ -111,6 +111,15 @@ base, the stale-branch pruning).
   goes back to a cook like a red CI. The `pending` status is the claim: a fresh one (under 90 min, `GATES_PERIMEES_MS`)
   is awaited, and one left by a station that died during the gates is taken over once it expires. A project with CI on
   its PRs keeps requiring it, and in doubt the CI is awaited.
+- **An outside PR is judged, never merged** (#2933). A PR opened from a fork (`isCrossRepository` in the turn's
+  snapshot, a head repository other than the project's in REST) is no ticket's PR, whatever its branch is called. A
+  station fetches its head from `refs/pull/<n>/head` into a detached worktree, runs the review and the project's gates
+  on it with none of the project's secrets and no GitHub token, posts the review verdict and the gates' result as one
+  comment on the PR (`<!-- brigade:pr-externe … -->`), then a `merge-by-hand` TODO card on the PR, assigned to the
+  project's `review` human: `merge #N?`, with `yes` recommended when the review approves and no gate is red, `no`
+  otherwise. Nothing on this path can merge or update the PR (`runtime/src/pr-externe/`). One head is served once, by
+  one station, claimed like the manager's work on an issue; a new head is judged again and its card replaces the
+  previous one. The app's TODO lists issues only, so this card shows on GitHub, not in the app.
 - **Cost follows events, not time** (#2198): a turn where nothing changed costs no counted GitHub call (its reads are
   conditional); a merge GitHub refuses, or a branch update it asked for, is not retried until the PR or the base
   changes. A ticket served end to end costs about 27 calls, at most 30 (`runtime/test/cout-par-ticket/`).

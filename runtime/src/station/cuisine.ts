@@ -235,6 +235,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
               // Le setup du worktree de chaque cook, joué avant lui (#2535).
               setup: { delaiMs: delaiGatesMs },
+              // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
+              projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
             }),
       avertir: dire,
     });
