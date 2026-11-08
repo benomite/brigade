@@ -79,6 +79,45 @@ describe("what the station did not see of a ticket is read on its issue at the m
     ]);
   });
 
+  test("calculus-workspace#696: a cook released by its station's restart is a failed cook, not 35 min of send-backs", async () => {
+    // Pris à 20:03:46, le cook meurt avec sa station, qui rend le ticket à 20:09:30 ;
+    // la station relancée le reprend à 20:39:00 et le livre du premier coup.
+    const depot = await depotLu("2026-11-08T20:03:30Z", "2026-11-08T20:03:32Z", [prise("2026-11-08T20:03:46Z"), lacher("2026-11-08T20:09:30Z"), prise("2026-11-08T20:39:00Z")]);
+    assert.ok(depot !== null);
+    const temps = servi(
+      [
+        ["cuisson", "2026-11-08T20:39:02Z"],
+        ["attentePasse", "2026-11-08T20:42:00Z"],
+      ],
+      "2026-11-08T20:43:28Z",
+      depot,
+    );
+    assert.ok(temps !== null);
+    assert.deepEqual(temps.perdu, { attente: 2 + 14 + 1770, ratees: 344, renvois: 0 });
+    assert.equal(temps.cuisson, 180);
+  });
+
+  test("a cook that died with its station without a release, then claimed again, is a failed cook, not the delivering cooking", async () => {
+    // Rien n'a rendu le ticket entre les deux prises : la station tuée net n'a rien posté.
+    const depot = await depotLu("2026-11-08T20:03:30Z", "2026-11-08T20:03:32Z", [prise("2026-11-08T20:03:46Z"), prise("2026-11-08T20:39:00Z")]);
+    assert.ok(depot !== null);
+    const temps = servi(
+      [
+        ["cuisson", "2026-11-08T20:39:02Z"],
+        ["attentePasse", "2026-11-08T20:42:00Z"],
+      ],
+      "2026-11-08T20:43:28Z",
+      depot,
+    );
+    assert.ok(temps !== null);
+    assert.deepEqual(temps.perdu, { attente: 2 + 14, ratees: 2114, renvois: 0 });
+    assert.equal(temps.cuisson, 180);
+    assert.deepEqual(
+      temps.phases?.map((p) => p.nom),
+      ["qualification wait", "claim wait", "failed cook", "cooking", "pass wait"],
+    );
+  });
+
   test("the claim the station posted itself, a few seconds before its own mark, is the same cooking: no send-back", async () => {
     // calculus-workspace#697 : 0,1 min de renvoi entre la prise postée et la marque de la station.
     const depot = await depotLu("2026-11-08T20:03:33Z", "2026-11-08T20:03:34Z", [prise("2026-11-08T20:31:39Z")]);

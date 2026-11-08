@@ -71,7 +71,8 @@ const minutes = (secondes: number) => Math.round(secondes / 6) / 10;
 // d'une prise (#2732). Ce qu'elle n'a pas vu après la prise est une cuisson.
 // Quand l'issue dit aussi ce qui a suivi (`faits`), chaque prise ouvre une
 // cuisson, chaque ticket rendu sans livraison en fait un cook raté suivi de
-// l'attente d'une prise — la règle de `rater` —, chaque renvoi ouvre le sien :
+// l'attente d'une prise — la règle de `rater` —, tout comme une nouvelle prise
+// sur une cuisson que rien n'a rendue, chaque renvoi ouvre le sien :
 // un cook tué par le redémarrage de sa station, puis repris, passait pour un
 // renvoi, 31 et 35 min de BOBL-tech/calculus-workspace#694 et #696 livrés du
 // premier coup (#2954).
@@ -98,8 +99,12 @@ function marquesDuDepot(depot: DepotDuTicket | undefined): Marque[] {
       const at = Date.parse(fait.at);
       if (Number.isNaN(at) || at <= attente) continue;
       const iso = new Date(at).toISOString();
-      if (fait.quoi === "prise") marquer("cuisson", iso);
-      else if (fait.quoi === "rendu") rater(marques, iso);
+      if (fait.quoi === "prise") {
+        // Une prise sur une cuisson que rien n'a rendue : le cook d'avant est
+        // mort sans lâcher le ticket — sa station tuée net —, un cook raté.
+        rater(marques, iso);
+        marquer("cuisson", iso);
+      } else if (fait.quoi === "rendu") rater(marques, iso);
       // Un renvoi ne suit qu'un cook.
       else if (marques.length > avant.length) marquer("renvoi", iso);
     }

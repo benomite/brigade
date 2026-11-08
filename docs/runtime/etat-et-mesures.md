@@ -415,7 +415,8 @@ ends there, and the time from that claim to the first phase the station saw is c
 was claim wait: any station merges, so a ticket cooked by another station, or before a restart, lost hours it had
 spent cooking. Since #2954 the station also reads what followed that claim on the issue, from the repo's comments
 since `fire`: each claim (`brigade:prise`) opens a cooking, each ticket given back without a delivery (`brigade:lache`
-or `brigade:echec`) turns it into a failed cook followed by a claim wait — the rule of `rater` —, each send-back
+or `brigade:echec`) turns it into a failed cook followed by a claim wait — the rule of `rater` —, as does a new
+claim on a cooking nothing gave back (a cook that died with its station, no release posted), each send-back
 (`brigade:renvoi`) opens one; the last claim before the station's first mark, when that mark is a cooking, is the
 station's own and the same cooking. Before #2954 a cook killed by its station's restart, then claimed again, was a
 send-back: BOBL-tech/calculus-workspace#694 and #696, delivered on the first try, counted 31 and 35 min of
