@@ -87,7 +87,8 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
     assert.deepEqual([...new Set([...pastille.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, nom = ""]) => nom))], ["--ton"]);
     for (const [, valeur] of pastille.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
-    const nommees = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...pastille.matchAll(/var\((--[a-z0-9-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, nom = ""]) => nom);
+    const bonEtCarte = sansCommentaires(lire("composants/bon/bon.css")) + sansCommentaires(lire("composants/carte-attente/carte-attente.css"));
+    const nommees = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...bonEtCarte.matchAll(/var\((--[a-z0-9-]+)\)/g), ...pastille.matchAll(/var\((--[a-z0-9-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, nom = ""]) => nom);
     assert.ok(nommees.length > 100, "vue.css ne nomme presque aucune variable");
     for (const nom of new Set(nommees)) assert.ok(jetons.has(nom) || nom === "--ton", `« ${nom} » n'est pas dans jetons.css`);
     // Et aucune n'y dort : ce qui est posé sert.
@@ -190,8 +191,10 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     const mono = regles(lire("vue.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)");
     assert.deepEqual(
       mono.map(({ selecteurs }) => selecteurs),
-      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", ".carte dd", "#rail h4 > span:last-child", "#rail .bon p", ".premier-lancement .formulaire-du-premier input"]],
+      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", ".carte dd", "#rail h4 > span:last-child", ".premier-lancement .formulaire-du-premier input"]],
     );
+    // Le bon porte la sienne, dans sa feuille : `.bon p`, les phrases d'un ticket que la box écrit.
+    assert.deepEqual(regles(lire("composants/bon/bon.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)").map(({ selecteurs }) => selecteurs), [[".bon p"]]);
     // Ce que l'app dit elle-même sur plusieurs lignes revient à la police de l'interface.
     const propos = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("pre.propos"));
     assert.equal(propos?.declarations.get("font-family"), "var(--police-interface)");
@@ -520,8 +523,8 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
     assert.equal(carte?.declarations.get("border"), "1px solid var(--trait)");
     assert.equal(feuille.find(({ selecteurs }) => selecteurs.join() === "body")?.declarations.get("background"), "var(--fond)");
     // Les colonnes du rail, les bons, le bloc de ce qui attend, la sortie relayée : chacun son cadre.
-    for (const [selecteur, fond] of [["#rail .colonne", "var(--bandeau)"], ["#rail .bon", "var(--bon)"], [".attend", "var(--attend)"], ["pre", "var(--terminal)"]] as const) {
-      const regle = feuille.find(({ selecteurs }) => selecteurs.length === 1 && selecteurs[0] === selecteur);
+    for (const [selecteur, fond] of [["#rail .colonne", "var(--bandeau)"], [".bon", "var(--bon)"], [".attend", "var(--attend)"], ["pre", "var(--terminal)"]] as const) {
+      const regle = (selecteur === ".bon" ? regles(lire("composants/bon/bon.css")) : feuille).find(({ selecteurs }) => selecteurs.length === 1 && selecteurs[0] === selecteur);
       assert.equal(regle?.declarations.get("background"), fond, selecteur);
       assert.match(regle?.declarations.get("border-radius") ?? "", /^var\(--rayon-(carte|bouton|bon)\)$/, selecteur);
     }

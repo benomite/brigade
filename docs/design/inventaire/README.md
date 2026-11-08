@@ -173,7 +173,7 @@ Cards that draw a block on a dark background (`--carte`, `--case`) differ by bor
 - Radius `--rayon-bouton` instead: `#rail .closer-bilan .retraits li` (`5922`), `.confiance .machine` and `.capacite` (`912`, `995`), `#station .projets-de-la-station .capacite` (`6642`). Captures: `closer-finie.png`, `ajout-station.png`.
 - The warm « waiting » background `--attend` with `--rayon-carte` and border `--attend-trait` (`.attend`, `vue.css:2015`); with `--rayon-bouton` and a `--rouge` border (`#rail .panne-du-rail`, `#rail .ligne-disjoncteur`, `vue.css:2914`, `2940`); with `--rayon-bouton` and a `--trait` border (`.avis-depot`, `vue.css:7870`). Captures: `espace-projet.png`, `depot-non-prepare.png`.
 - A card with a left border of 4px in `--accent` and no radius (`#fiche .question`, `vue.css:4618`). Capture: `fiche.png`.
-- The voucher (`#rail .bon`, `vue.css:3808`) on `--bon`, radius `--rayon-bon`. Capture: `rail-file.png`.
+- The voucher (`.bon`, `app/src/vue/composants/bon/bon.css`, #2918) on `--bon`, radius `--rayon-bon`; the awaiting card in « Awaiting you » (`.bon[data-carte="attente"]`, `composants/carte-attente/carte-attente.css`) on `--attend`, radius `--rayon-carte`. Captures: `rail-file.png`, `todo-cartes-assignees.png`.
 
 #### Empty states
 

@@ -24,6 +24,7 @@
 
 import { boutonAction, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
+import { carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../carte-todo.ts").CarteDeTodo} CarteDeTodo */
@@ -130,9 +131,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   const vu = vuDeLaCarte(carte, etat);
   const enRoute = vu.vu === "envoi";
   const { question, resume } = carte;
-  const racine = cree(doc, "section");
-  racine.className = "carte-todo";
-  racine.dataset.sorte = carte.sorte;
+  const racine = carteDeReponse(doc, { sorte: carte.sorte });
   if (vu.vu === "attente" || vu.vu === "jouee") racine.dataset.envoi = vu.vu;
   racine.ariaLabel = question === null ? `what #${ticket} awaits from you` : `the question #${ticket} asks you`;
 

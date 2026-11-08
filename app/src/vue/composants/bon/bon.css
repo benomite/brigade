@@ -1,0 +1,292 @@
+/* Le bon de l'app (ticket 2918, maquette de docs/maquettes/app/) : un ticket sur son papier, partout où un écran en montre un —
+   le rail, Cooks, la fiche, les captures. Ses règles ne nomment aucun écran : elles ne lisent que `.bon` et ses attributs
+   (`data-hors`, `data-traine`). Son état est la pastille (composants/pastille), ses gestes les boutons (composants/bouton). */
+.bon[data-hors] {
+  flex: 0 1 240px;
+}
+/* Un ticket, un bon : du papier sur le sombre, son numéro, son état, son titre. Sur le papier
+   une couleur d'état ne se lit pas en lettres : elle est dans la pastille, le mot est à l'encre.
+   Un mot que l'app ne connaît pas garde la pastille vide. Dans T'attend, sous le trait de coupe :
+   ce que le bloc `attend` dit du ticket, mot pour mot, dans ses blancs. */
+.bon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  min-width: 0;
+  padding: var(--pas-3);
+  color: var(--bon-encre);
+  background: var(--bon);
+  border-radius: var(--rayon-bon);
+  box-shadow: 0 2px 8px var(--ombre);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.bon div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0 var(--pas-2);
+}
+.bon strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
+.bon p {
+  padding-top: var(--pas-1);
+  font-family: var(--police-mono);
+  font-size: var(--taille-meta);
+  line-height: 1.5;
+  color: var(--bon-discret);
+  border-top: 1px dashed var(--bon-trait);
+  white-space: pre-wrap;
+}
+/* Les étiquettes d'une carte (ticket 2039) : la station qui la sert (Taken et Pass, plusieurs stations), en trait plein ;
+   une par capacité que son ticket demande, en tireté. Posées partout où `poserBon` pose une carte, pas seulement sur le rail. */
+.bon .etiquettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
+  margin-top: var(--pas-1);
+}
+.bon .etiquette {
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
+  line-height: 16px;
+  color: var(--bon-discret);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-bouton);
+}
+.bon .etiquette-capacite {
+  border-style: dashed;
+}
+/* Les deux lignes d'une carte : ce qui se passe, puis — rarement — ce qui demande l'attention. */
+.bon p.ligne-carte,
+.bon p.signal {
+  padding-top: 0;
+  border-top: 0;
+}
+.bon p.ligne-carte {
+  color: var(--bon-encre);
+}
+/* Un `#N` de la ligne d'un ticket mis de côté (#2075) : un lien dans la phrase, comme le numéro de la carte. */
+.bon p.ligne-carte button.lien-de-ligne {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+}
+.bon p.signal {
+  font-weight: 600;
+  color: var(--bon-encre);
+}
+.bon small.repere {
+  font-style: normal;
+}
+/* Ce qui a été livré, sous le titre : le résumé de la relecture, en prose et à l'encre — tout le
+   texte, sur autant de lignes qu'il en faut ; rien n'est coupé, ni caché, ni mis en points de
+   suspension. Une ligne trop longue passe à la suivante entre deux mots. */
+.bon p.livraison {
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+  color: var(--bon-encre);
+  border-top: 0;
+  overflow-wrap: break-word;
+}
+/* Les captures d'un ticket d'interface : l'écran avant et après, côte à côte, chacun sous sa légende.
+   Une capture que la livraison ne porte pas garde sa place, et le dit ; une livraison qui ne les porte
+   pas toutes le dit en tête, en jaune, sur une ligne. */
+.bon div.captures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--pas-2);
+  align-items: start;
+}
+.bon .captures figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  min-width: 0;
+  margin: 0;
+}
+.bon .captures img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--bon-trait);
+  border-radius: 0;
+}
+.bon .captures .place {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  font-size: var(--taille-meta);
+  font-style: italic;
+  color: var(--bon-discret);
+  border: 1px dashed var(--bon-trait);
+  border-radius: 0;
+}
+.bon .captures figcaption {
+  font-size: var(--taille-meta);
+  line-height: 1.35;
+  color: var(--bon-discret);
+}
+.bon p.captures-manquantes {
+  font-family: var(--police-interface);
+  font-weight: 600;
+  color: var(--bon-encre);
+  border-top: 2px solid var(--jaune);
+}
+.bon .confirmation {
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+  padding: var(--pas-2) 0 var(--pas-1) var(--pas-2);
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+  color: var(--bon-encre);
+  background: none;
+  border-left: 3px solid var(--jaune);
+  cursor: auto;
+}
+.bon .confirmation > p {
+  padding-top: 0;
+  font-size: var(--taille-corps);
+  color: var(--bon-encre);
+  border-top: 0;
+}
+.bon .confirmation > p.titre {
+  font-weight: 600;
+}
+.bon .confirmation > p.prix {
+  color: var(--bon-discret);
+}
+.bon .confirmation > button {
+  align-self: flex-start;
+}
+.bon .confirmation textarea {
+  min-width: 0;
+  padding: var(--pas-1) var(--pas-2);
+  font: inherit;
+  color: var(--bon-encre);
+  background: var(--bon);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-bouton);
+  resize: vertical;
+}
+.bon .confirmation textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Ce qu'elle ne dit pas : écrit, en italique — les mots de l'app, pas ceux de la box. */
+.bon small {
+  font-size: var(--taille-meta);
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--bon-discret);
+}
+/* Sur une carte de Taken ou de Pass, depuis combien de temps elle y est (#1811), au bout de sa ligne d'état ; l'âge
+   exact au survol. Bien plus longtemps que d'ordinaire, l'âge passe au rouge, et la carte porte un trait rouge à
+   gauche : elle se voit d'un coup d'œil dans sa colonne. */
+.bon .age {
+  margin-left: auto;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  color: var(--bon-discret);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-pastille);
+}
+.bon .age[data-longue] {
+  color: var(--bon-encre);
+  background: var(--rouge);
+  border-color: var(--rouge);
+}
+/* Les essais de la cuisine sur un ticket (#1895), à droite de l'âge : un point par essai ; les finis creux, le courant
+   plein. La raison de l'arrêt est au survol du point. */
+.bon .essais {
+  display: inline-flex;
+  gap: var(--pas-1);
+  margin-left: var(--pas-1);
+  align-items: center;
+}
+.bon .essai {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--bon-discret);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.bon .essai[data-en-cours] {
+  background: var(--bon-discret);
+}
+.bon[data-traine] {
+  border-left: 4px solid var(--rouge);
+}
+/* Un bon s'ouvre sur sa fiche d'un clic : il se voit quand il a le clavier. */
+.bon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Sa priorité, sous son numéro : une étiquette à l'encre discrète. */
+.bon > .prio {
+  align-self: flex-start;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
+  line-height: 16px;
+  color: var(--bon-discret);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-pastille);
+}
+/* Les gestes de WAITING, sur un bon : ses boutons en ligne ; le formulaire « waiting for… », sous
+   le bon, un champ par ligne — ce qu'il attend, de qui, le jour de la relance —, puis ce qui le
+   fait partir ou y renonce. Ce qui l'a refusé se lit dessous, en rouge. */
+.bon .gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
+  padding-top: var(--pas-1);
+  border-top: 1px dashed var(--bon-trait);
+}
+.bon form.attente {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  padding-top: var(--pas-1);
+  font-size: var(--taille-meta);
+  border-top: 1px dashed var(--bon-trait);
+  cursor: auto;
+}
+.bon form.attente label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+}
+.bon form.attente input {
+  min-width: 0;
+}
+.bon form.attente .refus {
+  color: var(--rouge);
+  border-top: 0;
+}
+/* « it arrived, back to the kitchen », parti sur le tableau de la cuisine : sous les gestes de la carte de WAITING, en
+   une ligne — en route, posté (le commentaire au survol), ou ce qui l'a refusé, en rouge. */
+.bon p.arrivee {
+  margin: 0;
+  font-size: var(--taille-meta);
+  color: var(--bon-discret);
+  border-top: 0;
+}
+.bon p.arrivee.refus {
+  color: var(--rouge);
+}
+/* Sur la carte, sur son papier clair, sous ce qu'elle dit. */
+.bon .signaler {
+  display: flex;
+  margin-top: var(--pas-2);
+}
+.bon .signaler :is(.signale, .indisponible) {
+  color: var(--bon-discret);
+}

@@ -52,7 +52,7 @@ describe("étiquettes d'une carte", () => {
   });
 
   test("la peau : les deux étiquettes se dessinent hors de `#rail`, la capacité en tireté", () => {
-    const css = readFileSync(join(import.meta.dirname, "../src/vue/vue.css"), "utf8");
+    const css = readFileSync(join(import.meta.dirname, "../src/vue/composants/bon/bon.css"), "utf8");
     assert.match(css, /^\.bon \.etiquette \{/m);
     assert.match(css, /\.bon \.etiquette-capacite \{\s*border-style: dashed;/);
   });

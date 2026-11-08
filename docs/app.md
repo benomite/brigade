@@ -3341,6 +3341,12 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
   figure that unfolds its list and the three positions of an autonomy row are buttons of the family too (quiet, or
   secondary and pressed). A tab, a tile of the icon bar, a color swatch, a switch, the edge that resizes the second's panel, a
   clickable row or a ticket number that opens its issue is not a button of the family: each keeps its own shape.
+- **One voucher and one awaiting card** (#2918, `Components.dc.html` of the mockup): a ticket's slip is the voucher of
+  `app/src/vue/composants/bon/`, and the card of « Awaiting you » is the awaiting card of
+  `app/src/vue/composants/carte-attente/` — the voucher marked `data-carte="attente"`, on the warm « what awaits you »
+  ground, with the answer card (question, one button per choice, a field for the chief's own words) under it. Each has its
+  skin in its own `.css` beside it, which names no screen (no `#rail`, no `.colonne`); `vue.css` draws neither. Both take
+  their state from the pill (`composants/pastille`, « awaiting you » included) and their gestures from the button family.
 - **One scale, in the same place** (#2909): `jetons.css` also holds five text sizes
   (`--taille-meta` 11, `--taille-corps` 13, `--taille-intertitre` 15, `--taille-titre` 20,
   `--taille-chiffre` 28), six spacing steps (`--pas-1` to `--pas-6`: 4, 8, 12, 16, 24, 32) and the

@@ -79,6 +79,8 @@ import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/p
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
+import { bon as bonDeLaFamille, teteDuBon } from "./composants/bon/bon.js";
+import { carteAttente, carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { etatDuTon, formeDe, marque as marqueDePastille, pastille as pastilleDEtat } from "./composants/pastille/pastille.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -2778,8 +2780,18 @@ function coinceDit({ dit }) {
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {import("./composants/pastille/pastille.js").Etat} [etatDeColonne] l'état de sa colonne : un même état se dit partout par la même pastille, quel que soit le mot de la file @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) @param {boolean} [horsColonne] une carte d'aucune des six colonnes : son mot est dit tel quel, sans l'état d'une colonne */
 function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne = false) {
   const { ticket, etat, mot: motDEtat, ton, titre, ouvrable, attendu, attend, pr } = carte;
-  const bon = document.createElement("li");
-  bon.className = "bon";
+  // Le bon et sa tête (composants/bon) ; sur une carte qui attend le chef, la carte d'attente (composants/carte-attente), qui
+  // ajoute à la tête la pastille « awaiting you » : elle le dit en mots, pour qui ne lit pas la couleur de la colonne. Le
+  // mot de la pastille est celui de la table de bon.ts, posé par le process principal.
+  const numero = ouvrable ? cliquable(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
+  numero.className = "ticket mono";
+  numero.title = ouvrable
+    ? `open issue #${ticket} in the browser`
+    : etat === undefined
+      ? `this ticket is not on the rail that ${geste(projet, "facts")} returns: the app does not have its address`
+      : "the address the station returned for this ticket is not https: the app does not open it";
+  const pose = { numero, hors: horsColonne, ...(etat === undefined ? {} : { mot: motDEtat ?? etat, ...(horsColonne ? {} : { etat: etatDeColonne ?? etatDuTon(ton) }) }) };
+  const bon = attendu ? carteAttente(document, { ...pose, attendu }) : bonDeLaFamille(document, pose);
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
   // clique déjà — son numéro, sa PR, ses remarques — garde son geste ; un texte
   // qu'on y sélectionne pour le recopier n'ouvre rien. Au clavier, Entrée ou Espace sur la carte.
@@ -2794,23 +2806,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     evenement.preventDefault();
     ouvrirFiche(projet, carte, bon);
   });
-  const numero = ouvrable ? cliquable(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
-  numero.className = "ticket mono";
-  numero.title = ouvrable
-    ? `open issue #${ticket} in the browser`
-    : etat === undefined
-      ? `this ticket is not on the rail that ${geste(projet, "facts")} returns: the app does not have its address`
-      : "the address the station returned for this ticket is not https: the app does not open it";
-  const tete = document.createElement("div");
-  tete.append(numero);
-  if (etat !== undefined) {
-    // Le mot est celui de la table de bon.ts, posé par le process principal.
-    tete.append(pastilleDEtat(document, horsColonne ? undefined : (etatDeColonne ?? etatDuTon(ton)), motDEtat ?? etat));
-  }
-  // Dans T'attend : la pilule le dit en mots, pour qui ne lit pas la couleur de la colonne.
-  if (attendu) {
-    tete.append(pastilleDEtat(document, "awaiting", "awaiting you"));
-  }
+  const tete = teteDuBon(bon);
   // Dans Taken et Pass : depuis quand la carte y est ; bien plus longtemps que d'ordinaire, elle tranche (ticket 1811).
   if (carte.age !== undefined) {
     tete.append(poserAge(document, carte.age));
@@ -2818,7 +2814,6 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
-  bon.append(tete);
   const etiquettes = poserEtiquettes(document, carte, avecStation);
   if (etiquettes !== null) bon.append(etiquettes);
   // Sur le rail, en attente : sa priorité, sous son numéro
@@ -2876,10 +2871,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // au-dessus, et se répond sur la carte (ticket 2434). Celle d'une issue sans commentaire marqué n'a rien à quoi répondre :
   // son texte le dit, sous la phrase de sa sorte.
   if (attendu && carte.chef !== undefined && carte.todo === undefined) {
-    const duChef = document.createElement("section");
-    duChef.className = "carte-todo";
-    duChef.dataset.sorte = carte.chef.sorte;
-    duChef.dataset.source = "github";
+    const duChef = carteDeReponse(document, { sorte: carte.chef.sorte, source: "github" });
     const texte = bloc("p", carte.chef.texte);
     texte.className = "resume-carte";
     duChef.append(texte);
@@ -4906,16 +4898,11 @@ function poserLesCartesResolues(projet, lu) {
   return [...brouillonsDeCartes].flatMap(([cle, texte]) => {
     if (!cle.startsWith(`${projet.nom}#`) || portees.has(cle) || texte.trim() === "") return [];
     const ticket = Number(cle.slice(projet.nom.length + 1));
-    const bon = document.createElement("li");
-    bon.className = "bon";
-    bon.dataset.resolue = "";
-    const tete = document.createElement("div");
     const numero = bloc("span", `#${ticket}`);
     numero.className = "ticket mono";
-    tete.append(numero);
-    const carte = document.createElement("section");
-    carte.className = "carte-todo";
-    carte.dataset.resolue = "";
+    const bon = carteAttente(document, { numero });
+    bon.dataset.resolue = "";
+    const carte = carteDeReponse(document, { resolue: true });
     carte.ariaLabel = `your answer to #${ticket}, kept after its card left TODO`;
     const demandait = questionsDesBrouillons.get(cle);
     if (demandait != null) {
@@ -4942,7 +4929,7 @@ function poserLesCartesResolues(projet, lu) {
     phrase.append(saisie, ecarter);
     carte.append(phrase);
     direLaCarteResolue(carte, resolueEntreTemps(lu, ticket, undefined));
-    bon.append(tete, tenirEnMain(projet, ticket, undefined, bon, carte));
+    bon.append(tenirEnMain(projet, ticket, undefined, bon, carte));
     return [bon];
   });
 }

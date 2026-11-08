@@ -1,0 +1,210 @@
+/* La carte « Awaiting you » (ticket 2918, maquette Project.dc.html) : le bon qui attend le chef, sur le fond chaud de ce qui
+   l'attend, avec la carte de réponse posée dessous (question, choix, champ). Elle ne nomme aucun écran : `.bon[data-carte="attente"]`
+   la tient. Sa pastille est celle de composants/pastille, ses choix les boutons de composants/bouton. */
+/* La carte de TODO (#1281) : sous le trait de coupe, la question à l'encre, en entier ; les captures
+   d'un écran à valider, avant et après, comme celles d'une livraison ; un bouton par choix, sur toute
+   la largeur, son texte entier ; puis le champ du texte libre et son « send ». Bordée d'accent à
+   gauche : c'est à toi. Ce qui l'a refusée se lit dessous, en une ligne, le détail au survol. */
+.bon .carte-todo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-1) 0 0 var(--pas-2);
+  border-left: 3px solid var(--accent);
+  cursor: auto;
+}
+.bon .carte-todo p.question-carte {
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--bon-encre);
+  border-top: 0;
+  overflow-wrap: break-word;
+}
+.bon .carte-todo div.choix-carte,
+.bon .carte-todo div.phrase {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--pas-1);
+}
+.bon .carte-todo .action {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-1);
+}
+.bon .carte-todo .action > button {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+}
+.bon .carte-todo textarea {
+  min-width: 0;
+  padding: var(--pas-1) var(--pas-2);
+  font: inherit;
+  font-size: var(--taille-corps);
+  color: var(--bon-encre);
+  background: var(--bon);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-bouton);
+  resize: vertical;
+}
+.bon .carte-todo textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.bon .carte-todo div.phrase .action > button {
+  flex: 0 0 auto;
+  justify-content: center;
+  text-align: center;
+}
+.bon .carte-todo textarea:disabled {
+  color: var(--bon-discret);
+  background: none;
+  border-style: dashed;
+  cursor: default;
+}
+.bon .carte-todo .en-route {
+  font-size: var(--taille-meta);
+  color: var(--bon-discret);
+}
+/* Répondue (ticket 1841) : la réponse rappelée, à l'encre douce, puis où elle en est, à voix basse, le détail au survol.
+   Envoyée et en attente de la cuisine, le bord de la carte bat doucement, comme le haut du rail pendant une lecture
+   (ticket 1818) — sans autre phrase ; jouée, il s'éteint au trait. */
+.bon .carte-todo p.reponse-envoyee {
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+  line-height: 1.4;
+  color: var(--bon-encre);
+  border-top: 0;
+  overflow-wrap: break-word;
+}
+.bon .carte-todo p.ou-en-est {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: var(--taille-meta);
+  color: var(--bon-discret);
+  border-top: 0;
+}
+.bon .carte-todo[data-envoi="attente"] {
+  animation: envoi-en-attente 1.6s ease-in-out infinite;
+}
+.bon .carte-todo[data-envoi="jouee"] {
+  border-left-color: var(--bon-trait);
+}
+@keyframes envoi-en-attente {
+  50% {
+    border-left-color: var(--bon-trait);
+  }
+}
+.bon .carte-todo p.refus {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  padding-top: 0;
+  color: var(--rouge);
+  border-top: 0;
+}
+/* La forme unique de toute carte de TODO (#1767) : en tête, ce qui se passe, à l'encre, en deux phrases
+   au plus, au-dessus de la question. Une carte à un seul geste n'a pas de question : son bouton, plein,
+   est le geste attendu. « ask the second », l'action secondaire, ferme la carte en retrait — un mot
+   discret, sans cadre, plus petit que les choix : la carte se tranche sans lui. */
+.bon .carte-todo p.resume-carte {
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+  line-height: 1.4;
+  color: var(--bon-encre);
+  border-top: 0;
+  overflow-wrap: break-word;
+}
+.bon .carte-todo div.choix-carte .action:only-child > button.choix:not(:disabled) {
+  justify-content: center;
+  text-align: center;
+}
+.bon .carte-todo p.secondaire {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+  padding-top: 0;
+  border-top: 0;
+}
+.bon .carte-todo p.secondaire > span {
+  font-size: var(--taille-meta);
+  color: var(--bon-discret);
+}
+.bon .carte-todo p.secondaire > span.refus {
+  color: var(--rouge);
+}
+/* Dans Awaiting you, le ticket n'est pas un bon mais la carte chaude (ticket 2922, maquette Project.dc.html) : le fond
+   « ce qui t'attend », son trait, l'arrondi d'une carte ; son titre à voix douce, sa question en grand, la réponse
+   recommandée pleine d'accent, les autres choix en boutons ordinaires, « answer in my own words » discret. */
+.bon[data-carte="attente"] {
+  gap: var(--pas-2);
+  padding: var(--pas-3);
+  color: var(--texte);
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-carte);
+  box-shadow: none;
+}
+.bon[data-carte="attente"] strong {
+  font-weight: 400;
+  color: var(--texte-doux);
+}
+.bon[data-carte="attente"] p,
+.bon[data-carte="attente"] > .prio,
+.bon[data-carte="attente"] .etiquette,
+.bon[data-carte="attente"] small {
+  color: var(--texte-doux);
+  border-color: var(--attend-trait);
+}
+.bon[data-carte="attente"] p.ligne-carte {
+  color: var(--texte-doux);
+  border-top-color: var(--attend-trait-doux);
+}
+.bon[data-carte="attente"] .carte-todo {
+  gap: var(--pas-2);
+  padding: 0;
+  border-left: 0;
+}
+.bon[data-carte="attente"] .carte-todo[data-envoi="attente"] {
+  padding-left: var(--pas-2);
+  border-left: 3px solid var(--accent);
+}
+.bon[data-carte="attente"] .carte-todo p.question-carte {
+  font-size: var(--taille-intertitre);
+  line-height: 1.35;
+  color: var(--texte);
+}
+.bon[data-carte="attente"] .carte-todo :is(p.resume-carte, p.reponse-envoyee) {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+.bon[data-carte="attente"] .carte-todo textarea:disabled {
+  color: var(--discret);
+  background: none;
+}
+.bon[data-carte="attente"] .carte-todo textarea {
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--case);
+  border-color: var(--trait-fort);
+}
+.bon[data-carte="attente"] .carte-todo :is(.en-route, p.ou-en-est, p.secondaire > span) {
+  color: var(--discret);
+}
+.bon .carte-todo button.en-mes-mots {
+  align-self: flex-start;
+}
+/* Le champ replié, et le bouton qui l'ouvre une fois ouvert : `.bon div` ne les remet pas en flex. */
+.bon .carte-todo [hidden] {
+  display: none;
+}
