@@ -43,36 +43,40 @@ test("l'écriture n'est ouverte que dans le worktree et les caches du projet —
   assert.equal(permissions.disableBypassPermissionsMode, "disable");
 });
 
-test("Write et Edit sont ouverts sur `.claude/brigade/` du worktree du cook, nulle part ailleurs hors de ce qu'ils couvraient déjà", () => {
-  const { allow, deny } = configurer(projetBrigade()).reglages.permissions;
-  // Une règle `Outil(//chemin/**)` : ce que `claude` compare à un chemin
-  // normalisé ; `..` est résolu avant la comparaison.
-  const ouvre = (outil: string, lieu: string) => {
-    const net = posix.normalize(lieu);
-    return allow.some((regle) => {
-      const m = /^(\w+)\(\/(.*)\/\*\*\)$/.exec(regle);
-      return m !== null && m[1] === outil && net.startsWith(`${m[2]}/`) && net.includes("/.claude/brigade/") === regle.includes("/.claude/brigade/");
-    });
-  };
-  const brigade = `${WORKTREE}/.claude/brigade`;
-  for (const outil of ["Write", "Edit"]) {
-    assert.equal(allow.includes(`${outil}(/${brigade}/**)`), true);
-    assert.equal(ouvre(outil, `${brigade}/gates.sh`), true, "fichier existant");
-    assert.equal(ouvre(outil, `${brigade}/nouveau/reseau.txt`), true, "nouveau fichier");
-    assert.equal(ouvre(outil, "/Users/chef/brigade-wt/autre/.claude/brigade/gates.sh"), false, "worktree voisin");
-    assert.equal(ouvre(outil, `${brigade}/../../../autre/x`), false, "échappée par ../");
-    assert.equal(ouvre(outil, "/Users/chef/.zshrc"), false);
-  }
-  // Seul le worktree du cook est nommé, et Write n'ouvre rien d'autre.
-  assert.deepEqual(allow.filter((regle) => regle.startsWith("Write(")), [`Write(/${brigade}/**)`]);
-  assert.equal(deny.some((regle) => regle.includes(".claude/brigade")), false);
+test("Write et Edit sont ouverts sur `.claude/brigade/` du worktree du cook, par son crochet PermissionRequest, hors de `dontAsk` — rien d'autre ne change (#2888)", () => {
+  const { modeDePermission, reglages } = configurer(projetBrigade());
+  const ordinaire = configurer(projet()).reglages;
+  // `dontAsk` refuse toute demande, et `claude` demande toute écriture sous
+  // `.claude/` avant de lire les règles : le cook part en `default`, où la
+  // demande va au crochet.
+  assert.equal(modeDePermission, "default");
+  const [crochet, ...autres] = reglages.hooks.PermissionRequest ?? [];
+  assert.deepEqual(autres, []);
+  assert.equal(crochet?.matcher, "Write|Edit");
+  assert.match(crochet?.hooks[0]?.command ?? "", /crochet-brigade\.ts" "([^"]+)"$/);
+  assert.equal(decodeURIComponent(/"([^"]+)"$/.exec(crochet?.hooks[0]?.command ?? "")?.[1] ?? ""), WORKTREE);
+  // Ni règle, ni bac à sable, ni crochet Bash ne changent ; `bypassPermissions` reste désactivé.
+  assert.deepEqual(reglages.permissions, ordinaire.permissions);
+  assert.deepEqual(reglages.sandbox, ordinaire.sandbox);
+  assert.deepEqual(reglages.hooks.PreToolUse, ordinaire.hooks.PreToolUse);
+  assert.equal(reglages.permissions.allow.some((regle) => regle.includes(".claude/brigade")), false);
 });
 
-test("un ticket qui ne livre pas que `.claude/brigade/` n'y ouvre ni Write ni Edit (#2855)", () => {
+test("le worktree passe au crochet encodé : un chemin à guillemet, dollar ou espace ne casse ni n'ouvre la commande (#2888)", () => {
+  const worktree = '/Users/chef/wt/1 "a" $HOME `x`';
+  const commande = configurer({ ...projetBrigade(), worktree }).reglages.hooks.PermissionRequest?.[0]?.hooks[0]?.command ?? "";
+  const argument = /"([^"]*)"$/.exec(commande)?.[1] ?? "";
+  assert.doesNotMatch(argument, /["$`\\ ]/);
+  assert.equal(decodeURIComponent(argument), worktree);
+});
+
+test("un ticket qui ne livre pas que `.claude/brigade/` part en `dontAsk`, sans crochet PermissionRequest : `.claude/brigade/` lui reste refusé (#2855)", () => {
   for (const cook of [projet(), { ...projet(), brigade: false }]) {
-    const { allow } = configurer(cook).reglages.permissions;
-    assert.equal(allow.some((regle) => regle.includes(".claude/brigade")), false);
-    assert.deepEqual(allow.filter((regle) => regle.startsWith("Write(")), []);
+    const { modeDePermission, reglages } = configurer(cook);
+    assert.equal(modeDePermission, "dontAsk");
+    assert.equal("PermissionRequest" in reglages.hooks, false);
+    assert.equal(reglages.permissions.allow.some((regle) => regle.includes(".claude/brigade")), false);
+    assert.deepEqual(reglages.permissions.allow.filter((regle) => regle.startsWith("Write(")), []);
   }
 });
 

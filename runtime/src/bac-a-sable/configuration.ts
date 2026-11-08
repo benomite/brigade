@@ -15,6 +15,15 @@
 // interdit — l'outil Edit écrirait n'importe où. La configuration désactive
 // donc ce mode, et dit celui dans lequel le cook part.
 //
+// Le cook d'un ticket de setup (#2888) part en mode `default` : `claude`
+// demande toute écriture sous un `.claude/` avant de lire les règles `allow`,
+// et `dontAsk` refuse toute demande — aucune règle n'y ouvre `.claude/brigade/`.
+// Lancé en `-p`, `claude` n'y pose aucune question : chaque demande va au
+// crochet PermissionRequest (`crochet-brigade.ts`), qui n'ouvre que Write et
+// Edit sous `.claude/brigade/` du worktree ; sans sa réponse, elle est
+// refusée, comme en `dontAsk`. Le bac à sable ne change pas : ses commandes y
+// écrivent déjà, sous le worktree.
+//
 // Ce que ni l'une ni l'autre ne retire : le répertoire temporaire du compte,
 // où `claude` fait écrire les commandes du bac à sable (`$TMPDIR`), et le
 // `.git` du clone dont le worktree est issu, sans quoi `git commit` échoue —
@@ -73,11 +82,11 @@ export type Reglages = {
     filesystem: { allowWrite: string[]; denyWrite: string[]; denyRead: string[] };
     network: { allowedDomains: string[]; strictAllowlist: true; allowLocalBinding: false; allowAllUnixSockets: false };
   };
-  hooks: { PreToolUse: typeof CROCHET_BASH };
+  hooks: { PreToolUse: typeof CROCHET_BASH; PermissionRequest?: ReturnType<typeof crochetBrigade> };
   permissions: { allow: string[]; deny: string[]; disableBypassPermissionsMode: "disable" };
 };
 
-export type ConfigDeBacASable = { modeDePermission: "dontAsk"; reglages: Reglages };
+export type ConfigDeBacASable = { modeDePermission: "dontAsk" | "default"; reglages: Reglages };
 
 export class BacASableInvalide extends Error {}
 
@@ -126,6 +135,13 @@ const regles = (outil: string, lieu: string) => [`${outil}(/${lieu})`, `${outil}
 const CROCHET = fileURLToPath(new URL("./crochet-bash.ts", import.meta.url));
 export const CROCHET_BASH = [{ matcher: "Bash", hooks: [{ type: "command" as const, command: `"${process.execPath}" "${CROCHET}"` }] }];
 
+// Le crochet qui ouvre au cook d'un ticket de setup Write et Edit sous
+// `.claude/brigade/` de son worktree. Le worktree passe encodé : la commande
+// est lue par un shell, et un chemin peut porter `"`, `$` ou une espace ;
+// encodé, il ne porte plus rien qu'un shell lise entre guillemets.
+const CROCHET_DE_BRIGADE = fileURLToPath(new URL("./crochet-brigade.ts", import.meta.url));
+const crochetBrigade = (worktree: string) => [{ matcher: "Write|Edit", hooks: [{ type: "command" as const, command: `"${process.execPath}" "${CROCHET_DE_BRIGADE}" "${encodeURIComponent(worktree)}"` }] }];
+
 // Ce que le cook lit quand `claude` lui refuse une commande : le refus de
 // `dontAsk` est un message fixe, qui ne dit pas quoi faire à la place.
 export const CONSIGNE_DE_REFUS =
@@ -143,15 +159,15 @@ export function configurer(cook: Cook): ConfigDeBacASable {
     const touche = interdits.find((interdit) => sous(interdit, lieu) || sous(lieu, interdit));
     if (touche !== undefined) throw new BacASableInvalide(`${lieu} : un cook n'y écrirait pas sans toucher à ${touche}, qu'il ne doit pas même lire`);
   }
-  const brigade = posix.join(ecrits[0]!, ".claude/brigade");
   const lus = unique((cook.lit ?? []).map((fichier) => chemin(fichier, home, "fichier remis au cook")));
   for (const fichier of lus) {
     const touche = interdits.find((interdit) => sous(interdit, fichier));
     if (touche !== undefined) throw new BacASableInvalide(`${fichier} : un fichier remis au cook ne peut pas être sous ${touche}, qu'il ne doit pas lire`);
   }
   const hotes = cook.hotes.map((regle) => ({ regle, noms: domaines(regle) }));
+  const setup = cook.brigade === true;
   return {
-    modeDePermission: "dontAsk",
+    modeDePermission: setup ? "default" : "dontAsk",
     reglages: {
       // Un projet qui fixe `packageManager` (`pnpm@10.x`) fait télécharger
       // cette version à pnpm 10 dès son démarrage, puis vérifier sa signature
@@ -179,16 +195,10 @@ export function configurer(cook: Cook): ConfigDeBacASable {
         // soit le mode — sans lui, `bypassPermissions` le laisserait passer.
         network: { allowedDomains: unique(hotes.flatMap(({ noms }) => noms)), strictAllowlist: true, allowLocalBinding: false, allowAllUnixSockets: false },
       },
-      hooks: { PreToolUse: CROCHET_BASH },
+      hooks: { PreToolUse: CROCHET_BASH, ...(setup ? { PermissionRequest: crochetBrigade(ecrits[0]!) } : {}) },
       permissions: {
         allow: unique([
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
-          // `claude` garde `.claude/` de toute écriture sous sa propre règle :
-          // la livraison d'un ticket peut n'être que `.claude/brigade/` (gates,
-          // setup du worktree, réseau). Une règle nommée l'ouvre, dans le seul
-          // worktree du cook, et pour un ticket qui ne livre que cela : tout
-          // autre ticket y reste refusé.
-          ...(cook.brigade === true ? [`Edit`, `Write`].map((outil) => `${outil}(/${brigade}/**)`) : []),
           // Le ticket que la station remet en fichier : les outils de `claude`
           // ne lisent hors du worktree que ce qu'une règle autorise.
           ...lus.map((fichier) => `Read(/${fichier})`),

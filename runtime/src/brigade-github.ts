@@ -18,7 +18,7 @@
 // et du reviewer —, lancés ici sans journal.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fiche } from "./fiche.ts";
+import { fiche, type Fiche } from "./fiche.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
@@ -176,12 +176,20 @@ export function cheminsDuDepot(chemins: readonly string[], suivis: readonly stri
   });
 }
 
+// La zone qu'un ticket déclare : la section `Zone` de son corps, et la ligne
+// `zone` de sa fiche quand elle se lit — une fiche illisible ne possède rien.
+const zoneDeclaree = (corps: string, laFiche: Fiche | null): string[] => [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
+
 const SOUS_BRIGADE = ".claude/brigade/";
 // Tous ses fichiers sont sous `.claude/brigade/` : un ticket de setup du dépôt
 // (gates, worktree, réseau). Son cook y a l'écriture ouverte (`Cook.brigade`) ;
-// celui de tout autre ticket ne l'a pas.
-export const livreSousBrigade = (corps: string): boolean => {
-  const fichiers = fichiersDuCorps(corps);
+// celui de tout autre ticket ne l'a pas. Ses fichiers : la zone qu'il déclare,
+// corps ou fiche (#2888) — un ticket né d'une épique ne dit la sienne que dans
+// sa fiche, et son corps nomme bien d'autres choses (`gates.sh`, un dépôt) —,
+// sinon les chemins de son corps.
+export const livreSousBrigade = (corps: string, commentaires: string[] = []): boolean => {
+  const declaree = zoneDeclaree(corps, fiche(commentaires));
+  const fichiers = declaree.length > 0 ? declaree : fichiersDuCorps(corps);
   return fichiers.length > 0 && fichiers.every((f) => `${f}/`.startsWith(SOUS_BRIGADE));
 };
 
@@ -1139,7 +1147,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const lue = (async () => {
         const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
         const laFiche = fiche(commentaires.map(({ body }) => body));
-        const declaree = [...new Set([...zoneDuCorps(corps), ...(laFiche === null || laFiche.problems.length > 0 ? [] : laFiche.zone.map(normalise))])];
+        const declaree = zoneDeclaree(corps, laFiche);
         if (declaree.length > 0 || (laFiche?.problems.length ?? 0) > 0 || corps.startsWith("<!-- brigade:")) return declaree;
         const nommes = [...new Set(fichiersDuCorps(corps))];
         const suivis = fichiersSuivisDuTour();
@@ -1694,7 +1702,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (lue === null) throw new Error("the issue no longer exists");
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
       constatAdmis = admetUnConstat(lue.body ?? "");
-      brigade = livreSousBrigade(lue.body ?? "");
+      brigade = livreSousBrigade(lue.body ?? "", commentaires.map(({ body }) => body));
     } catch (erreur) {
       const dit = `its ticket could not be read on GitHub: ${message(erreur)}`;
       return erreur instanceof LimiteGitHubAtteinte ? { subi: dit } : { echec: dit };
