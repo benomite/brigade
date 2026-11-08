@@ -521,6 +521,14 @@ already fixed on main and nothing was cooked since, the delivery says so with th
 #2829 (unmarked) was opened. The one left is #2829's own: a docs-only delivery whose Windows tests went red on
 `arbre.test.ts`. Its cause is a failed PowerShell read of the process table that ended the kill of a cook's tree,
 and #2829 fixed it on main (`runtime/src/arbre.ts`). Nothing to correct on main.
+#2846 counted 39 tickets. All but #2832 merged before #2835 was served (2026-11-07 21:59 UTC); its 22 blocking
+reviews, the first reason it names, are among those #2835 had counted. The one left
+is #2832's own, merged after (2026-11-08 01:01 UTC): its Windows tests went red on a `jusqua(…, 5000)` it had
+added to `test/github-seul/garde-fous/garde-fous.test.ts`. `test/garde-duree/garde-duree.test.ts` refuses that
+guard, but neither the gates nor the pull request's Linux CI played it: it is not in the closure of the files
+#2832 changed (`.claude/brigade/tests-touches.mjs`), and only the Windows CI plays every file. #2832 lowered the
+guard to 2 s on main (c3a6c79). The repository's `CLAUDE.md` said the gates refuse such a guard; it now says they
+do so only through that file, which a change writing a guard plays by hand. No guard is changed.
 
 ## The daily report of the decisions brigade told about
 
