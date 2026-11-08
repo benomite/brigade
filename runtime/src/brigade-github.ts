@@ -135,8 +135,10 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // ni l'une ni l'autre ne s'écrit : le blocage va au manager comme un autre,
     // et une décision non écrite compte pour un cook sans livraison.
     ecrireCorps?: GitHub["ecrireCorps"];
-    // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
-    prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
+    // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers
+    // qu'elle change ; son numéro et sa tête, quand le client les dit — sans
+    // eux, sa CI rouge ne se lit pas (#2970).
+    prsOuvertes(): Promise<{ branche: string; fichiers: string[]; number?: number; sha?: string }[]>;
     // L'issue, son état et son corps : ce qu'il faut pour fermer une épique
     // finie (#2757). Absente, la guérison ne ferme aucune épique.
     issue?: GitHub["issue"];
@@ -1674,7 +1676,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     },
     // Des PR ou des fichiers que la requête a tronqués ou mal rendus (un renommage
     // perd son ancien chemin) : tout se relit en REST, pour ne rien juger de moins.
-    prsOuvertes: async () => (instantane !== null && !instantane.prsTronquees && !instantane.prs.some((pr) => pr.fichiersIncomplets) ? instantane.prs.map(({ branche, fichiers }) => ({ branche, fichiers })) : (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers }))),
+    prsOuvertes: async () => (instantane !== null && !instantane.prsTronquees && !instantane.prs.some((pr) => pr.fichiersIncomplets) ? instantane.prs.map(({ number, branche, fichiers, sha }) => ({ number, branche, fichiers, sha })) : (await prsOuvertes.call(github)).map(({ number, branche, fichiers, sha }) => ({ number, branche, fichiers, ...(sha === undefined ? {} : { sha }) }))),
     // Les PR externes (#2933), lues dans l'instantané ; tronqué, en REST.
     prsExternes: async () =>
       instantane !== null && !instantane.prsTronquees

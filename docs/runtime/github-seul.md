@@ -63,6 +63,15 @@ base, the stale-branch pruning).
   among its tries (`runtime/src/relance-blocage-preuve.ts`). Once only: a ticket that already carries the evidence and
   blocks again goes to the manager, as does a question the evidence does not answer, or evidence the station cannot
   read or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
+- **A red cook PR held for the chef goes back to a cook.** At each turn's healing, an open PR on a `cook/<n>-github`
+  branch whose head has a red check, and whose ticket is on the rail and held for the chef (`blocked-on-human`,
+  `chef-todo`) with no cook on it — not cooking on this station, not `taken`, not `in-pass` (the pass sends its own
+  red back), not `hors-cuisine` (the relaunch's), not `waiting` —, is sent back: the hold labels are removed, then a
+  `brigade:renvoi … sha=<sha> ci-rouge` comment names the red checks, and the ticket is free for a cook from its
+  branch (`runtime/src/ci-rouge/ci-rouge.ts`). A head is sent back once by this path; the send-back counts among the
+  ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
+  PRs are read only when a held ticket exists. A CI or head that cannot be read sends nothing back and is warned.
+  Seen on #2908, whose red CI ended as a "merge it" request to the chef (#2970).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

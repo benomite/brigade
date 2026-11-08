@@ -119,7 +119,7 @@ test("a truncated snapshot falls back to REST for the PRs, their files and their
   const tour = clientDuTour(github, "main", "acme/brigade");
   assert.deepEqual(await tour.checksDeLaBase(), [{ name: "rest", outcome: "green" }]);
   assert.deepEqual(await tour.ci(SHA), [{ name: "rest", outcome: "green" }]);
-  assert.deepEqual(await tour.prsOuvertes(), [{ branche: "cook/12-github", fichiers: ["b", "a"] }]);
+  assert.deepEqual(await tour.prsOuvertes(), [{ number: 90, branche: "cook/12-github", fichiers: ["b", "a"] }]);
   assert.deepEqual(rest, ["ci m", "ci c", "prsOuvertes"]);
 });
 

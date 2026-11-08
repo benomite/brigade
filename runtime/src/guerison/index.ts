@@ -7,6 +7,8 @@
 //   (`claim-perime.ts`, #2751) ;
 // - `in-pass` sur le ticket d'une PR approuvée, verte et mergeable
 //   (`pr-prete.ts`, #2752) ;
+// - le renvoi à un cook d'une PR `cook/<n>-github` rouge sur laquelle aucun
+//   cook ne travaille, jamais au chef (`../ci-rouge/ci-rouge.ts`, #2970) ;
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
 // - le bug d'une cuisine inerte : des tickets à prendre, et rien n'avance
@@ -20,6 +22,7 @@
 // de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
 import { A_LA_MAIN, brancheDuTicket } from "../brigade-github.ts";
 import { calibrage, complet } from "../calibrage.ts";
+import { aExaminer, renvoyerLesCiRouges, type PROuverte } from "../ci-rouge/ci-rouge.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict } from "../github-etat/fusion.ts";
@@ -34,9 +37,11 @@ import { relancer, type GitHubDeLaGuerison } from "./relance.ts";
 // Ce que la guérison demande au client du tour, et rien de plus. `issue` :
 // absent, les épiques ne se ferment pas. `issuesDepuis` : absent, le bug de
 // l'inertie ne se retrouve que s'il a été ouvert par cette station.
+// `prsOuvertes` : absent, aucune PR rouge n'est renvoyée.
 export type GitHubDuProjet = GitHubDeLaGuerison &
   Pick<GitHub, "fermerIssue"> & {
     retraitsDeLabels(numero: number): Promise<RetraitDeLabel[]>;
+    prsOuvertes?(): Promise<PROuverte[]>;
     issue?: GitHub["issue"];
     issuesDepuis?: (instant: string) => Promise<(Pick<IssueOuverte, "number" | "body"> & Partial<Pick<IssueOuverte, "labels" | "state">>)[]>;
   };
@@ -55,17 +60,20 @@ export type OptionsDeLaGuerison = {
   maintenant?: () => number;
 };
 
-export type Geste = "relance" | "claim" | "in-pass" | "epique" | "inertie";
+export type Geste = "relance" | "claim" | "ci-rouge" | "in-pass" | "epique" | "inertie";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
 // tels que la guérison les laisse — un ticket relancé sans `hors-cuisine`, un
-// claim libéré sans `taken`, une PR prête avec `in-pass`, une épique fermée
+// claim libéré sans `taken`, une PR rouge renvoyée sans ce qui la tenait pour
+// le chef, une PR prête avec `in-pass`, une épique fermée
 // hors de la liste —, pour que le tour ne lise pas des labels périmés.
 export type BilanDeLaGuerison<T extends TicketDuTour = TicketDuTour> = {
   tickets: T[];
   relances: number[];
   boucles: number[];
   liberes: number[];
+  // Les tickets dont la PR rouge repart à un cook, et les labels levés de chacun.
+  ciRouges: { ticket: number; leves: string[] }[];
   enPass: number[];
   epiquesFermees: number[];
   // Le bug de la cuisine inerte, ouvert à ce tour.
@@ -94,7 +102,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
   // les tickets qu'un cook de cette station cuisine en ce moment.
   async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>): Promise<BilanDeLaGuerison<T>> {
-    const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
+    const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
       bilan.echecs.push({ geste, message: dit });
@@ -135,6 +143,16 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       const fait = await claim.passer(pris, vivants);
       bilan.liberes.push(...fait.liberes);
       for (const { ticket, message: dit } of fait.echecs) echouer("claim", new Error(dit), ticket);
+    });
+
+    // Après le claim : un ticket dont le claim vient de tomber n'a plus de cook.
+    await tache("ci-rouge", async () => {
+      const libres = new Set(bilan.liberes);
+      const lus = tickets.map((t) => (libres.has(t.number) ? { ...t, labels: t.labels.filter((l) => l !== LABEL_TAKEN) } : t));
+      if (github.prsOuvertes === undefined || !lus.some((t) => aExaminer(t, enCuisine))) return;
+      const fait = await renvoyerLesCiRouges({ github, station, prs: await github.prsOuvertes(), tickets: lus, enCuisine });
+      bilan.ciRouges.push(...fait.renvoyes.map(({ ticket, leves }) => ({ ticket, leves })));
+      for (const { ticket, message: dit } of fait.echecs) echouer("ci-rouge", new Error(dit), ticket);
     });
 
     // Ni un ticket mis de côté (la relance en décide), ni une épique, ni un
@@ -230,6 +248,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         let labels = [...t.labels];
         if (bilan.relances.includes(t.number)) labels = sans(labels, HORS_CUISINE);
         if (bilan.liberes.includes(t.number)) labels = sans(labels, LABEL_TAKEN);
+        for (const label of bilan.ciRouges.find((c) => c.ticket === t.number)?.leves ?? []) labels = sans(labels, label);
         if (bilan.enPass.includes(t.number)) labels.push(LABEL_IN_PASS);
         return labels.length === t.labels.length && labels.every((l, i) => l === t.labels[i]) ? t : { ...t, labels };
       });
