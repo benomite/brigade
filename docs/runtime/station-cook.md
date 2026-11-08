@@ -45,6 +45,17 @@ the base tracks, or a new file in a tracked folder. A body is prose: `e.g`, `i.e
 other at the claim gate — the second waited for the whole cook of the first, counted as waiting for a
 claim. When the base's tracked files cannot be read, the station says so and the zone keeps every
 path of the body for that tick: it holds too much, it never lets two cooks leave on one file.
+**A ticket also holds its zone's companions** (`compagnons.ts`, #2963): the files outside its zone
+that at least half of the last 30 non-merge commits of the base touching the zone also write — the
+view's registry and stylesheet, the screen's doc, the captures index. No zone names them, and two app
+tickets on disjoint screens left together, both wrote `app/src/vue/vue.js` or `vue.css`, and the
+second delivered came back in conflict once per merge of the other: #2921, #2922 and #2930 took the
+nine conflict send-backs behind the 69% first-try rate of #2963. A zone with fewer than 8 such
+commits (a new folder) is read at the folder that contains it, never above a two-segment folder
+(`app/src`, `runtime/src`). The history is the last 500 commits of the base, read once per tick
+(`Depot.historique`); unreadable, the station says so and each ticket holds its zone only for that
+tick. A ticket coming back with its own PR open holds its zone only: two returns on one shared file
+would wait for each other forever.
 
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
