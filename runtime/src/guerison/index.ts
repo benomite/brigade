@@ -18,7 +18,9 @@
 // Rien n'est propre à un dépôt : le projet, sa base et sa station viennent de
 // l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims, celle
 // de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
-import { brancheDuTicket } from "../brigade-github.ts";
+import { A_LA_MAIN, brancheDuTicket } from "../brigade-github.ts";
+import { calibrage, complet } from "../calibrage.ts";
+import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict } from "../github-etat/fusion.ts";
@@ -181,13 +183,17 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     });
 
     // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni
-    // une épique —, et rien au travail depuis `INERTIE_MINUTES`. Un seul bug
+    // une épique, ni en attente du chef, calibrés —, et rien au travail depuis `INERTIE_MINUTES`. Un seul bug
     // tant qu'il reste ouvert (#2755).
     await tache("inertie", async () => {
       const instant = maintenant();
       const auTravail = enCuisine.size > 0 || tickets.some((t) => t.labels.includes(LABEL_TAKEN) || t.labels.includes(LABEL_IN_PASS));
       if (auTravail) auTravailLe = instant;
-      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS].some((label) => t.labels.includes(label)));
+      // Comme la retenue (`retenue/tour.ts`) : un ticket qui attend le chef, ou
+      // dont le calibrage est incomplet, n'est pas prenable — la station le
+      // saute — et ne vaut pas une inertie. Un `waiting` reste compté : c'est
+      // lui qui fait la cause `all-blocked`.
+      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, A_LA_MAIN, CHEF_TODO].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
       const fait = await signalerInertie({
         maintenant: new Date(instant),
         github: {
