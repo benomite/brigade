@@ -80,12 +80,14 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
 
   test("chaque variable que la vue nomme est posée dans jetons.css — ou, pour le ton d'un état, d'après elles", () => {
     const css = sansCommentaires(lire("vue.css"));
-    // `--ton` : la couleur d'un mot d'état, posée par vue.css d'après le nom que faits.ts lui donne.
-    const locales = new Map([...css.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
-    assert.deepEqual([...new Set(locales.keys())], ["--ton"]);
-    for (const [, valeur] of css.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
+    // `--ton` : la couleur d'un mot d'état, posée par la pastille (composants/pastille) d'après le nom que faits.ts lui donne ;
+    // vue.css n'en pose aucune.
+    const pastille = sansCommentaires(lire("composants/pastille/pastille.css"));
+    assert.deepEqual([...css.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = ""]) => nom), []);
+    assert.deepEqual([...new Set([...pastille.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, nom = ""]) => nom))], ["--ton"]);
+    for (const [, valeur] of pastille.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
-    const nommees = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, nom = ""]) => nom);
+    const nommees = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...pastille.matchAll(/var\((--[a-z0-9-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, nom = ""]) => nom);
     assert.ok(nommees.length > 100, "vue.css ne nomme presque aucune variable");
     for (const nom of new Set(nommees)) assert.ok(jetons.has(nom) || nom === "--ton", `« ${nom} » n'est pas dans jetons.css`);
     // Et aucune n'y dort : ce qui est posé sert.
@@ -188,7 +190,7 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     const mono = regles(lire("vue.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)");
     assert.deepEqual(
       mono.map(({ selecteurs }) => selecteurs),
-      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", ".carte dd", "#rail h4 span:last-child", "#rail .bon p", ".premier-lancement .formulaire-du-premier input"]],
+      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", ".carte dd", "#rail h4 > span:last-child", "#rail .bon p", ".premier-lancement .formulaire-du-premier input"]],
     );
     // Ce que l'app dit elle-même sur plusieurs lignes revient à la police de l'interface.
     const propos = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("pre.propos"));

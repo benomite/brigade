@@ -471,7 +471,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
       assert.deepEqual(ou, ["Awaiting you"]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
-      const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.className.split(" ").includes("attendu")));
+      const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.dataset.pastille === "awaiting"));
       assert.deepEqual(attendus.map((bon) => bon.children[0]?.children[0]?.textContent), ["#12"]);
     }
   });

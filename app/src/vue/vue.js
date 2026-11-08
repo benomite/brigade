@@ -79,6 +79,7 @@ import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/p
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
+import { etatDuTon, formeDe, marque as marqueDePastille, pastille as pastilleDEtat } from "./composants/pastille/pastille.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
@@ -2049,11 +2050,9 @@ function rendre(recue, tete, corps) {
   // Chaque état de pilotage a son ton, et sa forme : en niveaux de gris, ils ne se confondent pas.
   const ton = TONS_DE_PILOTAGE[tete.dataset.etat ?? ""];
   delete tete.dataset.ton;
-  delete tete.dataset.forme;
   if (ton !== undefined) {
     tete.dataset.ton = ton;
-    const forme = formeDe(ton);
-    if (forme !== undefined) tete.dataset.forme = forme;
+    tete.prepend(marqueDePastille(document, ton));
   }
   if ("erreur" in recue) corps.replaceChildren(...obtenuEnUneLigne(projet, recue, GESTE));
 }
@@ -2667,14 +2666,6 @@ async function retirerDeLApp(projet) {
   await lireRetrait(projet);
 }
 
-// La forme d'un ton : la couleur ne porte jamais seule l'information. Un disque plein, un
-// losange, un carré, un anneau creux, un triangle — distincts en niveaux de gris. C'est le ton
-// que l'app a déjà (faits.ts, manager.ts) qui choisit la forme : rien n'est déduit ici.
-/** @type {Record<string, string>} */
-const FORMES = { vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" };
-/** @param {string | undefined} ton */
-const formeDe = (ton) => (ton === undefined ? undefined : FORMES[ton]);
-
 // Le ton de chaque état de pilotage : pilotable, vert ; joint sans l'être plus — plus pilotable,
 // inconnu de la box, sans le droit, une commande ou le bon node qui manque —, jaune ; pas joint,
 // rouge. Ce sont les mots que `rendre` pose déjà : rien n'est déduit de plus.
@@ -2686,11 +2677,7 @@ const TONS_DE_PILOTAGE = { pilotable: "vert", "plus-pilotable": "jaune", inconnu
 // pastille vide. Le mot reste dit par le texte voisin — et ici par le titre.
 /** @param {string} mot @param {string | undefined} ton */
 function pastille(mot, ton) {
-  const cree = document.createElement("span");
-  cree.className = "pastille";
-  if (ton !== undefined) cree.dataset.ton = ton;
-  const forme = formeDe(ton);
-  if (forme !== undefined) cree.dataset.forme = forme;
+  const cree = marqueDePastille(document, ton);
   cree.title = mot;
   return cree;
 }
@@ -2788,8 +2775,8 @@ function coinceDit({ dit }) {
 // fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
-/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) */
-function poserBon(projet, carte, tonAttend, avecStation = false) {
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {import("./composants/pastille/pastille.js").Etat} [etatDeColonne] l'état de sa colonne : un même état se dit partout par la même pastille, quel que soit le mot de la file @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) @param {boolean} [horsColonne] une carte d'aucune des six colonnes : son mot est dit tel quel, sans l'état d'une colonne */
+function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne = false) {
   const { ticket, etat, mot: motDEtat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
@@ -2818,21 +2805,11 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
   tete.append(numero);
   if (etat !== undefined) {
     // Le mot est celui de la table de bon.ts, posé par le process principal.
-    const mot = bloc("span", motDEtat ?? etat);
-    mot.className = "etat-ticket";
-    if (ton !== undefined) mot.dataset.ton = ton;
-    const forme = formeDe(ton);
-    if (forme !== undefined) mot.dataset.forme = forme;
-    tete.append(mot);
+    tete.append(pastilleDEtat(document, horsColonne ? undefined : (etatDeColonne ?? etatDuTon(ton)), motDEtat ?? etat));
   }
   // Dans T'attend : la pilule le dit en mots, pour qui ne lit pas la couleur de la colonne.
   if (attendu) {
-    const pilule = bloc("span", "awaiting you");
-    pilule.className = "etat-ticket attendu";
-    if (tonAttend !== undefined) pilule.dataset.ton = tonAttend;
-    const forme = formeDe(tonAttend);
-    if (forme !== undefined) pilule.dataset.forme = forme;
-    tete.append(pilule);
+    tete.append(pastilleDEtat(document, "awaiting", "awaiting you"));
   }
   // Dans Taken et Pass : depuis quand la carte y est ; bien plus longtemps que d'ordinaire, elle tranche (ticket 1811).
   if (carte.age !== undefined) {
@@ -4380,7 +4357,7 @@ function teteDuRail(projet) {
 // La colonne Backlog, dépliée par la barre, à gauche de « On the rail » : les cartes du rail, groupées par état dans
 // l'ordre de la barre, chacune triée par `prio:` — son numéro ouvre son issue, sa ligne dit ce qui la retient, un clic
 // ouvre sa fiche. Une lecture ratée y dit pourquoi, jamais « rien ».
-/** @param {Projet} projet @param {(cartes: import("../faits.ts").Carte[]) => HTMLElement} bons */
+/** @param {Projet} projet @param {(cartes: import("../faits.ts").Carte[], etat?: import("./composants/pastille/pastille.js").Etat) => HTMLElement} bons */
 function colonneBacklog(projet, bons) {
   const vu = amonts.get(projet.nom);
   if (vu === undefined || "nonPublie" in vu || !amontsDeplies.has(projet.nom)) return [];
@@ -4388,8 +4365,6 @@ function colonneBacklog(projet, bons) {
   colonne.className = "colonne backlog";
   colonne.ariaLabel = "Backlog: the open issues before the rail";
   colonne.dataset.ton = "gris";
-  const forme = formeDe("gris");
-  if (forme !== undefined) colonne.dataset.forme = forme;
   const tete = document.createElement("h4");
   const replier = bouton("fold", () => {
     amontsDeplies.delete(projet.nom);
@@ -4399,7 +4374,7 @@ function colonneBacklog(projet, bons) {
   replier.title = "fold the Backlog column";
   const compte = bloc("span", "compte" in vu ? String(vu.compte) : "?");
   compte.className = "compte";
-  tete.append(bloc("span", "Backlog"), compte, replier);
+  tete.append(pastilleDEtat(document, "queued", "Backlog"), compte, replier);
   colonne.append(tete);
   if ("sans" in vu) {
     const dit = bloc("p", vu.sans);
@@ -4414,7 +4389,7 @@ function colonneBacklog(projet, bons) {
     groupe.dataset.etat = etat;
     const titre = document.createElement("h5");
     titre.append(bloc("span", nom), bloc("span", String(issues.length)));
-    groupe.append(titre, bons(issues.map(({ carte }) => carte)));
+    groupe.append(titre, bons(issues.map(({ carte }) => carte), "queued"));
     colonne.append(groupe);
   }
   return [colonne];
@@ -4705,12 +4680,12 @@ function poserLeRail(projet) {
   const colonnes = toutes;
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
   const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
-  /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] @param {boolean} [avecStation] */
-  const bons = (cartes, ton, avecStation = false) => {
+  /** @param {import("../faits.ts").Carte[]} cartes @param {import("./composants/pastille/pastille.js").Etat} [etat] l'état de la colonne, que ses cartes disent ; aucun dans T'attend, où la carte garde l'état de son mot @param {boolean} [avecStation] @param {boolean} [horsColonne] */
+  const bons = (cartes, etat, avecStation = false, horsColonne = false) => {
     const liste = document.createElement("ol");
     liste.append(
       ...cartes.map((carte) => {
-        const bon = poserBon(projet, carte, ton, avecStation);
+        const bon = poserBon(projet, carte, etat, avecStation, horsColonne);
         posees.set(carte, bon);
         return bon;
       }),
@@ -4732,10 +4707,8 @@ function poserLeRail(projet) {
       if (nom === COLONNE_QUI_T_ATTEND) colonne.dataset.attend = "";
       // Ce qui attend le chef, ou bouge : sa colonne est en vue à l'ouverture du rail (ticket 1556).
       if (cartes.length > 0 && COLONNES_ACTIVES.has(nom)) colonne.dataset.actif = "";
-      const forme = formeDe(ton);
-      if (forme !== undefined) colonne.dataset.forme = forme;
       const tete = document.createElement("h4");
-      tete.append(bloc("span", nom), bloc("span", compte));
+      tete.append(pastilleDEtat(document, etatDuTon(ton), nom), bloc("span", compte));
       colonne.append(tete);
       const avecDisjoncteur = nom === COLONNE_QUI_T_ATTEND && disjoncteur !== undefined;
       if (avecDisjoncteur) {
@@ -4750,7 +4723,7 @@ function poserLeRail(projet) {
       const resolues = nom === COLONNE_QUI_T_ATTEND && muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
       // Sous la ligne du disjoncteur, une colonne sans carte ne dit pas que rien ne t'attend.
       if (cartes.length > 0 || resolues.length > 0) {
-        const liste = bons(cartes, ton, tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass"));
+        const liste = bons(cartes, nom === COLONNE_QUI_T_ATTEND ? undefined : etatDuTon(ton), tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass"));
         liste.append(...resolues);
         colonne.append(liste);
       } else if (!avecDisjoncteur) colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
@@ -4791,7 +4764,7 @@ function poserLeRail(projet) {
     ...teteDuRail(projet),
     bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors)]),
+    ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]),
   );
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
@@ -8122,8 +8095,7 @@ function afficher() {
       if (onglet !== undefined) entree.style.setProperty("--teinte", onglet);
       // Un projet qui ne se lit nulle part n'a pas de pastille : rien n'est lu de lui.
       if (seLit(projet)) {
-        const posee = document.createElement("span");
-        posee.className = "pastille";
+        const posee = marqueDePastille(document, undefined, { coin: true });
         entree.append(posee);
         pastilles.set(projet.nom, posee);
         marquerPastille(projet.nom);

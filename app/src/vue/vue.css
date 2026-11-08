@@ -55,7 +55,7 @@ code,
 #formulaire select,
 #choisi,
 .carte dd,
-#rail h4 span:last-child,
+#rail h4 > span:last-child,
 #rail .bon p,
 .premier-lancement .formulaire-du-premier input {
   font-family: var(--police-mono);
@@ -791,12 +791,6 @@ main > header,
   gap: var(--pas-2);
   font-size: var(--taille-intertitre);
 }
-.confiance .nom-de-machine .pilule {
-  padding: var(--pas-1) var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--accent);
-  border-color: var(--accent);
-}
 .confiance .champ {
   display: flex;
   flex-direction: column;
@@ -1458,9 +1452,6 @@ main > header,
 :is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne:hover {
   background: var(--case);
 }
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne .pastille {
-  align-self: center;
-}
 :is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne strong {
   flex: none;
   min-width: 9em;
@@ -1497,9 +1488,6 @@ main > header,
   align-items: baseline;
   gap: var(--pas-3);
   color: var(--texte-doux);
-}
-.premier-lancement .tete-de-station .pastille {
-  align-self: center;
 }
 .premier-lancement .tete-de-station strong {
   color: var(--texte);
@@ -1716,12 +1704,6 @@ main > header,
 }
 /* Les projets que la station porte : une ligne chacun, comme sur l'accueil, et sa marque — « main »
    en accent, « secondary » discret. Sous un projet ajouté depuis l'app, ses gestes, alignés sur son nom. */
-#station .ligne span.pilule {
-  flex: none;
-  padding: var(--pas-1) var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
 #station .projet-de-station {
   display: flex;
   flex-direction: column;
@@ -1799,29 +1781,6 @@ main > header,
 }
 #lu-onglet[data-etat] {
   padding-left: var(--pas-3);
-}
-/* Les trois états de pilotage portent chacun leur forme, avant leur couleur : pilotable, un
-   disque plein ; joint mais plus pilotable — ou sans le droit, ou sans commande —, un losange ;
-   pas joint, un carré. Ton et forme sont posés par la vue (data-ton, data-forme) ; le mot reste
-   le texte de la ligne. */
-#lu-onglet[data-forme]::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: var(--pas-2);
-  background: var(--ton);
-  border: 1px solid var(--ton);
-}
-#lu-onglet[data-forme="disque"]::before {
-  border-radius: 50%;
-}
-#lu-onglet[data-forme="carre"]::before {
-  border-radius: 0;
-}
-#lu-onglet[data-forme="losange"]::before {
-  border-radius: 0;
-  transform: rotate(45deg) scale(0.85);
 }
 [data-etat="pilotable"] {
   color: var(--texte);
@@ -2290,96 +2249,6 @@ main > header,
 #avis button {
   margin-top: var(--pas-2);
 }
-/* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
-   fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
-.pastille {
-  display: inline-block;
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--discret);
-  border-radius: 50%;
-}
-[data-ton="vert"] {
-  --ton: var(--vert);
-}
-[data-ton="jaune"] {
-  --ton: var(--jaune);
-}
-[data-ton="rouge"] {
-  --ton: var(--rouge);
-}
-[data-ton="bleu"] {
-  --ton: var(--bleu);
-}
-[data-ton="orange"] {
-  --ton: var(--orange);
-}
-[data-ton="gris"] {
-  --ton: var(--gris);
-}
-.pastille[data-ton] {
-  background: var(--ton);
-  border-color: var(--ton);
-}
-/* La forme porte l'information, la couleur la renforce : en niveaux de gris, un disque plein,
-   un losange, un carré, un anneau creux et un triangle ne se confondent pas. */
-.pastille[data-forme="losange"] {
-  border-radius: 0;
-  transform: rotate(45deg) scale(0.85);
-}
-.pastille[data-forme="carre"] {
-  border-radius: 0;
-}
-.pastille[data-forme="anneau"] {
-  background: transparent;
-  border-width: 2px;
-}
-.pastille[data-forme="pause"] {
-  border: 0;
-  border-radius: 0;
-  width: 3px;
-  margin-right: var(--pas-3);
-  background: var(--ton);
-  box-shadow: 5px 0 0 var(--ton);
-}
-.pastille[data-forme="triangle"] {
-  border: 0;
-  border-radius: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-/* Une pilule : le mot d'état, arrondi comme dans la maquette, sa pastille à gauche. */
-.pilule {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-  padding: var(--pas-1) var(--pas-3);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-pastille);
-  white-space: nowrap;
-}
-.pilule[data-ton] {
-  border-color: var(--ton);
-}
-/* Dans la barre : au coin de la case, cernée du fond de la barre. Pas encore lue, elle est en
-   pointillé ; sans faits, c'est un « ! » sans couleur d'état. */
-#projets .pastille {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  line-height: 8px;
-  text-align: center;
-  background-color: var(--barre);
-  box-shadow: 0 0 0 2px var(--barre);
-}
-#projets .pastille[data-ton] {
-  background-color: var(--ton);
-}
-#projets .pastille[data-lu="en-cours"] {
-  border-style: dotted;
-}
 /* Le signal d'une bande : au coin haut de la case, il se clique et mène à « Tous les projets ».
    Une alerte est rouge ; un état non vérifié est en pointillé, sans couleur d'état — jamais sain. */
 #projets .signal {
@@ -2414,10 +2283,6 @@ main > header,
   background: var(--barre);
   border: 1px dotted var(--texte);
   line-height: 12px;
-}
-#projets .pastille[data-lu="non"] {
-  color: var(--texte);
-  border-color: var(--texte);
 }
 /* La carte de projet : son état, ses cinq compteurs, ses cooks en cours, son dernier événement. */
 .carte {
@@ -3315,39 +3180,7 @@ main > header,
   z-index: 1;
   background: var(--bandeau);
 }
-#rail h4 span:first-child::before {
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: var(--pas-2);
-  border-radius: 50%;
-  background: var(--ton);
-}
-#rail .colonne[data-forme="losange"] h4 span:first-child::before {
-  border-radius: 0;
-  transform: rotate(45deg) scale(0.85);
-}
-#rail .colonne[data-forme="carre"] h4 span:first-child::before {
-  border-radius: 0;
-}
-#rail .colonne[data-forme="anneau"] h4 span:first-child::before {
-  background: transparent;
-  border: 2px solid var(--ton);
-}
-/* La pause : deux barres, « tenu, en attente de quelqu'un ». */
-#rail .colonne[data-forme="pause"] h4 span:first-child::before {
-  border-radius: 0;
-  width: 3px;
-  margin-right: var(--pas-3);
-  background: var(--ton);
-  box-shadow: 5px 0 0 var(--ton);
-}
-#rail .colonne[data-forme="triangle"] h4 span:first-child::before {
-  border-radius: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-#rail h4 span:last-child,
+#rail h4 > span:last-child,
 #rail .colonne > p {
   font-size: var(--taille-corps);
   font-weight: 400;
@@ -3765,48 +3598,6 @@ main > header,
 #rail button.ticket {
   text-decoration: underline;
 }
-#rail .etat-ticket {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-1);
-  font-size: var(--taille-meta);
-  font-weight: 600;
-  color: var(--bon-discret);
-}
-#rail .etat-ticket::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--bon-discret);
-  border-radius: 50%;
-}
-#rail .etat-ticket[data-ton]::before {
-  background: var(--ton);
-}
-#rail .etat-ticket[data-forme="losange"]::before {
-  border-radius: 0;
-  transform: rotate(45deg) scale(0.85);
-}
-#rail .etat-ticket[data-forme="carre"]::before {
-  border-radius: 0;
-}
-#rail .etat-ticket[data-forme="anneau"]::before {
-  background: transparent;
-  border: 2px solid var(--ton);
-}
-#rail .etat-ticket[data-forme="pause"]::before {
-  border: 0;
-  border-radius: 0;
-  width: 3px;
-  margin-right: var(--pas-3);
-  background: var(--ton);
-  box-shadow: 5px 0 0 var(--ton);
-}
-#rail .etat-ticket[data-forme="triangle"]::before {
-  border-radius: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
 /* Dans Awaiting you, le ticket n'est pas un bon mais la carte chaude (ticket 2922, maquette Project.dc.html) : le fond
    « ce qui t'attend », son trait, l'arrondi d'une carte ; son titre à voix douce, sa question en grand, la réponse
    recommandée pleine d'accent, les autres choix en boutons ordinaires, « answer in my own words » discret. */
@@ -3824,7 +3615,6 @@ main > header,
   color: var(--texte-doux);
 }
 #rail .colonne[data-attend] .bon p,
-#rail .colonne[data-attend] .bon .etat-ticket,
 #rail .colonne[data-attend] .bon > .prio,
 #rail .colonne[data-attend] .bon .etiquette,
 #rail .colonne[data-attend] .bon small {
@@ -3910,12 +3700,6 @@ main > header,
 }
 #rail .bon[data-traine] {
   border-left: 4px solid var(--rouge);
-}
-/* « t'attend » : la pilule du ticket qui attend le chef, à côté de son état. */
-#rail .etat-ticket.attendu {
-  padding: var(--pas-1) var(--pas-2);
-  border: 1px solid var(--ton);
-  border-radius: var(--rayon-pastille);
 }
 #rail .pr {
   align-self: flex-start;

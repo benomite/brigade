@@ -17,10 +17,11 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const FEUILLE = readFileSync(join(VUE, "composants/pastille/pastille.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const A = "2026-10-13T10:04:12.000Z";
 const PARADE = "parade";
@@ -59,7 +60,7 @@ const faits = (etat: string, ton: string | undefined, arretee = false, stations:
     evenement: "rien",
     rail: {
       colonnes: [
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [] }], vide: "aucun ticket" },
+        { nom: "Awaiting you", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [] }], vide: "aucun ticket" },
       ],
       hors: [],
       attendLu: A,
@@ -68,8 +69,8 @@ const faits = (etat: string, ton: string | undefined, arretee = false, stations:
 });
 
 // Les règles de la feuille qui portent ce sélecteur, déclarations comprises.
-const regle = (selecteur: string): Map<string, string> => {
-  const trouvees = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, tete = ""]) => tete.split(",").map((s) => s.trim().replace(/\s+/g, " ")).includes(selecteur));
+const regle = (selecteur: string, feuille = css): Map<string, string> => {
+  const trouvees = [...feuille.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, tete = ""]) => tete.split(",").map((s) => s.trim().replace(/\s+/g, " ")).includes(selecteur));
   assert.ok(trouvees.length > 0, `aucune règle pour ${selecteur}`);
   return new Map(trouvees.flatMap(([, , corps = ""]) => corps.split(";").map((d) => d.trim()).filter(Boolean).map((d): [string, string] => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()])));
 };
@@ -95,26 +96,28 @@ describe("un ticket qui t'attend", () => {
     // Le rail est au centre de l'espace : aucun onglet n'est à ouvrir pour le lire.
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
 
-    const pilules = vue.element("rail").dessous("span").filter((s) => s.className.split(" ").includes("etat-ticket"));
+    const pilules = vue.element("rail").dessous("span").filter((s) => s.dataset.pastille !== undefined);
+    const marque = (s: Faux) => s.children[0]?.dataset;
+    // L'état du ticket (servi) et la pilule « t'attend » : chacun sa pastille, de la famille.
     assert.deepEqual(
-      pilules.map((s) => [s.textContent, s.dataset.ton, s.dataset.forme, s.className.split(" ").includes("attendu")]),
-      [["servi", "vert", "disque", false], ["awaiting you", "rouge", "carre", true]],
+      pilules.slice(-2).map((s) => [s.children[1]?.textContent, s.dataset.pastille, marque(s)?.ton, marque(s)?.forme]),
+      [["servi", "served", "vert", "disque"], ["awaiting you", "awaiting", "rouge", "carre"]],
     );
     const [colonne] = vue.element("rail").dessous("section");
-    assert.deepEqual([colonne?.dataset.ton, colonne?.dataset.forme], ["rouge", "carre"]);
+    assert.deepEqual([colonne?.dataset.ton, colonne?.children[0]?.children[0]?.dataset.pastille], ["rouge", "awaiting"]);
   });
 });
 
 describe("la forme se lit sans la couleur", () => {
   test("chaque forme de pastille a sa règle, et aucune n'en copie une autre", () => {
-    const formes = ["losange", "carre", "anneau", "triangle", "pause"].map((forme) => silhouette(regle(`.pastille[data-forme="${forme}"]`)));
+    const formes = ["losange", "carre", "anneau", "triangle", "pause"].map((forme) => silhouette(regle(`.pastille[data-forme="${forme}"]`, FEUILLE)));
     // Le disque est la pastille nue : cercle plein.
-    formes.push(silhouette(regle(".pastille")));
+    formes.push(silhouette(regle(".pastille", FEUILLE)));
     assert.equal(new Set(formes).size, 6, formes.join(" ; "));
   });
 
   test("la vue ne pose une forme que d'un ton de la liste fermée, et ne la déduit de rien d'autre", () => {
-    const source = readFileSync(join(VUE, "vue.js"), "utf8");
+    const source = readFileSync(join(VUE, "composants/pastille/pastille.js"), "utf8");
     assert.match(source, /FORMES = \{ vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" \}/);
   });
 });
