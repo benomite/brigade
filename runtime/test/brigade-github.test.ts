@@ -2193,3 +2193,55 @@ test("the held-kitchen line replays 2026-11-05: the limit past its announced end
   await station.tour();
   assert.match(ligne(), /^cause unknown/);
 });
+
+test("a station whose base branch is missing on the remote gives the ticket back uncounted, claims no other, says it once; another station delivers it (#2876)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-base-absente-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(21);
+  faux.feu(22);
+  const dits: string[] = [];
+  const lancer: Lancer = ({ args, flux }) => {
+    const reviewer = args.includes("--tools");
+    writeFileSync(flux, fluxQuiConclut(reviewer ? JSON.stringify({ verdict: "vert", resume: "Looks right.", constats: [] }) : "done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const depotDe = (preparer: OptionsDuDepot["depot"]["preparer"]): OptionsDuDepot["depot"] => ({
+    connait: () => false,
+    preparer,
+    reprendre: async (run) => join(repertoire, run),
+    retirer: () => {},
+    ranger: async () => null,
+    pousser: () => {},
+    commits: () => 1,
+    changes: () => ["a.ts"],
+    diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+  });
+  const preparees: string[] = [];
+  const ouverte = (nom: string, base: string, preparer: OptionsDuDepot["depot"]["preparer"], avertir: (texte: string) => void) => {
+    const station = stationDuDepot({ nom, places: 1, base, depotGitHub: "faux/depot", github: fauxClient(faux), depot: depotDe(preparer), ...reglagesDuFauxClaude(repertoire, lancer), avertir });
+    assert.ok(!("refus" in station));
+    if ("refus" in station) throw new Error("inaccessible");
+    return station;
+  };
+  // Le `git` de A refuse la base `v2` comme le fait le vrai `git fetch`.
+  let essaisDeA = 0;
+  const a = ouverte("A", "v2", async () => { essaisDeA += 1; throw new Error("git fetch : fatal: couldn't find remote ref refs/heads/v2"); }, (texte) => dits.push(texte));
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(echecsDe(faux, 21) + echecsDe(faux, 22), 0);
+  assert.ok(!faux.ticket(21).labels.has("hors-cuisine") && !faux.ticket(22).labels.has("hors-cuisine"));
+  assert.ok(!faux.ticket(21).labels.has(LABEL_TAKEN) && !faux.ticket(22).labels.has(LABEL_TAKEN));
+  // Un seul ticket essayé, un seul signalement, qui nomme la branche.
+  assert.equal(dits.filter((d) => d.includes("`v2` does not exist on the remote")).length, 1);
+  assert.equal(essaisDeA, 1);
+  const b = ouverte("B", "main", async (run) => { preparees.push(run); return { worktree: join(repertoire, run), branche: `cook/${run}` }; }, () => {});
+  for (let tour = 0; tour < 6 && (faux.mergee(21) === undefined || faux.mergee(22) === undefined); tour += 1) {
+    await b.tour();
+    await b.calme();
+  }
+  assert.deepEqual(preparees.sort(), ["21-github", "22-github"]);
+  assert.ok(faux.mergee(21) !== undefined && faux.mergee(22) !== undefined);
+});
