@@ -1022,7 +1022,7 @@ main > header,
   flex: none;
   max-height: 40%;
   overflow-y: auto;
-  padding: 8px 16px;
+  padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
 #bandeau-sante[hidden] {
@@ -1031,13 +1031,13 @@ main > header,
 #bandeau-sante .chiffres-de-sante {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 32px;
+  gap: var(--pas-2) var(--pas-6);
 }
 #bandeau-sante .chiffres-de-sante > .bloc-du-projet {
   flex: 1 1 280px;
 }
 #bandeau-sante > details {
-  margin-top: 8px;
+  margin-top: var(--pas-2);
 }
 #message {
   flex: 1;
@@ -1885,7 +1885,7 @@ main > header,
   border-left: 4px solid transparent;
 }
 #lu-onglet[data-etat] {
-  padding-left: 12px;
+  padding-left: var(--pas-3);
 }
 /* Les trois états de pilotage portent chacun leur forme, avant leur couleur : pilotable, un
    disque plein ; joint mais plus pilotable — ou sans le droit, ou sans commande —, un losange ;
@@ -1904,10 +1904,10 @@ main > header,
   border-radius: 50%;
 }
 #lu-onglet[data-forme="carre"]::before {
-  border-radius: 1px;
+  border-radius: 0;
 }
 #lu-onglet[data-forme="losange"]::before {
-  border-radius: 1px;
+  border-radius: 0;
   transform: rotate(45deg) scale(0.85);
 }
 [data-etat="pilotable"] {
@@ -3011,14 +3011,14 @@ main > header,
 }
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
-#rail .replie {
+:is(#rail, #bandeau-sante) .replie {
   margin: var(--pas-3) var(--pas-4) 0;
   padding: var(--pas-2) var(--pas-4);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-#rail .replie > summary,
+:is(#rail, #bandeau-sante) .replie > summary,
 #rail .une-ligne {
   display: flex;
   flex-wrap: wrap;
@@ -3054,7 +3054,7 @@ main > header,
   min-width: 0;
   overflow-wrap: anywhere;
 }
-#rail .replie[open] > summary {
+:is(#rail, #bandeau-sante) .replie[open] > summary {
   margin-bottom: var(--pas-2);
 }
 /* Ouvert, le bloc montre son contenu sans en répéter le cadre ni le titre : la ligne le porte déjà. */
