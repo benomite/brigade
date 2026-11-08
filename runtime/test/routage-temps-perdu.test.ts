@@ -80,12 +80,12 @@ test("#2809: a correction served on benomite/brigade is tried on the served proj
   const servie = new Date(debut + 6 * 60 * 60_000).toISOString();
   await brigade.github.fermerIssue(100);
   fermetures.set(100, servie);
-  assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 100, servie, mediane: 300, seuilMin: 2 });
+  assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 100, servie, manque: 20, mediane: 300, seuilMin: 2 });
   assert.equal(brigade.issues.length, 1);
 
-  // Les tickets récents du projet sont tous pris après elle, et toujours au-dessus du seuil : la suivante s'ouvre.
+  // 20 tickets du projet sont pris après elle, et toujours au-dessus du seuil : la suivante s'ouvre.
   // La mesure a changé depuis le merge (#2833) : 8 min perdues au lieu de 5.
-  enregistrements = [...enregistrements, ...pris(20, 10, debut + 30 * 60 * 60_000).map((t) => ({ ...t, attentePrise: 480 }))];
+  enregistrements = [...enregistrements, ...pris(20, 20, debut + 30 * 60 * 60_000).map((t) => ({ ...t, attentePrise: 480 }))];
   assert.equal((await corriger([])).issue, "ouverte");
   assert.equal(brigade.issues.length, 2);
   assert.equal(projet.issues.length, 0);

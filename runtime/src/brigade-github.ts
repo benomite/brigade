@@ -59,6 +59,7 @@ import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { horsCuisine } from "./seuil-hors-cuisine.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
+import { attentesDeLaDecision, noterLesAttentes } from "./attente-des-tickets.ts";
 import { correctionDuTemps, ticketDeCorrection } from "./temps-max/correction.ts";
 import { DEPOT_BRIGADE, routerLeTempsPerdu, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
 import { preuveDeMesure } from "./preuve-mesure.ts";
@@ -520,6 +521,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           }),
           ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
         });
+  // L'attente de 20 tickets après un ticket servi, que `status` dit (#2868) ; une écriture ratée est dite, et ne retient pas le tour.
+  const noterLAttente = (decision: Awaited<ReturnType<NonNullable<typeof corrigerLeTemps>>>) => {
+    if (options.repertoireEtat === undefined) return;
+    try {
+      noterLesAttentes(options.repertoireEtat, attentesDeLaDecision(decision));
+    } catch (echec) {
+      avertir(`brigade : the wait for new merged tickets could not be recorded for \`status\` on ${nom} — ${message(echec)}`);
+    }
+  };
   // La médiane des rapports cuisson réelle / attendue au-dessus de
   // `cookingOverEstimateMax` ouvre son ticket de correction, un seul (#2676).
   // La porte de qualité la fait taire aussi : la qualité en défaut, c'est le
@@ -873,7 +883,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()));
     await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a hors-cuisine lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     await Promise.all([
-      corrigerLeTemps?.(lus.map((ticket) => ticket.number)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
+      corrigerLeTemps?.(lus.map((ticket) => ticket.number)).then((decision) => noterLAttente(decision)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
       alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
     ]);
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.

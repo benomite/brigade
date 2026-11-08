@@ -457,10 +457,10 @@ the most to it first. **One open at a time**, whatever the turns or the stations
 GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
 the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
 and close the other. Once it is closed, a median still over the threshold opens a new one — **but not before the
-last served correction has recent tickets of its own** (#2577): while one recent ticket at least was claimed
-before the merge of the last correction closed and recorded in these times, the median is still that of
-the tickets before it and says nothing of it, so nothing opens (`a-l-essai`; the station then reads GitHub
-again only once the window has turned). Reopened two minutes after each merge on the same 24 h window, the
+last served correction has 20 tickets of its own** (#2577, #2868): until 20 tickets were claimed and merged after
+the merge of the last correction closed and recorded in these times, the median is still that of
+the tickets before it and says nothing of it, so nothing opens (`a-l-essai`, with the number still missing; the station then reads GitHub
+again only once they are there), and the next measure counts only those tickets. The "Quality before time" ticket follows the same rule with its own last served ticket (`en-attente`; #2868): after the loop of 2026-11-07/08 (27 quality and 8 lost-time tickets in a night, on a 96-ticket window that the previous ticket had almost entirely counted). The station notes the wait in `attente-des-tickets.json` of its state directory and `status` says it in one line, `quality: waiting for N more merged tickets since #<last>` (`lost time: …` for the other). Reopened two minutes after each merge on the same 24 h window, the
 correction was opened twelve times in 9 h 30 (#2535 to #2577): eleven of the 60 recent tickets, each `prio:0`
 ahead of the whole rail, looking for a cause the previous one had just fixed. A correction closed without a
 merge holds nothing back. For a served project, the correction is filed on `benomite/brigade` (#2783) and its

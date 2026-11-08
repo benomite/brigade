@@ -25,6 +25,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
+import { direLesAttentes, lireLesAttentes } from "./attente-des-tickets.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
@@ -159,6 +160,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).
   lignes.push(ligneDesReparations(temps.enregistrements));
+  // Rien ne s'ouvre avant 20 tickets mergés après le dernier ticket servi (#2868) : la station dit ce qu'il en manque.
+  lignes.push(...direLesAttentes(lireLesAttentes(env.BRIGADE_STATE_DIR)));
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;
   const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;

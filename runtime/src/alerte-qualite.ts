@@ -30,11 +30,16 @@ export const LABELS_QUALITE = [LABEL, "prio:0", "model:opus", "effort:medium"];
 export const CAUSES_NOMMEES = 5;
 // Jusqu'où, sur GitHub, on cherche un ticket de qualité encore ouvert.
 export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
+// Combien de tickets pris et mergés après le merge du dernier ticket servi la
+// mesure attend avant de rouvrir (#2868) : la fenêtre glissante en garde des
+// dizaines que le précédent a déjà comptés, et le corriger n'y change rien
+// tant qu'elle ne s'est pas renouvelée.
+export const TICKETS_A_ATTENDRE = 20;
 
 // Ce que la règle lit et écrit de GitHub — la forme de celui de la correction
 // du temps. `state` absent : l'issue compte comme ouverte.
 export type GitHubDeLaQualite = {
-  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt">>)[]>;
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt">> & { servieLe?: string | null })[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
 };
@@ -112,13 +117,28 @@ export function ticketDeQualite(q: Qualite): { titre: string; corps: string; cau
 
 // `deja-servie` : le dernier ticket de qualité est mergé et la fenêtre ne porte
 // aucun renvoi plus récent que ceux qu'il a comptés — numero est ce ticket.
-export type DecisionDeQualite = { issue: "ouverte" | "deja-ouverte" | "deja-servie"; numero: number; causes: CauseDeQualite[] };
+// `en-attente` (#2868) : le dernier ticket de qualité mergé (`numero`) n'a pas
+// encore `manque` tickets pris et mergés après lui — rien ne s'ouvre, et la
+// mesure n'a pas à dire plus.
+export type DecisionDeQualite =
+  | { issue: "ouverte" | "deja-ouverte" | "deja-servie"; numero: number; causes: CauseDeQualite[] }
+  | { issue: "en-attente"; numero: number; manque: number; causes: CauseDeQualite[] };
+
+// Un ticket mesuré, tel que le journal des temps le garde.
+type TempsDuTicket = { ticket: number; claimedAt?: string; mergedAt?: string };
+
+// Les tickets pris après `instant` (ms), et mergés : ceux que le ticket servi à
+// cet instant n'a pas pu compter. Une prise sans date lisible ne compte pas.
+export function prisApres<T extends TempsDuTicket>(temps: readonly T[], instant: number): T[] {
+  return temps.filter((t) => Date.parse(t.claimedAt ?? t.mergedAt ?? "") > instant && Date.parse(t.mergedAt ?? "") > instant);
+}
 
 // La porte, liée au GitHub du projet. Elle rend null quand la qualité tient :
 // les alertes de temps décident comme avant. Sinon elle trouve le ticket de
 // qualité ouvert ou en ouvre un, et les alertes de temps n'ouvrent rien.
 // `ouvertes` : les issues ouvertes que l'appelant vient de lire, s'il en a.
 // `preuve` : la section « Evidence » ajoutée au corps du ticket qui s'ouvre (#2839).
+// `suite` (#2868) : les temps du projet et la mesure qui les prend. Sans elle, pas d'attente.
 export function porteDeQualite({ github, maintenant = () => new Date() }: { github: GitHubDeLaQualite; maintenant?: () => Date }) {
   let connue: number | null = null;
 
@@ -132,16 +152,33 @@ export function porteDeQualite({ github, maintenant = () => new Date() }: { gith
   };
   const ouverts = async (): Promise<number[]> => (await lues()).filter((issue) => issue.state !== "closed").map((issue) => issue.number);
 
-  return async (qualite: Qualite, ouvertes?: readonly number[], preuve?: Preuve): Promise<DecisionDeQualite | null> => {
-    const ticket = ticketDeQualite(qualite);
+  return async (qualite: Qualite, ouvertes?: readonly number[], preuve?: Preuve, suite?: { temps: readonly TempsDuTicket[]; mesurer: (temps: readonly TempsDuTicket[]) => Qualite }): Promise<DecisionDeQualite | null> => {
+    let ticket = ticketDeQualite(qualite);
     if (ticket === null) return null;
-    const { causes } = ticket;
+    let { causes } = ticket;
     if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, causes };
     const toutes = await lues();
     const deja = toutes.find((issue) => issue.state !== "closed")?.number;
     if (deja !== undefined) {
       connue = deja;
       return { issue: "deja-ouverte", numero: deja, causes };
+    }
+    // Le dernier ticket de qualité servi, daté par son merge dans les temps du projet (ou par sa
+    // fermeture, pour un ticket servi ailleurs) : un ticket fermé sans date lue n'attend rien.
+    const servies = suite === undefined ? [] : toutes.flatMap((issue) => {
+      const instant = Date.parse(suite.temps.find((t) => t.ticket === issue.number)?.mergedAt ?? issue.servieLe ?? "");
+      return issue.state === "closed" && !Number.isNaN(instant) ? [{ numero: issue.number, instant }] : [];
+    });
+    const servie = servies.reduce<{ numero: number; instant: number } | null>((derniere, s) => (derniere === null || s.instant > derniere.instant ? s : derniere), null);
+    if (suite !== undefined && servie !== null) {
+      // Il compte les tickets pris après ce merge, et eux seuls : les autres, le précédent les a comptés.
+      const nouveaux = prisApres(suite.temps, servie.instant);
+      if (nouveaux.length < TICKETS_A_ATTENDRE) return { issue: "en-attente", numero: servie.numero, manque: TICKETS_A_ATTENDRE - nouveaux.length, causes };
+      qualite = suite.mesurer(nouveaux);
+      const mesure = ticketDeQualite(qualite);
+      if (mesure === null) return null;
+      ticket = mesure;
+      causes = mesure.causes;
     }
     // Les tickets de qualité mergés ont compté ces tickets : sans renvoi plus récent, rien à ouvrir.
     const comptes = new Set(toutes.flatMap((issue) => comptesDe(issue.body)));
