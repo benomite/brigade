@@ -181,7 +181,7 @@ describe("une ligne d'erreur", () => {
     const vue = await ouvrirParade();
     await ouvrirLecture(vue, "Log");
     const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: "$ node /home/alice/runtime/src/station/geste.ts parade station\nENOSPC: no space left on device\n→ exit code 1", atteinte: true, cas: null }, undefined, undefined);
+    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: "$ node /home/alice/runtime/src/station/geste.ts parade station\nENOSPC: no space left on device\n→ exit code 1", atteinte: true, cas: null }, undefined);
     await repos();
     const ligne = vue.element("lecture-onglet").dessous("p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de ligne d'erreur");
     const bouton = signaler(ligne)[0] ?? assert.fail("pas de bouton sur la ligne d'erreur");
@@ -197,7 +197,7 @@ describe("une ligne d'erreur", () => {
     const vue = await ouvrirParade();
     await ouvrirLecture(vue, "Log");
     const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "log", texte: "" }] }, undefined, undefined);
+    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "log", texte: "" }] }, undefined);
     await repos();
     assert.deepEqual(signaler(vue.element("lecture-onglet")), []);
   });

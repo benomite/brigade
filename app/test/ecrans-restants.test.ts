@@ -55,7 +55,7 @@ describe("la lecture du journal (Log) : des gestes en boutons, rien d'expliqué 
     await ouvrirLecture(vue, "Log");
     const numero = (vue.dernier("onglet") as [string, string, number])[2];
     const erreur = "usage: brigade <projet> station\nthe station did not answer\n→ code de sortie 255";
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur, atteinte: false, cas: null }, undefined, undefined);
+    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur, atteinte: false, cas: null }, undefined);
     await repos();
 
     const corps = vue.element("lecture-onglet");
