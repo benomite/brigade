@@ -99,7 +99,7 @@ No feature was deleted for these: the view was built, but no app code ever sent 
 
 ## Inconsistencies
 
-What the app says and draws differently from one screen to another, read from the source of `app/src/vue/` and the PNGs of the contact sheet (#2900, `index.html` in this folder). Facts only: each item says where it is and what it is. Line numbers are those of `app/src/vue/vue.css` and the `.js` files at the time of writing. The PNG named in an item is the capture of the screen state the selector or file belongs to, matched by the state's name and its source in `scripts/capture-ecran/ecrans/`; the PNGs were not compared pixel by pixel with each rule. At the time of writing, the PNGs of #2900 are not on the base this README was written from: this folder holds no PNG and no `index.html`. Every capture name below is therefore a name inferred from the state names of `scripts/capture-ecran/ecrans/`, and the existence of the file has not been checked.
+What the app says and draws differently from one screen to another, read from the source of `app/src/vue/` and the PNGs of the contact sheet (#2900, `index.html` in this folder). Facts only: each item says where it is and what it is. Line numbers are those of `app/src/vue/vue.css` and the `.js` files at the time of writing. The PNG named in an item is the capture of the screen state the selector or file belongs to, matched by the state's name and its source in `scripts/capture-ecran/ecrans/`; the PNGs were not compared pixel by pixel with each rule. The PNGs of #2900 were not on the base when this was written: this folder held no PNG and no `index.html`. The capture names in this section come from the state names in `scripts/capture-ecran/ecrans/` and were not checked against files.
 
 ### Same thing said with different words
 
@@ -225,7 +225,26 @@ The rules below each draw a « nothing here » line, under ten different class n
 | 22px | `#temps-ticket-du-projet .temps-valeur` (453), `.perdus-cout .perdus-total` (5223), `[data-bloc="temps-tickets"] .temps-valeur` (7076), `[data-bloc="bloque-sans-question"] .sans-question-valeur` (7089) | `projet-temps-normal.png`, `cout.png`, `projet-sante.png` |
 | 26px | `.tete-cout .total` (1237), `#rail .tete-fiabilite .total` (5375), `#rail .tete-closer .total` (5676) | `cout.png`, `fiabilite.png`, `closer.png` |
 
-**Spacings.** `jetons.css` defines no spacing. `padding` values of the buttons listed above take ten different forms, from `3px 8px` to `10px 16px`.
+**Spacings.** `jetons.css` defines no spacing token (no `--espace*` or similar; it holds colors, fonts and radii), so there is no token to name. In `vue.css` and `autonomie/autonomie.css`, `padding` is declared 326 times with 97 distinct values, `gap` 317 times with 32 distinct values and `margin` 273 times with 38 distinct values. The most frequent `gap` values in `vue.css`: 8px (85), 6px (63), 10px (36), 4px (30), 12px (15), `4px 8px` (13), 2px (12). The most frequent `padding` values: `3px 10px` (15), `8px 12px` (11), `3px 12px` (11), `8px 16px` (9), `0 6px` (9), `4px 12px` (7), `10px 14px` (7). The `padding` of the buttons, with the line where each is declared in `vue.css`:
+
+| Button (selector) | `padding` | Line |
+|---|---|---|
+| `#blocages-du-projet .gestes-du-blocage button` | 3px 12px | 549 |
+| `#choix-du-projet .issue button` | 3px 12px | 630 |
+| `:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond .action > button` | 4px 14px | 7218 |
+| `#stations-du-projet .parcours button:not(.recommande)` | 3px 10px | 812 |
+| `.etape-station button:not(.aide)` | 4px 12px | 5083 |
+| `.etape-recap button` | 4px 12px | 5144 |
+| `#rail .closer-lancement .confirmation .reponses button` | 3px 10px | 5874 |
+| `#rail .bon .confirmation > button` | 3px 8px | 4146 |
+| `.choix-du-second button.choix` | 6px 10px | 6373 |
+| `.geste-du-second button.geste` | 6px 10px | 6409 |
+| `.confiance .lancer button` | 10px 16px, `min-height` 44px | 1062 (`min-height` 1061) |
+| `#connexion-github .gestes button` | 8px 16px | 6167 |
+| `#formulaire button` | 6px 12px | 2087 |
+| `#machines > button` | 4px 10px | 1152 |
+
+Captures: see the table of buttons above.
 
 **Other departures from `jetons.css`.**
 
