@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { compagnons } from "./compagnons.ts";
 import { fiche, type Fiche } from "./fiche.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
+import { attendusDuBlocage, attendusOuverts, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
@@ -608,6 +609,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // rende sur l'issue : un échec ne libère jamais une place pour un autre.
   const aRendre = new Map<number, TicketLu>();
   let premierTour = true;
+  // Les tickets de la cuisine que le dernier tour a lus ouverts : ceux qu'un
+  // cook bloqué peut nommer comme attendus (#2968).
+  let ouvertsDuTour = new Set<number>();
   // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
   let arretee = false;
   // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
@@ -765,6 +769,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           return;
         }
         if (relance !== null) avertir(`brigade : #${issue} sur ${nom} — the blocked question is not re-queued with the evidence: ${relance.pourquoi}`);
+        // Il bâtit sur le travail pas encore mergé d'un ticket ouvert : il
+        // l'attend sur le rail, jamais dans la TODO du chef (#2968).
+        const attendus = attendusDuBlocage(fait.bloque, issue, ouvertsDuTour);
+        if (attendus.length > 0) {
+          avertir(`brigade : #${issue} sur ${nom} — the cook stopped on the unmerged work of ${attendus.map((n) => `#${n}`).join(", ")}: the ticket waits for it on the rail, not for the chef`);
+          await github.commenter(issue, corpsDeLAttente({ station: nom, attendus, question: fait.bloque }));
+          chrono.rater(issue);
+          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+          liberee = true;
+          return;
+        }
         // Toute autre question va au manager, jamais au chef directement (#2894).
         const suite = await confierAuManager(ticket, fait.bloque);
         if (typeof suite === "string") {
@@ -1065,6 +1080,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Une épique découpée garde `fire` et sa `prio:` : ni elle ne se prend, ni
     // elle ne compte parmi les tickets du tour (#2618).
     const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE) && ticket.epique !== true);
+    ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
     let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
@@ -1414,9 +1430,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         options.sauter?.(ticket.number, direAttenteSurMisDeCote(ticket.number, misDeCote.attendu, misDeCote.raison));
         continue;
       }
-      // Une dépendance ouverte retient le ticket ; sans lecture de GitHub, il attend aussi.
+      // Un ticket ouvert qu'il attend — son corps, sa fiche, l'arrêt de son cook
+      // (#2968) — le retient, et son saut le nomme ; sans lecture de GitHub, il attend aussi.
       try {
-        if ((await github.dependancesOuvertes(ticket.number)).length > 0) continue;
+        const attendus = await attendusOuverts(github, ticket.number, lus);
+        if (attendus.length > 0) {
+          options.sauter?.(ticket.number, direAttenteDeTicket(ticket.number, attendus));
+          continue;
+        }
       } catch (erreur) {
         avertir(`brigade : dépendances de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         continue;
