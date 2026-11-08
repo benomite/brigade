@@ -242,7 +242,7 @@
 }
 /* Les gestes de WAITING, sur un bon : ses boutons en ligne ; le formulaire « waiting for… », sous
    le bon, un champ par ligne — ce qu'il attend, de qui, le jour de la relance —, puis ce qui le
-   fait partir ou y renonce. Ce qui l'a refusé se lit dessous, en rouge. */
+   fait partir ou y renonce. Ce qui l'a refusé se lit dessous (composants/ligne-erreur). */
 .bon .gestes {
   display: flex;
   flex-wrap: wrap;
@@ -267,26 +267,19 @@
 .bon form.attente input {
   min-width: 0;
 }
-.bon form.attente .refus {
-  color: var(--rouge);
-  border-top: 0;
-}
 /* « it arrived, back to the kitchen », parti sur le tableau de la cuisine : sous les gestes de la carte de WAITING, en
-   une ligne — en route, posté (le commentaire au survol), ou ce qui l'a refusé, en rouge. */
+   une ligne — en route, posté (le commentaire au survol), ou ce qui l'a refusé (composants/ligne-erreur). */
 .bon p.arrivee {
   margin: 0;
   font-size: var(--taille-meta);
   color: var(--bon-discret);
   border-top: 0;
 }
-.bon p.arrivee.refus {
-  color: var(--rouge);
-}
 /* Sur la carte, sur son papier clair, sous ce qu'elle dit. */
 .bon .signaler {
   display: flex;
   margin-top: var(--pas-2);
 }
-.bon .signaler :is(.signale, .indisponible) {
+.bon .signaler .signale {
   color: var(--bon-discret);
 }

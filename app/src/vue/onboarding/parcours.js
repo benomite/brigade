@@ -17,6 +17,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../projets/demande.ts").Onboarding} Onboarding */
@@ -124,11 +125,7 @@ function poserPreparation(doc, preparation, maintenant, ouvrir, dejaOuverte) {
   if (preparation.etat === "a-relire" && pr !== null && !dejaOuverte.includes(pr)) ligne.append(bouton(doc, OUVRIR_LA_PR, () => ouvrir(pr), false));
   poses.push(ligne);
   if (preparation.etat === "en-echec") {
-    const echec = cree(doc, "div");
-    echec.className = "echec";
-    echec.role = "alert";
-    echec.append(cree(doc, "p", preparation.raison ?? "Its cook failed."), cree(doc, "p", prochainEssaiDit(preparation.prochainEssai, maintenant)));
-    poses.push(echec);
+    poses.push(ligneErreur(doc, preparation.raison ?? "Its cook failed.", prochainEssaiDit(preparation.prochainEssai, maintenant), { classe: "echec", balise: "div", alerte: true }));
   }
   return poses;
 }

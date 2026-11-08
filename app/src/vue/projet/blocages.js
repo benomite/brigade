@@ -8,6 +8,7 @@
 // bouton, et le dit. Il ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction, survol } from "../briques.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../projets/demande.ts").Blocage} Blocage */
@@ -71,13 +72,11 @@ function ligne(doc, blocage, { gestes, ouvrir, deplies, deplier }) {
     gestesDuBlocage.className = "gestes-du-blocage";
     if (geste !== undefined && "faire" in geste) gestesDuBlocage.append(boutonAction(doc, geste.libelle, geste.faire, { recommande: true }));
     else if (geste !== undefined) {
-      const sans = cree(doc, "span", geste.sans);
-      sans.className = "sans-geste";
+      const sans = ligneVide(doc, geste.sans, { classe: "sans-geste", balise: "span" });
       gestesDuBlocage.append(sans);
     } else if (blocage.action !== undefined) {
       // Un geste que cette version de l'app ne connaît pas : pas de bouton qui ne ferait rien.
-      const sans = cree(doc, "span", SANS_GESTE);
-      sans.className = "sans-geste";
+      const sans = ligneVide(doc, SANS_GESTE, { classe: "sans-geste", balise: "span" });
       gestesDuBlocage.append(sans, survol(doc, `the station names the gesture “${blocage.action}”, which this version of the app does not know`));
     }
     if (blocage.link !== undefined) {

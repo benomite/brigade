@@ -16,6 +16,7 @@
 import { FERMER_LA_LISTE, OUVRIR_LA_LISTE, poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
 import { bouton } from "../composants/bouton/bouton.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./tete.js").Lecture} Lecture */
@@ -117,14 +118,14 @@ export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule, ouv
   const { total, minimum, partiel, lignes } = perdus(projets, lectures);
   const dit = total === undefined ? LECTURE : total === null ? NON_COMMUNIQUE : `${partiel || minimum ? "≥ " : ""}${nombre(total)}`;
   // Avec des lignes, le chiffre est un bouton de la famille, discret, qui déplie la liste : son chiffre est un `span` à lui.
-  const chiffre = lignes.length > 0 ? bouton(doc, "", undefined, { sorte: "discret" }) : cree(doc, "p", dit);
+  const sansChiffre = lignes.length === 0 && typeof total !== "number";
+  const chiffre = lignes.length > 0 ? bouton(doc, "", undefined, { sorte: "discret" }) : sansChiffre ? ligneVide(doc, dit, { classe: "perdus-total sans" }) : cree(doc, "p", dit);
   if (lignes.length > 0) {
     const nombreDit = cree(doc, "span", dit);
     nombreDit.className = "chiffre-perdu";
     chiffre.append(nombreDit);
   }
-  chiffre.className = "perdus-total";
-  if (typeof total !== "number") chiffre.className = "perdus-total sans";
+  if (!sansChiffre) chiffre.className = "perdus-total";
   // Au-dessus du seuil de son projet (seuils.js), le chiffre est mis en évidence et une ligne dit le geste.
   const seuils = seuilsDesProjets(projets, lectures);
   const sommes = new Map(projets.map(({ nom }) => [nom, 0]));

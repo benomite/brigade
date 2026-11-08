@@ -13,10 +13,13 @@
 // station a changé de déclaration depuis repart de la déclaration lue. Ce module ne touche pas `document` : il reçoit de
 // quoi créer un élément (briques.js), et rend un élément.
 
-import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, survol } from "../../briques.js";
+import { boutonAction, caseACocher, survol } from "../../briques.js";
+import { confirmationDeGeste } from "../../composants/confirmation/confirmation.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { casesDuFormulaire, champDeCapaciteLibre } from "../../capacite-libre/capacite-libre.js";
 import { niveauDe } from "../../niveaux.js";
 import { choixDeCapacites, motDuLieu, ouTourne, plafondDit, SEULE } from "../../stations-declarees.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../service.ts").StationsLues} StationsLues */
@@ -221,7 +224,7 @@ function stationReglee(doc, station, saisie, contexte) {
   section.append(plafond, capacites, pied, prendre, sert);
   const rendu = saisie.rendu;
   if (rendu !== undefined) {
-    if ("refus" in rendu) section.append(lectureIndisponible(doc, rendu.refus, rendu.detail ?? ""));
+    if ("refus" in rendu) section.append(ligneErreur(doc, rendu.refus, rendu.detail ?? ""));
     else {
       const fait = cree(doc, "p", rendu.fait);
       fait.className = "fait";
@@ -249,8 +252,7 @@ export function poserBlocReglagesStation(doc, reglages) {
   titre.append(survol(doc, AIDE));
   const { stations, saisies } = reglages;
   if (stations === undefined || stations.declarees.length === 0) {
-    const vide = cree(doc, "p", stations === undefined ? PAS_LUE : AUCUNE);
-    vide.className = "vide";
+    const vide = ligneVide(doc, stations === undefined ? PAS_LUE : AUCUNE);
     bloc.append(vide);
     return bloc;
   }

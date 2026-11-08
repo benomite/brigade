@@ -1,9 +1,9 @@
 // @ts-check
 // Les briques communes de la vue : ce que l'app dit moins, et dit pareil partout. Une explication
 // ne s'écrit pas à plat dans l'écran, elle se montre au survol ou au focus clavier d'une icône
-// d'aide ; une lecture qui manque tient en une ligne courte, son détail technique dans le survol ;
+// d'aide ; une lecture qui manque tient en une ligne (composants/ligne-erreur), son détail technique dans le survol ;
 // un bouton recommandé se distingue des autres, et son prix, s'il en a un, est dans son survol ;
-// une confirmation qui coûte dit son prix en une seule ligne, une qui ne coûte rien n'en dit aucune.
+// la confirmation d'un geste est dans composants/confirmation.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien
 // et les tests un faux. Il ne pose rien dans la page, et ne câble aucun écran : il rend des éléments. Ses boutons sont
 // ceux de la famille unique (composants/bouton, ticket 2916).
@@ -60,19 +60,6 @@ export function survol(doc, texte, declencheur) {
   return racine;
 }
 
-// Une lecture indisponible : une ligne courte, jamais le détail. « historique indisponible » se lit ;
-// ce que la box ou le réseau a répondu se montre au survol.
-/** @param {Fabrique} doc @param {string} ligne @param {string} detail */
-export function lectureIndisponible(doc, ligne, detail) {
-  const racine = doc.createElement("p");
-  racine.className = "indisponible";
-  const texte = doc.createElement("span");
-  texte.textContent = ligne;
-  racine.append(texte);
-  if (detail.trim() !== "") racine.append(survol(doc, detail));
-  return racine;
-}
-
 // Un bouton d'action. `recommande` le distingue des autres (la sorte recommandée de la famille, et `aria-` de rien
 // d'autre : c'est une question de peau) ; `sorte` en choisit une autre (discret, danger). `prix` : nul ou absent, il
 // n'y a ni survol ni icône ; sinon le prix est dans le survol, pas écrit sous le bouton. `coupe` : son libellé tient sur
@@ -85,27 +72,6 @@ export function boutonAction(doc, libelle, geste, { recommande = false, sorte, g
   const cout = prixDit(prix);
   if (cout !== "") groupe.append(survol(doc, cout));
   return groupe;
-}
-
-// Une confirmation de geste : ce que le geste fait, sa ligne de prix s'il coûte — une seule —, et
-// les deux réponses. Sans coût, aucune ligne de prix : pas de « gratuit », pas de ligne vide.
-/** @param {Fabrique} doc @param {{ titre: string, prix?: number | string | null, oui: string, non: string }} confirmation @param {{ oui: () => void, non: () => void }} gestes */
-export function confirmationDeGeste(doc, { titre, prix, oui, non }, gestes) {
-  const racine = doc.createElement("section");
-  racine.className = "confirmation";
-  const entete = doc.createElement("p");
-  entete.className = "titre";
-  entete.textContent = titre;
-  racine.append(entete);
-  const cout = prixDit(prix);
-  if (cout !== "") {
-    const ligne = doc.createElement("p");
-    ligne.className = "prix";
-    ligne.textContent = cout.replace(/\s*\n\s*/g, " ");
-    racine.append(ligne);
-  }
-  racine.append(bouton(doc, oui, gestes.oui, { sorte: "recommande" }), bouton(doc, non, gestes.non, { sorte: "discret" }));
-  return racine;
 }
 
 // Une case à cocher nommée (ticket 1307, reprise par le ticket 1510) : ce qu'elle coche, et dessous, s'il y a quoi, ce

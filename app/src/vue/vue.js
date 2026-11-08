@@ -77,7 +77,10 @@ import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./conne
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
-import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
+import { boutonAction, caseACocher, prixDit, replie, survol } from "./briques.js";
+import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
+import { enveloppeDeConfirmation, rangeeDeReponse } from "./composants/confirmation/confirmation.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
 import { bon as bonDeLaFamille, teteDuBon } from "./composants/bon/bon.js";
 import { carteAttente, carteDeReponse } from "./composants/carte-attente/carte-attente.js";
@@ -137,6 +140,7 @@ import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
+import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -1665,9 +1669,7 @@ async function ouvrirConfirmation(projet, cle, id) {
 // quand ce n'est pas un geste du socle.
 /** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {(id: string) => void} [partir] */
 function poserConfirmation(projet, { rendu, compte }, partir) {
-  const confirmation = document.createElement("div");
-  confirmation.className = "confirmation";
-  confirmation.role = "group";
+  const confirmation = enveloppeDeConfirmation(document);
   const fermer = () => {
     aConfirmer = undefined;
     montrer();
@@ -1677,9 +1679,7 @@ function poserConfirmation(projet, { rendu, compte }, partir) {
     return confirmation;
   }
   if ("refus" in rendu) {
-    const refus = bloc("p", rendu.refus);
-    refus.className = "refus";
-    confirmation.append(refus, bouton("close", fermer, "discret"));
+    confirmation.append(ligneErreur(document, rendu.refus, "", { classe: "refus" }), bouton("close", fermer, "discret"));
     return confirmation;
   }
   confirmation.ariaLabel = rendu.titre;
@@ -1714,22 +1714,16 @@ function poserConfirmation(projet, { rendu, compte }, partir) {
   };
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
-      const choix = document.createElement("p");
-      choix.className = "gestes";
       const oui = bouton(libelle, () => {
         aConfirmer = undefined;
         if (partir === undefined) void ecrireGeste(id, true);
         else partir(id);
       }, "recommande");
       oui.dataset.oui = "";
-      choix.append(...engage(oui, dit));
-      return choix;
+      return rangeeDeReponse(document, engage(oui, dit));
     }),
   );
-  const non = document.createElement("p");
-  non.className = "gestes";
-  non.append(...engage(bouton(rendu.renoncer, fermer, "discret"), "nothing goes"));
-  confirmation.append(non);
+  confirmation.append(rangeeDeReponse(document, engage(bouton(rendu.renoncer, fermer, "discret"), "nothing goes")));
   return confirmation;
 }
 
@@ -1984,7 +1978,7 @@ function aPart(projet, attend, accueil = false) {
   const cree = document.createElement("section");
   cree.className = "attend";
   cree.dataset.pris = String(attend !== undefined);
-  if (accueil) cree.append(bloc("h3", "what awaits you"), attend === undefined ? lectureIndisponible(document, "what awaits you could not be set apart", sansBord(projet)) : bloc("pre", attend));
+  if (accueil) cree.append(bloc("h3", "what awaits you"), attend === undefined ? ligneErreur(document, "what awaits you could not be set apart", sansBord(projet)) : bloc("pre", attend));
   else cree.append(bloc("h3", `what awaits you — the \`attend\` block of ${geste(projet, "status")}`), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
   return cree;
 }
@@ -2006,7 +2000,7 @@ function obtenuEnUneLigne(projet, recue, plusPilotable) {
             : recue.atteinte
               ? ["the station answered, but not as the app expects", plusPilotable]
               : ["the station did not answer", undefined];
-  const dite = lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`);
+  const dite = ligneErreur(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`);
   // Ce que la station a dit, sans la commande lancée : la panne du signalement, en quelques mots.
   const dit = recue.erreur.split("\n").filter((une) => une.trim() !== "" && !une.startsWith("$ ")).join(" ");
   dite.append(...signalement.poser({ projet: projet.nom, reference: { ligne }, panne: dit === "" ? `${projet.nom}: ${ligne}` : `${projet.nom}: ${ligne} — ${dit}` }));
@@ -2360,9 +2354,7 @@ function rangeeDeReglage(nom, valeur, controle, dessous = []) {
 /** @param {string} texte @returns {HTMLElement[]} */
 function refusDeReglage(texte) {
   if (texte === "") return [];
-  const dit = bloc("p", texte);
-  dit.className = "dit refus";
-  return [dit];
+  return [ligneErreur(document, texte, "", { classe: "dit refus" })];
 }
 
 // Le groupe de Settings : son titre est le mot du niveau (niveaux.js), son survol dit où ses réglages sont gardés. Sans
@@ -2974,11 +2966,10 @@ function poserGestesDAttente(projet, carte) {
     }),
   );
   if (arrivee === undefined) return [rangee];
-  const dite = bloc("p", "envoi" in arrivee ? "it arrived, back to the kitchen: sent, waiting for the answer…" : "fait" in arrivee ? arrivee.fait : arrivee.refus);
-  dite.className = "arrivee";
-  if ("refus" in arrivee) dite.className = "arrivee refus";
+  const dite = "refus" in arrivee ? ligneErreur(document, arrivee.refus, arrivee.detail, { classe: "arrivee refus" }) : bloc("p", "envoi" in arrivee ? "it arrived, back to the kitchen: sent, waiting for the answer…" : arrivee.fait);
+  if (!("refus" in arrivee)) dite.className = "arrivee";
   dite.ariaLive = "polite";
-  if (!("envoi" in arrivee) && arrivee.detail !== "") dite.title = arrivee.detail;
+  if ("fait" in arrivee && arrivee.detail !== "") dite.title = arrivee.detail;
   return [rangee, dite];
 }
 
@@ -3277,9 +3268,7 @@ function poserFiche() {
   /** @param {import("../fiche.ts").Ligne} ligne */
   const dite = (ligne) => {
     if ("sans" in ligne) {
-      const tue = bloc("dd", ligne.sans);
-      tue.className = "sans";
-      return tue;
+      return ligneVide(document, ligne.sans, { classe: "sans", balise: "dd" });
     }
     return ligne.exact === true ? exact("dd", ligne.valeur) : bloc("dd", ligne.valeur);
   };
@@ -3388,7 +3377,7 @@ function poserGestesDeFiche(projet, carte) {
     return section;
   }
   if ("sans" in proposes) {
-    section.append(lectureIndisponible(document, "actions unavailable", proposes.sans));
+    section.append(ligneErreur(document, "actions unavailable", proposes.sans));
     return section;
   }
   const issue = issuesDeFiches.get(cle);
@@ -3414,10 +3403,7 @@ function poserGestesDeFiche(projet, carte) {
   }
   const refus = refusDeFiches.get(cle);
   if (refus !== undefined) {
-    const dit = bloc("p", refus.dit);
-    dit.className = "refus";
-    if (refus.detail !== "") dit.title = refus.detail;
-    section.append(dit);
+    section.append(ligneErreur(document, refus.dit, refus.detail, { classe: "refus" }));
   }
   // Ce qui est parti : en route, fait — ce que la station a répondu au survol —, ou écrit dans le second.
   if (issue !== undefined) {
@@ -3558,7 +3544,7 @@ function poserHistoire(projet, ticket, carte, cookPose = false) {
   section.append(bloc("h4", "history"));
   if (histoire === undefined) section.append(bloc("p", "reading the history…"));
   // Une lecture qui manque se dit en une ligne ; ce que la station a répondu, au survol.
-  else if ("sans" in histoire) section.append(lectureIndisponible(document, "history unavailable", histoire.sans));
+  else if ("sans" in histoire) section.append(ligneErreur(document, "history unavailable", histoire.sans));
   else {
     const liste = document.createElement("ol");
     for (const { libelle, at, ton, detail } of histoire.etapes) {
@@ -3572,8 +3558,7 @@ function poserHistoire(projet, ticket, carte, cookPose = false) {
     /** @param {string} libelle @param {string} valeur */
     const rangCout = (libelle, valeur) => {
       const pose = document.createElement("div");
-      const dd = bloc("dd", valeur);
-      if (valeur === "not communicated") dd.className = "sans";
+      const dd = valeur === "not communicated" ? ligneVide(document, valeur, { classe: "sans", balise: "dd" }) : bloc("dd", valeur);
       pose.append(bloc("dt", libelle), dd);
       return pose;
     };
@@ -3584,9 +3569,7 @@ function poserHistoire(projet, ticket, carte, cookPose = false) {
     // Un coût que la box ne communique pas n'est pas écrit : ni titre, ni trois lignes vides.
     if (connu) section.append(bloc("h4", "cost"), cout);
     if (connu && histoire.cout.minimum) {
-      const note = bloc("p", "at least: a cook has not declared what it spent");
-      note.className = "sans";
-      section.append(note);
+      section.append(ligneVide(document, "at least: a cook has not declared what it spent", { classe: "sans" }));
     }
   }
   posees.push(section);
@@ -3612,7 +3595,7 @@ function poserRetro(ticket, retro) {
   }
   // Une lecture qui manque se dit en une ligne ; pourquoi, au survol.
   if ("sans" in retro) {
-    section.append(lectureIndisponible(document, "retro unavailable", retro.sans));
+    section.append(ligneErreur(document, "retro unavailable", retro.sans));
     return section;
   }
   if (retro.texte === null && retro.lecons.length === 0) {
@@ -3683,7 +3666,7 @@ function poserDiscussion(projet, ticket) {
     return section;
   }
   if ("sans" in lue) {
-    section.append(lectureIndisponible(document, "discussion unavailable", lue.sans));
+    section.append(ligneErreur(document, "discussion unavailable", lue.sans));
     return section;
   }
   /** @param {string} url */
@@ -3697,18 +3680,14 @@ function poserDiscussion(projet, ticket) {
     const rendu = document.createElement("div");
     rendu.className = "rendu";
     if (blocs.length === 0) {
-      const rien = bloc("p", corps === true ? "no description" : "nothing visible — only markers GitHub does not show");
-      rien.className = "sans";
-      rendu.append(rien);
+      rendu.append(ligneVide(document, corps === true ? "no description" : "nothing visible — only markers GitHub does not show", { classe: "sans" }));
     } else rendu.append(...poserBlocs(blocs, ouvrir));
     message.append(tete, rendu);
     fil.append(message);
   }
   section.append(fil);
   if (!lue.ouverte) {
-    const fermee = bloc("p", "the issue is closed — a comment still posts on it");
-    fermee.className = "sans";
-    section.append(fermee);
+    section.append(ligneVide(document, "the issue is closed — a comment still posts on it", { classe: "sans" }));
   }
   section.append(...poserCommentaire(projet, ticket));
   return section;
@@ -3763,9 +3742,7 @@ function poserCommentaire(projet, ticket) {
     poste.className = "postee";
     poses.push(poste);
   } else if (etat !== undefined && !etat.rendu.poste) {
-    const refus = bloc("p", etat.rendu.refus);
-    refus.className = "refus";
-    poses.push(refus);
+    poses.push(ligneErreur(document, etat.rendu.refus, "", { classe: "refus" }));
   }
   return poses;
 }
@@ -4046,7 +4023,7 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
     return section;
   }
   if ("sans" in lue) {
-    section.append(lectureIndisponible(document, "question unavailable", lue.sans));
+    section.append(ligneErreur(document, "question unavailable", lue.sans));
     return section;
   }
   const { question } = lue;
@@ -4369,9 +4346,7 @@ function colonneBacklog(projet, bons) {
   tete.append(pastilleDEtat(document, "queued", "Backlog"), compte, replier);
   colonne.append(tete);
   if ("sans" in vu) {
-    const dit = bloc("p", vu.sans);
-    dit.className = "sans";
-    colonne.append(dit);
+    colonne.append(ligneVide(document, vu.sans, { classe: "sans" }));
     return [colonne];
   }
   if (vu.groupes.length === 0) colonne.append(bloc("p", "nothing before the rail: every open issue of the repository is on it"));
@@ -4449,8 +4424,7 @@ function ligneDeLaCuisine(projet, tableau, heure) {
   if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
   pilule.append(pastille(tableau.mot ?? tableau.etat, tableau.ton), bloc("strong", tableau.mot ?? tableau.etat));
   ligne.append(bloc("span", "kitchen"), pilule, bloc("small", `latest event — ${tableau.evenement}`));
-  const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [bloc("p", tableau.rienNeCuit)];
-  for (const dite of rienNeCuit) dite.className = "rien-ne-cuit";
+  const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [ligneVide(document, tableau.rienNeCuit, { classe: "rien-ne-cuit" })];
   return [ligne, ...rienNeCuit];
 }
 
@@ -5596,7 +5570,7 @@ function poserProjets() {
   const vide = station.etat === "illisible" ? "its projects cannot be read: neither can the station" : projetsVus === undefined ? "reading GitHub…" : "no project on this station yet";
   listeDesProjets.replaceChildren(
     ...(lignes.length === 0 ? [bloc("p", vide)] : lignes),
-    ...(projetsVus?.sans === undefined ? [] : [lectureIndisponible(document, "GitHub could not be read: the projects added from this app are the ones from before", projetsVus.sans)]),
+    ...(projetsVus?.sans === undefined ? [] : [ligneErreur(document, "GitHub could not be read: the projects added from this app are the ones from before", projetsVus.sans)]),
   );
 }
 
@@ -5771,7 +5745,7 @@ async function ajouterProjet() {
       ouvertLe: parcours.ouvertLe,
     });
     if ("signales" in rendu) {
-      ajoutRefuse.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
+      ajoutRefuse.replaceChildren(...Object.values(rendu.signales).map((raison) => ligneErreur(document, raison ?? "", "", { classe: "" })));
       refuse = Object.values(rendu.signales).join(" ");
     } else if ("refus" in rendu) {
       ajoutRefuse.replaceChildren(bloc("p", rendu.refus));
@@ -6703,7 +6677,7 @@ function poserLaMachineAjoutee(vise, id, nom, ici, defauts) {
   const refus = vise.defauts !== undefined && "refus" in vise.defauts ? vise.defauts : { refus: "this computer could not be read", detail: "" };
   choixDesCapacites.replaceChildren(
     ...(catalogue.length === 0
-      ? [lectureIndisponible(document, refus.refus, refus.detail ?? "")]
+      ? [ligneErreur(document, refus.refus, refus.detail ?? "")]
       : catalogue.map(({ capacite, nom: dite, detectee }) =>
           caseACocher(document, { nom: dite, dit: !ici ? "not detectable from this computer" : detectee ? "detected" : "not found on this computer", cochee: tenues.has(capacite) }, (cochee) => {
             if (cochee) tenues.add(capacite);
@@ -6770,7 +6744,7 @@ async function lireLesDepots(vise, projet) {
   if ("refus" in lus) {
     depotDeConfiance.replaceChildren(new Option("— repository —", ""), ...(projet.depot === undefined ? [] : [new Option(projet.depot, projet.depot)]));
     if (projet.depot !== undefined) depotDeConfiance.value = projet.depot;
-    confianceRefusee.replaceChildren(bloc("p", lus.refus));
+    confianceRefusee.replaceChildren(ligneErreur(document, lus.refus, "", { classe: "" }));
     return;
   }
   vise.depots = lus.depots;
@@ -6834,8 +6808,8 @@ async function confier() {
       reviewer: { modele: calibrageDeConfiance["reviewer-modele"].value, effort: calibrageDeConfiance["reviewer-effort"].value },
       ouvertLe: vise.ouvertLe,
     });
-    if ("signales" in rendu) confianceRefusee.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
-    else if ("refus" in rendu) confianceRefusee.replaceChildren(bloc("p", rendu.refus));
+    if ("signales" in rendu) confianceRefusee.replaceChildren(...Object.values(rendu.signales).map((raison) => ligneErreur(document, raison ?? "", "", { classe: "" })));
+    else if ("refus" in rendu) confianceRefusee.replaceChildren(ligneErreur(document, rendu.refus, "", { classe: "" }));
     else {
       if (confiance === vise) fermerConfiance();
       confianceRefusee.replaceChildren();
@@ -6849,7 +6823,7 @@ async function confier() {
       lireLesFaits();
     }
   } catch (erreur) {
-    confianceRefusee.replaceChildren(bloc("p", `nothing was sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
+    confianceRefusee.replaceChildren(ligneErreur(document, "nothing was sent", erreur instanceof Error ? erreur.message : String(erreur), { classe: "" }));
   }
   validerConfiance.disabled = false;
 }
@@ -7135,7 +7109,7 @@ function attendre(projet, tete, corps) {
     tete.dataset.etat = "sans-station";
     tete.textContent = "no read";
     corps.replaceChildren(
-      lectureIndisponible(
+      ligneErreur(
         document,
         `“${projet.nom}” does not say where its station is: nothing is read`,
         `Its station is not named in ${configuration.chemin}. The app re-reads this file as soon as it changes.`,

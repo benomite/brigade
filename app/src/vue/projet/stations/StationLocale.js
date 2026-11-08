@@ -10,9 +10,11 @@
 //
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), l'état lu et les gestes.
 
-import { lectureIndisponible, survol } from "../../briques.js";
+import { survol } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { niveauDe } from "../../niveaux.js";
 import { bouton } from "../../composants/bouton/bouton.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../ordinaires.ts").Bloc} BlocDesOrdinaires */
@@ -79,7 +81,7 @@ function rangee(doc, { nom, cle, niveau, valeur, controle = [], dessous = [] }) 
   const champ = doc.createElement("p");
   champ.className = "champ";
   champ.append(...controle);
-  pose.append(nomme, vaut, champ, ...dessous.filter(({ texte }) => texte !== "").map(({ texte, refus = false }) => avec(doc, "p", texte, refus ? "dit refus" : "dit")));
+  pose.append(nomme, vaut, champ, ...dessous.filter(({ texte }) => texte !== "").map(({ texte, refus = false }) => (refus ? ligneErreur(doc, texte, "", { classe: "dit refus" }) : avec(doc, "p", texte, "dit"))));
   return pose;
 }
 
@@ -87,7 +89,7 @@ function rangee(doc, { nom, cle, niveau, valeur, controle = [], dessous = [] }) 
 /** @param {Fabrique} doc @param {EtatDeLaStationLocale} etat */
 function dossiers(doc, { projet, dossiers: lus }) {
   if (lus === undefined) return [rangee(doc, { nom: "folders", cle: "dossier", niveau: niveauDe(doc, "dossier"), valeur: [avec(doc, "span", LECTURE)] })];
-  if ("refus" in lus) return [rangee(doc, { nom: "folders", cle: "dossier", niveau: niveauDe(doc, "dossier"), valeur: [lectureIndisponible(doc, "folders unavailable", [lus.refus, lus.detail ?? ""].filter(Boolean).join(" — "))] })];
+  if ("refus" in lus) return [rangee(doc, { nom: "folders", cle: "dossier", niveau: niveauDe(doc, "dossier"), valeur: [ligneErreur(doc, "folders unavailable", [lus.refus, lus.detail ?? ""].filter(Boolean).join(" — "))] })];
   return [
     rangee(doc, { nom: "clone folder", cle: "dossier", niveau: niveauDe(doc, "dossier"), valeur: [avec(doc, "span", lus.clone, "mono"), survol(doc, CLONE(projet))] }),
     rangee(doc, { nom: "worktrees folder", cle: "dossier", niveau: niveauDe(doc, "dossier"), valeur: [avec(doc, "span", lus.worktrees, "mono"), survol(doc, WORKTREES(projet))] }),
@@ -154,7 +156,7 @@ export function poserBlocStationLocale(doc, etat, gestes = { regler: () => {}, s
   bloc.append(titre);
   if (etat === undefined) return bloc;
   if (etat.station === null) {
-    bloc.append(avec(doc, "p", SANS_STATION(etat.poste), "vide"));
+    bloc.append(ligneVide(doc, SANS_STATION(etat.poste)));
     return bloc;
   }
   // Son nom, et ce qu'elle est pour le chef : cet ordinateur. Ses réglages, dans une carte, comme ceux de chaque station

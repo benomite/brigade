@@ -8,7 +8,9 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
-import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./connexion.js";
+import { phrase } from "../onboarding/parcours.js";
+import { boutonDeLaPage, connexionDite, gestes } from "./connexion.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../connexion-github.ts").CompteGitHub} CompteGitHub */
@@ -54,8 +56,7 @@ function poserLeCompte(doc, etat, geste) {
     return [dit, changer, ...suite];
   }
   if ("nonConnecte" in compte) return connexionDite(doc, connexion, SE_CONNECTER, geste);
-  const refus = phraseEtDetail(doc, "p", compte.refus, compte.detail);
-  refus.className = "refus";
+  const refus = ligneErreur(doc, phrase(doc, "span", compte.refus), compte.detail, { classe: "refus" });
   const lien = compte.lien;
   return [
     refus,

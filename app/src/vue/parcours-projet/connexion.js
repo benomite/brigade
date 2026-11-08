@@ -7,6 +7,7 @@
 
 import { boutonAction, survol } from "../briques.js";
 import { phrase } from "../onboarding/parcours.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../connexion-github.ts").DebutDeConnexion} DebutDeConnexion */
@@ -69,7 +70,6 @@ export function connexionDite(doc, connexion, libelle, geste, { recommande = tru
     const page = connexion.page;
     return [...pose, dit, gestes(doc, [boutonAction(doc, ROUVRIR_LA_PAGE, () => geste.ouvrirLaPage(page))])];
   }
-  const refus = phraseEtDetail(doc, "p", connexion.refus, connexion.detail);
-  refus.className = "refus";
+  const refus = ligneErreur(doc, phrase(doc, "span", connexion.refus), connexion.detail, { classe: "refus" });
   return [...pose, refus];
 }

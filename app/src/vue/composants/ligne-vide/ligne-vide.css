@@ -1,0 +1,21 @@
+/* La ligne vide (ticket 2919, posée par ligne-vide.js) : une ligne, à l'encre discrète, coupée d'une ellipse plutôt que
+   passée à la suivante. Aucune autre règle de la vue ne dessine un « rien ici » ; un écran ne pose que sa place. Ce qui la
+   fait dire pareil partout (encre, corps, italique) est `!important` : la règle d'un écran, plus précise, ne la change pas. */
+[data-ligne="vide"] {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--police-interface) !important;
+  font-size: var(--taille-corps) !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  color: var(--discret) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Sur le papier clair d'un bon, la ligne prend l'encre discrète du bon, sans son trait de coupe. */
+.bon [data-ligne="vide"] {
+  padding-top: 0;
+  color: var(--bon-discret) !important;
+  border-top: 0;
+}

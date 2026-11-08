@@ -8,7 +8,8 @@
 // (projets/demande.ts) ; le runtime efface l'état dès que le geste est fait, et la page, relue, revient
 // à son message. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { boutonAction, confirmationDeGeste } from "../briques.js";
+import { boutonAction } from "../briques.js";
+import { confirmationDeGeste } from "../composants/confirmation/confirmation.js";
 import { phrase, prochainEssaiDit } from "./parcours.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */

@@ -25,6 +25,7 @@
 import { boutonAction, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { carteDeReponse } from "./composants/carte-attente/carte-attente.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../carte-todo.ts").CarteDeTodo} CarteDeTodo */
@@ -215,11 +216,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     racine.append(envoi);
   }
   if (vu.vu === "refus") {
-    const refus = cree(doc, "p");
-    refus.className = "refus";
-    refus.append(cree(doc, "span", vu.dit));
-    if (vu.detail.trim() !== "") refus.append(survol(doc, vu.detail));
-    racine.append(refus);
+    racine.append(ligneErreur(doc, vu.dit, vu.detail, { classe: "refus" }));
   }
 
   // L'action secondaire, en retrait sous tout le reste : la carte se tranche sans elle.
@@ -233,9 +230,12 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   demander.addEventListener("click", () => gestes.demander());
   secondaire.append(demander);
   if (second !== undefined) {
-    const dite = cree(doc, "span", "envoi" in second ? DEMANDE_EN_ROUTE : "parti" in second ? second.parti : second.refus);
-    dite.className = "refus" in second ? "refus" : "dite";
-    secondaire.append(dite);
+    if ("refus" in second) secondaire.append(ligneErreur(doc, second.refus, "", { classe: "refus", balise: "span" }));
+    else {
+      const dite = cree(doc, "span", "envoi" in second ? DEMANDE_EN_ROUTE : second.parti);
+      dite.className = "dite";
+      secondaire.append(dite);
+    }
   }
   racine.append(secondaire);
   return [racine];

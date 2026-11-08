@@ -13,6 +13,7 @@
 
 import { poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./tete.js").Lecture} Lecture */
@@ -96,8 +97,7 @@ export function poserChers(doc, projets, lectures, titres, ouvrir) {
   liste.className = "chers";
   const chers = plusChers(projets, lectures);
   if (chers.length === 0) {
-    const vide = cree(doc, "p", projets.some(({ nom }) => !lectures.has(nom)) ? LECTURE : NON_COMMUNIQUE);
-    vide.className = "sans";
+    const vide = ligneVide(doc, projets.some(({ nom }) => !lectures.has(nom)) ? LECTURE : NON_COMMUNIQUE, { classe: "sans" });
     bloc.append(cree(doc, "h2", TITRE), vide);
     return bloc;
   }
@@ -112,10 +112,11 @@ export function poserChers(doc, projets, lectures, titres, ouvrir) {
     const numero = cree(doc, "span", `#${ticket}`);
     numero.className = "numero mono";
     const titre = titres(projet.nom, ticket);
-    const dit = cree(doc, "span", titre === undefined || titre === "" ? NON_COMMUNIQUE : titre);
-    dit.className = titre === undefined || titre === "" ? "titre sans" : "titre";
-    const cout = cree(doc, "span", tokens === null ? NON_COMMUNIQUE : `${minimum ? "≥ " : ""}${nombre(tokens)}`);
-    cout.className = tokens === null ? "tokens sans" : "tokens";
+    const sansTitre = titre === undefined || titre === "";
+    const dit = sansTitre ? ligneVide(doc, NON_COMMUNIQUE, { classe: "titre sans", balise: "span" }) : cree(doc, "span", titre);
+    if (!sansTitre) dit.className = "titre";
+    const cout = tokens === null ? ligneVide(doc, NON_COMMUNIQUE, { classe: "tokens sans", balise: "span" }) : cree(doc, "span", `${minimum ? "≥ " : ""}${nombre(tokens)}`);
+    if (tokens !== null) cout.className = "tokens";
     const essai = cree(doc, "span", `${essais} ${essais === 1 ? "attempt" : "attempts"}`);
     essai.className = "essais";
     const ligne = cree(doc, "button");

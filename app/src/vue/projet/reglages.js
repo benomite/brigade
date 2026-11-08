@@ -8,7 +8,8 @@
 // Refusé — une valeur qui est à la machine, rien qui change —, le refus se dit à côté du champ, et le champ revient à
 // la valeur en vigueur. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { boutonAction, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { niveauDe } from "../niveaux.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -131,11 +132,9 @@ export function poserUnReglage(doc, { vu, modeles, efforts, etat, choisir, propo
   // Ce que le dernier clic a rendu, à côté du champ.
   const dit = etat?.dit;
   if (dit !== undefined) {
-    const rendu = cree(doc, "p");
+    let rendu = cree(doc, "p");
     if ("refus" in dit) {
-      rendu.className = "dit refus";
-      rendu.append(cree(doc, "span", dit.refus));
-      if ((dit.detail ?? "").trim() !== "") rendu.append(survol(doc, dit.detail ?? ""));
+      rendu = ligneErreur(doc, dit.refus, dit.detail, { classe: "dit refus" });
     } else {
       rendu.className = "dit propose";
       const lien = boutonAction(doc, `pull request #${dit.numero}`, () => ouvrir(dit.pr));
@@ -162,7 +161,7 @@ export function poserLesReglages(doc, { lecture, etats, choisir, proposer, ouvri
   titre.append(survol(doc, AIDE));
   section.append(titre);
   if ("sans" in lecture) {
-    section.append(lectureIndisponible(doc, lecture.sans, lecture.detail ?? ""));
+    section.append(ligneErreur(doc, lecture.sans, lecture.detail ?? ""));
     return section;
   }
   const { reglages, modeles, efforts } = lecture.vus;

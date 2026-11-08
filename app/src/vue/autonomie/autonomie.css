@@ -68,11 +68,6 @@
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-.autonomie .dit.refus {
-  margin-top: var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--jaune);
-}
 .autonomie .dit > span + * {
   margin-left: var(--pas-2);
 }

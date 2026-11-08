@@ -11,6 +11,8 @@
 // touche `document` : la vue leur donne une fabrique (briques.js) et les gestes du pont.
 
 import { boutonAction, survol } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** Une station appairée, telle que la lecture du compte la rend. @typedef {import("../../../stations-du-compte.ts").StationEnregistree} Station */
@@ -126,14 +128,10 @@ export function poserEtapeStation(doc, { projet, ici, iciOffert, stations }, eta
   if (iciOffert) unChoix(ICI, ici, gestes.servirIci, ICI_AIDE(ici, projet), { recommande: true });
   for (const station of stations) unChoix(station.id, station.name, () => gestes.confier(station), APPAIREE_AIDE(station.name, projet), station.available ? {} : { dit: HORS_LIGNE });
   if (choix.children.length > 0) racine.append(choix);
-  else racine.append(Object.assign(doc.createElement("p"), { className: "aucune", textContent: AUCUNE(projet) }));
+  else racine.append(ligneVide(doc, AUCUNE(projet), { classe: "aucune" }));
 
   if (etat.refus !== undefined) {
-    const refus = doc.createElement("p");
-    refus.className = "refus";
-    refus.append(Object.assign(doc.createElement("span"), { textContent: etat.refus.ligne }));
-    if (etat.refus.detail !== "") refus.append(survol(doc, etat.refus.detail));
-    racine.append(refus);
+    racine.append(ligneErreur(doc, etat.refus.ligne, etat.refus.detail, { classe: "refus" }));
   }
   const pied = doc.createElement("p");
   pied.className = "gestes";

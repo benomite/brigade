@@ -8,7 +8,9 @@
 // un refus d'une ligne. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et le
 // conteneur où se poser.
 
-import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { boutonAction, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ station: string, login: string | null, refused: boolean }} Station */
@@ -63,12 +65,7 @@ export function poserUneStation(doc, { rangee, gestes }) {
   }
   racine.append(nom, compte, etat, geste);
   if (rangee.refus !== undefined) {
-    const refus = cree(doc, "p");
-    refus.className = "refus";
-    refus.role = "alert";
-    refus.append(cree(doc, "span", rangee.refus.ligne));
-    if (rangee.refus.detail.trim() !== "") refus.append(survol(doc, rangee.refus.detail));
-    racine.append(refus);
+    racine.append(ligneErreur(doc, rangee.refus.ligne, rangee.refus.detail, { classe: "refus", alerte: true }));
   }
   return racine;
 }
@@ -91,14 +88,11 @@ export function poserLesStations(doc, { etat, gestes }) {
   tete.append(titre);
   section.append(tete);
   if (etat.lecture === "refus") {
-    section.append(lectureIndisponible(doc, etat.ligne, etat.detail));
+    section.append(ligneErreur(doc, etat.ligne, etat.detail));
     return section;
   }
   if (etat.rangees.length === 0) {
-    section.append(cree(doc, "p", MOTS.vide));
-    /** @type {any} */
-    const vide = section.children.at(-1);
-    if (vide !== undefined) vide.className = "aucune";
+    section.append(ligneVide(doc, MOTS.vide, { classe: "aucune" }));
     return section;
   }
   section.append(...etat.rangees.map((rangee) => poserUneStation(doc, { rangee, gestes })));

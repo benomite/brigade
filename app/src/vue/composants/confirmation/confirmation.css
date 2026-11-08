@@ -1,0 +1,64 @@
+/* La confirmation (ticket 2919, posée par confirmation.js) : en ligne, directement sous le geste qui l'a demandée, sur
+   toute la largeur de sa ligne, bordée de jaune — ce qu'il fait, son prix en une ligne, puis le « oui » recommandé et le
+   « non » discret. Rien n'en part sans un clic sur le « oui ». Aucune autre règle de la vue ne dessine une confirmation ;
+   un écran ne pose que sa place. */
+.confirmation {
+  flex: 1 1 100%;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--pas-2);
+  min-width: 0;
+  margin: var(--pas-1) 0;
+  padding: var(--pas-2) var(--pas-3);
+  color: var(--texte);
+  background: var(--bandeau);
+  border-left: 4px solid var(--jaune);
+  user-select: text;
+}
+.confirmation > p {
+  flex: 1 1 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.confirmation > p.titre {
+  font-weight: 600;
+}
+.confirmation > p.prix {
+  color: var(--jaune);
+}
+.confirmation > button {
+  white-space: nowrap;
+}
+.confirmation > strong {
+  flex: 1 1 100%;
+  color: var(--jaune);
+}
+.confirmation > small {
+  color: var(--discret);
+}
+.confirmation .nombres {
+  font-weight: 600;
+  color: var(--jaune);
+}
+.confirmation pre {
+  flex: 1 1 100%;
+  max-height: 96px;
+  margin: 0;
+  overflow: auto;
+}
+.confirmation .gestes {
+  flex: 1 1 100%;
+  display: flex;
+  flex-flow: row wrap;
+  align-items: baseline;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+}
+.confirmation .gestes span {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

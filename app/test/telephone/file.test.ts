@@ -186,12 +186,11 @@ describe("sur un écran étroit, la page ne défile pas de côté (les colonnes 
     for (const [selecteur, declarations] of regles) assert.doesNotMatch([...declarations.values()].join(" "), /minmax\((?:[3-9]\d\d|\d{4,})px/, selecteur);
   });
 
-  test("la confirmation d'un interrupteur s'ouvre sous la tête de l'espace, de toute sa largeur, et non à 440 px sous lui", () => {
+  test("la confirmation d'un interrupteur s'ouvre en ligne sous la tête de l'espace, de toute sa largeur : ni position absolue, ni 440 px", () => {
     const regles = blocEtroit();
-    assert.equal(regles.get("main > header")?.get("position"), "relative");
-    assert.equal(regles.get(".interrupteur-de-tete")?.get("position"), "static");
-    const confirmation = regles.get(".interrupteur-de-tete > .confirmation");
-    assert.equal(confirmation?.get("width"), "auto");
-    assert.ok(confirmation?.has("left") && confirmation.has("right"), "ancrée à gauche et à droite");
+    assert.equal(regles.get("main > header")?.get("flex-wrap"), "wrap");
+    assert.equal(regles.has(".interrupteur-de-tete > .confirmation"), false);
+    assert.doesNotMatch(PEAU, /\.interrupteur-de-tete > \.confirmation/);
+    assert.match(PEAU, /\.interrupteur-de-tete:has\(> \.confirmation\) \{\s*flex: 1 1 100%;/);
   });
 });

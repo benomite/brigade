@@ -10,6 +10,7 @@
 // rend des éléments. La vue tient l'état, projet par projet.
 
 import { boutonAction, survol } from "./../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("./../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ready: boolean, missingBindings: string[], missingLabels: string[] }} Preparation */
@@ -106,10 +107,7 @@ export function poserAvisDeDepot(doc, lieu, etat, preparer) {
     controle.append(part);
   }
   if (etat.etape === "refus") {
-    const refus = cree(doc, "span", etat.dit);
-    refus.className = "refus";
-    refus.role = "alert";
-    controle.append(refus);
+    controle.append(ligneErreur(doc, etat.dit, "", { classe: "refus", balise: "span", alerte: true }));
   }
   racine.append(tete, controle);
   return racine;

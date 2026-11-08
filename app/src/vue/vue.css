@@ -220,6 +220,7 @@ main {
 main > header,
 #second > header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   min-height: 40px;
   background: var(--bandeau);
@@ -245,11 +246,15 @@ main > header,
 /* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
    glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
    glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
-   Sa confirmation s'ouvre dessous, par-dessus le rail. */
+   Sa confirmation s'ouvre dessous, en ligne (composants/confirmation). */
 .interrupteur-de-tete {
-  position: relative;
   flex: none;
   margin-left: var(--pas-4);
+}
+/* Sa confirmation s'ouvre en ligne, sous le geste : l'interrupteur prend alors toute la rangée de la tête. */
+.interrupteur-de-tete:has(> .confirmation) {
+  flex: 1 1 100%;
+  margin-right: var(--pas-4);
 }
 :is(.interrupteur-de-tete, #etat .reglage) .bascule {
   display: inline-flex;
@@ -300,15 +305,6 @@ main > header,
   left: 9px;
   background: transparent;
   border: 1px dashed var(--discret);
-}
-.interrupteur-de-tete > .confirmation {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 10;
-  width: 440px;
-  margin: 0;
-  box-shadow: 0 6px 18px var(--ombre);
 }
 /* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
    la largeur, ils défilent. */
@@ -434,8 +430,7 @@ main > header,
   color: var(--texte);
 }
 #blocages-du-projet .cause,
-#blocages-du-projet .aide-du-blocage,
-#blocages-du-projet .sans-geste {
+#blocages-du-projet .aide-du-blocage {
   color: var(--texte-doux);
 }
 #blocages-du-projet .gestes-du-blocage {
@@ -526,12 +521,6 @@ main > header,
   line-height: 1.45;
   color: var(--texte-doux);
 }
-#choix-du-projet .refus-du-choix {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  color: var(--rouge-clair);
-}
 #stations-du-projet .station-du-projet {
   display: inline-flex;
   align-items: center;
@@ -581,9 +570,6 @@ main > header,
   align-items: center;
   gap: var(--pas-2);
   color: var(--texte-doux);
-}
-#stations-du-projet .demenagement-dit.refus {
-  color: var(--rouge-clair);
 }
 /* Une station du compte à qui le projet est choisi, et qui refuse de rejoindre sa cuisine (ticket 1790) : sous la ligne,
    son nom et sa phrase, en rouge clair — la ligne, elle, ne change pas. */
@@ -676,8 +662,7 @@ main > header,
 #stations-du-projet .parcours .etat-de-preparation {
   color: var(--texte-doux);
 }
-#stations-du-projet .depot-retenu,
-#stations-du-projet .parcours .echec {
+#stations-du-projet .depot-retenu {
   display: flex;
   flex-direction: column;
   gap: var(--pas-1);
@@ -704,13 +689,6 @@ main > header,
 #stations-du-projet .depot-retenu .remede-en-cours,
 #stations-du-projet .depot-retenu .remede-dit {
   color: var(--texte-doux);
-}
-#stations-du-projet .depot-retenu .confirmation {
-  align-self: stretch;
-  margin: 0;
-}
-#stations-du-projet .depot-retenu .confirmation button {
-  align-self: flex-start;
 }
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
    chaque partie sous son petit titre — les stations, les cooks, les réglages
@@ -886,12 +864,6 @@ main > header,
   grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: var(--pas-2);
-}
-.confiance .refus p {
-  color: var(--rouge-clair);
-}
-.confiance .refus:empty {
-  display: none;
 }
 .confiance .lancer {
   display: flex;
@@ -1135,12 +1107,6 @@ main > header,
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-.tete-cout .total.sans {
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
-  line-height: 2.04;
-  color: var(--discret);
-}
 .tete-cout .parts {
   display: grid;
   gap: var(--pas-1);
@@ -1178,7 +1144,7 @@ main > header,
 .tete-cout .tokens {
   color: var(--texte-doux);
 }
-.tete-cout :is(.tokens.sans, .part) {
+.tete-cout :is(.part) {
   color: var(--discret);
 }
 .tete-cout .quota {
@@ -1249,11 +1215,6 @@ main > header,
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-.tendances .rapport.sans {
-  font-size: var(--taille-intertitre);
-  font-weight: 400;
-  color: var(--discret);
-}
 .tendances :is(.precise, .valeurs) {
   font-size: var(--taille-corps);
   font-variant-numeric: tabular-nums;
@@ -1274,17 +1235,6 @@ main > header,
 }
 .tendances .sens.peu {
   font-weight: 400;
-  color: var(--discret);
-}
-.tendances .indisponible {
-  grid-column: 3 / -1;
-  margin: 0;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-.tendances .sans {
-  margin: var(--pas-2) 0 0;
-  font-size: var(--taille-intertitre);
   color: var(--discret);
 }
 /* La courbe de la page des coûts, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
@@ -1379,15 +1329,6 @@ main > header,
 }
 .courbe-cout .projet {
   color: var(--texte-doux);
-}
-.courbe-cout .sans {
-  margin: 0;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-.courbe-cout p.sans {
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
 }
 /* Ce qui se lit : une commande, puis ce qu'elle a rendu — l'une sous l'autre. */
 #lecture-onglet {
@@ -1498,10 +1439,6 @@ main > header,
 .premier-lancement .ouverture {
   color: var(--texte-doux);
 }
-.premier-lancement .refus {
-  margin: 0;
-  color: var(--rouge-clair);
-}
 .premier-lancement .code-de-connexion {
   margin: 0;
   color: var(--texte-doux);
@@ -1513,7 +1450,7 @@ main > header,
 .premier-lancement > .gestes:last-child {
   margin-top: var(--pas-2);
 }
-.premier-lancement :is(h3, .refus) .survol {
+.premier-lancement :is(h3) .survol {
   margin-left: var(--pas-2);
 }
 /* Le parcours d'ajout d'un projet (ticket 2475) : le même au premier lancement et sur l'écran d'ajout, une carte. En
@@ -1584,13 +1521,6 @@ main > header,
 }
 .parcours-projet .code-de-connexion strong {
   font-size: var(--taille-intertitre);
-}
-.parcours-projet .refus {
-  color: var(--rouge-clair);
-  overflow-wrap: anywhere;
-}
-.parcours-projet .refus .survol {
-  margin-left: var(--pas-2);
 }
 .parcours-projet .gestes {
   gap: var(--pas-2);
@@ -1729,8 +1659,7 @@ main > header,
 #station .plafond-de-station p {
   margin: var(--pas-1) 0;
 }
-#station .plafond-de-station .retenue,
-#station .plafond-de-station .indisponible {
+#station .plafond-de-station .retenue {
   color: var(--jaune);
 }
 #station .plafond-de-station:empty {
@@ -1916,12 +1845,6 @@ main > header,
   margin-top: var(--pas-3);
 }
 /* Un champ signalé : rien n'est parti tant qu'il l'est. */
-#formulaire .refus-champ {
-  color: var(--rouge-clair);
-}
-#formulaire .refus-champ:empty {
-  display: none;
-}
 /* Ce qu'il est advenu de l'ajout : ce que l'app en dit. */
 #issue-ajout {
   display: flex;
@@ -1986,10 +1909,6 @@ main > header,
   font-size: var(--taille-corps);
   font-weight: 700;
 }
-#etat .groupe > .vide {
-  margin: 0 0 var(--pas-2);
-  color: var(--discret);
-}
 #etat .groupe > :is(div, section) > .reglage,
 #etat .reglages-du-projet .reglage {
   display: grid;
@@ -2017,14 +1936,10 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-#etat .reglage > p.dit,
-#etat .reglage > .confirmation {
+#etat .reglage > p.dit {
   grid-column: 2 / -1;
   font-size: var(--taille-corps);
   color: var(--discret);
-}
-#etat .reglage > p.dit.refus {
-  color: var(--jaune);
 }
 #etat #reglages-du-projet {
   margin: 0;
@@ -2112,10 +2027,6 @@ main > header,
   margin: 0;
   font-size: var(--taille-corps);
 }
-#etat .apps-github .champ p.dit.refus,
-#etat .apps-github .reglage > p.dit.refus {
-  color: var(--jaune);
-}
 #etat .apps-github .fichier {
   font-size: var(--taille-corps);
   color: var(--discret);
@@ -2143,9 +2054,6 @@ main > header,
 #etat .projets-servis .depot {
   font-size: var(--taille-corps);
 }
-#etat .projets-servis .aucun {
-  color: var(--jaune);
-}
 #etat .projets-servis .servi {
   color: var(--vert);
 }
@@ -2155,9 +2063,6 @@ main > header,
 #etat .projets-servis .champ input {
   margin: 0;
   accent-color: var(--accent);
-}
-#etat .projets-servis > .reglage > p.dit.refus {
-  color: var(--jaune);
 }
 /* Le champ du sigle : trois signes, en mono comme la case qui les écrit (la vue lui pose `mono`). */
 #sigle input {
@@ -2627,8 +2532,7 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-#rail .ligne-disjoncteur .reprise-demandee,
-#rail .ligne-disjoncteur .refus {
+#rail .ligne-disjoncteur .reprise-demandee {
   display: flex;
   align-items: center;
   gap: var(--pas-2);
@@ -2636,9 +2540,6 @@ main > header,
 }
 #rail .ligne-disjoncteur .reprise-demandee {
   color: var(--vert);
-}
-#rail .ligne-disjoncteur .refus {
-  color: var(--jaune);
 }
 /* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
    de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */
@@ -2684,9 +2585,6 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
-#rail .backlog > p.sans {
-  overflow-wrap: anywhere;
-}
 /* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;
    la cinquième, WAITING, un peu aussi : ses cartes disent ce qu'elles attendent, sans clic. */
@@ -2723,11 +2621,6 @@ main > header,
 }
 #rail .etat-de-la-cuisine small {
   color: var(--discret);
-}
-#rail .stations-de-cuisson .rien-ne-cuit,
-#rail > .rien-ne-cuit {
-  margin: 0 0 var(--pas-1);
-  font-weight: 600;
 }
 #rail > .etat-de-la-cuisine {
   margin: var(--pas-3) var(--pas-4) 0;
@@ -2872,12 +2765,6 @@ main > header,
   background: var(--case);
   border-radius: var(--rayon-bouton);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .capacites.vide,
-#rail .stations-declarees .vide {
-  margin: 0;
-  font-style: italic;
-  color: var(--discret);
-}
 /* Une station s'édite (ticket 1510) : « edit » à droite de sa ligne, et sous elle, sur toute la largeur, son
    formulaire — son plafond, ses capacités en cases (celles de « + station », ticket 1307), ce poste qui la joue, puis
    « Save », recommandé, « Cancel » et, à l'écart, « Remove ». Ce que le dernier geste a rendu passe dessous. */
@@ -2986,24 +2873,10 @@ main > header,
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes .retrait {
   margin-left: auto;
 }
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation {
-  flex-flow: row wrap;
-  align-items: center;
-  gap: var(--pas-2) var(--pas-2);
-  margin: 0;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > p {
-  flex: 1 1 100%;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > p.prix {
-  color: var(--jaune);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button,
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > button {
+#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button {
   white-space: nowrap;
 }
-#rail :is(.station-declaree, .station-de-cuisson) .fait,
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .indisponible {
+#rail :is(.station-declaree, .station-de-cuisson) .fait {
   grid-column: 1 / -1;
   margin: 0;
   font-size: var(--taille-corps);
@@ -3080,13 +2953,6 @@ main > header,
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--discret);
-}
-#rail .station-de-cuisson .cooks.vide li {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#rail .station-de-cuisson .dit.refus {
-  color: var(--jaune);
 }
 #rail .station-de-cuisson .agent .agent-role {
   font-size: var(--taille-meta);
@@ -3374,11 +3240,6 @@ main > header,
 #fiche .porte span {
   color: var(--discret);
 }
-#fiche .sans {
-  margin: 0;
-  font-style: italic;
-  color: var(--discret);
-}
 /* L'histoire et le coût : les étapes dans l'ordre, chacune avec son heure ; la relecture et le
    jugement prennent la couleur de leur verdict. */
 #fiche .histoire,
@@ -3517,10 +3378,6 @@ main > header,
 #fiche .gestes-fiche button.mono {
   overflow-wrap: anywhere;
 }
-#fiche .gestes-fiche .refus {
-  margin: 0;
-  color: var(--rouge-clair);
-}
 /* Ce qui est parti (ticket 1164) : en route, ou ce que la station en a fait, en une ligne — sa réponse au survol. */
 #fiche .gestes-fiche .dit {
   margin: 0;
@@ -3600,9 +3457,6 @@ main > header,
 #fiche .question .postee {
   margin: 0;
   color: var(--vert);
-}
-#fiche .question .refus {
-  color: var(--rouge-clair);
 }
 /* L'issue et sa discussion, sous les gestes : chaque message bordé à gauche, son auteur et sa date
    en tête, puis son texte rendu — titres ramenés à la taille de la fiche, listes, citations, code,
@@ -3727,55 +3581,9 @@ main > header,
   margin: 0;
   color: var(--vert);
 }
-#fiche .discussion .refus {
-  margin: 0;
-  color: var(--rouge-clair);
-  white-space: pre-wrap;
-}
 /* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
    de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
    le « non ». Rien n'en part sans un clic sur un « oui ». */
-.confirmation {
-  flex: 1 1 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  min-width: 0;
-  margin: var(--pas-1) 0;
-  padding: var(--pas-2) var(--pas-3);
-  color: var(--texte);
-  background: var(--bandeau);
-  border-left: 4px solid var(--jaune);
-  user-select: text;
-}
-.confirmation > strong {
-  color: var(--jaune);
-}
-.confirmation > p {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.confirmation > small {
-  color: var(--discret);
-}
-.confirmation .nombres {
-  font-weight: 600;
-  color: var(--jaune);
-}
-.confirmation pre {
-  max-height: 96px;
-  margin: 0;
-  overflow: auto;
-}
-.confirmation .gestes {
-  align-items: baseline;
-  padding: 0;
-}
-.confirmation .gestes span {
-  flex: 1 1 180px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
 /* La bande d'alertes : en tête de l'espace, une ligne par chose à faire, bordée du ton de sa
    panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Chaque alerte tient
    en une ligne (#907) : sa pastille, ce qui ne va pas — jamais coupé —, « detail », et son
@@ -3852,9 +3660,6 @@ main > header,
   padding: 0 var(--pas-4) var(--pas-2) var(--pas-6);
   color: var(--texte-doux);
 }
-#alertes .alerte > .confirmation {
-  margin: 0 var(--pas-4) var(--pas-2);
-}
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {
   padding: var(--pas-2) 0 0;
@@ -3891,9 +3696,6 @@ main > header,
   background: var(--carte);
   color: var(--texte-doux);
   box-shadow: 0 2px 8px var(--ombre);
-}
-.indisponible {
-  color: var(--discret);
 }
 .action {
   display: inline-flex;
@@ -3944,9 +3746,6 @@ main > header,
 .etape-station .hors-ligne {
   color: var(--gris);
 }
-.etape-station .erreur {
-  color: var(--rouge-clair);
-}
 /* L'étape « récap » du parcours d'ajout (ticket 2478, parcours-projet/etape-recap.js) : la phrase de l'attendu en tête, le
    projet et sa station, une ligne chacun, puis ce qui se passe ensuite. Sans station, la ligne le dit et un bouton revient. */
 .etape-recap {
@@ -3969,9 +3768,6 @@ main > header,
 }
 .etape-recap .etiquette {
   color: var(--discret);
-}
-.etape-recap .erreur {
-  color: var(--rouge-clair);
 }
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
@@ -4025,7 +3821,7 @@ main > header,
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.chers-cout :is(.sans, .essais) {
+.chers-cout :is(.essais) {
   color: var(--discret);
 }
 /* Les tokens perdus — de la page des coûts, ou du projet sous sa fiabilité : un chiffre, et derrière lui la liste des cooks perdus. */
@@ -4045,11 +3841,6 @@ main > header,
   font-size: var(--taille-titre);
   font-variant-numeric: tabular-nums;
   color: var(--texte);
-}
-.perdus-cout p.perdus-total.sans,
-.perdus-cout .perdus-total.sans > .chiffre-perdu {
-  font-size: var(--taille-intertitre);
-  color: var(--discret);
 }
 .perdus-cout .perdus {
   display: grid;
@@ -4095,7 +3886,7 @@ main > header,
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.perdus-cout :is(.sans, .cause) {
+.perdus-cout :is(.cause) {
   color: var(--discret);
 }
 .perdus-cout .perdus-fermer {
@@ -4120,10 +3911,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--rouge-clair);
   border-left: 3px solid var(--rouge);
-}
-.alerte-cout.sans {
-  color: var(--discret);
-  border-left-color: var(--trait-fort);
 }
 .alerte-cout .alerte-geste {
   margin: 0 0 0 var(--pas-3);
@@ -4167,20 +3954,11 @@ main > header,
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-#rail .tete-closer .total.sans {
-  font-size: var(--taille-intertitre);
-  font-weight: 400;
-  color: var(--discret);
-}
 #rail .tete-closer .precise {
   margin: 0;
   font-size: var(--taille-corps);
   font-variant-numeric: tabular-nums;
   color: var(--discret);
-}
-#rail .tete-closer :is(.sans, .indisponible) {
-  margin: var(--pas-2) 0 0;
-  font-size: var(--taille-intertitre);
 }
 #rail .tete-closer .attendu {
   margin: 0;
@@ -4206,11 +3984,6 @@ main > header,
 }
 #rail .closer-trouvailles {
   margin: var(--pas-4) 0 0;
-}
-#rail .closer-trouvailles .sans {
-  margin: 0;
-  font-size: var(--taille-intertitre);
-  color: var(--discret);
 }
 #rail .closer-trouvailles .trouvailles {
   display: grid;
@@ -4264,41 +4037,29 @@ main > header,
   padding-left: var(--pas-2);
   border-left: 3px solid var(--jaune);
 }
-#rail .closer-lancement .confirmation {
-  margin: 0;
-}
-#rail .closer-lancement .confirmation .titre {
-  margin: 0;
-  font-weight: 600;
-}
-#rail .closer-lancement .confirmation .maintenant {
-  margin: 0;
-  font-size: var(--taille-corps);
-}
 /* Un écran étroit — le téléphone (ticket 1186) : trois colonnes n'y tiennent pas. La barre passe en haut, en une rangée
    qui défile ; la page du projet prend toute la largeur, et le second, quand son onglet est ouvert, prend la place du
    centre (vue.js montre l'un ou l'autre). La tête du projet passe à la ligne plutôt que de déborder, et une ligne de
    station pose son bouton à côté de son nom, son état et ses cooks dessous. Le même seuil que `ECRAN_ETROIT` (vue.js). */
 @media (max-width: 720px) {
   /* Settings (ticket 1700) : les groupes serrés, et le nom, la valeur et le contrôle d'un réglage l'un sous l'autre. */
-  #etat > .groupe {
+#etat > .groupe {
     margin: var(--pas-2) var(--pas-2) 0;
     padding: var(--pas-2) var(--pas-3) var(--pas-1);
   }
-  #etat .groupe > :is(div, section) > .reglage,
+#etat .groupe > :is(div, section) > .reglage,
   #etat .reglages-du-projet .reglage,
   #etat .apps-github > .reglage {
     grid-template-columns: minmax(0, 1fr);
   }
-  #etat .reglage > p.dit,
-  #etat .reglage > .confirmation,
-  #etat .apps-github > .reglage.tete > .valeur {
+#etat .reglage > p.dit,
+#etat .apps-github > .reglage.tete > .valeur {
     grid-column: 1;
   }
-  #cadre {
+#cadre {
     flex-direction: column;
   }
-  #projets {
+#projets {
     flex: none;
     flex-direction: row;
     padding: var(--pas-2) var(--pas-3);
@@ -4307,51 +4068,39 @@ main > header,
     border-right: 0;
     border-bottom: 1px solid var(--trait-doux);
   }
-  #projets button {
+#projets button {
     height: 44px;
   }
-  #projets #entree-ajout {
+#projets #entree-ajout {
     margin-top: 0;
     margin-left: auto;
   }
-  main {
+main {
     min-height: 0;
   }
-  main[data-conversation] {
+main[data-conversation] {
     flex: none;
   }
-  main > header {
-    position: relative;
+main > header {
     flex-wrap: wrap;
   }
-  /* La confirmation d'un interrupteur (manager, merge) ne tient pas sous lui, à 440 px : elle s'ouvre sous la tête, de
-     toute sa largeur, et rien ne défile de côté (ticket 1163). */
-  .interrupteur-de-tete {
-    position: static;
-  }
-  .interrupteur-de-tete > .confirmation {
-    left: 12px;
-    right: 12px;
-    top: calc(100% + 6px);
-    width: auto;
-  }
-  #espace {
+#espace {
     max-width: none;
   }
-  #second {
+#second {
     flex: 1 1 0;
     min-height: 0;
     border-left: 0;
   }
   /* Le trait d'accent est déjà en tête de la page, juste au-dessus. */
-  #second > header {
+#second > header {
     border-top: 0;
   }
   /* Les colonnes de Rail restent sur une rangée, qui défile de côté (ticket 1556) : rien à changer ici. */
-  #rail .station-de-cuisson {
+#rail .station-de-cuisson {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  #rail .station-de-cuisson :is(.etat, .cooks) {
+#rail .station-de-cuisson :is(.etat, .cooks) {
     grid-column: 1 / -1;
   }
 }
@@ -4445,10 +4194,6 @@ main > header,
   letter-spacing: 0.06em;
   color: var(--texte);
 }
-#connexion-github .refus {
-  color: var(--rouge-clair);
-}
-#connexion-github .refus .survol,
 #connexion-github .connecte .survol {
   margin-left: var(--pas-2);
   vertical-align: middle;
@@ -4485,18 +4230,8 @@ main > header,
   padding: var(--pas-3) var(--pas-4) 0;
 }
 /* Sur le téléphone, la file que la station n'a pas rendue (ticket 1414) : ce qui a été obtenu, en une ligne sous le titre. */
-#rail > .indisponible {
-  padding: var(--pas-1) var(--pas-4) 0;
-}
-#rail > .code-de-connexion,
-#rail > .refus {
+#rail > .code-de-connexion {
   padding: var(--pas-2) var(--pas-4) 0;
-}
-#rail > .refus {
-  color: var(--rouge-clair);
-}
-#rail .colonne p.vide {
-  color: var(--discret);
 }
 /* Le second qui ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque — son
    nom, ce qui l'obtient, le bouton de sa page —, et « try again ». Empêché, il tient la place du terminal. */
@@ -4608,21 +4343,12 @@ main > header,
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.geste-du-second .confirmation {
-  margin: var(--pas-2) 0 0;
-}
-.geste-du-second .confirmation > p.titre {
-  font-weight: 600;
-}
 .geste-du-second .replie > summary {
   cursor: pointer;
 }
 .geste-du-second .replie > summary .resume {
   margin-left: var(--pas-2);
   color: var(--discret);
-}
-.geste-du-second .confirmation > button {
-  align-self: flex-start;
 }
 /* Les réglages du projet, dans son dépôt (ticket 1309) : une rangée par réglage — son nom, sa valeur en vigueur et d'où
    elle vient, son champ et « propose » —, puis ce que le dernier clic a rendu, à côté du champ. Sur Cooks, le plafond
@@ -4682,9 +4408,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-.reglages-du-projet .reglage p.dit.refus {
-  color: var(--jaune);
-}
 .reglages-du-projet .dit > span + * {
   margin-left: var(--pas-2);
 }
@@ -4711,10 +4434,6 @@ main > header,
 .premier-lancement .formulaire-du-premier label {
   color: var(--texte-doux);
 }
-.premier-lancement .formulaire-du-premier .refus-champ {
-  margin: 0;
-  color: var(--rouge-clair);
-}
 .premier-lancement .formulaire-du-premier input {
   padding: var(--pas-2) var(--pas-3);
   font-size: var(--taille-corps);
@@ -4722,9 +4441,6 @@ main > header,
   background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
-}
-.premier-lancement .formulaire-du-premier .refus-champ:empty {
-  display: none;
 }
 
 /* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : une machine que seul
@@ -4743,9 +4459,6 @@ main > header,
   margin: 0;
   padding: var(--pas-1) var(--pas-3);
   color: var(--texte-doux);
-}
-#toutes-les-stations .stations-du-compte > p.indisponible {
-  color: var(--discret);
 }
 #toutes-les-stations .stations-du-compte .attendu .survol {
   margin-left: var(--pas-2);
@@ -4986,8 +4699,7 @@ main > header,
 .signaler .signaler-a-brigade {
   white-space: nowrap;
 }
-.signaler .signale,
-.signaler .indisponible {
+.signaler .signale {
   margin: 0;
   font-size: var(--taille-meta);
   color: var(--discret);
@@ -5220,9 +4932,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p.dit.refus {
-  color: var(--jaune);
-}
 :is(#rail, #bandeau-sante) :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie {
   margin: 0;
   padding: var(--pas-2) 0 0;
@@ -5283,7 +4992,7 @@ main > header,
 #rail .closer-partie > h4 span:last-child {
   font-family: var(--police-interface);
 }
-[data-bloc="closer"] :is(.sans, small, .closer-partie > p) {
+[data-bloc="closer"] :is(small, .closer-partie > p) {
   color: var(--texte-doux);
 }
 [data-bloc="closer"] small {
@@ -5306,10 +5015,6 @@ main > header,
 [data-bloc="closer"] .passe > .retire strong {
   font-weight: 600;
   color: var(--texte);
-}
-[data-bloc="closer"] .passe > .retire.sans strong {
-  font-weight: 400;
-  color: var(--texte-doux);
 }
 [data-bloc="closer"] p.verification {
   display: grid;
@@ -5384,9 +5089,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-[data-bloc="closer"] .closer-partie > p.dit.refus {
-  color: var(--jaune);
-}
 [data-bloc="closer"] .pas-sur-github {
   color: var(--jaune);
 }
@@ -5433,13 +5135,6 @@ main > header,
   align-items: center;
   gap: var(--pas-2);
 }
-#rail .bloc-du-projet .etape-station .refus {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-3);
-  color: var(--rouge-clair);
-}
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
    ses quatre réglages, la même ligne que Settings : le nom et son niveau, la valeur en vigueur, le contrôle. « Save »
    vient sous le plafond et les capacités, qu'il enregistre ; les deux cases s'écrivent seules. Les cartes s'alignent sur
@@ -5448,11 +5143,6 @@ main > header,
   display: flex;
   align-items: center;
   gap: var(--pas-2);
-}
-.reglages-station > .vide {
-  margin: var(--pas-2) var(--pas-4) 0;
-  font-style: italic;
-  color: var(--discret);
 }
 /* La carte a l'allure du panneau « edit » de Cooks (plus haut) ; ici, sa marge l'aligne sur la liste. */
 #rail .reglages-station > .station-reglee {
@@ -5497,9 +5187,6 @@ main > header,
   display: block;
   font-weight: 400;
 }
-#rail .station-reglee > .reglage > .confirmation {
-  grid-column: 2 / -1;
-}
 #rail .station-reglee > .reglage input[type="checkbox"] {
   margin: 0;
   accent-color: var(--accent);
@@ -5527,7 +5214,7 @@ main > header,
   grid-column: 3;
   justify-self: start;
 }
-#rail .station-reglee > :is(.fait, .indisponible) {
+#rail .station-reglee > :is(.fait) {
   margin: var(--pas-1) 0 0;
   font-size: var(--taille-corps);
   color: var(--discret);
@@ -5542,10 +5229,6 @@ main > header,
 .bloc-du-projet[data-bloc="station-locale"] h3,
 #rail .bloc-du-projet[data-bloc="station-locale"] h3 {
   padding-bottom: var(--pas-2);
-}
-.bloc-du-projet[data-bloc="station-locale"] > .vide {
-  margin: var(--pas-2) 0 0 var(--pas-4);
-  color: var(--discret);
 }
 /* La carte a l'allure de celles de « Station settings », au-dessus (ticket 2488), alignée comme elles sur la liste. */
 .bloc-du-projet[data-bloc="station-locale"] > .carte {
@@ -5585,9 +5268,6 @@ main > header,
   grid-column: 2 / -1;
   font-size: var(--taille-corps);
   color: var(--discret);
-}
-.bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit.refus {
-  color: var(--jaune);
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage input[type="number"] {
   width: 8ch;
@@ -5645,24 +5325,12 @@ main > header,
   overflow-y: auto;
   list-style: none;
 }
-.etape-projet .aucun {
-  color: var(--discret);
-  font-size: var(--taille-corps);
-}
 .etape-projet .coller {
   display: flex;
   gap: var(--pas-2);
 }
 .etape-projet .colle {
   flex: 1;
-}
-.etape-projet .erreur {
-  margin: 0;
-  color: var(--rouge-clair);
-  font-size: var(--taille-corps);
-}
-.etape-projet .erreur:empty {
-  display: none;
 }
 /* La vérification du dépôt choisi dans le parcours d'ajout (ticket 2627, ajout-projet/installation-du-depot.js) : une
    phrase — prêt, ce qui manque, en cours, échoué —, son détail au survol, et un seul bouton quand un geste est attendu. */
@@ -5724,9 +5392,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-.avis-depot .refus {
-  color: var(--rouge-clair);
-}
 
 /* La section « Identity » de la page d'une station (ticket 2642) : une ligne par réglage — son nom, sa marque de niveau,
    sa valeur, et « Update now » sur cet ordinateur quand la station est en retard. */
@@ -5760,3 +5425,9 @@ main > header,
 .connexions .reglage .valeur { display: inline-flex; align-items: center; gap: var(--pas-2); }
 .connexions .reglage .geste-dit { flex-basis: 100%; margin: 0; }
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
+/* La place d'une ligne vide ou d'une ligne d'erreur (composants/ligne-vide, composants/ligne-erreur) sous le titre d'un bloc du
+   projet : en retrait, dans l'alignement du titre. */
+.bloc-du-projet > :is([data-ligne="vide"], [data-ligne="erreur"]),
+.reglages-station > [data-ligne="vide"] {
+  margin: var(--pas-2) 0 0 var(--pas-4);
+}

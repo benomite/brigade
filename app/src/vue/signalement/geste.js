@@ -10,7 +10,7 @@
 // tant que la même panne est à l'écran. `actif` : faux sur le téléphone (l'app Android), dont le pont n'ouvre rien —
 // le bouton n'y est pas posé.
 
-import { lectureIndisponible } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -44,7 +44,7 @@ export function tenirLeSignalement({ doc, pont, actif = () => true }) {
     bouton.textContent = occupe ? EN_COURS : SIGNALER;
     const rendu = rendus.get(cle);
     if (rendu === undefined || occupe) return racine.replaceChildren(bouton);
-    if ("refus" in rendu) return racine.replaceChildren(bouton, lectureIndisponible(doc, rendu.refus, rendu.detail ?? ""));
+    if ("refus" in rendu) return racine.replaceChildren(bouton, ligneErreur(doc, rendu.refus, rendu.detail ?? ""));
     const ouvert = doc.createElement("span");
     ouvert.className = "signale";
     ouvert.textContent = OUVERT;

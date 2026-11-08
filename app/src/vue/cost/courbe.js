@@ -9,6 +9,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, HTML ou SVG, et rend des éléments.
 
 import { LECTURE, lignesDuConsomme, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("./tete.js").Lecture} Lecture */
 /** @typedef {import("./tete.js").ProjetDuCout} ProjetDuCout */
@@ -141,8 +142,7 @@ function poserLegende(doc, lues) {
     const ligne = cree(doc, "li");
     ligne.append(teinte, nom);
     if (!points) {
-      const manque = cree(doc, "span", points === undefined ? LECTURE : NON_COMMUNIQUE);
-      manque.className = "sans";
+      const manque = ligneVide(doc, points === undefined ? LECTURE : NON_COMMUNIQUE, { classe: "sans", balise: "span" });
       ligne.append(manque);
     }
     legende.append(ligne);
@@ -160,8 +160,7 @@ export function poserCourbe(doc, projets, lectures) {
   bloc.append(cree(doc, "h2", TITRE));
   const dessinees = courbe.series.filter(({ points }) => points);
   if (dessinees.length === 0) {
-    const manque = cree(doc, "p", courbe.series.some(({ points }) => points === undefined) ? LECTURE : NON_COMMUNIQUE);
-    manque.className = "sans";
+    const manque = ligneVide(doc, courbe.series.some(({ points }) => points === undefined) ? LECTURE : NON_COMMUNIQUE, { classe: "sans" });
     bloc.append(manque);
     return bloc;
   }

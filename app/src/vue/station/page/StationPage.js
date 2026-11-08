@@ -11,7 +11,7 @@
 // Aucun réglage du projet n'y paraît (ils sont sur l'onglet Stations du projet, ticket 2484) : `contexte.niveau(cle)`
 // refuse une clé de niveau « project ». Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-import { lectureIndisponible } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { NIVEAUX } from "../../niveaux.js";
 import { niveauReglage } from "./NiveauReglage.js";
 
@@ -100,7 +100,7 @@ async function poserUneSection(doc, { fichier, titre }, contexte, charger) {
     if (typeof module?.poserSection !== "function") throw new Error(`sections/${fichier}.js exports no poserSection`);
     racine.append(await module.poserSection(doc, contexte));
   } catch (erreur) {
-    racine.append(lectureIndisponible(doc, INDISPONIBLE, erreur instanceof Error ? erreur.message : String(erreur)));
+    racine.append(ligneErreur(doc, INDISPONIBLE, erreur instanceof Error ? erreur.message : String(erreur)));
   }
   return racine;
 }

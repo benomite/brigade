@@ -15,9 +15,11 @@
 // les mots de `closing` (`reads`). Ce module ne touche pas `document` : il reçoit de quoi créer un élément
 // (briques.js), et rend des éléments.
 
-import { lectureIndisponible, survol } from "../../briques.js";
+import { survol } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { BRANCHE_ILLISIBLE, ILLISIBLE, lireFermeture, NON_COMMUNIQUE } from "../section.js";
 import { bouton } from "../../composants/bouton/bouton.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../box.ts").Lecture} Lecture */
@@ -110,9 +112,7 @@ function actuel(doc, fenetres) {
   const bloc = cree(doc, "span");
   bloc.className = "actuel";
   if (fenetre === undefined || fenetre.merges === 0) {
-    const sans = cree(doc, "span", fenetre === undefined ? NON_COMMUNIQUE : "no merge yet");
-    sans.className = "rapport sans";
-    bloc.append(sans);
+    bloc.append(ligneVide(doc, fenetre === undefined ? NON_COMMUNIQUE : "no merge yet", { classe: "rapport sans", balise: "span" }));
     return bloc;
   }
   const rapport = cree(doc, "span", fenetre.reads);
@@ -158,12 +158,12 @@ function ligne(doc, projet, lecture, ouvrir) {
   nom.title = `open ${projet.nom}`;
   item.append(teinte, nom);
   if ("erreur" in lu) {
-    item.append(lectureIndisponible(doc, ILLISIBLE, lu.erreur));
+    item.append(ligneErreur(doc, ILLISIBLE, lu.erreur));
     return item;
   }
   const { observation } = /** @type {Extract<import("../section.js").Fermeture, { configured: true }>} */ (lu.fermeture);
   if (!observation.readable) {
-    item.append(lectureIndisponible(doc, BRANCHE_ILLISIBLE, observation.error));
+    item.append(ligneErreur(doc, BRANCHE_ILLISIBLE, observation.error));
     return item;
   }
   item.append(actuel(doc, observation.ratio), sens(doc, tendance(observation.ratio)));
@@ -191,12 +191,10 @@ export function poserTendances(doc, projets, lectures, ouvrir) {
     bloc.append(liste);
   }
   if (nonLus > 0) {
-    const lecture = cree(doc, "p", nonLus === projets.length ? LECTURE : `${LECTURE} ${nonLus} more project${s(nonLus)}`);
-    lecture.className = "sans";
+    const lecture = ligneVide(doc, nonLus === projets.length ? LECTURE : `${LECTURE} ${nonLus} more project${s(nonLus)}`, { classe: "sans" });
     bloc.append(lecture);
   } else if (lignes.length === 0) {
-    const aucun = cree(doc, "p", AUCUN);
-    aucun.className = "sans";
+    const aucun = ligneVide(doc, AUCUN, { classe: "sans" });
     aucun.append(survol(doc, "a closer is set on a project's page, in the closer section of its Cooks tab"));
     bloc.append(aucun);
   }

@@ -3,7 +3,9 @@
 // recommandé dont le prix n'est que dans le survol, une confirmation qui ne dit un prix que si elle coûte.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { boutonAction, confirmationDeGeste, lectureIndisponible, survol } from "../src/vue/briques.js";
+import { boutonAction, survol } from "../src/vue/briques.js";
+import { confirmationDeGeste } from "../src/vue/composants/confirmation/confirmation.js";
+import { ligneErreur } from "../src/vue/composants/ligne-erreur/ligne-erreur.js";
 import { Faux } from "./aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -37,7 +39,7 @@ describe("le survol", () => {
 describe("la lecture indisponible", () => {
   test("une ligne courte en clair ; le détail technique n'est dans le texte visible que survolé", () => {
     const detail = "connect to host box port 22: Connection refused";
-    const lecture = lectureIndisponible(doc, "historique indisponible", detail) as Faux;
+    const lecture = ligneErreur(doc, "historique indisponible", detail) as Faux;
     assert.equal(lecture.children[0]?.textContent, "historique indisponible");
     assert.equal(lecture.textContent.includes("Connection refused"), false);
     lecture.children[1]!.children[0]!.declencher("focus");
@@ -45,7 +47,7 @@ describe("la lecture indisponible", () => {
   });
 
   test("sans détail, pas de survol", () => {
-    assert.equal((lectureIndisponible(doc, "historique indisponible", "") as Faux).childElementCount, 1);
+    assert.equal((ligneErreur(doc, "historique indisponible", "") as Faux).childElementCount, 1);
   });
 });
 

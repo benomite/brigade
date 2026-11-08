@@ -7,8 +7,10 @@
 // Un ticket sans cook n'a pas de section.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
-import { lectureIndisponible, survol } from "./briques.js";
+import { survol } from "./briques.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { bouton } from "./composants/bouton/bouton.js";
+import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../tableau/lecture.ts").ActiviteDuCook} Activite */
@@ -99,7 +101,7 @@ export function poserLActiviteDuCook(doc, { publiees, ticket, pastille, ouvrirPr
   section.className = "activite-du-cook";
   section.ariaLabel = `what #${ticket}'s cook is doing`;
   if ("sans" in publiees) {
-    section.append(cree(doc, "h4", TITRE), lectureIndisponible(doc, INDISPONIBLE, publiees.sans));
+    section.append(cree(doc, "h4", TITRE), ligneErreur(doc, INDISPONIBLE, publiees.sans));
     return section;
   }
   const cook = cookDuTicket(publiees, ticket);
@@ -119,8 +121,7 @@ export function poserLActiviteDuCook(doc, { publiees, ticket, pastille, ouvrirPr
     const maintenant = cree(doc, "p");
     maintenant.className = "maintenant";
     if (cook.maintenant === null) {
-      const tu = cree(doc, "span", "its station does not say what it is doing");
-      tu.className = "sans";
+      const tu = ligneVide(doc, "its station does not say what it is doing", { classe: "sans", balise: "span" });
       maintenant.append(cree(doc, "span", "now"), tu);
     } else maintenant.append(cree(doc, "span", "now"), cree(doc, "strong", geste(cook.maintenant)), cree(doc, "small", `for ${duree(Date.parse(publiees.lu) - Date.parse(cook.maintenant.depuis))}`));
     section.append(maintenant);
@@ -145,8 +146,7 @@ export function poserLActiviteDuCook(doc, { publiees, ticket, pastille, ouvrirPr
     ouvre.title = `open #${ticket}'s PR in the browser`;
     section.append(ouvre);
   } else if (fini) {
-    const sans = cree(doc, "p", SANS_PR);
-    sans.className = "sans";
+    const sans = ligneVide(doc, SANS_PR, { classe: "sans" });
     section.append(sans);
   }
   const source = cree(doc, "small", `as GitHub said at ${heureUtc(publiees.lu)}`);
