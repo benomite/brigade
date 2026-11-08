@@ -3,8 +3,8 @@
    groupe, celle en vigueur pleine, et d'où elle vient ; dessous, les rangées verrouillées, en retrait. Seules des
    variables de jetons.css portent une couleur. */
 .autonomie {
-  margin: 12px 16px 0;
-  padding: 10px 16px;
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -12,37 +12,37 @@
 .autonomie h3 {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 2px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-1);
   font-weight: 600;
 }
 .autonomie p {
   margin: 0;
 }
 .autonomie .attendu {
-  margin-bottom: 10px;
+  margin-bottom: var(--pas-3);
   color: var(--texte-doux);
 }
 .autonomie .nom {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   color: var(--discret);
 }
 .autonomie .profils {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
-  padding-bottom: 8px;
+  gap: var(--pas-2) var(--pas-2);
+  padding-bottom: var(--pas-2);
   border-bottom: 1px solid var(--trait-doux);
 }
 .autonomie .profils .nom {
-  margin-right: 4px;
+  margin-right: var(--pas-1);
 }
 .autonomie .profil > button {
-  padding: 3px 12px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-3);
+  font-size: var(--taille-corps);
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid var(--trait-fort);
@@ -60,8 +60,8 @@
   display: grid;
   grid-template-columns: 220px auto 1fr;
   align-items: center;
-  gap: 2px 12px;
-  padding: 5px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-1) 0;
 }
 .autonomie .rangee + .rangee {
   border-top: 1px solid var(--trait-doux);
@@ -73,8 +73,8 @@
   overflow: hidden;
 }
 .autonomie .positions > button {
-  padding: 3px 12px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-3);
+  font-size: var(--taille-corps);
   white-space: nowrap;
   color: var(--texte-doux);
 }
@@ -97,36 +97,36 @@
   cursor: default;
 }
 .autonomie .source {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .autonomie .dit.refus {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--jaune);
 }
 .autonomie .dit > span + * {
-  margin-left: 8px;
+  margin-left: var(--pas-2);
 }
 /* Les rangées verrouillées : ni accent ni survol, la position en vigueur seulement soulignée. */
 .autonomie .fixes {
-  margin-top: 10px;
-  padding-top: 8px;
+  margin-top: var(--pas-3);
+  padding-top: var(--pas-2);
   border-top: 1px solid var(--trait);
 }
 .autonomie .tete-fixes {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 2px;
+  gap: var(--pas-2);
+  margin-bottom: var(--pas-1);
 }
 .autonomie .tete-fixes strong {
   font-weight: 600;
   color: var(--texte-doux);
 }
 .autonomie .verrou {
-  padding: 0 8px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   color: var(--discret);
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);

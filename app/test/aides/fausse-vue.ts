@@ -261,7 +261,7 @@ export class FauxXterm {
 // Les variables que jetons.css pose sur la racine : le terminal y lit les siennes.
 export function jetonsDe(css: string): Map<string, string> {
   const racine = /:root\s*\{([^}]*)\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""))?.[1] ?? "";
-  return new Map([...racine.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
+  return new Map([...racine.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
 }
 
 type Ecoutes = { [G in keyof Pont as G extends `sur${string}` ? G : never]: Pont[G] };

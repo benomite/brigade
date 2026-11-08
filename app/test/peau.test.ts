@@ -72,7 +72,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
       for (const [propriete, valeur] of declarations) {
         if (!PORTE_UNE_COULEUR.test(propriete)) continue;
         // Ce qui reste d'une valeur une fois ôtés ses variables et ses longueurs : des mots.
-        const mots = valeur.replace(/var\(--[a-z-]+\)/g, " ").match(/[a-z][a-z-]*/gi) ?? [];
+        const mots = valeur.replace(/var\(--[a-z0-9-]+\)/g, " ").match(/[a-z][a-z-]*/gi) ?? [];
         const noms = mots.filter((mot) => !MOTS_SANS_COULEUR.has(mot.toLowerCase()) && !/^(px|em|%)$/.test(mot));
         assert.deepEqual(noms, [], `${selecteurs.join(", ")} { ${propriete}: ${valeur} }`);
       }
@@ -82,11 +82,11 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
   test("chaque variable que la vue nomme est posée dans jetons.css — ou, pour le ton d'un état, d'après elles", () => {
     const css = sansCommentaires(lire("vue.css"));
     // `--ton` : la couleur d'un mot d'état, posée par vue.css d'après le nom que faits.ts lui donne.
-    const locales = new Map([...css.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
+    const locales = new Map([...css.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
     assert.deepEqual([...new Set(locales.keys())], ["--ton"]);
     for (const [, valeur] of css.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
-    const nommees = [...css.matchAll(/var\((--[a-z-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z-]+)"\)/g)].map(([, nom = ""]) => nom);
+    const nommees = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, nom = ""]) => nom);
     assert.ok(nommees.length > 100, "vue.css ne nomme presque aucune variable");
     for (const nom of new Set(nommees)) assert.ok(jetons.has(nom) || nom === "--ton", `« ${nom} » n'est pas dans jetons.css`);
     // Et aucune n'y dort : ce qui est posé sert.
@@ -96,7 +96,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
   test("jetons.css ne pose une couleur qu'une fois, sur la racine, et rien d'autre ne s'y peint", () => {
     const css = sansCommentaires(lire("jetons.css"));
     assert.deepEqual(regles(css).flatMap(({ selecteurs }) => selecteurs), ["@font-face", "@font-face", "@font-face", ":root"]);
-    const posees = [...css.matchAll(/(--[a-z-]+)\s*:/g)].map(([, nom = ""]) => nom);
+    const posees = [...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, nom = ""]) => nom);
     assert.deepEqual(posees, [...new Set(posees)], "une variable est posée deux fois");
     assert.ok(couleurs.size >= 20, `${couleurs.size} couleurs`);
     assert.equal(jetons.get("color-scheme"), undefined);
