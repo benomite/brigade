@@ -13,6 +13,7 @@ import { configCloison } from "../../src/cloison.ts";
 import { poserDecision, suivreDecisions, type ReglagesSuivis } from "../../src/decisions.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
+import type { Humain } from "../../src/aiguillage-humains/aiguillage.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
@@ -247,8 +248,9 @@ export function fauxGitHub(...issues: Issue[]) {
     garantir: (numero: number, labels: string[]) => void garants.set(numero, labels),
     decrire: (numero: number, description: { body?: string; association?: string }) => void corps.set(numero, description),
     // Ce que le chef écrit sous une issue.
-    repondre: (numero: number, body: string, association = "OWNER") =>
-      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author: "chef", association, createdAt: "2026-10-08T09:30:00Z" }]),
+    // `author` : un autre compte que le chef — un humain déclaré du projet.
+    repondre: (numero: number, body: string, association = "OWNER", author = "chef") =>
+      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author, association, createdAt: "2026-10-08T09:30:00Z" }]),
     // Remplace les commentaires d'une issue par ceux-ci — ce qui, sur GitHub, la modifie.
     ficher(numero: number, updatedAt: string, ...corps: string[]) {
       poses.set(numero, corps.map((body) => ({ body, author: "chef", association: "OWNER", createdAt: updatedAt })));
@@ -456,7 +458,7 @@ export type Options = {
   // `station` : le nom sous lequel il prend son travail sur GitHub (#2568) ;
   // sans lui, il se croit seul.
   // `surLeRail` : appelé quand le manager rend un ticket prenable (#2796).
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void };
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; humains?: () => Humain[] };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -556,6 +558,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         avertir: (message) => void avertissements.push(message),
         station: options.manager.station ?? null,
         ...(options.manager.surLeRail === undefined ? {} : { surLeRail: options.manager.surLeRail }),
+        ...(options.manager.humains === undefined ? {} : { humains: options.manager.humains }),
       })
     : garde;
   aArreter = runtime;

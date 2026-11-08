@@ -438,6 +438,25 @@ FIN
 {"nature":"incomplete","motif":"Rien ne dit comment vérifier que c'est fait.","manque":"Un critère d'acceptation."}
 FIN
       ;;
+    # Le tri de l'issue d'un auteur sans l'écriture (#2934).
+    trie-ticket)
+      assistant
+      resultat <<'FIN'
+{"triage":"ticket","prio":2,"motif":"A real need: the export drops the last row."}
+FIN
+      ;;
+    trie-doublon)
+      assistant
+      resultat <<'FIN'
+{"triage":"duplicate","de":31,"motif":"Issue #31 already asks for the same export fix."}
+FIN
+      ;;
+    trie-hors-perimetre)
+      assistant
+      resultat <<'FIN'
+{"triage":"out-of-scope","motif":"The project does not ship a mobile app."}
+FIN
+      ;;
     # Un verdict `incomplete` suivi (#2692) : le manager le complète, ou pose
     # une question produit au chef.
     complete-criteres)

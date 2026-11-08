@@ -59,6 +59,7 @@ import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
 import { configStation } from "../station.ts";
 import { direStations } from "../stations-declarees.ts";
+import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 
 export type Cuisine = {
   projet: string;
@@ -242,7 +243,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages) });
     // La retenue de la cuisine : rien de servi depuis 30 min alors que des
     // tickets attendent, sa cause et son geste entrent une fois dans la file
     // du chef, et en sortent quand la cuisine sert de nouveau.
