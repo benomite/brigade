@@ -10,8 +10,8 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Arbitrage } from "../../../src/arbitrage.ts";
-import { ouvrirArbitre, type Mot } from "../../../src/arbitre.ts";
-import { brancheDuTicket, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
+import { ATTENTE_DE_PLACE_MS, ouvrirArbitre, type Mot } from "../../../src/arbitre.ts";
+import { brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
@@ -100,6 +100,7 @@ function arbitreEnMemoire(t: TestContext, plafond: number) {
       return { accorde: null, motif: null };
     },
     quitter: async (projet) => arbitre.quitter(projet),
+    attendreUnePlace: (projet) => arbitre.attendre(projet, ATTENTE_DE_PLACE_MS),
     etat: async () => arbitre.etat(),
   };
   return { arbitre, joint };
@@ -110,11 +111,11 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, avertir: () => {} });
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
   const station = stationGitHub({
@@ -244,11 +245,52 @@ test("an unreachable arbiter lets one GitHub-only cook start, and holds the next
       throw new Error("connexion refusée");
     },
     quitter: async () => {},
+    attendreUnePlace: async () => assert.fail("nothing refused, nothing to wait for"),
     etat: async () => assert.fail("not read"),
   };
   const { gardes } = cuisine(t, { arbitre: injoignable });
   assert.equal(await gardes.retenue(0), null);
   assert.equal(await gardes.retenue(1), "unarbitrated");
+  // Retenue sans refus de l'arbitre : il n'y a pas de place à attendre.
+  assert.equal(await gardes.attendreUnePlace(), false);
+});
+
+// Le délai entre l'instant où un ticket devient prenable et sa prise (#2832) :
+// l'arbitre donnait la seule place du compte à un autre projet, qui la rend.
+// La boucle est la vraie (`brancherBrigadeGithub`), à l'intervalle d'une minute :
+// sans réveil, le projet refusé ne redemandait qu'à son tour suivant, et son
+// ticket attendait sa prise jusque-là. Il est pris dans la seconde.
+test("a project the arbiter refused is woken when a place frees: its ticket is claimed at once, not at the next interval (#2832)", async (t) => {
+  const { arbitre, joint } = arbitreEnMemoire(t, 1);
+  assert.equal(arbitre.demander("compta", mot(0, true)).accorde, true);
+  const { runtime, faux, station, faits } = cuisine(t, { arbitre: joint, scenario: () => "bavard" });
+  faux.feu(1);
+  const boucle = brancherBrigadeGithub({ station: () => station, intervalleMs: 60_000, avertir: () => {} });
+  t.after(() => boucle.arreter());
+  await jusqua(() => etatStation(runtime.journal.base, STATION)?.heldReason === "arbiter");
+  assert.deepEqual(faux.prises, []);
+
+  // Le cook de l'autre projet a fini : la place est libre, le ticket prenable.
+  const libre = Date.now();
+  arbitre.dire("compta", mot(0, false));
+  let prise: number | null = null;
+  await jusqua(() => faux.prises.length > 0, 2000).then(() => (prise = Date.now() - libre), () => {});
+  t.diagnostic(`claimed ${prise ?? "never"} ms after the place freed`);
+  assert.ok(prise !== null && prise < 2000, `ms between the place freeing and the claim: ${prise ?? "none within 2 s — the next turn is at the interval, 60 s"}`);
+  assert.deepEqual(faux.prises, [1]);
+  await jusqua(() => faits("cook.launched").length === 1);
+});
+
+test("an unreachable arbiter while a project waits for a place: said, nothing pressed, the next turn asks again", async (t) => {
+  const { arbitre, joint } = arbitreEnMemoire(t, 1);
+  assert.equal(arbitre.demander("compta", mot(0, true)).accorde, true);
+  const dit: string[] = [];
+  const { gardes } = cuisine(t, { arbitre: { ...joint, attendreUnePlace: async () => Promise.reject(new Error("connexion refusée")) }, avertir: (texte) => void dit.push(texte) });
+  assert.equal(await gardes.retenue(0), "arbiter");
+  assert.equal(await gardes.attendreUnePlace(), false);
+  assert.equal(dit.filter((texte) => /connexion refusée — GitHub-only station box\/claude waits for its next turn/.test(texte)).length, 1);
+  // Le tour suivant redemande, et attend de nouveau.
+  assert.equal(await gardes.retenue(0), "arbiter");
 });
 
 test("with the four guards clear, a GitHub-only cook starts as before: claimed, cooked through the runtime's guardrails, handed to the pass", async (t) => {

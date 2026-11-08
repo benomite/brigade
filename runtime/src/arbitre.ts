@@ -185,6 +185,10 @@ export type Arbitre = {
   demander(projet: string, mot: Mot): Decision;
   // Son runtime s'arrête proprement.
   quitter(projet: string): void;
+  // Un projet refusé attend qu'une place s'ouvre pour lui : vrai dès qu'il y
+  // passerait, faux au bout de `delaiMs` ou quand `signal` l'abandonne (#2832).
+  // Une seule attente par projet : la suivante rend la précédente, fausse.
+  attendre(projet: string, delaiMs: number, signal?: AbortSignal): Promise<boolean>;
   etat(): EtatArbitre;
   fermer(): void;
 };
@@ -239,20 +243,59 @@ export function ouvrirArbitre(options: OptionsArbitre): Arbitre {
     mots.set(projet, { ...mot, le: instant });
   };
 
+  // Les projets refusés qui attendent une place (#2832). Sans elles, un projet
+  // refusé ne redemandait qu'à son tour suivant, jusqu'à l'intervalle de sa
+  // station (2 min) : la place qu'un autre projet rendait restait vide, et son
+  // ticket attendait sa prise.
+  type Attente = { rendre: (libre: boolean) => void; minuterie: NodeJS.Timeout };
+  const attentes = new Map<string, Attente>();
+  // `celle` : seulement cette attente-là, pas une plus récente du même projet.
+  const finir = (projet: string, libre: boolean, celle?: Attente) => {
+    const attente = attentes.get(projet);
+    if (attente === undefined || (celle !== undefined && attente !== celle)) return;
+    attentes.delete(projet);
+    clearTimeout(attente.minuterie);
+    attente.rendre(libre);
+  };
+  // Un mot a changé : chaque projet qui attend et y passerait maintenant est réveillé.
+  const reveiller = () => {
+    if (attentes.size === 0) return;
+    const vus = vues(connus());
+    for (const projet of [...attentes.keys()]) if (vus.some((vue) => vue.projet === projet) && decider(plafond, vus, projet).accorde) finir(projet, true);
+  };
+
   let ferme = false;
   return {
-    dire,
+    dire(projet, mot) {
+      dire(projet, mot);
+      reveiller();
+    },
     demander(projet, mot) {
       dire(projet, mot);
       const decision = decider(plafond, vues(connus()), projet);
       const dit = mots.get(projet);
       // Comptée tout de suite : la demande suivante, d'où qu'elle vienne, la voit prise.
       if (decision.accorde && dit) mots.set(projet, { ...dit, cooks: dit.cooks + 1 });
+      reveiller();
       return decision;
     },
     quitter(projet) {
       reglages.partir(projet, maintenant());
       mots.delete(projet);
+      finir(projet, false);
+      reveiller();
+    },
+    attendre(projet, delaiMs, signal) {
+      finir(projet, false);
+      if (ferme || signal?.aborted) return Promise.resolve(false);
+      return new Promise<boolean>((rendre) => {
+        const attente: Attente = { rendre, minuterie: setTimeout(() => finir(projet, false, attente), delaiMs) };
+        attente.minuterie.unref();
+        attentes.set(projet, attente);
+        signal?.addEventListener("abort", () => finir(projet, false, attente), { once: true });
+        // La place a pu s'ouvrir entre son refus et son attente.
+        reveiller();
+      });
     },
     etat() {
       const projets = connus();
@@ -285,6 +328,7 @@ export function ouvrirArbitre(options: OptionsArbitre): Arbitre {
     fermer() {
       if (ferme) return;
       ferme = true;
+      for (const projet of [...attentes.keys()]) finir(projet, false);
       reglages.fermer();
       verrou.relacher();
     },
@@ -333,9 +377,15 @@ function lireMot(corps: string): (Mot & { veut: boolean }) | null {
 
 export type ServeurArbitre = { port: number; fermer(): Promise<void> };
 
+// Ce qu'une attente de place dure au plus : l'intervalle d'une station, à
+// laquelle son tour suivant redemande de toute façon.
+export const ATTENTE_DE_PLACE_MS = 120_000;
+
 // L'arbitre sur son port, boucle locale seulement :
 //   POST   /projets/<projet>   un runtime redit son état ; `veut` : il demande une place
 //   DELETE /projets/<projet>   il s'arrête proprement
+//   POST   /projets/<projet>/attendre   refusé, il attend qu'une place s'ouvre
+//                              pour lui : `{ libre }`, au plus `ATTENTE_DE_PLACE_MS`
 //   GET    /etat               ce que le chef lit
 // Les réglages ne passent pas par ici : un cook joint la boucle locale.
 export function servirArbitre(arbitre: Arbitre, port: number): Promise<ServeurArbitre> {
@@ -346,8 +396,8 @@ export function servirArbitre(arbitre: Arbitre, port: number): Promise<ServeurAr
   const traiter = (requete: IncomingMessage, corps: string, reponse: ServerResponse) => {
     const chemin = (requete.url ?? "").split("?")[0] ?? "";
     if (requete.method === "GET" && chemin === "/etat") return rendre(reponse, 200, arbitre.etat());
-    const nomme = /^\/projets\/([^/]+)$/.exec(chemin)?.[1];
-    if (nomme === undefined || (requete.method !== "POST" && requete.method !== "DELETE")) return rendre(reponse, 404, { erreur: "inconnu" });
+    const [, nomme, attente] = /^\/projets\/([^/]+)(\/attendre)?$/.exec(chemin) ?? [];
+    if (nomme === undefined || (requete.method !== "POST" && (requete.method !== "DELETE" || attente !== undefined))) return rendre(reponse, 404, { erreur: "inconnu" });
     let projet: string;
     try {
       projet = decodeURIComponent(nomme);
@@ -355,6 +405,15 @@ export function servirArbitre(arbitre: Arbitre, port: number): Promise<ServeurAr
       return rendre(reponse, 400, { erreur: "nom de projet illisible" });
     }
     if (!NOM_DE_PROJET.test(projet)) return rendre(reponse, 400, { erreur: "nom de projet invalide" });
+    if (attente !== undefined) {
+      // Le runtime parti avant la réponse : son attente est rendue, rien n'est tenu pour lui.
+      const abandon = new AbortController();
+      reponse.on("close", () => abandon.abort());
+      void arbitre.attendre(projet, ATTENTE_DE_PLACE_MS, abandon.signal).then((libre) => {
+        if (!reponse.destroyed) rendre(reponse, 200, { libre });
+      });
+      return;
+    }
     if (requete.method === "DELETE") {
       arbitre.quitter(projet);
       return rendre(reponse, 204);

@@ -48,7 +48,12 @@ Every **2 minutes** (the box's interval), and at once on `SIGHUP`, the station r
 
 The station's name is `<machine>/claude`, the one its claims and verdicts carry on the issues. Its
 claims are on GitHub (`github-etat/prise.ts`): two stations never take the same ticket. After a
-delivery or a verdict, the next turn comes within 30 s, as on the box.
+fact of the pass, the next turn comes within 30 s, as on the box; after one that makes a ticket
+claimable or a delivery to review — a merge, a delivery, a cook given back — it comes at once, as on the
+box too (#2802). The
+loop used to drop that "at once" and wait the 30 s: every ticket so freed waited that much more for its
+claim, after the end of the running turn if the fact fell during it (#2832,
+[diagnosis](../../../docs/runtime/claim-wait-2026-11-07.md)).
 
 A project that cannot be served this turn (clone failed, no integration branch, the sandbox not
 usable on this Mac) is said once, and tried again at the next turn. A project this station already
