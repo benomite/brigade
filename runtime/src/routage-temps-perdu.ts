@@ -98,7 +98,7 @@ export function routerLeTempsPerdu({ github, servi, brigade, maintenant = () => 
           marque,
           ...(metrique === null ? [] : [marqueDeLaFamille(metrique, titre)]),
           "",
-          `> Measured on the served project **${servi}**: the loss below comes from its \`.claude/brigade/temps-tickets.json\`. The cause lives in the station code (\`runtime/src\`), which is why this ticket is filed here and not on ${servi}.`,
+          `> Measured on the served project **${servi}**: the loss below comes from its recorded ticket times, copied in the Evidence section. The cause lives in the station code (\`runtime/src\`), which is why this ticket is filed here and not on ${servi}.`,
           "",
           corps,
         ].join("\n"),

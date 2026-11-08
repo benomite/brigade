@@ -504,6 +504,10 @@ project's GitHub and its own journal: every recent ticket measured, with the rea
 cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its loss,
 and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
 heartbeat), 40 at most. A read that fails is named on its line, with its error: the ticket is filed all the same.
+When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,
+#2783), the cook can reach neither its issues nor its state: the section copies the tickets (numbers, reasons),
+their timestamps and the journal events in full, names each ticket by its project (`owner/repo#101`, never a bare
+`#101`) and points to no issue list or state path (#2840).
 
 The rule each quality ticket carries (`runtime/src/garde-correction.ts`) also keeps its correction off the measure
 that opened it (#2824): a send-back the ticket did not count is never counted away, by its claim date, its age or its
