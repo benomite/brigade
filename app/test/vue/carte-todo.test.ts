@@ -161,6 +161,17 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "A product choice is yours: answer its question."));
   });
 
+  test("chaque choix tient sur une ligne, coupé, sa réponse entière au survol et pour un lecteur d'écran (ticket 2916)", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    const poses = choix(carte(vue, 21));
+    assert.deepEqual(
+      poses.map((pose) => [pose.title, pose.ariaLabel, pose.dessous("span").find((span) => span.className === "coupe")?.textContent]),
+      PRODUIT.choix.map(({ texte }) => [texte, texte, texte]),
+    );
+    assert.equal(poses[0]?.dataset.bouton, "recommande");
+  });
+
   test("le prix d'un choix est au survol, jamais écrit sous le bouton : un merge le dit", async () => {
     const vue = await ouvrir();
     recevoir(vue);
@@ -327,7 +338,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
     recevoir(vue, FORME);
     const posee = carte(vue, 21);
     assert.deepEqual(
-      choix(posee).map((pose) => [pose.textContent, pose.dataset.recommande !== undefined]),
+      choix(posee).map((pose) => [pose.textContent, pose.dataset.bouton === "recommande"]),
       PRODUIT_EN_FORME.choix.map(({ texte }, rang) => [texte, rang === 0]),
     );
     const phrase = posee.children.find((pose) => pose.className === "phrase") ?? assert.fail("pas de champ");

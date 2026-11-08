@@ -16,6 +16,8 @@
 /** @typedef {{ projet: ProjetDuCout, tokens: Tokens, part: number | undefined }} Part */
 /** @typedef {{ dit: string, total: Tokens, partiel: boolean, parts: Part[] }} Chiffre */
 
+import { bouton } from "../composants/bouton/bouton.js";
+
 export const NON_COMMUNIQUE = "not communicated";
 export const LECTURE = "reading…";
 export const QUOTA = "Max account quota";
@@ -139,12 +141,9 @@ function poserChiffre(doc, { dit, total, partiel, parts }, ouvrir) {
     const teinte = cree(doc, "span");
     teinte.className = "teinte";
     if (projet.teinte !== undefined) teinte.style.setProperty("--teinte", projet.teinte);
-    const nom = cree(doc, ouvrir === undefined ? "span" : "button", projet.nom);
+    const nom = ouvrir === undefined ? cree(doc, "span", projet.nom) : bouton(doc, projet.nom, () => ouvrir(projet.nom), { sorte: "discret" });
     nom.className = "projet";
-    if (ouvrir !== undefined) {
-      nom.title = `open ${projet.nom}`;
-      nom.addEventListener("click", () => ouvrir(projet.nom));
-    }
+    if (ouvrir !== undefined) nom.title = `open ${projet.nom}`;
     const pourcentage = cree(doc, "span", part === undefined ? "" : `${part} %`);
     pourcentage.className = "part";
     const ligne = cree(doc, "li");

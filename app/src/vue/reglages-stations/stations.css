@@ -34,12 +34,7 @@
   font-weight: 600;
 }
 #etat .stations-contributrices .action > button {
-  padding: var(--pas-1) var(--pas-3);
-  font-size: var(--taille-corps);
-  font-weight: 600;
   white-space: nowrap;
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
 }
 #etat .stations-contributrices .station-contributrice > .refus {
   grid-column: 1 / -1;

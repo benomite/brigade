@@ -9,6 +9,7 @@
 // part. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { confirmationDeGeste, replie, survol } from "../briques.js";
+import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./choix.js").Geste} Geste */
@@ -58,12 +59,9 @@ export function poserGesteDuSecond(doc, proposition, { ouverte, basculer, annule
   const attendu = cree(doc, "p");
   attendu.className = "attendu";
   attendu.append(ATTENDU, survol(doc, AIDE));
-  const bouton = cree(doc, "button");
-  bouton.type = "button";
+  const bouton = boutonDeLaFamille(doc, BOUTON, basculer);
   bouton.className = "geste";
   bouton.ariaExpanded = String(ouverte);
-  bouton.textContent = BOUTON;
-  bouton.addEventListener("click", basculer);
   // La commande exacte, entière, au survol du bouton : nothing runs before the chef's “run it”.
   racine.append(attendu, survol(doc, proposition.command, bouton));
   if (ouverte) {

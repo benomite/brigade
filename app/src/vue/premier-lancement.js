@@ -18,6 +18,7 @@ import { phrase } from "./onboarding/parcours.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcours-projet/connexion.js";
 import { SE_CONNECTER } from "./parcours-projet/compte.js";
 import { poserParcoursProjet } from "./parcours-projet/parcours.js";
+import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
 export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDetail, ROUVRIR_LA_PAGE, tapeLeCode } from "./parcours-projet/connexion.js";
@@ -156,8 +157,7 @@ function stationDite(doc, station, etat, geste) {
   liste.className = "gestes projets-de-station";
   for (const projet of station.projects) {
     const depot = projet.repository;
-    const bouton = cree(doc, "button", projet.name);
-    bouton.type = "button";
+    const bouton = boutonDeLaFamille(doc, projet.name, undefined);
     bouton.className = "mono";
     bouton.title = depot ?? DEPOT_INCONNU;
     bouton.disabled = depot === null || enCours;
@@ -225,6 +225,8 @@ function phraseVers(doc, pose, texte) {
 export function poserPremierLancement(doc, etat, geste) {
   const racine = cree(doc, "div");
   racine.className = "premier-lancement";
+  // Au premier lancement, chaque bouton est le grand, 44 px (composants/bouton, ticket 2916).
+  racine.dataset.boutons = "grands";
   racine.append(poserParcoursProjet(doc, { ...(etat.compte === undefined ? {} : { compte: etat.compte }), ...(etat.connexion === undefined ? {} : { connexion: etat.connexion }) }, geste, { bienvenue: true }));
   const { stations } = etat;
   /** @param {string} texte @param {string} [detail] */

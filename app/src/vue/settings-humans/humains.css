@@ -37,17 +37,7 @@
   justify-self: start;
 }
 #etat .humains-du-projet .action > button {
-  padding: var(--pas-1) var(--pas-3);
-  font-size: var(--taille-corps);
-  font-weight: 600;
   white-space: nowrap;
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
-}
-#etat .humains-du-projet .action > button.recommande {
-  color: var(--fond);
-  background: var(--accent);
-  border-color: var(--accent);
 }
 #etat .humains-du-projet .humain > .login {
   font-weight: 600;
@@ -84,11 +74,6 @@
   background: var(--jaune);
   transform: rotate(45deg);
 }
-#etat .humains-du-projet .humain > .source .ouvrir-la-pr > button {
-  padding: 0 var(--pas-2);
-  font-size: var(--taille-meta);
-  border-color: var(--vert);
-}
 #etat .humains-du-projet .humain > .champ {
   display: flex;
   flex-wrap: wrap;
@@ -110,19 +95,6 @@
 #etat .humains-du-projet .role input {
   margin: 0;
   accent-color: var(--accent);
-}
-#etat .humains-du-projet :is(.retirer, .annuler) > button {
-  padding: var(--pas-1) var(--pas-2);
-}
-#etat .humains-du-projet .retirer > button {
-  color: var(--rouge-clair);
-  background: transparent;
-  border-color: transparent;
-}
-#etat .humains-du-projet .annuler > button {
-  color: var(--texte-doux);
-  background: transparent;
-  border-color: transparent;
 }
 #etat .humains-du-projet .humain > .refus {
   grid-column: 2 / -1;

@@ -78,6 +78,7 @@ import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
+import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
@@ -353,8 +354,7 @@ const listeDesStations = document.createElement("div");
 listeDesStations.ariaLive = "polite";
 // « + station », sous la liste : le champ du code s'ouvre dessous, et nulle part ailleurs. Il est posé
 // une fois : une relecture ne vide pas ce que le chef tape.
-const ouvrirLAppairage = /** @type {HTMLButtonElement} */ (bloc("button", "+ station"));
-ouvrirLAppairage.type = "button";
+const ouvrirLAppairage = /** @type {HTMLButtonElement} */ (bouton("+ station", undefined));
 ouvrirLAppairage.className = "ajout-de-station";
 const formulaireDAppairage = document.createElement("form");
 formulaireDAppairage.hidden = true;
@@ -363,11 +363,8 @@ codeTape.placeholder = "the code a new station shows, like 7KQ2-M9XD";
 codeTape.ariaLabel = "pairing code";
 codeTape.autocomplete = "off";
 codeTape.spellcheck = false;
-const appairage = document.createElement("button");
-appairage.type = "submit";
-appairage.textContent = "pair";
-const renoncerAppairage = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
-renoncerAppairage.type = "button";
+const appairage = boutonDeLaFamille(document, "pair", undefined, { sorte: "recommande", type: "submit" });
+const renoncerAppairage = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
 const appairageDit = document.createElement("p");
 appairageDit.ariaLive = "polite";
 formulaireDAppairage.append(codeTape, appairage, renoncerAppairage, appairageDit);
@@ -433,7 +430,7 @@ projetsChoisisDeStation.ariaLive = "polite";
 const titreDesProjets = bloc("h3", "Projects");
 const listeDesProjets = document.createElement("div");
 listeDesProjets.ariaLive = "polite";
-const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bloc("button", "+ add a project"));
+const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bouton("+ add a project", undefined));
 ouvrirLeParcours.className = "ajout-de-projet";
 const formulaireDAjout = document.createElement("form");
 formulaireDAjout.hidden = true;
@@ -461,10 +458,8 @@ const calibrageDuProjet = {
   "reviewer-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
 };
 for (const [champ, liste] of Object.entries(calibrageDuProjet)) liste.ariaLabel = champ.replace("-modele", " model").replace("-effort", " effort");
-const validerAjout = /** @type {HTMLButtonElement} */ (bloc("button", "add"));
-validerAjout.type = "submit";
-const annulerAjout = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
-annulerAjout.type = "button";
+const validerAjout = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "add", undefined, { sorte: "recommande", type: "submit" }));
+const annulerAjout = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
 const ajoutRefuse = document.createElement("div");
 ajoutRefuse.ariaLive = "polite";
 const ajoutDit = document.createElement("p");
@@ -481,8 +476,7 @@ formulaireDAjout.append(
   annulerAjout,
   ajoutRefuse,
 );
-const retourALAccueil = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
-retourALAccueil.type = "button";
+const retourALAccueil = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
 retourALAccueil.className = "retour";
 // Le plafond de cooks, sous l'en-tête : ce que `status` en dit, et ce qui retient la station.
 const plafondDeStation = document.createElement("div");
@@ -519,8 +513,7 @@ coutsDeLAccueil.append(ouvrirLesCouts);
 const pageDesCouts = document.createElement("section");
 pageDesCouts.id = "cout";
 pageDesCouts.ariaLabel = "Cost of all projects";
-const retourDesCouts = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
-retourDesCouts.type = "button";
+const retourDesCouts = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
 retourDesCouts.className = "retour";
 const corpsDesCouts = document.createElement("div");
 corpsDesCouts.ariaLive = "polite";
@@ -581,8 +574,7 @@ const blocDeLaStation = tenirBlocDeLaStation(document, {
 const pageDesRatios = document.createElement("section");
 pageDesRatios.id = "ratios";
 pageDesRatios.ariaLabel = TITRE_DES_RATIOS;
-const retourDesRatios = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
-retourDesRatios.type = "button";
+const retourDesRatios = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
 retourDesRatios.className = "retour";
 const corpsDesRatios = document.createElement("div");
 corpsDesRatios.ariaLive = "polite";
@@ -608,8 +600,7 @@ const choixDuProjet = element("choix-du-projet");
 const choixRetenus = new Map();
 const ligneDesStationsDuProjet = document.createElement("p");
 ligneDesStationsDuProjet.ariaLive = "polite";
-const ouvrirLaConfiance = /** @type {HTMLButtonElement} */ (bloc("button", ""));
-ouvrirLaConfiance.type = "button";
+const ouvrirLaConfiance = /** @type {HTMLButtonElement} */ (bouton("", undefined));
 ouvrirLaConfiance.className = "ajout-de-station";
 // Le choix lui-même, une carte (ticket 1107). En tête, une phrase dit ce que le chef fait, et une autre
 // ce que fait la machine qu'il choisit. Puis les machines, une case chacune avec ce qu'il implique, la
@@ -699,10 +690,8 @@ reglagesAvances.append(
 const confianceRefusee = document.createElement("div");
 confianceRefusee.className = "refus";
 confianceRefusee.ariaLive = "polite";
-const validerConfiance = /** @type {HTMLButtonElement} */ (bloc("button", ""));
-validerConfiance.type = "submit";
-const annulerConfiance = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
-annulerConfiance.type = "button";
+const validerConfiance = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "", undefined, { sorte: "recommande", type: "submit" }));
+const annulerConfiance = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
 const gestesDeConfiance = document.createElement("div");
 gestesDeConfiance.className = "lancer";
 gestesDeConfiance.append(validerConfiance, annulerConfiance);
@@ -713,8 +702,7 @@ confianceDite.ariaLive = "polite";
 // choix de la machine où l'emmener — cet ordinateur, sa box, une autre —, et ce que ça coûte, en une
 // ligne. Un clic sur une machine la déménage, sans retrait ni rajout. Refusé, la raison se dit en une
 // phrase sous la ligne, et la ligne ne change pas : il cuit toujours là où il cuisait.
-const ouvrirLeDemenagement = /** @type {HTMLButtonElement} */ (bloc("button", "move the kitchen"));
-ouvrirLeDemenagement.type = "button";
+const ouvrirLeDemenagement = /** @type {HTMLButtonElement} */ (bouton("move the kitchen", undefined));
 ouvrirLeDemenagement.className = "ajout-de-station";
 ouvrirLeDemenagement.dataset.geste = "demenager";
 const choixDuDemenagement = document.createElement("section");
@@ -1291,13 +1279,13 @@ function montrer() {
       ? []
       : [
           ...MENU.map(({ id, titre }) => {
-            const cree = bouton(titre, () => choisirOnglet(id));
+            const cree = cliquable(titre, () => choisirOnglet(id));
             cree.role = "tab";
             cree.ariaSelected = String(visible === undefined && ongletDe(ouvert) === id);
             return cree;
           }),
           ...RUBRIQUES.map(({ titre, id }) => {
-            const cree = bouton(titre, () => activerRubrique(id));
+            const cree = cliquable(titre, () => activerRubrique(id));
             cree.role = "tab";
             cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
             return cree;
@@ -1305,7 +1293,7 @@ function montrer() {
           // Sur un écran étroit, la conversation avec le second est un cinquième onglet, après Settings.
           ...(etroit() && telephoneVu === undefined
             ? [CONVERSATION_ONGLET].map(({ id, titre }) => {
-                const cree = bouton(titre, () => choisirOnglet(id));
+                const cree = cliquable(titre, () => choisirOnglet(id));
                 cree.role = "tab";
                 cree.ariaSelected = String(visible === undefined && ongletDe(ouvert) === id);
                 return cree;
@@ -1317,7 +1305,7 @@ function montrer() {
   const second = secondDuCourant()?.terminal;
   /** @param {string} titre @param {number | undefined} id */
   const terminal = (titre, id) => {
-    const cree = bouton(titre, () => montrerADroite(id));
+    const cree = cliquable(titre, () => montrerADroite(id));
     cree.role = "tab";
     cree.ariaSelected = String(courant !== undefined && (id === undefined ? droite === undefined || droite.terminal.genre === "second" : id === droite?.terminal.id));
     return cree;
@@ -1328,7 +1316,7 @@ function montrer() {
       : [
           terminal(second?.titre ?? "Second", undefined),
           ...terminaux.filter(({ genre }) => genre !== "second").map(({ titre, id }) => terminal(titre, id)),
-          ...(ouvrable ? [bouton("+ shell", ouvrirShell)] : []),
+          ...(ouvrable ? [cliquable("+ shell", ouvrirShell)] : []),
         ]),
   );
   // Le shell montré se ferme pour de bon ; le second, jamais.
@@ -1346,7 +1334,7 @@ function montrer() {
   listeMachines.replaceChildren(
     ...(choix === undefined
       ? []
-      : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton("cancel", () => void ((choixDeMachine = undefined), montrer()))]),
+      : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton("cancel", () => void ((choixDeMachine = undefined), montrer()), "discret")]),
   );
 
   // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte.
@@ -1517,8 +1505,16 @@ function ditEtAide(balise, ligne, aide) {
   return cree;
 }
 
+// Un bouton de geste : celui de la famille unique (composants/bouton, ticket 2916) — secondaire, sauf sorte dite.
+/** @param {string} texte @param {(() => void) | undefined} geste @param {import("./composants/bouton/bouton.js").Sorte} [sorte] */
+function bouton(texte, geste, sorte = "secondaire") {
+  return boutonDeLaFamille(document, texte, geste, { sorte });
+}
+
+// Ce qui se clique sans être un geste, et n'a pas la forme d'un bouton : un onglet, une case de la barre, une pastille
+// de couleur, un interrupteur, un numéro qui ouvre son issue. Chacun a la sienne ; aucun n'est un bouton de la famille.
 /** @param {string} texte @param {() => void} geste */
-function bouton(texte, geste) {
+function cliquable(texte, geste) {
   const cree = document.createElement("button");
   cree.textContent = texte;
   cree.addEventListener("click", geste);
@@ -1555,7 +1551,7 @@ function logoDeBrigade() {
 // au survol et à qui ne voit pas l'écran.
 /** @param {string} signe @param {string} nom @param {() => void} geste */
 function icone(signe, nom, geste) {
-  const cree = bouton(signe, geste);
+  const cree = cliquable(signe, geste);
   cree.title = nom;
   cree.ariaLabel = nom;
   return cree;
@@ -1680,7 +1676,7 @@ function poserConfirmation(projet, { rendu, compte }, partir) {
   if ("refus" in rendu) {
     const refus = bloc("p", rendu.refus);
     refus.className = "refus";
-    confirmation.append(refus, bouton("close", fermer));
+    confirmation.append(refus, bouton("close", fermer, "discret"));
     return confirmation;
   }
   confirmation.ariaLabel = rendu.titre;
@@ -1721,7 +1717,7 @@ function poserConfirmation(projet, { rendu, compte }, partir) {
         aConfirmer = undefined;
         if (partir === undefined) void ecrireGeste(id, true);
         else partir(id);
-      });
+      }, "recommande");
       oui.dataset.oui = "";
       choix.append(...engage(oui, dit));
       return choix;
@@ -1729,7 +1725,7 @@ function poserConfirmation(projet, { rendu, compte }, partir) {
   );
   const non = document.createElement("p");
   non.className = "gestes";
-  non.append(...engage(bouton(rendu.renoncer, fermer), "nothing goes"));
+  non.append(...engage(bouton(rendu.renoncer, fermer, "discret"), "nothing goes"));
   confirmation.append(non);
   return confirmation;
 }
@@ -2396,11 +2392,11 @@ function poserRetrait(projet, pose) {
   const demande = bouton(`${libelle}…`, () => {
     retraitDeLApp = projet.nom;
     poserRetrait(projet, pose);
-  });
+  }, "danger");
   demande.title = lignes.join("\n");
   const controle =
     retraitDeLApp === projet.nom
-      ? [bouton(`yes, remove “${projet.nom}” from the app`, () => void retirerDeLApp(projet)), bouton("no", () => ((retraitDeLApp = ""), poserRetrait(projet, pose)))]
+      ? [bouton(`yes, remove “${projet.nom}” from the app`, () => void retirerDeLApp(projet), "danger"), bouton("no", () => ((retraitDeLApp = ""), poserRetrait(projet, pose)), "discret")]
       : [demande];
   retrait.replaceChildren(rangeeDeReglage("Remove this project from the app's sidebar", [], controle, refusDeReglage(nonRetire.refus)));
 }
@@ -2427,7 +2423,7 @@ function poserCouleurs(projet) {
     const portee = projet.couleurs?.[role];
     const nommee = PALETTE.find(({ valeur }) => valeur === portee)?.nom;
     const pastilles = PALETTE.map(({ nom, valeur }) => {
-      const cree = bouton("", () => void colorer(projet, role, nom));
+      const cree = cliquable("", () => void colorer(projet, role, nom));
       cree.className = "teinte";
       cree.style.setProperty("--teinte", valeur);
       cree.title = cree.ariaLabel = `${libelle}: ${nom}`;
@@ -2435,7 +2431,7 @@ function poserCouleurs(projet) {
       return cree;
     });
     if (portee !== undefined && nommee === undefined) {
-      const tienne = bouton("", () => {});
+      const tienne = cliquable("", () => {});
       tienne.className = "teinte";
       tienne.style.setProperty("--teinte", portee);
       tienne.title = tienne.ariaLabel = `${libelle}: ${portee}, your own color`;
@@ -2811,7 +2807,7 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
     evenement.preventDefault();
     ouvrirFiche(projet, carte, bon);
   });
-  const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
+  const numero = ouvrable ? cliquable(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
   numero.className = "ticket mono";
   numero.title = ouvrable
     ? `open issue #${ticket} in the browser`
@@ -2942,7 +2938,7 @@ function ligneAvecSesNumeros(projet, ligne, liens) {
       if (morceau !== "") phrase.append(morceau);
       continue;
     }
-    const ouvre = bouton(morceau, () => void ouvrirIssue(projet, numero));
+    const ouvre = cliquable(morceau, () => void ouvrirIssue(projet, numero));
     ouvre.className = "lien-de-ligne mono";
     ouvre.title = `open #${numero} on GitHub, in the browser`;
     phrase.append(ouvre);
@@ -3065,13 +3061,13 @@ function poserFormulaireDAttente(projet, ticket, cle, ouvert) {
     etiquette.append(bloc("span", libelle), entree);
     return etiquette;
   };
-  const valider = bouton("put in WAITING", () => {});
+  const valider = bouton("put in WAITING", undefined, "recommande");
   valider.type = "submit";
   valider.dataset.attente = "attente-poser";
   const renoncer = bouton("cancel", () => {
     formulairesDAttente.delete(cle);
     poserRail(projet);
-  });
+  }, "discret");
   renoncer.type = "button";
   const gestes = document.createElement("p");
   gestes.className = "gestes";
@@ -3304,7 +3300,7 @@ function poserFiche() {
   const { projet, carte } = ouverte;
   const { ticket, attend } = carte;
   const { titre, priorite, issue, pr, attendu, tete: teteDeLivraison } = carte.fiche;
-  const fermer = bouton("close", fermerFiche);
+  const fermer = bouton("close", fermerFiche, "discret");
   fermer.className = "fermer";
   fermer.title = "close the sheet (Esc): the rail is back as you left it";
   const tete = document.createElement("header");
@@ -4258,7 +4254,7 @@ function poserMuet(projet) {
     lignes.append(
       ...feu.tickets.map(({ ticket, titre, prio }) => {
         const ligne = document.createElement("li");
-        const ouvrir = bouton("", () => void ouvrirIssue(projet, ticket));
+        const ouvrir = cliquable("", () => void ouvrirIssue(projet, ticket));
         ouvrir.title = `open #${ticket} on GitHub`;
         ouvrir.append(exact("span", `#${ticket}`), bloc("span", titre));
         ligne.append(ouvrir, ...(prio === undefined ? [] : [bloc("small", prio)]));
@@ -4277,7 +4273,7 @@ setInterval(() => {
   if (courant !== undefined && (tenus.has(courant.nom) || attentesDuRail.has(courant.nom)) && !rail.hidden) poserRail(courant);
 }, 15_000);
 // La cuisine du projet, dans le groupe du projet de Settings (ticket 1700) : en marche ou à l'arrêt, et le seul geste
-// qui la fait changer — « stop the kitchen » sous sa propre forme (un carré plein, rouge), ou « resume the kitchen ».
+// qui la fait changer — « stop the kitchen », le bouton de danger de la famille (ticket 2916), ou « resume the kitchen ».
 // Chacun dit d'abord ce qu'il coûte : rien ne part avant son « oui ».
 /** @param {Projet} projet @param {boolean} arretee */
 function poserArreter(projet, arretee) {
@@ -4288,7 +4284,10 @@ function poserArreter(projet, arretee) {
     return poserLesGroupes();
   }
   const [declencheur, ...dessous] = poserGeste(projet, { ...geste, ou: "parametres" });
-  if (declencheur !== undefined && !arretee) declencheur.dataset.arret = "";
+  if (declencheur !== undefined && !arretee) {
+    declencheur.dataset.arret = "";
+    sorteDuBouton(declencheur, "danger");
+  }
   arreterCuisine.replaceChildren(rangeeDeReglage("kitchen", [bloc("span", arretee ? "stopped" : "running")], declencheur === undefined ? [] : [declencheur], dessous));
   poserLesGroupes();
 }
@@ -4395,7 +4394,7 @@ function colonneBacklog(projet, bons) {
   const replier = bouton("fold", () => {
     amontsDeplies.delete(projet.nom);
     poserRail(projet);
-  });
+  }, "discret");
   replier.className = "replier";
   replier.title = "fold the Backlog column";
   const compte = bloc("span", "compte" in vu ? String(vu.compte) : "?");
@@ -4965,7 +4964,7 @@ function poserLesCartesResolues(projet, lu) {
       questionsDesBrouillons.delete(cle);
       lacherLaCarte(carte, false);
       if (courant?.nom === projet.nom) poserRail(projet);
-    });
+    }, "discret");
     ecarter.title = "forget this text: nothing was sent, and nothing will be";
     phrase.append(saisie, ecarter);
     carte.append(phrase);
@@ -5218,7 +5217,7 @@ async function ouvrirPr(projet, ticket) {
  * @returns {HTMLElement[]}
  */
 function interrupteur(nom, allume, { pourquoi, eteindre, allumer, clic, confirmation }) {
-  const bascule = bouton("", () => (allume === undefined ? undefined : clic()));
+  const bascule = cliquable("", () => (allume === undefined ? undefined : clic()));
   bascule.role = "switch";
   bascule.className = "bascule";
   bascule.dataset.etat = allume === undefined ? "inconnu" : allume ? "allume" : "eteint";
@@ -5285,7 +5284,7 @@ function poserCode() {
       /** @type {HTMLElement[]} */
       const controle = [];
       if (geste !== undefined) {
-        const cree = bouton(enPassage ? "updating — the app relaunches itself…" : geste, () => void passer());
+        const cree = bouton(enPassage ? "updating — the app relaunches itself…" : geste, () => void passer(), "recommande");
         cree.disabled = enPassage;
         controle.push(cree);
       } else if (commande !== undefined) controle.push(boutonDeCommande(commande, () => void mettreAJour(id)));
@@ -5348,8 +5347,7 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
   // Une station qui ne cuit pas encore : le bouton de sa raison, un geste que l'app fait (stations/raison.ts).
   if (station.raison !== undefined) {
     const { geste, libelle } = station.raison.bouton;
-    const remede = /** @type {HTMLButtonElement} */ (bloc("button", libelle));
-    remede.type = "button";
+    const remede = /** @type {HTMLButtonElement} */ (bouton(libelle, undefined));
     remede.className = "remede-de-station";
     remede.ariaLabel = `${libelle} — ${station.nom}`;
     remede.addEventListener("click", () => {
@@ -5565,14 +5563,13 @@ let retraitDeStationRefuse = "";
 /** @param {import("../stations/stations.ts").StationVue} station */
 function poserRetireLaStation(station) {
   if (retraitDeStationDemande !== station.id) {
-    const bouton = /** @type {HTMLButtonElement} */ (bloc("button", "remove the station"));
-    bouton.type = "button";
-    bouton.addEventListener("click", () => {
+    const retirer = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "remove the station", undefined, { sorte: "danger" }));
+    retirer.addEventListener("click", () => {
       retraitDeStationDemande = station.id;
       retraitDeStationRefuse = "";
       poserRetireLaStation(station);
     });
-    return retraitDeStation.replaceChildren(bouton, ...(retraitDeStationRefuse === "" ? [] : [bloc("p", retraitDeStationRefuse)]));
+    return retraitDeStation.replaceChildren(retirer, ...(retraitDeStationRefuse === "" ? [] : [bloc("p", retraitDeStationRefuse)]));
   }
   retraitDeStation.replaceChildren(
     confirmationDeGeste(
@@ -5629,13 +5626,9 @@ function poserProjets() {
     pose.className = "projet-de-station";
     const gestes = document.createElement("p");
     for (const url of demande.ici.autoriser) {
-      const autoriser = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
-      autoriser.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
-      gestes.append(autoriser);
+      gestes.append(bouton(`authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`, () => void brigade.autoriserSurGitHub(url)));
     }
-    const retirer = bloc("button", retraitDemande === nom ? `remove ${nom} from its stations? click again` : "remove");
-    retirer.addEventListener("click", () => void retirerProjet(nom));
-    gestes.append(retirer);
+    gestes.append(bouton(retraitDemande === nom ? `remove ${nom} from its stations? click again` : "remove", () => void retirerProjet(nom), "danger"));
     pose.append(ligne, gestes);
     return pose;
   });
@@ -5950,8 +5943,8 @@ function stationNommee(station, ici, projet) {
   const ceMac = ici || (station.id !== "" && station.id === locale);
   const nom = station.nom !== "" ? station.nom : ceMac ? (sienne?.nom ?? POSTE.nom) : "";
   const dit = ceMac ? `${nom} (this computer)` : nom;
-  const nomme = document.createElement("button");
-  nomme.type = "button";
+  // Son nom ouvre sa page : un bouton discret de la famille.
+  const nomme = bouton("", undefined, "discret");
   nomme.className = "station-du-projet";
   nomme.title = [ceMac && nom !== "" ? `${nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
   const appele = bloc("strong", dit);
@@ -5962,9 +5955,7 @@ function stationNommee(station, ici, projet) {
   if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));
   else nomme.disabled = true;
   const autoriser = station.autoriser.map((url) => {
-    const cree = bloc("button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
-    cree.addEventListener("click", () => void brigade.autoriserSurGitHub(url));
-    return cree;
+    return bouton(`authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`, () => void brigade.autoriserSurGitHub(url));
   });
   const pose = document.createElement("span");
   pose.className = "station-et-gestes";
@@ -5972,8 +5963,7 @@ function stationNommee(station, ici, projet) {
   const pourquoi = bloc("span", station.pourquoi);
   pourquoi.className = "pourquoi";
   pourquoi.title = station.geste;
-  const relire = /** @type {HTMLButtonElement} */ (bloc("button", "check again"));
-  relire.type = "button";
+  const relire = /** @type {HTMLButtonElement} */ (bouton("check again", undefined));
   relire.className = "relire-la-station";
   relire.title = "reads GitHub again, to see whether the station has spoken";
   relire.addEventListener("click", () => {
@@ -6068,9 +6058,7 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   const machines = destinations.map((station) => {
     const garder = station.id === ou.id;
     const nomme = station.nom;
-    const bouton = /** @type {HTMLButtonElement} */ (bloc("button", garder ? `keep it on ${nomme}` : nomme));
-    bouton.type = "button";
-    bouton.className = !garder && station.id === recommandee ? "recommande" : "";
+    const bouton = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, garder ? `keep it on ${nomme}` : nomme, undefined, { sorte: !garder && station.id === recommandee ? "recommande" : "secondaire" }));
     bouton.disabled = vise.part;
     bouton.dataset.vers = station.id;
     bouton.title = [projetsVus?.machines[station.id]?.implique ?? "", station.etat === "en-ligne" ? "" : station.dit].filter((ligne) => ligne !== "").join(" · ");
@@ -6084,8 +6072,7 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   lesMachines.append(...machines);
   const prix = bloc("p", "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.");
   prix.className = "prix";
-  const annuler = /** @type {HTMLButtonElement} */ (bloc("button", "cancel"));
-  annuler.type = "button";
+  const annuler = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
   annuler.disabled = vise.part;
   annuler.addEventListener("click", () => {
     fermerDemenagement();
@@ -6919,10 +6906,7 @@ function poserPanne({ id, nom, projets }, panne) {
   const pose = document.createElement("p");
   pose.className = "panne";
   pose.dataset.sujet = panne.sujet;
-  const bouton = document.createElement("button");
-  bouton.type = "button";
-  bouton.textContent = panne.bouton.libelle;
-  bouton.addEventListener("click", () => void jouerPanne(id, panne.cle, bouton));
+  const bouton = boutonDeLaFamille(document, panne.bouton.libelle, () => void jouerPanne(id, panne.cle, bouton));
   // L'explication, et ce que le bouton a rendu, ne se lisent qu'au survol.
   const dit = pannesDites.get(`${id} ${panne.cle}`);
   pose.append(bloc("span", panne.ligne), bouton, survol(document, dit === undefined ? panne.survol : `${panne.survol}. ${dit}`));
@@ -7065,7 +7049,7 @@ function poserAlerte(projet, alerte) {
       if (detailsDeplies.has(cle)) detailsDeplies.delete(cle);
       else detailsDeplies.add(cle);
       poserAlertes(projet);
-    });
+    }, "discret");
     deplier.className = "detail";
     deplier.ariaExpanded = String(deplie);
     deplier.title = deplie ? "fold the detail" : "what the station says, as is — and why";

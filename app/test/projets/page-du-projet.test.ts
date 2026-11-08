@@ -120,7 +120,7 @@ test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni 
   assert.deepEqual([...ecran.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
   assert.doesNotMatch(ecran, /\bbox|machine/i);
   assert.equal(formulaire.hidden, false);
-  assert.match(ecran, /<button type="submit" id="ajouter">Add to the app<\/button>/);
+  assert.match(ecran, /<button type="submit" id="ajouter"[^>]*>Add to the app<\/button>/);
 });
 
 test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, le parcours demande qui le cuit (#2477), et confié, sa page s'ouvre", async () => {

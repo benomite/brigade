@@ -10,6 +10,7 @@
 
 import { boutonAction, lectureIndisponible, replie, survol } from "../../briques.js";
 import { poserUnPlafond } from "./PlafondsDuree.js";
+import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../closer-sante.ts").LectureDuCloser} Lecture */
@@ -59,11 +60,9 @@ function lien(doc, texte, url, ouvrir) {
     sans.className = "mono";
     return sans;
   }
-  const bouton = cree(doc, "button", texte);
-  bouton.type = "button";
+  const bouton = boutonDeLaFamille(doc, texte, () => ouvrir(url), { sorte: "discret" });
   bouton.className = "lien mono";
   bouton.title = `open ${url} in your browser`;
-  bouton.addEventListener("click", () => ouvrir(url));
   return bouton;
 }
 

@@ -25,6 +25,7 @@
 import { boutonAction } from "./briques.js";
 import { niveauDe } from "./niveaux.js";
 import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
+import { bouton } from "./composants/bouton/bouton.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
@@ -239,8 +240,7 @@ function ligneDeRetenue(doc, rang, retenue, { relire, autoriser }) {
   pose.append(pourquoi);
   const { appairee } = rang;
   if (retenue.parGitHub && appairee !== undefined && appairee.id !== "" && relire !== undefined) {
-    const relu = cree(doc, "button", RELIRE.libelle);
-    relu.type = "button";
+    const relu = bouton(doc, RELIRE.libelle, undefined);
     relu.className = "relire-la-station";
     relu.title = RELIRE.survol;
     relu.addEventListener("click", () => {
@@ -251,10 +251,7 @@ function ligneDeRetenue(doc, rang, retenue, { relire, autoriser }) {
   }
   if (retenue.parGitHub && appairee !== undefined && autoriser !== undefined) {
     for (const url of appairee.autoriser) {
-      const ouvre = cree(doc, "button", `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`);
-      ouvre.type = "button";
-      ouvre.addEventListener("click", () => autoriser(url));
-      pose.append(ouvre);
+      pose.append(bouton(doc, `authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`, () => autoriser(url)));
     }
   }
   return pose;
@@ -391,10 +388,8 @@ export function ligneDAlerte(doc, { alerte, refusee, acces, clone = null, refus,
   pose.className = "alerte-de-cuisine";
   pose.role = "alert";
   const dit = cree(doc, "span", `${causes.join(" · ")}.`);
-  const lien = cree(doc, "button", OUVRIR_COOKS);
-  lien.type = "button";
+  const lien = bouton(doc, OUVRIR_COOKS, ouvrir);
   lien.className = "lien";
-  lien.addEventListener("click", ouvrir);
   pose.append(dit, lien);
   return pose;
 }

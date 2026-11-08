@@ -3,6 +3,8 @@
 // laisser moins de 640 px au rail. Sa largeur et son état replié sont retenus par projet, d'une même écriture dans le
 // stockage de la vue, et reposés au lancement suivant. Sur un écran étroit, il est un onglet : ni bord ni bouton.
 
+import { bouton } from "../../composants/bouton/bouton.js";
+
 export const LARGEUR_MINIMALE = 280;
 export const RESTE_AU_RAIL = 640;
 export const LARGEUR_PAR_DEFAUT = 360;
@@ -93,8 +95,8 @@ export function monterLePanneau({ document, colonne, tete, stockage, disponible 
   bord.append(document.createElement("span"));
   colonne.prepend(bord);
 
-  const replier = document.createElement("button");
-  replier.type = "button";
+  // Replier est un geste discret de la famille (composants/bouton) : son libellé est le chevron, son nom dans `ariaLabel`.
+  const replier = bouton(document, "", undefined, { sorte: "discret" });
   replier.id = "replier-second";
   const chevron = document.createElementNS(SVG, "svg");
   chevron.setAttribute("viewBox", "0 0 16 16");

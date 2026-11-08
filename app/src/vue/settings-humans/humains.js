@@ -142,7 +142,7 @@ export function poserUnHumain(doc, { rangee, gestes }) {
     champ.append(coche);
   }
   const garderLaRangee = rangee.neuve && rangee.pr === undefined;
-  const geste = boutonAction(doc, garderLaRangee ? MOTS.annuler : MOTS.retirer, () => (garderLaRangee ? gestes.annuler(rangee) : gestes.retirer(rangee)));
+  const geste = boutonAction(doc, garderLaRangee ? MOTS.annuler : MOTS.retirer, () => (garderLaRangee ? gestes.annuler(rangee) : gestes.retirer(rangee)), { sorte: garderLaRangee ? "discret" : "danger" });
   geste.className = garderLaRangee ? "action annuler" : "action retirer";
   /** @type {any} */
   const bouton = geste.children[0];

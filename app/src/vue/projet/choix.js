@@ -8,6 +8,7 @@
 // besoin ni aucune issue : il montre ceux que la station publie. Il ne touche pas `document` (briques.js).
 
 import { survol } from "../briques.js";
+import { bouton as boutonDeLaFamille, sorteDuBouton } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../projets/demande.ts").Choix} Choix */
@@ -60,15 +61,15 @@ function carte(doc, choix, { choisir, enCours, refus }) {
       const issue = cree(doc, "li");
       issue.className = "issue";
       issue.dataset.issue = option.id;
-      const bouton = cree(doc, "button", option.label);
-      bouton.type = "button";
+      // Une issue tient sur une ligne, coupée, entière au survol : le bouton garde ses 32 px dans une colonne étroite.
+      const bouton = boutonDeLaFamille(doc, option.label, undefined, { coupe: true });
       bouton.disabled = occupe;
       bouton.addEventListener("click", () => choisir(choix.id, option.id));
       const suite = cree(doc, "p", option.consequence);
       suite.className = "consequence";
       // L'issue que la station conseille se distingue des autres, et le dit ; sans son drapeau, rien.
       if (option.recommended === true) {
-        bouton.className = "recommande";
+        sorteDuBouton(bouton, "recommande");
         const marque = cree(doc, "span", RECOMMANDE);
         marque.className = "marque-recommande";
         issue.append(bouton, marque, suite);
