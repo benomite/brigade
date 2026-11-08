@@ -263,7 +263,6 @@ const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
   "log in": ["pannes/pannes.ts", 'libelle: "log in"'],
   "resume the kitchen": ["cuisine.ts", 'libelle: "resume the kitchen"'],
   kitchen: ["vue/vue.js", 'rangeeDeReglage("kitchen"'],
-  propose: ["vue/projet/reglages.js", 'libelle: "propose"'],
   "closer's calibration": ["reglages-du-projet.ts", `closer: "closer's calibration"`],
   "closer's start threshold (cooks in flight)": ["reglages-du-projet.ts", `"closer-cooks": "closer's start threshold (cooks in flight)"`],
   "project off": ["vue/vue.js", '"project off"'],
