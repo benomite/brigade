@@ -180,7 +180,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
     // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris.
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Todo", "1"], ["Waiting", "0"], ["Served", "1"]];
+    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Awaiting you", "1"], ["Waiting", "0"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -205,7 +205,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Todo", "0"], ["Waiting", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Awaiting you", "0"], ["Waiting", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet qu'aucune station ne sert n'en a pas — rien n'est lu de lui", async () => {
@@ -233,7 +233,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"],
+      ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"],
     );
   });
 
@@ -468,7 +468,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
       recevoir(vue, dessinable(FAITS, status));
       const ou = colonnes(vue).filter((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === "#12")).map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
-      assert.deepEqual(ou, ["Todo"]);
+      assert.deepEqual(ou, ["Awaiting you"]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
       const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.className.split(" ").includes("attendu")));
@@ -560,7 +560,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
       attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "Un ticket retenu", url: "https://github.com/benomite/parade/issues/40", miseDeCote: { label: "blocked-on-human", raison, liens: [{ numero: 2326, url: "https://github.com/benomite/parade/issues/2326" }] } }],
     };
     recevoir(vue, dessinable(misDeCote, PAS_LU));
-    const todo = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Todo") ?? assert.fail("pas de colonne Todo");
+    const todo = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne Todo");
     const bon = bons(todo).find((pose) => pose.children[0]?.children[0]?.textContent === "#40") ?? assert.fail("#40 n'est pas dans Todo");
     assert.equal(ligneDe(bon), raison);
     const lien = bon.dessous("button").find((pose) => pose.className === "lien-de-ligne mono") ?? assert.fail("pas de lien sur la ligne");
@@ -758,7 +758,7 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
     await repos();
 
     assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 60]);
-    assert.equal(colonneDe(vue, 60), "Todo");
+    assert.equal(colonneDe(vue, 60), "Awaiting you");
     const bon = bonDe(vue, 60);
     assert.equal(bon.dessous("p").find((pose) => pose.className === "question-courte")?.textContent, "Le popup remplace-t-il la fiche ?");
     assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);

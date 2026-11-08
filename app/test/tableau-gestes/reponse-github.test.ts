@@ -98,7 +98,7 @@ async function todo(client: ClientDeLaReponse): Promise<Carte[]> {
   assert.ok(lu.lu, "the board is read");
   const faits = comprendre(JSON.stringify(lu.faits));
   assert.ok(!("informe" in faits), `facts are in shape: ${"informe" in faits ? faits.informe : ""}`);
-  return tableauDe(faits as Faits, undefined, { texte: statusDuTableau(lu), a: lu.luLe }).rail.colonnes.find(({ nom }) => nom === "Todo")?.cartes ?? [];
+  return tableauDe(faits as Faits, undefined, { texte: statusDuTableau(lu), a: lu.luLe }).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
 }
 const carteDe = (cartes: Carte[], ticket: number) => cartes.find((carte) => carte.ticket === ticket) ?? assert.fail(`#${ticket} is in Todo`);
 

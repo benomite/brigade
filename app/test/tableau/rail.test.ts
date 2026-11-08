@@ -146,7 +146,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   const colonne = (nom: string) => tableau.rail.colonnes.find((c) => c.nom === nom)?.cartes.map(({ ticket, etat }) => [ticket, etat]);
 
   // Les tickets et leur état, chacun dans sa colonne.
-  assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
+  assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"]);
   assert.deepEqual(colonne("On the rail"), [[30, "en attente"]]);
   assert.deepEqual(colonne("Taken"), [[23, "pris"]]);
   assert.deepEqual(colonne("Pass"), [[17, "en pass"]]);
@@ -163,7 +163,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   ]);
 
   // Ce qui attend le chef : TODO, la carte de #24 avec sa sorte et son texte.
-  const todo = tableau.rail.colonnes.find((c) => c.nom === "Todo")?.cartes ?? [];
+  const todo = tableau.rail.colonnes.find((c) => c.nom === "Awaiting you")?.cartes ?? [];
   assert.deepEqual(todo.map(({ ticket }) => ticket), [24]);
   assert.ok(todo.every(({ attendu }) => attendu));
   assert.ok(tableau.rail.attendLu !== undefined, "le bloc `awaiting` a été pris");

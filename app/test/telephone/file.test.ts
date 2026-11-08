@@ -125,17 +125,17 @@ describe("la file d'un projet sur le téléphone", () => {
         ["On the rail", "2"],
         ["Taken", "2"],
         ["Pass", "0"],
-        ["Todo", "1"],
+        ["Awaiting you", "1"],
         ["Waiting", "0"],
         ["Served", "1"],
       ],
     );
-    const [todo] = colonnes(vue).filter(({ nom }) => nom === "Todo");
+    const [todo] = colonnes(vue).filter(({ nom }) => nom === "Awaiting you");
     assert.match(todo?.cartes.join() ?? "", /#12.*Validation SIRET/);
     // La peau la met en tête d'après cette marque, et elle ne marque qu'elle.
     assert.deepEqual(
       sections(vue).filter((colonne) => "attend" in colonne.dataset).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["Todo"],
+      ["Awaiting you"],
     );
   });
 

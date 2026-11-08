@@ -287,7 +287,7 @@ describe("un ticket qui t'attend", () => {
     assert.deepEqual(dits(carte), { since: "3 h 02", "blocked by": "awaiting #17 (off the rail, issue still open: label `fire` removed)" });
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns`);
     // Et il n'est dans aucune autre colonne.
-    assert.deepEqual(lu.colonnes.filter(({ cartes }) => cartes.some(({ ticket }) => ticket === 23)).map(({ nom }) => nom), ["Todo"]);
+    assert.deepEqual(lu.colonnes.filter(({ cartes }) => cartes.some(({ ticket }) => ticket === 23)).map(({ nom }) => nom), ["Awaiting you"]);
   });
 });
 

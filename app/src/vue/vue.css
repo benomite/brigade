@@ -3812,13 +3812,13 @@ main > header,
 #rail .bon {
   display: flex;
   flex-direction: column;
-  gap: var(--pas-1);
+  gap: var(--pas-2);
   min-width: 0;
-  padding: var(--pas-2);
+  padding: var(--pas-3);
   color: var(--bon-encre);
   background: var(--bon);
   border-radius: var(--rayon-bon);
-  box-shadow: 0 1px 0 var(--ombre);
+  box-shadow: 0 2px 8px var(--ombre);
   overflow-wrap: anywhere;
   cursor: pointer;
 }
@@ -4284,6 +4284,118 @@ main > header,
 #rail .etat-ticket[data-forme="triangle"]::before {
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* Dans Awaiting you, le ticket n'est pas un bon mais la carte chaude (ticket 2922, maquette Project.dc.html) : le fond
+   « ce qui t'attend », son trait, l'arrondi d'une carte ; son titre à voix douce, sa question en grand, la réponse
+   recommandée pleine d'accent, les autres choix en boutons ordinaires, « answer in my own words » discret. */
+#rail .colonne[data-attend] .bon {
+  gap: var(--pas-2);
+  padding: var(--pas-3);
+  color: var(--texte);
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-carte);
+  box-shadow: none;
+}
+#rail .colonne[data-attend] .bon strong {
+  font-weight: 400;
+  color: var(--texte-doux);
+}
+#rail .colonne[data-attend] .bon p,
+#rail .colonne[data-attend] .bon .etat-ticket,
+#rail .colonne[data-attend] .bon > .prio,
+#rail .colonne[data-attend] .bon .etiquette,
+#rail .colonne[data-attend] .bon small {
+  color: var(--texte-doux);
+  border-color: var(--attend-trait);
+}
+#rail .colonne[data-attend] .bon p.ligne-carte {
+  color: var(--texte-doux);
+  border-top-color: var(--attend-trait-doux);
+}
+#rail .colonne[data-attend] .bon .carte-todo {
+  gap: var(--pas-2);
+  padding: 0;
+  border-left: 0;
+}
+#rail .colonne[data-attend] .bon .carte-todo[data-envoi="attente"] {
+  padding-left: var(--pas-2);
+  border-left: 3px solid var(--accent);
+}
+#rail .colonne[data-attend] .bon .carte-todo p.question-carte {
+  font-size: var(--taille-intertitre);
+  line-height: 1.35;
+  color: var(--texte);
+}
+#rail .colonne[data-attend] .bon .carte-todo :is(p.resume-carte, p.reponse-envoyee) {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+#rail .colonne[data-attend] .bon .carte-todo .action > button {
+  min-height: 32px;
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
+  font-weight: 500;
+  color: var(--texte);
+  background: var(--bouton);
+  border-color: var(--trait-fort);
+}
+#rail .colonne[data-attend] .bon .carte-todo .action > button:not(:disabled):hover {
+  border-color: var(--texte-doux);
+}
+#rail .colonne[data-attend] .bon .carte-todo .action > button.choix[data-recommande]:not(:disabled),
+#rail .colonne[data-attend] .bon .carte-todo div.choix-carte .action:only-child > button.choix:not(:disabled) {
+  font-weight: 600;
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+#rail .colonne[data-attend] .bon .carte-todo .action > button.choix[data-recommande]:not(:disabled):hover {
+  border-color: var(--texte);
+}
+#rail .colonne[data-attend] .bon .carte-todo .action > button:disabled,
+#rail .colonne[data-attend] .bon .carte-todo textarea:disabled {
+  color: var(--discret);
+  background: none;
+}
+#rail .colonne[data-attend] .bon .carte-todo textarea {
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--case);
+  border-color: var(--trait-fort);
+}
+#rail .colonne[data-attend] .bon .carte-todo button.en-mes-mots,
+#rail .colonne[data-attend] .bon .carte-todo p.secondaire > button.demander {
+  align-self: flex-start;
+  padding: 0 var(--pas-1);
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+  font-weight: 500;
+  color: var(--texte-doux);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+#rail .colonne[data-attend] .bon .carte-todo p.secondaire > button.demander {
+  font-size: var(--taille-meta);
+  font-weight: 400;
+}
+#rail .colonne[data-attend] .bon .carte-todo button.en-mes-mots:hover,
+#rail .colonne[data-attend] .bon .carte-todo p.secondaire > button.demander:not(:disabled):hover {
+  color: var(--texte);
+}
+#rail .colonne[data-attend] .bon .carte-todo button.en-mes-mots:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#rail .colonne[data-attend] .bon .carte-todo :is(.en-route, p.ou-en-est, p.secondaire > span) {
+  color: var(--discret);
+}
+/* Le champ replié, et le bouton qui l'ouvre une fois ouvert : `#rail .bon div` ne les remet pas en flex. */
+#rail .bon .carte-todo [hidden] {
+  display: none;
 }
 /* Sur une carte de Taken ou de Pass, depuis combien de temps elle y est (#1811), au bout de sa ligne d'état ; l'âge
    exact au survol. Bien plus longtemps que d'ordinaire, l'âge passe au rouge, et la carte porte un trait rouge à

@@ -154,7 +154,7 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     await lecture.regarder("parade", 2);
     const vu = tableauDe(rail("parade"));
     assert.deepEqual(colonnes(vu)["On the rail"], [1]);
-    assert.deepEqual(colonnes(vu)["Todo"], [12, 20]);
+    assert.deepEqual(colonnes(vu)["Awaiting you"], [12, 20]);
     assert.deepEqual(rail("parade"), await commeLeDesktop("parade", "chef/parade", 1, 2));
     // Dans « All projects », le `status` de chacun est lu : le TODO de chacun aussi.
     await lecture.tous(3);
@@ -193,7 +193,7 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     assert.equal(vu.rail.aucunTicket, true);
     // TODO est lu, et vide : il le dit.
     assert.equal(vu.rail.attendLu, LU);
-    assert.equal(vu.rail.colonnes.find(({ nom }) => nom === "Todo")?.vide, "nothing awaits you");
+    assert.equal(vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.vide, "nothing awaits you");
     const ligne = accueil()?.projets.find(({ nom }) => nom === "cantine");
     assert.ok(ligne !== undefined && ligne.dit !== "", JSON.stringify(accueil()));
   });
@@ -383,7 +383,7 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     await jusqua(() => ["parade", "cantine"].every((nom) => dessines().some((recue) => recue.projet === nom && "tableau" in recue && recue.tableau.rail.attendLu !== undefined)));
     // Le rail et TODO de parade : ce que le desktop dessine du même projet, sur le même GitHub.
     const parade = dessines().findLast((recue) => recue.projet === "parade");
-    assert.deepEqual(colonnes(tableauDe(parade))["Todo"], [12, 20]);
+    assert.deepEqual(colonnes(tableauDe(parade))["Awaiting you"], [12, 20]);
     // Le téléphone lit à l'heure qu'il est, le desktop de ce test à `LU` : seules leurs heures diffèrent, et depuis
     // combien de temps chaque carte attend.
     const sansHeure = (recue: unknown) =>
@@ -408,8 +408,8 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     await jusqua(() => ["cantine", "parade"].every((nom) => vue.element("projets").children.some((pose) => pose.ariaLabel?.split(" — ")[0] === nom)));
     assert.match(vue.element("connexion-github").textContent, /^Signed in to GitHub as chef\./);
     caseDe(vue, "parade").click();
-    await jusqua(() => (colonnesVues(vue)["Todo"] ?? []).length === 2);
-    assert.deepEqual(colonnesVues(vue)["Todo"], ["#12", "#20"]);
+    await jusqua(() => (colonnesVues(vue)["Awaiting you"] ?? []).length === 2);
+    assert.deepEqual(colonnesVues(vue)["Awaiting you"], ["#12", "#20"]);
     assert.deepEqual(colonnesVues(vue)["On the rail"], ["#1"]);
     // Le projet vide : un rail sans carte, et TODO qui dit que rien n'attend le chef — pas un écran vide.
     caseDe(vue, "cantine").click();
