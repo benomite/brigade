@@ -99,7 +99,7 @@ No feature was deleted for these: the view was built, but no app code ever sent 
 
 ## Inconsistencies
 
-What the app says and draws differently from one screen to another, read from the source of `app/src/vue/` and the PNGs of the contact sheet (#2900, `index.html` in this folder). Facts only: each item says where it is and what it is. Line numbers are those of `app/src/vue/vue.css` and the `.js` files at the time of writing. The PNG named in an item is the capture of the screen state the selector or file belongs to, matched by the state's name and its source in `scripts/capture-ecran/ecrans/`; the PNGs were not compared pixel by pixel with each rule. The PNGs are those added by #2900.
+What the app says and draws differently from one screen to another, read from the source of `app/src/vue/` and the PNGs of the contact sheet (#2900, `index.html` in this folder). Facts only: each item says where it is and what it is. Line numbers are those of `app/src/vue/vue.css` and the `.js` files at the time of writing. The PNG named in an item is the capture of the screen state the selector or file belongs to, matched by the state's name and its source in `scripts/capture-ecran/ecrans/`; the PNGs were not compared pixel by pixel with each rule. At the time of writing, the PNGs of #2900 are not on the base this README was written from: this folder holds no PNG and no `index.html`. Every capture name below is therefore a name inferred from the state names of `scripts/capture-ecran/ecrans/`, and the existence of the file has not been checked.
 
 ### Same thing said with different words
 
