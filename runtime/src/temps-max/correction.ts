@@ -32,7 +32,7 @@
 // L'appel vient du tour de la station (`brigade-github.ts`), qui lit les temps
 // dans le clone du projet.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import { porteDeQualite, type DecisionDeQualite } from "../alerte-qualite.ts";
+import { porteDeQualite, prisApres, TICKETS_A_ATTENDRE, type DecisionDeQualite } from "../alerte-qualite.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import { mesurerQualite, type QualiteDuTicket } from "../mesure-qualite.ts";
 import { avecLaPreuve, type SorteDeMesure } from "../preuve-mesure.ts";
@@ -119,7 +119,7 @@ export type DecisionDeCorrection =
   | { issue: "sous-le-seuil"; mediane: number | null; seuilMin: number }
   // La dernière correction servie (`numero`, mergée à `servie`) est encore à
   // l'essai : un ticket récent au moins a été pris avant son merge.
-  | { issue: "a-l-essai"; numero: number; servie: string; mediane: number; seuilMin: number }
+  | { issue: "a-l-essai"; numero: number; servie: string; manque: number; mediane: number; seuilMin: number }
   | { issue: "deja-ouverte"; numero: number; mediane: number; seuilMin: number }
   | { issue: "ouverte"; numero: number; mediane: number; seuilMin: number }
   // La qualité passe avant le temps (#2680) : le ticket de qualité est ouvert, aucun de temps.
@@ -137,12 +137,6 @@ export type OptionsDeLaCorrection = {
   preuve?: (sorte: SorteDeMesure, enregistrements: readonly TempsTicket[], qualites: ReadonlyMap<number, QualiteDuTicket>) => Promise<string>;
   maintenant?: () => Date;
 };
-
-// La prise la plus ancienne des tickets récents, en ms (le merge d'un ticket
-// sans prise datée) ; l'infini quand aucun n'est daté.
-export function premierePriseDesRecents(enregistrements: readonly TempsTicket[]): number {
-  return Math.min(...ticketsRecents(enregistrements).map((t) => Date.parse(t.claimedAt ?? t.mergedAt ?? "")).filter((instant) => !Number.isNaN(instant)));
-}
 
 // La dernière correction servie : celle, fermée, dont le merge est le plus
 // récent parmi les temps du projet. Une correction fermée sans merge n'a rien
@@ -186,15 +180,24 @@ export function correctionDuTemps({ github, lire, preuve, maintenant = () => new
 
   return async (ouvertes?: readonly number[]): Promise<DecisionDeCorrection> => {
     const { enregistrements, lostTimeMaxMin: seuilMin, qualites, projet } = lire();
-    const qualite = qualites === undefined ? null : await porte(mesurerQualite(enregistrements, qualites, projet), ouvertes, preuve && (() => preuve("qualite", enregistrements, qualites)));
+    const qualite = qualites === undefined
+        ? null
+        : await porte(mesurerQualite(enregistrements, qualites, projet), ouvertes, preuve && (() => preuve("qualite", enregistrements, qualites)), {
+            temps: enregistrements,
+            mesurer: (temps) => mesurerQualite(temps, qualites, projet),
+          });
     if (qualite !== null) return { issue: "qualite", qualite };
     const ticket = ticketDeCorrection(enregistrements, seuilMin);
     const mediane = medianePerdueDesRecents(enregistrements);
     if (ticket === null || mediane === null) return { issue: "sous-le-seuil", mediane, seuilMin };
     if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, mediane, seuilMin };
-    const premiere = premierePriseDesRecents(enregistrements);
-    const essai = (numero: number, servie: number) => ({ issue: "a-l-essai" as const, numero, servie: new Date(servie).toISOString(), mediane, seuilMin });
-    if (aLEssai !== null && premiere < aLEssai.servie) return essai(aLEssai.numero, aLEssai.servie);
+    // Servie, une correction n'est jugée que sur 20 tickets pris après son merge, et sur eux seuls (#2868).
+    const essai = (numero: number, servie: number) => {
+      const manque = TICKETS_A_ATTENDRE - prisApres(enregistrements, servie).length;
+      return manque > 0 ? { issue: "a-l-essai" as const, numero, servie: new Date(servie).toISOString(), manque, mediane, seuilMin } : null;
+    };
+    const attente = aLEssai === null ? null : essai(aLEssai.numero, aLEssai.servie);
+    if (attente !== null) return attente;
     const lues = await corrections();
     const [deja] = lues.ouverts;
     if (deja !== undefined) {
@@ -202,13 +205,18 @@ export function correctionDuTemps({ github, lire, preuve, maintenant = () => new
       return { issue: "deja-ouverte", numero: deja, mediane, seuilMin };
     }
     aLEssai = derniereCorrectionServie(lues.fermes, enregistrements, lues.ailleurs);
-    if (aLEssai !== null && premiere < aLEssai.servie) return essai(aLEssai.numero, aLEssai.servie);
-    const corps = await avecLaPreuve(ticket.corps, preuve && (() => preuve("temps-perdu", enregistrements, qualites ?? new Map())));
-    const creee = await github.creerIssue({ titre: ticket.titre, corps, labels: LABELS_CORRECTION });
+    const attendue = aLEssai === null ? null : essai(aLEssai.numero, aLEssai.servie);
+    if (attendue !== null) return attendue;
+    const mesures = aLEssai === null ? enregistrements : prisApres(enregistrements, aLEssai.servie);
+    const mesure = aLEssai === null ? ticket : ticketDeCorrection(mesures, seuilMin);
+    const medianeMesuree = aLEssai === null ? mediane : medianePerdueDesRecents(mesures);
+    if (mesure === null || medianeMesuree === null) return { issue: "sous-le-seuil", mediane: medianeMesuree, seuilMin };
+    const corps = await avecLaPreuve(mesure.corps, preuve && (() => preuve("temps-perdu", mesures, qualites ?? new Map())));
+    const creee = await github.creerIssue({ titre: mesure.titre, corps, labels: LABELS_CORRECTION });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();
     if (premier < creee) await github.fermerIssue(creee);
     connue = Math.min(premier, creee);
-    return { issue: premier < creee ? "deja-ouverte" : "ouverte", numero: connue, mediane, seuilMin };
+    return { issue: premier < creee ? "deja-ouverte" : "ouverte", numero: connue, mediane: medianeMesuree, seuilMin };
   };
 }

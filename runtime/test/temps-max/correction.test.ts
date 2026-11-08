@@ -182,20 +182,19 @@ test("#2577: a served correction is tried on the tickets claimed after its merge
   await depot.github().fermerIssue(2600);
 
   // Deux minutes après, la médiane est toujours celle des tickets d'avant elle : rien ne s'ouvre.
-  assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 2600, servie, mediane: m(20), seuilMin: 10 });
+  assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 2600, servie, manque: 20, mediane: m(20), seuilMin: 10 });
   // Tant qu'elle est à l'essai, un tour ne relit pas GitHub, et une autre station ne rouvre rien non plus.
   const lues = depot.lectures;
   assert.equal((await corriger([])).issue, "a-l-essai");
   assert.equal(depot.lectures, lues);
   assert.equal((await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT })()).issue, "a-l-essai");
-  // Des tickets pris après son merge, mais la fenêtre de 24 h en garde d'avant : encore à l'essai.
+  // 10 tickets pris après son merge : il en faut 20 (#2868).
   enregistrements = [...enregistrements, ...lents(30, 10, Date.parse(servie) + 60_000)];
-  assert.equal((await corriger([])).issue, "a-l-essai");
+  assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 2600, servie, manque: 10, mediane: m(20), seuilMin: 10 });
   assert.equal(depot.ouvertes().length, 0);
 
-  // Les tickets récents sont tous pris après elle, et toujours au-dessus du seuil : la suivante s'ouvre.
+  // 20 tickets pris après elle, et toujours au-dessus du seuil : la suivante s'ouvre.
   enregistrements = [...enregistrements, ...lents(50, 10, Date.UTC(2026, 10, 7, 0))];
-  assert.ok(Math.min(...ticketsRecents(enregistrements).map((t) => Date.parse(t.claimedAt ?? ""))) > Date.parse(servie));
   assert.deepEqual(await corriger([]), { issue: "ouverte", numero: 2601, mediane: m(20), seuilMin: 10 });
   assert.equal(depot.ouvertes().length, 1);
 });
