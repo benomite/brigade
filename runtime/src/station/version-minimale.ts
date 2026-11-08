@@ -4,9 +4,9 @@
 // Write/Edit y sont refusés et l'échec ne nomme pas la version en cause.
 import { comparerVersions, VERSION } from "../mise-a-jour/versions.ts";
 
-// La première version de la station qui porte le correctif de #2888 : à
-// remplacer par celle de la release qui le publie.
-export const VERSION_MINIMALE = "0.20261108.111043";
+// La première version de la station qui porte le correctif de #2888 (895fdd5) :
+// celle de la release station-0.20261108.111554, la première à le contenir.
+export const VERSION_MINIMALE = "0.20261108.111554";
 
 // La ligne à dire, ou null : la version atteint le minimum, ou ne se lit pas
 // (un clone, le poste de dev : `versionDuRuntime` rend « inconnue ») — on ne
