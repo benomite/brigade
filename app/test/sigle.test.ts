@@ -21,7 +21,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { refusDuSigle, SIGLE_MAX, sigles } from "../src/sigle.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jetonsDe, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 // Les cinq projets du chef, tels que sa barre les montrait (#1512, #1983).
@@ -235,7 +235,9 @@ describe("le sigle dans la vue", () => {
   test("la case l'écrit en grand, sur une ligne, sans rien qui le coupe ; la barre ne s'élargit pas", () => {
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const regle = /#projets \.sigle-de-case\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le sigle");
-    const taille = Number(/font-size:\s*(\d+)px/.exec(regle)?.[1]);
+    // Sa taille est un jeton de l'échelle (#2909) : sa valeur est lue dans jetons.css.
+    const jeton = /font-size:\s*var\((--[a-z-]+)\)/.exec(regle)?.[1] ?? assert.fail("la taille du sigle n'est pas un jeton");
+    const taille = Number(/^(\d+)px$/.exec(jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8")).get(jeton) ?? "")?.[1]);
     assert.ok(taille >= 16, `${taille}px : à peine plus grand que les 10px du nom coupé d'avant`);
     assert.match(regle, /white-space:\s*nowrap/);
     assert.doesNotMatch(regle, /overflow|text-overflow|line-clamp/);

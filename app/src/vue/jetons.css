@@ -1,7 +1,7 @@
-/* Les jetons de la peau : les couleurs et les polices de l'app, et rien d'autre. C'est le seul
-   endroit où une couleur de la peau s'écrit — vue.css et vue.js n'en nomment que les variables, et le
-   terminal lit les siennes ici. Chaque valeur est celle de la maquette (docs/maquettes/app/). Seules
-   les couleurs d'un projet viennent d'ailleurs, du fichier des projets : --teinte, et --accent dans
+/* Les jetons de la peau : les couleurs, les polices, les tailles de texte, les pas d'espacement et les arrondis de
+   l'app, et rien d'autre. C'est le seul endroit où une couleur de la peau s'écrit — vue.css et vue.js n'en nomment
+   que les variables, et le terminal lit les siennes ici. Chaque couleur est celle de la maquette (docs/maquettes/app/).
+   Seules les couleurs d'un projet viennent d'ailleurs, du fichier des projets : --teinte, et --accent dans
    son espace. */
 
 /* Les polices sont embarquées (polices/, sous licence OFL) : rien n'est demandé au réseau.
@@ -88,10 +88,32 @@
   --bon-trait: #bdb4a3;
   --ombre: #0006;
 
-  /* Les arrondis : une carte, un bouton ou un champ, un bon. */
+  /* Les échelles (#2909) : la maquette dessine ses tailles et ses espacements en valeurs écrites, sans les nommer —
+     ces noms sont donc choisis ici. Une feuille de la vue ne donne une taille de texte, un espacement ou un arrondi
+     que par l'un de ces jetons ; une valeur hors de l'échelle va au pas le plus proche, le plus grand à égalité —
+     sauf un arrondi de moins de 4px, qui adoucissait un signe de quelques pixels : il tombe à 0, et le carré reste un
+     carré. */
+
+  /* Les tailles de texte : le méta, le corps, l'intertitre, le titre, le chiffre. */
+  --taille-meta: 11px;
+  --taille-corps: 13px;
+  --taille-intertitre: 15px;
+  --taille-titre: 20px;
+  --taille-chiffre: 28px;
+
+  /* Les pas d'espacement, de 4 à 32 : marges, retraits et écarts. */
+  --pas-1: 4px;
+  --pas-2: 8px;
+  --pas-3: 12px;
+  --pas-4: 16px;
+  --pas-5: 24px;
+  --pas-6: 32px;
+
+  /* Les arrondis : une carte, un bouton ou un champ, un bon, et le rond complet d'une pastille. */
   --rayon-carte: 10px;
   --rayon-bouton: 8px;
   --rayon-bon: 4px;
+  --rayon-pastille: 999px;
 
   color-scheme: dark;
 }

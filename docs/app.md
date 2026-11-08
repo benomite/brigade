@@ -3492,6 +3492,15 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
   and its accent color, drawn from the palette of `app/src/couleurs.ts` and written in `app.json`
   ("A project's colors"): the view puts them on two variables, `--teinte` and `--accent`, and never
   on a state color.
+- **One scale, in the same place** (#2909): `jetons.css` also holds five text sizes
+  (`--taille-meta` 11, `--taille-corps` 13, `--taille-intertitre` 15, `--taille-titre` 20,
+  `--taille-chiffre` 28), six spacing steps (`--pas-1` to `--pas-6`: 4, 8, 12, 16, 24, 32) and the
+  radii (`--rayon-carte` 10, `--rayon-bouton` 8, `--rayon-bon` 4, `--rayon-pastille` for a pill's
+  full round). Every `font-size`, `padding`, `gap`, `margin` and `border-radius` of the view's style
+  sheets names one of them; a bare `0`, `auto`, a percentage or an `em` stays as written. The mockup
+  draws these values without naming them: the names were chosen with the ticket. A value off the
+  scale went to the nearest step, the larger one on a tie — except a radius under 4 px, which
+  softened a sign a few pixels wide: it went to `0`, so that a square stays a square.
 - **Two fonts, embedded** (`app/src/vue/polices/`, under the OFL license): nothing is requested
   from the network, the page opens no origin. **Archivo** for the interface. **JetBrains Mono** for
   what is copied as is — a ticket number, a run identifier, a port, a project's name, a command —
@@ -3756,8 +3765,8 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
   front of a fake document (`app/test/aides/fausse-vue.ts` — just what the view touches of it, and a
   fake bridge), and `vue.css` is read there rule by rule. What it holds: that text relayed from the
   box is laid word for word on the six tabs and the add screen — "All projects" relays none of it —,
-  and that no rule cuts it; that no color is written outside `jetons.css`, and that each is a color
-  of the mockup — except a project's, which the view receives from the file (`couleurs.test.ts`);
+  and that no rule cuts it; that no color is written outside `jetons.css`, nor any text size, spacing
+  or radius (`echelles.test.ts`), and that each color is a color of the mockup — except a project's, which the view receives from the file (`couleurs.test.ts`);
   that a bar tile is rearranged by dragging it — the line that says where it will land, the room it
   takes, the click that stays a click, what is dragged in from elsewhere and not received
   (`rangement.test.ts`); that the fonts are files of the app; that a ticket number or a port is in
