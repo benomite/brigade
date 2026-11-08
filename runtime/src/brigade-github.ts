@@ -52,6 +52,7 @@ import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
+import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -1659,7 +1660,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -1895,12 +1896,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let renvoi: Renvoi | null = null;
     // La PR ouverte que le cook reprend : il peut y répondre aux remarques (#2592).
     let prOuverte: number | null = null;
+    // Cette PR est en conflit avec la base : c'est un renvoi pour conflit (#2953).
+    let enConflit = false;
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
         sansPR = ouverte === null;
         if (ouverte !== null && ouverte.state === "open") {
           prOuverte = ouverte.number;
+          if (ouverte.enConflit === true) enConflit = true;
           if (ouverte.enConflit === true) resteAFaire = `PR #${ouverte.number} conflicts with \`${base}\``;
           else {
             const checks = await options.github.ci(ouverte.sha);
@@ -1944,7 +1948,18 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return { branche };
       }
     }
-    if (resteAFaire !== null) {
+    // Un renvoi pour conflit : la station intègre la base avant le cook, qui
+    // reçoit la branche avec la fusion tentée, conflits non commités (#2953).
+    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
+    let consigneIntegree: string | null = null;
+    if (enConflit && lancerGit !== undefined) {
+      const integration = await integrerAvantLeCook(lancerGit, worktree, base);
+      consigneIntegree = consigneDeLIntegration(integration, base);
+      if (integration.etat === "echec") avertir(`brigade : #${ticket.number} sur ${nom} — the station could not merge \`origin/${base}\` (${integration.etape}: ${integration.detail}): the cook does it itself`);
+    }
+    if (resteAFaire !== null && consigneIntegree !== null) {
+      joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. ${consigneIntegree}`;
+    } else if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
     } else if (prOuverte !== null) joint += `\n\n${consigneDuDesaccord(prOuverte)}`;
     const brief = briefDuRenvoi(renvoi, base);
@@ -1983,7 +1998,27 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // (#2586) : le cook qui reprend le ticket en repart, au lieu que la pass la
     // juge telle quelle (#2577).
     const question = lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null);
-    if (question !== null) {
+    // Un renvoi pour conflit qui bute sur le refus d'une commande git n'est pas
+    // une question : la station intègre la base elle-même, ou repart de main.
+    // Jamais un second renvoi, ni une carte pour le chef (#2953).
+    let integree = false;
+    if (question !== null && enConflit && lancerGit !== undefined) {
+      try {
+        const suite = await suiteDuBlocageTechnique(question, base, {
+          git: lancerGit,
+          worktree,
+          recreerLaBranche: async () => {
+            depot.retirer(worktree);
+            depot.retirer((await depot.preparer(run)).worktree);
+          },
+        });
+        if (suite === "recreee") return { subi: `the cook was refused a git command on a conflict send-back (${question.slice(0, 200)}): the branch restarts from \`origin/${base}\`, for another cook` };
+        integree = suite === "integree";
+      } catch (erreur) {
+        return { echec: `the cook was refused a git command on a conflict send-back, and the station could not take over: ${message(erreur)}` };
+      }
+    }
+    if (question !== null && !integree) {
       if (prOuverte === null && depot.recolter !== undefined) {
         try {
           depot.recolter(worktree, branche);
