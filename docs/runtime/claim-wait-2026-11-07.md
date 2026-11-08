@@ -90,7 +90,7 @@ becoming claimable — and its claim, and requires under 2 s:
 cd runtime && node --test --test-name-pattern=2832 test/github-seul/garde-fous/garde-fous.test.ts test/arbitre.test.ts
 ```
 
-Before the fix it fails: `ms between the place freeing and the claim: none within 5 s — the next turn is at the
+Before the fix it fails: `ms between the place freeing and the claim: none within 2 s — the next turn is at the
 interval, 60 s`. After it, the claim comes within about a tenth of a second (it prints the measure). The tests of
 `runtime/test/arbitre.test.ts` tagged #2832 check the wait itself: woken when the place frees, not by a word
 that frees nothing, false at its term, replaced by a newer one, released when the runtime hangs up, and over

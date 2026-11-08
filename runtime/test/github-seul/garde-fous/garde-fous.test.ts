@@ -274,9 +274,9 @@ test("a project the arbiter refused is woken when a place frees: its ticket is c
   const libre = Date.now();
   arbitre.dire("compta", mot(0, false));
   let prise: number | null = null;
-  await jusqua(() => faux.prises.length > 0, 5000).then(() => (prise = Date.now() - libre), () => {});
+  await jusqua(() => faux.prises.length > 0, 2000).then(() => (prise = Date.now() - libre), () => {});
   t.diagnostic(`claimed ${prise ?? "never"} ms after the place freed`);
-  assert.ok(prise !== null && prise < 2000, `ms between the place freeing and the claim: ${prise ?? "none within 5 s — the next turn is at the interval, 60 s"}`);
+  assert.ok(prise !== null && prise < 2000, `ms between the place freeing and the claim: ${prise ?? "none within 2 s — the next turn is at the interval, 60 s"}`);
   assert.deepEqual(faux.prises, [1]);
   await jusqua(() => faits("cook.launched").length === 1);
 });
