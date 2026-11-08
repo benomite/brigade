@@ -1148,7 +1148,7 @@ main > header,
 #bord-du-second > span {
   width: 3px;
   height: 36px;
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
   background: var(--trait);
 }
 #bord-du-second:is(:hover, :focus-visible) > span,
@@ -1165,13 +1165,13 @@ main > header,
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
-  margin-right: 4px;
+  margin-right: var(--pas-1);
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--rayon-bouton);
   background: transparent;
 }
 #replier-second svg {
@@ -1200,7 +1200,7 @@ main > header,
   display: none;
 }
 #second[data-replie] > header {
-  padding: 0 4px;
+  padding: 0 var(--pas-1);
 }
 #second[data-replie] #replier-second {
   margin: 0;
