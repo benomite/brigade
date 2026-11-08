@@ -3,7 +3,6 @@
 // un projet, si aucune PR n'a été fusionnée depuis `INERTIE_MINUTES` alors
 // qu'au moins un ticket est cuisinable, elle ouvre un ticket de bug qui nomme
 // la cause probable :
-// - `all-blocked`  : tous les tickets cuisinables attendent un ticket encore ouvert ;
 // - `stale-claim`  : un ticket pris l'est depuis plus longtemps que le seuil, sans PR ;
 // - `empty-rail`   : aucune PR n'est en passe, le rail est vide ;
 // - `unknown`      : rien de ce qui précède ne l'explique.
@@ -19,13 +18,13 @@ export const INERTIE_MINUTES = 90;
 // Le label du ticket de bug qu'ouvre l'inertie.
 export const LABEL_DU_BUG = "fix";
 
-export type Cause = "all-blocked" | "stale-claim" | "empty-rail" | "unknown";
+export type Cause = "stale-claim" | "empty-rail" | "unknown";
 
 // La marque qui reconnaît le bug de l'inertie dans son corps.
 export const MARQUE_D_INERTIE = "<!-- brigade:cuisine-inerte -->";
 
-// Un ticket cuisinable : `attend` porte les tickets encore ouverts dont il dépend.
-export type TicketCuisinable = { number: number; title: string; attend: readonly number[] };
+// Un ticket cuisinable.
+export type TicketCuisinable = { number: number; title: string };
 
 // Un ticket pris par un cook, et depuis quand (ISO 8601).
 export type PrisePourCuisiner = { number: number; depuis: string };
@@ -51,21 +50,16 @@ export type Inertie =
   | { fait: "rien"; pourquoi: string };
 
 const DIT: Record<Cause, string> = {
-  "all-blocked": "every cookable ticket waits on a ticket that is still open",
   "stale-claim": "a claim is stale: a ticket has been taken for longer than the threshold with nothing merged",
   "empty-rail": "the rail is empty of in-pass PRs",
-  unknown: "no obvious cause: nothing blocks the cookable tickets, no claim is stale, and PRs are in pass",
+  unknown: "no obvious cause: no claim is stale, and PRs are in pass",
 };
 
 const minutesDepuis = (iso: string, maintenant: Date) => (maintenant.getTime() - Date.parse(iso)) / 60_000;
 
 // La cause probable de l'inertie, d'après ce que le client GitHub lit.
-export async function causeProbable(cuisinables: readonly TicketCuisinable[], contexte: ContexteDeLInertie): Promise<{ cause: Cause; detail: string }> {
+export async function causeProbable(contexte: ContexteDeLInertie): Promise<{ cause: Cause; detail: string }> {
   const { github, maintenant } = contexte;
-  if (cuisinables.every((t) => t.attend.length > 0)) {
-    const attentes = cuisinables.map((t) => `- #${t.number} waits on ${t.attend.map((n) => `#${n}`).join(", ")}`);
-    return { cause: "all-blocked", detail: attentes.join("\n") };
-  }
   const perimees = (await github.prises()).filter((p) => minutesDepuis(p.depuis, maintenant) >= INERTIE_MINUTES);
   if (perimees.length > 0) return { cause: "stale-claim", detail: perimees.map((p) => `- #${p.number} taken since ${p.depuis}`).join("\n") };
   const enPasse = await github.prsEnPasse();
@@ -82,7 +76,7 @@ export async function signalerInertie(contexte: ContexteDeLInertie): Promise<Ine
   if (cuisinables.length === 0) return { fait: "rien", pourquoi: "no cookable ticket" };
   const ouvert = (await github.issuesOuvertes(LABEL_DU_BUG)).find((i) => i.body.includes(MARQUE_D_INERTIE));
   if (ouvert) return { fait: "deja-signale", bug: ouvert.number };
-  const { cause, detail } = await causeProbable(cuisinables, contexte);
+  const { cause, detail } = await causeProbable(contexte);
   const depuis = dernier === null ? "ever" : `since ${dernier}`;
   const bug = await github.creerIssue({
     titre: `The kitchen is idle: no merge for ${INERTIE_MINUTES} minutes with ${cuisinables.length} cookable ticket(s) (${cause})`,

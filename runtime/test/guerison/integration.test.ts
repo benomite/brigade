@@ -163,20 +163,15 @@ test("a gesture that throws does not stop the others, and its error is logged", 
   assert.ok(p.poses.some(([numero, label]) => numero === PRETE && label === "in-pass"));
 });
 
-test("a kitchen with a ticket to take and nothing at work for 90 minutes files one inertia bug, once", async () => {
+test("a kitchen whose only open tickets are waiting (with or without blocked-on-human) files no inertia bug", async () => {
   const p = projet("zeta/lab", "mac/claude", "develop");
-  // Un ticket à prendre que la station ne prend pas : il attend un ticket ouvert.
-  p.faux.feu(30, [...CALIBRE, "waiting"], "Depends on #31");
-  p.faux.feu(31, []);
+  p.faux.feu(30, [...CALIBRE, "waiting"]);
+  p.faux.feu(32, [...CALIBRE, "waiting", "blocked-on-human"]);
   await p.passer();
-  assert.equal(p.faux.creations.length, 0);
   p.avancer(INERTIE_MINUTES * MINUTE);
   await p.passer();
   await p.passer();
-  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
-  const [bug] = p.faux.creations;
-  assert.match(p.faux.ticket(bug as number).corps, /all-blocked[\s\S]*#30 waits on #31/);
-  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(all-blocked\) — bug #\d+ filed/.test(ligne)));
+  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
 });
 
 test("tickets the station would skip (blocked on the chef, uncalibrated) do not file an inertia bug on an empty rail", async () => {
@@ -188,4 +183,21 @@ test("tickets the station would skip (blocked on the chef, uncalibrated) do not 
   await p.passer();
   await p.passer();
   assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+});
+
+test("a kitchen with a fire ticket to take (a model label, nothing else) and nothing at work for 90 minutes files one inertia bug, once, without blocked-on-human", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  p.faux.feu(30, CALIBRE, "Depends on #31");
+  p.faux.feu(31, [...CALIBRE, HORS_CUISINE]);
+  await p.passer();
+  // La station n'a pas pris le ticket : il dépend de #31, que rien ne cuit.
+  assert.deepEqual([...p.faux.ticket(30).labels], CALIBRE);
+  assert.equal(p.faux.creations.length, 0);
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  await p.passer();
+  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
+  const [bug] = p.faux.creations;
+  assert.ok(!p.faux.ticket(bug as number).labels.has("blocked-on-human"));
+  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
 });
