@@ -31,6 +31,7 @@ Les autres gestes :
 | Geste | Commande |
 |---|---|
 | Lister les écrans | `node scripts/capture-ecran/capture.ts --liste` |
+| Une capture à 2x (pixels de l'écran, `--densite 1` par défaut) | `… capture.ts tous-les-projets /tmp/x.png --densite 2` |
 | Une autre taille de fenêtre | `… capture.ts tous-les-projets /tmp/x.png --largeur 1280 --hauteur 800` |
 | Tests | `npm --prefix scripts/capture-ecran test` |
 | Contrôle de types | `npm --prefix scripts/capture-ecran run typecheck` |
@@ -135,6 +136,7 @@ compare que deux captures du même navigateur.
 | `stations-reglages` | L'onglet Stations de `parade` (#2488), qui cuit sur ce Mac : pour chacune de ses trois stations — `mac/claude` sur ce poste, `pc/claude` et `studio/claude` ailleurs —, son plafond de cooks, ses capacités en cases, ses tickets ordinaires et si elle sert le projet, chacun avec son niveau ; « Save » grisé tant que rien n'a changé |
 | `rail-file` | La file de `parade`, quatre tickets sur le rail dans l'ordre où le runtime les sert, chacun avec sa priorité, #21 en tête qui dit pourquoi il ne part pas (#1347) |
 | `todo-cartes` | La file de `parade` avec deux cartes dans TODO (#1281) : #12, une validation de design — sa question, ses captures avant et après sur la carte, un bouton par choix, le champ du texte libre et « send » — et #21, un choix de produit sans écran, sans zone de captures |
+| `telephone-todo-cartes` | La carte de #21 dans TODO de `parade` à la largeur d'un téléphone (412 × 915), la rangée des colonnes amenée sur elle par l'étape `defiler` (#2875) |
 | `todo-carte-repondue` | La même, la réponse à #21 jouée par la cuisine (#1841) : le tableau relu porte la réponse `**Done**` de la box sous le geste — la carte dit `played by the kitchen`, la ligne de la box au survol, son bord éteint, ni choix ni champ |
 | `todo-carte-pas-jouee` | La même, la réponse à #21 que la cuisine n'a pas jouée (#1841) : le tableau relu porte la réponse `**Not done**` de la box — la carte dit `not played by the kitchen: <raison>` en une ligne, la ligne de la box au survol, et rend ses choix et son champ |
 | `todo-carte-envoyee` | La même, l'app redémarrée pendant que la réponse à #21 attend la cuisine (#1841) : rien n'a été cliqué, seul le tableau relu porte le geste sans réponse de la box — la carte le dit envoyé, en attente de la cuisine, jamais sans réponse |

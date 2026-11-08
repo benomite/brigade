@@ -45,21 +45,21 @@ export async function ecrans(): Promise<Map<string, Ecran>> {
 type Accrocs = { refusees: string[]; absentes: string[]; exceptions: string[] };
 
 // Rend l'écran et rend son PNG — ou lève, en disant ce qui a accroché.
-export async function capturer(ecran: Ecran, { largeur, hauteur }: { largeur?: number; hauteur?: number } = {}): Promise<Buffer> {
+export async function capturer(ecran: Ecran, { largeur, hauteur, densite }: { largeur?: number; hauteur?: number; densite?: number } = {}): Promise<Buffer> {
   const taille = { largeur: largeur ?? ecran.largeur, hauteur: hauteur ?? ecran.hauteur };
   const pilote = lancer(navigateur(), taille);
   let garde: NodeJS.Timeout | undefined;
   // Rien ne reste pendu : un navigateur qui s'arrête, ou une capture trop longue, la fait échouer.
   const delai = new Promise<never>((_, lacher) => (garde = setTimeout(() => lacher(new Error(`la capture a dépassé ${DELAI_MS / 1000} s`)), DELAI_MS)));
   try {
-    return await Promise.race([rendre(ecran, taille, pilote), pilote.arrete, delai]);
+    return await Promise.race([rendre(ecran, taille, pilote, densite ?? 1), pilote.arrete, delai]);
   } finally {
     clearTimeout(garde);
     await pilote.fermer();
   }
 }
 
-async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }, pilote: Pilote): Promise<Buffer> {
+async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }, pilote: Pilote, densite: number): Promise<Buffer> {
   const donnees: Donnees = ecran.donnees();
   const pont = readFileSync(join(ICI, "pont.js"), "utf8");
   const accrocs: Accrocs = { refusees: [], absentes: [], exceptions: [] };
@@ -77,7 +77,7 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
   await dire("Runtime.enable");
   await dire("Page.enable");
   await dire("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
-  await dire("Emulation.setDeviceMetricsOverride", { width: taille.largeur, height: taille.hauteur, deviceScaleFactor: 1, mobile: false });
+  await dire("Emulation.setDeviceMetricsOverride", { width: taille.largeur, height: taille.hauteur, deviceScaleFactor: densite, mobile: false });
   await dire("Emulation.setTimezoneOverride", { timezoneId: "UTC" });
   await dire("Emulation.setLocaleOverride", { locale: "en-US" });
   await dire("Emulation.setFocusEmulationEnabled", { enabled: true });
@@ -127,6 +127,13 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
       )) as [number, number];
       if (trouves[0] !== 1 || trouves[1] !== 1) throw new Error(`étape « ${geste} » : ${trouves[0]} et ${trouves[1]} élément(s) trouvé(s), il en faut un de chaque`);
       await poser(`après « ${geste} »`);
+      continue;
+    }
+    if ("defiler" in etape) {
+      // Un défilement : l'élément `defiler` est amené à l'écran, comme le doigt qui fait glisser la rangée des colonnes d'un téléphone.
+      const trouves = (await evaluer(`(() => { const trouves = document.querySelectorAll(${JSON.stringify(etape.defiler)}); if (trouves.length === 1) trouves[0].scrollIntoView({ block: "start", inline: "center" }); return trouves.length; })()`)) as number;
+      if (trouves !== 1) throw new Error(`étape « defiler ${etape.defiler} » : ${trouves} élément(s) trouvé(s), il en faut un`);
+      await poser(`après « defiler ${etape.defiler} »`);
       continue;
     }
     // Un clic, ou un texte tapé dans un champ — sa valeur posée, et l'`input` que la frappe déclencherait ; dans une
@@ -192,7 +199,7 @@ function verifier({ refusees, absentes, exceptions }: Accrocs, quand: string): v
 }
 
 // La ligne de commande.
-const USAGE = "usage : node scripts/capture-ecran/capture.ts <écran> <fichier.png> [--largeur <px>] [--hauteur <px>]\n        node scripts/capture-ecran/capture.ts --liste";
+const USAGE = "usage : node scripts/capture-ecran/capture.ts <écran> <fichier.png> [--largeur <px>] [--hauteur <px>] [--densite <1|2>]\n        node scripts/capture-ecran/capture.ts --liste";
 
 async function principal(args: string[]): Promise<number> {
   if (args[0] === "--liste") {
@@ -200,13 +207,17 @@ async function principal(args: string[]): Promise<number> {
     return 0;
   }
   const libres: string[] = [];
-  const tailles: { largeur?: number; hauteur?: number } = {};
+  const tailles: { largeur?: number; hauteur?: number; densite?: number } = {};
   for (let rang = 0; rang < args.length; rang++) {
     const arg = args[rang] ?? "";
     if (arg === "--largeur" || arg === "--hauteur") {
       const valeur = Number(args[++rang]);
       if (!Number.isSafeInteger(valeur) || valeur < 200 || valeur > 4000) return refuser(`${arg} attend un nombre de pixels entre 200 et 4000`);
       tailles[arg === "--largeur" ? "largeur" : "hauteur"] = valeur;
+    } else if (arg === "--densite") {
+      const valeur = Number(args[++rang]);
+      if (valeur !== 1 && valeur !== 2) return refuser("--densite attend 1 ou 2 (pixels par pixel CSS)");
+      tailles.densite = valeur;
     } else libres.push(arg);
   }
   const [nom, sortie] = libres;
