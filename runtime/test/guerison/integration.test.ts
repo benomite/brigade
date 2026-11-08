@@ -185,6 +185,38 @@ test("tickets the station would skip (blocked on the chef, uncalibrated) do not 
   assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
 });
 
+// #2865 : la passe de clôture ouvre #2864 après plus de 90 min de rail vide,
+// sans un ticket à prendre ; le tour suivant ouvrait le bug d'inertie avant de
+// prendre #2864. L'inertie compte depuis que le ticket est à prendre.
+test("a ticket that becomes cookable after 90 minutes with nothing to take is cooked on the next turn and files no inertia bug", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  p.avancer(2 * MINUTE);
+  p.faux.feu(50);
+  await p.passer();
+  assert.deepEqual(p.faux.cuissons, [{ station: "mac/claude", issue: 50 }]);
+  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+});
+
+test("a ticket that becomes cookable after a long empty rail files the inertia bug only once it has waited 90 minutes untaken", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  p.faux.feu(30, CALIBRE, "Depends on #31");
+  p.faux.feu(31, [...CALIBRE, HORS_CUISINE]);
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE - MINUTE);
+  await p.passer();
+  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  p.avancer(MINUTE);
+  await p.passer();
+  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
+  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
+});
+
 test("a kitchen with a fire ticket to take (a model label, nothing else) and nothing at work for 90 minutes files one inertia bug, once, without blocked-on-human", async () => {
   const p = projet("zeta/lab", "mac/claude", "develop");
   p.faux.feu(30, CALIBRE, "Depends on #31");

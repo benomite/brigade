@@ -80,8 +80,11 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const maintenant = options.maintenant ?? Date.now;
   const claim = ouvrirClaimPerime({ github, maintenant });
   // La dernière fois que la station a vu la cuisine au travail (un cook ici,
-  // un ticket pris ou en pass) : le tour ne lit pas les merges, c'est d'elle
-  // que l'inertie compte. Au départ, l'ouverture de la guérison.
+  // un ticket pris ou en pass) ou sans rien à prendre : le tour ne lit pas les
+  // merges, c'est d'elle que l'inertie compte. Une cuisine sans ticket à
+  // prendre n'est pas inerte : sans cela, le premier ticket qui arrivait après
+  // 90 min de rail vide ouvrait le bug au tour même qui le prenait (#2865).
+  // Au départ, l'ouverture de la guérison.
   let auTravailLe = maintenant();
   // Le bug d'inertie que cette station a ouvert, s'il en est un.
   let bugOuvert: number | null = null;
@@ -182,17 +185,18 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
 
     // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni en
     // attente (`waiting` : sa colonne, pas le rail, #1924), ni une épique, ni en
-    // attente du chef, calibrés —, et rien au travail depuis `INERTIE_MINUTES`.
+    // attente du chef, calibrés —, et depuis `INERTIE_MINUTES` rien au travail
+    // alors qu'il y en avait à prendre.
     // Un seul bug tant qu'il reste ouvert (#2755).
     await tache("inertie", async () => {
       const instant = maintenant();
       const auTravail = enCuisine.size > 0 || tickets.some((t) => t.labels.includes(LABEL_TAKEN) || t.labels.includes(LABEL_IN_PASS));
-      if (auTravail) auTravailLe = instant;
       // Comme la retenue (`retenue/tour.ts`) : un ticket qui attend le chef, ou
       // dont le calibrage est incomplet, n'est pas prenable — la station le
       // saute — et ne vaut pas une inertie. Un `waiting` non plus : il est sur
       // sa colonne, pas sur le rail.
       const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
+      if (auTravail || aPrendre.length === 0) auTravailLe = instant;
       const fait = await signalerInertie({
         maintenant: new Date(instant),
         github: {
