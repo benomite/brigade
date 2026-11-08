@@ -554,6 +554,14 @@ send-back left is #2859's conflict with the base: #2858 and #2859, two quality t
 here, and #2858 merged first (7840cd0); #2859 was redone on it (83a4ec6, merged as 6b65a0b). Two quality tickets open at
 once is what the station's rule already refuses (`deja-ouverte`, #2680), and #2859 came from a station older than #2804,
 above. No ticket was merged after #2859. Nothing to correct on main.
+#2879 counted 85 tickets. Its first reason, 17 conflicts with the base, are all on tickets merged before #2862 was
+served (the last, #2859's, is above), and so are its 16 blocking reviews and 7 red runtime tests. The one ticket
+merged after #2862 that missed its first try is #2872, whose two failed cooks could not fetch a `v2` base branch:
+#2876 fixed that on main (bc1a68e, merged as b45f9f1), and no ticket was merged after it. It opened because the box's station still runs
+0.20261108.080450+gdd576d9 (`/var/lib/brigade-station/etat.json`), older than #2868 (merged as 6e89903): the next
+version, 0.20261108.085053+ge90f46a, did not download (504). Replayed on these 85 tickets, with #2862 served at its
+merge (05:22 UTC), dd576d9's gate opens a ticket and main's waits (`en-attente`, 17 more merged tickets since #2862).
+Nothing to correct on main.
 
 ## The daily report of the decisions brigade told about
 
