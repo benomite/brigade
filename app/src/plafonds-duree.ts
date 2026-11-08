@@ -2,8 +2,9 @@
 // chef déclare (`drift.*` de `.claude/brigade/projet.json`, runtime/src/reglages-projet/reglages.ts) — au-delà, la
 // cuisine le signale. Ils vivent dans le dépôt du projet, sur sa branche d'intégration, et le runtime les y relit à
 // chaque rapatriement (runtime/src/reglages-projet/en-vigueur.ts) : changer un plafond, c'est écrire ce fichier sur
-// GitHub, par l'API REST et le jeton du `gh` de ce poste — comme la priorité d'un ticket (priorite.ts). Ni box, ni PR :
-// écrit, il vaut au rapatriement suivant de la station.
+// GitHub, par l'API REST et le jeton du `gh` de ce poste — comme la priorité d'un ticket (priorite.ts). Ni box : gardé
+// dans le dépôt, un plafond changé s'y propose par une pull request (#2920), et vaut une fois mergée, au rapatriement
+// suivant de la station.
 //
 // Le seuil du temps perdu par ticket (#2670, `lostTimeMaxMin` : la médiane du temps perdu des tickets récents — l'attente
 // avant la prise, les cuissons ratées, les renvois ; le temps total d'un ticket n'a pas de plafond) est aussi un plafond
@@ -13,6 +14,7 @@
 // L'app ne juge que ce que le runtime refuserait de lire (`SEUILS_DU_PROJET`) : un nombre au-dessus de zéro, entier
 // quand le seuil l'est. Ce module compose les demandes ; ce qui les porte est donné (`ClientDeLaPriorite`).
 import type { ClientDeLaPriorite } from "./priorite.ts";
+import { PROPOSE } from "./reglages-du-projet.ts";
 import { refusDe } from "./tableau/client.ts";
 
 export const FICHIER = ".claude/brigade/projet.json";
@@ -39,8 +41,11 @@ export type ClePlafond = (typeof PLAFONDS)[number]["cle"];
 // dépôt ne la déclare pas —, ou pourquoi le fichier ne se lit pas, en une ligne, le détail au survol.
 export type PlafondLu = { cle: ClePlafond; nom: string; unite: string; entier: boolean; duree: boolean; defaut: number | null; valeur: number | null };
 export type LectureDesPlafonds = { plafonds: PlafondLu[]; branche: string | null } | { sans: string; detail?: string };
-// Ce que le changement a rendu : la valeur écrite (null : retirée), ou pourquoi rien n'a changé.
-export type RenduDuPlafond = { fait: string; cle: ClePlafond; valeur: number | null } | { refus: string; detail?: string };
+// Ce qu'une proposition a ouvert : la PR, son adresse et son numéro.
+export type PrOuverte = { pr: string; numero: number };
+// Ce que le changement a rendu : la PR qui propose la valeur (null : la retirer), la valeur déjà là, ou pourquoi rien n'a
+// changé.
+export type RenduDuPlafond = ({ propose: string; cle: ClePlafond; valeur: number | null } & PrOuverte) | { fait: string; cle: ClePlafond; valeur: number | null } | { refus: string; detail?: string };
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -78,16 +83,52 @@ export async function lireLeFichier(client: ClientDeLaPriorite, depot: string, b
   return { contenu, sha };
 }
 
-// Écrit le fichier sur la branche d'intégration, le `sha` lu à la main — GitHub refuse un fichier changé entre-temps.
-export async function ecrireLeFichier(client: ClientDeLaPriorite, depot: string, branche: string | null, { contenu, sha, dit }: { contenu: Record<string, unknown>; sha: string | null; dit: string }): Promise<void> {
-  const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${FICHIER}`, {
-    message: `brigade: ${dit} (from the app, Kitchen > Health)`,
-    content: Buffer.from(`${JSON.stringify(contenu, null, 2)}\n`, "utf8").toString("base64"),
+// Propose le fichier changé par une pull request (#2920) : une branche neuve, partie de la tête de la branche
+// d'intégration (`branche` ; null : celle par défaut du dépôt), le fichier écrit sur elle — le `sha` lu à la main, GitHub
+// refuse un fichier changé entre-temps —, puis la PR ouverte vers la branche d'intégration. Rien ne change sur elle tant
+// que la PR n'est pas mergée. Chaque étape refusée lève, avec ce que GitHub a dit.
+export async function proposerLeFichier(
+  client: ClientDeLaPriorite,
+  depot: string,
+  branche: string | null,
+  { chemin = FICHIER, texte, sha, dit, ou }: { chemin?: string; texte: string; sha: string | null; dit: string; ou: string },
+): Promise<PrOuverte> {
+  let base = branche;
+  if (base === null) {
+    const lu = await client.lire(`/repos/${depot}`);
+    if (lu.status !== 200) throw refusDe(`the reading of ${depot}`, lu);
+    const parDefaut = estObjet(lu.data) ? lu.data.default_branch : undefined;
+    if (typeof parDefaut !== "string" || parDefaut === "") throw new Error(`GitHub gave ${depot} without its default branch`);
+    base = parDefaut;
+  }
+  const tete = await client.lire(`/repos/${depot}/git/ref/heads/${base}`);
+  if (tete.status !== 200) throw refusDe(`the reading of ${base}`, tete);
+  const objet = estObjet(tete.data) && estObjet(tete.data.object) ? tete.data.object.sha : undefined;
+  if (typeof objet !== "string") throw new Error(`GitHub gave ${base} without its last commit`);
+  const neuve = `brigade/setting-${dit.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}-${Date.now().toString(36)}`;
+  const creee = await client.ecrire("POST", `/repos/${depot}/git/refs`, { ref: `refs/heads/${neuve}`, sha: objet });
+  if (creee.status !== 201) throw refusDe(`the branch ${neuve}`, creee);
+  const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${chemin}`, {
+    message: `brigade: ${dit} (from the app, ${ou})`,
+    content: Buffer.from(texte, "utf8").toString("base64"),
     ...(sha === null ? {} : { sha }),
-    ...(branche === null ? {} : { branch: branche }),
+    branch: neuve,
   });
-  if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${FICHIER}`, ecrit);
+  if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${chemin}`, ecrit);
+  const ouverte = await client.ecrire("POST", `/repos/${depot}/pulls`, {
+    title: `brigade: ${dit}`,
+    head: neuve,
+    base,
+    body: `Proposed from the app (${ou}): ${dit} in \`${chemin}\`. It applies once merged, at the station's next fetch.`,
+  });
+  if (ouverte.status !== 201) throw refusDe(`the pull request of ${neuve}`, ouverte);
+  const { number, html_url } = estObjet(ouverte.data) ? ouverte.data : {};
+  if (typeof number !== "number" || typeof html_url !== "string") throw new Error(`GitHub opened the pull request of ${neuve} without its number`);
+  return { pr: html_url, numero: number };
 }
+
+// Le texte du fichier tel que le runtime le relit : du JSON indenté, une fin de ligne.
+export const texteDuFichier = (contenu: Record<string, unknown>) => `${JSON.stringify(contenu, null, 2)}\n`;
 
 const valeursDe = (contenu: Record<string, unknown> | null): PlafondLu[] => {
   const drift = contenu !== null && estObjet(contenu.drift) ? contenu.drift : {};
@@ -109,8 +150,9 @@ export async function lireLesPlafonds({ depot, branche, client }: { depot: strin
 }
 
 // Change un plafond dans le dépôt : le fichier est relu — son dernier état, et le `sha` que GitHub exige —, la seule
-// clé `drift.<cle>` changée, le reste gardé tel quel, puis écrit sur la branche d'intégration. Sans fichier, il est créé
-// avec ce que le runtime exige d'un fichier (sa version, la branche) — seulement quand la branche est connue.
+// clé `drift.<cle>` changée, le reste gardé tel quel, puis proposé par une pull request vers la branche d'intégration.
+// Sans fichier, il est créé avec ce que le runtime exige d'un fichier (sa version, la branche) — seulement quand la
+// branche est connue.
 export async function changerLePlafond({ depot, branche, cle, saisie, client }: { depot: string; branche: string | null; cle: unknown; saisie: unknown; client: ClientDeLaPriorite }): Promise<RenduDuPlafond> {
   const plafond = plafondDe(cle);
   if (plafond === undefined) return { refus: `nothing was changed: ${String(cle)} is not a duration cap` };
@@ -133,9 +175,9 @@ export async function changerLePlafond({ depot, branche, cle, saisie, client }: 
   else contenu.drift = drift;
   const dit = propose.valeur === null ? `remove drift.${plafond.cle}` : `set drift.${plafond.cle} to ${propose.valeur}`;
   try {
-    await ecrireLeFichier(client, depot, branche, { contenu, sha: lu.sha, dit });
+    const ouverte = await proposerLeFichier(client, depot, branche, { texte: texteDuFichier(contenu), sha: lu.sha, dit, ou: "Kitchen > Health" });
+    return { propose: PROPOSE, ...ouverte, cle: plafond.cle, valeur: propose.valeur };
   } catch (erreur) {
-    return { refus: `nothing was changed: GitHub did not write ${FICHIER}`, detail: message(erreur) };
+    return { refus: `nothing was proposed: GitHub did not open the pull request of ${FICHIER}`, detail: message(erreur) };
   }
-  return { fait: "saved in the repository — the station applies it at its next fetch", cle: plafond.cle, valeur: propose.valeur };
 }

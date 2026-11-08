@@ -1,7 +1,7 @@
 // Le closer d'un projet, sur Kitchen > Health (#2491, épique #2484) : ce qu'il a fait — ses passes et ce que chacune a
 // retiré —, ce qu'il vérifie en premier sur ce projet, ce que le chef lui demande de vérifier en plus, et ses réglages.
 // Tout se lit et s'écrit sur GitHub, par l'API REST et le jeton du `gh` de ce poste, comme les plafonds de durée
-// (plafonds-duree.ts) : ni box, ni PR.
+// (plafonds-duree.ts) : ni box. Ses réglages, gardés dans `projet.json`, s'y proposent par une pull request (#2920).
 //
 // - **Ses passes** : le closer passe sur GitHub (#2361, runtime/src/closer-github-passe/) — une passe est une issue
 //   `fire`, au titre `Closing pass on …` et au corps marqué `<!-- brigade:fermeture sha=<base> -->`, qu'un cook cuit
@@ -17,8 +17,9 @@
 //   calibrage et le plafond des lignes retirées sont lus (docs/reglages.md) : la page le dit.
 //
 // Ce module compose les demandes ; ce qui les porte est donné (`ClientDeLaPriorite`).
-import { ecrireLeFichier, FICHIER as PROJET_JSON, lireLeFichier } from "./plafonds-duree.ts";
+import { FICHIER as PROJET_JSON, lireLeFichier, type PrOuverte, proposerLeFichier, texteDuFichier } from "./plafonds-duree.ts";
 import type { ClientDeLaPriorite } from "./priorite.ts";
+import { PROPOSE } from "./reglages-du-projet.ts";
 import { EFFORTS, MODELES } from "./projets/projets.ts";
 import { refusDe } from "./tableau/client.ts";
 
@@ -77,7 +78,10 @@ export type PasseLue = {
 type Ou<T> = T | { sans: string; detail?: string };
 export type LectureDuCloser = { reglages: Ou<{ liste: ReglageLu[] }>; verifications: Ou<{ liste: string[] }>; passes: Ou<{ liste: PasseLue[] }> };
 // Ce qu'une écriture a rendu : la valeur écrite (null : retirée) ou la liste des vérifications, ou pourquoi rien n'a changé.
-export type RenduDuReglage = { fait: string; cle: CleDuCloser; valeur: number | Calibrage | null } | { refus: string; detail?: string };
+export type RenduDuReglage =
+  | ({ propose: string; cle: CleDuCloser; valeur: number | Calibrage | null } & PrOuverte)
+  | { fait: string; cle: CleDuCloser; valeur: number | Calibrage | null }
+  | { refus: string; detail?: string };
 export type RenduDesVerifications = { fait: string; liste: string[] } | { refus: string; detail?: string };
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -224,7 +228,8 @@ const memeValeur = (a: unknown, b: number | Calibrage | null) =>
 const ditLaValeur = (valeur: number | Calibrage) => (typeof valeur === "number" ? String(valeur) : `${valeur.model} / ${valeur.effort}`);
 
 // Change un réglage du closer dans le dépôt : `projet.json` relu — son dernier état, son `sha` —, la seule clé
-// `closer.<cle>` changée, le reste gardé tel quel. Sans fichier, il est créé, quand la branche est connue.
+// `closer.<cle>` changée, le reste gardé tel quel, puis proposé par une pull request vers la branche d'intégration. Sans
+// fichier, il est créé, quand la branche est connue.
 export async function changerLeReglage({ depot, branche, cle, saisie, client }: { depot: string; branche: string | null; cle: unknown; saisie: unknown; client: ClientDeLaPriorite }): Promise<RenduDuReglage> {
   const reglage = reglageDe(cle);
   if (reglage === undefined) return { refus: `nothing was changed: ${String(cle)} is not a setting of the closer` };
@@ -247,11 +252,11 @@ export async function changerLeReglage({ depot, branche, cle, saisie, client }: 
   else contenu.closer = closer;
   const dit = propose.valeur === null ? `remove closer.${reglage.cle}` : `set closer.${reglage.cle} to ${ditLaValeur(propose.valeur)}`;
   try {
-    await ecrireLeFichier(client, depot, branche, { contenu, sha: lu.sha, dit });
+    const ouverte = await proposerLeFichier(client, depot, branche, { texte: texteDuFichier(contenu), sha: lu.sha, dit, ou: "Kitchen > Health" });
+    return { propose: PROPOSE, ...ouverte, cle: reglage.cle, valeur: propose.valeur };
   } catch (erreur) {
-    return { refus: `nothing was changed: GitHub did not write ${PROJET_JSON}`, detail: message(erreur) };
+    return { refus: `nothing was proposed: GitHub did not open the pull request of ${PROJET_JSON}`, detail: message(erreur) };
   }
-  return { fait: "saved in the repository — the station applies it at its next fetch", cle: reglage.cle, valeur: propose.valeur };
 }
 
 // Une vérification, telle que le chef la tape, ou pourquoi elle n'en est pas une : une ligne, sans en-tête.
