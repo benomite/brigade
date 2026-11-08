@@ -29,11 +29,6 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
   { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
   {
-    nom: "grant",
-    description: "The merge grant: enable, extend, revoke — with --until, --for, --uses, --no-expiry",
-    mots: { activer: "enable", prolonger: "extend", revoquer: "revoke", "--jusqu-a": "--until", "--pour": "--for", "--usages": "--uses", "--sans-echeance": "--no-expiry" },
-  },
-  {
     nom: "waiting",
     ancien: "attente",
     description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>",

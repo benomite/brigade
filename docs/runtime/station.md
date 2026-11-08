@@ -49,8 +49,7 @@ compares them as written.
   greater than zero. Expected …`). A cap is not guessed.
 - **A station removed from the declaration** leaves `status` and `station` at restart
   (`station.withdrawn`); its ticket returns to queued, and its cooks stay in the log and the report.
-- **A capability is not a permission.** It says what a machine *can do*; what is *allowed* remains the
-  business of the grants. The runtime only reads, announces, shows and compares capabilities to what a
+- **A capability is not a permission.** It says what a machine *can do*; what is *allowed* is not its business. The runtime only reads, announces, shows and compares capabilities to what a
   ticket's card asks (see "The capabilities a ticket asks for").
 
 At start the runtime says what it has read: `brigade : stations — box/claude (30 cooks at most;
@@ -446,8 +445,5 @@ for none.
   `hors-cuisine`, and its task enters TODO.
 - **With no declared station at all**, a ticket that asks for a capability is 86 in the same way; one
   that asks for none waits.
-- **Asking for a capability authorizes nothing.** `accès-prod` on a `requiert` line is a name like any
-  other: the list of what no grant authorizes (`runtime/src/grant.ts`) stays, and `grant -- enable
-  acces-prod` is refused.
 
 A ticket whose files all live under `.claude/brigade/` (a repository setup ticket: gates, worktree setup, network list) goes to a cook like any other (#2855). Its files are the zone it declares, in its body's `Zone` section or in its fiche, else the paths its body names (#2888). On a Mac's sandbox, `claude` asks for every write under a `.claude/` folder before it reads any `allow` rule, and `dontAsk` refuses every ask: no rule opens `.claude/brigade/` there (#2888). So that cook alone starts in `default` mode, where `claude -p` sends each ask to a PermissionRequest hook (`bac-a-sable/crochet-brigade.ts`): it allows `Write` and `Edit` of a file under `<worktree>/.claude/brigade/`, links resolved, and answers nothing else, which `claude -p` refuses as `dontAsk` would. Its rules and its sandbox are those of any cook. The cook of any other ticket stays in `dontAsk` and is refused there.

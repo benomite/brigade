@@ -1,6 +1,6 @@
 // La bande d'alertes : vide quand tout va bien, chaque ligne avec son geste et son prix, et
-// l'inconnu est dit. Quatre états y entrent — le manager, la version en service, la cuisine,
-// le grant — et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
+// l'inconnu est dit. Trois états y entrent — le manager, la version en service, la cuisine —
+// et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
 // geste, son prix) et non dit (une ligne « non vérifié » qui le nomme).
 // Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`,
 // joués dans ce process sur un vrai journal (runtime/src/etat.ts, runtime/src/manager-cli.ts) :
@@ -25,8 +25,7 @@ import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe, type Lus } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
@@ -123,16 +122,8 @@ describe("l'interrupteur GitHub seul refusé par le runtime (ticket 2161)", () =
 });
 
 describe("la bande d'alertes : vide quand tout va bien", () => {
-  test("manager allumé, version à jour, cuisine ouverte, aucun grant : la bande est vide", (t) => {
+  test("manager allumé, version à jour, cuisine ouverte : la bande est vide", (t) => {
     assert.deepEqual(saine(t).bande(), []);
-  });
-
-  test("un grant actif, accordé par le chef, ne s'y dit pas : c'est son choix, pas une chose à faire", (t) => {
-    const { noter, rendre, bande } = saine(t);
-    noter({ type: "grant.activated", payload: { action: "merge", until: `${JOUR}T18:00:00.000Z` } }, "chef");
-
-    assert.match(rendre("10:00:00").status, /^grant {6}merge ACTIVE 8 h 00 left/m);
-    assert.deepEqual(bande(), []);
   });
 
   test("ce qui ne change rien aux cinq minutes à venir n'y entre jamais : la sauvegarde trop vieille, ou jamais faite", (t) => {
@@ -275,49 +266,50 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
   });
 });
 
-describe("le grant : sans rien à dire, éteint seul, non dit", () => {
-  test("aucun grant, ou révoqué par le chef : rien — `status` n'a pas de ligne `grant`", (t) => {
-    const { noter, rendre, bande } = saine(t);
-    noter({ type: "grant.activated", payload: { action: "merge" } }, "chef");
-    noter({ type: "grant.revoked", payload: { action: "merge" } }, "chef");
-    assert.doesNotMatch(rendre("10:00:00").status, /^grant/m);
-    assert.deepEqual(du(bande(), "grant"), []);
-  });
-
-  test("éteint seul : la ligne de `status` mot pour mot, et le geste de le réaccorder — dont le prix est dit", (t) => {
-    const { noter, a, bande } = saine(t);
-    noter({ type: "grant.activated", payload: { action: "merge", until: `${JOUR}T09:30:00.000Z` } }, "chef");
-    a("09:30:00");
-    noter({ type: "grant.expired", payload: { action: "merge", cause: "until", since: `${JOUR}T09:30:00.000Z` } }, "pass");
-
-    const ligne = enPanne(bande(), "grant");
-    assert.equal(ligne.releve, "merge LAPSED 30 min ago — its deadline has passed: the pass stops at the open PR, nothing is merged without you any more");
-    assert.deepEqual(ligne.appel, { geste: "grant-activer", grant: "merge" });
-    assert.ok(GESTES.some(({ id }) => id === "grant-activer"));
-    assert.equal(ligne.prix, "a green pass will be merged without you");
-  });
-
-  test("bientôt éteint : la ligne le dit, avec le geste de le prolonger", (t) => {
-    const { noter, bande } = saine(t);
-    noter({ type: "grant.activated", payload: { action: "merge", until: `${JOUR}T10:30:00.000Z` } }, "chef");
-
-    const ligne = enPanne(bande(), "grant");
-    assert.equal(ligne.ton, "jaune");
-    assert.match(ligne.releve ?? "", /^merge ACTIVE, EXPIRING SOON: 30 min left/);
-    assert.match(ligne.geste, /grant extend merge/);
-  });
-
-  test("non dit — `status` pas lu pour ce projet, pas joint, ou pas dans sa forme : « état du grant non vérifié », jamais « aucun grant »", (t) => {
+describe("il n'y a plus de grant : `status` n'en dit rien, et l'app n'en dit rien non plus", () => {
+  // Ce que dit la bande d'un `status` donné, ses autres lignes étant celles d'une cuisine saine.
+  const bandeAvec = (t: TestContext, ajout: string[]): Alerte[] => {
     const { rendre } = saine(t);
     const bandes = tenirBandes({ etablir: 1, minimum: 0 });
-    const [ouverte] = bandes.ouvrir(["parade"]);
-    assert.deepEqual(ouverte?.alertes, []);
-    assert.deepEqual(bandes.veiller(["parade"])[0]?.alertes, []);
-    assert.equal(nonVerifie(bandes.status({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "status") }).alertes, "grant", "grant state").pourquoi, "`status` was not read: not reached");
-    assert.match(nonVerifie(bandes.status(mettreAPart(lecture("status", "rien de connu\n"))).alertes, "grant", "grant state").pourquoi ?? "", /has no `kitchen` line/);
+    bandes.ouvrir(["parade"]);
+    bandes.veiller(["parade"]);
+    const rendu = rendre("10:00:00");
+    bandes.faits(lecture("facts", rendu.faits));
+    const [tete, ...suite] = rendu.status.split("\n");
+    bandes.status(mettreAPart(lecture("status", [tete, ...ajout, ...suite].join("\n"))));
+    return bandes.manager(lecture("manager", rendu.manager)).alertes;
+  };
 
-    // Lu, puis plus lu : ce qu'il disait est lâché.
-    assert.deepEqual(du(bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status))).alertes, "grant"), []);
+  test("un `status` sans ligne `grant` : aucune alerte, et rien n'y parle de grant", (t) => {
+    const { rendre } = saine(t);
+    assert.doesNotMatch(rendre("10:00:00").status, /^grant/m);
+    const bande = bandeAvec(t, []);
+    assert.deepEqual(bande, []);
+    assert.doesNotMatch(JSON.stringify(bande), /grant/i);
+  });
+
+  test("une ligne `grant` illisible, ou d'un runtime d'avant, ne fait aucune alerte : ni éteinte, ni bientôt éteinte, ni « non vérifié »", (t) => {
+    for (const ligne of [
+      "grant      merge LAPSED 40 min ago — its deadline has passed: the pass stops at the open PR",
+      "grant      merge ÉTEINT SEUL il y a 40 min — son échéance est passée : la pass s'arrête à la PR ouverte",
+      "grant      merge ACTIVE, EXPIRING SOON: 30 min left — a green pass is merged without you",
+      "grant      merge ACTIF, BIENTÔT ÉTEINT : encore 30 min — une pass verte est mergée sans toi",
+      "grant      n'importe quoi, que l'app ne lit pas",
+      "grant      ",
+    ]) {
+      const bande = bandeAvec(t, [ligne]);
+      assert.deepEqual(bande, [], ligne);
+      assert.doesNotMatch(JSON.stringify(bande), /grant/i, ligne);
+    }
+  });
+
+  test("`status` pas lu, pas joint ou pas dans sa forme : aucune ligne « grant state not verified »", () => {
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    bandes.ouvrir(["parade"]);
+    bandes.veiller(["parade"]);
+    for (const lue of [bandes.status({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "status") }), bandes.status(mettreAPart(lecture("status", "rien de connu\n")))]) {
+      assert.doesNotMatch(JSON.stringify(lue.alertes), /grant/i);
+    }
   });
 });
 
@@ -331,7 +323,7 @@ describe("la bande, à l'écran", () => {
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -349,7 +341,7 @@ describe("la bande, à l'écran", () => {
       const faits = comprendre(rendre("10:00:00").faits);
       return "informe" in faits ? { sans: faits.informe } : { faits, a: `${JOUR}T10:00:01.000Z` };
     };
-    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, lus(), grant, CUISINE) });
+    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, lus(), CUISINE) });
     const bande = vue.element("alertes");
 
     vue.dire("surAlertes", { projet: "parade", alertes: [] });
@@ -373,7 +365,7 @@ describe("la bande, à l'écran", () => {
     // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
     (ligne?.dessous("button").find((pose) => pose.dataset.geste === "confirme") ?? assert.fail("pas de bouton")).click();
     await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre", undefined]);
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
     const ouverte = bande.children[0]?.dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
     assert.match(ouverte.textContent, /resume the kitchen/);
@@ -384,7 +376,7 @@ describe("la bande, à l'écran", () => {
     await repos();
     assert.deepEqual(
       vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
-      [["parade", "reprendre", undefined, true]],
+      [["parade", "reprendre", true]],
     );
   });
 
@@ -446,7 +438,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -587,9 +579,8 @@ describe("le mot du bouton d'une alerte", () => {
   test("un geste du socle, une demande au second, un onglet : un mot court, jamais une commande", () => {
     assert.equal(boutonDe({ geste: "switch the project on", appel: { geste: "projet-allumer" } }), "switch the project on");
     assert.equal(boutonDe({ geste: "resume the kitchen, once you have read why they fail", appel: { geste: "reprendre" } }), "resume the kitchen");
-    assert.equal(boutonDe({ geste: "enable `merge` again", appel: { geste: "grant-activer", grant: "merge" } }), "enable merge again");
     assert.equal(boutonDe({ geste: "start it on the station: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");
-    assert.equal(boutonDe({ geste: "read it: Settings reads `grant` on the station", appel: { onglet: "parametres" } }), "open Settings");
+    assert.equal(boutonDe({ geste: "read it: Settings reads the project on the station", appel: { onglet: "parametres" } }), "open Settings");
     assert.equal(boutonDe({ geste: "nothing to do: this is on brigade" }), undefined);
   });
 

@@ -9,7 +9,7 @@
 // La table vit dans le journal du projet, là où sa cuisine tourne (runtime/src/autonomie/table.ts) : la vue n'y
 // calcule rien. Un clic part par l'API qu'on lui donne, et ce qui s'affiche ensuite est la table que cette API rend
 // — celle que le journal porte après le changement, jamais celle que la vue croit avoir posée. Une rangée que rien
-// n'a posée dit qu'elle tient le comportement d'aujourd'hui ; la rangée Merge est le grant `merge`.
+// n'a posée dit qu'elle tient le comportement d'aujourd'hui .
 //
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et l'élément où se poser.
 
@@ -28,9 +28,9 @@ export const NOMS_DES_PROFILS = /** @type {const} */ (["prototype", "client-prod
 /** @typedef {(typeof NOMS_DES_PROFILS)[number]} Profil */
 
 // La table telle que le runtime la lit (`lireAutonomie`) : d'où vient chaque position — `default` : rien ne l'a posée,
-// elle tient le comportement d'aujourd'hui ; `set` : le chef l'a posée ; `grant` : la rangée Merge, lue du grant ;
+// elle tient le comportement d'aujourd'hui ; `set` : le chef l'a posée ;
 // `fixed` : une rangée qu'aucune commande ne change.
-/** @typedef {"default" | "set" | "grant" | "fixed"} Source */
+/** @typedef {"default" | "set" | "fixed"} Source */
 /** @typedef {{ row: Rangee, position: Position, source: Source, fixed: boolean }} Ligne */
 /** @typedef {{ row: Fixe, position: Position, source: Source, fixed: boolean }} LigneFixe */
 /** @typedef {{ rows: Ligne[], fixed: LigneFixe[] }} Table */
@@ -56,7 +56,7 @@ export const LIBELLES_DES_POSITIONS = /** @type {const} */ ({
 
 export const LIBELLES_DES_RANGEES = /** @type {const} */ ({
   screens: { titre: "Screens", dit: "validating the captures of an interface change before merge" },
-  merge: { titre: "Merge", dit: "merging a green delivery (the `merge` grant)" },
+  merge: { titre: "Merge", dit: "merging a green delivery" },
   specification: { titre: "Specification", dit: "adjusting a ticket's criteria, splitting it again, closing a ticket judged useless" },
   priorities: { titre: "Priorities", dit: "changing ticket priorities, posing tickets born in the kitchen" },
   cost: { titre: "Cost", dit: "raising a ticket's calibration, relaunching it beyond its resends, the share of the Max quota" },
@@ -89,7 +89,6 @@ export function ceQuePose(nom) {
 
 // Ce qui se dit d'une rangée à côté de ses positions : d'où vient celle en vigueur, quand ce n'est pas le chef.
 export const AUJOURDHUI = "today's behavior";
-export const PAR_LE_GRANT = "the merge grant";
 export const VERROUILLEE = { titre: "Always I decide", libelle: "locked", survol: "No button changes these rows: only a delivery of brigade does." };
 export const EN_COURS = "saving…";
 export const PROFILS_DITS = { titre: "Start from a profile", survol: "A profile sets every row at once; each row can then be changed alone." };
@@ -144,7 +143,7 @@ function rangeeDe(doc, { ligne, enCours, poser }) {
   rangee.dataset.source = source;
   const demandee = enCours !== undefined && "row" in enCours && enCours.row === row ? enCours.position : undefined;
   const occupe = enCours !== undefined;
-  const note = cree(doc, "small", demandee !== undefined ? EN_COURS : source === "default" ? AUJOURDHUI : source === "grant" ? PAR_LE_GRANT : "");
+  const note = cree(doc, "small", demandee !== undefined ? EN_COURS : source === "default" ? AUJOURDHUI : "");
   note.className = "source";
   rangee.append(nomDe(doc, row), positionsDe(doc, { row, position, ...(demandee === undefined ? {} : { demandee }), ...(occupe ? {} : { choisir: (pris) => void ((pris !== position || source === "default") && poser(row, pris)) }) }), note);
   return rangee;

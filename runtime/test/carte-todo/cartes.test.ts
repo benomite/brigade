@@ -24,11 +24,10 @@ const pr = (n: number) => `https://github.com/benomite/brigade/pull/${n}`;
 // exemple ne compile pas.
 const EXEMPLES = {
   merge: [
-    { ...ticket(1), quoi: "merge", reason: "no-grant", cause: null, pr: pr(1), expired: null },
-    { ...ticket(2), quoi: "merge", reason: "no-grant", cause: null, pr: pr(2), expired: "2026-10-26T07:00:00.000Z" },
-    { ...ticket(3), quoi: "merge", reason: "review-required", cause: "declaration-modified: .claude/brigade/reseau", pr: pr(3), expired: null },
-    { ...ticket(4), quoi: "merge", reason: "merge-refused", cause: "branch protection", pr: pr(4), expired: null },
-    { ...ticket(5), quoi: "merge", reason: "unknown-reason", cause: null, pr: null, expired: null },
+    { ...ticket(1), quoi: "merge", reason: "review-required", cause: null, pr: pr(1) },
+    { ...ticket(3), quoi: "merge", reason: "review-required", cause: "declaration-modified: .claude/brigade/reseau", pr: pr(3) },
+    { ...ticket(4), quoi: "merge", reason: "merge-refused", cause: "branch protection", pr: pr(4) },
+    { ...ticket(5), quoi: "merge", reason: "unknown-reason", cause: null, pr: null },
   ],
   remontee: [
     { ...ticket(6), quoi: "remontee", reason: "still-red", cause: "manager-escalated", pr: pr(6) },
@@ -155,13 +154,10 @@ describe("a ticket the kitchen took off the rail without serving it (#2118)", ()
 
 describe("the four kinds the chef named", () => {
   test("merging a green PR by hand: exactly one gesture, the merge, and no question", () => {
-    for (const n of [1, 2]) {
-      const carte = carteDeLAttente(exemple(n));
-      assert.equal(carte.question, null);
-      assert.deepEqual(carte.choix, [{ texte: `Merge ${pr(n)}`, suite: "merge" }]);
-      assert.equal(carte.reponseLibre, true);
-    }
-    assert.equal(carteDeLAttente(exemple(1)).resume, "The delivery of #1 is green, but the pass does not merge it without a merge grant.");
+    const carte = carteDeLAttente(exemple(1));
+    assert.equal(carte.question, null);
+    assert.deepEqual(carte.choix, [{ texte: "Merge", suite: "merge" }]);
+    assert.equal(carte.reponseLibre, true);
   });
 
   test("a red ticket escalated by the manager: a question, and its choices — back to a cook, merge its PR as it is, or off the rail", () => {

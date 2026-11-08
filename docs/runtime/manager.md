@@ -96,7 +96,7 @@ without spending anything:
 | is written by someone with no hand on the repository | Nothing, no comment | `manager.set-aside` (`untrusted-author`) |
 | is the roadmap (`BRIGADE_ROADMAP_ISSUE`) | Nothing | `manager.set-aside` (`roadmap`) |
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
-| carries `hors-cuisine` — even with `fire`, a calibration or the `merge` grant | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`hors-cuisine`) |
+| carries `hors-cuisine` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`hors-cuisine`) |
 | carries `blocked-on-human` | **Reread** by the LLM once per state, for the decision it awaits. Stated in the issue: stays held. Absent but a real question derives: a `product`, `design` or `gesture` card is proposed and goes to the triage; the issue stays held, the card leaves with the label. Absent, no question: the kitchen takes the ticket back, the label is removed, the issue judged in the same turn. The comment says which | `manager.requalified` (`stated`, `card`, `taken-back`, `unreadable`), then `manager.set-aside` unless taken back |
 | carries `question` or `decision` | Nothing | `manager.set-aside` (the label) |
 | already lists an epic's tickets in its body, unsplit by it | Nothing: split by hand | `manager.set-aside` (`already-split`) |
@@ -348,7 +348,7 @@ what it waits for when no gate card stands for it: a green delivery the pass doe
 escalation that stays the chef's, a PR closed unmerged, a ticket blocked by one that left the rail, an
 issue the manager set aside or could not read, the manager's question before splitting, a ticket the
 kitchen took off the rail without serving it (below). A card with a
-single gesture (merging a green delivery without a grant, a delivery to review — `pass.md`, "The merge
+single gesture (a delivery to review — `pass.md`, "The merge
 card of a delivery to review" —, taking a blocked ticket off the rail, handing an issue back) shows that
 one button and asks no question. Every card offers the free answer, and "ask the second" beside its
 choices, never among them.

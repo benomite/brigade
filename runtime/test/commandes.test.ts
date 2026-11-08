@@ -201,20 +201,20 @@ describe("les commandes du runtime", { concurrency: 4 }, () => {
 
   test("les anciens mots sont remplacés un à un, dits une fois chacun ; les nouveaux, et tout le reste, passent tels quels et en silence", () => {
     const dits: string[] = [];
-    assert.deepEqual(enAnglais("grant", ["activer", "merge", "--pour", "4h", "--jusqu-a=18h", "--pour", "activer"], (ligne) => dits.push(ligne)), [
-      "enable",
-      "merge",
-      "--for",
-      "4h",
-      "--until=18h",
-      "--for",
+    assert.deepEqual(enAnglais("waiting", ["poser", "17", "--quoi", "un avis", "--de=Marie", "--quoi", "poser"], (ligne) => dits.push(ligne)), [
+      "set",
+      "17",
+      "--what",
+      "un avis",
+      "--from=Marie",
+      "--what",
       // Ce n'est pas le rang d'une sous-commande : une valeur, laissée telle quelle.
-      "activer",
+      "poser",
     ]);
-    assert.deepEqual(dits, [direAncien("activer", "enable"), direAncien("--pour", "--for"), direAncien("--jusqu-a", "--until")]);
+    assert.deepEqual(dits, [direAncien("poser", "set"), direAncien("--quoi", "--what"), direAncien("--de", "--from")]);
 
     const silence: string[] = [];
-    assert.deepEqual(enAnglais("grant", ["enable", "merge", "--for", "4h"], (ligne) => silence.push(ligne)), ["enable", "merge", "--for", "4h"]);
+    assert.deepEqual(enAnglais("waiting", ["set", "17", "--what", "x"], (ligne) => silence.push(ligne)), ["set", "17", "--what", "x"]);
     assert.deepEqual(enAnglais("rail", ["voir"], (ligne) => silence.push(ligne)), ["voir"]);
     assert.deepEqual(silence, []);
   });

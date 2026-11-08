@@ -19,7 +19,6 @@ import { BATTEMENT } from "./events/runtime.ts";
 import { direBaseRevenueVerteEn, direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
 import { cuisineOisive, racinesDesAttentes, type CuisineOisive, type RacineDAttente } from "./cuisine-oisive.ts";
 import { requises } from "./fiche.ts";
-import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { livraisonsCoincees } from "./file-de-la-pass.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
@@ -44,7 +43,7 @@ import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } fr
 import { seuilsEnVigueur } from "./projections/measures.ts";
 import { direInterrupteur } from "./interrupteur.ts";
 import { etatDeLInterrupteur, type EtatInterrupteur } from "./projections/switch.ts";
-import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type ReparationDeLaBase } from "./projections/pass.ts";
 import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/cleanup.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { lastBackup, type Backup } from "./projections/backups.ts";
@@ -132,8 +131,6 @@ export type EtatCuisine = {
   // L'alerte que le runtime a émise pour elle, lue du journal : app fermée
   // comme ouverte. Nulle tant que rien n'a été annoncé.
   alerteUrgence: AlerteEnCours | null;
-  // Ce que sont devenues les livraisons arrêtées faute de grant.
-  sansGrant: SansGrant;
   // La version où la station est passée par sa mise à jour, si elle date de
   // moins d'un jour à la lecture.
   passage: Passage | null;
@@ -150,8 +147,6 @@ export type EtatCuisine = {
   baseRetenue: ControleRetenu | null;
   // Le ticket de réparation de la base rouge, tel que la pass le suit : nul sans réparation.
   reparation: ReparationDeLaBase | null;
-  // Les grants donnés, tels qu'ils valent à l'heure de la lecture.
-  grants: Grant[];
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
   stations: EtatStation[];
   // Non nul : le projet ne déclare aucune station depuis cet instant, et aucun
@@ -239,7 +234,6 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     base: etatDeLaBase(base),
     baseRetenue: controleRetenu(base),
     reparation: reparationDeLaBase(base),
-    grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     activites: activitesDuRail(base, rail),
     reprises: reprisesDuRail(base, rail),
@@ -250,7 +244,6 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     urgence: gardeFous.stoppedAt === null ? urgenceDuChef(base, rail, attend, stations) : null,
     retenues: gardeFous.stoppedAt === null ? retenuesDuChef(rail, attend, stations) : [],
     alerteUrgence: gardeFous.stoppedAt === null ? alerteEnCours(base) : null,
-    sansGrant: bilanSansGrant(base),
     passage: passageEnService(base, maintenant),
     pause: pauseDeLaCuisine(base, rail),
     interrupteur,
@@ -455,21 +448,6 @@ function decrirePanne({ oisive, rail }: EtatCuisine, depuis: Depuis): string[] {
   const dire = (racine: RacineDAttente) => `${racine.awaitedBy.map((carte) => `#${carte}`).join(", ")} → #${racine.ticket} (${ouEnEst(racine)})`;
   const chaines = racines.length === 0 ? "" : ` — wait chain${racines.length === 1 ? "" : "s"}: ${racines.map(dire).join(" · ")}`;
   return [ligne(PANNE, `IDLE KITCHEN for ${depuis(oisive.depuis)} — no cook has run, with ${compteEn(oisive.cartes.length, "card")} on the rail: ${oisive.cartes.map((ticket) => `#${ticket}`).join(", ")}${chaines}`)];
-}
-
-// Sous grant, du code est mergé sans le chef : il le lit sans le demander, avec
-// ce qu'il en reste. Éteint seul, le grant se lit encore — c'est ce que le chef
-// n'a pas fait lui-même. Absent ou révoqué par lui, il n'y a rien à dire.
-function decrireGrants({ grants }: EtatCuisine, maintenant: Date, depuis: Depuis): string[] {
-  return grants.flatMap((grant) => {
-    if (grant.active) {
-      const reste = direResteEn(grant, maintenant, dureeEn);
-      const dit = bientotEteint(grant, maintenant) ? `, EXPIRING SOON: ${reste}` : grant.until === null && grant.usesLeft === null ? `, ${reste}, since ${depuis(grant.since)} ago` : ` ${reste}`;
-      return [ligne("grant", `${grant.action} ACTIVE${dit} — a green pass is merged without you`)];
-    }
-    if (grant.ended !== "expired") return [];
-    return [ligne("grant", `${grant.action} LAPSED ${depuis(grant.since)} ago — ${direExtinctionEn(grant.cause)}: the pass stops at the open PR, nothing is merged without you any more`)];
-  });
 }
 
 // Un échec de sauvegarde n'écrit rien au journal : c'est l'âge de la dernière
@@ -781,11 +759,10 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireBase(etat, depuisEn),
     ...decrireSetup(etat, depuisEn),
     ...decrireMiseDeCote(etat, depuisEn),
-    ...decrireGrants(etat, maintenant, depuisEn),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs, depuisEn),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, etat.tropLongs),
+    ...decrireAttentes(etat.attend, depuisEn, etat.passage, etat.pause, etat.tropLongs),
     ...decrireCoincees(etat, depuisEn),
     ligne("rail", decompte.length === 0 ? "empty" : toutEnWaiting ? `empty — ${decompte.join(" · ")}, normal: nothing on it for a cook` : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>

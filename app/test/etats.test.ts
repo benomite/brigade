@@ -1,7 +1,7 @@
 // Les états se lisent sans lire : une forme et une couleur par état, selon la maquette — la
 // pastille, la pilule, le point. Chaque forme se lit sans la couleur (niveaux de gris), et le
 // libellé de chaque état reste dans le DOM. Rien n'est demandé au runtime : tout vient de ce que
-// la box dit déjà (faits, la lecture d'un onglet, grant). La vue est jouée devant un faux document.
+// la box dit déjà (faits, la lecture d'un onglet). La vue est jouée devant un faux document.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -13,8 +13,7 @@ import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
 import { entete } from "../src/fiche.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -31,7 +30,7 @@ const demarrage = () => ({
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -113,7 +112,7 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
   });
 });
 
-describe("la cuisine, le grant : une pastille à forme, et son libellé", () => {
+describe("la cuisine : une pastille à forme, et son libellé", () => {
   // La carte du projet est sur l'onglet Cooks (#1184), fondue dans la ligne de sa cuisine, en tête de ses stations (#1456).
   const cuisine = (vue: Awaited<ReturnType<typeof ouvrir>>) => vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
   test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
@@ -153,34 +152,6 @@ describe("la cuisine, le grant : une pastille à forme, et son libellé", () => 
     const poses = vue.element("rail").children;
     assert.ok(poses.includes(carte) && poses.indexOf(carte) < poses.indexOf(vue.element("cuisson-du-projet")), "la carte n'est pas au-dessus des stations");
     assert.equal(carte.dessous("span").find((s) => s.className === "pilule")?.textContent, "ouverte");
-  });
-
-  test("grant actif ; grant éteint : deux formes, deux libellés", async () => {
-    const vue = await ouvrir();
-    // Settings ouvert lit l'onglet des grants (#1700) : une ligne de réglage par grant.
-    (vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
-    await repos();
-    const numero = vue.dernier("onglet")[2] as number;
-    const vide = { lignes: [], illisibles: [] };
-    const grants: VuDesGrants = {
-      projet: PARADE,
-      demande: numero,
-      a: A,
-      grants: [
-        { action: "merge", commandable: true, actif: true, mot: "ACTIF", ton: "vert", limites: [], dit: "", usages: vide },
-        { action: "fire", commandable: true, actif: false, mot: "ABSENT", ton: "gris", limites: [], dit: "jamais posé", usages: vide },
-      ],
-      interdits: vide,
-      illisibles: [],
-    };
-    vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande: "x", texte: "" }] }, undefined, grants);
-    await repos();
-    const lu = vue.element("grants").dessous("div").filter((rangee) => rangee.className === "reglage").map((rangee) => {
-      const nom = rangee.dessous("span").find((s) => s.className === "nom")?.textContent;
-      const valeur = rangee.dessous("p").find((p) => p.className === "valeur") ?? assert.fail("pas de valeur");
-      return { nom, mot: valeur.dessous("strong")[0]?.textContent, forme: valeur.dessous("span").find((s) => s.className === "pastille")?.dataset.forme };
-    });
-    assert.deepEqual(lu, [{ nom: "grant merge", mot: "ACTIF", forme: "disque" }, { nom: "grant fire", mot: "ABSENT", forme: "anneau" }]);
   });
 });
 

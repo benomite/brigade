@@ -1,5 +1,5 @@
 // Les gestes de la cuisine d'un projet qui cuit sur cet ordinateur (#1123) : arrêter et reprendre
-// la cuisine, accorder et révoquer un grant, merger une livraison, vérifier l'installation. Ils
+// la cuisine, merger une livraison, vérifier l'installation. Ils
 // partent au geste de la station de ce poste, ici.
 //
 // Chaque commande écrite dans le second est jouée pour de bon, par un `sh`, comme le `!` du second
@@ -116,14 +116,14 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
 
     const { ecrits, terminaux } = temoin();
     // Confirmé : sans le « oui », rien ne part.
-    assert.match((ecrireGeste(terminaux, "stop", PARADE, undefined, undefined, essai.ici) as { refus: string }).refus, /^nothing was sent: this action waits for your “yes”/);
+    assert.match((ecrireGeste(terminaux, "stop", PARADE, undefined, essai.ici) as { refus: string }).refus, /^nothing was sent: this action waits for your “yes”/);
     assert.equal(ecrits.length, 0);
 
-    assert.deepEqual(await ecrireGeste(terminaux, "stop", PARADE, undefined, true, essai.ici), SECOND);
+    assert.deepEqual(await ecrireGeste(terminaux, "stop", PARADE, true, essai.ici), SECOND);
     assert.equal(essai.jouer(ecrits[0] as string), "brigade : the kitchen is stopped\n");
     assert.equal(await lire(2), "cuisine    stopped\n");
 
-    assert.deepEqual(await ecrireGeste(terminaux, "reprendre", PARADE, undefined, true, essai.ici), SECOND);
+    assert.deepEqual(await ecrireGeste(terminaux, "reprendre", PARADE, true, essai.ici), SECOND);
     assert.equal(essai.jouer(ecrits[1] as string), "brigade : the kitchen is resumed\n");
     assert.equal(await lire(3), "cuisine    running\n");
 
@@ -133,25 +133,16 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
     );
   });
 
-  test("un geste confirmé s'offre à confirmer pour un projet servi ici : arrêter, reprendre, accorder et révoquer `merge`, allumer le projet", (t) => {
+  test("un geste confirmé s'offre à confirmer pour un projet servi ici : arrêter, reprendre, allumer le projet", (t) => {
     const essai = poste(t);
-    for (const [id, grant] of [["stop"], ["reprendre"], ["grant-activer", "merge"], ["grant-revoquer", "merge"], ["projet-allumer"]] as const) {
-      const offerte = confirmationDe(id, PARADE, { sans: "pas lus" }, grant, essai.ici);
+    for (const id of ["stop", "reprendre", "projet-allumer"]) {
+      const offerte = confirmationDe(id, PARADE, { sans: "pas lus" }, essai.ici);
       assert.ok(offerte !== undefined && !("refus" in offerte), `${id} : ${JSON.stringify(offerte)}`);
       // Son « oui » est celui du geste qu'elle confirme : c'est lui que la vue renvoie.
       assert.deepEqual(offerte.choix.map(({ id }) => id), [id]);
     }
     // Sans dire où la cuisine tourne, il n'y aurait rien à confirmer — ni à arrêter.
-    assert.equal(confirmationDe("stop", PARADE, { sans: "pas lus" }, undefined, undefined), undefined);
-  });
-
-  test("accorder, révoquer le grant `merge` : ici aussi", { skip: SANS_POSIX }, async (t) => {
-    const essai = poste(t);
-    const { ecrits, terminaux } = temoin();
-    await ecrireGeste(terminaux, "grant-activer", PARADE, "merge", true, essai.ici);
-    await ecrireGeste(terminaux, "grant-revoquer", PARADE, "merge", true, essai.ici);
-    for (const ecrite of ecrits) essai.jouer(ecrite);
-    assert.deepEqual(essai.lances(), [recu(essai, "grant", "enable", "merge"), recu(essai, "grant", "revoke", "merge")]);
+    assert.equal(confirmationDe("stop", PARADE, { sans: "pas lus" }, undefined), undefined);
   });
 
   test("ce que le chef tape passe un seul shell, ici : chaque mot arrive entier, et rien n'en est exécuté", { skip: SANS_POSIX }, async (t) => {
@@ -200,7 +191,7 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
 
 describe("sans cuisine", () => {
   test("une cuisine qui n'est nulle part n'a rien à écrire", () => {
-    assert.equal(commandeDuGeste("stop", PARADE, undefined, undefined), undefined);
+    assert.equal(commandeDuGeste("stop", PARADE, undefined), undefined);
     assert.equal(commandeDAttente("attente-reprendre", PARADE, 7, undefined, new Date(2026, 9, 20), undefined), undefined);
   });
 });

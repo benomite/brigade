@@ -103,7 +103,7 @@ npm --prefix runtime run guardrails -- pause no    # the slip leaves; an accepte
    `scripts/rename-code/rename.sh --apply` (#1039) after the worktree setup, commits, pushes and opens
    its PR.
 2. It hands the PR to the pass, off the rail. Judged like any delivery (merge with base, gates,
-   reviewer, CI), once green it is merged under grant within the same pause. It is the only PR the
+   reviewer, CI), once green it is merged within the same pause. It is the only PR the
    pause lets through.
 3. Once merged, the pause is lifted.
 
@@ -124,7 +124,7 @@ still name the old paths; they are picked up on the new tree through the moves t
 On failure **nothing is merged** and the pause is lifted without action from you. Possible failures:
 the tool, the setup, red gates, a conflict with `main`, a pass that does not judge or stops before
 the merge, a closed PR. The queue keeps a `rename` slip saying why and naming the open PR; `pause no`
-removes it. Without an active `merge` grant nothing goes out.
+removes it.
 
 The pause lasts **less than an hour**: past 55 minutes since your "yes" (`LIMITE_DU_RENOMMAGE_MS`)
 the tool is stopped if running and the pause lifted, except for a merge already sent to GitHub. Your

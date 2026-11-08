@@ -71,7 +71,7 @@ export const STATIONS: Record<string, string> = {
 // Ce que la lecture de l'onglet envoie à la vue : `station` de chaque projet, une lecture chacun.
 export const lu = (projet: string, stations = STATIONS): Envoi => {
   const lecture: Lecture = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "station", texte: stations[projet] ?? "" }] };
-  return { sur: "surContenu", args: [lecture, undefined, undefined], demande: "onglet" };
+  return { sur: "surContenu", args: [lecture, undefined], demande: "onglet" };
 };
 
 export const ecran: Ecran = {

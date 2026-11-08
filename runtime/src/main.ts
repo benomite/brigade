@@ -139,7 +139,7 @@ try {
   if (dit !== undefined) console.error(`brigade : ${dit}`);
   // L'interrupteur du projet, posé avant que rien ne parte : allumé par défaut,
   // repris des anciens interrupteurs sur un journal d'avant (interrupteur.ts).
-  const pose = etablirLInterrupteur(socle.journal, projet, new Date());
+  const pose = etablirLInterrupteur(socle.journal, projet);
   if (pose !== null) console.log(pose);
   // Ce que le chef décide sans redémarrer : chaque lecture relit le journal.
   const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis);

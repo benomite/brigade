@@ -11,7 +11,7 @@
 **It launches cooks**, several at once, through `claude` under the machine's Max connection:
 **every cook consumes Max quota**, as does every **manager** call and every review by the pass's
 **reviewer**. Its other subprocesses are `gh`, `git`, and **the project's gates**
-(`.claude/brigade/gates.sh`). **Under a `merge` grant, it merges by itself** what its pass judges
+(`.claude/brigade/gates.sh`). **It merges by itself** what its pass judges
 green. It listens on no port. **Nothing it launches is partitioned until you set up the partition**
 (see "The partition"); it says so at every start. Everything goes out under the machine's GitHub
 account, or, with Apps, **one identity per role** with one-hour tokens no cook receives (see "One

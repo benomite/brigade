@@ -1,7 +1,7 @@
 // La commande par laquelle le chef voit la base d'intégration et fait rejouer ses gates :
 // `npm run base -- [replay]`. Ses sorties sont en anglais (#952) : un état d'exemple, du vert au rouge et
 // de la demande de rejeu à sa retenue, passe dans le test de glossaire, refus compris. Le détail des
-// phrases de la base rouge est éprouvé avec `pass` (grant-cli.test.ts).
+// phrases de la base rouge est éprouvé ailleurs.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";

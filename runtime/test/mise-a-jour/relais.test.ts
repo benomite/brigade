@@ -47,7 +47,7 @@ test("la file dit la dernière mise à jour, le jour même : le passage, puis le
   relayer(runtime, dossier, MAINTENANT);
   const passage = passageEnService(journal.base, MAINTENANT);
   assert.deepEqual(passage, { le: PASSEE.le, ligne: `switched to version 1.1.0 at ${heureEnClairEn(PASSEE.le)}` });
-  assert.deepEqual(decrireAttentes([], () => "1 min", null, passage), ["awaiting   nothing awaits the chef", `  switched to version 1.1.0 at ${heureEnClairEn(PASSEE.le)}`, "end awaiting", ""]);
+  assert.deepEqual(decrireAttentes([], () => "1 min", passage), ["awaiting   nothing awaits the chef", `  switched to version 1.1.0 at ${heureEnClairEn(PASSEE.le)}`, "end awaiting", ""]);
 
   noterIssue(dossier, REVENUE);
   relayer(runtime, dossier, MAINTENANT);

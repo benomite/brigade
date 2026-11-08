@@ -41,7 +41,7 @@ import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
-import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
+import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
 import { gestesDeCarte } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
@@ -49,7 +49,6 @@ import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./close
 import { ajouterUneSpecialisation, lireLesSpecialisations } from "./specialisations.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
-import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
@@ -269,19 +268,18 @@ const veille = ouvrirVeilleDuTableau({
     if (redessine !== undefined) direLesFaits(redessine);
     // Une question répondue qui attend le manager : son issue est relue de loin en loin.
     relireRepondues(montree.projet);
-    // Et la bande d'alertes : la cause d'une cuisine retenue, et le grant, se lisent dans ses lignes de tête.
+    // Et la bande d'alertes : la cause d'une cuisine retenue se lit dans ses lignes de tête.
     direLaBande(bandes.status(montree));
     // Et l'accueil : ce qui bloque un projet, et depuis quand ses décisions attendent.
     direLAccueil(accueil.status(montree));
   },
 });
-// L'onglet de contenu affiché — Rail, Cooks, Manager, Grants ou Log — a sa propre veille,
+// L'onglet de contenu affiché — Rail, Cooks, Manager ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
 // La page des coûts de l'app (#1022) est lue par elle aussi : elle prend la place d'un onglet, l'espace fermé.
 // La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
-// manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Grants, avec l'état des
-// grants (grants.ts) ; celle de l'onglet Cooks, avec la fiabilité des cooks (fiabilite.ts, #1699).
+// manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Cooks, avec la fiabilité des cooks (fiabilite.ts, #1699).
 // `ongletLu` : l'onglet que la veille lit, et sa demande.
 let ongletLu: { id: unknown; demande: number } | undefined;
 const veilleDOnglet = ouvrirVeille({
@@ -291,7 +289,7 @@ const veilleDOnglet = ouvrirVeille({
   cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
-    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined, lu === CUISINE ? voirFiabilite(lecture) : undefined);
+    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === CUISINE ? voirFiabilite(lecture) : undefined);
     // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
     if (lu === "manager") direLaBande(bandes.manager(lecture));
   },
@@ -327,7 +325,7 @@ const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null
 function direLAccueil(vu: Accueil | undefined): void {
   if (vu !== undefined) dire("accueil", vu);
 }
-// La bande d'alertes de chaque projet (alertes.ts) : le manager, la cuisine, le grant —
+// La bande d'alertes de chaque projet (alertes.ts) : le manager, la cuisine —
 // redessinée à chaque lecture qui la change, de `faits`, de `status` ou de `manager`.
 const bandes = tenirBandes();
 // Une lecture qui ne change rien à la bande ne la redessine pas : même contenu, aucun mouvement (#721).
@@ -679,7 +677,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -979,12 +977,11 @@ ipcMain.handle("demanderAlerte", (_, nom: unknown, sujet: unknown, dit: unknown)
 });
 // Un geste : sa commande part dans le second du projet, qui est rendu — sa note dit ce qui est
 // parti, ou le refus dit pourquoi rien ne l'est, quand le second n'est pas dit libre. La vue nomme
-// le geste ; ce qui part se décide dans gestes.ts. Rien, pour un projet sans box. Un geste qui
-// porte sur un grant le reçoit nommé. Un geste confirmé ne part qu'avec le « oui » du chef, que la
+// le geste ; ce qui part se décide dans gestes.ts. Rien, pour un projet sans box. Un geste confirmé ne part qu'avec le « oui » du chef, que la
 // vue ne passe qu'une fois sa confirmation montrée : sans lui, rien n'est écrit.
-ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unknown) => {
+ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui, cuisines.cuisineDe(vise));
+  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));
 });
 // Un geste de WAITING, sur une carte du rail : sa commande part dans le second du projet, comme un
 // geste du socle. La vue nomme le geste et le ticket, et donne ce que le chef a rempli ; ce qui
@@ -1001,10 +998,10 @@ ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, 
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
 // lus du projet — les cooks en cours, le rail. Rien ne part, rien
 // n'est lu de plus. Rien, pour un geste qui ne se confirme pas.
-ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
+ipcMain.handle("confirmer", (_, nom: unknown, id: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant, cuisines.cuisineDe(vise));
+  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, cuisines.cuisineDe(vise));
 });
 // Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
 // appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).

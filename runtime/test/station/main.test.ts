@@ -71,11 +71,10 @@ function uneStation(t: TestContext, options: { gists?: boolean } = {}) {
   const etat = (projet: string) => join(racine, "etat", projet);
   // Ce que le chef a fait d'un projet avant de l'ajouter : ses décisions au
   // journal, et — sans clone nommé sur sa ligne — un clone à sa place.
-  const preparer = (projet: string, options: { clone?: boolean; grant?: boolean } = {}) => {
+  const preparer = (projet: string, options: { clone?: boolean } = {}) => {
     mkdirSync(etat(projet), { recursive: true });
     const journal = ouvrirJournal(etat(projet));
     for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: projet, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
-    if (options.grant) journal.ajouter({ project: projet, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
     journal.fermer();
     // Ces cuisines tournent sans bac à sable : le chef a décidé de continuer ainsi.
     accepterSansBacASable({ repertoireEtat: etat(projet), station: "box" });

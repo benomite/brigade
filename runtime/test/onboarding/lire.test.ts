@@ -74,7 +74,7 @@ test("préparation en cours, puis en échec faute de worktree : la raison et l'h
   assert.equal(onboarding.etapes.find(({ etape }) => etape === "preparation")?.geste?.ou, "On macbook.");
 });
 
-test("préparation à relire : livrée à la pass, sa PR est lue du journal ; la pass arrêtée faute de grant, le geste est de la merger", (t) => {
+test("préparation à relire : livrée à la pass, sa PR est lue du journal ; la pass arrêtée à relire, le geste est de la merger", (t) => {
   const projet = unProjet(t);
   const pr = `https://github.com/${DEPOT}/pull/434`;
   projet.arriver();
@@ -88,7 +88,7 @@ test("préparation à relire : livrée à la pass, sa PR est lue du journal ; la
   assert.equal(projet.onboarding().preparation?.etat, "a-relire");
   assert.equal(projet.onboarding().preparation?.pr, pr);
 
-  projet.noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  projet.noter({ type: "pass.held", payload: { reason: "review-required" } });
   const onboarding = projet.onboarding();
   assert.deepEqual(onboarding.etapes.find(({ etape }) => etape === "preparation")?.geste, { quoi: "Review and merge the preparation PR.", ou: "On GitHub.", liens: [pr] });
 });

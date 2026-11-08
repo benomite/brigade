@@ -1,5 +1,5 @@
 // L'interrupteur du projet vu et commandé par le chef, depuis son propre process :
-//   npm --prefix runtime run switch             l'interrupteur, et le grant `merge` qu'il tient
+//   npm --prefix runtime run switch             l'interrupteur
 //   npm --prefix runtime run switch -- on       les tickets lancés sont pris, le manager juge et découpe, une livraison verte est mergée
 //   npm --prefix runtime run switch -- off      rien de neuf n'est pris, jugé, découpé ni mergé — les cooks en cours finissent
 // Ce que chaque position fait est dans `interrupteur.ts`. Une commande s'écrit
@@ -8,12 +8,9 @@
 // lit la même ligne dans `status` (app/src/alertes.ts).
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
-import { dureeEn as duree } from "./etat.ts";
-import { direGrant } from "./grant.ts";
 import { commanderInterrupteur, direInterrupteur, InterrupteurRefuse } from "./interrupteur.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { etatDuGrant } from "./projections/pass.ts";
 import { etatDeLInterrupteur } from "./projections/switch.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run switch -- [on | off]";
@@ -34,13 +31,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
-  const maintenant = new Date();
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {
-    if (montre) {
-      ligne("switch", direInterrupteur(etatDeLInterrupteur(journal.base)));
-      ligne("merge", `grant ${direGrant(etatDuGrant(journal.base, "merge", maintenant), maintenant, duree)}`);
-    } else dire(`brigade : ${commanderInterrupteur(journal, commande as "on" | "off", maintenant)}`);
+    if (montre) ligne("switch", direInterrupteur(etatDeLInterrupteur(journal.base)));
+    else dire(`brigade : ${commanderInterrupteur(journal, commande as "on" | "off")}`);
   } catch (erreur) {
     if (erreur instanceof InterrupteurRefuse) echouer(1, erreur.message);
     // En lecture seule, rien ne crée la table d'un journal écrit par un

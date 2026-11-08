@@ -1,13 +1,13 @@
 // La bande d'alertes d'un projet, en tête de son espace : elle répond à une seule
 // question — est-ce que ça peut tourner ? — sur quatre états, ceux des quatre pannes
 // silencieuses du 2026-10-13 (docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md) :
-// le manager, la cuisine, le grant — la version en service n'en est plus une : le paquet de la
+// le manager, la cuisine — la version en service n'en est plus une : le paquet de la
 // station la met en place lui-même (docs/bascule.md).
 // **Une alerte est une chose à faire, jamais une chose à savoir** : chaque ligne dit ce
 // qui ne va pas, le geste qui le lève et ce que ce geste coûte. Ce qui va bien ne prend
 // pas de place — la bande vide, c'est que les quatre ont été lus, et vont bien. Et ce qui
 // ne change rien aux cinq minutes à venir n'y entre jamais : l'âge de la sauvegarde, un
-// grant actif que le chef a accordé, les transcripts.
+// les transcripts.
 // **Le silence est prouvé, jamais supposé** : un état que la box ne dit pas — pas encore
 // lu, pas joint, une sortie qui n'a pas la forme, un runtime d'avant le champ — donne une
 // ligne « non vérifié » qui le nomme, jamais « tout va bien ». Le manager n'est pas dit par
@@ -15,7 +15,7 @@
 // quel que soit l'onglet affiché. Il n'est « non vérifié » que le temps de la première
 // lecture, ou quand cette lecture échoue — et la ligne dit pourquoi.
 // D'où vient chaque état : la cuisine de `faits` (faits.ts), la cause d'une
-// cuisine retenue et le grant des lignes de tête de `status` — celles que le runtime écrit
+// cuisine retenue des lignes de tête de `status` — celles que le runtime écrit
 // d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
 // sortie de `manager` (manager.ts). Le setup du projet bloqué est une cause de la cuisine :
 // sa ligne de tête dit qu'il l'est, son entrée `setup` du bloc `attend` en dit la cause et le
@@ -35,7 +35,6 @@
 import type { Montree } from "./attend.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, duree, estHorsLigne, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
-import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { heureHM } from "./format.ts";
 import { ligneDeLaLimite } from "./vue/bandeau-limite-github.ts";
@@ -43,13 +42,13 @@ import type { Controle, Montree as Verification } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
-export type Sujet = "urgence" | "github" | "manager" | "cuisine" | "grant" | "station" | "box" | "renouvellement" | "verification" | "injoignable";
-// Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
-// nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
+export type Sujet = "urgence" | "github" | "manager" | "cuisine" | "station" | "box" | "renouvellement" | "verification" | "injoignable";
+// Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts) ;
+// une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
 // `relire` : relire la box tout de suite, au lieu d'attendre le tour de la veille (#728).
 // `reprise` : la reprise du disjoncteur, d'un clic, par GitHub (#2140, github/breaker-resume.ts) — jamais par la box.
-export type Appel = { geste: string; grant?: string } | { demande: true } | { onglet: string } | { relire: true } | { reprise: "disjoncteur" };
+export type Appel = { geste: string } | { demande: true } | { onglet: string } | { relire: true } | { reprise: "disjoncteur" };
 // Une ligne de la bande. `verifie` faux : la box ne dit pas cet état, et la ligne le dit.
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
@@ -465,56 +464,6 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
   }
 }
 
-// --- Le grant ---------------------------------------------------------------
-
-// Une ligne `grant` de `status` (runtime/src/etat.ts, `decrireGrants`) : `<action> ACTIVE…`,
-// `<action> ACTIVE, EXPIRING SOON: …`, `<action> LAPSED … ago` — ou, avant #928, `ACTIF`,
-// `BIENTÔT ÉTEINT`, `ÉTEINT SEUL il y a …`. Absente, aucun grant ne vaut ni ne s'est éteint
-// seul — ou le chef l'a révoqué : rien à dire.
-const GRANT = /^(\S+) (ACTIF|ACTIVE|ÉTEINT SEUL|LAPSED)(?![\p{L}\p{N}_])/u;
-const ACTIF_OU_ETEINT = { ACTIF: true, ACTIVE: true, "ÉTEINT SEUL": false, LAPSED: false } as const;
-const BIENTOT_ETEINT = /BIENTÔT ÉTEINT|EXPIRING SOON/u;
-const MERGE_SANS_TOI = "a green pass will be merged without you";
-
-function duGrant(status: string | Sans): Alerte[] {
-  const lu = statusLu(status);
-  const lireGrants = { geste: "read it: Settings reads `grant` on the station", prix: LIRE, appel: { onglet: "parametres" } };
-  if (typeof lu !== "string") return [nonVerifie("grant", "grant state not verified", { pourquoi: lu.sans, ...lireGrants })];
-  return tetesDe(lu)
-    .filter(({ titre }) => titre === "grant")
-    .flatMap(({ valeur }): Alerte[] => {
-      const [, action, mot] = GRANT.exec(valeur) ?? [];
-      if (action === undefined) return [nonVerifie("grant", "grant state not verified", { pourquoi: "the app cannot read this `grant` line of `status`", releve: valeur, ...lireGrants })];
-      if (!ACTIF_OU_ETEINT[mot as keyof typeof ACTIF_OU_ETEINT])
-        return [
-          {
-            sujet: "grant",
-            verifie: true,
-            ton: "rouge",
-            dit: `grant \`${action}\` lapsed: the pass stops at the open PR, nothing is merged without you any more`,
-            releve: valeur,
-            geste: `enable \`${action}\` again`,
-            ...(GRANTS.includes(action) ? { appel: { geste: "grant-activer", grant: action } } : {}),
-            prix: MERGE_SANS_TOI,
-          },
-        ];
-      // Actif : c'est le chef qui l'a accordé. Il ne se dit que lorsqu'il va s'éteindre.
-      if (!BIENTOT_ETEINT.test(valeur)) return [];
-      return [
-        {
-          sujet: "grant",
-          verifie: true,
-          ton: "jaune",
-          dit: `grant \`${action}\` expiring soon: then, the pass will stop at the open PR`,
-          releve: valeur,
-          geste: `extend it without revoking it: \`grant extend ${action}\` (docs/runtime/pass-merge.md, “Le prolonger”)`,
-          appel: DEMANDE,
-          prix: MERGE_SANS_TOI,
-        },
-      ];
-    });
-}
-
 // --- Ce qu'un projet installé a perdu ---------------------------------------------
 //
 // Une fois l'installation terminée, l'écran d'installation ne revient jamais (service.ts,
@@ -660,7 +609,6 @@ export function boutonDe({ geste, appel }: Pick<Alerte, "geste" | "appel">): str
   if ("onglet" in appel) return appel.onglet === "parametres" ? "open Settings" : `open the ${appel.onglet} tab`;
   if ("relire" in appel) return "try again now";
   if ("reprise" in appel) return "Resume";
-  if (appel.geste === "grant-activer" && appel.grant !== undefined) return `enable ${appel.grant} again`;
   return BOUTONS_DE_GESTE[appel.geste] ?? (geste.split(/[:,—`]/)[0] ?? geste).trim();
 }
 const avecBouton = (alerte: Alerte): Alerte => {
@@ -669,14 +617,13 @@ const avecBouton = (alerte: Alerte): Alerte => {
 };
 
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
-// son setup —, le grant, et ce que le projet installé a perdu.
+// son setup —, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duRefusDeGitHubSeul(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+  return parGravite([...deLUrgence(faits), ...duRefusDeGitHubSeul(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
-// le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (manager, cuisine,
-// grant) tient.
+// le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (manager, cuisine) tient.
 const GRAVITE = (alerte: Alerte) => (alerte.sujet === "urgence" ? -1 : (alerte.verifie ? 0 : 10) + (alerte.ton === "rouge" ? 0 : alerte.ton === "jaune" ? 1 : 2));
 const parGravite = (bande: Alerte[]): Alerte[] => bande.map((alerte, rang) => ({ alerte, rang })).sort((a, b) => GRAVITE(a.alerte) - GRAVITE(b.alerte) || a.rang - b.rang).map(({ alerte }) => alerte);
 
@@ -698,7 +645,7 @@ export function signalDe(bande: readonly Alerte[]): Signal | undefined {
 // --- La box ne répond pas ----------------------------------------------------------
 //
 // Une box qui ne répond pas fait rater, d'un coup, tout ce que l'app lit d'elle : le manager, la
-// version, la cuisine, le grant. Quatre « non vérifié » pour une seule cause, chacun avec un geste
+// version, la cuisine. Trois « non vérifié » pour une seule cause, chacun avec un geste
 // qui n'y change rien (#728). Passé ce nombre de lectures de `faits` ratées de suite — la box pas
 // jointe, pas la commande qui échoue —, la bande ne dit plus qu'une ligne : la box, depuis quand,
 // pourquoi, et ce que le chef peut y faire. Elle sort dès que la box répond.
@@ -730,7 +677,7 @@ function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
 
 // --- L'app hors ligne ---------------------------------------------------------------
 //
-// Sans réseau, tout ce que l'app lit de GitHub rate d'un coup : le manager, la cuisine, le grant. Trois
+// Sans réseau, tout ce que l'app lit de GitHub rate d'un coup : le manager, la cuisine. Deux
 // « non vérifié » pour une seule cause, qui n'est pas une panne, et aucun geste qui y change rien (#1818). Dès qu'une
 // lecture n'a pas joint GitHub du tout (tableau/lecture.ts, `horsLigne`), la bande se tait : ni ligne, ni signal — la
 // vue garde le dernier rail lu, et un seul signe dit depuis quand l'app est hors ligne. Ce qui avait été lu n'est pas
@@ -767,7 +714,6 @@ const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   github: ["faits", "status"],
   manager: ["manager"],
   cuisine: ["faits", "status"],
-  grant: ["status"],
   station: ["controle", "status"],
   box: ["controle", "status"],
   renouvellement: ["controle"],

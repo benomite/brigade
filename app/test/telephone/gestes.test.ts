@@ -15,8 +15,7 @@ import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { gestesDeCarte } from "../../src/gestes-fiche.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { type Faux, FauxEcran, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "../aides/fausse-vue.ts";
@@ -35,7 +34,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -57,7 +56,7 @@ const station = (nom: string, plus: Partial<Station> = {}): Station => ({
   ...plus,
 });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
-// Dans TODO, deux décisions : #12, verte, que la pass ne merge pas sans le grant — à merger sur sa PR ; #31, dont la PR a été
+// Dans TODO, deux décisions : #12, verte, que la pass ne merge pas elle-même — à merger sur sa PR ; #31, dont la PR a été
 // fermée sans merge — la sortir du rail. #21 est sur le rail ; #14 cuit sur la box.
 const FAITS: Faits = {
   etat: "ouverte",
@@ -73,7 +72,7 @@ const FAITS: Faits = {
   ],
   cooks: [COOK_14],
   attend: [
-    { ticket: 12, titre: "Validation SIRET", url: issue(12), decision: { quoi: "merge", motif: "no-grant", cause: null, pr: PR_12 } },
+    { ticket: 12, titre: "Validation SIRET", url: issue(12), decision: { quoi: "merge", motif: "review-required", cause: null, pr: PR_12 } },
     { ticket: 31, titre: "Le tri des fournisseurs", url: issue(31), decision: { quoi: "fermee", motif: null, cause: null, pr: null } },
   ],
   stations: [station("box/claude", { cooks: [COOK_14] })],

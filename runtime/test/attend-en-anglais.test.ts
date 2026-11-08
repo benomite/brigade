@@ -81,12 +81,10 @@ const pr = (n: number) => `https://exemple.test/pull/${n}`;
 // compile pas.
 const EXEMPLES = {
   merge: [
-    { ...ticket(1), quoi: "merge", reason: "no-grant", cause: null, pr: pr(1), expired: null },
-    { ...ticket(2), quoi: "merge", reason: "no-grant", cause: null, pr: pr(2), expired: "2026-10-12T07:00:00.000Z" },
-    { ...ticket(3), quoi: "merge", reason: "review-required", cause: null, pr: pr(3), expired: null },
-    { ...ticket(4), quoi: "merge", reason: "review-required", cause: "declaration-modified: .claude/brigade/reseau", pr: pr(4), expired: null },
-    { ...ticket(5), quoi: "merge", reason: "merge-refused", cause: "branch protection", pr: pr(5), expired: null },
-    { ...ticket(6), quoi: "merge", reason: "unknown-reason", cause: null, pr: null, expired: null },
+    { ...ticket(3), quoi: "merge", reason: "review-required", cause: null, pr: pr(3) },
+    { ...ticket(4), quoi: "merge", reason: "review-required", cause: "declaration-modified: .claude/brigade/reseau", pr: pr(4) },
+    { ...ticket(5), quoi: "merge", reason: "merge-refused", cause: "branch protection", pr: pr(5) },
+    { ...ticket(6), quoi: "merge", reason: "unknown-reason", cause: null, pr: null },
   ],
   remontee: [
     { ...ticket(7), quoi: "remontee", reason: "still-red", cause: "returns-exhausted", pr: pr(7) },
@@ -210,7 +208,6 @@ const EXEMPLES = {
 } satisfies { [Q in Attente["quoi"]]: Array<Extract<Attente, { quoi: Q }>> };
 
 const TOUTES: Attente[] = Object.values(EXEMPLES).flat();
-const SANS_GRANT = { arretees: 9, mergees: 2, parLaPass: 1, refusees: 3, ouvertes: 1 };
 const PASSAGES = [
   { le: DEPUIS, ligne: "switched to version 1.2.0 at 10:00" },
   { le: DEPUIS, ligne: "update to version 1.3.0 failed at 10:00: unit did not start — back on version 1.2.0; 1.3.0 is not retried, the next one will be" },
@@ -218,16 +215,16 @@ const PASSAGES = [
 
 test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucun mot français du glossaire, ni dans ses bords, ni dans ses lignes", () => {
   for (const passage of PASSAGES) {
-    const lignes = decrireAttentes(TOUTES, () => "3 d", SANS_GRANT, passage);
+    const lignes = decrireAttentes(TOUTES, () => "3 d", passage);
     assert.equal(lignes[0], `awaiting   ${TOUTES.length} decisions await the chef — the oldest for 3 d`);
     assert.equal(lignes.at(-2), "end awaiting");
     assert.equal(lignes.filter((ligne) => ligne.startsWith("awaiting")).length, 1);
-    assert.equal(lignes.length, TOUTES.length + 5);
+    assert.equal(lignes.length, TOUTES.length + 4);
     sansMotFrancais(lignes);
   }
   // Une seule décision, puis aucune : les deux autres têtes.
   assert.equal(decrireAttentes(TOUTES.slice(0, 1), () => "3 d")[0], "awaiting   1 decision awaits the chef — for 3 d");
-  const vide = decrireAttentes([], () => "3 d", { arretees: 1, mergees: 1, parLaPass: 0, refusees: 0, ouvertes: 0 });
+  const vide = decrireAttentes([], () => "3 d");
   assert.deepEqual(vide, ["awaiting   nothing awaits the chef", "end awaiting", ""]);
   sansMotFrancais(vide);
   // Les entrées hors ticket se nomment en anglais.
@@ -238,11 +235,11 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
 // Ce qu'une ligne du bloc ne doit jamais porter : une commande de la box
 // (`brigade <projet> <commande>`, qu'un projet nommé la remplace ou non), un
 // `ssh`, un bout de shell — le geste est le bouton de l'app (ticket 2141).
-const COMMANDES_DE_BOX = [/\bbrigade\s+(?:<[^>]+>|[\w-]+)\s+[a-z][\w-]*/, /\bssh\b/, /\bsudo\b/, /\bnpm\b/, /\bclaude\s+(?:\/login|setup-token|auth)\b/, /\bguardrails\b/, /\bgrant enable\b/];
+const COMMANDES_DE_BOX = [/\bbrigade\s+(?:<[^>]+>|[\w-]+)\s+[a-z][\w-]*/, /\bssh\b/, /\bsudo\b/, /\bnpm\b/, /\bclaude\s+(?:\/login|setup-token|auth)\b/, /\bguardrails\b/];
 
 test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme une commande de la box : le bouton de l'app, ou qu'il n'y en a pas encore", () => {
   const pause = { since: DEPUIS, minutes: 45, renommage: 9, finissent: [12], retenus: [14, 15] };
-  const lignes = decrireAttentes(TOUTES, () => "3 d", SANS_GRANT, PASSAGES[0], pause);
+  const lignes = decrireAttentes(TOUTES, () => "3 d", PASSAGES[0], pause);
   assert.ok(lignes.length >= TOUTES.length + 4);
   for (const ligne of lignes) for (const commande of COMMANDES_DE_BOX) assert.doesNotMatch(ligne, commande, ligne);
   // Chaque sorte porte sa ligne : le contrôle ne passe pas à vide.
@@ -269,11 +266,10 @@ const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
   propose: ["vue/projet/reglages.js", 'libelle: "propose"'],
   "closer's calibration": ["reglages-du-projet.ts", `closer: "closer's calibration"`],
   "closer's start threshold (cooks in flight)": ["reglages-du-projet.ts", `"closer-cooks": "closer's start threshold (cooks in flight)"`],
-  merge: ["gestes.ts", 'GRANTS: readonly string[] = ["merge"]'],
   "project off": ["vue/vue.js", '"project off"'],
   "Cancel the cleanup": ["vue/closer/lancement/lancement.js", 'ANNULER = "Cancel the cleanup"'],
 };
-const NOMMES_DE_L_APP = [/the `([^`]+)` (?:button|switch)\b/g, /on the `([^`]+)` line of the project's Settings/g, /the switch on the `([^`]+)` grant's line/g];
+const NOMMES_DE_L_APP = [/the `([^`]+)` (?:button|switch)\b/g, /on the `([^`]+)` line of the project's Settings/g];
 
 test("chaque bouton, interrupteur ou ligne de Settings qu'une ligne du bloc `awaiting` nomme existe dans l'app, mot pour mot", () => {
   const nommes = new Set(TOUTES.map(direAttenteEn).flatMap((ligne) => NOMMES_DE_L_APP.flatMap((motif) => [...ligne.matchAll(motif)].map(([, nom]) => nom as string))));
@@ -283,7 +279,7 @@ test("chaque bouton, interrupteur ou ligne de Settings qu'une ligne du bloc `awa
 
 test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sous la tête, qui ne compte pas pour une décision", () => {
   const pause = { since: DEPUIS, minutes: 45, renommage: 9, finissent: [12], retenus: [14, 15] };
-  const seule = decrireAttentes([], () => "3 min", null, null, pause);
+  const seule = decrireAttentes([], () => "3 min", null, pause);
   assert.deepEqual(seule, [
     "awaiting   nothing awaits the chef",
     `  paused for the code rename — for 3 min, expected about 45 min — finishing their work: #12 · held: #14, #15 — to end it now: no app button for it yet`,
@@ -291,7 +287,7 @@ test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sou
     "",
   ]);
   sansMotFrancais(seule);
-  const avec = decrireAttentes(TOUTES.slice(0, 1), () => "3 min", null, null, { ...pause, finissent: [], retenus: [] });
+  const avec = decrireAttentes(TOUTES.slice(0, 1), () => "3 min", null, { ...pause, finissent: [], retenus: [] });
   assert.equal(avec[0], "awaiting   1 decision awaits the chef — for 3 min");
   assert.match(avec[1] ?? "", /^ {2}paused for the code rename — .* finishing their work: none · held: none — /);
   sansMotFrancais(avec);
@@ -300,8 +296,8 @@ test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sou
 test("le test de glossaire cite le mot français et sa ligne, et ne lit pas ce qui est entre backticks", () => {
   const mots = motsFrancais();
   // Des mots de chaque table, et ceux que le glossaire garde pour anglais.
-  for (const mot of ["attend", "fin attend", "cuisine", "garde-fous", "disjoncteur", "BLOQUÉ", "rien n'attend le chef", "sans grant", "reprendre", "journal"]) assert.ok(mots.includes(mot), mot);
-  for (const mot of ["grant", "rail", "base", "installation", "station", "stop", "cooks", "Pass"]) assert.ok(!mots.includes(mot), mot);
+  for (const mot of ["attend", "fin attend", "cuisine", "garde-fous", "disjoncteur", "BLOQUÉ", "rien n'attend le chef", "reprendre", "journal"]) assert.ok(mots.includes(mot), mot);
+  for (const mot of ["rail", "base", "installation", "station", "stop", "cooks", "Pass"]) assert.ok(!mots.includes(mot), mot);
 
   assert.deepEqual(motsFrancaisDans(["  #3  for 1 min  la cuisine tourne"]), [{ mot: "cuisine", ligne: "  #3  for 1 min  la cuisine tourne" }]);
   assert.deepEqual(motsFrancaisDans(["remove it from the `attend` line of the card, label `hors-cuisine`"]), []);

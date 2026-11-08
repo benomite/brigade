@@ -7,8 +7,8 @@
 // demande rien.
 //
 // Les sortes, et ce que leurs choix jouent (reponse-carte.ts) :
-// - `merge`, une livraison verte que la pass ne merge pas : faute de grant, ou
-//   à relire — elle change ses juges ou ce que le projet s'ouvre —, un seul
+// - `merge`, une livraison verte que la pass ne merge pas : à
+//   relire — elle change ses juges ou ce que le projet s'ouvre —, un seul
 //   geste, la merger ; refusée par GitHub, la merger, la renvoyer à un cook, ou
 //   sortir le ticket du rail ;
 // - `remontee`, un ticket rouge remonté par le manager ou la pass : le renvoyer
@@ -41,7 +41,7 @@
 import { pourquoiEn as pourquoiDeLAbandon } from "../abandon-au-chef.ts";
 import { attentesDuChef, type Attente, type AttenteDeTicket } from "../attend.ts";
 import type { Base } from "../base.ts";
-import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, SANS_GRANT, testsInstablesDeLaCause } from "../events/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, testsInstablesDeLaCause } from "../events/pass.ts";
 import { REGLAGES_DU_PROJET } from "../mode-auto.ts";
 import { lireRail } from "../projections/rail.ts";
 import { DECLARATION_RESEAU } from "../reseau.ts";
@@ -128,12 +128,6 @@ function proposition(attente: AttenteDeTicket) {
     case "merge": {
       const merger = choix(`Merge ${laPr(attente.pr)}`, "merge");
       switch (attente.reason) {
-        case SANS_GRANT:
-          return {
-            resume: attente.expired === null ? `The delivery of #${ticket} is green, but the pass does not merge it without a merge grant.` : `The delivery of #${ticket} is green, but the merge grant lapsed on its own on ${attente.expired}.`,
-            question: null,
-            choix: [merger],
-          };
         case A_RELIRE:
           return carteARelire(attente);
         case MERGE_REFUSE:

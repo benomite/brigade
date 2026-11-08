@@ -1,15 +1,13 @@
 // A project's autonomy table, read from its log: today's behavior when nothing
-// is set, the Merge row carried by the `merge` grant, the three positions read
+// is set, the three positions read
 // back at the next read, the rows no command changes, the profiles, and the
 // log entry of every change. Everything runs in process, at the time given.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { AUJOURDHUI, appliquerProfil, AutonomieRefusee, FIXES, lireAutonomie, NOMS_DES_PROFILS, poserRangee, positionDe, POSITIONS, PROFILS, RANGEES, type Position, type Rangee } from "../../src/autonomie/table.ts";
 import type { Fait } from "../../src/evenements.ts";
-import { principal as grant } from "../../src/grant-cli.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { etatDuGrant } from "../../src/projections/pass.ts";
-import { aArreter, appeler, faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "../outils.ts";
+import { aArreter, faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "../outils.ts";
 
 const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
 
@@ -24,24 +22,20 @@ function projet(t: TestContext) {
   const table = (maintenant = MAINTENANT) => lireAutonomie(journal.base, maintenant);
   const positions = (maintenant = MAINTENANT) => Object.fromEntries(table(maintenant).rows.map(({ row, position }) => [row, position]));
   const changements = () => journal.tout().filter((evenement) => evenement.type === "autonomy.changed");
-  const commande = async (...args: string[]) => {
-    const cli = appeler(grant, args, { BRIGADE_STATE_DIR: repertoire });
-    return { code: await cli.fin, sortie: cli.sortie() };
-  };
-  return { repertoire, journal, noter, geste, table, positions, changements, commande };
+  return { repertoire, journal, noter, geste, table, positions, changements };
 }
 
 const TOUT: (position: Position) => Record<Rangee, Position> = (position) => Object.fromEntries(RANGEES.map((row) => [row, position])) as Record<Rangee, Position>;
 
 describe("a project with no table", () => {
-  test("every kind of decision holds today's behavior, read as its default — Merge is `I decide`, as with no grant", (t) => {
+  test("every kind of decision holds today's behavior, read as its default", (t) => {
     const { table } = projet(t);
 
     assert.deepEqual(
       table().rows,
-      RANGEES.map((row) => (row === "merge" ? { row, position: "i-decide", source: "grant", fixed: false } : { row, position: AUJOURDHUI[row], source: "default", fixed: false })),
+      RANGEES.map((row) => ({ row, position: AUJOURDHUI[row], source: "default", fixed: false })),
     );
-    assert.deepEqual(AUJOURDHUI, { screens: "brigade-decides", specification: "brigade-decides", priorities: "i-decide", cost: "brigade-decides", dependencies: "i-decide", publishing: "brigade-decides" });
+    assert.deepEqual(AUJOURDHUI, { merge: "brigade-decides", screens: "brigade-decides", specification: "brigade-decides", priorities: "i-decide", cost: "brigade-decides", dependencies: "i-decide", publishing: "brigade-decides" });
     assert.deepEqual(
       table().fixed.map(({ row, position, fixed }) => [row, position, fixed]),
       FIXES.map((row) => [row, "i-decide", true]),
@@ -57,50 +51,19 @@ describe("a project with no table", () => {
   });
 });
 
-describe("the `merge` grant becomes the Merge row", () => {
-  test("a log written before the table, with the grant enabled, reads Merge as `brigade decides` — the other rows keep today's behavior", (t) => {
-    const { noter, positions, table } = projet(t);
-    noter({ type: "grant.activated", payload: { action: "merge" } });
+describe("the Merge row", () => {
+  test("is an ordinary row: `brigade decides` by default, and setting it writes only `autonomy.changed`", (t) => {
+    const { journal, geste, positions, table } = projet(t);
+    assert.deepEqual(table().rows.find(({ row }) => row === "merge"), { row: "merge", position: "brigade-decides", source: "default", fixed: false });
 
-    assert.deepEqual(positions(), { ...AUJOURDHUI, merge: "brigade-decides" });
-    assert.deepEqual(table().rows.find(({ row }) => row === "merge")?.source, "grant");
-  });
-
-  test("a grant with a deadline is `brigade decides` until it lapses, then `I decide` — with nothing written", (t) => {
-    const { journal, noter, positions } = projet(t);
-    noter({ type: "grant.activated", payload: { action: "merge", until: `${JOUR_HORLOGE}T18:00:00.000Z` } });
     const avant = journal.dernierSeq();
-
-    assert.equal(positions().merge, "brigade-decides");
-    assert.equal(positions(new Date(`${JOUR_HORLOGE}T18:00:00.000Z`)).merge, "i-decide");
-    assert.equal(journal.dernierSeq(), avant);
-  });
-
-  test("a log with no grant, a revoked grant or a lapsed one keeps today's non-granted behavior: `I decide`", (t) => {
-    const { noter, positions } = projet(t);
+    poserRangee(journal, { ...geste, row: "merge", position: "i-decide", auteur: "app:chef" });
     assert.equal(positions().merge, "i-decide");
-    noter({ type: "grant.activated", payload: { action: "merge" } });
-    noter({ type: "grant.revoked", payload: { action: "merge" } });
-    assert.equal(positions().merge, "i-decide");
-    noter({ type: "grant.activated", payload: { action: "merge", uses: 1 } });
-    noter({ type: "grant.expired", payload: { action: "merge", cause: "uses", since: MAINTENANT.toISOString() } }, "runtime");
-    assert.equal(positions().merge, "i-decide");
-  });
-
-  test("setting the Merge row writes the grant: a `brigade` position enables it with no deadline, `I decide` revokes it", (t) => {
-    const { journal, geste, positions } = projet(t);
-    const grantActif = () => etatDuGrant(journal.base, "merge", MAINTENANT)?.active ?? false;
-
-    poserRangee(journal, { ...geste, row: "merge", position: "brigade-decides-and-tells-me" });
-    assert.deepEqual([positions().merge, grantActif(), etatDuGrant(journal.base, "merge", MAINTENANT)?.until, etatDuGrant(journal.base, "merge", MAINTENANT)?.by], ["brigade-decides-and-tells-me", true, null, "chef"]);
-
-    // Between the two `brigade` positions, the grant stays as it is.
-    const avant = journal.tout().filter(({ type }) => type.startsWith("grant.")).length;
-    poserRangee(journal, { ...geste, row: "merge", position: "brigade-decides" });
-    assert.deepEqual([positions().merge, journal.tout().filter(({ type }) => type.startsWith("grant.")).length], ["brigade-decides", avant]);
-
-    poserRangee(journal, { ...geste, row: "merge", position: "i-decide" });
-    assert.deepEqual([positions().merge, grantActif()], ["i-decide", false]);
+    assert.equal(table().rows.find(({ row }) => row === "merge")?.source, "set");
+    assert.deepEqual(
+      journal.tout().filter(({ seq }) => seq > avant).map(({ type, author, payload }) => [type, author, payload]),
+      [["autonomy.changed", "app:chef", { row: "merge", previous: "brigade-decides", position: "i-decide", profile: null }]],
+    );
   });
 });
 
@@ -134,7 +97,6 @@ describe("a row set to a position", () => {
     assert.notEqual(poserRangee(journal, { ...geste, row: "screens", position: AUJOURDHUI.screens }), null);
     assert.equal(table().rows.find(({ row }) => row === "screens")?.source, "set");
     assert.equal(poserRangee(journal, { ...geste, row: "screens", position: AUJOURDHUI.screens }), null);
-    assert.equal(poserRangee(journal, { ...geste, row: "merge", position: "i-decide" }), null);
   });
 
   test("an unknown row or position is refused, and nothing is written", (t) => {
@@ -178,7 +140,6 @@ describe("the profiles", () => {
     for (const profil of NOMS_DES_PROFILS) {
       appliquerProfil(journal, { ...geste, profil });
       assert.deepEqual(positions(), attendus[profil], profil);
-      assert.deepEqual(positions().merge === "i-decide", !(etatDuGrant(journal.base, "merge", MAINTENANT)?.active ?? false), profil);
     }
   });
 
@@ -216,42 +177,5 @@ describe("the log of a change", () => {
         { author: "second", project: "brigade", row: "priorities", previous: "brigade-decides-and-tells-me", position: "brigade-decides", profile: null },
       ],
     );
-  });
-
-  test("the Merge row's change follows the grant it writes, both by the same author", (t) => {
-    const { journal, geste } = projet(t);
-    poserRangee(journal, { ...geste, row: "merge", position: "brigade-decides", auteur: "app:chef" });
-    assert.deepEqual(
-      journal.tout().slice(-2).map(({ type, author, payload }) => [type, author, payload]),
-      [
-        ["grant.activated", "app:chef", { action: "merge" }],
-        ["autonomy.changed", "app:chef", { row: "merge", previous: "i-decide", position: "brigade-decides", profile: null }],
-      ],
-    );
-  });
-});
-
-describe("`grant` still commands the Merge row", () => {
-  test("`enable merge` sets it to `brigade decides`, `revoke merge` back to `I decide`", async (t) => {
-    const { commande, positions } = projet(t);
-
-    assert.equal((await commande("enable", "merge", "--for", "4h")).code, 0);
-    assert.equal(positions(new Date()).merge, "brigade-decides");
-    assert.equal((await commande("revoke", "merge")).code, 0);
-    assert.equal(positions(new Date()).merge, "i-decide");
-  });
-
-  test("the Merge row set by the table reads as an active grant in `grant`, and a grant enabled again forgets the old `tells me`", async (t) => {
-    const { journal, geste, commande, positions } = projet(t);
-    poserRangee(journal, { ...geste, maintenant: new Date(), row: "merge", position: "brigade-decides-and-tells-me" });
-
-    const vu = await commande();
-    assert.equal(vu.code, 0);
-    assert.match(vu.sortie, /grant merge +ACTIVE since .* \(by chef\) — no deadline/);
-
-    await commande("revoke", "merge");
-    assert.equal(positions(new Date()).merge, "i-decide");
-    await commande("enable", "merge");
-    assert.equal(positions(new Date()).merge, "brigade-decides");
   });
 });

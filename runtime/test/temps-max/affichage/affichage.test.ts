@@ -18,6 +18,6 @@ test("TODO: losing exactly twice the threshold, or a long ticket that lost nothi
 });
 
 test("TODO: the line sits in the informative part of the awaiting block and counts for no decision", () => {
-  const bloc = decrireAttentes([], () => "1 min", null, null, null, lignesDeTicketsQuiPerdent([t(7, 25, 6)], 2));
+  const bloc = decrireAttentes([], () => "1 min", null, null, lignesDeTicketsQuiPerdent([t(7, 25, 6)], 2));
   assert.match(bloc.join("\n"), /nothing awaits the chef\n  ticket #7 lost 6 min, over twice the threshold of 2 min — mostly waiting for a claim 6 min\n/);
 });

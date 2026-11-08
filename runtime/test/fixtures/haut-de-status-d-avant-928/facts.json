@@ -159,7 +159,7 @@
       },
       "carte": {
         "type": "merge",
-        "resume": "The delivery of #17 is green, but the pass does not merge it without a merge grant.",
+        "resume": "The delivery of #17 is green, but the pass did not merge it.",
         "question": null,
         "choix": [
           {

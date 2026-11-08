@@ -35,8 +35,6 @@ const STOP = [
   "No more cooks are launched — runtime restarts included — until “resume”.",
 ];
 const REPRENDRE = "The “stop” is lifted, and the breaker closed: queued tickets start again right away, on your quota.";
-const MERGE_SANS_TOI = "A green pass will be merged without you: the pass merges what it judges green, with no expiry or number of uses — until you revoke it.";
-const PLUS_SANS_TOI = "Nothing is merged without you any more: the pass stops at the open PR, and every green delivery awaits you — until you enable it again.";
 
 // Les cooks en vol à cette lecture, d'après `faits` : ce qu'il en donne, et ce qui manque, dit tel.
 function cooksEnVol(lus: Lus): { prix: string[]; lu?: string } {
@@ -60,12 +58,11 @@ const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.f
 // Ce que ce geste confirmé dira avant de partir, pour ce projet — ou pourquoi il ne s'offre
 // pas. Rien pour un geste qui ne se confirme pas, ou que le socle ne connaît pas. `cuisine` : là
 // où celle du projet tourne à cet instant — cet ordinateur.
-export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant: unknown, cuisine: Cuisine | undefined): Confirmation | { refus: string } | undefined {
+export function confirmationDe(id: unknown, projet: Projet, lus: Lus, cuisine: Cuisine | undefined): Confirmation | { refus: string } | undefined {
   if (typeof id !== "string" || !CONFIRMES.includes(id)) return undefined;
   // Un geste qui n'écrirait rien n'a rien à confirmer : son refus se dit à la place.
-  const ecrit = commandeDuGeste(id, projet, grant, cuisine);
+  const ecrit = commandeDuGeste(id, projet, cuisine);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
-  const nomme = String(grant);
   switch (id) {
     case "stop": {
       const { prix, lu } = cooksEnVol(lus);
@@ -75,10 +72,6 @@ export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant: unk
       const { prix, lu } = cooksEnVol(lus);
       return { titre: "resume the kitchen", prix: [REPRENDRE, ...surLeRail(lus), ...prix], ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, resume the kitchen", dit: "queued tickets start again, on your quota" }], renoncer: "no, leave it stopped" };
     }
-    case "grant-activer":
-      return { titre: `enable the \`${nomme}\` grant`, prix: [MERGE_SANS_TOI], choix: [{ id, libelle: `yes, enable \`${nomme}\``, dit: "a green pass will be merged without you" }], renoncer: "no, keep control" };
-    case "grant-revoquer":
-      return { titre: `revoke the \`${nomme}\` grant`, prix: [PLUS_SANS_TOI], choix: [{ id, libelle: `yes, revoke \`${nomme}\``, dit: "nothing is merged without you any more" }], renoncer: "no, leave it active" };
     case "projet-allumer":
       return { titre: "switch the project on", prix: [ALLUMER], chiffrer: true, choix: [{ id, libelle: "yes, switch the project on", dit: "what the manager judges executable is taken up right away, and green deliveries are merged" }], renoncer: "no, leave it off" };
     default:

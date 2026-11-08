@@ -1,7 +1,6 @@
 // Les onglets de contenu d'un espace, en haut, leur page par-dessus le rail — le second, lui,
 // est à droite : chacun relaie, en texte, la sortie d'une commande du runtime qui existe
-// (docs/runtime/exploitation.md, « Piloter »). Rien ne s'y ajoute et rien n'y est lu — sauf
-// les grants, que Settings lit dans la sortie de `grant` pour en poser une ligne chacun (grants.ts, #1700).
+// (docs/runtime/exploitation.md, « Piloter »). Rien ne s'y ajoute et rien n'y est lu.
 import type { Commande } from "./box.ts";
 import { COMMANDES as COMMANDES_DE_FIABILITE } from "./fiabilite.ts";
 
@@ -13,18 +12,17 @@ export const EVENEMENTS_DU_LOG = 200;
 
 export const ONGLETS: readonly Onglet[] = [
   { id: "cooks", titre: "Cooks", commande: "station" },
-  { id: "grants", titre: "Grants", commande: "grant" },
   { id: "log", titre: "Log", commande: `log --last ${EVENEMENTS_DU_LOG}`, precision: `the end of the log only: the latest ${EVENEMENTS_DU_LOG} events, not the whole log` },
 ];
 
 // Ce que l'écran principal montre en haut : un onglet, Paramètres — une seule page, sans sous-pages
-// (#1700) : ce que le chef règle, en trois groupes, dont les grants, qu'elle lit avec `grant`. Les
+// (#1700) : ce que le chef règle, en trois groupes. Les
 // pages Rail, Manager et General n'existent plus, ni leur lecture. La fiabilité des cooks du projet
 // (#987) et son closer (#990) n'y sont plus non plus : ce sont des sections de l'onglet Cooks (#1699),
 // lues avec lui (`COMMANDES_DE_COOKS`, ci-dessous). Log n'a pas d'onglet : le
 // journal est de l'outillage de panne, il s'ouvre par son geste, en tête de l'espace. Le coût n'est plus
 // un onglet de projet (#1022) : il vit au niveau de l'app (`COUTS`, ci-dessous), chaque projet nommé.
-// `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres, qui lit les grants.
+// `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres.
 export type Rubrique = { id: string; titre: string; defaut: string; lectures: readonly string[] };
 export const PARAMETRES = "parametres";
 export const JOURNAL = "log";

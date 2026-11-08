@@ -56,9 +56,9 @@ describe("les gestes de la cuisine et de l'installation", () => {
       terminaux.espace(PARADE);
 
       // Sans « oui », un geste confirmé ne touche pas au second.
-      if (CONFIRMES.includes(id)) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, undefined, undefined, CUISINE), { refus: SANS_OUI }, id);
+      if (CONFIRMES.includes(id)) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, undefined, CUISINE), { refus: SANS_OUI }, id);
 
-      const rendu = await ecrireGeste(terminaux, id, PARADE, undefined, true, CUISINE);
+      const rendu = await ecrireGeste(terminaux, id, PARADE, true, CUISINE);
 
       // Le second vient d'être lancé : il n'est pas dit libre. Rien n'est écrit — ni dans sa saisie, ni dans un shell.
       assert.deepEqual(rendu, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!${ATTENDUES[id]}\`` }, id);

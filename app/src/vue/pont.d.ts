@@ -11,9 +11,8 @@ import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { Vu as VuDeLaFiabilite } from "../fiabilite.ts";
 import type { Action, Rendu as RenduDuCloser } from "../closer-lancement.ts";
 import type { Confirmation } from "../confirmation.ts";
-import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
+import type { CONFIRMES, DIRECTS } from "../gestes.ts";
 import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
-import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
 import type { Issue, Lu, Saisie } from "../ajout.ts";
 import type { Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
@@ -37,7 +36,7 @@ import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -171,14 +170,13 @@ export type Pont = {
   demanderAlerte(projet: string, sujet: string, dit: string): Promise<Terminal | { refus: string } | undefined>;
   // Un geste du socle (gestes.ts) : sa commande part dans le second du projet. Rend le second, dont
   // la note dit ce qui est parti — ou pourquoi rien ne l'est, sans y toucher, quand il n'est pas dit
-  // libre (occupé, devant un dialogue, saisie entamée). Rien, pour un projet sans box. `grant` :
-  // celui sur lequel porte un geste de grant, par son nom. Un geste confirmé (`gestes.confirmes`, au
+  // libre (occupé, devant un dialogue, saisie entamée). Rien, pour un projet sans box. Un geste confirmé (`gestes.confirmes`, au
   // démarrage) ne part qu'avec `oui` à `true` — la vue ne le passe qu'au « oui » du chef, devant sa
   // confirmation : sans lui, rien n'est écrit, et le refus le dit.
-  geste(projet: string, id: string, grant?: string, oui?: true): Promise<Terminal | { refus: string } | undefined>;
+  geste(projet: string, id: string, oui?: true): Promise<Terminal | { refus: string } | undefined>;
   // Ce qu'un geste confirmé coûte, à dire avant son « oui » (confirmation.ts) : tiré des derniers
   // faits lus du projet. Rien ne part. Rien, pour un geste qui ne se confirme pas.
-  confirmer(projet: string, id: string, grant?: string): Promise<Confirmation | { refus: string } | undefined>;
+  confirmer(projet: string, id: string): Promise<Confirmation | { refus: string } | undefined>;
   // Un geste de WAITING (attente.ts), sur la carte d'un ticket : sa commande part dans le second du
   // projet, comme un geste du socle. `saisie` : ce que le chef a rempli pour « waiting for… » — ce
   // qu'il attend, de qui, le jour de la relance. Rend le second, ou pourquoi rien n'est parti.
@@ -400,9 +398,9 @@ export type Pont = {
   surActivites(recevoir: (publiees: import("./activite-du-cook.js").Publiees) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
-  // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts). `fiabilite` : dans
+  // `fiabilite` : dans
   // l'onglet Cooks, la fiabilité des cooks, lue dans `station` et `measures` (fiabilite.ts, ticket 1699).
-  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined, fiabilite?: VuDeLaFiabilite) => void): void;
+  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, fiabilite?: VuDeLaFiabilite) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :

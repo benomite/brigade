@@ -29,7 +29,7 @@ export const STATUS = [
   "kitchen    open",
   "",
   "attend     1 décision attend le chef depuis 2 j",
-  "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : gh pr merge 31",
+  "  #12  depuis 2 j  livraison verte, non mergée — à merger à la main : gh pr merge 31",
   "fin attend",
   "",
   "rail       1 taken · 2 in pass · 4 queued",

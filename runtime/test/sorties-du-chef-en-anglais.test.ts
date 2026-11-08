@@ -1,4 +1,4 @@
-// Les sorties des commandes du chef sont en anglais (#954), preuve d'ensemble de l'épique #932 : `manager`, `grant`,
+// Les sorties des commandes du chef sont en anglais (#954), preuve d'ensemble de l'épique #932 : `manager`,
 // `station`, `guardrails`, `base` et `arbiter`. Chacune est jouée avec chacun de ses gestes, et chacun de ses refus, sur
 // l'état d'exemple du bas de `status` ; aucune ligne ne garde un mot de la colonne « français » du glossaire. Le second
 // volet monte ce qu'une box d'avant l'épique a laissé — un journal, un drop-in, un fichier d'état écrits en français — et
@@ -10,7 +10,6 @@ import { test, type TestContext } from "node:test";
 import { principal as base } from "../src/base-cli.ts";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
 import { principal as gardeFous } from "../src/garde-fous-cli.ts";
-import { principal as grant } from "../src/grant-cli.ts";
 import { decisionsDansLEnvironnement, decisionsPosees, environnementDecide } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as manager } from "../src/manager-cli.ts";
@@ -82,17 +81,6 @@ test("`manager` : on, off, return, backlog, upstream et leurs refus ne portent a
   }
 });
 
-test("`grant` : enable, extend, revoke, l'état et les refus ne portent aucun mot français du glossaire", async (t) => {
-  const { env } = etat(t);
-  for (const args of [[], ["enable", "merge", "--for", "4h", "--uses", "3"], [], ["extend", "merge", "--for", "2h"], ["extend", "merge", "--uses", "5"], ["extend", "merge", "--no-expiry"], ["enable", "merge", "--until", "2099-01-01T18:00"], ["enable", "merge"], ["revoke", "merge"], ["revoke", "merge"], []]) await jouer(grant, env, ...args);
-  // Les gestes qui réussissent d'un bout à l'autre.
-  for (const args of [["enable", "merge", "--for", "1h"], ["extend", "merge", "--for", "2h"], ["revoke", "merge"]]) { const lu = await jouer(grant, env, ...args); assert.equal(lu.code, 0, args.join(" ") + "\n" + lu.lignes.join("\n")); }
-  for (const [args, environnement] of [
-    [["bouger", "merge"], env], [["enable"], env], [["enable", "merge", "--for", "vendredi"], env], [["enable", "merge", "--until", "hier"], env], [["extend", "merge"], env],
-    [["enable", "deploy"], env], [["enable", "merge", "--uses", "0"], env], [[], {}], [["enable", "merge"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) }],
-  ] as const) await refuse(grant, { ...environnement }, ...args);
-});
-
 test("`station` : la vue, cooks, une décision, remove, help et leurs refus ne portent aucun mot français du glossaire", async (t) => {
   const { env } = etat(t);
   assert.ok((await jouer(station, env)).lignes.length > 10);
@@ -149,18 +137,11 @@ test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits 
 
   // Le journal : ce que le chef a posé avant, avec ses libellés français, et le jugement du manager en français.
   noter("10:00", { type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 } });
-  noter("10:00", { type: "grant.refused", payload: { action: "acces-prod", line: "toute action sur la production d'un projet" } }, null, "chef");
-  noter("10:00", { type: "grant.activated", payload: { action: "merge", until: new Date(Date.now() + 3_600_000).toISOString(), uses: 3 } }, null, "chef");
   noter("10:00", { type: "decision.set", payload: { name: "BRIGADE_REVIEWER_MODEL", value: "opus", previous: null } }, null, "chef");
   noter("10:00", { type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 10, "manager");
   noter("10:00", { type: "kitchen.stopped", payload: {} }, null, "chef");
 
   // Montré : les commandes lisent ce journal, et leur sortie reste anglaise (les libellés du journal sont des données).
-  const grants = await sortie(grant, [], env);
-  assert.equal(grants.code, 0);
-  assert.match(grants.lignes.join("\n"), /grant merge\s+ACTIVE since \S+ \(by chef\)/);
-  assert.match(grants.lignes.join("\n"), /acces-prod {2}refused: no grant allows it {2}\(chef\)/);
-  sansMotFrancais(grants.lignes);
   assert.match((await jouer(station, env)).lignes.join("\n"), /^  reviewer-modele\s+opus$/m);
   assert.match((await jouer(gardeFous, env)).lignes.join("\n"), /^kitchen\s+STOPPED by the chef/m);
   assert.match((await jouer(manager, env)).lignes.join("\n"), /#10\s+you removed `fire` or a calibration the manager had set/);
@@ -174,12 +155,6 @@ test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits 
     return lu;
   };
   const types = () => journal.tout().map((fait) => fait.type);
-  const prolonge = await ancien(grant, "prolonger", "merge", "--pour", "3j");
-  assert.equal(prolonge.code, 0);
-  assert.match(prolonge.lignes.join("\n"), /“prolonger” is now “extend”/);
-  assert.equal(types().at(-1), "grant.extended");
-  assert.equal((await ancien(grant, "revoquer", "merge")).code, 0);
-  assert.equal(types().at(-1), "grant.revoked");
   assert.equal((await ancien(gardeFous, "reprendre")).code, 0);
   assert.equal(types().at(-1), "kitchen.resumed");
   // Le manager n'a plus d'interrupteur à lui (#1406) : ses anciens mots disent le nouveau, puis le refus

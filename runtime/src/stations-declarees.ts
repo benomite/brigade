@@ -23,8 +23,7 @@
 // les fait tourner.
 //
 // Ce qu'une station fournit est une capacité : ce que la machine peut faire.
-// Ce n'est pas une permission — ce qui est permis reste l'affaire des grants
-// —, et ce module n'en reconnaît aucune : il lit des noms.
+// Ce n'est pas une permission, et ce module n'en reconnaît aucune : il lit des noms.
 import { capacite as nomDeCapacite, CAPACITE, FORME_DE_CAPACITE_EN } from "./capacites.ts";
 import { geste } from "./geste.ts";
 import { ConfigInvalide } from "./runtime.ts";

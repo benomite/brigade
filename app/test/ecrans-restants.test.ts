@@ -11,8 +11,7 @@ import type { Cuisine } from "../src/box.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -33,7 +32,7 @@ async function ouvrir(reponses = {}): Promise<Jouee> {
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -92,7 +91,7 @@ describe("Settings n'a plus de page Manager (#1700)", () => {
   // Un seul interrupteur pour tout le projet (#1406), en tête de l'espace : sa confirmation, qui dit son
   // prix en une ligne, est éprouvée là (interrupteur-projet.test.ts).
   test("ni page ni bouton du manager dans Settings : le manager suit l'interrupteur du projet", async () => {
-    const vue = await ouvrir({ confirmer: (_: string, id: string, grant: unknown) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE) });
+    const vue = await ouvrir({ confirmer: (_: string, id: string) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE) });
     await ouvrirLecture(vue, "Settings");
     assert.throws(() => vue.element("manager"), /aucun élément « manager »/);
     assert.deepEqual(vue.element("etat").dessous("button").filter(({ textContent }) => /manager|^(?:on|off)(?:…)?$/i.test(textContent)), []);

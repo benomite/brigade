@@ -23,7 +23,6 @@ describe("l'attendu d'une décision", () => {
 
   test("une livraison verte que la pass ne merge pas : chaque motif dit le sien, et aucun bouton ne merge", () => {
     for (const [motif, attendue] of [
-      ["no-grant", /without the merge grant/],
       ["review-required", /review it, then merge it/],
       ["merge-refused", /GitHub refused the merge/],
       ["un-motif-neuf", /^Green, but not merged: merge it yourself\.$/],
@@ -54,7 +53,7 @@ describe("l'attendu d'une décision", () => {
 
   test("aucune phrase ne cite une commande, un label entre backticks ni la ligne de la file : une phrase, en clair", () => {
     const sortes = ["merge", "remontee", "fermee", "86", "capacite", "absente", "bloque", "ecartee", "illisible", "question", "repris", "carte", "abandon"];
-    const motifs = [null, "no-grant", "review-required", "merge-refused", "still-red", "unjudged", "manager-escalated", "no-calibration", "unreadable-card", "refused", "question", "decision", "blocked-on-human", "epic", "issue", "product", "design"];
+    const motifs = [null, "review-required", "merge-refused", "still-red", "unjudged", "manager-escalated", "no-calibration", "unreadable-card", "refused", "question", "decision", "blocked-on-human", "epic", "issue", "product", "design"];
     for (const quoi of sortes) {
       for (const motif of motifs) {
         for (const pr of [null, PR]) {
@@ -72,7 +71,7 @@ describe("l'attendu d'une décision", () => {
   });
 
   test("une décision venue d'ailleurs n'en est une que si elle en a la forme", () => {
-    assert.deepEqual(decisionLue({ quoi: "merge", motif: "no-grant", cause: null, pr: PR }), { quoi: "merge", motif: "no-grant", cause: null, pr: PR });
+    assert.deepEqual(decisionLue({ quoi: "merge", motif: "review-required", cause: null, pr: PR }), { quoi: "merge", motif: "review-required", cause: null, pr: PR });
     for (const brute of [undefined, null, "merge", { quoi: 1, motif: null, cause: null, pr: null }, { quoi: "merge", motif: null, cause: null, pr: 8 }, { quoi: "merge" }]) {
       assert.equal(decisionLue(brute), undefined, JSON.stringify(brute));
     }
@@ -105,7 +104,6 @@ describe("la tête d'une livraison qui attend son merge (#731) : deux lignes, et
 
   test("sans résumé, la ligne « ce qu'elle fait » n'existe pas — rien n'est inventé ; ailleurs, la phrase d'`attenduDe` reste seule", () => {
     assert.equal(teteDe(decision("remontee", { motif: "unjudged", cause: "ci-silent" }), { constat: "x" })?.fait, undefined);
-    assert.equal(teteDe(decision("merge", { motif: "no-grant", pr: PR }), { resume: RESUME }), undefined);
     assert.equal(teteDe(decision("merge", { motif: "review-required", pr: PR }), { resume: RESUME }), undefined, "review-required sans juges : une déclaration du projet, pas un juge");
     assert.equal(teteDe(undefined, { resume: RESUME }), undefined);
   });

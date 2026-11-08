@@ -13,7 +13,6 @@ import { posixOnly } from "./support/plateforme.ts";
 import { EFFORTS, MODELES } from "../src/calibrage.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { JAMAIS_ACCORDEES, jamaisAccordee } from "../src/grant.ts";
 import { LABELS, verifier } from "../src/installation.ts";
 import { CODES, lireDemande, portLibre, Refus, VARIABLES_POSEES } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
@@ -566,7 +565,6 @@ describe("le plafond dur ne bouge pas", () => {
     mkdirSync(dirname(identifiants));
     writeFileSync(identifiants, '{"claudeAiOauth":{"accessToken":"le-jeton-du-compte"}}\n');
     chmodSync(identifiants, 0o000);
-    const plafond = structuredClone(JAMAIS_ACCORDEES);
 
     const rendu = await b.geste(b.demande());
 
@@ -597,12 +595,7 @@ describe("le plafond dur ne bouge pas", () => {
     for (const variable of VARIABLES_POSEES) assert.doesNotMatch(variable, /SECRET|TOKEN|KEY|CLAUDE|ANTHROPIC|GITHUB_APPS|SANDBOX|HOME|PATH|PROD|GRANT/);
     assert.match(cloison, new RegExp(`^Environment=BRIGADE_SANDBOX_HIDDEN=${b.etats}:`, "m"));
 
-    // Le plafond dur est celui d'avant : la liste, et son refus.
-    assert.deepEqual(JAMAIS_ACCORDEES, plafond);
-    assert.deepEqual(JAMAIS_ACCORDEES.map(({ action }) => action), ["identifiants-max", "acces-prod"]);
-    assert.equal(jamaisAccordee("accès-prod")?.action, "acces-prod");
-    assert.equal(jamaisAccordee("identifiants-max")?.action, "identifiants-max");
-    // Et le projet neuf n'a aucun grant : son état ne porte que son clone.
+    // Le projet neuf : son état ne porte que son clone.
     assert.deepEqual(readdirSync(join(b.etats, "calculus")), ["depot", "log.db"]);
     // Le calibrage demandé est une décision du chef : au journal du projet, et
     // dans aucune unité.

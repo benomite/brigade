@@ -172,7 +172,7 @@ the band carries it with the same `Resume` (`app/src/vue/todo-breaker-line.js`).
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the
-manager, the grants, the reliability of its cooks and what it cost) — read for you, with nothing to type.
+manager, the reliability of its cooks and what it cost) — read for you, with nothing to type.
 Its page opens **over the rail**, and the rail comes back as you left it when you close it.
 **The cost of all projects is not in a project** (#1022): it applies to the whole, so it lives
 at the app level, on its own page, opened from "All projects".
@@ -193,8 +193,8 @@ time, at your local time: `GitHub is rate-limiting calls: too many writes per mi
 "detail". Nothing is asked of you, so the line has no button; it leaves by itself at the first `facts` without the
 entry, with no reload. A limit name the app does not know still makes the line, without its plain words
 (`app/src/vue/bandeau-limite-github.ts`).
-**One switch for the whole project** (#1406), in place of the manager's switch and the `merge` grant's
-(#906, #907): it is not a line of the band, it is at the head of the space, to the right of the tabs —
+**One switch for the whole project** (#1406), in place of the manager's switch
+(#906): it is not a line of the band, it is at the head of the space, to the right of the tabs —
 `project on`, green slider on the right, or `project off`, grey on the left —, always in view, and one
 click toggles it. On, fired tickets are taken, the manager judges and splits, green deliveries are merged;
 off, nothing new is (`brigade <projet> switch [on | off]`, `docs/runtime/exploitation.md`, "The project
@@ -209,16 +209,14 @@ holds makes no second line. The `manager` line of the box (`OFF since … (by ch
 off: …`) is now only on hover of the switch: the Manager page is gone from Settings (#1700), and the manager has
 no switch of its own. Not yet read, or not read, the switch says neither (`project …`) and toggles nothing; a read that
 fails makes its "unchecked" line in the band. On the bar, the tile of a project switched off keeps its
-signal. The `merge` grant is no longer a switch: lapsed on its own, it is a line of the band, to enable
-again; "expiring soon" remains a line, to extend; its line in Settings still enables and revokes it (#1700).
+signal.
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided; a
 **Cost** line there opens the cost of all projects.
 **Cost, the check of a project and Settings follow the same rules**: no flat instructions
 (the explanation of a tab, what a step of the installation is for and what happens if you skip it live
-on hover of a "?" icon), each action is a button that says its word — an action that writes the start of a
-command into the second is named ("Extend a grant…"), the command is written nowhere —,
+on hover of a "?" icon), each action is a button that says its word,
 a read that fails fits on one line (the cause, the retry and the exit code on hover), and a
 confirmation of a costly action says its price in one line, the rest and its source on hover.
 **The log is no longer on screen**: it is breakdown tooling, opened by the
@@ -234,10 +232,10 @@ its next opening, or right away with one click — with no terminal, no command 
 
 What is **a table of states is drawn**: a pill per project in the bar, a card
 of five counters with its cooks in flight, the rail in five columns, and a banner when the kitchen is stopped. The
-rest — the log, the grants, the station — stays text (see "What is drawn"); the state
-of the manager and that of the grants are read from this text, and laid over it.
+rest — the log, the station — stays text (see "What is drawn"); the state
+of the manager is read from this text, and laid over it.
 
-The app **adds nothing to the runtime** and doubles no action: what is granted, set or
+The app **adds nothing to the runtime** and doubles no action: what is set or
 relaunched is done in its terminal. Its buttons **write** the command into the second, and do not
 send it: you are the one who hits Enter (see "Buttons write, they do not send"). What
 it shows of the box, it read by running for you the commands that exist.
@@ -2062,7 +2060,7 @@ On the left, a column of tiles, Slack or Discord style:
 - **The shape tells the state before the color**: a dot has the shape of its tone — solid disc,
   green; diamond, yellow; square, red; triangle, blue; hollow ring, gray. The same goes for the
   driving line (`drivable` disc, `reached but no longer drivable` diamond, `not reached` square),
-  the kitchen pill, the grants, the manager, and the `awaiting you` pill of the slips in Awaiting you.
+  the kitchen pill, the manager, and the `awaiting you` pill of the slips in Awaiting you.
   Each state's label stays text; nothing is read beyond what the box says.
 - **A dot without a color is not a state**: empty, it is a word the app does not know
   (read on hover, as is); a `!`, the app
@@ -2319,7 +2317,7 @@ own, in one card titled `project`. The `this machine` block is gone from it — 
 GitHub Apps, the projects it serves, the app's code) are not shown in Settings; they move to Stations.
 
 - the project's settings in its repository (below), stored in `.claude/brigade/projet.json`;
-- one line per grant (`grant merge`…), and the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that
+- the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that
   resumes it — which the station that serves the project keeps;
 - its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette — and
   `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
@@ -2331,13 +2329,6 @@ confirmation, a refusal — is laid under the value. Nothing else is laid in Set
 text, no explanatory paragraph — what a setting implies is on hover of its value. A group with nothing to set says so in
 one line.
 
-**Grants are one line each**: `grant <action>`, its state in one word with its dot and, when it has one, the remaining
-duration (`6 h left`) — since when, by whom, until when, on hover — and a switch, `merge on` / `merge off`. Clicking it
-opens the confirmation of `grant-activer` or `grant-revoquer`, which says what the grant changes: nothing goes before
-your "yes". Settings reads `grant` on the station for that (`grants.ts`), every thirty seconds while it is shown;
-unread, each grant named by the doc still has its line, its switch muted and the reason on hover. Its latest uses, its
-latest actions, what no grant allows and the deliveries stopped for lack of a grant are no longer shown.
-
 **Removed from Settings** (#1700): the General, Rail and Manager pages and their navigation — Rail and Manager have no
 route left (`app/src/onglets.ts`); the installation guide and **the installation check** — the `check the installation`
 button in the space's header, the verdict at the top of Settings —: the app only needs a GitHub connection (#1692), and
@@ -2347,8 +2338,7 @@ renders it. **Reliability and Closer are no longer there either** (#1699): they 
 cooks' reliability, on Cooks" and "The closer, on Cooks"). **Cooks** is no longer there (#1184): it is the space's Cooks
 tab, which relays `station`, read on the box of the single project shown, at the bottom of the tab — folded behind its
 line (#1456), with no button: the cap on cooks is set on each station's line; it is read only while the tab is shown.
-An alert-band line whose cause is fixed there leads to it in one click; the grant line that is not verified opens
-Settings. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
+An alert-band line whose cause is fixed there leads to it in one click. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
 clicking it again closes it.
 
 **The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
@@ -2386,7 +2376,6 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 | Reading | The command the app runs through the project's station | What you read there |
 |---|---|---|
 | **Cooks** | `brigade <nom> station`, then `brigade <nom> measures --last <window> --by 1`, then `brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
-| **Grants** | `brigade <nom> grant` | nothing as text: Settings lays one line per grant from it (above) |
 | **Log** | `brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
 - **Only the displayed reading is read**: its command goes out when you open it, then every thirty
@@ -2604,25 +2593,6 @@ are `app/src/vue/projets-servis/projets-servis.js` and, in the main process, `pr
 (`app/src/main.ts`), which call `lireProjetsServis`, `ajouterProjetServi` and `retirerProjetServi` of the runtime.
 Captures: `docs/captures/2359/`.
 
-### The grants, in Settings
-
-*Ticket: #1700.* **Is a grant active, and until when?** It is the heaviest authorization in the system — under a
-`merge` grant, code written by a cook lands on the integration branch without you (`docs/runtime/pass-merge.md`, "Le
-grant `merge`") —, and it is read in Settings' **project** group, **one line per grant** the doc names, from `brigade <name> grant`, read while Settings is shown (`grants.ts`):
-
-- **its value**: its state in one word with its pill — `ACTIVE` (green), `LAPSED` (yellow), `REVOKED` or `ABSENT`
-  (grey) —, and, when it has an expiry, **the remaining time** the box counted at the time of the read (`6 h left`).
-  Since when and by whom, the hour of its expiry (in UTC, spelled out), what is left of it (`9 uses left`) and what
-  the runtime says of it (`a green pass is merged without you`) are on hover. An expired expiry never reads as a
-  duration: past its hour, the line says `LAPSED`.
-- **its one control**: a switch, `merge on` / `merge off`. Its click opens the confirmation of `grant-activer` or
-  `grant-revoquer`, which says what the grant changes: nothing goes before your "yes".
-- **The app guesses nothing**: a failed read says neither active nor absent — each named grant keeps its line, its
-  switch muted, the reason on hover.
-
-Its latest uses, its latest actions, what no grant authorizes and the deliveries stopped for lack of a grant are no
-longer shown (#1700): they are history and statistics, not settings — `grant` on the station still says them.
-
 ## Buttons write, they do not send
 
 A button of the app **does not act**. It writes its command into the space's **second**, cursor
@@ -2707,8 +2677,7 @@ sent into the second: `!(cd /Users/chef/brigade/runtime && BRIGADE_STATION_DIR=�
 |---|---|---|
 | `project off` | the project switch, at the head of the space | `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> switch off)` |
 
-**The other actions stay written** — stopping and resuming the kitchen, enabling and revoking a
-grant: they destroy or commit, and are read before they go. **Turning on the
+**The other actions stay written** — stopping and resuming the kitchen: they destroy or commit, and are read before they go. **Turning on the
 manager** too, for now: it commits, and its warning is set on the written command.
 **An action with judgment** — the Awaiting you slip — writes a request into the second and stops:
 without your Enter, nothing is transmitted.
@@ -3030,8 +2999,7 @@ section. With the section laid, `right now` is not repeated under it.
   block's line already says what it is. **Its number opens the issue** at the address that `facts.attend`
   gives — the box knows the repository, the app composes none. Without this address (a runtime from before
   this field, or a box that does not know its repository), it opens nothing, and its hover says so.
-- **A line without a number is in no column**: the station without a Max connection, the summary of
-  stops for lack of a grant. They stay in the block, on the right. The `awaiting you` counter of the project
+- **A line without a number is in no column**: the station without a Max connection. It stays in the block, on the right. The `awaiting you` counter of the project
   tile counts the decisions, the column counts its cards: a disconnected station makes the difference.
 - **Awaiting you may not be read**, and the column says so (`?`, `not read: this box's runtime
   does not give `attend` in `facts`, and the `awaiting` block of `brigade <name> status` was
@@ -3253,8 +3221,8 @@ left aside.
 
 ### A box that does not answer at all (#728)
 
-A mute box makes everything the app reads from it fail at once: the manager, the version, the kitchen,
-the grant. The app does not make four "unchecked" alerts of it, each with an action that changes
+A mute box makes everything the app reads from it fail at once: the manager, the version, the kitchen.
+The app does not make three "unchecked" alerts of it, each with an action that changes
 nothing: **after two failed readings of `facts` in a row** (`LECTURES_POUR_INJOIGNABLE`) — the box
 not reached, not the command failing —, **the band says only one line**:
 
@@ -3331,9 +3299,7 @@ or, if the browser did not open, one line saying so, its detail in the hover.
 
 ### What is not drawn, and will not be here
 
-- **The log and the output of `station`** stay text: they are streams, not state tables. The state of the
-  grants is not drawn from `facts`: it is read in the output of `grant`, one line per grant in Settings ("The grants,
-  in Settings").
+- **The log and the output of `station`** stay text: they are streams, not state tables.
 - **No numeric gauge**, neither of the quota nor of the machine: the runtime does not know the account's
   consumption (`/usage` gives it) and gives figures for the machine only when it saturates. The
   `quota` and `machine` lines of `station` are read as they are, in Cooks.
@@ -3343,7 +3309,7 @@ or, if the browser did not open, one line saying so, its detail in the hover.
 
 To the right of the terminal, without typing anything, and whatever the tab: the project tile, then
 **what awaits you, set apart**, then the output of `brigade <nom> status`, **word for
-word**. (Grants have their own tab.) The app reads nothing in it and says nothing of it again — if
+word**. The app reads nothing in it and says nothing of it again — if
 a command's wording changes, what you see changes with it. It cuts out only one thing, by its
 edge: the `awaiting` block.
 
@@ -3356,7 +3322,7 @@ the output.
 ```
 what awaits you — the `awaiting` block of `brigade <nom> status`
 awaiting   2 decisions await the chef — the oldest since 2 d
-  #12  since 2 d  green delivery, not merged for lack of a `merge` grant — merge by hand: …
+  #12  since 2 d  green delivery, not merged — merge by hand: …
   #21  since 3 h 02  BLOCKED: #17 dropped (label `fire` removed) — to unblock: …
 end awaiting
 ```
@@ -3403,16 +3369,15 @@ What asks for your attention without awaiting you is where `status` puts it, and
 | What you are looking for | Where `status` says it |
 |---|---|
 | A ticket that no longer progresses | `STUCK`, on its line of the `rail` and on the `cooks` line; each taken ticket carries `no progress since <duration>` — a duration, not a date to compare |
-| A grant about to lapse | `EXPIRING SOON`, on the `grant` line of the header |
 | A stopped cook | no line of its own: `latest events` (`guard.tripped`, `cook.exited`), and the breaker on the `kitchen` line |
 
 The app **never says "nothing awaits you" itself**: a calm screen is an `awaiting` block that says
-`nothing awaits the chef`, and a `status` with no `STUCK` nor `EXPIRING SOON`.
+`nothing awaits the chef`, and a `status` with no `STUCK`.
 
-The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`, `base`, `grant`, and `nothing cooks:`) have been in English since #928; it also reads them in their French form (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), for a box whose runtime is not up to date.
+The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`, `base`, and `nothing cooks:`) have been in English since #928; it also reads them in their French form (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), for a box whose runtime is not up to date.
 
 **Nothing to declare.** The app reads a project's `status` through the gesture of the station that cooks it on this
-computer: `brigade <nom> status` and, for the content tab displayed, `rail`, `station`, `grant` or `log`
+computer: `brigade <nom> status` and, for the content tab displayed, `rail`, `station` or `log`
 (`docs/runtime/exploitation.md`, "Piloter"). The gesture is run from the runtime's folder with the station's directory
 (`BRIGADE_STATION_DIR`), by the `node` that plays the station: the account, the installation and the environment are
 read there. No other machine is reached. A project whose kitchen does not run on this computer is not read this way:
@@ -3481,7 +3446,7 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
 
 - **A dark background, cards on it.** Everything that reads as a block has its card: the lists of
   "All projects", the project tile, the commissioning of an added project, the removal, the served
-  pages, the manager's state, the grants', the add form. A rail column is a card, a ticket there is
+  pages, the manager's state, the add form. A rail column is a card, a ticket there is
   a **slip** — light paper on the dark —, and what awaits you has its own, the same whether the
   block is full or empty. There is only one theme, dark, and no setting.
 - **A palette, written in a single place**: `app/src/vue/jetons.css`. Each color there is a

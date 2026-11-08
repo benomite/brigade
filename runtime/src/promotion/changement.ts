@@ -139,7 +139,7 @@ function corpsDeLaPR(contexte: { decisions: Changement[]; histoire: LeconHistoir
     }
   });
   return [
-    `**Carnet des leçons du projet** (\`${CARNET_PATH}\`), livré par le runtime de la brigade : ce que l'histoire des rétros décide des leçons des cooks. Elle passe par la pass comme une livraison — gates, relecture, CI, grant \`merge\` — et n'attend pas le chef. Elle ne touche que le carnet.`,
+    `**Carnet des leçons du projet** (\`${CARNET_PATH}\`), livré par le runtime de la brigade : ce que l'histoire des rétros décide des leçons des cooks. Elle passe par la pass comme une livraison — gates, relecture, CI — et n'attend pas le chef. Elle ne touche que le carnet.`,
     "",
     `Seuils du projet : promue à ${pluriel(seuils.promotion, "rétro")} de tickets différents ; une promue que rien ne reconfirme pendant ${pluriel(seuils.expirationPromue, "ticket servi")} redevient provisoire, une provisoire disparaît ${pluriel(seuils.expirationProvisoire, "ticket servi")} plus tard. ${pluriel(retros.length, "ticket servi")} à ce jour.`,
     "",

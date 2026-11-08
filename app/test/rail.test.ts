@@ -15,9 +15,8 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { heureHM } from "../src/format.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
@@ -36,7 +35,7 @@ const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ no
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -71,7 +70,7 @@ const FAITS: Faits = {
 };
 // Ce que le bloc dit de #12 : une entrée longue, puis ce qui la précise sur plusieurs lignes —
 // des blancs en tête, en fin et au milieu, une tabulation, ce qui ressemble à du HTML.
-const LONGUE = `depuis 2 j  ${"livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31 ; ".repeat(30)}fin de l'entrée  `;
+const LONGUE = `depuis 2 j  ${"livraison verte, non mergée — à merger à la main :   gh pr merge 31 ; ".repeat(30)}fin de l'entrée  `;
 const SUITE = ["      │ une ligne de suite,   avec ses blancs  ", "      │ \tune tabulation, puis <b>pas du HTML</b> &amp; « des accents » → ✓", `      │ ${"x".repeat(900)}`, "      │ la dernière"];
 const STATUS = [
   "projet     parade",
@@ -511,7 +510,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.deepEqual(autres, []);
     assert.equal(demander?.dataset.geste, "demande");
     fermer(vue);
-    await ouvrirLecture(vue, "Grants");
+    await ouvrirLecture(vue, "Settings");
     // Un clic sur la carte, un clic sur le geste : la même demande qu'avant.
     bonDe(vue, 12).click();
     await repos();
@@ -522,7 +521,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.equal(vue.element("note-second").textContent, "demande écrite dans le second, sans Entrée");
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
-    // Le centre n'a pas changé : la page Grants est toujours celle qui est ouverte.
+    // Le centre n'a pas changé : la page Settings est toujours celle qui est ouverte.
     assert.equal(onglet(vue, "Settings").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(relayes(bonDe(vue, 12)), []);
@@ -842,7 +841,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const relus: NonNullable<Faits["livres"]> = [
       { ...LIVRES[0]!, relecture: { resume: RESUME, constats } },
       { ...LIVRES[1]!, relecture: null },
-      { ticket: 201, titre: "Les grants sous plafond", url: null, livre: "2026-10-13T09:00:00.000Z", station: null, pr: null, relecture: { resume: "Seul.", constats: [] } },
+      { ticket: 201, titre: "Les accès sous plafond", url: null, livre: "2026-10-13T09:00:00.000Z", station: null, pr: null, relecture: { resume: "Seul.", constats: [] } },
     ];
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 3 }, livres: relus }, PAS_LU));

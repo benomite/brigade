@@ -206,14 +206,11 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
   };
   const noter = (fait: Fait) => runtime.journal.ajouter({ project: "brigade", ticket: 7, author: "pass", ...fait });
   noter({ type: "pass.started", payload: { run: "7-aa", pr: "https://exemple.test/pull/7", number: 7, sha: "sha-7" } });
-  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  noter({ type: "pass.held", payload: { reason: "review-required" } });
 
   const sortie = await statut();
   assert.match(sortie, /^awaiting   1 decision awaits the chef — for \d+ s$/m);
-  assert.match(sortie, /^  #7  for \d+ s  green delivery, not merged for lack of a `merge` grant — merge by hand: https:\/\/exemple\.test\/pull\/7 — or enable the grant, for the next ones: the switch on the `merge` grant's line of the project's Settings  Le ticket sept$/m);
-  // Et le chiffre sur lequel accorder, dans le même bloc.
-  // Le bilan ferme le bloc, dont la fin se reconnaît sans le lire.
-  assert.match(sortie, /^  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open\nend awaiting\n\nrail /m);
+  assert.match(sortie, /^  #7  for \d+ s  green delivery that touches its judges — review and merge by hand: https:\/\/exemple\.test\/pull\/7  Le ticket sept\nend awaiting\n\nrail /m);
 
   // Le chef merge la PR à la main : la pass le constate.
   noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/7", sha: "sha-7", by: "outside", reconciled: false, unverified: true } });
