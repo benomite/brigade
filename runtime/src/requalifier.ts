@@ -76,7 +76,9 @@ export function lireRequalification(message: string | null): { valeur: Requalifi
   return { valeur: { issue: "carte", motif, carte: { type, enonce: surUneLigne(enonce), capture: capture === null ? null : surUneLigne(capture) } } };
 }
 
-export type AtelierDeRequalification = {
+// Ce que le manager prête aux relectures de son tour : la requalification
+// ci-dessous et le suivi d'un verdict `incomplete` (manager/verdict-incomplet.ts).
+export type AtelierDuManager = {
   journal: Journal;
   projet: string;
   github: GitHub;
@@ -95,7 +97,7 @@ export type AtelierDeRequalification = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-export function ouvrirRequalification(atelier: AtelierDeRequalification) {
+export function ouvrirRequalification(atelier: AtelierDuManager) {
   const { journal, projet, github, noter, avertir, arrete } = atelier;
   const { base } = journal;
 

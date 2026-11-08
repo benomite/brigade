@@ -14,13 +14,11 @@
 // du verdict qu'elle suit : le même verdict ne se relit pas deux fois.
 import { entrerDansTodo } from "../carte-todo.ts";
 import { uneQuestion } from "../carte-todo/forme.ts";
-import type { Reponse } from "../decoupage.ts";
-import type { FaitManager } from "../events/manager.ts";
-import type { GitHub, IssueOuverte } from "../github.ts";
-import type { Journal } from "../journal.ts";
+import type { IssueOuverte } from "../github.ts";
 import { EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, issueEnDonnee, MARQUEUR_MANAGER, objet, parmi, phrase } from "../juger.ts";
 import { MODELES } from "../calibrage.ts";
 import type { IssueDuManager } from "../projections/manager.ts";
+import type { AtelierDuManager } from "../requalifier.ts";
 
 export const QUESTION_PRODUIT = "product-question";
 const AUTEUR_DE_CARTE = "manager";
@@ -164,26 +162,9 @@ export function reecrireCriteres(corps: string, criteres: readonly string[]): st
   return [...lues.slice(0, section.debut + 1), "", ...liste, "", ...lues.slice(section.fin)].join("\n").trimEnd();
 }
 
-export type AtelierDeVerdictIncomplet = {
-  journal: Journal;
-  projet: string;
-  github: GitHub;
-  depotGitHub: string;
-  noter: (ticket: number | null, fait: FaitManager) => unknown;
-  demander: <T>(
-    sujet: { numero: number; prefixe: string; nom: string },
-    consigne: string,
-    lire: (message: string | null) => { valeur: T } | { illisible: string },
-  ) => Promise<Reponse<T> | null>;
-  peutJuger: () => boolean;
-  arrete: () => boolean;
-  avertir: (message: string) => void;
-  signature: (run: string | null, verbe: string) => string;
-};
-
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-export function ouvrirVerdictIncomplet(atelier: AtelierDeVerdictIncomplet) {
+export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
   const { journal, projet, github, noter, avertir, arrete } = atelier;
 
   const derniere = (ticket: number) => journal.duTicket(ticket).findLast((evenement) => evenement.type === "manager.completed");
