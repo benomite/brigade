@@ -24,6 +24,7 @@ import { confirmationDe } from "./confirmation.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
+import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
@@ -1360,6 +1361,21 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
   if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
   return rendu;
 });
+// Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
+// changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humains-du-projet.ts).
+ipcMain.handle("listerLesHumains", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesHumains(vise.nom, lu, lancerSurLaCuisine);
+});
+const ecrireUnHumain = async (nom: unknown, geste: { save: unknown } | { remove: unknown }) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) return parti(nom);
+  const rendu = await ecrireLesHumains(vise.nom, lu, geste, (lu, commande) => lancerLa({ delaiMs: 150_000 }, lu, commande));
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+};
+ipcMain.handle("enregistrerUnHumain", (_, nom: unknown, humain: unknown) => ecrireUnHumain(nom, { save: humain }));
+ipcMain.handle("retirerUnHumain", (_, nom: unknown, login: unknown) => ecrireUnHumain(nom, { remove: login }));
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !propositionsDeReglage.has(url)) return false;
   return shell.openExternal(url).then(

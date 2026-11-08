@@ -102,6 +102,7 @@ import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserTempsTicket } from "./temps-ticket/temps-ticket.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
+import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
 import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
@@ -8341,6 +8342,7 @@ async function ouvrir(projet) {
   void servis.lire();
   poserLesReglagesDuProjet(projet);
   void lireLesReglages(projet);
+  void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
   brigade.regarder(projet.nom, ++demande);
   if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.

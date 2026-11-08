@@ -11,6 +11,7 @@
     <!-- Les jetons d'abord — les couleurs et les polices, embarquées —, puis la peau qui les nomme. -->
     <link rel="stylesheet" href="jetons.css" />
     <link rel="stylesheet" href="vue.css" />
+    <link rel="stylesheet" href="settings-humans/humains.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
       {
@@ -109,6 +110,7 @@
             <h2 id="niveau-project" class="niveau-du-groupe"></h2>
             <p id="vide-project" class="vide" hidden></p>
             <div id="reglages-du-projet" aria-live="polite" hidden></div>
+            <div id="humains-du-projet" aria-live="polite" hidden></div>
             <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
             <div id="sigle" aria-label="The project's label in the bar" hidden></div>
             <div id="couleurs" aria-label="The project colors" hidden></div>
