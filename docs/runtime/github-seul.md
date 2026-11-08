@@ -15,6 +15,19 @@ base, the stale-branch pruning).
   `status` then has a `GitHub-only state REFUSED` line with the reason (`GitHub-only state` alone when accepted),
   `facts` carries it as `githubSeul`, and the app puts the refusal at the top of the project
   (`runtime/src/github-seul-etat.ts`).
+- **A station without write access is a contributor station** (#2935). At its first turn the station reads the
+  machine's account and whether GitHub gives it push on the repository (`droits` in `runtime/src/github.ts`; under a
+  role identity, an App installed on the repository, it writes and nothing is read). Without push, the turn runs the
+  contributor station (`runtime/src/station-contributrice/`) instead of the one above: it creates its fork or finds
+  the one it has, claims a ticket with a comment signed by its account
+  (`<!-- brigade:reclame station=… login=… -->`), reads the issue again, and cooks only if its claim is the oldest
+  valid one; then it pushes the cook's branch to its fork and opens a pull request from the fork to the project
+  (`Closes #n`). It sets no label and never reviews or merges. A claim counts only when posted by the account it
+  names; it holds until that station releases it (`<!-- brigade:rend … -->`, posted when its cook delivers nothing, or
+  when its claim lost the race) or until it expires, 6 hours after it was posted — a station whose cook runs longer
+  posts it again after half that time. A station does not take again a ticket whose cook blocked on a question, nor
+  one whose cooks delivered nothing `ECHECS_MAX` times; that count lives with the station. A delivered ticket keeps its claim, then its open pull request keeps it off the
+  other contributor stations. Rights that cannot be read fail the turn, and the next turn reads them again.
 - **`blocked-on-human` needs a question.** The label is only set with a question written on the card
   (`poserALaMain`, `runtime/src/blocages-sans-question.ts`): the question is commented first, then the label set.
   Without one the label is not applied, the station warns, and the case is counted — a failure, not a step. The count is
@@ -111,6 +124,15 @@ base, the stale-branch pruning).
   goes back to a cook like a red CI. The `pending` status is the claim: a fresh one (under 90 min, `GATES_PERIMEES_MS`)
   is awaited, and one left by a station that died during the gates is taken over once it expires. A project with CI on
   its PRs keeps requiring it, and in doubt the CI is awaited.
+- **An outside PR is judged, never merged** (#2933). A PR opened from a fork (`isCrossRepository` in the turn's
+  snapshot, a head repository other than the project's in REST) is no ticket's PR, whatever its branch is called. A
+  station fetches its head from `refs/pull/<n>/head` into a detached worktree, runs the review and the project's gates
+  on it with none of the project's secrets and no GitHub token, posts the review verdict and the gates' result as one
+  comment on the PR (`<!-- brigade:pr-externe … -->`), then a `merge-by-hand` TODO card on the PR, assigned to the
+  project's `review` human: `merge #N?`, with `yes` recommended when the review approves and no gate is red, `no`
+  otherwise. Nothing on this path can merge or update the PR (`runtime/src/pr-externe/`). One head is served once, by
+  one station, claimed like the manager's work on an issue; a new head is judged again and its card replaces the
+  previous one. The app's TODO lists issues only, so this card shows on GitHub, not in the app.
 - **Cost follows events, not time** (#2198): a turn where nothing changed costs no counted GitHub call (its reads are
   conditional); a merge GitHub refuses, or a branch update it asked for, is not retried until the PR or the base
   changes. A ticket served end to end costs about 27 calls, at most 30 (`runtime/test/cout-par-ticket/`).
@@ -151,6 +173,30 @@ base, the stale-branch pruning).
   to the first `review` one: the issue is assigned to them on GitHub and the mention names them instead of the chef. A
   card no role answers is assigned to the chef. Without `humans`, nothing changes: the chef is mentioned, no one is
   assigned (`runtime/src/aiguillage-humains/`).
+
+## Running Brigade on an open-source project
+
+An open-source project runs the same kitchen, with outside contributors who have no write access to its repository.
+The mode is decided in epic #2927. Its outside PRs are in the runtime; the rest is decided and not yet in the runtime,
+and says so below.
+
+- **An outside PR is judged, never merged by the kitchen.** A PR opened from a fork is reviewed and gated by the
+  kitchen, with none of the project's secrets, and its verdict is one comment on the PR (*An outside PR is judged, never
+  merged*, above). The kitchen never merges it: a `merge #N?` card goes to the human with the `review` role, who merges
+  it by hand, with `yes` recommended when the review approves and no gate is red. With no `review` human declared in the
+  project's settings, the card goes to the chef.
+- **A stranger's issue waits for a human.** Decided, not yet in the runtime: an issue opened by someone outside the
+  project gets a triage proposal from the manager and a TODO card for the `product` human. Nothing reaches the rail until
+  that human answers.
+- **A contributor station runs from a fork.** Decided, not yet in the runtime: a contributor without write access runs a
+  station from a fork, claims a ticket, and delivers an outside PR, which the path above judges.
+- **The chef can refuse a contributor station** (#2936). The refused stations are a list in the state directory
+  (`stations-refusees.json`, `runtime/src/station-contributrice/refus.ts`): only the `chef` role changes it, and a file
+  that cannot be read is an error, never an empty list. A contributor station reads it at each turn: a refused station
+  claims nothing (no claim comment is posted), and one whose list cannot be read takes nothing that turn. The command
+  `contributor-stations` lists the stations that claimed a ticket in the last 30 days (their claim comments) plus the
+  refused ones, and `refuse <station>` / `accept <station>` change the list; Settings in the app calls it. The list lives
+  in the state directory of the kitchen that holds it: it binds the stations that read that directory.
 
 ## What is gone (#2061)
 

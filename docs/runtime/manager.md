@@ -93,7 +93,7 @@ without spending anything:
 |---|---|---|
 | carries `fire` and a complete calibration | Nothing: launched, by you or by it | — |
 | received labels from the manager, and lacks `fire`, `model:` or `effort:` since | Nothing, **until you hand it back**; says so once on the issue, with the command | `manager.set-aside` (`chef-changed`) |
-| is written by someone with no hand on the repository | Nothing, no comment | `manager.set-aside` (`untrusted-author`) |
+| is written by someone with no hand on the repository | **Triaged** by the LLM, once: one comment proposes `duplicate of #N`, `out of scope`, or `ticket` with a `prio:` value; then a `product-question` TODO card, assigned to the project's `product` human (the chef without one). Nothing reaches the rail until that human (or an account with write access) answers on the issue: `on the rail` puts the proposed `prio:` — or the one the answer writes, `on the rail prio:N`; `fire` when there is none — and the issue is judged on the next wake-up like one a member prioritised (#2619); `close` closes it (#2934, `runtime/src/issue-etrangere/`) | `manager.set-aside` (`untrusted-author`) |
 | is the roadmap (`BRIGADE_ROADMAP_ISSUE`) | Nothing | `manager.set-aside` (`roadmap`) |
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
 | carries `hors-cuisine` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`hors-cuisine`) |

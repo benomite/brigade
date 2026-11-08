@@ -134,7 +134,8 @@ export type GitHub = {
   // Les PR ouvertes, avec la branche dont chacune est la tête et les fichiers
   // qu'elle change. Facultatif : seul le client réel le porte
   // (`brigade-github.ts`, la zone tenue d'un ticket).
-  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
+  // `externe` : sa tête vient d'un autre dépôt — un fork (#2933).
+  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[]; sha?: string; externe?: boolean }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
   // Tous les statuts du commit sous ce contexte, chacun tel qu'il a été posé,
@@ -202,6 +203,13 @@ export type GitHub = {
   // branche par défaut — celle de `/brigade:init` ; null si aucune PR ne l'a
   // posé (#2928).
   auteurDeLInit?(): Promise<string | null>;
+  // Le compte sous lequel ce GitHub agit, et s'il a l'écriture sur le dépôt :
+  // sans elle, la station est contributrice (#2935). Facultatif, comme le
+  // suivant : seul le client réel le porte.
+  droits?(): Promise<{ login: string; ecriture: boolean }>;
+  // Crée la fourche du dépôt sous ce compte, ou rend celle qu'il a déjà :
+  // son propriétaire, et l'adresse où pousser (#2935).
+  fourcher?(): Promise<{ proprietaire: string; url: string }>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -390,7 +398,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -675,17 +683,20 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string; repo?: { full_name?: string } | null }; base?: { repo?: { full_name?: string } | null } }>);
       return Promise.all(
-        ouvertes.map(async ({ number, head }) => {
+        ouvertes.map(async ({ number, head, base: cible }) => {
+          // Un fork supprimé n'a plus de dépôt de tête : elle reste externe (#2933).
+          const externe = (head.repo?.full_name ?? "").toLowerCase() !== (cible?.repo?.full_name ?? depot).toLowerCase();
+          const tete = { ...(head.sha === undefined ? {} : { sha: head.sha }), externe };
           // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
           const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
           const gardes = cle === null ? undefined : fichiersParTete.get(cle);
-          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes };
+          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes, ...tete };
           const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
           const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
           if (cle !== null) memoriser(fichiersParTete, cle, fichiers);
-          return { number, branche: head.ref, fichiers };
+          return { number, branche: head.ref, fichiers, ...tete };
         }),
       );
     },
@@ -835,6 +846,26 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       exiger(await appeler(["-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]), chemin);
     },
     identite: async () => (options.identite ? options.identite() : null),
+    async droits() {
+      // Une identité par rôle est une App installée sur le dépôt, qui y écrit ;
+      // son jeton n'a pas de compte à lire sous `user`.
+      if (options.identite) return { login: await options.identite(), ecriture: true };
+      const moi = "user";
+      const { login } = JSON.parse(exiger(await lireSousCondition([moi]), moi).corps) as { login?: unknown };
+      if (typeof login !== "string" || login === "") throw new Error(`gh api ${moi} : no login in the answer`);
+      const chemin = `repos/${depot}`;
+      const { permissions } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { permissions?: { push?: unknown } | null };
+      if (typeof permissions?.push !== "boolean") throw new Error(`gh api ${chemin} : no permissions in the answer`);
+      return { login, ecriture: permissions.push };
+    },
+    async fourcher() {
+      // GitHub répond 202 : la fourche se crée en arrière-plan, et une fourche
+      // qui existe déjà est rendue telle quelle.
+      const chemin = `repos/${depot}/forks`;
+      const { owner, clone_url } = JSON.parse(exiger(await appeler(["-X", "POST", chemin]), chemin, 202).corps) as { owner?: { login?: unknown } | null; clone_url?: unknown };
+      if (typeof owner?.login !== "string" || owner.login === "" || typeof clone_url !== "string" || clone_url === "") throw new Error(`gh api ${chemin} : fork without owner or clone address`);
+      return { proprietaire: owner.login, url: clone_url };
+    },
     async proprietaire() {
       const chemin = `repos/${depot}`;
       const { owner } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { owner?: { login?: string; type?: string } | null };

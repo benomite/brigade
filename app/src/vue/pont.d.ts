@@ -277,6 +277,17 @@ export type Pont = {
   reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
   proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
   ouvrirLaProposition(url: string): Promise<boolean>;
+  // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
+  // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humains.js, humains-du-projet.ts).
+  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.
+  listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
+  enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
+  retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
+  // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
+  listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;
+  refuserUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
+  accepterUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
   // (`.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (plafonds-duree.ts).
   plafondsDuree(projet: string): Promise<import("../plafonds-duree.ts").LectureDesPlafonds>;

@@ -26,10 +26,14 @@ const BLOCS = [...settings.matchAll(/<div id="([\w-]+)"/g)].map((trouve) => trou
 // bloc aussi. `reglages-du-projet` porte une ligne par clé de `setting` (CLES) : toutes dans projet.json.
 const STOCKAGE: Record<string, string> = {
   "reglages-du-projet": PROJET_JSON,
+  // Les humains du projet (#2930) : la clé `humans`, changée par une PR.
+  "humains-du-projet": PROJET_JSON,
   "arreter-cuisine": STATION,
   sigle: FICHIER_DES_PROJETS,
   couleurs: FICHIER_DES_PROJETS,
   retrait: FICHIER_DES_PROJETS,
+  // Les stations contributrices que le chef refuse (#2936) : une liste que garde la station, dans son répertoire d'état.
+  "stations-contributrices": STATION,
 };
 
 describe("Settings : les réglages du projet seulement", () => {
@@ -59,6 +63,6 @@ describe("Settings : les réglages du projet seulement", () => {
   // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
   test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
     const dehors = BLOCS.filter((id) => STOCKAGE[id] !== PROJET_JSON).sort();
-    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "retrait", "sigle"]);
+    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "retrait", "sigle", "stations-contributrices"]);
   });
 });

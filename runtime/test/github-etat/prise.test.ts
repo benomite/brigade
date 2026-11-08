@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { corpsDeLacher, corpsDePrise, lacher, lireTenant, premierePrise, prendre, PRIS, purger, tenant, type CommentaireDePrise, type GitHubDeLaPrise, type RetraitDeLabel } from "../../src/github-etat/prise.ts";
+import { corpsDeLacher, corpsDePrise, faitsDePrise, lacher, lireTenant, premierePrise, prendre, PRIS, purger, tenant, type CommentaireDePrise, type GitHubDeLaPrise, type RetraitDeLabel } from "../../src/github-etat/prise.ts";
 
 const NUMERO = 42;
 
@@ -272,4 +272,24 @@ test("the first claim of a ticket is the earliest one posted by the repo since t
   ];
   assert.equal(premierePrise(commentaires, "2026-11-02T10:00:00Z"), "2026-11-02T10:03:00.000Z");
   assert.equal(premierePrise(commentaires, "2026-11-02T10:06:00Z"), null);
+});
+
+test("the claims, the tickets given back and the send-backs the repo posted since the given instant are read in order (#2954)", () => {
+  const commentaires = [
+    { body: corpsDePrise("avant"), association: "OWNER", createdAt: "2026-11-02T09:00:00Z" },
+    { body: "<!-- brigade:renvoi n=1 sha=abc -->\nSent back", association: "OWNER", createdAt: "2026-11-02T10:20:00Z" },
+    { body: corpsDeLacher("box"), association: "OWNER", createdAt: "2026-11-02T10:08:00Z" },
+    { body: corpsDePrise("box"), association: "OWNER", createdAt: "2026-11-02T10:05:00Z" },
+    { body: "<!-- brigade:echec n=1 -->\nStation `box`: the cook stopped", association: "MEMBER", createdAt: "2026-11-02T10:07:00Z" },
+    { body: corpsDeLacher("intrus"), association: "NONE", createdAt: "2026-11-02T10:09:00Z" },
+    { body: corpsDePrise("box"), association: "OWNER", createdAt: "not a date" },
+    { body: "<!-- brigade:renvoiX -->", association: "OWNER", createdAt: "2026-11-02T10:21:00Z" },
+  ];
+  assert.deepEqual(faitsDePrise(commentaires, "2026-11-02T10:00:00Z"), [
+    { quoi: "prise", at: "2026-11-02T10:05:00Z" },
+    { quoi: "rendu", at: "2026-11-02T10:07:00Z" },
+    { quoi: "rendu", at: "2026-11-02T10:08:00Z" },
+    { quoi: "renvoi", at: "2026-11-02T10:20:00Z" },
+  ]);
+  assert.deepEqual(faitsDePrise(commentaires, "2026-11-02T10:30:00Z"), []);
 });

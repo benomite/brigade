@@ -38,9 +38,11 @@ import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, 
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
+import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
+import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
+import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
 import { aDesGates, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
@@ -50,6 +52,7 @@ import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
+import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -135,6 +138,12 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // L'issue, son état et son corps : ce qu'il faut pour fermer une épique
     // finie (#2757). Absente, la guérison ne ferme aucune épique.
     issue?: GitHub["issue"];
+    // Les PR externes ouvertes — depuis un fork (#2933) —, et ce que leur
+    // service écrit de plus : la fin de son travail sur une tête, l'humain
+    // `review` assigné à sa carte. Absentes, la station ne les sert pas.
+    prsExternes?(): Promise<PRExterne[]>;
+    remplacerCommentaire?: GitHub["remplacerCommentaire"];
+    assigner?: GitHub["assigner"];
   } & GitHubDeLaRelance;
 
 const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
@@ -280,6 +289,17 @@ export type OptionsDeStation = {
   // `blocked-on-human` (#2894). Absent, le blocage attend, puis compte pour un
   // cook sans livraison : il ne va jamais au chef sans lui.
   consulter?: ConsulterLeManager;
+  // Le service des PR externes (#2933) : leur relecture et leurs gates, sans
+  // les secrets du projet, et ses humains, à qui va leur carte. Absent, la
+  // station ne les sert pas.
+  externes?: ServiceDesPRExternes;
+};
+
+// Ce que la station donne au service d'une PR externe (`pr-externe/`).
+export type ServiceDesPRExternes = {
+  juger(pr: PRExterne): Promise<Jugement>;
+  gates(pr: PRExterne): Promise<GatesExternes>;
+  humains(): Humain[];
 };
 
 // Le préfixe du label par lequel un ticket demande une capacité.
@@ -920,6 +940,55 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
   const relancerLaBase = relanceDeLaBase(github, avertir, nom);
 
+  // Les PR externes que la station sert, hors du tour comme une relecture, une
+  // à la fois ; et les têtes dont le service a échoué, retentées sur une tête
+  // neuve ou `RELANCE_DES_GATES_MS` passé.
+  const externesEnCours = new Map<number, Promise<void>>();
+  const externesEcartees = new Map<number, { sha: string; jusqua: number }>();
+  const servirLesExternes = async () => {
+    const service = options.externes;
+    const { prsExternes, remplacerCommentaire, issue } = github;
+    if (service === undefined || prsExternes === undefined || remplacerCommentaire === undefined || issue === undefined || externesEnCours.size > 0) return;
+    const pr = (await prsExternes.call(github)).find((lue) => {
+      const ecartee = externesEcartees.get(lue.number);
+      return ecartee === undefined || ecartee.sha !== lue.sha || instant() >= ecartee.jusqua;
+    });
+    if (pr === undefined) return;
+    const servie = (async () => {
+      try {
+        const fait = await servirLaPRExterne(pr, {
+          github: {
+            commentaires: (numero) => github.commentaires(numero),
+            commenter: (numero, corps) => github.commenter(numero, corps),
+            remplacerCommentaire: remplacerCommentaire.bind(github),
+            issue: issue.bind(github),
+            labelliser: (numero, labels) => github.labelliser(numero, labels),
+            delabelliser: (numero, label) => github.delabelliser(numero, label),
+            ...(github.assigner === undefined ? {} : { assigner: github.assigner.bind(github) }),
+          },
+          station: nom,
+          maintenant: () => new Date(instant()),
+          juger: service.juger,
+          // Une à la fois sur la station, avec celles des tickets : elles prennent la machine comme un cook.
+          gates: (lue) => {
+            const suite = serieDesGates.then(() => service.gates(lue));
+            serieDesGates = suite.catch(() => undefined);
+            return suite;
+          },
+          humains: service.humains,
+        });
+        // Servie, ou tenue par une autre : rien à refaire sur cette tête avant qu'elle ne bouge.
+        externesEcartees.set(pr.number, { sha: pr.sha, jusqua: fait.issue === "tenue" ? instant() + RELANCE_DES_GATES_MS : Number.POSITIVE_INFINITY });
+      } catch (erreur) {
+        externesEcartees.set(pr.number, { sha: pr.sha, jusqua: instant() + RELANCE_DES_GATES_MS });
+        avertir(`brigade : outside PR #${pr.number} not served on ${nom} — ${message(erreur)}; retried in ${RELANCE_DES_GATES_MS / 60_000} min, or on a new head`);
+      } finally {
+        externesEnCours.delete(pr.number);
+      }
+    })();
+    externesEnCours.set(pr.number, servie);
+  };
+
   // Les PR d'un projet sans CI sur elles se jugent sur ses gates, jouées sur
   // leur tête (#2456). Une PR que `prsOuvertes` ne liste pas, on ne sait pas ce
   // qu'elle change : sa CI est attendue.
@@ -1168,6 +1237,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
     }
     premierTour = false;
+    // Les PR externes (#2933) : jamais mergées, servies hors du tour.
+    try {
+      await servirLesExternes();
+    } catch (erreur) {
+      if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+      avertir(`brigade : the outside PRs could not be read on ${nom} — ${message(erreur)}`);
+    }
     for (const [numero, ticket] of aRendre) {
       try {
         await prise.lacher({ number: numero, labels: [...new Set([...ticket.labels, LABEL_TAKEN])] });
@@ -1350,10 +1426,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     },
     enCuisine: () => [...enVol.keys()],
     relu: async () => {
-      while (enRelecture.size > 0) await Promise.all(enRelecture.values());
+      while (enRelecture.size > 0 || externesEnCours.size > 0) await Promise.all([...enRelecture.values(), ...externesEnCours.values()]);
     },
     calme: async () => {
-      while (enVol.size > 0 || enRelecture.size > 0) await Promise.all([...enVol.values(), ...enRelecture.values()]);
+      while (enVol.size > 0 || enRelecture.size > 0 || externesEnCours.size > 0) await Promise.all([...enVol.values(), ...enRelecture.values(), ...externesEnCours.values()]);
     },
     quitter: async () => {
       await gardes?.quitter();
@@ -1477,7 +1553,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
   const { lireGraphql } = github;
   const parGraphql = lireGraphql !== undefined && proprietaire && nomDuDepot ? lireGraphql.bind(github) : null;
   let instantane: Instantane | null = null;
-  const prDeLInstantane = (issue: number) => instantane?.prs.find((pr) => pr.branche === brancheDuTicket(issue));
+  // Une PR externe n'est celle d'aucun ticket, même sous le nom de sa branche (#2933).
+  const prDeLInstantane = (issue: number) => instantane?.prs.find((pr) => !pr.externe && pr.branche === brancheDuTicket(issue));
   return {
     checksDeLaBase: async () => {
       if (parGraphql === null) return github.ci(base);
@@ -1533,12 +1610,21 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       const lue = await github.issue(issue);
       if (lue === null) return null;
       const [[fireAt = null] = [], commentaires] = await Promise.all([github.posesDeFire?.(issue), github.commentaires(issue)]);
-      // Sa prise, que la station qui merge n'a pas vue si une autre l'a prise ou si elle a redémarré depuis (#2732).
-      return { deposeAt: lue.createdAt, fireAt, priseAt: premierePrise(commentaires, fireAt ?? lue.createdAt) };
+      // Sa prise, que la station qui merge n'a pas vue si une autre l'a prise ou si elle a redémarré depuis (#2732),
+      // et ce qui l'a suivie : les cooks rendus sans livraison, les renvois, les reprises (#2954).
+      const depuis = fireAt ?? lue.createdAt;
+      return { deposeAt: lue.createdAt, fireAt, priseAt: premierePrise(commentaires, depuis), faits: faitsDePrise(commentaires, depuis) };
     },
     // Des PR ou des fichiers que la requête a tronqués ou mal rendus (un renommage
     // perd son ancien chemin) : tout se relit en REST, pour ne rien juger de moins.
     prsOuvertes: async () => (instantane !== null && !instantane.prsTronquees && !instantane.prs.some((pr) => pr.fichiersIncomplets) ? instantane.prs.map(({ branche, fichiers }) => ({ branche, fichiers })) : (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers }))),
+    // Les PR externes (#2933), lues dans l'instantané ; tronqué, en REST.
+    prsExternes: async () =>
+      instantane !== null && !instantane.prsTronquees
+        ? instantane.prs.filter((pr) => pr.externe).map(({ number, sha }) => ({ number, sha }))
+        : (await prsOuvertes.call(github)).flatMap(({ number, sha, externe }) => (externe === true && sha !== undefined ? [{ number, sha }] : [])),
+    remplacerCommentaire: (numero, ancien, nouveau) => github.remplacerCommentaire(numero, ancien, nouveau),
+    ...(github.assigner === undefined ? {} : { assigner: github.assigner.bind(github) }),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang
     // départage, comme leur id, deux commentaires de la même seconde.
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
@@ -1576,7 +1662,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -1621,6 +1707,9 @@ export type OptionsDuDepot = {
   setup?: { delaiMs: number };
   // Ce que la porte de prise a dit d'un ticket qu'elle n'a pas pris (#2429).
   sauter?: (ticket: number, ligne: string) => void;
+  // La configuration du projet, relue à chaque PR externe : son humain
+  // `review` reçoit la carte « merge #N? » (#2933). Absente, elle va au chef.
+  projet?: () => unknown;
 };
 
 // Le plafond de durée des gates d'une tête, en millisecondes (#2456) : 30 min
@@ -1809,12 +1898,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let renvoi: Renvoi | null = null;
     // La PR ouverte que le cook reprend : il peut y répondre aux remarques (#2592).
     let prOuverte: number | null = null;
+    // Cette PR est en conflit avec la base : c'est un renvoi pour conflit (#2953).
+    let enConflit = false;
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
         sansPR = ouverte === null;
         if (ouverte !== null && ouverte.state === "open") {
           prOuverte = ouverte.number;
+          if (ouverte.enConflit === true) enConflit = true;
           if (ouverte.enConflit === true) resteAFaire = `PR #${ouverte.number} conflicts with \`${base}\``;
           else {
             const checks = await options.github.ci(ouverte.sha);
@@ -1858,7 +1950,18 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return { branche };
       }
     }
-    if (resteAFaire !== null) {
+    // Un renvoi pour conflit : la station intègre la base avant le cook, qui
+    // reçoit la branche avec la fusion tentée, conflits non commités (#2953).
+    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
+    let consigneIntegree: string | null = null;
+    if (enConflit && lancerGit !== undefined) {
+      const integration = await integrerAvantLeCook(lancerGit, worktree, base);
+      consigneIntegree = consigneDeLIntegration(integration, base);
+      if (integration.etat === "echec") avertir(`brigade : #${ticket.number} sur ${nom} — the station could not merge \`origin/${base}\` (${integration.etape}: ${integration.detail}): the cook does it itself`);
+    }
+    if (resteAFaire !== null && consigneIntegree !== null) {
+      joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. ${consigneIntegree}`;
+    } else if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
     } else if (prOuverte !== null) joint += `\n\n${consigneDuDesaccord(prOuverte)}`;
     const brief = briefDuRenvoi(renvoi, base);
@@ -1897,7 +2000,27 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // (#2586) : le cook qui reprend le ticket en repart, au lieu que la pass la
     // juge telle quelle (#2577).
     const question = lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null);
-    if (question !== null) {
+    // Un renvoi pour conflit qui bute sur le refus d'une commande git n'est pas
+    // une question : la station intègre la base elle-même, ou repart de main.
+    // Jamais un second renvoi, ni une carte pour le chef (#2953).
+    let integree = false;
+    if (question !== null && enConflit && lancerGit !== undefined) {
+      try {
+        const suite = await suiteDuBlocageTechnique(question, base, {
+          git: lancerGit,
+          worktree,
+          recreerLaBranche: async () => {
+            depot.retirer(worktree);
+            depot.retirer((await depot.preparer(run)).worktree);
+          },
+        });
+        if (suite === "recreee") return { subi: `the cook was refused a git command on a conflict send-back (${question.slice(0, 200)}): the branch restarts from \`origin/${base}\`, for another cook` };
+        integree = suite === "integree";
+      } catch (erreur) {
+        return { echec: `the cook was refused a git command on a conflict send-back, and the station could not take over: ${message(erreur)}` };
+      }
+    }
+    if (question !== null && !integree) {
       if (prOuverte === null && depot.recolter !== undefined) {
         try {
           depot.recolter(worktree, branche);
@@ -1953,6 +2076,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return { branche };
   };
 
+  // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,
+  // en lecture seule, sans jeton GitHub ni secret du projet.
+  const relireDans = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">): Promise<Jugement> => {
+    const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
+    const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
+    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+    await lance.fin;
+    const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message);
+    if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
+    const { verdict: couleur, summary, findings } = lue.relecture;
+    const constats = findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Remark"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
+    return { verdict: couleur === "green" ? "approve" : "request-changes", motif: [summary, ...constats].join("\n") };
+  };
+
   const juger: Juger = async (ticket, pr) => {
     const branche = brancheDuTicket(ticket.number);
     const run = `review-${ticket.number}-github`;
@@ -1963,19 +2100,58 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff }), reponse);
-      const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
-      const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
-      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
-      await lance.fin;
-      const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message);
-      if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
-      const { verdict: couleur, summary, findings } = lue.relecture;
-      const constats = findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Remark"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
-      return { verdict: couleur === "green" ? "approve" : "request-changes", motif: [summary, ...constats].join("\n") };
+      return await relireDans(worktree, run, texte, pr);
     } finally {
       depot.retirer(worktree);
     }
   };
+
+  // Les PR externes (#2933) : leur tête, rapatriée de `refs/pull/<n>/head`
+  // dans un worktree détaché, se relit et joue ses gates sans aucun secret du
+  // projet ni jeton GitHub, quelle que soit l'identité de la station. Elles ne
+  // se servent que sur une station qui joue les gates, et dont le dépôt sait
+  // rapatrier une PR.
+  const { recevoirPR, tete } = depot;
+  const reglageDesGates = options.gates;
+  const teteExterne = async (pr: PRExterne, run: string) => {
+    if (recevoirPR === undefined || tete === undefined) throw new Error("this station's clone cannot fetch an outside PR");
+    const lieu = await recevoirPR(run, pr.number);
+    if (tete(lieu.reference) !== pr.sha) {
+      depot.retirer(lieu.worktree);
+      throw new Error(`the fork moved: the station fetched another head than PR #${pr.number}'s \`${pr.sha.slice(0, 7)}\``);
+    }
+    return lieu;
+  };
+  const externes: ServiceDesPRExternes | undefined =
+    reglageDesGates === undefined || recevoirPR === undefined || tete === undefined
+      ? undefined
+      : {
+          juger: async (pr) => {
+            const run = `review-pr-${pr.number}-github`;
+            const { worktree, reference } = await teteExterne(pr, run);
+            try {
+              const lue = await options.github.issue(pr.number);
+              const diff = { fichiers: depot.changes(reference), texte: depot.diff(reference) };
+              const ticket = { number: pr.number, title: `Outside PR #${pr.number} — ${lue?.title ?? "(no title)"}`, body: `This is a pull request opened from a fork, not a ticket of the kitchen: judge its diff against what its description below asks.\n\n${lue?.body ?? ""}` };
+              return await relireDans(worktree, run, consigneDeRelecture({ depot: depotGitHub, base, ticket, commentaires: [], compteRendu: null, diff }), pr);
+            } finally {
+              depot.retirer(worktree);
+            }
+          },
+          gates: async (pr) => {
+            const { worktree } = await teteExterne(pr, `gates-pr-${pr.number}-github`);
+            try {
+              if (!aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${SCRIPT_GATES}\`` };
+              // Ni les secrets du projet (aucun `lireSecrets`), ni jeton GitHub, ni de Claude.
+              const gates = await jouerGates({ worktree, ticket: pr.number, env: sansJeton(), interdites: VARIABLES_GITHUB, delaiMs: reglageDesGates.delaiMs, cloison, signal: abandon.signal });
+              if (abandon.signal.aborted) throw new Error("the station stopped during the gates");
+              return verdictDesGates(gates, reglageDesGates.delaiMs);
+            } finally {
+              depot.retirer(worktree);
+            }
+          },
+          humains: () => humainsDuProjet(options.projet?.()),
+        };
 
   // Le manager consulté sur le blocage d'un cook (#2894) : dans un worktree de
   // la branche du ticket, où le cook a laissé son travail, avec les outils de
@@ -2039,7 +2215,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
