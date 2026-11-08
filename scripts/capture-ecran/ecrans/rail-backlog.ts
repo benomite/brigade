@@ -2,15 +2,39 @@
 // petite barre empilée, une part par état — pas lue, refusée incomplète, épique, prête sans `fire`, mise de côté —, sans
 // un mot. Ce que la box publie dans son tableau de la cuisine (`avantLeRail`) est écrit ici mot pour mot ; ce que la vue
 // en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (tableau/rail.ts, amont.ts).
+import type { Faits } from "../../../app/src/faits.ts";
 import { COMMANDE, tenirAmont } from "../../../app/src/amont.ts";
 import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
 import { lectureDuTableau } from "../../../app/src/tableau/rail.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { FACTS } from "./rail-cadence.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const LU = "2026-10-13T10:03:58.000Z";
+// Les faits de la cuisine figée, avec l'entrée de chaque ticket dans son état et l'histogramme des 24 heures (`cadence`).
+const FAITS = PARADE.facts as Faits;
+// L'entrée de chaque ticket dans son état, à l'horloge de la box — celle que `status` dit « since ».
+const DEPUIS: Record<number, string> = {
+  14: "2026-10-13T09:52:11.000Z",
+  21: "2026-10-13T07:59:11.000Z",
+  22: "2026-10-13T10:01:11.000Z",
+  30: "2026-10-13T10:00:11.000Z",
+  12: "2026-10-11T10:04:11.000Z",
+};
+// Les 24 heures piles, de 11:00 la veille à l'heure en cours : ce qui a été servi, et ce qui a raté.
+const SERVIS: Record<number, number> = { 20: 1, 23: 1 };
+const RATES: Record<number, number> = { 1: 1, 4: 2, 21: 1, 22: 2 };
+const hours = Array.from({ length: 24 }, (_, rang) => ({
+  at: new Date(Date.parse("2026-10-12T11:00:00.000Z") + rang * 3_600_000).toISOString(),
+  served: SERVIS[rang] ?? 0,
+  failed: RATES[rang] ?? 0,
+}));
+
+const FACTS = {
+  ...FAITS,
+  rail: FAITS.rail.map((ticket) => ({ ...ticket, depuis: DEPUIS[ticket.ticket] })),
+  cadence: { hours, medianSeconds: { taken: 300, pass: 720 } },
+} as Faits;
 
 // Ce qui est avant le rail de « parade », tel que sa box le publie : douze issues, dans l'ordre où le manager les lit.
 const AVANT_LE_RAIL = {

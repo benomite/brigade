@@ -5,9 +5,8 @@
 import type { Blocage, Choix } from "../../../app/src/projets/demande.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { DEFAUTS } from "./ajouter-station.ts";
-import { DECLAREES as TOUTES, guide } from "./cooks-stations-declarees.ts";
+import { DECLAREES as TOUTES, FACTS, guide } from "./cooks-stations-commun.ts";
 import { donnees, SUR_LA_BOX } from "./cuisine-demenagee.ts";
-import { FACTS } from "./cooks-stations.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const NAVIGATEUR: Choix = {

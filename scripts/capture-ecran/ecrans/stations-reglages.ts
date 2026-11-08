@@ -6,7 +6,7 @@ import { blocDesOrdinaires, type StationDesFaits } from "../../../app/src/ordina
 import type { Faits } from "../../../app/src/faits.ts";
 import type { StationsLues } from "../../../app/src/service.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { guide } from "./cooks-stations-declarees.ts";
+import { guide } from "./cooks-stations-commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = { ...PROJETS[0]!, ordinaires: true, limiteCooks: 2 };

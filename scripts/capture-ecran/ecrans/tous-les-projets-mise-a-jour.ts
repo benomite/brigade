@@ -2,8 +2,7 @@
 // version qui tourne, et le message avec ses deux choix — installer maintenant, ou plus tard.
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { SANS_CLONE } from "./reglages-code-installee.ts";
-import { ecran as installee } from "./tous-les-projets-installee.ts";
+import { ecran as installee, SANS_CLONE } from "./tous-les-projets-installee.ts";
 
 export const ecran: Ecran = {
   ...installee,

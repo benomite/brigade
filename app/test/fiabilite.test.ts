@@ -365,10 +365,10 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     assert.deepEqual([projet, id], ["parade", "cooks"]);
     const section = vue.element("fiabilite-du-projet");
     assert.match(section.textContent, /reading…/);
-    // Une section de Cooks, sous ses tickets de l'heure et du jour, au-dessus de ses gates : pas un écran à part.
+    // Une section de Cooks, sous ses stations, au-dessus de ses gates : pas un écran à part.
     const rail = vue.element("rail");
     const place = (cherche: string) => rail.children.findIndex((pose) => pose.id === cherche);
-    assert.equal(place("fiabilite-du-projet"), place("activite-du-projet") + 1);
+    assert.ok(place("fiabilite-du-projet") > place("cuisson-du-projet"));
     assert.equal(place("gates-du-projet"), place("fiabilite-du-projet") + 1);
 
     const lecture = lue(demande);

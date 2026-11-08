@@ -1,8 +1,9 @@
-// L'onglet Cooks de « parade » (#1270) : un bloc par station du projet, chacune dans un des quatre états — la box
-// cuit #14, le Mac arrêté par le chef y finit #15, l'atelier saturé cuit encore #16, le PC refuse le projet —, son
-// bouton, et les cartes des tickets qui y sont en cours.
+// L'onglet Cooks de « parade » et ses stations, tels que la box les rendait : quatre stations — la box cuit #14, le Mac
+// arrêté par le chef y finit #15, l'atelier saturé cuit encore #16, le PC refuse le projet (#1270) —, et ce que chaque
+// station déclarée fournit, par le contrôle de l'installation (#1509, service.ts, `installation stations --json`).
 import type { Faits } from "../../../app/src/faits.ts";
-import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
+import { commandeDeDemarrage, type Guide, type StationsLues } from "../../../app/src/service.ts";
+import { MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
@@ -36,14 +37,27 @@ export const FACTS: Faits = {
   ],
 } as Faits;
 
-export const ecran: Ecran = {
-  dit: "L'onglet Cooks de « parade » : un bloc par station — cooking, stopped, saturated, refused —, son bouton et les cartes de ses tickets en cours",
-  largeur: 1440,
-  hauteur: 1000,
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
-  donnees: () => ({
-    maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },
-    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } }),
-  }),
+export const DECLAREES: StationsLues = {
+  proposees: [{ nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"] }],
+  absent: null,
+  declarees: [
+    { nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 3, distante: false },
+    { nom: "mac/claude", moteur: "claude", fournit: ["navigateur-headless", "chrome-connecté"], cooks: 1, distante: true },
+    { nom: "atelier/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: false },
+    { nom: "pc/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 1, distante: true },
+  ],
 };
+
+// L'installation de parade, finie, et son dernier contrôle : ce que la vue reçoit à l'ouverture de l'espace.
+export const guide = (stations: StationsLues): Guide => ({
+  projet: "parade",
+  deplie: false,
+  titre: "parade is installed",
+  lecture: { etat: "lue", a: MAINTENANT },
+  etapes: [],
+  courante: null,
+  annonces: { etat: "lues", liste: [] },
+  demarrage: commandeDeDemarrage(PROJETS[0]!),
+  termine: true,
+  controle: { a: MAINTENANT, stations },
+});
