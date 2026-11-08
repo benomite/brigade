@@ -19,6 +19,7 @@ const HOME = "/Users/chef";
 const WORKTREE = "/Users/chef/brigade-wt/850-bac-a-sable";
 const CACHES = ["/Users/chef/.npm", "/Users/chef/Library/Caches/pnpm"];
 const projet = (hotes: string[] = []): Cook => ({ worktree: WORKTREE, caches: CACHES, hotes: reglesDuProjet(hotes), home: HOME });
+const projetBrigade = (): Cook => ({ ...projet(), brigade: true });
 const projetSeul = (hotes: Regle[]): Cook => ({ ...projet(), hotes });
 
 test("l'écriture n'est ouverte que dans le worktree et les caches du projet — au bac à sable comme aux outils de `claude`", () => {
@@ -27,7 +28,7 @@ test("l'écriture n'est ouverte que dans le worktree et les caches du projet —
   assert.deepEqual(sandbox.filesystem.allowWrite, [WORKTREE, ...CACHES]);
   assert.deepEqual(
     permissions.allow.filter((regle) => regle.startsWith("Edit(")),
-    [...[WORKTREE, ...CACHES].map((lieu) => `Edit(/${lieu}/**)`), `Edit(/${WORKTREE}/.claude/brigade/**)`],
+    [...[WORKTREE, ...CACHES].map((lieu) => `Edit(/${lieu}/**)`)],
   );
   // Rien d'autre n'ouvre l'écriture : ni répertoire ajouté, ni commande hors
   // du bac à sable, ni repli à nu quand une commande y échoue ou qu'il manque.
@@ -43,7 +44,7 @@ test("l'écriture n'est ouverte que dans le worktree et les caches du projet —
 });
 
 test("Write et Edit sont ouverts sur `.claude/brigade/` du worktree du cook, nulle part ailleurs hors de ce qu'ils couvraient déjà", () => {
-  const { allow, deny } = configurer(projet()).reglages.permissions;
+  const { allow, deny } = configurer(projetBrigade()).reglages.permissions;
   // Une règle `Outil(//chemin/**)` : ce que `claude` compare à un chemin
   // normalisé ; `..` est résolu avant la comparaison.
   const ouvre = (outil: string, lieu: string) => {
@@ -65,6 +66,14 @@ test("Write et Edit sont ouverts sur `.claude/brigade/` du worktree du cook, nul
   // Seul le worktree du cook est nommé, et Write n'ouvre rien d'autre.
   assert.deepEqual(allow.filter((regle) => regle.startsWith("Write(")), [`Write(/${brigade}/**)`]);
   assert.equal(deny.some((regle) => regle.includes(".claude/brigade")), false);
+});
+
+test("un ticket qui ne livre pas que `.claude/brigade/` n'y ouvre ni Write ni Edit (#2855)", () => {
+  for (const cook of [projet(), { ...projet(), brigade: false }]) {
+    const { allow } = configurer(cook).reglages.permissions;
+    assert.equal(allow.some((regle) => regle.includes(".claude/brigade")), false);
+    assert.deepEqual(allow.filter((regle) => regle.startsWith("Write(")), []);
+  }
 });
 
 test("un autre worktree, d'autres caches : la configuration n'ouvre que ceux-là, chemins nettoyés et sans doublon", () => {
@@ -164,7 +173,7 @@ test("avec une liste réseau vide, aucun hôte n'est joignable : ni par le bac �
   assert.equal(reglages.sandbox.network.strictAllowlist, true);
   assert.deepEqual(
     reglages.permissions.allow.filter((regle) => !regle.startsWith("Edit(")),
-    [`Write(/${WORKTREE}/.claude/brigade/**)`],
+    [],
   );
 });
 

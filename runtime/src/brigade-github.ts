@@ -176,10 +176,10 @@ export function cheminsDuDepot(chemins: readonly string[], suivis: readonly stri
 }
 
 const SOUS_BRIGADE = ".claude/brigade/";
-// Tous ses fichiers sont sous `.claude/brigade/`, où la session d'un cook ne peut pas écrire (#2729).
-// Un ticket que la station a ouvert (corps à marque) y écrit par conception : il part.
-export const neLivreQueSousBrigade = (corps: string): boolean => {
-  if (corps.startsWith("<!-- brigade:")) return false;
+// Tous ses fichiers sont sous `.claude/brigade/` : un ticket de setup du dépôt
+// (gates, worktree, réseau). Son cook y a l'écriture ouverte (`Cook.brigade`) ;
+// celui de tout autre ticket ne l'a pas.
+export const livreSousBrigade = (corps: string): boolean => {
   const fichiers = fichiersDuCorps(corps);
   return fichiers.length > 0 && fichiers.every((f) => `${f}/`.startsWith(SOUS_BRIGADE));
 };
@@ -1201,19 +1201,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Un arrêt subi l'a mis en attente : il n'est pas repris avant son terme (#2508).
       if (await enAttente(ticket)) continue;
-      // Tous ses fichiers sont sous `.claude/brigade/` : la session d'un cook y
-      // refuse l'écriture, il va au second ou au chef sans cook (#2729).
-      try {
-        // Un ticket qui porte déjà `blocked-on-human` n'est pas libre : il n'arrive ici qu'une fois.
-        if (neLivreQueSousBrigade(await github.corpsDuTicket(ticket.number))) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — every file it delivers is under \`${SOUS_BRIGADE}\`; not launched to a cook`);
-          await github.commenter(ticket.number, `Station \`${nom}\`: every file this ticket delivers is under \`${SOUS_BRIGADE}\`, where a cook's session refuses writes, so it is not launched to a cook.\n\nQuestion for the second or the chef: deliver it from a local worktree, or give the cook a way to write there?`);
-          await github.labelliser(ticket.number, [A_LA_MAIN]);
-          continue;
-        }
-      } catch (erreur) {
-        avertir(`brigade : corps de #${ticket.number} sur ${nom} — ${message(erreur)}`);
-      }
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       const tenant = await tenue(ticket);
       if (tenant !== null) {
@@ -1667,11 +1654,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let joint: string;
     // Ses critères admettent un constat écrit pour tout livrable (#2854).
     let constatAdmis: boolean;
+    let brigade = false;
     try {
       const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
       if (lue === null) throw new Error("the issue no longer exists");
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
       constatAdmis = admetUnConstat(lue.body ?? "");
+      brigade = livreSousBrigade(lue.body ?? "");
     } catch (erreur) {
       const dit = `its ticket could not be read on GitHub: ${message(erreur)}`;
       return erreur instanceof LimiteGitHubAtteinte ? { subi: dit } : { echec: dit };
@@ -1775,7 +1764,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
-    const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
+    const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree, [], brigade) }, { cwd: worktree, depot: "ecriture" });
     const lance = lancer({ ...lancement, cwd: worktree, env: env(envDuCook), flux });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);

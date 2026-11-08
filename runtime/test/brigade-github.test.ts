@@ -828,7 +828,7 @@ test("three consecutive failures with different reasons set the ticket aside, no
   assert.match(dernier?.body ?? "", /reason 3[\s\S]*Taken off the kitchen/);
 });
 
-test("a ticket whose files all live under .claude/brigade/ is flagged for the chef, not launched to a cook (#2729)", async () => {
+test("a ticket whose files all live under .claude/brigade/ is launched to a cook like any other (#2855)", async () => {
   const faux = new FauxGitHub();
   faux.feu(40, CALIBRE, "Edit `.claude/brigade/gates.sh` and `.claude/brigade/tests-touches.mjs`.");
   faux.feu(41, CALIBRE, "Edit `.claude/brigade/gates.sh` and `runtime/src/x.ts`.");
@@ -837,9 +837,8 @@ test("a ticket whose files all live under .claude/brigade/ is flagged for the ch
   await a.calme();
   await a.tour();
   await a.calme();
-  assert.deepEqual(faux.cuissons.map((c) => c.issue), [41]);
-  assert.ok(faux.ticket(40).labels.has("blocked-on-human"));
-  assert.match((faux.commentaires.get(40) ?? []).map((c) => c.body).join("\n"), /under `\.claude\/brigade\/`/);
+  assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [40, 41]);
+  assert.equal(faux.ticket(40).labels.has("blocked-on-human"), false);
 });
 
 test("removing hors-cuisine restarts the count of cooks without a delivery (#2430)", async () => {

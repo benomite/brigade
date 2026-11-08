@@ -55,8 +55,10 @@ export const LECTURES_INTERDITES = [
 // projet, telle que `reseau.ts` la tient — rien n'y est ajouté. `prod` : les
 // accès de prod du chef, hors de ceux que `LECTURES_INTERDITES` nomme déjà.
 // `lit` : des fichiers, hors du worktree, que la station lui remet à lire (son
-// ticket) — le seul droit de lecture que la configuration ajoute.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[] };
+// ticket) — le seul droit de lecture que la configuration ajoute. `brigade` :
+// le ticket du cook ne livre que `.claude/brigade/` (setup du dépôt) ; seul il
+// y écrit.
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean };
 
 export type Reglages = {
   env: { npm_config_manage_package_manager_versions: "false" };
@@ -183,9 +185,10 @@ export function configurer(cook: Cook): ConfigDeBacASable {
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
           // `claude` garde `.claude/` de toute écriture sous sa propre règle :
           // la livraison d'un ticket peut n'être que `.claude/brigade/` (gates,
-          // setup du worktree). Une règle nommée l'ouvre, dans le seul worktree
-          // du cook.
-          ...[`Edit`, `Write`].map((outil) => `${outil}(/${brigade}/**)`),
+          // setup du worktree, réseau). Une règle nommée l'ouvre, dans le seul
+          // worktree du cook, et pour un ticket qui ne livre que cela : tout
+          // autre ticket y reste refusé.
+          ...(cook.brigade === true ? [`Edit`, `Write`].map((outil) => `${outil}(/${brigade}/**)`) : []),
           // Le ticket que la station remet en fichier : les outils de `claude`
           // ne lisent hors du worktree que ce qu'une règle autorise.
           ...lus.map((fichier) => `Read(/${fichier})`),

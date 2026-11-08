@@ -94,9 +94,10 @@ export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASa
 // un, tel quel sinon. `ou` : le répertoire où il travaille — le seul, avec les
 // caches du projet, où il écrit.
 // `lit` : les fichiers que la station lui remet à lire hors de ce répertoire.
-export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = []): string[] {
+// `brigade` : son ticket ne livre que `.claude/brigade/`, il y écrit.
+export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false): string[] {
   if (!bac) return args;
-  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit }));
+  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade }));
 }
 
 // Ce que la cuisine dit de son bac à sable au démarrage.
