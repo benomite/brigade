@@ -37,7 +37,6 @@ import { relancer, type GitHubDeLaGuerison } from "./relance.ts";
 export type GitHubDuProjet = GitHubDeLaGuerison &
   Pick<GitHub, "fermerIssue"> & {
     retraitsDeLabels(numero: number): Promise<RetraitDeLabel[]>;
-    dependancesOuvertes(issue: number): Promise<number[]>;
     issue?: GitHub["issue"];
     issuesDepuis?: (instant: string) => Promise<(Pick<IssueOuverte, "number" | "body"> & Partial<Pick<IssueOuverte, "labels" | "state">>)[]>;
   };
@@ -184,7 +183,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni en
     // attente (`waiting` : sa colonne, pas le rail, #1924), ni une épique, ni en
     // attente du chef, calibrés —, et rien au travail depuis `INERTIE_MINUTES`.
-    // tant qu'il reste ouvert (#2755).
+    // Un seul bug tant qu'il reste ouvert (#2755).
     await tache("inertie", async () => {
       const instant = maintenant();
       const auTravail = enCuisine.size > 0 || tickets.some((t) => t.labels.includes(LABEL_TAKEN) || t.labels.includes(LABEL_IN_PASS));
@@ -198,7 +197,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         maintenant: new Date(instant),
         github: {
           dernierMerge: async () => new Date(auTravailLe).toISOString(),
-          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title, attend: [] })),
+          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title })),
           // Rien n'est pris quand l'inertie se lit : un ticket pris est du travail.
           prises: async () => [],
           prsEnPasse: async () => tickets.filter((t) => t.labels.includes(LABEL_IN_PASS)).length,

@@ -7,7 +7,7 @@ const ilYA = (minutes: number) => new Date(MAINTENANT.getTime() - minutes * 60_0
 
 // Un faux GitHub tenu en mémoire, lu seulement par son client.
 function depot(etat: { dernierMerge?: string | null; cuisinables?: TicketCuisinable[]; prises?: PrisePourCuisiner[]; prsEnPasse?: number } = {}) {
-  const e = { dernierMerge: ilYA(90) as string | null, cuisinables: [{ number: 7, title: "Seven", attend: [] }] as TicketCuisinable[], prises: [] as PrisePourCuisiner[], prsEnPasse: 1, ...etat };
+  const e = { dernierMerge: ilYA(90) as string | null, cuisinables: [{ number: 7, title: "Seven" }] as TicketCuisinable[], prises: [] as PrisePourCuisiner[], prsEnPasse: 1, ...etat };
   const issues: { number: number; titre: string; corps: string; labels: string[]; ouverte: boolean }[] = [];
   const github = {
     dernierMerge: async () => e.dernierMerge,
@@ -32,14 +32,6 @@ test("aucun merge depuis 90 minutes et un ticket cuisinable : un seul bug, dont 
   assert.deepEqual(d.issues[0]?.labels, [LABEL_DU_BUG]);
   assert.ok(!d.issues[0]?.labels.includes("blocked-on-human"));
   assert.match(d.issues[0]?.corps ?? "", /empty of in-pass PRs/);
-});
-
-test("tous les cuisinables attendent un ticket ouvert : la cause est nommée, avec les tickets qu'ils attendent", async () => {
-  const d = depot({ cuisinables: [{ number: 7, title: "a", attend: [3] }, { number: 8, title: "b", attend: [3, 4] }] });
-  assert.equal((await d.appeler()).fait, "bug");
-  const corps = d.issues[0]?.corps ?? "";
-  assert.match(corps, /`all-blocked`/);
-  assert.match(corps, /#8 waits on #3, #4/);
 });
 
 test("une prise plus vieille que le seuil : la cause est une prise périmée", async () => {
