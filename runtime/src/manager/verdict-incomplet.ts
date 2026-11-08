@@ -136,19 +136,32 @@ const TITRE_DES_CRITERES = /^(#{1,6})\s*(crit[eè]res d['’]acceptation|accepta
 // Le corps, ses critères d'acceptation remplacés par ceux-ci ; le reste — le
 // contexte, l'intention de l'auteur — tel quel. Sans section de critères, elle
 // s'ajoute à la fin.
-export function reecrireCriteres(corps: string, criteres: readonly string[]): string {
-  const liste = criteres.map((critere) => `- ${critere}`);
-  const lues = corps.split("\n");
+function sectionDesCriteres(lues: readonly string[]): { debut: number; fin: number } | null {
   const debut = lues.findIndex((ligne) => TITRE_DES_CRITERES.test(ligne.trim()));
-  if (debut === -1) return [corps.trimEnd(), "", "## Acceptance criteria", "", ...liste].join("\n").trimStart();
+  if (debut === -1) return null;
   const rang = (TITRE_DES_CRITERES.exec(lues[debut]?.trim() ?? "")?.[1] ?? "##").length;
-  let fin = lues.findIndex((ligne, index) => {
+  const fin = lues.findIndex((ligne, index) => {
     if (index <= debut) return false;
     const titre = /^(#{1,6})\s/.exec(ligne.trim());
     return (titre !== null && (titre[1]?.length ?? 7) <= rang) || /^-{3,}\s*$/.test(ligne.trim());
   });
-  if (fin === -1) fin = lues.length;
-  return [...lues.slice(0, debut + 1), "", ...liste, "", ...lues.slice(fin)].join("\n").trimEnd();
+  return { debut, fin: fin === -1 ? lues.length : fin };
+}
+
+// Les critères d'acceptation d'un corps d'issue, sans leur titre. Sans
+// section de critères, null.
+export function criteresDuCorps(corps: string): string | null {
+  const lues = corps.split("\n");
+  const section = sectionDesCriteres(lues);
+  return section === null ? null : lues.slice(section.debut + 1, section.fin).join("\n");
+}
+
+export function reecrireCriteres(corps: string, criteres: readonly string[]): string {
+  const liste = criteres.map((critere) => `- ${critere}`);
+  const lues = corps.split("\n");
+  const section = sectionDesCriteres(lues);
+  if (section === null) return [corps.trimEnd(), "", "## Acceptance criteria", "", ...liste].join("\n").trimStart();
+  return [...lues.slice(0, section.debut + 1), "", ...liste, "", ...lues.slice(section.fin)].join("\n").trimEnd();
 }
 
 export type AtelierDeVerdictIncomplet = {

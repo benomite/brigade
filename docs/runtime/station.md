@@ -380,6 +380,16 @@ stopping earlier means it never worked on the review's remarks, and waits like a
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does
 not loop for ever.
 
+**A written finding serves a ticket whose criteria accept one** (#2854, `runtime/src/constat-seul.ts`).
+A ticket whose acceptance criteria section says its deliverable is a written finding or comment
+("the deliverable is a written comment on the issue…", « le livrable est un constat… ») is served
+without a commit: a cook that commits nothing and delimits a deliverable is not a failed cook. The
+station posts that deliverable on the issue (`brigade:constat` marker) and closes the ticket. Only
+the criteria section counts, and not what it quotes (backticks, quotation marks, `>` quotes); a
+ticket without that section, a cook without a delimited deliverable, or a branch whose PR is still
+open stays a cook without a delivery. Before, every correct cook of a diagnosis-only ticket counted
+as a failure, until `hors-cuisine` (BOBL-tech/espace#826).
+
 ### Relaunching a set-aside ticket
 
 A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
