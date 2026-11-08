@@ -183,6 +183,12 @@ export type GitHub = {
   // de rôle) ; null sous l'identité unique du `gh` de la machine, que rien ne
   // distingue de celle du chef.
   identite(): Promise<string | null>;
+  // Le propriétaire du dépôt : son login, et s'il est une organisation (#2928).
+  proprietaire?(): Promise<{ login: string; organisation: boolean }>;
+  // L'auteur de la PR mergée qui a posé `.claude/brigade/gates.sh` sur la
+  // branche par défaut — celle de `/brigade:init` ; null si aucune PR ne l'a
+  // posé (#2928).
+  auteurDeLInit?(): Promise<string | null>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -329,6 +335,9 @@ type PRBrute = {
   head: { sha: string };
   merged_by?: { login?: string } | null;
 };
+
+// Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
+const GATES_DE_L_INIT = ".claude/brigade/gates.sh";
 
 type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
 // Une annotation d'échec d'un check : où — `chemin` et `ligne`, nuls quand la
@@ -779,6 +788,21 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       exiger(await appeler(["-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]), chemin);
     },
     identite: async () => (options.identite ? options.identite() : null),
+    async proprietaire() {
+      const chemin = `repos/${depot}`;
+      const { owner } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { owner?: { login?: string; type?: string } | null };
+      if (typeof owner?.login !== "string" || owner.login === "") throw new Error(`gh api ${chemin} : no owner in the answer`);
+      return { login: owner.login, organisation: owner.type === "Organization" };
+    },
+    async auteurDeLInit() {
+      // Le plus ancien commit qui touche aux gates — GitHub les liste du plus récent au plus ancien.
+      const pages = await lireLaListe(`repos/${depot}/commits?path=${encodeURIComponent(GATES_DE_L_INIT)}&per_page=100`);
+      const premier = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ sha?: string }>).at(-1);
+      if (typeof premier?.sha !== "string") return null;
+      const chemin = `repos/${depot}/commits/${premier.sha}/pulls`;
+      const mergee = (JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<PRBrute & { user?: { login?: string } | null }>).find((brute) => (brute.merged_at ?? null) !== null || brute.merged === true);
+      return mergee?.user?.login || null;
+    },
     fermer: () => abandon.abort(),
   };
 }
