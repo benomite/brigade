@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { promisify } from "node:util";
-import { ecrans, fichierDe } from "../capture.ts";
+import { capturer, ecrans, fichierDe } from "../capture.ts";
 
 const lancer = promisify(execFile);
 const COMMANDE = join(import.meta.dirname, "..", "capture.ts");
@@ -64,6 +64,28 @@ describe("capturer un écran de l'app", { skip: SANS_NAVIGATEUR }, () => {
       await lancer(process.execPath, [COMMANDE, nom, sortie], { env });
       const { largeur, octets } = png(sortie);
       assert.ok(largeur > 0 && octets.length > 20_000, `${nom} : ${octets.length} octets`);
+    }
+  });
+
+  test("--densite 2 : un PNG deux fois plus large, sur la même fenêtre", async () => {
+    const { env, dossier } = doublures();
+    const sortie = join(dossier, "double.png");
+
+    await lancer(process.execPath, [COMMANDE, "espace-projet", sortie, "--densite", "2"], { env });
+
+    const { largeur, hauteur } = png(sortie);
+    assert.deepEqual([largeur, hauteur], [2880, 1800]);
+  });
+
+  test("l'étape defiler amène l'élément à l'écran : la capture change, et un sélecteur qui n'en trouve pas un seul échoue", async () => {
+    const tous = await ecrans();
+    const demo = tous.get("demo-telephone-carte");
+    assert.ok(demo !== undefined, "l'écran demo-telephone-carte existe");
+    const sans = { ...demo, etapes: demo.etapes.filter((etape) => !("defiler" in etape)) };
+    assert.ok(!(await capturer(demo)).equals(await capturer(sans)), "défilée ou non, la capture est la même");
+
+    for (const selecteur of [".absent-de-la-page", "button"]) {
+      await assert.rejects(capturer({ ...demo, etapes: [...sans.etapes, { defiler: selecteur }] }), /étape « defiler .+ » : \d+ élément\(s\) trouvé\(s\), il en faut un/, selecteur);
     }
   });
 
@@ -122,6 +144,12 @@ describe("la ligne de commande", () => {
       return true;
     });
     assert.equal(existsSync(sortie), false);
+  });
+
+  test("--densite n'accepte que 1 ou 2", async () => {
+    for (const valeur of ["3", "0", "x"]) {
+      await assert.rejects(lancer(process.execPath, [COMMANDE, "ajout", "/tmp/capture.png", "--densite", valeur]), (erreur: { code: number; stderr: string }) => erreur.code === 2 && /--densite attend 1 ou 2/.test(erreur.stderr), valeur);
+    }
   });
 
   test("un fichier de sortie qui n'est pas un .png est refusé", async () => {
