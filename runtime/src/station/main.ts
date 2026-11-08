@@ -32,6 +32,7 @@ import { tenirEnregistrement } from "../enregistrement-station/enregistrer.ts";
 import { CONFIGURATION, lieuxDuProjet, worktreesDeLaStation } from "./configuration.ts";
 import { nomDeLaStation } from "./nom.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
+import { avertirSiTropAncienne } from "./version-minimale.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
 // Ce que la station dit à journald est masqué, avant même son premier mot.
@@ -94,6 +95,8 @@ noterUnDemarrage(racine, versionDuRuntime());
 const nomRetenu = nomDeLaStation(racine, process.env);
 
 const dire = (ligne: string) => console.log(ligne);
+// Avant qu'aucun projet ne s'ouvre, donc qu'aucun cook ne parte : une version sans le correctif du bac à sable le dit.
+avertirSiTropAncienne(versionDuRuntime(), dire);
 // Sous les portes de la station, son unité ne joint que la boucle locale :
 // rien ne part avant que sa porte ne soit ouverte. Un port qui change — la
 // porte relancée n'a pas retrouvé le sien — est repris.
