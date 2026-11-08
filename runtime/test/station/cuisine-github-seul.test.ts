@@ -28,6 +28,9 @@ function ouvrir(t: TestContext, githubOnlyState: boolean | undefined) {
   assert.ok(projet);
   // Le `gh` du projet : un ticket calibré, que personne ne tient, sur une base verte.
   const gh = fauxGh(t);
+  // Le compte de la machine écrit sur le dépôt : la station GitHub seul sert le projet, pas la contributrice (#2935).
+  gh.repondre("user", { corps: { login: "chef" } });
+  gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, owner: { login: "acme", type: "Organization" }, permissions: { push: true } } });
   gh.issues([issueGitHub(7, { labels: ["fire", "model:sonnet", "effort:low"] })]);
   gh.repondre(`repos/${DEPOT}/issues/7/events?per_page=100`, { corps: [] });
   // Sans PR : la station lit celle du ticket avant de le prendre (#2622).

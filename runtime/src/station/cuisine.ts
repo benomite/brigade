@@ -14,6 +14,7 @@ import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
+import { aiguillerLaStation } from "../station-contributrice/aiguillage.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot, type ProjetOuvert } from "../brigade-github.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { configRail } from "../alimenter.ts";
@@ -202,43 +203,64 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       station: () =>
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
-          : stationDuDepot({
-              nom: ici.nom,
-              // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
-              // une station déclarée à 30 en tiendrait 30.
-              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
-              capacites: ici.fournit,
-              base: station.base,
-              depotGitHub: rail.depot,
-              githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
-              github: githubs.pass,
-              depot,
-              prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
-              claude: station.bin,
-              env,
-              cloison,
-              bacASable,
-              plafonds: reglages.plafonds,
-              graceMs: reglages.graceMs,
-              reviewer: reviewer.calibrage,
-              // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
-              manager: () => decisions.manager(),
-              flux: join(repertoireEtat, "github-seul"),
-              // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
-              gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
-              avertir: dire,
-              observer: suiviDuTour.envelopper,
-              sauter: suiviDuTour.sauter,
-              // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
-              clone: station.clone,
-              repertoireEtat,
-              // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
-              gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
-              // Le setup du worktree de chaque cook, joué avant lui (#2535).
-              setup: { delaiMs: delaiGatesMs },
-              // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
-              projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
-            }),
+          : (() => {
+              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire });
+              const ecrivaine = stationDuDepot({
+                nom: ici.nom,
+                // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
+                // une station déclarée à 30 en tiendrait 30.
+                places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+                capacites: ici.fournit,
+                base: station.base,
+                depotGitHub: rail.depot,
+                githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
+                github: githubs.pass,
+                depot,
+                prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
+                claude: station.bin,
+                env,
+                cloison,
+                bacASable,
+                plafonds: reglages.plafonds,
+                graceMs: reglages.graceMs,
+                reviewer: reviewer.calibrage,
+                // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+                manager: () => decisions.manager(),
+                flux: join(repertoireEtat, "github-seul"),
+                // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
+                gardes,
+                avertir: dire,
+                observer: suiviDuTour.envelopper,
+                sauter: suiviDuTour.sauter,
+                // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+                clone: station.clone,
+                repertoireEtat,
+                // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
+                gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
+                // Le setup du worktree de chaque cook, joué avant lui (#2535).
+                setup: { delaiMs: delaiGatesMs },
+                // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
+                projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
+              });
+              // Sans l'écriture sur le dépôt, la station est contributrice : elle cuisine dans sa fourche et livre par une PR du dehors (#2935).
+              return aiguillerLaStation(githubs.pass, ecrivaine, {
+                nom: ici.nom,
+                places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+                base: station.base,
+                depotGitHub: rail.depot,
+                depot,
+                clone: station.clone,
+                claude: station.bin,
+                env,
+                cloison,
+                bacASable,
+                plafonds: reglages.plafonds,
+                graceMs: reglages.graceMs,
+                flux: join(repertoireEtat, "github-seul"),
+                gardes,
+                avertir: dire,
+              });
+            })(),
       avertir: dire,
     });
     projetGitHub = ouvert;
