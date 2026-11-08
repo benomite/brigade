@@ -120,7 +120,7 @@ describe("sa feuille", () => {
     // cases de la barre, les onglets, les pastilles de couleur, et un numéro de ticket qui ouvre son issue — la rangée
     // d'un ticket `fire`, un `#N` dans la phrase d'un bon. Rien d'autre : un geste, un lien vers une page, un chiffre qui
     // déplie sa liste ou une position d'autonomie est un bouton de la famille.
-    const autres = /^(button(:focus-visible)?|#projets button.*|#(onglets-du-projet|terminaux) button.*|#couleurs button\.teinte.*|#rail \.feu li button|#rail \.bon p\.ligne-carte button\.lien-de-ligne)$/;
+    const autres = /^(button(:focus-visible)?|#projets button.*|#(onglets-du-projet|terminaux) button.*|#couleurs button\.teinte.*|#rail \.feu li button|\.bon p\.ligne-carte button\.lien-de-ligne)$/;
     const dessin = /^(padding(-\w+)?|font(-size|-weight)?|line-height|color|background(-color)?|border(-[\w-]+)?|min-height|height|opacity|box-shadow)$/;
     // Toutes les feuilles de la vue, sous-dossiers compris, sauf celle du bouton et les jetons.
     const feuilles = (readdirSync(VUE, { recursive: true }) as string[]).filter((fichier) => fichier.endsWith(".css") && !fichier.endsWith("bouton.css") && fichier !== "jetons.css");

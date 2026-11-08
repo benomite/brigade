@@ -875,8 +875,8 @@ describe("Livré garde ce que la cuisine a servi", () => {
   });
 
   test("le résumé n'est ni coupé ni caché par la feuille de style : aucune ligne bornée, aucun point de suspension", () => {
-    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-    const corps = /(?:^|})\s*#rail \.bon p\.livraison\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le résumé");
+    const css = ["vue.css", "composants/bon/bon.css"].map((feuille) => readFileSync(join(VUE, feuille), "utf8")).join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+    const corps = /(?:^|})\s*\.bon p\.livraison\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le résumé");
     assert.doesNotMatch(corps, /overflow:\s*hidden|text-overflow|line-clamp|max-height|white-space:\s*nowrap/);
     // Nulle part dans la peau : pas même dans la barre, où le sigle d'un projet tient entier dans sa case (#1983).
     assert.doesNotMatch(css, /text-overflow|line-clamp/);
