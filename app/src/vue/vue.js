@@ -131,6 +131,7 @@ import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
 import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
 import { poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
+import { monterLePanneau } from "./projet/panneau-second/panneau-second.js";
 import { poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocTempsTickets } from "./projet/cuisine/sante/TempsTickets.js";
@@ -251,6 +252,20 @@ const propositionsDuSecond = tenirLesChoix();
 const fil = element("fil");
 const bandeau = element("bandeau");
 const teteDuSecond = element("tete-du-second");
+// Le panneau du second (ticket 2923) : un bouton le replie, son bord gauche se tire ; largeur et état retenus par projet.
+// Le rail et lui se partagent la place de l'espace : la largeur du panneau en est bornée.
+const panneauDuSecond = monterLePanneau({
+  document,
+  colonne: colonneSecond,
+  tete: teteDuSecond,
+  stockage: window.localStorage ?? undefined,
+  disponible: () => {
+    const rail = principal.getBoundingClientRect?.().width;
+    const panneau = colonneSecond.getBoundingClientRect?.().width;
+    return rail === undefined || panneau === undefined ? undefined : rail + panneau;
+  },
+});
+window.addEventListener?.("resize", () => panneauDuSecond.reborner());
 const message = element("message");
 const etat = element("etat");
 const journal = element("journal");
@@ -1528,6 +1543,8 @@ function poserSecond(ouvrable, montre) {
   // garde ses terminaux et ce qu'ils avaient reçu.
   const conversation = conversationMontree();
   colonneSecond.hidden = courant === undefined || (etroit() && !conversation);
+  // Sur un écran étroit, la colonne est un onglet : ni bord à tirer, ni bouton qui la replie.
+  panneauDuSecond.poser(courant?.nom, !etroit());
   centre.hidden = conversation;
   principal.toggleAttribute("data-conversation", conversation);
   // Le téléphone n'a ni terminal ni shell ni second.

@@ -2164,6 +2164,15 @@ button, an action — writes into it **without the center changing**: the page y
 open, the rail stays where it is; if a shell was shown on the right, the second takes its place back,
 so that you see what was written there.
 
+**The second's panel folds and resizes, and each project keeps its own (#2923, epic #2913).** It opens docked on the
+right, 360 px wide. The chevron at the end of its row of tabs folds it into a narrow strip that keeps only that button;
+one click on it unfolds it. Its left edge is a handle: drag it (or focus it and press ← or →) to change the panel's
+width — never below **280 px**, and never wider than what leaves the rail at least **640 px**; a window made narrower
+narrows the panel with it. The width and the folded state are kept **per project**, in the view's storage, and come
+back at the next launch: another project keeps its own. A storage the app cannot read is not overwritten: the panel
+then keeps its width and state until the app closes. On a narrow screen the second is a tab, with neither handle nor
+fold button. The logic is in `app/src/vue/projet/panneau-second/`.
+
 **Each shell carries a banner, at the top of its terminal: where it is, with which account** —
 `this Mac · benoit`. Its color is the project's tab color: changing space changes it.
 
