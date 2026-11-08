@@ -6,7 +6,7 @@
 // pas : une phrase qui ne devine rien, et aucun geste de plus que ceux de tous.
 // Ce module ne lance rien : il dit.
 
-// La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `no-grant`…).
+// La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `review-required`…).
 export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null };
 
 // Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue
@@ -18,7 +18,6 @@ export const SANS_DECISION = "This ticket waits for your decision — its issue 
 
 // Une livraison verte que la pass ne merge pas elle-même : elle se merge sur sa PR, sur GitHub — aucun geste de l'app.
 const VERTE: Readonly<Record<string, string>> = {
-  "no-grant": "Green, but the pass may not merge it without the merge grant: merge it yourself.",
   "review-required": "Green, but it touches what judges it or what the project opens: review it, then merge it.",
   "merge-refused": "Green, but GitHub refused the merge: clear what it refuses, then merge it.",
 };

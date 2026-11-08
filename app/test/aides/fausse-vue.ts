@@ -261,7 +261,7 @@ export class FauxXterm {
 // Les variables que jetons.css pose sur la racine : le terminal y lit les siennes.
 export function jetonsDe(css: string): Map<string, string> {
   const racine = /:root\s*\{([^}]*)\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""))?.[1] ?? "";
-  return new Map([...racine.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
+  return new Map([...racine.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
 }
 
 type Ecoutes = { [G in keyof Pont as G extends `sur${string}` ? G : never]: Pont[G] };
@@ -466,15 +466,9 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
 // attendre, tout est donc fait quand la file des promesses est vide — aucun délai n'est couru.
 export const repos = (): Promise<void> => new Promise((fait) => setImmediate(fait));
 
-// Montre un onglet du projet comme le chef : d'un clic sur le menu, à côté de son nom (#1184, #2485). Health et Cooks
-// sont les sous-onglets de Kitchen : Kitchen d'abord, puis le sous-onglet. Rend l'onglet cliqué.
-export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Stations" | "Kitchen" | "Health" | "Cooks"): Promise<Faux> {
-  const dans = titre === "Health" || titre === "Cooks" ? "onglets-cuisine" : "onglets-du-projet";
-  if (dans === "onglets-cuisine" && vue.element(dans).hidden) {
-    vue.element("onglets-du-projet").children.find((candidat) => candidat.textContent === "Kitchen")?.click();
-    await repos();
-  }
-  const onglet = vue.element(dans).children.find((candidat) => candidat.textContent === titre);
+// Montre un onglet du projet comme le chef : d'un clic sur le menu, à côté de son nom (#1184, #2485, #2921). Rend l'onglet cliqué.
+export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Stations"): Promise<Faux> {
+  const onglet = vue.element("onglets-du-projet").children.find((candidat) => candidat.textContent === titre);
   if (onglet === undefined) throw new Error(`pas d'onglet « ${titre} »`);
   onglet.click();
   await repos();
@@ -487,17 +481,12 @@ export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
   const trouve = () => vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`);
   const ici = trouve();
   if (ici !== undefined) return ici;
-  const autre = vue.element("rail").dataset.onglet === "cooks" ? "Rail" : "Cooks";
-  if (autre === "Rail") vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Rail")?.click();
-  else {
-    vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Kitchen")?.click();
-    vue.element("onglets-cuisine").children.find((onglet) => onglet.textContent === "Cooks")?.click();
-  }
+  vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Rail")?.click();
   return trouve();
 }
 
-// Ouvre une lecture comme le chef le fait depuis l'écran principal : les grants, par l'onglet Settings — une seule
-// page, qui les lit (#1700) ; Cooks — `station` —, par l'onglet Cooks ; Log, par le geste « journal ». Rend l'élément
+// Ouvre une lecture comme le chef le fait depuis l'écran principal : Settings — une seule
+// page, qui ne lit rien (#1700) ; Log, par le geste « journal ». Rend l'élément
 // cliqué en dernier. Les pages Rail, Manager et General de Settings n'existent plus : les demander lève.
 export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
   const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
@@ -507,25 +496,23 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     await repos();
     return pose;
   };
-  if (titre === "Cooks") return ouvrirOnglet(vue, "Cooks");
   if (titre === "Log") {
     const geste = vue.element("journal");
     geste.click();
     await repos();
     return geste;
   }
-  if (titre !== "Settings" && titre !== "Grants") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
+  if (titre !== "Settings") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
   return cliquer(vue.element("onglets-du-projet"), "Settings");
 }
 
-// Les lignes de tous les projets, « Cost » et « Closer », sont en bas de Kitchen > Health de chaque projet (#2638) : le
-// premier projet de la barre s'ouvre, puis Health, comme le chef le fait. Rend la ligne qui porte ce nom.
+// Les lignes de tous les projets, « Cost » et « Closer », sont en bas du bandeau de santé de chaque projet (#2638, #2921) : le
+// premier projet de la barre s'ouvre, comme le chef le fait. Rend la ligne qui porte ce nom.
 async function ligneDeTousLesProjets(vue: Jouee, nom: string): Promise<Faux> {
   vue.element("projets").children[1]?.click();
   await repos();
-  await ouvrirOnglet(vue, "Health");
   const ligne = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === nom);
-  if (ligne === undefined) throw new Error(`pas de ligne « ${nom} » sous Health`);
+  if (ligne === undefined) throw new Error(`pas de ligne « ${nom} » dans le bandeau de santé`);
   return ligne;
 }
 

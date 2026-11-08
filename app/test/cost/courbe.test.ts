@@ -10,8 +10,7 @@ import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { JOURS, joursDe, poserCourbe, series, TITRE } from "../../src/vue/cost/courbe.js";
@@ -173,7 +172,7 @@ describe("la courbe, sur la page des coûts de l'app", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -192,14 +191,14 @@ describe("la courbe, sur la page des coûts de l'app", () => {
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, LECTURE);
     const demande = vue.dernier("onglet")[2] as number;
 
-    vue.dire("surContenu", { ...lu("parade", station()), demande }, undefined, undefined);
-    vue.dire("surContenu", { ...lu("cantine", station()), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", station()), demande }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", station()), demande }, undefined);
     await repos();
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, NON_COMMUNIQUE);
     assert.equal(courbe(vue).dessous("svg").length, 0);
 
-    vue.dire("surContenu", { ...lu("parade", PARADE_JOURS), demande }, undefined, undefined);
-    vue.dire("surContenu", { ...lu("cantine", CANTINE_JOURS), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_JOURS), demande }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", CANTINE_JOURS), demande }, undefined);
     await repos();
     assert.equal(courbe(vue).dessous("path").length, 4);
     assert.deepEqual(courbe(vue).dessous("li").map(({ textContent }) => textContent), ["parade", "cantine"]);

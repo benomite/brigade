@@ -152,8 +152,8 @@ function raconterLeManager(journal: Journal): void {
   noter({ type: "manager.split-failed", payload: { run: "decoupe-34-a", fingerprint: "e6", reason: "aucun ticket dans le découpage" } }, 34);
 }
 
-// Le grant donné puis repris ; un ticket jugé rouge, renvoyé, puis vert et
-// mergé sous grant ; un autre vert sans grant, arrêté ; un troisième remonté.
+// Un ticket jugé rouge, renvoyé, puis vert et mergé ; un autre vert, arrêté ;
+// un troisième remonté.
 function raconterLaPass(journal: Journal): void {
   const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: Fait, ticket: number | null = null, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
@@ -169,20 +169,16 @@ function raconterLaPass(journal: Journal): void {
     const findings = verdict === "green" ? [] : ["Gates rouges."];
     return noter({ type: "pass.judged", payload: { ...pr, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false, review: { outcome: "skipped", run: null, summary: null, findings: [] }, noDiff: false } }, ticket);
   };
-  noter({ type: "grant.activated", payload: { action: "merge" } }, null, "chef");
   livrer("g", 21);
   juger("g", 21, "red");
   noter({ type: "pass.returned", payload: { n: 1, findings: ["Gates rouges."] } }, 21);
   livrer("h", 21, "g");
   const vert = juger("h", 21, "green");
-  noter({ type: "grant.used", payload: { action: "merge", pr: "https://github.com/o/r/pull/21", number: 21, sha: "sha-h", base: "v2", verdict: vert?.seq ?? 0 } }, 21);
   noter({ type: "merge.failed", payload: { pr: "https://github.com/o/r/pull/21", sha: "sha-h", reason: "interrupted" } }, 21);
-  noter({ type: "grant.used", payload: { action: "merge", pr: "https://github.com/o/r/pull/21", number: 21, sha: "sha-h", base: "v2", verdict: vert?.seq ?? 0 } }, 21);
   noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/21", sha: "sha-h", by: "pass", reconciled: false } }, 21);
-  noter({ type: "grant.revoked", payload: { action: "merge" } }, null, "chef");
   livrer("i", 22);
   juger("i", 22, "green");
-  noter({ type: "pass.held", payload: { reason: "no-grant" } }, 22);
+  noter({ type: "pass.held", payload: { reason: "review-required" } }, 22);
   // La base rougit, la pass la rejoue seule, le rouge tient : un ticket de
   // réparation naît. Puis elle est réparée.
   const rouges = { outcome: "red" as const, code: 1, failures: ["FAIL  tests"], tail: "" };
@@ -201,7 +197,7 @@ function raconterLaPass(journal: Journal): void {
   noter({ type: "base.repair-opening", payload: { sha: "base-1" } }, null);
   livrer("j", 23);
   noter({ type: "pass.escalated", payload: { reason: "unjudged", cause: "no-gates" } }, 23);
-  // Un ticket qui quitte le rail emporte sa pass, pas les usages du grant.
+  // Un ticket qui quitte le rail emporte sa pass.
   livrer("k", 24);
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 24, "github");
 }

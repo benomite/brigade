@@ -26,7 +26,6 @@ kind (`product`, `design`): `-- --days <N>` sets it, 7 by default. A card refuse
 | `runtime` | `running according to the log`, `stopped <duration> ago`, or `never started`. A runtime killed without notice still appears running: the **age of the last tick** betrays it. Beyond a few cadences: `systemctl status brigade@<project>` |
 | `kitchen` | The chef's "stop" and the breaker: `open` or `STOPPED by the chef <duration> ago`, then `breaker closed (… failures in a row, opens at N)` or `breaker OPEN for <duration>` |
 | `connection` | **Absent while the Max connection holds.** Otherwise, per station: `Max MISSING` or `EXPIRED`, since when, the reason, and the gesture — `claude /login` under the service account; the kitchen resumes within the minute. No ticket is taken until then. See "Max connection expired" |
-| `grant` | **Absent while no grant is in force or lapsed.** Active: expiry, what is left, uses. `ACTIVE`; `EXPIRING SOON` (under an hour, or a single use); `LAPSED` (the pass stops at the open PR until you grant again). See "The `merge` grant" |
 | `setup` | **Absent unless the project's setup is blocked.** `BLOCKED for <duration> on <commit>` — no setup is launched until the integration branch moves. Cause and gesture are in the `awaiting` block (`setup` entry). See "The worktree setup comes before the cook" |
 | `base` | **Absent unless the base is red** (or its check is held because it cannot be fetched). Red, it holds the whole kitchen: since when, on which commit, the check that could not be played, the replay requested. With no request in progress, the last line is the gesture: `npm --prefix runtime run base -- replay`. See "The base is judged alone" |
 | `backup` | The last successful backup (`backup.completed`): age, name, last event. `TOO OLD`: older than `BRIGADE_BACKUP_MAX_AGE_HOURS`. `NEVER DONE`: none in the log. Both: `systemctl status brigade-sauvegarde@<project>` |
@@ -50,7 +49,6 @@ escalation goes to the kitchen").
 
 | Entry | The gesture | What removes it |
 |---|---|---|
-| ``green delivery, not merged for lack of a `merge` grant`` · ``… the `merge` grant lapsed on its own on …`` (`no-grant`) | merge its PR by hand; or enable the grant for the next ones: `npm --prefix runtime run grant -- enable merge` | the merge by hand (`merge.done`); the ticket leaving the rail (`ticket.left`); a cook restarted on it. Its PR closed without merge replaces it with `PR closed without merge` |
 | `green delivery that touches its judges` · `… what the project opens up (<files>)` (`review-required`) | read it, then merge by hand. It enters only once reviewed end to end (second judge rendered, card let through by the triage), never when the pass takes it back after a `not weakened` (`pass.md`, "The merge card of a delivery to review") | likewise |
 | `green delivery, merge refused by GitHub (…)` (`merge-refused`) | lift what GitHub refuses, then merge by hand | likewise |
 | `escalated by the pass, which could not judge it (unjudged: secrets-unavailable)` | set the secrets, then remove and set `fire` again; or merge by hand, or remove `fire`. Detail: `run pass -- <ticket>` | the merge by hand; the ticket leaving or returned to the rail (`ticket.released`). Its PR closed without merge replaces it likewise |
@@ -66,10 +64,6 @@ escalation goes to the kitchen").
 | ``BASE RED on <commit>, failing: <what fails> — its repair #N <what it became>`` | the line carries `base`, counted **since the turn to red**. **Only if the repair failed** (left the rail without service, passed up, or merged without putting the base back to green); a replay or a repair that opens or works is not your burden. Fix the base by hand — the pass replays it when it moves; or relaunch the unserved repair (set `fire` again); a red not down to the code: `run base -- replay` | the base back to green (`base.checked`): the kitchen restarts; the repair relaunched |
 | ``setup impossible: the door refuses `<host>` (…)`` · ``setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (<reason>)`` | the line carries `setup` — **a single one for the project**, counted since `setup.blocked`. A refused host is declared in `.claude/brigade/reseau`, one line per host, merged on the integration branch; otherwise fix the setup, then merge — the entry names the issue | the integration branch moving (`setup.unblocked`). The same failure on the new base brings it back |
 | ``tickets put aside: <cause> (<reason>, twice identically) — only one is taken again at a time…`` | the line carries `aside` — **a single one for the project**: cause, ticket and gesture; it falls when a cook leaves, another cause appears or the integration branch moves |
-
-Once a delivery has been stopped for lack of a grant, the block ends with **the figure on which to
-grant**: `without a grant, N green deliveries stopped: X merged by hand, Y closed without merge — Y
-disagreements —, Z still open`. A PR closed without merge is a disagreement. With the queue empty, the block omits it; `run pass` and `run grant` read the same line.
 
 **The block is always there, and it has an edge.** When nothing awaits you, it reads `awaiting   nothing awaits the chef`, then `end awaiting`.
 
@@ -104,12 +98,11 @@ line exactly `end awaiting`**, bounds included; between them everything is
 indented — an entry is two spaces in. Whoever presents it separately — the app, the second (the PO role, `commands/po.md`) — takes it by these two lines. **The app reads one thing besides**, to sort its rail: the
 ticket number **at the head** of an entry — two spaces, `#`, digits, two spaces (`  #12  for 2 d  …`). This
 head does not change without the app changing (`docs/app.md`, "The rail"); an entry
-that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside`, `breaker` or `kitchen`, and the tally of stops for lack of a grant, has none. Under `--follow`, later events
+that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside`, `breaker` or `kitchen`, has none. Under `--follow`, later events
 are not part of the block.
 
 **The block is in English** (words of `docs/glossary.md`, §2 and §4); what is between backticks keeps its name. A box from before still writes `attend` … `fin attend` in French: the app and the second read both.
 
-- **Enabling the grant does not empty the queue**: it holds for the next deliveries; those already stopped remain to be merged by hand.
 - **Not counted**: a ticket re-split by the manager; an 86 with a return time; what waits without you (`STUCK`, `WITHHOLDING`, `MACHINE SATURATED`, the `base` block); the manager's other deviations, read in `run manager`.
 - **What the manager awaits from you**: closing the issue is enough (`manager.closed`). Manager off, nothing is polled.
 
@@ -187,7 +180,7 @@ What the shape does not say:
 - **The reviewer's reviews and the manager's judgments** are not in `cooks`.
 - **An `86` with a return time** — the quota — is in none of the five counters. It is in `rail`, with its state.
 - **Why** the kitchen is held, what a ticket awaits, who holds it, since when: that is
-  `status`. The log, the grants, the partition, the arbiter have no shape; of the station, only
+  `status`. The log, the partition, the arbiter have no shape; of the station, only
   its cooks in progress have one.
 
 ### A profile at dispatch
@@ -420,7 +413,17 @@ reviewed it, or the runtime restarted — is 0, never estimated. Its claim, thou
 with the filing: the first claim comment (`brigade:prise`, by the repo, any station) posted since `fire`. Claim wait
 ends there, and the time from that claim to the first phase the station saw is cooking. Before #2732 that whole time
 was claim wait: any station merges, so a ticket cooked by another station, or before a restart, lost hours it had
-spent cooking. With no claim readable, the time from the filing to the first phase seen stays claim wait. The record keeps that claim (`priseAt`, null when none is readable). A recent record without it was measured
+spent cooking. Since #2954 the station also reads what followed that claim on the issue, from the repo's comments
+since `fire`: each claim (`brigade:prise`) opens a cooking, each ticket given back without a delivery (`brigade:lache`
+or `brigade:echec`) turns it into a failed cook followed by a claim wait — the rule of `rater` —, as does a new
+claim on a cooking nothing gave back (a cook that died with its station, no release posted), each send-back
+(`brigade:renvoi`) opens one; the last claim before the station's first mark, when that mark is a cooking, is the
+station's own and the same cooking. Before #2954 a cook killed by its station's restart, then claimed again, was a
+send-back: BOBL-tech/calculus-workspace#694 and #696, delivered on the first try, counted 31 and 35 min of
+send-backs; and the station's own claim, posted seconds before its mark, split off 0.1 min of send-back on most
+tickets. The bound on the claim wait (#2784) holds only the wait before the first claim: the wait after a cook
+given back no longer gets the measure of its ticket rejected. With no claim readable, the time from the filing to
+the first phase seen stays claim wait. The record keeps that claim (`priseAt`, null when none is readable). A recent record without it was measured
 before #2732: after each merge the station reads its claim from GitHub and corrects it the same way, a few at a
 time (#2734) — #2709, merged eight minutes before #2732, kept 309 of its 310 min as claim wait and opened a
 correction on its own. The station also does it at each turn, before the lost-time rule reads the times
@@ -428,8 +431,8 @@ correction on its own. The station also does it at each turn, before the lost-ti
 1.9 min after `fire`, and opened a correction on its own. An issue GitHub does not return is not read again while
 the station runs; a read that fails is retried at the next turn. When the filing cannot be read from GitHub at the merge, the time runs from the
 claim and the station warns of it. The station replays nothing: only the tests replay a ticket from its
-recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`) and the
-same failed-cook rule (`rater`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,
+recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`), the
+same failed-cook rule (`rater`) and the same reading of the comments (`faitsDePrise`): its claims, failures and releases, send-backs (`brigade:prise`, `brigade:echec`,
 `brigade:lache`, `brigade:renvoi`), `in-pass` set and the approving verdict (`brigade:verdict … approve`, on the
 PR) mark its phases, the review inside the pass wait — GitHub does not record when a review starts — and the
 merge request inside the CI. `runtime/test/fixtures/temps-tickets-40` holds the recorded history of brigade's 40

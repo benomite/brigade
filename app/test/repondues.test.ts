@@ -87,7 +87,7 @@ const FAITS: Faits = {
   rail: [{ ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", activite: null }],
   attend: [
     { ticket: 30, titre: "", url: ISSUE, decision: { quoi: "question", motif: null, cause: null, pr: null } },
-    { ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", decision: { quoi: "merge", motif: "no-grant", cause: null, pr: "https://github.com/benomite/brigade/pull/31" } },
+    { ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", decision: { quoi: "merge", motif: "review-required", cause: null, pr: "https://github.com/benomite/brigade/pull/31" } },
     { ticket: 50, titre: "Le moteur de rendu", url: "https://github.com/benomite/brigade/issues/50", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } },
   ],
   livres: [],
@@ -96,7 +96,7 @@ const BLOC = {
   bloc: [
     "awaiting   3 decisions await the chef",
     "  #30  since 2 h  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
-    "  #12  since 4 min  green delivery, not merged for lack of the `merge` grant",
+    "  #12  since 4 min  green delivery, not merged: review it first",
     "  #50  since 1 h  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
     "end awaiting",
     "",
@@ -108,13 +108,13 @@ const REPONDUES = new Map([[30, { question: QUESTION, par: "you", a: "2026-10-15
 
 describe("le rail d'une question répondue", () => {
   test("sans réponse, la question du manager est dans TODO, et sa carte dit qu'elle porte une question — comme celle que la question retient ; pas la livraison", () => {
-    const todo = colonne(rail(FAITS, BLOC), "Todo");
+    const todo = colonne(rail(FAITS, BLOC), "Awaiting you");
     assert.deepEqual(todo.cartes.map(({ ticket, question: porte }) => [ticket, porte]), [[30, true], [12, undefined], [50, true]]);
   });
 
   test("répondue, elle quitte TODO pour WAITING — elle attend le manager — et y dit qui a répondu, quand, et ce qui viendra", () => {
     const dessine = rail(FAITS, BLOC, undefined, REPONDUES);
-    const todo = colonne(dessine, "Todo");
+    const todo = colonne(dessine, "Awaiting you");
     const waiting = colonne(dessine, "Waiting");
     assert.deepEqual([todo.compte, todo.cartes.map(({ ticket }) => ticket)], ["2", [12, 50]]);
     assert.deepEqual([waiting.compte, waiting.cartes.map(({ ticket }) => ticket)], ["1", [30]]);
@@ -130,7 +130,7 @@ describe("le rail d'une question répondue", () => {
 
   test("répondre ne lève pas une retenue, ni ne merge une livraison : ces cartes restent dans TODO, même dites répondues", () => {
     const toutes = new Map([...REPONDUES, [12, REPONDUES.get(30)!], [50, REPONDUES.get(30)!]]);
-    assert.deepEqual(colonne(rail(FAITS, BLOC, undefined, toutes), "Todo").cartes.map(({ ticket }) => ticket), [12, 50]);
+    assert.deepEqual(colonne(rail(FAITS, BLOC, undefined, toutes), "Awaiting you").cartes.map(({ ticket }) => ticket), [12, 50]);
   });
 
   test("une seule carte par ticket : répondue, elle n'est rangée nulle part ailleurs que dans WAITING, même si le rail la porte", () => {

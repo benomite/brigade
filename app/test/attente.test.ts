@@ -21,8 +21,7 @@ import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, rail, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -150,13 +149,13 @@ describe("le rail en TODO et WAITING", () => {
       ["On the rail", "1", [21]],
       ["Taken", "0", []],
       ["Pass", "0", []],
-      ["Todo", "3", [30, 31, 12]],
+      ["Awaiting you", "3", [30, 31, 12]],
       ["Waiting", "1", [8]],
       ["Served", "0", []],
     ]);
     // Même nommé par la file, un ticket qui attend un tiers n'est pas dans TODO.
     const nomme = { ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 8, titre: "Ticket 8", url: null }] };
-    assert.deepEqual(rangs(nomme)[3], ["Todo", "3", [30, 31, 12]]);
+    assert.deepEqual(rangs(nomme)[3], ["Awaiting you", "3", [30, 31, 12]]);
     assert.deepEqual(rangs(nomme)[4], ["Waiting", "1", [8]]);
     // Aucun : la colonne le dit.
     assert.equal(rail({ ...FAITS, rail: [] }).colonnes[4]?.vide, "no ticket waits for a third party");
@@ -255,7 +254,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -297,10 +296,10 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       .dessous("section")
       .map((pose) => pose.children[0]?.children[0]?.textContent);
     // Le kanban est entier sur Rail, Taken et Pass compris.
-    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
+    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"]);
     const bon = bonDe(vue, 8);
     assert.ok(colonne(vue, "Waiting").contains(bon));
-    assert.ok(!colonne(vue, "Todo").contains(bon));
+    assert.ok(!colonne(vue, "Awaiting you").contains(bon));
     // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
     assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, "waiting for sa validation écrite du devis · from le client");
     assert.equal(bon.dessous("li").length, 0);

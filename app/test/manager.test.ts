@@ -325,9 +325,9 @@ describe("la lecture du manager et ses deux gestes", () => {
     terminaux.espace(PARADE);
 
     assert.deepEqual(["projet-allumer", "projet-eteindre"].map((id) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "direct"]);
-    assert.deepEqual(ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, false, CUISINE), { refus: SANS_OUI });
+    assert.deepEqual(ecrireGeste(terminaux, "projet-allumer", PARADE, false, CUISINE), { refus: SANS_OUI });
 
-    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, true, CUISINE), ecrireGeste(terminaux, "projet-eteindre", PARADE, undefined, false, CUISINE)]);
+    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, true, CUISINE), ecrireGeste(terminaux, "projet-eteindre", PARADE, false, CUISINE)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
     assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch on)\`` });

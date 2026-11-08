@@ -1,5 +1,5 @@
-// Le menu de la page d'un projet (#2485) : Rail · Stations · Kitchen · Settings, les deux sous-onglets de Kitchen (Health, Cooks),
-// et un bloc monté par onglet. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// Le menu de la page d'un projet (#2485) : Rail · Stations · Settings (#2921 : Kitchen et ses sous-onglets ont disparu),
+// le bandeau de santé sur Rail, et un bloc monté par onglet. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
@@ -9,8 +9,7 @@ import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
@@ -31,7 +30,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -60,7 +59,7 @@ const STATUS = [
   "cuisine    ouverte",
   "",
   "attend     1 décision attend le chef depuis 2 j",
-  "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge`",
+  "  #12  depuis 2 j  livraison verte, non mergée",
   "fin attend",
   "",
   "rail       2 en attente · 1 pris · 2 en pass · 1 servi",
@@ -94,57 +93,56 @@ async function ouvrir(stockage?: FauxStockage): Promise<Jouee> {
 
 
 const menu = (vue: Jouee) => vue.element("onglets-du-projet").children;
-const sous = (vue: Jouee) => vue.element("onglets-cuisine").children;
 const marques = (ou: Faux[]) => ou.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
+// Les blocs du bandeau de santé : les chiffres en vue, puis ce que le chef déplie (les plafonds, le closer, tous les projets).
+const blocsDuBandeau = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").map((pose) => pose.dataset.bloc).filter((bloc) => bloc !== undefined);
 const blocs = (vue: Jouee) => vue.element("rail").children.map((pose) => pose.dataset.bloc);
 
-describe("le menu de la page d'un projet (#2485)", () => {
-  test("exactement quatre entrées, Rail · Stations · Kitchen · Settings ; Rail est ouvert par défaut", async () => {
+describe("le menu de la page d'un projet (#2485, #2921)", () => {
+  test("exactement trois entrées, Rail · Stations · Settings ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(menu(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Kitchen", "Settings"]);
+    assert.deepEqual(menu(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Settings"]);
     assert.deepEqual(marques(menu(vue)), ["Rail"]);
     assert.equal(vue.element("rail").dataset.onglet, "rail");
-    // Les sous-onglets de Kitchen ne se montrent que sous Kitchen.
-    assert.equal(vue.element("onglets-cuisine").hidden, true);
+    // Plus de Kitchen, donc plus de sous-onglets Health et Cooks.
+    assert.equal(vue.poses().some((element) => element.id === "onglets-cuisine"), false);
   });
 
-  test("Kitchen a deux sous-onglets, Health et Cooks, chacun ouvert d'un clic", async () => {
-    const vue = await ouvrir();
-
-    await ouvrirOnglet(vue, "Kitchen");
-    assert.equal(vue.element("onglets-cuisine").hidden, false);
-    assert.deepEqual(sous(vue).map((onglet) => onglet.textContent), ["Health", "Cooks"]);
-    assert.deepEqual(marques(menu(vue)), ["Kitchen"]);
-    assert.deepEqual(marques(sous(vue)), ["Health"]);
-
-    await ouvrirOnglet(vue, "Cooks");
-    assert.deepEqual(marques(menu(vue)), ["Kitchen"]);
-    assert.deepEqual(marques(sous(vue)), ["Cooks"]);
-    assert.equal(vue.element("rail").dataset.onglet, "cooks");
-
-    await ouvrirOnglet(vue, "Health");
-    assert.deepEqual(marques(sous(vue)), ["Health"]);
-    assert.equal(vue.element("rail").dataset.onglet, "sante");
-  });
-
-  test("chaque bloc est monté dans son onglet", async () => {
+  test("chaque bloc est monté dans son onglet, le bandeau de santé sur Rail seulement", async () => {
     const vue = await ouvrir();
     assert.deepEqual(vue.element("bloc-du-rail").children.map((pose) => pose.dataset.bloc), ["bande-rail"]);
+    // Au-dessus du rail, la santé de la cuisine : ses blocs, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
+    assert.equal(vue.element("bandeau-sante").hidden, false);
+    assert.deepEqual(blocsDuBandeau(vue), ["temps-tickets", "bloque-sans-question", "plafonds-duree", "closer", "de-tous-les-projets"]);
 
     await ouvrirOnglet(vue, "Stations");
     // Puis, en bas, toutes les stations et « + station », qui ont quitté l'accueil (#2638).
     assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale", "toutes-les-stations"]);
     assert.deepEqual(vue.element("bloc-du-rail").children, []);
+    assert.equal(vue.element("bandeau-sante").hidden, true);
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
 
-    await ouvrirOnglet(vue, "Health");
-    // Puis, en bas, les lignes « Cost » et « Closer » de tous les projets, qui ont quitté l'accueil (#2638).
-    assert.deepEqual(blocs(vue), ["temps-tickets", "bloque-sans-question", "plafonds-duree", "closer", "de-tous-les-projets"]);
+    await ouvrirOnglet(vue, "Rail");
+    assert.equal(vue.element("bandeau-sante").hidden, false);
+    assert.equal(blocsDuBandeau(vue).length, 5);
+  });
 
-    await ouvrirOnglet(vue, "Cooks");
-    const poses = blocs(vue);
-    assert.deepEqual(poses.filter((bloc) => bloc !== undefined), ["specialisations", "cahier"]);
-    assert.ok(poses.some((bloc) => bloc === undefined), "le reste du contenu de Cooks n'est plus posé");
+  test("l'onglet retenu est celui du projet ; un ancien « cooks » ou « sante » stocké ouvre Rail", async () => {
+    const vue = await ouvrir();
+    await ouvrirOnglet(vue, "Stations");
+    await entrer(vue, FANFARE);
+    assert.deepEqual(marques(menu(vue)), ["Rail"]);
+    await entrer(vue, PARADE);
+    assert.deepEqual(marques(menu(vue)), ["Stations"]);
+
+    for (const ancien of ["cooks", "sante"]) {
+      const stockage = new FauxStockage();
+      stockage.setItem("brigade.onglets-des-projets", JSON.stringify({ [PARADE]: ancien }));
+      const rouverte = await ouvrir(stockage);
+      assert.deepEqual(marques(menu(rouverte)), ["Rail"], ancien);
+      assert.equal(rouverte.element("rail").dataset.onglet, "rail", ancien);
+    }
   });
 
   test("Settings s'ouvre par-dessus, depuis le même menu, et garde son contenu", async () => {

@@ -41,6 +41,9 @@ test("un ticket de setup pris par la station : son cook écrit et édite reseau,
   const [projet] = lireConfiguration(`brigade ${DEPOT}`).projets;
   assert.ok(projet);
   const gh = fauxGh(t);
+  // Le compte de la machine écrit sur le dépôt : la station GitHub seul sert le projet, pas la contributrice (#2935).
+  gh.repondre("user", { corps: { login: "chef" } });
+  gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, owner: { login: "acme", type: "Organization" }, permissions: { push: true } } });
   const ticket = { ...issueGitHub(7, { labels: ["fire", "model:sonnet", "effort:low"] }), body: CORPS };
   gh.issues([ticket]);
   // Sa fiche, et la prise de la station : le faux `gh` ne retient pas ce

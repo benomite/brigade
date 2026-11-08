@@ -88,7 +88,7 @@ test("une situation revenue après sa résolution pose une nouvelle carte", asyn
 
 test("lever une sorte laisse la carte d'une autre sorte qui attend le chef", async () => {
   const issue = issueEnMemoire();
-  await poserCarte(issue.numero, carteMergeALaMain(42, null, "no merge grant"), issue.github);
+  await poserCarte(issue.numero, carteMergeALaMain(42, null, "merge refused"), issue.github);
   assert.equal(await leverCarte(issue.numero, issue.github, "blocked"), false);
   assert.ok(issue.labels().includes(CHEF_TODO));
 });

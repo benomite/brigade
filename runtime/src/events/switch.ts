@@ -1,5 +1,5 @@
 // The project switch: one ON/OFF for the whole project (#1406), in place of the
-// manager's switch and the `merge` grant, which the chef had to find and flip
+// manager's switch, which the chef had to find and flip
 // one by one before anything happened.
 //
 // On, the kitchen takes the fired tickets, the manager judges and splits, and

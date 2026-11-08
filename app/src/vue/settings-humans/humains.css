@@ -1,0 +1,135 @@
+/* Les humains du projet sous Settings (ticket 2930) : une rangée par humain, la même que celle d'un réglage — son login, où
+   s'écrit le changement ou la PR qui le porte, ses rôles en cases et « remove » —, et le refus du dernier geste
+   dessous, en une ligne. Une tête porte le nom de la section et « add a human » ; sans humain, une ligne vide et le
+   bouton du premier. Ni cadre ni titre de plus : le groupe du projet les porte. */
+#etat #humains-du-projet {
+  margin: 0;
+}
+#etat .humains-du-projet > :is(.tete, .humain, .aucun, .indisponible) {
+  display: grid;
+  /* La colonne du milieu est plus étroite que celle d'un réglage : les quatre rôles et « remove » tiennent sur une
+     ligne à côté du second. */
+  grid-template-columns: 220px minmax(0, 180px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  margin: 0;
+  padding: var(--pas-2) 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#etat .humains-du-projet .tete > .nom {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  color: var(--discret);
+}
+#etat .humains-du-projet .tete > .ajouter {
+  grid-column: 3;
+  justify-self: start;
+}
+#etat .humains-du-projet > .aucun {
+  color: var(--discret);
+}
+#etat .humains-du-projet > .aucun > span {
+  grid-column: 1 / 3;
+}
+#etat .humains-du-projet > .aucun > .ajouter {
+  grid-column: 3;
+  justify-self: start;
+}
+#etat .humains-du-projet .action > button {
+  white-space: nowrap;
+}
+#etat .humains-du-projet .humain > .login {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+#etat .humains-du-projet .humain > input.login {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--pas-1) var(--pas-2);
+  font-family: var(--police-mono);
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#etat .humains-du-projet .humain > .source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-2);
+  margin: 0;
+}
+#etat .humains-du-projet .humain > .source small {
+  font-size: var(--taille-meta);
+  color: var(--discret);
+}
+#etat .humains-du-projet .humain > .source.propose small::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: var(--pas-2);
+  background: var(--jaune);
+  transform: rotate(45deg);
+}
+#etat .humains-du-projet .humain > .champ {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  margin: 0;
+}
+#etat .humains-du-projet .role {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-1);
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+  cursor: pointer;
+}
+#etat .humains-du-projet .role:has(input:checked) {
+  color: var(--texte);
+}
+#etat .humains-du-projet .role input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+#etat .humains-du-projet .humain > .refus {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--rouge-clair);
+}
+#etat .humains-du-projet .humain > .refus > span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#etat .humains-du-projet .humain > .refus::before {
+  content: "!";
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  font-size: var(--taille-meta);
+  font-weight: 700;
+  color: var(--rouge);
+  border: 1.5px solid var(--rouge);
+  border-radius: var(--rayon-pastille);
+}
+@media (max-width: 720px) {
+  #etat .humains-du-projet > :is(.tete, .humain, .aucun, .indisponible) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #etat .humains-du-projet .tete > .ajouter,
+  #etat .humains-du-projet .humain > .refus {
+    grid-column: 1;
+  }
+}

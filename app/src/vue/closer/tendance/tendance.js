@@ -17,6 +17,7 @@
 
 import { lectureIndisponible, survol } from "../../briques.js";
 import { BRANCHE_ILLISIBLE, ILLISIBLE, lireFermeture, NON_COMMUNIQUE } from "../section.js";
+import { bouton } from "../../composants/bouton/bouton.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../box.ts").Lecture} Lecture */
@@ -152,11 +153,9 @@ function ligne(doc, projet, lecture, ouvrir) {
   const teinte = cree(doc, "span");
   teinte.className = "teinte";
   if (projet.teinte !== undefined) teinte.style.setProperty("--teinte", projet.teinte);
-  const nom = cree(doc, "button", projet.nom);
-  nom.type = "button";
+  const nom = bouton(doc, projet.nom, () => ouvrir(projet.nom), { sorte: "discret" });
   nom.className = "projet";
   nom.title = `open ${projet.nom}`;
-  nom.addEventListener("click", () => ouvrir(projet.nom));
   item.append(teinte, nom);
   if ("erreur" in lu) {
     item.append(lectureIndisponible(doc, ILLISIBLE, lu.erreur));

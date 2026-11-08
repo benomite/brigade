@@ -60,7 +60,7 @@ describe("la bande, hors ligne (#1818)", () => {
     tour(bandes, () => illisible(3));
     const panne = tour(bandes, () => illisible(4));
     assert.equal(panne.horsLigne, undefined);
-    assert.deepEqual(panne.alertes.map(({ dit }) => dit).sort(), ["grant state not verified", "kitchen state not verified", "project switch not verified"]);
+    assert.deepEqual(panne.alertes.map(({ dit }) => dit).sort(), ["kitchen state not verified", "project switch not verified"]);
     assert.equal(panne.signal?.etat, "non-verifie");
     const revenue = tour(bandes, enLigne(5));
     assert.deepEqual(revenue.alertes, []);

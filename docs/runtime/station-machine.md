@@ -519,7 +519,7 @@ preparation ticket and the project's log.
   where to do it. `courante` names the first one not done.
 - **The preparation** (`preparation`): the ticket's number, link and `etat`: `en-cours` (on the rail or
   in a cook's hands), `en-echec` (set aside: `raison`, and `prochainEssai`, null if it does not leave by
-  itself), `a-relire` (at the pass, with its `pr`; stopped for lack of a grant or escalated to the chef,
+  itself), `a-relire` (at the pass, with its `pr`; stopped for review or escalated to the chef,
   the action is to reread and merge it), `suspendu` (its `fire` label removed), `faite`, or `abandonne`
   (closed without a merge: the rail no longer waits). Null as long as the ticket is not open. When the
   setup failed at the launch of its last cook (which leaves anyway), the step's `dit` adds what failed,

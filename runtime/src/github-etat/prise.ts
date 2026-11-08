@@ -103,6 +103,28 @@ export function premierePrise(commentaires: readonly Omit<CommentaireDePrise, "i
   return instants.length === 0 ? null : new Date(Math.min(...instants)).toISOString();
 }
 
+// Ce que les commentaires de l'issue disent du parcours de ses prises, postés à
+// `depuis` (ISO) ou après, dans l'ordre : chaque prise (`brigade:prise`), chaque
+// ticket rendu sans livraison — un lâcher (`brigade:lache`) ou un cook raté
+// (`brigade:echec`) — et chaque renvoi (`brigade:renvoi`). Une station qui
+// merge sans avoir vu la prise — une autre l'a pris, ou elle a redémarré depuis
+// — y lit le cook que l'arrêt a tué, qui n'était pas un renvoi (#2954). Comme
+// pour la prise, seuls comptent les commentaires du dépôt.
+export type FaitDePrise = { quoi: "prise" | "rendu" | "renvoi"; at: string };
+const MARQUE_DE_RENVOI = /^<!-- brigade:renvoi[ >]/;
+const MARQUE_D_ECHEC = /^<!-- brigade:echec[ >]/;
+export function faitsDePrise(commentaires: readonly Omit<CommentaireDePrise, "id">[], depuis: string): FaitDePrise[] {
+  const debut = Date.parse(depuis);
+  return commentaires
+    .filter((c) => DE_CONFIANCE.includes(c.association))
+    .map((c): FaitDePrise | null => {
+      const quoi = MARQUE_DE_PRISE.test(c.body) ? "prise" : MARQUE_DE_LACHER.test(c.body) || MARQUE_D_ECHEC.test(c.body) ? "rendu" : MARQUE_DE_RENVOI.test(c.body) ? "renvoi" : null;
+      return quoi === null ? null : { quoi, at: c.createdAt };
+    })
+    .filter((f): f is FaitDePrise => f !== null && !Number.isNaN(Date.parse(f.at)) && !(Date.parse(f.at) < debut))
+    .sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
+}
+
 // Qui tient le ticket, lu sur l'issue.
 export async function lireTenant(numero: number, github: GitHubDeLaPrise): Promise<Tenant | null> {
   const [commentaires, retraits] = await Promise.all([github.commentaires(numero), github.retraitsDeLabels(numero)]);

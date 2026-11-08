@@ -1,6 +1,6 @@
 // La bande du haut de l'onglet Rail (#2486, épique #2484) : sur une ligne mince, le temps d'un ticket, les cooks en
 // cours et le backlog, à la place de leurs blocs séparés. Le module est joué avec le faux élément de l'app ; la vue,
-// contre le faux pont (aides/fausse-vue.ts) — la bande en tête du rail, et le bloc des temps laissé à l'onglet Cooks.
+// contre le faux pont (aides/fausse-vue.ts) — la bande en tête du rail, et le bloc des temps laissé au bandeau de santé (#2921).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Accueil } from "../../../../src/accueil.ts";
@@ -10,8 +10,7 @@ import { EXEMPLE, type Projet } from "../../../../src/config.ts";
 import { PALETTE } from "../../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../../src/onglets.ts";
 import type { Panne } from "../../../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../../../src/projets/projets.ts";
@@ -189,7 +188,7 @@ describe("sur l'onglet Rail", () => {
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,
@@ -234,20 +233,24 @@ describe("sur l'onglet Rail", () => {
     const [temps, cooks] = parts(vue);
     assert.equal(temps?.textContent, "Ticket time" + "median" + "11 min" + "/" + "p75" + "13 min" + DIT_NORMAL);
     assert.equal(cooks?.textContent, "Cooks" + "2" + "running");
-    // Avant les colonnes, et aucun bloc séparé des temps ni des cooks sur Rail.
+    // Avant les colonnes, et aucun bloc séparé des temps ni des cooks sur Rail : le bloc détaillé est dans le bandeau de santé.
     const enfants = vue.element("rail").children.map(({ className }) => className);
     assert.ok(enfants.indexOf("bande-rail") < enfants.indexOf("colonnes"), enfants.join(", "));
-    assert.equal(vue.element("temps-ticket-du-projet").hidden, true);
     assert.equal(vue.element("rail").dessous("div").some(({ className }) => className === "temps-ticket"), false);
+    // Le bloc du bandeau porte les mêmes temps (`vu.temps`) que la bande : ses chiffres sont les siens.
+    const bloc = vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "temps-tickets") ?? assert.fail("pas de bloc des temps");
+    assert.match(bloc.textContent, /1 min median, 1\.5 min p75/);
+    assert.match(bloc.textContent, /×1\.20 median/);
   });
 
-  test("sur Cooks, le bloc des temps reste entier, et la bande n'y est pas", async () => {
+  test("sur Stations, la bande et le bandeau de santé n'y sont pas ; Rail les rend", async () => {
     const vue = await ouvrir(NORMAL);
-    await ouvrirOnglet(vue, "Cooks");
-    assert.equal(vue.element("temps-ticket-du-projet").hidden, false);
+    assert.equal(vue.element("bandeau-sante").hidden, false);
+    await ouvrirOnglet(vue, "Stations");
     assert.equal(bande(vue), undefined);
+    assert.equal(vue.element("bandeau-sante").hidden, true);
     await ouvrirOnglet(vue, "Rail");
-    assert.equal(vue.element("temps-ticket-du-projet").hidden, true);
+    assert.equal(vue.element("bandeau-sante").hidden, false);
     assert.notEqual(bande(vue), undefined);
   });
 

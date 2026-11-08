@@ -60,14 +60,14 @@ import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { abandonsAuChef, pourquoi as pourquoiDeLAbandon, pourquoiEn as pourquoiDeLAbandonEn, type Voie } from "./abandon-au-chef.ts";
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
-import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause, type VerdictDuSecondJuge } from "./events/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, testsInstablesDeLaCause, type VerdictDuSecondJuge } from "./events/pass.ts";
 import { demandeEnAttente, faitAttendre, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
 import { direDemande as direDemandeDeFermeture, direRefusEn as direRefusDeFermetureEn } from "./closing/say.ts";
 import type { Ecart } from "./events/manager.ts";
 import { epiquesEnAttente } from "./projections/splits.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
-import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
+import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket } from "./projections/pass.ts";
 import { feuNonVu, type TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renewal.ts";
 import { alerteDuJeton, type AlerteDuJeton } from "./projections/token.ts";
@@ -148,10 +148,9 @@ function relueDeBoutEnBout(base: Base, pass: PassDeTicket, auTriage: () => Carte
 // connaît pas son titre.
 export type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : le
-  // motif, `cause` : ce qui le précise. `expired` : faute d'un grant qui
-  // s'était éteint seul à cet instant. `second` : à relire, ce que son second
+  // motif, `cause` : ce qui le précise. `second` : à relire, ce que son second
   // juge en a dit, quand elle touche à ses juges.
-  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null; livraison?: Livraison; second?: SecondJugementLu }
+  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison; second?: SecondJugementLu }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
   // `why` : pourquoi sa livraison ne se porte pas sur l'arbre d'un renommage
   // du code mergé, quand c'est ce qui l'a remonté (pause/reprise.ts).
@@ -237,7 +236,7 @@ export type Attente = AttenteDeTicket | AttenteHorsTicket;
 // `CAUSES_DU_CHEF` nomme (remontee-a-la-cuisine.ts).
 export type SorteDAttente = "product" | "chef-gesture";
 export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquoi: string }> = {
-  merge: { sorte: "chef-gesture", pourquoi: "a green delivery the pass may not merge: granting `merge`, reviewing what touches the judges or the declarations, or lifting what GitHub refuses is the chef's" },
+  merge: { sorte: "chef-gesture", pourquoi: "a green delivery the pass may not merge: reviewing what touches the judges or the declarations, or lifting what GitHub refuses is the chef's" },
   remontee: { sorte: "chef-gesture", pourquoi: "only the causes `CAUSES_DU_CHEF` names: secrets only the chef sets, or the manager's product question — every other escalation goes to the kitchen" },
   fermee: { sorte: "chef-gesture", pourquoi: "its PR was closed without merge — the chef's refusal; taking the ticket off the rail is the chef's too" },
   ecartee: { sorte: "chef-gesture", pourquoi: "it carries the chef's own label (`question`, `decision`, `blocked-on-human`)" },
@@ -259,7 +258,6 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
 };
 
 export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
-export const ACCORDER_LE_GRANT = geste("grant enable merge");
 
 // Le bloc `awaiting` ne cite jamais une commande de la box : chaque geste y est
 // dit par le bouton de l'app qui le fait, ou, quand l'app n'en a pas encore,
@@ -267,11 +265,9 @@ export const ACCORDER_LE_GRANT = geste("grant enable merge");
 // fichier restent ceux des messages écrits pour la box (journald, issues,
 // réponses de commandes).
 const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
-const INTERRUPTEUR_MERGE = "the switch on the `merge` grant's line of the project's Settings";
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
 const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `kitchen` line of the project's Settings";
 const BOUTON_PROPOSE = (reglage: string) => `the \`propose\` button on the \`${reglage}\` line of the project's Settings`;
-const BOUTON_ANNULER_LE_NETTOYAGE = "the `Cancel the cleanup` button in the closer section of the project's Cooks tab";
 const SANS_BOUTON = "no app button for it yet";
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
@@ -324,7 +320,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     if (pass.phase === "held") {
       const second = relueDeBoutEnBout(base, pass, auTriage);
       if (second === false) return [];
-      return [{ ...commun, quoi: "merge", expired: pass.grantExpired, ...(second === null ? {} : { second }) }];
+      return [{ ...commun, quoi: "merge", ...(second === null ? {} : { second }) }];
     }
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
@@ -565,7 +561,7 @@ function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refu
   if (retenue === null) return `${demandee}: its start condition is met, the runtime starts it at its next wake-up, within the second`;
   const refus = direRefusDeLaFermetureEn(retenue);
   if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
-  const renoncer = `withdraw it with ${BOUTON_ANNULER_LE_NETTOYAGE}`;
+  const renoncer = `withdraw it: ${SANS_BOUTON}`;
   if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
   return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold with ${BOUTON_PROPOSE("closer's start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
 }
@@ -579,10 +575,7 @@ export function direAttenteEn(attente: Attente): string {
   switch (attente.quoi) {
     case "merge": {
       const ou = attente.pr === null ? "" : `: ${attente.pr}`;
-      const accorder = ` — or enable the grant, for the next ones: ${INTERRUPTEUR_MERGE}`;
       switch (attente.reason) {
-        case SANS_GRANT:
-          return `green delivery, not merged${attente.expired === null ? " for lack of a `merge` grant" : `: the \`merge\` grant lapsed on its own on ${attente.expired}`} — merge by hand${ou}${accorder}`;
         case A_RELIRE: {
           const declarations = declarationsDeLaCause(attente.cause);
           return `green delivery that touches ${declarations === null ? "its judges" : `what the project opens up (${declarations})`} — review and merge by hand${ou}`;
@@ -651,7 +644,7 @@ export function direAttenteEn(attente: Attente): string {
 
 // Ce que le chef a à trancher pour un ticket, pour un programme (`faits`) : `quoi`, la sorte de
 // l'attente — son mot ici, `merge`, `remontee`, `86`… ; `motif`, le sien quand la sorte en a un
-// (`no-grant`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
+// (`review-required`, `still-red`, `refused`, `question`…) ; `cause`, ce qui le précise sans changer le
 // geste ; `pr`, la PR de la livraison, nulle sans elle. Ce que la ligne du bloc dit en mots, ceci
 // le dit en champs : le lecteur choisit ses mots, et les gestes qu'il pose. Une
 // carte typée : `carte`, sa sorte pour motif (`product`, `design`), sa
@@ -706,38 +699,6 @@ function direEcheanceDuJetonEn({ state, token, file, created, expires, lifetimeD
   return `Max connection token creation date ${pourquoi} (${file}) — its expiry is unknown: it lives ${lifetimeDays} days — to do: ${gesteDuJetonEn(token)}`;
 }
 
-// Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
-// décider de l'accorder. Rien tant qu'aucune ne l'a été. En français : c'est
-// ce que disent `grant` et `pass` — le bloc `awaiting` dit `direSansGrantEn`.
-export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
-  if (arretees === 0) return null;
-  const s = (n: number) => (n > 1 ? "s" : "");
-  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
-  const suites = [
-    `${mergees} mergée${s(mergees)} à la main`,
-    `${refusees} fermée${s(refusees)} sans merge — ${refusees === 0 ? "aucun désaccord" : `${refusees} désaccord${s(refusees)}`} —`,
-    `${ouvertes} encore ouverte${s(ouvertes)}`,
-    ...(parLaPass === 0 ? [] : [`${parLaPass} mergée${s(parLaPass)} par la pass, le grant accordé depuis`]),
-    ...(lachees === 0 ? [] : [`${lachees} plus suivie${s(lachees)}`]),
-  ];
-  return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${suites.join(", ")}`;
-}
-
-// Le même bilan, en anglais : la ligne `without a grant, …` du bloc `awaiting`.
-export function direSansGrantEn({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
-  if (arretees === 0) return null;
-  const s = (n: number) => (n > 1 ? "s" : "");
-  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
-  const suites = [
-    `${mergees} merged by hand`,
-    `${refusees} closed without merge — ${refusees === 0 ? "no disagreement" : `${refusees} disagreement${s(refusees)}`} —`,
-    `${ouvertes} still open`,
-    ...(parLaPass === 0 ? [] : [`${parLaPass} merged by the pass, the grant enabled since`]),
-    ...(lachees === 0 ? [] : [`${lachees} no longer followed`]),
-  ];
-  return `without a grant, ${arretees} green deliver${arretees > 1 ? "ies" : "y"} stopped: ${suites.join(", ")}`;
-}
-
 // Les deux bords du bloc, seuls sur leur ligne : la ligne de tête, la seule de
 // la sortie à commencer par `awaiting`, et celle qui le ferme. Un lecteur le
 // présente à part sans rien lire de ce qu'il porte : tout ce qui est dedans est
@@ -754,13 +715,13 @@ export const nommerAttente = (attente: Attente): string => (attente.ticket !== n
 const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename", retenue: "kitchen" };
 export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
-// Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
-// faute de grant, puis la version passée en service ce jour. Il est toujours
+// Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis la version
+// passée en service ce jour. Il est toujours
 // là, entre les mêmes bords : la file vide, il le dit — un silence ne se
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
 // `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null, tropLongs: readonly string[] = []): string[] {
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, passage: Passage | null = null, pause: PauseEnVigueur | null = null, tropLongs: readonly string[] = []): string[] {
   const [premiere] = attentes;
   // Les tickets au-delà de deux fois le max de temps : de l'information, pas une décision.
   const passee = [...tropLongs.map((ligne) => `  ${ligne}`), ...(passage === null ? [] : [`  ${passage.ligne}`])];
@@ -773,7 +734,6 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
     `${TETE_AWAITING.padEnd(11)}${tete}`,
     ...enPause,
     ...attentes.map((attente) => `  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
-    ...[sansGrant === null ? null : direSansGrantEn(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
     ...passee,
     FIN_AWAITING,
     "",
@@ -857,10 +817,7 @@ export function direAttente(attente: Attente): string {
   switch (attente.quoi) {
     case "merge": {
       const ou = attente.pr === null ? "" : ` : ${attente.pr}`;
-      const accorder = ` — ou accorder le grant, pour les suivantes : \`${ACCORDER_LE_GRANT}\``;
       switch (attente.reason) {
-        case SANS_GRANT:
-          return `livraison verte, non mergée ${attente.expired === null ? "faute de grant `merge`" : `: le grant \`merge\` s'est éteint seul le ${attente.expired}`} — à merger à la main${ou}${accorder}`;
         case A_RELIRE: {
           const declarations = declarationsDeLaCause(attente.cause);
           return `livraison verte qui touche à ${declarations === null ? "ses juges" : `ce que le projet s'ouvre (${declarations})`} — à relire et merger à la main${ou}`;

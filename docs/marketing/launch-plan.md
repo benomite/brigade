@@ -217,7 +217,7 @@ Show HN: Brigade, Claude Code agents that work your GitHub tickets while you're 
 
 Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plus a runtime. You put a `fire` label on a GitHub issue; a `claude` session takes it in its own git worktree and opens a PR; a separate "pass" runs the gates and CI, has a model review it, and merges only if everything is green. You are called only for product or design choices.
 
-What it is not: it is not hosted, it does not use an API key (the cooks run on your Claude Max session), and automatic merge is off by default. It exists only under a `merge` grant you enable, which can be limited in time and uses, and every use is logged.
+What it is not: it is not hosted, it does not use an API key (the cooks run on your Claude Max session), and the stop halts every cook within the second.
 
 Numbers, counted on 2026-11-07: of 1,191 merged PRs in this repo, 1,016 came from a cook's branch. The branch name shows who cooked, not who clicked merge.
 
@@ -273,15 +273,14 @@ Use these as answers in the threads. Each ends on what is true today; do not pro
 
 ### 2. "I don't trust auto-merge"
 
-- It is off by default. Automatic merge exists only under a `merge` grant that you enable, and that can be limited in time (`--for 4h`) and in uses (`--uses 10`). It lapses on its own and you can revoke it without a restart ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
-- A PR merges only when the gates, the project's CI and an independent review are green; GitHub refuses the merge if the branch moved after it was judged.
-- Every use is logged (ticket, PR, commit, verdict), so "why is this on `main`?" has an answer.
-- Honest limit, stated in the doc: with a grant active, code lands without a human having read it; its judges are the gates, the CI and a reviewer that is a model. Without a grant, you merge by hand. Suggest starting there.
+- A PR merges once its verdict is approved and the CI of its head is green; GitHub refuses the merge if the branch moved after it was judged ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
+- The brakes are the `stop`, which halts every cook within the second, and a second judge for any delivery that changes what judges it. The verdict is on the PR, so "why is this on `main`?" has an answer.
+- Honest limit, stated in the doc: code lands without a human having read it; its judges are the gates, the CI and a reviewer that is a model.
 
 ### 3. "What about security?"
 
 - Brigade has no server of its own. The app and the cooks run on your machine or your own cloud station, with your repo and your accounts. Nothing goes through a Brigade service.
-- Credentials: the app signs you in to GitHub and Claude in your browser. A grant can never authorize reading the Max account credentials or acting on a project's production; asking for either is refused, even for the chef, and logged ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
+- Credentials: the app signs you in to GitHub and Claude in your browser.
 - Blast radius: one worktree per ticket, caps, a breaker and a `stop` that halts every cook within the second ([`docs/runtime/garde-fous.md`](../runtime/garde-fous.md)).
 - Honest limits: a cook is a `claude` session that runs code on the machine you give it, so use a throwaway repository for a first run, and a dedicated machine for a cloud station. No third-party security audit exists; do not say otherwise. There is no `SECURITY.md` yet: if someone reports a vulnerability, point them to a private GitHub security advisory on the repo.
 

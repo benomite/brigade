@@ -16,8 +16,7 @@ import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
 import { entete } from "../src/fiche.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -72,7 +71,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
       for (const [propriete, valeur] of declarations) {
         if (!PORTE_UNE_COULEUR.test(propriete)) continue;
         // Ce qui reste d'une valeur une fois ôtés ses variables et ses longueurs : des mots.
-        const mots = valeur.replace(/var\(--[a-z-]+\)/g, " ").match(/[a-z][a-z-]*/gi) ?? [];
+        const mots = valeur.replace(/var\(--[a-z0-9-]+\)/g, " ").match(/[a-z][a-z-]*/gi) ?? [];
         const noms = mots.filter((mot) => !MOTS_SANS_COULEUR.has(mot.toLowerCase()) && !/^(px|em|%)$/.test(mot));
         assert.deepEqual(noms, [], `${selecteurs.join(", ")} { ${propriete}: ${valeur} }`);
       }
@@ -82,11 +81,11 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
   test("chaque variable que la vue nomme est posée dans jetons.css — ou, pour le ton d'un état, d'après elles", () => {
     const css = sansCommentaires(lire("vue.css"));
     // `--ton` : la couleur d'un mot d'état, posée par vue.css d'après le nom que faits.ts lui donne.
-    const locales = new Map([...css.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
+    const locales = new Map([...css.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
     assert.deepEqual([...new Set(locales.keys())], ["--ton"]);
     for (const [, valeur] of css.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
-    const nommees = [...css.matchAll(/var\((--[a-z-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z-]+)"\)/g)].map(([, nom = ""]) => nom);
+    const nommees = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, nom = ""]) => nom);
     assert.ok(nommees.length > 100, "vue.css ne nomme presque aucune variable");
     for (const nom of new Set(nommees)) assert.ok(jetons.has(nom) || nom === "--ton", `« ${nom} » n'est pas dans jetons.css`);
     // Et aucune n'y dort : ce qui est posé sert.
@@ -96,7 +95,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
   test("jetons.css ne pose une couleur qu'une fois, sur la racine, et rien d'autre ne s'y peint", () => {
     const css = sansCommentaires(lire("jetons.css"));
     assert.deepEqual(regles(css).flatMap(({ selecteurs }) => selecteurs), ["@font-face", "@font-face", "@font-face", ":root"]);
-    const posees = [...css.matchAll(/(--[a-z-]+)\s*:/g)].map(([, nom = ""]) => nom);
+    const posees = [...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, nom = ""]) => nom);
     assert.deepEqual(posees, [...new Set(posees)], "une variable est posée deux fois");
     assert.ok(couleurs.size >= 20, `${couleurs.size} couleurs`);
     assert.equal(jetons.get("color-scheme"), undefined);
@@ -224,7 +223,7 @@ const demarrage = () => ({
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -263,9 +262,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(vue.xterms.map(({ ecrits }) => ecrits), [[RELAYE, "\r\n"]]);
   });
 
-  test("dans Cooks, Settings — qui lit les grants (#1700) — et Log : la sortie brute de leur commande n'est pas montrée", async () => {
+  test("dans Log : la sortie brute de leur commande n'est pas montrée", async () => {
     const vue = await ouvrirUnEspace();
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Cooks", "Grants", "Log"]);
+    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Log"]);
 
     for (const { id, titre, commande } of ONGLETS) {
       await ouvrirLecture(vue, titre);
@@ -273,14 +272,11 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
       assert.deepEqual([projet, demande], [PARADE, id]);
       const texte = `${titre}\n${RELAYE}`;
       const lecture: Lecture = { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte }] };
-      vue.dire("surContenu", lecture, undefined, undefined);
+      vue.dire("surContenu", lecture, undefined);
 
-      // Cooks est un onglet du projet (#1184) : sa lecture est posée sur lui, aucune page ne s'ouvre.
-      const cuisine = id === "cooks";
-      assert.equal(vue.element("contenu").hidden, cuisine, titre);
       // La sortie brute de la commande n'est montrée nulle part : ni bloc, ni texte.
-      assert.deepEqual(textes(relayes(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet"))), [], titre);
-      assert.doesNotMatch(vue.element(cuisine ? "lecture-cuisine" : "lecture-onglet").textContent, /what the station said/, titre);
+      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [], titre);
+      assert.doesNotMatch(vue.element("lecture-onglet").textContent, /what the station said/, titre);
     }
   });
 
@@ -350,7 +346,7 @@ const FAITS: Dessinable = {
         { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222, etat: "en attente", mot: "queued", ton: "gris", titre: "Récapitulatif devis avant envoi", fiche: entete({ titre: "Récapitulatif devis avant envoi" }), ouvrable: true, attendu: false, attend: [], dit: [{ libelle: "depuis", valeur: "3 h 02" }, { libelle: "bloque", valeur: "zone tenue par #218 (app/src)" }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
         { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218, etat: "pris", mot: "taken", ton: "bleu", titre: "Formulaire devis multi-étapes", fiche: entete({ titre: "Formulaire devis multi-étapes" }), ouvrable: false, attendu: false, attend: [], dit: [{ libelle: "tient", valeur: "box/claude-opus", exact: true }, { libelle: "depuis", valeur: "12 min" }, { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" }, { libelle: "brûle", valeur: "230 000 tokens au dernier relevé" }], sans: "non communiqué par la file : ce qui le bloque" }], vide: "aucun ticket" },
         { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", mot: "served", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
+        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", mot: "served", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
         { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
       ],
       hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", fiche: entete({ titre: "Hors colonnes" }), ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `facts`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
@@ -358,25 +354,6 @@ const FAITS: Dessinable = {
       railLu: A,
     },
   },
-};
-const GRANTS_VUS: VuDesGrants = {
-  projet: PARADE,
-  demande: 0,
-  a: A,
-  grants: [
-    {
-      action: "merge",
-      commandable: true,
-      actif: true,
-      mot: "ACTIF",
-      ton: "vert",
-      limites: [],
-      dit: "",
-      usages: { lignes: [{ a: A, ticket: 216, action: "merge", base: "v2", pr: "https://github.com/benomite/brigade/pull/231", commit: "9691d64", verdict: "verdict n° 14", suite: "mergée" }], illisibles: [] },
-    },
-  ],
-  interdits: { lignes: [], illisibles: [] },
-  illisibles: [],
 };
 
 describe("la fenêtre se réduit sans que rien ne se casse", () => {
@@ -421,37 +398,36 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     const vue = await ouvrirUnEspace();
 
     for (const { id, titre, commande } of ONGLETS) {
+      if (id === "cooks") continue;
       await ouvrirLecture(vue, titre);
       const numero = (vue.dernier("onglet") as [string, string, number])[2];
-      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined, undefined);
-      assert.deepEqual(textes(relayes(vue.element(id === "cooks" ? "lecture-cuisine" : "lecture-onglet"))), [], titre);
+      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined);
+      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [], titre);
     }
   });
 });
 
 describe("le monospace est une information, pas un style", () => {
   // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert et ses faits lus — sur l'un et l'autre
-  // onglet du projet (#1184) : la carte du projet est sur Cooks, le kanban entier sur Rail.
-  // Sur Rail, rien ne s'ouvre par-dessus ; Settings ouvert lit les grants (#1700).
-  async function toutPose(onglet: "Rail" | "Settings", grants?: VuDesGrants): Promise<Faux[]> {
+  // onglet du projet (#1184) : la carte du projet est sur Stations, le kanban entier sur Rail.
+  // Sur Rail, rien ne s'ouvre par-dessus ; Settings ouvert ne lit rien (#1700).
+  async function toutPose(onglet: "Rail" | "Settings"): Promise<Faux[]> {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
-    await ouvrirOnglet(vue, "Cooks");
-    const surCooks = vue.poses();
+    await ouvrirOnglet(vue, "Stations");
+    const surStations = vue.poses();
     await ouvrirOnglet(vue, "Rail");
     if (onglet === "Settings") {
       await ouvrirLecture(vue, onglet);
-      const numero = vue.dernier("onglet")[2] as number;
-      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande: "grant", texte: RELAYE }] }, undefined, grants === undefined ? undefined : { ...grants, demande: numero });
       await repos();
     }
-    return [...new Set([...surCooks, ...vue.poses()])];
+    return [...new Set([...surStations, ...vue.poses()])];
   }
   const mono = (element: Faux) => element.className.split(" ").includes("mono");
   const portant = (poses: Faux[], texte: string) => poses.filter((element) => element.textContent === texte && element.children.length === 0);
 
   test("un numéro de ticket est en monospace partout où il se pose : la carte, le rail", async () => {
-    const poses = [...(await toutPose("Rail")), ...(await toutPose("Settings", GRANTS_VUS))];
+    const poses = [...(await toutPose("Rail")), ...(await toutPose("Settings"))];
 
     // Le cook de la carte et son ticket du rail, les bons.
     for (const numero of ["#218", "#222", "#12", "#86"]) {
@@ -467,31 +443,25 @@ describe("le monospace est une information, pas un style", () => {
   test("un identifiant de run aussi", async () => {
     const poses = await toutPose("Rail");
 
-    for (const exact of ["box/claude-opus"]) {
-      const trouves = portant(poses, exact);
-      assert.ok(trouves.length > 0, `${exact} n'est posé nulle part`);
-      for (const pose of trouves) assert.ok(mono(pose), exact);
-    }
-    // Settings ne pose plus les usages d'un grant (#1700) : ni sa PR, ni son commit.
-    const settings = await toutPose("Settings", GRANTS_VUS);
-    for (const parti of ["https://github.com/benomite/brigade/pull/231", "9691d64"]) assert.deepEqual(portant(settings, parti), [], parti);
+    // Le cook de la carte du projet n'est plus posé nulle part (la page Cooks n'existe plus) : quoi qu'il en reste, c'est en monospace.
+    for (const pose of poses) if (pose.textContent === "box/claude-opus" && pose.children.length === 0) assert.ok(mono(pose), pose.textContent);
   });
 
   test("le nom du projet, qui est son identifiant sur la box, et les contrôles de réglage", async () => {
     const [nom] = (await toutPose("Rail")).filter((pose) => pose.id === "espace");
     assert.ok(nom !== undefined && mono(nom) && nom.textContent === PARADE);
 
-    // Dans Settings (#1700), les contrôles des réglages — l'interrupteur d'un grant, l'arrêt de la cuisine — disent
+    // Dans Settings (#1700), les contrôles des réglages — l'arrêt de la cuisine — disent
     // leur geste en mots : aucun n'est en monospace, et aucune commande n'est affichée.
-    const poses = await toutPose("Settings", GRANTS_VUS);
+    const poses = await toutPose("Settings");
     const boutons = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "champ");
     assert.ok(boutons.length > 0 && boutons.every((pose) => !mono(pose)), "un contrôle de réglage est en monospace");
   });
 
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
-    const poses = [...(await toutPose("Settings", GRANTS_VUS)), ...(await toutPose("Rail"))];
+    const poses = [...(await toutPose("Settings")), ...(await toutPose("Rail"))];
 
-    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "open", "ACTIF", "grant merge", "Sur le rail", "T'attend", "au travail", "Rail", "Settings", "second · claude"]) {
+    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "Sur le rail", "T'attend", "Rail", "Settings", "second · claude"]) {
       const trouves = portant(poses, lu);
       assert.ok(trouves.length > 0, `« ${lu} » n'est posé nulle part`);
       for (const pose of trouves) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${lu} » est en monospace`);
@@ -521,11 +491,9 @@ describe("rien de ce qui est au parking n'apparaît", () => {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
     for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
-    // Sur l'onglet Cooks (#1184) non plus, où est la carte du projet.
-    await ouvrirOnglet(vue, "Cooks");
+    // Sur l'onglet Stations non plus.
+    await ouvrirOnglet(vue, "Stations");
     for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
-    // Un compteur est un nombre, posé tel quel : ni barre, ni pourcentage.
-    assert.deepEqual(textes(vue.element("carte").dessous("dd")), ["9", "2", "1", "1", "11"]);
   });
 
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {

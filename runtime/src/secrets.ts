@@ -99,7 +99,7 @@ function lireDeclaration(worktree: string): Declaration | null {
     } else if (NOMS_RESERVES.includes(nom) || PREFIXES_RESERVES.some((prefixe) => nom.startsWith(prefixe))) {
       declaration.problemes.push(`\`${nom}\` : nom réservé au runtime (${PREFIXES_RESERVES.map((prefixe) => `${prefixe}*`).join(", ")}, ${NOMS_RESERVES.join(", ")}) — il ne se déclare pas dans \`${DECLARATION}\``);
     } else if (nom.toUpperCase().split("_").some((mot) => MOTS_DE_PROD.includes(mot))) {
-      declaration.problemes.push(`\`${nom}\` : le nom dit la production — aucun secret de production n'entre sur la box, quel que soit le grant`);
+      declaration.problemes.push(`\`${nom}\` : le nom dit la production — aucun secret de production n'entre sur la box`);
     } else {
       declaration.noms.push(nom);
     }
@@ -154,7 +154,7 @@ export function lireSecrets(worktree: string, fichier: string | null): SecretsLu
     else if (valeur.length < LONGUEUR_MIN) {
       problemes.push(`\`${nom}\` : valeur de moins de ${LONGUEUR_MIN} caractères — ce n'est pas un secret, et la masquer rongerait les comptes-rendus : une configuration s'exporte depuis \`${SCRIPT_SETUP}\``);
     } else if (MARQUES_DE_PROD.some((marque) => marque.test(valeur))) {
-      problemes.push(`\`${nom}\` : la valeur porte la marque d'une clé de production — aucun secret de production n'entre sur la box, quel que soit le grant`);
+      problemes.push(`\`${nom}\` : la valeur porte la marque d'une clé de production — aucun secret de production n'entre sur la box`);
     } else env[nom] = valeur;
   }
   return problemes.length > 0 ? { pret: false, problemes } : { pret: true, env, ...masque(env) };

@@ -7,12 +7,17 @@
 // n'est estimé à sa place. Sans prise connue (`priseAt` absent ou null), il n'y
 // a pas de borne à opposer : la mesure passe telle quelle, l'attente étant déjà
 // contenue entre `depuis` et le merge.
+//
+// La borne ne tient que l'attente d'avant la première prise : celle qui suit
+// un cook rendu sans livraison (`reprises`, en secondes) n'est pas entre
+// l'ouverture et la première prise, et ne s'y compare pas (#2954). Comptée,
+// elle rejetait la mesure de tout ticket dont un cook avait été rendu.
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 
 // Les secondes sont arrondies sur les instants (`mesurer`) : une seconde de jeu.
 const JEU_S = 1;
 
-export function accepterLaMesure(mesure: EnregistrementTemps): EnregistrementTemps | null {
+export function accepterLaMesure(mesure: EnregistrementTemps, reprises = 0): EnregistrementTemps | null {
   const ouverture = Date.parse(mesure.depuis ?? "");
   const prise = Date.parse(mesure.priseAt ?? "");
   if (Number.isNaN(ouverture) || Number.isNaN(prise)) return mesure;
@@ -21,5 +26,5 @@ export function accepterLaMesure(mesure: EnregistrementTemps): EnregistrementTem
   const debutAttente = ouverture + (mesure.attenteQualification ?? 0) * 1000;
   if (prise < debutAttente || prise > Date.parse(mesure.claimedAt ?? "")) return mesure;
   const borne = (prise - ouverture) / 1000;
-  return (mesure.attentePrise ?? 0) > borne + JEU_S ? null : mesure;
+  return (mesure.attentePrise ?? 0) - reprises > borne + JEU_S ? null : mesure;
 }

@@ -69,7 +69,7 @@ describe("la carte de TODO, lue dans `facts`", () => {
   });
 
   test("dans la forme unique (épique #1764) : son résumé est lu ; une carte à un seul geste se lit sans question, plusieurs choix jamais", () => {
-    const resume = "The delivery of #31 is green. The grant does not let the pass merge it.";
+    const resume = "The delivery of #31 is green. The pass does not merge it itself.";
     const unGeste = { type: "product", resume, question: null, choix: [{ texte: "Merge the PR", suite: "merge" }], captures: null };
     assert.deepEqual(carteLue(unGeste), unGeste);
     assert.deepEqual(carteLue({ ...PRODUIT, resume }), { ...PRODUIT, resume });
@@ -127,7 +127,7 @@ describe("la carte de TODO, lue dans `facts`", () => {
     const faits = tenirFaits();
     const recue = faits.recevoir({ projet: "parade", demande: 0, a: FAITS.lu, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
     assert.ok("tableau" in recue);
-    const todo = recue.tableau.rail.colonnes.find(({ nom }) => nom === "Todo");
+    const todo = recue.tableau.rail.colonnes.find(({ nom }) => nom === "Awaiting you");
     assert.deepEqual(
       todo?.cartes.map(({ ticket, todo: carte }) => [ticket, carte?.question]),
       [

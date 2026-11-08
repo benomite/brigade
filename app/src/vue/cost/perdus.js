@@ -116,7 +116,13 @@ export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule, ouv
   bloc.className = "perdus-cout";
   const { total, minimum, partiel, lignes } = perdus(projets, lectures);
   const dit = total === undefined ? LECTURE : total === null ? NON_COMMUNIQUE : `${partiel || minimum ? "≥ " : ""}${nombre(total)}`;
-  const chiffre = lignes.length > 0 ? cree(doc, "button", dit) : cree(doc, "p", dit);
+  // Avec des lignes, le chiffre est un bouton de la famille, discret, qui déplie la liste : son chiffre est un `span` à lui.
+  const chiffre = lignes.length > 0 ? bouton(doc, "", undefined, { sorte: "discret" }) : cree(doc, "p", dit);
+  if (lignes.length > 0) {
+    const nombreDit = cree(doc, "span", dit);
+    nombreDit.className = "chiffre-perdu";
+    chiffre.append(nombreDit);
+  }
   chiffre.className = "perdus-total";
   if (typeof total !== "number") chiffre.className = "perdus-total sans";
   // Au-dessus du seuil de son projet (seuils.js), le chiffre est mis en évidence et une ligne dit le geste.

@@ -175,4 +175,4 @@ All station: the log and the disk are the machine's.
 | `installation stations …`, `installation decisions …` | The same stations and decisions as §1, at installation time | follows §1 |
 | `arbiter weight \| remove` | A project's weight on the machine | station: shares one machine between projects |
 | `guardrails stop \| resume \| pause`, `switch on \| off` | The live state of the kitchen (written to the log) | station: an operation, not a setting |
-| `grant … merge`, `rail`, `manager`, `closing`, `backup`, `restore`, `pull`, `door` | Operations on tickets, backups | station: operations, not settings |
+| `rail`, `manager`, `closing`, `backup`, `restore`, `pull`, `door` | Operations on tickets, backups | station: operations, not settings |

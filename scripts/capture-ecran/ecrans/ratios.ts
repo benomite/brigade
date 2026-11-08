@@ -4,7 +4,7 @@
 // `espace`, sans closer réglé — qui n'a pas de ligne.
 import type { Lecture } from "../../../app/src/box.ts";
 import type { Projet } from "../../../app/src/config.ts";
-import { OBSERVEE } from "./closer.ts";
+import { OBSERVEE } from "./closer-observee.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Envoi, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -40,7 +40,7 @@ const LUS: Record<string, unknown> = {
 
 const lu = (projet: string): Envoi => {
   const lecture: Lecture = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "closing --json", texte: `${JSON.stringify(LUS[projet])}\n` }] };
-  return { sur: "surContenu", args: [lecture, undefined, undefined], demande: "onglet" };
+  return { sur: "surContenu", args: [lecture, undefined], demande: "onglet" };
 };
 
 export const ecran: Ecran = {

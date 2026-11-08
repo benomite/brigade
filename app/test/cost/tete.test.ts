@@ -10,8 +10,7 @@ import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { chiffres, fenetresDe, NON_COMMUNIQUE, poserTete } from "../../src/vue/cost/tete.js";
@@ -163,7 +162,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -190,8 +189,8 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     // Avant toute lecture, les chiffres sont en lecture.
     assert.equal(cout.dessous("p")[0]?.textContent, "reading…");
 
-    vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande }, undefined, undefined);
-    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande }, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande }, undefined);
     await repos();
     const totaux = cout.dessous("p").filter(({ className }) => className.startsWith("total")).map(({ textContent }) => textContent);
     assert.deepEqual(totaux, ["1,604,530", "4,912,044", NON_COMMUNIQUE]);
@@ -218,7 +217,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     const vue = await ouvrirLaPage();
     const page = vue.element("cout");
     const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined);
     await repos();
     assert.equal(page.dessous("p")[0]?.textContent, "reading…");
 

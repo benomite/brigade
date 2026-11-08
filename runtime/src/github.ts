@@ -134,7 +134,8 @@ export type GitHub = {
   // Les PR ouvertes, avec la branche dont chacune est la tête et les fichiers
   // qu'elle change. Facultatif : seul le client réel le porte
   // (`brigade-github.ts`, la zone tenue d'un ticket).
-  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
+  // `externe` : sa tête vient d'un autre dépôt — un fork (#2933).
+  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[]; sha?: string; externe?: boolean }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
   // Tous les statuts du commit sous ce contexte, chacun tel qu'il a été posé,
@@ -150,6 +151,19 @@ export type GitHub = {
   // Le sha du dernier commit de la branche d'intégration. Facultatif : seul le
   // client réel le porte (`brigade-github.ts`, le contrôle de la base).
   teteDeLaBase?(branche: string): Promise<string>;
+  // Vrai si ce compte existe sur GitHub, faux s'il n'existe pas (#2929).
+  // Facultatif, comme les trois suivants : seul le client réel le porte
+  // (`humains/service.ts`, les humains du projet).
+  compteExiste?(login: string): Promise<boolean>;
+  // Vrai si ce compte a accès au dépôt, quel que soit son droit (lecture
+  // comprise) ; faux s'il n'en a aucun.
+  aAccesAuDepot?(login: string): Promise<boolean>;
+  // Un fichier du dépôt tel que `ref` le porte — son texte, et l'empreinte de
+  // son blob que sa réécriture doit citer —, ou null s'il n'y est pas.
+  fichier?(chemin: string, ref: string): Promise<{ texte: string; sha: string } | null>;
+  // Crée la branche `branche` sur la tête de `base`, et y commite `texte` dans
+  // `chemin`. `sha` : l'empreinte du fichier remplacé, null s'il est neuf.
+  ecrireSurBranche?(ecriture: { base: string; branche: string; chemin: string; texte: string; sha: string | null; message: string }): Promise<void>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
@@ -183,6 +197,19 @@ export type GitHub = {
   // de rôle) ; null sous l'identité unique du `gh` de la machine, que rien ne
   // distingue de celle du chef.
   identite(): Promise<string | null>;
+  // Le propriétaire du dépôt : son login, et s'il est une organisation (#2928).
+  proprietaire?(): Promise<{ login: string; organisation: boolean }>;
+  // L'auteur de la PR mergée qui a posé `.claude/brigade/gates.sh` sur la
+  // branche par défaut — celle de `/brigade:init` ; null si aucune PR ne l'a
+  // posé (#2928).
+  auteurDeLInit?(): Promise<string | null>;
+  // Le compte sous lequel ce GitHub agit, et s'il a l'écriture sur le dépôt :
+  // sans elle, la station est contributrice (#2935). Facultatif, comme le
+  // suivant : seul le client réel le porte.
+  droits?(): Promise<{ login: string; ecriture: boolean }>;
+  // Crée la fourche du dépôt sous ce compte, ou rend celle qu'il a déjà :
+  // son propriétaire, et l'adresse où pousser (#2935).
+  fourcher?(): Promise<{ proprietaire: string; url: string }>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -330,6 +357,9 @@ type PRBrute = {
   merged_by?: { login?: string } | null;
 };
 
+// Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
+const GATES_DE_L_INIT = ".claude/brigade/gates.sh";
+
 type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
 // Une annotation d'échec d'un check : où — `chemin` et `ligne`, nuls quand la
 // CI n'en nomme pas —, son titre et son message.
@@ -368,7 +398,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -460,6 +490,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   const creer = async (chemin: string, champs: Record<string, string>): Promise<Reponse> => {
     const args = Object.entries(champs).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]);
     return exiger(await appeler(["-X", "POST", ...args, chemin]), chemin, 201);
+  };
+
+  // Le sha du dernier commit d'une branche.
+  const teteDe = async (branche: string): Promise<string> => {
+    const chemin = `repos/${depot}/commits/${encodeURIComponent(branche)}`;
+    const { sha } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { sha?: unknown };
+    if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : commit sans sha`);
+    return sha;
   };
 
   // Une liste, page après page, à partir de sa première réponse — chaque page
@@ -645,17 +683,20 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string; repo?: { full_name?: string } | null }; base?: { repo?: { full_name?: string } | null } }>);
       return Promise.all(
-        ouvertes.map(async ({ number, head }) => {
+        ouvertes.map(async ({ number, head, base: cible }) => {
+          // Un fork supprimé n'a plus de dépôt de tête : elle reste externe (#2933).
+          const externe = (head.repo?.full_name ?? "").toLowerCase() !== (cible?.repo?.full_name ?? depot).toLowerCase();
+          const tete = { ...(head.sha === undefined ? {} : { sha: head.sha }), externe };
           // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
           const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
           const gardes = cle === null ? undefined : fichiersParTete.get(cle);
-          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes };
+          if (gardes !== undefined) return { number, branche: head.ref, fichiers: gardes, ...tete };
           const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
           const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
           if (cle !== null) memoriser(fichiersParTete, cle, fichiers);
-          return { number, branche: head.ref, fichiers };
+          return { number, branche: head.ref, fichiers, ...tete };
         }),
       );
     },
@@ -711,11 +752,37 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const commits = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<{ sha: string }>;
       return (await Promise.all(commits.map(({ sha }) => this.ci(sha)))).flat();
     },
-    async teteDeLaBase(branche) {
-      const chemin = `repos/${depot}/commits/${encodeURIComponent(branche)}`;
-      const { sha } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { sha?: unknown };
-      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : commit sans sha`);
-      return sha;
+    teteDeLaBase: teteDe,
+    async compteExiste(login) {
+      const chemin = `users/${encodeURIComponent(login)}`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404) return false;
+      exiger(reponse, chemin);
+      return true;
+    },
+    async aAccesAuDepot(login) {
+      const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404) return false;
+      const { permission } = JSON.parse(exiger(reponse, chemin).corps) as { permission?: unknown };
+      if (typeof permission !== "string") throw new Error(`gh api ${chemin} : réponse sans droit`);
+      return permission !== "none";
+    },
+    async fichier(chemin, ref) {
+      const lu = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+      const reponse = await lireSousCondition([lu]);
+      if (reponse.statut === 404) return null;
+      const { content, encoding, sha } = JSON.parse(exiger(reponse, lu).corps) as { content?: unknown; encoding?: unknown; sha?: unknown };
+      if (typeof content !== "string" || encoding !== "base64" || typeof sha !== "string" || sha === "") throw new Error(`gh api ${lu} : fichier illisible`);
+      return { texte: Buffer.from(content, "base64").toString("utf8"), sha };
+    },
+    async ecrireSurBranche({ base, branche, chemin, texte, sha, message }) {
+      const tete = await teteDe(base);
+      await creer(`repos/${depot}/git/refs`, { ref: `refs/heads/${branche}`, sha: tete });
+      const ecrit = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}`;
+      const champs = { message, content: Buffer.from(texte, "utf8").toString("base64"), branch: branche, ...(sha === null ? {} : { sha }) };
+      const reponse = await appeler(["-X", "PUT", ...Object.entries(champs).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]), ecrit]);
+      exiger(reponse, ecrit, sha === null ? 201 : 200);
     },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;
@@ -779,6 +846,41 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       exiger(await appeler(["-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]), chemin);
     },
     identite: async () => (options.identite ? options.identite() : null),
+    async droits() {
+      // Une identité par rôle est une App installée sur le dépôt, qui y écrit ;
+      // son jeton n'a pas de compte à lire sous `user`.
+      if (options.identite) return { login: await options.identite(), ecriture: true };
+      const moi = "user";
+      const { login } = JSON.parse(exiger(await lireSousCondition([moi]), moi).corps) as { login?: unknown };
+      if (typeof login !== "string" || login === "") throw new Error(`gh api ${moi} : no login in the answer`);
+      const chemin = `repos/${depot}`;
+      const { permissions } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { permissions?: { push?: unknown } | null };
+      if (typeof permissions?.push !== "boolean") throw new Error(`gh api ${chemin} : no permissions in the answer`);
+      return { login, ecriture: permissions.push };
+    },
+    async fourcher() {
+      // GitHub répond 202 : la fourche se crée en arrière-plan, et une fourche
+      // qui existe déjà est rendue telle quelle.
+      const chemin = `repos/${depot}/forks`;
+      const { owner, clone_url } = JSON.parse(exiger(await appeler(["-X", "POST", chemin]), chemin, 202).corps) as { owner?: { login?: unknown } | null; clone_url?: unknown };
+      if (typeof owner?.login !== "string" || owner.login === "" || typeof clone_url !== "string" || clone_url === "") throw new Error(`gh api ${chemin} : fork without owner or clone address`);
+      return { proprietaire: owner.login, url: clone_url };
+    },
+    async proprietaire() {
+      const chemin = `repos/${depot}`;
+      const { owner } = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as { owner?: { login?: string; type?: string } | null };
+      if (typeof owner?.login !== "string" || owner.login === "") throw new Error(`gh api ${chemin} : no owner in the answer`);
+      return { login: owner.login, organisation: owner.type === "Organization" };
+    },
+    async auteurDeLInit() {
+      // Le plus ancien commit qui touche aux gates — GitHub les liste du plus récent au plus ancien.
+      const pages = await lireLaListe(`repos/${depot}/commits?path=${encodeURIComponent(GATES_DE_L_INIT)}&per_page=100`);
+      const premier = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ sha?: string }>).at(-1);
+      if (typeof premier?.sha !== "string") return null;
+      const chemin = `repos/${depot}/commits/${premier.sha}/pulls`;
+      const mergee = (JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<PRBrute & { user?: { login?: string } | null }>).find((brute) => (brute.merged_at ?? null) !== null || brute.merged === true);
+      return mergee?.user?.login || null;
+    },
     fermer: () => abandon.abort(),
   };
 }

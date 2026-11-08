@@ -66,7 +66,7 @@ function cuisine(t: TestContext, ...issues: Issue[]) {
     journal.ajouter({ project: PROJET, ticket, author: "pass", type: "pass.started", payload: { run: `${ticket}-aa`, pr: prDe(ticket), number: 100 + ticket, sha: `sha-${ticket}` } });
     prs.set(branch, { number: 100 + ticket, url: prDe(ticket), base: "v2", sha: `sha-${ticket}`, state: "open", merged: false, enRetard: false, mergeePar: null });
   };
-  const arreter = (ticket: number) => journal.ajouter({ project: PROJET, ticket, author: "pass", type: "pass.held", payload: { reason: "no-grant" } });
+  const arreter = (ticket: number) => journal.ajouter({ project: PROJET, ticket, author: "pass", type: "pass.held", payload: { reason: "review-required" } });
   // Une remontée que seul le chef lève — les secrets du projet manquent : une remontée technique
   // est à la cuisine, elle n'attend pas le chef (#1826).
   const remonter = (ticket: number) => {

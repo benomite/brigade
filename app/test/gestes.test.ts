@@ -10,7 +10,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { ACTIONS } from "../../runtime/src/grant.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { GESTE, type Cuisine } from "../src/box.ts";
@@ -18,8 +17,7 @@ import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
-import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ROLE_DU_SECOND } from "../src/second/lancement.ts";
@@ -74,20 +72,18 @@ const CITEES = new Set(
     .flatMap(formes),
 );
 
-// Chaque geste : le grant qu'il nomme, la commande que la doc cite, et ce qui s'écrit pour « parade » sur cet ordinateur.
-const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string][] = [
-  ["projet-allumer", undefined, "brigade <projet> switch on", ecrit("switch on")],
-  ["projet-eteindre", undefined, "brigade <projet> switch off", ecrit("switch off")],
-  ["grant-activer", "merge", "brigade <projet> grant enable merge", ecrit("grant enable merge")],
-  ["grant-revoquer", "merge", "brigade <projet> grant revoke merge", ecrit("grant revoke merge")],
-  ["reprendre", undefined, "brigade <projet> guardrails resume", ecrit("guardrails resume")],
-  ["stop", undefined, "brigade <projet> guardrails stop", ecrit("guardrails stop")],
-  ["installation", undefined, "brigade <projet> installation", ecrit("installation")],
+// Chaque geste : la commande que la doc cite, et ce qui s'écrit pour « parade » sur cet ordinateur.
+const GESTES_DE_LA_DOC: readonly [id: string, citee: string, ecrite: string][] = [
+  ["projet-allumer", "brigade <projet> switch on", ecrit("switch on")],
+  ["projet-eteindre", "brigade <projet> switch off", ecrit("switch off")],
+  ["reprendre", "brigade <projet> guardrails resume", ecrit("guardrails resume")],
+  ["stop", "brigade <projet> guardrails stop", ecrit("guardrails stop")],
+  ["installation", "brigade <projet> installation", ecrit("installation")],
 ];
 
 // La commande écrite : le test échoue net si le geste a refusé d'écrire.
-function commande(id: string, projet: Projet, grant?: string): string {
-  const ecrite = commandeDuGeste(id, projet, grant, CUISINE);
+function commande(id: string, projet: Projet): string {
+  const ecrite = commandeDuGeste(id, projet, CUISINE);
   assert.ok(ecrite !== undefined && "commande" in ecrite, `rien n'est écrit par « ${id} »`);
   return ecrite.commande;
 }
@@ -113,7 +109,7 @@ const PARTENT = GESTES_DE_LA_DOC.filter(([id]) => DIRECTS.includes(id));
 const CONFIRMES_DE_LA_DOC = GESTES_DE_LA_DOC.filter(([id]) => CONFIRMES.includes(id));
 
 describe("les gestes du chef", () => {
-  test("ils sont sept, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la machine à côté", () => {
+  test("ils sont cinq, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la machine à côté", () => {
     assert.deepEqual(
       GESTES.map(({ id }) => id),
       GESTES_DE_LA_DOC.map(([id]) => id),
@@ -129,22 +125,20 @@ describe("les gestes du chef", () => {
 
   test("aucun geste n'écrit autre chose que la commande du runtime qu'il nomme : ni shell, ni `sudo`, ni commande libre", () => {
     // Aucun geste du socle ne porte de quoi lancer autre chose : des mots de la doc, sans rien que le shell lirait.
-    for (const { id, commande: mots, parGrant } of GESTES) {
+    for (const { id, commande: mots } of GESTES) {
       assert.match(mots, /^[a-z]+(-[a-z]+)*( (--)?[a-z]+(-[a-z]+)*)*$/, id);
       assert.doesNotMatch(mots, /\b(sudo|su|sh|bash|zsh|env|exec|eval|systemctl)\b/, id);
-      // Seul un geste de grant prend un mot de plus, et d'une liste fermée (GRANTS).
-      assert.equal(parGrant, id.startsWith("grant-") ? true : undefined, id);
     }
 
     // La vue nomme un geste, jamais une commande : une commande libre, même celle du geste de la station, n'écrit rien.
     const { ecrits, terminaux } = temoin();
     for (const libre of ["guardrails stop", "stop; sudo reboot", "stop --couper", "sudo brigade parade guardrails stop", "brigade", "sudo -n -- /usr/local/bin/brigade parade stop", "stop-voir", "STOP", " stop"]) {
-      assert.equal(commandeDuGeste(libre, PARADE, undefined, CUISINE), undefined, libre);
-      assert.equal(ecrireGeste(terminaux, libre, PARADE, undefined, undefined, CUISINE), undefined, libre);
+      assert.equal(commandeDuGeste(libre, PARADE, CUISINE), undefined, libre);
+      assert.equal(ecrireGeste(terminaux, libre, PARADE, undefined, CUISINE), undefined, libre);
     }
-    // Et ce qui accompagne le nom du geste n'y ajoute rien : ni option, ni suite.
-    for (const [id, , , ecrite] of GESTES_DE_LA_DOC.filter(([id]) => !id.startsWith("grant-"))) {
-      for (const suite of ["--interrupt", "merge", "; sudo reboot", "$(reboot)", "&& sudo systemctl stop brigade", 3, null, ["--couper"]]) assert.deepEqual(commandeDuGeste(id, PARADE, suite, CUISINE), { commande: ecrite }, `${id} + ${String(suite)}`);
+    // Et la commande écrite n'est faite que du geste : ni option, ni suite.
+    for (const [id, , ecrite] of GESTES_DE_LA_DOC) {
+      assert.deepEqual(commandeDuGeste(id, PARADE, CUISINE), { commande: ecrite }, id);
       // Ce qui suit le geste de la station, sous la parenthèse fermante du sous-shell, n'est que des mots.
       assert.doesNotMatch((ecrite.split(`${GESTE} `)[1] ?? "").slice(0, -1), /sudo|[;&|$`<>(){}\\]/);
     }
@@ -152,7 +146,7 @@ describe("les gestes du chef", () => {
 
     // Le process principal ne fait que passer le nom du geste au socle — avec là où la cuisine du projet tourne ; ni lui, ni le pont, ni la vue, ni ce qui dit l'offre ne lancent rien.
     const principal = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
-    assert.ok(principal.includes('ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unknown) => {\n  const vise = connu(nom);\n  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui, cuisines.cuisineDe(vise));\n});'), "le canal « geste » du process principal ne passe plus le seul nom du geste au socle");
+    assert.ok(principal.includes('ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {\n  const vise = connu(nom);\n  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));\n});'), "le canal « geste » du process principal ne passe plus le seul nom du geste au socle");
     assert.doesNotMatch(principal, /sudo/);
     for (const fichier of ["app/src/preload.cjs", "app/src/vue/vue.js", "app/src/confirmation.ts"]) {
       const source = readFileSync(join(RACINE, fichier), "utf8");
@@ -164,30 +158,30 @@ describe("les gestes du chef", () => {
     assert.ok(doc.includes(`\`${DE_BOX}\``), `${SOURCE} ne donne plus la forme \`${DE_BOX}\``);
   });
 
-  for (const [id, grant, citee, ecrite] of GESTES_DE_LA_DOC) {
+  for (const [id, citee, ecrite] of GESTES_DE_LA_DOC) {
     test(`« ${id} » écrit \`${ecrite}\` — la commande de ${SOURCE} : \`${citee}\`, lancée par le geste de la station de cet ordinateur`, () => {
       assert.ok(CITEES.has(citee), `${SOURCE} ne cite plus \`${citee}\``);
       // La commande de la doc, avec le nom de ce projet : rien d'autre n'y est changé.
       const mots = citee.slice(DE_BOX.indexOf("<commande>"));
       assert.equal(DE_BOX.replace("<commande>", mots), citee);
 
-      assert.deepEqual(commandeDuGeste(id, PARADE, grant, CUISINE), { commande: ecrite });
+      assert.deepEqual(commandeDuGeste(id, PARADE, CUISINE), { commande: ecrite });
       assert.equal(ecrite, ecrit(mots));
     });
   }
 
-  test("deux gestes sont directs — éteindre le projet, vérifier l'installation : aucun n'engage ni ne détruit ; les cinq autres sont confirmés", () => {
+  test("deux gestes sont directs — éteindre le projet, vérifier l'installation : aucun n'engage ni ne détruit ; les trois autres sont confirmés", () => {
     assert.deepEqual(DIRECTS, ["projet-eteindre", "installation"]);
-    assert.deepEqual(CONFIRMES, ["projet-allumer", "grant-activer", "grant-revoquer", "reprendre", "stop"]);
+    assert.deepEqual(CONFIRMES, ["projet-allumer", "reprendre", "stop"]);
     // Chaque geste a l'une des deux formes, et une seule.
     assert.deepEqual([...DIRECTS, ...CONFIRMES].toSorted(), GESTES.map(({ id }) => id).toSorted());
   });
 
   test("un geste direct appelle `envoyer`, une fois, avec la commande de la doc préfixée du `!` qui la lance depuis le second — et n'ouvre aucun shell ; rien n'y porte de quoi l'envoyer à la place de l'app", async () => {
-    for (const [id, grant, , ecrite] of PARTENT) {
+    for (const [id, , ecrite] of PARTENT) {
       const { ecrits, envoyes, terminaux } = temoin();
 
-      const second = await ecrireGeste(terminaux, id, PARADE, grant, undefined, CUISINE);
+      const second = await ecrireGeste(terminaux, id, PARADE, undefined, CUISINE);
 
       assert.deepEqual([ecrits, envoyes], [[], [["parade", `!${ecrite}`]]], id);
       assert.deepEqual(second, { id: 0, projet: "parade", genre: "second", titre: "Second", note: "", arrete: false });
@@ -197,18 +191,18 @@ describe("les gestes du chef", () => {
 
   test("un geste confirmé, nommé sans son « oui », ne part pas : rien n'est envoyé ni écrit, et le refus le dit — seul `true` vaut « oui »", () => {
     assert.equal(SANS_OUI, "nothing was sent: this action waits for your “yes”, in front of what it costs — nothing is written into the second");
-    for (const [id, grant] of CONFIRMES_DE_LA_DOC) {
+    for (const [id] of CONFIRMES_DE_LA_DOC) {
       const { ecrits, envoyes, terminaux } = temoin();
-      for (const oui of [undefined, false, "true", "oui", 1, {}, [true], null]) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, grant, oui, CUISINE), { refus: SANS_OUI }, `${id} + ${String(oui)}`);
+      for (const oui of [undefined, false, "true", "oui", 1, {}, [true], null]) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, oui, CUISINE), { refus: SANS_OUI }, `${id} + ${String(oui)}`);
       assert.deepEqual([ecrits, envoyes], [[], []], id);
     }
   });
 
   test("avec son « oui », un geste confirmé part comme un direct : `envoyer`, une fois, la commande de la doc préfixée du `!` — aucun shell", async () => {
-    for (const [id, grant, , ecrite] of CONFIRMES_DE_LA_DOC) {
+    for (const [id, , ecrite] of CONFIRMES_DE_LA_DOC) {
       const { ecrits, envoyes, terminaux } = temoin();
 
-      const second = await ecrireGeste(terminaux, id, PARADE, grant, true, CUISINE);
+      const second = await ecrireGeste(terminaux, id, PARADE, true, CUISINE);
 
       assert.deepEqual([ecrits, envoyes], [[], [["parade", `!${ecrite}`]]], id);
       assert.deepEqual(second, { id: 0, projet: "parade", genre: "second", titre: "Second", note: "", arrete: false });
@@ -231,12 +225,12 @@ describe("les gestes du chef", () => {
       surEtat: () => {},
     });
 
-    for (const [id, grant] of CONFIRMES_DE_LA_DOC) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, grant, undefined, CUISINE), { refus: SANS_OUI }, id);
+    for (const [id] of CONFIRMES_DE_LA_DOC) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, undefined, CUISINE), { refus: SANS_OUI }, id);
     assert.deepEqual([lances, ecrits], [[], []]);
 
     // Avec son « oui » : le second ne tournait pas, il est lancé — et la commande n'y est pas écrite tant qu'il démarre.
-    const [id, grant] = CONFIRMES_DE_LA_DOC[0] ?? assert.fail();
-    const second = await ecrireGeste(terminaux, id, PARADE, grant, true, CUISINE);
+    const [id] = CONFIRMES_DE_LA_DOC[0] ?? assert.fail();
+    const second = await ecrireGeste(terminaux, id, PARADE, true, CUISINE);
     assert.ok(second !== undefined && "note" in second);
     assert.equal(second.genre, "second");
     assert.match(second.note, /the command did not go/);
@@ -244,33 +238,16 @@ describe("les gestes du chef", () => {
     assert.deepEqual(ecrits, [[]]);
   });
 
-  test("un geste de grant nomme son grant, parmi ceux du runtime : pour un autre, ou sans lui, rien n'est écrit et le geste dit pourquoi", () => {
-    assert.deepEqual(GRANTS, ACTIONS);
-    for (const grant of GRANTS) assert.ok(CITEES.has(`brigade <projet> grant enable ${grant}`) && CITEES.has(`brigade <projet> grant revoke ${grant}`), `${SOURCE} ne cite pas le grant « ${grant} »`);
-
-    const refus = { refus: "nothing is written: this action applies to a grant, to be named among those in the docs (merge)" };
-    for (const id of ["grant-activer", "grant-revoquer"]) {
-      for (const autre of [undefined, "", "identifiants-max", "merge --pour 4h", "merge; reboot", "merge\r", 3, null, ["merge"]]) {
-        const { ecrits, terminaux } = temoin();
-        assert.deepEqual(commandeDuGeste(id, PARADE, autre, CUISINE), refus);
-        assert.deepEqual(ecrireGeste(terminaux, id, PARADE, autre, undefined, CUISINE), refus);
-        assert.deepEqual(ecrits, []);
-      }
-    }
-    // Un geste qui ne porte sur aucun grant n'en écrit pas.
-    assert.equal(commande("stop", PARADE, "merge"), ecrit("guardrails stop"));
-  });
-
   test("la vue nomme un geste, jamais une commande ; et un projet dont la cuisine ne tourne nulle part n'a rien à écrire", () => {
     const { ecrits, envoyes, terminaux } = temoin();
 
     for (const autre of ["guardrails stop", "manager on", "garde-fous stop", "manager allumer", "sudo systemctl enable --now brigade@parade.service", "rm -rf /", "", undefined, 3, null]) {
-      assert.equal(commandeDuGeste(autre, PARADE, "merge", CUISINE), undefined);
-      assert.equal(ecrireGeste(terminaux, autre, PARADE, "merge", undefined, CUISINE), undefined);
+      assert.equal(commandeDuGeste(autre, PARADE, CUISINE), undefined);
+      assert.equal(ecrireGeste(terminaux, autre, PARADE, undefined, CUISINE), undefined);
     }
     for (const { id } of GESTES) {
-      assert.equal(commandeDuGeste(id, PARADE, "merge", undefined), undefined);
-      assert.equal(ecrireGeste(terminaux, id, PARADE, "merge", true, undefined), undefined);
+      assert.equal(commandeDuGeste(id, PARADE, undefined), undefined);
+      assert.equal(ecrireGeste(terminaux, id, PARADE, true, undefined), undefined);
     }
     assert.deepEqual([ecrits, envoyes], [[], []]);
   });
@@ -284,8 +261,8 @@ describe("les gestes du chef", () => {
     const { ecrits, envoyes, terminaux } = temoin();
 
     for (const piege of ["box\rreboot", "bo\nx", "box\x03", "box\x04", "box\x1b[A", "box\x7f", "\tbox"]) {
-      for (const [id, grant] of GESTES_DE_LA_DOC) {
-        assert.deepEqual(ecrireGeste(terminaux, id, { nom: piege, dossier: "/p" }, grant, true, CUISINE), { refus: SANS_ECRIRE });
+      for (const [id] of GESTES_DE_LA_DOC) {
+        assert.deepEqual(ecrireGeste(terminaux, id, { nom: piege, dossier: "/p" }, true, CUISINE), { refus: SANS_ECRIRE });
       }
     }
     assert.deepEqual([ecrits, envoyes], [[], []]);
@@ -295,8 +272,8 @@ describe("les gestes du chef", () => {
     const { ecrits, envoyes, terminaux } = temoin();
     const ferme = { ...PARADE, refus: "dossier introuvable : /projets/parade" };
 
-    for (const [id, grant] of GESTES_DE_LA_DOC) {
-      assert.deepEqual(ecrireGeste(terminaux, id, ferme, grant, true, CUISINE), { refus: "nothing is written: “parade” does not open — dossier introuvable : /projets/parade" });
+    for (const [id] of GESTES_DE_LA_DOC) {
+      assert.deepEqual(ecrireGeste(terminaux, id, ferme, true, CUISINE), { refus: "nothing is written: “parade” does not open — dossier introuvable : /projets/parade" });
     }
     assert.deepEqual([ecrits, envoyes], [[], []]);
   });
@@ -322,7 +299,7 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>, autres: Reponses = 
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,

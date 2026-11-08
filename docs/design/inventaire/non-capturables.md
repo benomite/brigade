@@ -1,6 +1,6 @@
 # États non capturables
 
-26 des 164 états de `scripts/capture-ecran/ecrans/` ne se capturent plus : l'étape de clic du script ne trouve plus son élément dans la vue. Ils n'ont donc pas de PNG ici.
+25 des 163 états de `scripts/capture-ecran/ecrans/` ne se capturent plus : l'étape de clic du script ne trouve plus son élément dans la vue. Ils n'ont donc pas de PNG ici.
 Ni les états ni les scripts ne sont touchés par #2900 (décision du manager) : il faut un ticket à part pour les supprimer ou les réparer.
 
 Constat : `node scripts/capture-ecran/capture.ts <état> /tmp/x.png`, sortie 1 pour chacun.
@@ -18,7 +18,6 @@ Constat : `node scripts/capture-ecran/capture.ts <état> /tmp/x.png`, sortie 1 p
 | `cout-perdus` | étape « cliquer .perdus-total » : 0 élément(s) trouvé(s), il en faut un |
 | `fiche-priorite-echec` | étape « cliquer #fiche li[data-geste="priorite"] button » : 0 élément(s) trouvé(s), il en faut un |
 | `fiche-priorite` | étape « cliquer #fiche li[data-geste="priorite"] button » : 0 élément(s) trouvé(s), il en faut un |
-| `merge-accorder` | étape « cliquer #interrupteur-merge .bascule » : 0 élément(s) trouvé(s), il en faut un |
 | `ratios` | étape « cliquer button[aria-label="the added / removed ratio of all projects"] » : 0 élément(s) trouvé(s), il en faut un |
 | `station-appels-absents` | étape « cliquer #accueil-stations button.ligne » : 0 élément(s) trouvé(s), il en faut un |
 | `station-connexion-max` | étape « cliquer #accueil-stations button.ligne » : 0 élément(s) trouvé(s), il en faut un |
@@ -36,7 +35,7 @@ Constat : `node scripts/capture-ecran/capture.ts <état> /tmp/x.png`, sortie 1 p
 
 ## Captures retirées : elles ne montrent pas leur état
 
-16 états se capturent (sortie 0) mais le PNG ne montre pas l'état que le script décrit : la vue a changé depuis l'écriture du script, et une étape de clic ou un onglet ne mène plus où elle allait. Ces PNG ont été retirés du dossier et de `index.html`. Comme les 26 ci-dessus, ils demandent un ticket à part pour être réparés ou supprimés : #2900 ne touche ni aux scripts ni aux états.
+16 états se capturent (sortie 0) mais le PNG ne montre pas l'état que le script décrit : la vue a changé depuis l'écriture du script, et une étape de clic ou un onglet ne mène plus où elle allait. Ces PNG ont été retirés du dossier et de `index.html`. Comme les 25 ci-dessus, ils demandent un ticket à part pour être réparés ou supprimés : #2900 ne touche ni aux scripts ni aux états.
 
 | État | Ce que le PNG montrait à la place |
 |---|---|

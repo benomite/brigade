@@ -47,7 +47,7 @@ contribute and the release notes — go back to the [repository root](../README.
 
 - [The state of the kitchen](runtime/etat-et-mesures.md) — what the kitchen is doing now and how it
   is measured.
-- [Pass and merge](runtime/pass-merge.md) — the `merge` grant, seeing the pass, and what the pass
+- [Pass and merge](runtime/pass-merge.md) — the merge, seeing the pass, and what the pass
   does not guarantee.
 - [Looking at an interface delivery](runtime/station-navigateur.md) — why the box no longer serves
   its page, and how to look at one now.

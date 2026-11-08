@@ -40,12 +40,12 @@ The card moves to **Taken**, with the cook's name. **Cooks** shows the station's
 
 The pass runs the gates and the review on the pull request and writes its verdict on the issue. Open the pull request from the **Pass** card to read the diff and the verdict.
 
-**Do not merge by hand unless the pass stops.** The project switch being on enables the `merge` grant (`docs/runtime/exploitation.md`, "The project switch"), so a green delivery is merged by the pass itself.
+**Do not merge by hand unless the pass stops.** A green delivery, with its verdict approved and its CI green, is merged by the pass itself (`docs/runtime/pass-merge.md`).
 
 A delivery waits for you, in **TODO** with the buttons `send back to the kitchen` and `remove from the rail`, only when:
 
 - the pass escalates it (a verdict it cannot settle alone);
-- the project switch is off (`project off`) or you revoked the grant. Switch it back on and waiting deliveries are merged.
+- the project switch is off (`project off`). Switch it back on and waiting deliveries are merged.
 
 ## 6. The PR is merged
 

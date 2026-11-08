@@ -40,7 +40,7 @@ export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; p
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
 // `plafonds` : par projet dont le `status` est lu, et par station qu'il nomme, le plafond de cooks de ce projet sur elle
-// et ce qui la retient (ticket 1292) — la ligne de station de l'onglet Cooks les dit et les règle.
+// et ce qui la retient (ticket 1292) — la ligne de station de l'onglet Stations les dit et les règle.
 export type PlafondsDeStation = { plafond: PlafondVu; retenue?: RetenueVue };
 export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante; plafonds?: Record<string, Record<string, PlafondsDeStation>> };
 

@@ -114,13 +114,12 @@ export function verifierPrerequis(machine: Machine, natif = NATIF, app = APP): P
 // quelles. Le pont d'attente y ajoute une liste de projets vide.
 export type Demarrage = Omit<Awaited<ReturnType<Pont["demarrage"]>>, "configuration">;
 export async function demarrageDuPont(): Promise<Demarrage> {
-  const [{ PALETTE }, { EXEMPLE }, { ONGLETS, RUBRIQUES }, { ALLUMAGE }, { GESTES_DE_LA_CUISINE }, { GESTES_DES_GRANTS }, { CONFIRMES, DIRECTS, GRANTS }, { GESTES_D_ATTENTE }, { BANNIERE }, { MODELES, EFFORTS }] = await Promise.all([
+  const [{ PALETTE }, { EXEMPLE }, { ONGLETS, RUBRIQUES }, { ALLUMAGE }, { GESTES_DE_LA_CUISINE }, { CONFIRMES, DIRECTS }, { GESTES_D_ATTENTE }, { BANNIERE }, { MODELES, EFFORTS }] = await Promise.all([
     import("../src/couleurs.ts"),
     import("../src/config.ts"),
     import("../src/onglets.ts"),
     import("../src/allumage.ts"),
     import("../src/cuisine.ts"),
-    import("../src/grants.ts"),
     import("../src/gestes.ts"),
     import("../src/attente.ts"),
     import("../src/faits.ts"),
@@ -131,7 +130,7 @@ export async function demarrageDuPont(): Promise<Demarrage> {
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,

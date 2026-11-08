@@ -230,7 +230,7 @@ function refusDe(nom: string, cas: CasDeRefus, saute: string | false = false): (
 describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
-    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
 
     // Ce qu'une autre commande lira pour dire s'il tourne sur le code installé.
     assert.equal(runtime.codeEnService, empreinteDuCode());
@@ -243,7 +243,6 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       [
         ["runtime.started", "brigade", "runtime"],
         ["project.switched-on", "brigade", "runtime"],
-        ["grant.activated", "brigade", "runtime"],
         ["guard.configured", "brigade", "runtime"],
         ["drift.configured", "brigade", "runtime"],
         ["session.observed", "brigade", "runtime"],
@@ -268,10 +267,10 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const apres = relire(repertoire);
     assert.deepEqual(apres.slice(0, avant.length), avant);
     assert.deepEqual(
-      apres.map((e) => [e.type, e.payload]).slice(7, 8),
+      apres.map((e) => [e.type, e.payload]).slice(6, 7),
       [["runtime.interrupted", { startedSeq: apres.find((e) => e.type === "runtime.started")?.seq }]],
     );
-    assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
+    assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "guard.configured", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
   });
 
   test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", { skip: posixOnly("starts a second runtime on a project the first one holds and expects it refused, naming the first one's pid; on Windows the first runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's temporary directories, whose removal then fails (EPERM)") }, async (t) => {
@@ -285,7 +284,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await second.fin, REFUS);
     assert.match(second.sortie(), /refus de démarrer/);
     assert.match(second.sortie(), new RegExp(`pid ${premier.process.pid}`));
-    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
   });
 
   test("sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite", async (t) => {
@@ -407,7 +406,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
     assert.match(runtime.sortie(), /brigade : stations — none \(BRIGADE_STATIONS is set neither in the environment nor in the log\): no cook will leave, the tickets stay queued on the rail — set them with `brigade brigade station stations box\/claude:30:code\+raisonnement`/);
     const types = relire(repertoire).map((e) => e.type);
-    assert.deepEqual(types.slice(0, 7), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
+    assert.deepEqual(types.slice(0, 6), ["runtime.started", "project.switched-on", "guard.configured", "drift.configured", "session.observed", "isolation.configured"]);
     assert.deepEqual(types.filter((type) => type.startsWith("station.") || type === "cook.launched" || type === "ticket.taken"), []);
     assert.deepEqual(lancementsDuFauxClaude(temoin), []);
     runtime.process.kill("SIGTERM");
@@ -428,10 +427,9 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     await jusqua(() => relire(repertoire).some((e) => e.type === "manager.set-aside"));
     assert.deepEqual(relire(repertoire).find((e) => e.type === "manager.set-aside")?.payload, { reason: "roadmap", fired: false });
     assert.ok(sondees() > 0);
-    const poses = relire(repertoire).filter((e) => e.type === "project.switched-on" || e.type === "grant.activated");
+    const poses = relire(repertoire).filter((e) => e.type === "project.switched-on");
     assert.deepEqual(poses.map((e) => [e.type, e.author, e.payload]), [
       ["project.switched-on", "runtime", { cause: "default" }],
-      ["grant.activated", "runtime", { action: "merge" }],
     ]);
 
     // Le manager seul ne s'éteint plus : la commande nomme l'interrupteur du projet.

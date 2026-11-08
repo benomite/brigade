@@ -110,7 +110,7 @@ export function corpsDeLaPR(passe: {
   return [
     `Passe de fermeture \`${passe.run}\` — hors du rail, closer en \`${passe.calibration.model}\` / \`${passe.calibration.effort}\`.`,
     "",
-    `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, que la pass juge et merge comme celle d'un ticket — fusionnée avec \`${passe.base}\`, sous les gates, le reviewer, la CI et le grant \`merge\`. Rouge, aucun cook ne la reprend : elle remonte au chef.`,
+    `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, que la pass juge et merge comme celle d'un ticket — fusionnée avec \`${passe.base}\`, sous les gates, le reviewer et la CI. Rouge, aucun cook ne la reprend : elle remonte au chef.`,
     "",
     `## ${retire} — ${supprimes.length} sur ${pluriel(morts.length, "export")} mort${morts.length > 1 ? "s" : ""}`,
     "",

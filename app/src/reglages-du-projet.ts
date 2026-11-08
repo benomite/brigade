@@ -105,8 +105,8 @@ export function reglagesVus(sortie: string): ReglagesVus | null {
 }
 
 // Un runtime d'avant la commande la refuse en la nommant (`geste.ts`, code 66) : il se met à jour.
-const sansLaCommande = (rendu: Rendu) => rendu.erreur !== null && (rendu.erreur.code === 66 || /n'est pas une commande du runtime|is not a runtime command/.test(rendu.erreurs));
-const detailDe = (rendu: Rendu) => `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim();
+export const sansLaCommande = (rendu: Rendu) => rendu.erreur !== null && (rendu.erreur.code === 66 || /n'est pas une commande du runtime|is not a runtime command/.test(rendu.erreurs));
+export const detailDe = (rendu: Rendu) => `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim();
 
 // Lit les réglages du projet là où sa cuisine tourne.
 export async function lireLesReglages(projet: string, lu: Lu | undefined, lancer: (lu: Lu, commande: string) => Promise<Rendu>): Promise<LectureDesReglages> {

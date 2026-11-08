@@ -45,14 +45,6 @@ const COUPLES = {
     ["cuisine    retenue", "setup      BLOQUÉ depuis 30 min sur ba5e000 — aucun setup n'est lancé d'ici"],
     ["kitchen    held", "setup      BLOCKED for 30 min on ba5e000 — no setup is launched from here"],
   ],
-  "le grant éteint seul": [
-    ["cuisine    ouverte", "grant      merge ÉTEINT SEUL il y a 40 min — son échéance est passée : la pass s'arrête à la PR ouverte"],
-    ["kitchen    open", "grant      merge LAPSED 40 min ago — its deadline has passed: the pass stops at the open PR"],
-  ],
-  "le grant bientôt éteint": [
-    ["cuisine    ouverte", "grant      merge ACTIF, BIENTÔT ÉTEINT : encore 30 min — une pass verte est mergée sans toi"],
-    ["kitchen    open", "grant      merge ACTIVE, EXPIRING SOON: 30 min left — a green pass is merged without you"],
-  ],
 } as const;
 
 describe("l'app lit le haut de `status` en français comme en anglais", () => {

@@ -12,8 +12,7 @@ import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import type { Panne } from "../../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type VuDesProjets } from "../../../src/projets/projets.ts";
@@ -36,7 +35,7 @@ const demarrage = (avec: Avec = {}) => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -180,11 +179,11 @@ describe("les cartes du rail", () => {
 describe("une ligne d'erreur", () => {
   test("une lecture en échec porte le bouton, et sa demande dit la panne sans la commande lancée", async () => {
     const vue = await ouvrirParade();
-    await ouvrirLecture(vue, "Cooks");
+    await ouvrirLecture(vue, "Log");
     const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: "$ node /home/alice/runtime/src/station/geste.ts parade station\nENOSPC: no space left on device\n→ exit code 1", atteinte: true, cas: null }, undefined, undefined);
+    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: "$ node /home/alice/runtime/src/station/geste.ts parade station\nENOSPC: no space left on device\n→ exit code 1", atteinte: true, cas: null }, undefined);
     await repos();
-    const ligne = vue.element("lecture-cuisine").dessous("p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de ligne d'erreur");
+    const ligne = vue.element("lecture-onglet").dessous("p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de ligne d'erreur");
     const bouton = signaler(ligne)[0] ?? assert.fail("pas de bouton sur la ligne d'erreur");
     bouton.click();
     await repos();
@@ -196,11 +195,11 @@ describe("une ligne d'erreur", () => {
 
   test("une lecture réussie n'en porte pas", async () => {
     const vue = await ouvrirParade();
-    await ouvrirLecture(vue, "Cooks");
+    await ouvrirLecture(vue, "Log");
     const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "station", texte: "cooks 2" }] }, undefined, undefined);
+    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "log", texte: "" }] }, undefined);
     await repos();
-    assert.deepEqual(signaler(vue.element("lecture-cuisine")), []);
+    assert.deepEqual(signaler(vue.element("lecture-onglet")), []);
   });
 });
 
@@ -229,7 +228,7 @@ describe("une station en panne", () => {
     assert.deepEqual(signaler(vue.element("station")), []);
   });
 
-  // La station du projet, refusée, sur sa ligne de l'onglet Cooks : rouge.
+  // La station du projet, refusée, sur sa ligne de l'onglet Stations : rouge.
   const projets = (etat: "refuse" | "servi"): VuDesProjets => ({
     a: A,
     projets: [{ nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat, dit: etat === "refuse" ? "box cannot clone benomite/parade" : "", autoriser: [] }], servi: null, acces: null, refus: null, worktree: null }],

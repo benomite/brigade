@@ -18,8 +18,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -64,7 +63,7 @@ const FAITS: Faits = {
 // La carte telle que l'app la reçoit : les faits d'abord, puis le `status` de la même box.
 function dessinee(texte: string): Dessinable {
   const faits = tenirFaits();
-  faits.recevoir({ projet: PARADE, demande: 1, a: "2026-10-14T10:00:00.000Z", sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
+  faits.recevoir({ projet: PARADE, demande: 1, a: "2026-10-14T10:00:00.000Z", sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
   return faits.attendre(mettreAPart(lue(texte))) ?? assert.fail("rien n'est redessiné");
 }
 const tableauDe = (dessinable: Dessinable) => ("tableau" in dessinable ? dessinable.tableau : assert.fail("pas de tableau"));
@@ -76,7 +75,7 @@ const REPONSES = {
     palette: PALETTE,
     exemple: EXEMPLE,
     onglets: ONGLETS, rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,
@@ -103,9 +102,9 @@ describe("rien ne cuit : base rouge, réparation en cours", () => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
     await repos();
     vue.dire("surFaits", { ...dessinable, demande: vue.dernier("faits")[0] as number });
-    // La carte du projet est sur l'onglet Cooks (#1184).
-    await ouvrirOnglet(vue, "Cooks");
-    const posees = vue.element("carte").dessous("p").filter((p) => p.textContent === LIGNE);
+    // La ligne est en tête du bloc des stations, sur l'onglet Stations (#1456).
+    await ouvrirOnglet(vue, "Stations");
+    const posees = vue.element("rail").dessous("p").filter((p) => p.textContent === LIGNE);
     assert.equal(posees.length, 1);
     assert.ok(!posees[0]?.textContent.includes("\n"));
   });

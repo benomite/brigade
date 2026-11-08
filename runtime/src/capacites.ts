@@ -5,8 +5,7 @@
 // qui le fournirait. Sans E/S.
 //
 // Une capacité n'est pas une permission : elle choisit la station, elle
-// n'ouvre rien. Ce qui est permis reste l'affaire des grants (`grant.ts`), que
-// rien ici ne lit ni n'écrit. Ce n'est pas non plus une spécialité : seul ce
+// n'ouvre rien. Ce n'est pas non plus une spécialité : seul ce
 // qu'un ticket demande écarte une station, jamais ce qu'elle fournit en plus
 // ou à côté — un ticket qui ne demande rien part dans n'importe laquelle.
 import { SANS_STATION, STATION_ABSENTE } from "./events/rail.ts";

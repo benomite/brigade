@@ -14,8 +14,7 @@ import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -37,7 +36,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -55,16 +54,13 @@ const entrer = async (vue: Jouee, rang: number) => {
   (vue.element("projets").children.at(rang) ?? assert.fail(`pas d'entrée ${rang}`)).click();
   await repos();
 };
-// Settings ouvert, les grants lus (#1700) : `merge` éteint, sa ligne et son interrupteur.
-const avecLesGrants = async (vue: Jouee) => {
-  await ouvrirLecture(vue, "Settings");
-  const demande = vue.dernier("onglet")[2] as number;
-  const vide = { lignes: [], illisibles: [] };
-  vue.dire("surContenu", { projet: "parade", demande, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "grant", texte: "" }] }, undefined, { projet: "parade", demande, a: "2026-10-13T09:00:00Z", grants: [{ action: "merge", commandable: true, actif: false, mot: "off", ton: "gris", limites: [], dit: "", usages: vide }], interdits: vide, illisibles: [] });
+// Une ligne de la bande dont le bouton est un geste confirmé du socle : « resume the kitchen ».
+const avecUneAlerte = async (vue: Jouee) => {
+  vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped", geste: "resume the kitchen", bouton: "resume the kitchen", appel: { geste: "reprendre" }, prix: "queued tickets start again" }] } as never);
   await repos();
 };
 const basculer = async (vue: Jouee) => {
-  (vue.element("grants").dessous("button").find(({ className }) => className === "bascule") ?? assert.fail("pas d'interrupteur de grant")).click();
+  (vue.element("alertes").dessous("button").find(({ dataset }) => dataset.geste === "confirme") ?? assert.fail("pas de bouton de geste")).click();
   await repos();
 };
 const cliquer = async (vue: Jouee, ou: Faux, texte: string) => {
@@ -102,7 +98,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
     // En haut, un onglet de pages, Paramètres : ni « Second », ni shell — ni Cost, qui vit au niveau de l'app (#1022).
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
     // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
     assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
     assert.deepEqual(montre(vue), ["second · claude"]);
@@ -125,10 +121,10 @@ describe("le second est une colonne à droite, pas une page", () => {
       assert.deepEqual(terminal?.ecrits, ["> une conversation en cours\r\n"]);
     };
 
-    // Cooks est un onglet du projet (#1184), pas une page : rien ne se pose par-dessus le centre.
+    // Cooks n'est plus ni un onglet ni une page (#2921) : chaque autre lecture se pose par-dessus le centre.
     for (const { titre } of ONGLETS) {
       await ouvrirLecture(vue, titre);
-      assert.equal(vue.element("contenu").hidden, titre === "Cooks", titre);
+      assert.equal(vue.element("contenu").hidden, false, titre);
       tenu();
     }
     // Un shell s'ouvre à droite, à côté du second : il a son cadre à lui, montré à la place de
@@ -373,14 +369,14 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
   });
 
   test("un geste qui part dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
-    const ecrit = { ...SECOND, note: "parti dans le second : `!station parade grant enable merge`" };
-    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE), geste: () => ecrit });
-    await avecLesGrants(vue);
+    const ecrit = { ...SECOND, note: "parti dans le second : `!station parade guardrails resume`" };
+    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE), geste: () => ecrit });
+    await avecUneAlerte(vue);
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
     await basculer(vue);
-    await cliquer(vue, vue.element("grants"), "yes, enable `merge`");
+    await cliquer(vue, vue.element("alertes"), "yes, resume the kitchen");
 
     assert.deepEqual(montre(vue), ["second · claude"]);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
@@ -398,34 +394,33 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 
 describe("un clic à gauche écrit dans le second sans que le centre change", () => {
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
-    const parti = { ...SECOND, note: "parti dans le second : `!station parade grant enable merge`" };
-    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE), geste: () => parti });
-    await avecLesGrants(vue);
+    const parti = { ...SECOND, note: "parti dans le second : `!station parade guardrails resume`" };
+    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE), geste: () => parti });
+    await avecUneAlerte(vue);
 
-    // L'interrupteur de la ligne du grant (#1700) : son clic ouvre la confirmation, sous la ligne.
+    // Le bouton de la ligne de la bande : son clic ouvre la confirmation, sous la ligne.
     await basculer(vue);
 
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-activer", "merge"]);
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
-    const ouverte = vue.element("grants").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(ouverte.textContent, /enable the `merge` grant/);
+    const ouverte = vue.element("alertes").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(ouverte.textContent, /resume the kitchen/);
     assert.equal(vue.element("note-second").textContent, "fil repris");
 
     // « non » la referme : rien ne part.
-    await cliquer(vue, ouverte, "no, keep control");
-    assert.equal(vue.element("grants").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    await cliquer(vue, ouverte, "no, leave it stopped");
+    assert.equal(vue.element("alertes").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
 
     // Rouverte, son « oui » le fait partir dans le second ; Settings reste ouvert.
     await basculer(vue);
-    await cliquer(vue, vue.element("grants"), "yes, enable `merge`");
+    await cliquer(vue, vue.element("alertes"), "yes, resume the kitchen");
     assert.deepEqual(
       vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
-      [["parade", "grant-activer", "merge", true]],
+      [["parade", "reprendre", true]],
     );
     assert.equal(vue.element("note-second").textContent, parti.note);
-    assert.deepEqual(selectionne(vue), ["Settings"]);
-    assert.equal(vue.element("grants").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    assert.equal(vue.element("alertes").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
   });
 });
 
@@ -435,7 +430,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
   test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; un onglet, et le geste du journal", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Kitchen", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
@@ -457,8 +452,8 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.throws(() => vue.element("lecture"));
     assert.deepEqual(vue.element("etat").dessous("pre"), []);
     assert.doesNotMatch(vue.element("etat").textContent, /sauvegarde|il y a 10 h/);
-    // Ce que Settings lit, ce sont les grants.
-    assert.equal(vue.dernier("onglet")[1], "grants");
+    // Settings ne lit rien.
+    assert.equal(vue.dernier("onglet")[1], undefined);
     // Recliqué, il se referme.
     await cliquer(vue, vue.element("onglets-du-projet"), "Settings");
     assert.equal(vue.element("etat").hidden, true);
@@ -467,7 +462,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
 
   test("une page s'ouvre par-dessus le rail, qui reste posé dessous ; fermée, elle le rend tel qu'il était — la bande d'alertes, elle, reste en tête", async () => {
     const vue = await ouvrir();
-    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "grant", verifie: false, ton: "orange", dit: "grant non vérifié", pourquoi: "…", geste: "le lire : Paramètres, Grants", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
+    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: false, ton: "orange", dit: "cuisine non vérifiée", pourquoi: "…", geste: "le lire : Paramètres", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
     const rail = vue.element("rail");
     const avant = rail.textContent;
     assert.equal(rail.inert, false);
@@ -509,11 +504,11 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
 
   test("une ligne d'alerte dont la cause se règle dans Settings y mène en un clic", async () => {
     const vue = await ouvrir();
-    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "grant", verifie: false, ton: "orange", dit: "grant non vérifié", pourquoi: "…", geste: "le lire : Paramètres, Grants", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
+    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: false, ton: "orange", dit: "cuisine non vérifiée", pourquoi: "…", geste: "le lire : Paramètres", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
 
-    await cliquer(vue, vue.element("alertes"), "le lire : Paramètres, Grants");
+    await cliquer(vue, vue.element("alertes"), "le lire : Paramètres");
 
-    assert.equal(vue.dernier("onglet")[1], "grants");
+    assert.equal(vue.dernier("onglet")[1], undefined);
     assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.equal(vue.element("contenu").hidden, false);
   });

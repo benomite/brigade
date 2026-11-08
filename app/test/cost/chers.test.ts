@@ -10,8 +10,7 @@ import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { COMBIEN, cooksDe, plusChers, poserChers } from "../../src/vue/cost/chers.js";
@@ -110,7 +109,7 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -124,7 +123,7 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
   test("cliquer une ligne ouvre son projet, puis la fiche de son ticket, par-dessus le rail", async () => {
     const vue = await ouvrirLaPage();
     const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(cook(30, "412 806"), cook(12, "9"))), demande }, undefined, undefined);
+    vue.dire("surContenu", { ...lu("parade", station(cook(30, "412 806"), cook(12, "9"))), demande }, undefined);
     await repos();
     const lignes = vue.element("cout").dessous("button").filter(({ className }) => className.startsWith("ticket-cher"));
     assert.equal(lignes.length, 2);

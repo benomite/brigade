@@ -69,7 +69,7 @@ const SUITE = /^ {3}/;
 
 // Les tickets du bloc, dans son ordre — le plus ancien d'abord. Une ligne sans
 // numéro en tête n'en donne aucun : la station sans connexion Max, le bilan des
-// arrêts faute de grant, la tête du bloc. Elle reste dans le bloc, et nulle
+// arrêts, la tête du bloc. Elle reste dans le bloc, et nulle
 // part ailleurs — ce qui la précise aussi : une suite n'est qu'à l'entrée
 // qu'elle suit, jamais au ticket d'avant.
 export function ticketsDe(bloc: string): Attendu[] {

@@ -1,4 +1,4 @@
-// L'onglet Stations (#2487, épique #2484) : la liste des stations du projet, celle que Cooks pose (stations-de-cuisson.js),
+// L'onglet Stations (#2487, épique #2484) : la liste des stations du projet, celle que pose stations-de-cuisson.js,
 // et « Add a station », qui ouvre sur place l'étape « Who cooks this project? » — cet ordinateur d'abord, recommandé, puis
 // les stations appairées à qui le projet n'est pas choisi. L'étape et son état sont joués seuls, puis la vue telle qu'elle
 // est, devant un faux document (aides/fausse-vue.ts) : le chef ouvre l'onglet, ajoute une station, et la voit dans la liste.
@@ -13,8 +13,7 @@ import { EXEMPLE } from "../../../../src/config.ts";
 import { PALETTE } from "../../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../../src/projets/projets.ts";
 import type { Choix, StationEnregistree, StationsDuCompte } from "../../../../src/stations-du-compte.ts";
@@ -149,7 +148,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -184,15 +183,12 @@ const lignes = (vue: Jouee) =>
 const bloc = (vue: Jouee) => vue.element("rail").children.find((pose) => pose.dataset.bloc === "liste-stations") ?? assert.fail("pas de bloc « liste-stations »");
 
 describe("l'onglet Stations de la vue", () => {
-  test("la liste est celle de Cooks, ligne pour ligne ; « Add a station » est dessous", async () => {
+  test("la liste est celle des stations du projet, ligne pour ligne ; « Add a station » est dessous", async () => {
     const vue = await ouvrir();
-    await ouvrirOnglet(vue, "Cooks");
-    const deCooks = lignes(vue);
-    assert.deepEqual(deCooks, ["box/claude"]);
     await ouvrirOnglet(vue, "Stations");
     assert.equal(vue.element("rail").dataset.onglet, "stations");
-    assert.deepEqual(lignes(vue), deCooks);
-    assert.ok(bloc(vue).dessous("div").some(({ id }) => id === "cuisson-du-projet"), "le même élément que Cooks");
+    assert.deepEqual(lignes(vue), ["box/claude"]);
+    assert.ok(bloc(vue).dessous("div").some(({ id }) => id === "cuisson-du-projet"), "l'élément des stations du projet");
     assert.deepEqual(boutons(bloc(vue)).at(-1)?.textContent, AJOUTER);
   });
 

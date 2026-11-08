@@ -14,6 +14,8 @@ import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
+import { fichierDesRefus, lireLesRefus } from "../station-contributrice/refus.ts";
+import { aiguillerLaStation } from "../station-contributrice/aiguillage.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot, type ProjetOuvert } from "../brigade-github.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { configRail } from "../alimenter.ts";
@@ -41,6 +43,7 @@ import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherRetenue } from "../retenue/brancher.ts";
@@ -58,6 +61,7 @@ import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
 import { configStation } from "../station.ts";
 import { direStations } from "../stations-declarees.ts";
+import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 
 export type Cuisine = {
   projet: string;
@@ -200,46 +204,71 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       station: () =>
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
-          : stationDuDepot({
-              nom: ici.nom,
-              // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
-              // une station déclarée à 30 en tiendrait 30.
-              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
-              capacites: ici.fournit,
-              base: station.base,
-              depotGitHub: rail.depot,
-              githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
-              github: githubs.pass,
-              depot,
-              prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
-              claude: station.bin,
-              env,
-              cloison,
-              bacASable,
-              plafonds: reglages.plafonds,
-              graceMs: reglages.graceMs,
-              reviewer: reviewer.calibrage,
-              // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
-              manager: () => decisions.manager(),
-              flux: join(repertoireEtat, "github-seul"),
-              // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
-              gardes: gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire }),
-              avertir: dire,
-              observer: suiviDuTour.envelopper,
-              sauter: suiviDuTour.sauter,
-              // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
-              clone: station.clone,
-              repertoireEtat,
-              // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
-              gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
-              // Le setup du worktree de chaque cook, joué avant lui (#2535).
-              setup: { delaiMs: delaiGatesMs },
-            }),
+          : (() => {
+              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire });
+              const ecrivaine = stationDuDepot({
+                nom: ici.nom,
+                // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
+                // une station déclarée à 30 en tiendrait 30.
+                places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+                capacites: ici.fournit,
+                base: station.base,
+                depotGitHub: rail.depot,
+                githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
+                github: githubs.pass,
+                depot,
+                prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
+                claude: station.bin,
+                env,
+                cloison,
+                bacASable,
+                plafonds: reglages.plafonds,
+                graceMs: reglages.graceMs,
+                reviewer: reviewer.calibrage,
+                // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+                manager: () => decisions.manager(),
+                flux: join(repertoireEtat, "github-seul"),
+                // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
+                gardes,
+                avertir: dire,
+                observer: suiviDuTour.envelopper,
+                sauter: suiviDuTour.sauter,
+                // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
+                clone: station.clone,
+                repertoireEtat,
+                // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
+                gates: { delaiMs: delaiGatesMs, secrets, sansIdentite: identites !== null },
+                // Le setup du worktree de chaque cook, joué avant lui (#2535).
+                setup: { delaiMs: delaiGatesMs },
+                // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
+                projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
+              });
+              // Sans l'écriture sur le dépôt, la station est contributrice : elle cuisine dans sa fourche et livre par une PR du dehors (#2935).
+              return aiguillerLaStation(githubs.pass, ecrivaine, {
+                nom: ici.nom,
+                places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+                base: station.base,
+                depotGitHub: rail.depot,
+                depot,
+                clone: station.clone,
+                claude: station.bin,
+                env,
+                cloison,
+                bacASable,
+                plafonds: reglages.plafonds,
+                graceMs: reglages.graceMs,
+                flux: join(repertoireEtat, "github-seul"),
+                gardes,
+                // Les stations que le chef refuse sous Settings ne prennent aucun ticket (#2936).
+                refusees: () => lireLesRefus(fichierDesRefus(repertoireEtat)),
+                avertir: dire,
+              });
+            })(),
       avertir: dire,
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages) });
     // La retenue de la cuisine : rien de servi depuis 30 min alors que des
     // tickets attendent, sa cause et son geste entrent une fois dans la file
     // du chef, et en sortent quand la cuisine sert de nouveau.
@@ -262,7 +291,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), avertir: dire });
     ouverte = brancherRepriseParGitHub(connectee, { github: githubs.rail, avertir: dire });
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
-    brancherMentionDuChef(ouverte, { github: githubs.station, chef: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef ?? null, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
+    // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
+    const { chef } = brancherLeChef(ouverte, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
+    brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();

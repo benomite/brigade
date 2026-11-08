@@ -1,7 +1,6 @@
 // The project switch (`events/switch.ts`): on or off, since when, by whom.
 // Null as long as no runtime has set it — a log from before the switch, not
-// yet restarted: the old switches still hold there (`managerAllume`, the
-// `merge` grant), and nothing holds the kitchen.
+// yet restarted: the old switch still holds there (`managerAllume`), and nothing holds the kitchen.
 import type { Base } from "../base.ts";
 import type { CauseDeLInterrupteur, FaitInterrupteur } from "../events/switch.ts";
 import { definirProjection } from "../projection.ts";

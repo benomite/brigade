@@ -7,7 +7,6 @@ connection Max EXPIRED for 4 min on box/claude (authentication_failed) — no ti
 base       RED since 4 min ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges
            replay its gates without waiting for a commit: brigade <projet> base replay
 setup      BLOCKED for 4 min on ba5e000 — no setup is launched from here, for any ticket, as long as the integration branch does not move: the cause and the action are in the `awaiting` block
-grant      merge ACTIVE, EXPIRING SOON: 26 min left (until 12 Oct 10:30 UTC) — a green pass is merged without you
 backup     2 min ago (2026-10-09T10-00-00Z, up to event 7)
 
 awaiting   5 decisions await the chef — the oldest for 2 h 04
@@ -16,7 +15,6 @@ awaiting   5 decisions await the chef — the oldest for 2 h 04
   breaker  for 4 min  breaker open: failures in a row — no cook leaves any more — to do: `brigade <projet> guardrails resume` after looking at what fails
   setup  for 4 min  setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #24 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket
   box/claude  for 4 min  Max connection expired (authentication_failed) — to restore: `claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”
-  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 0 still open, 1 no longer followed
 end awaiting
 
 rail       3 pris · 2 en pass · 6 en attente · 2 BLOQUÉ · 4 86 · 1 WAITING · 1 servi

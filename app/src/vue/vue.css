@@ -15,7 +15,7 @@ body {
   background: var(--fond);
   color: var(--texte);
   font-family: var(--police-interface);
-  font-size: 13px;
+  font-size: var(--taille-corps);
   line-height: 1.45;
 }
 button {
@@ -67,8 +67,8 @@ code {
    une ligne trop longue passe à la suivante, rien n'est coupé ni caché. */
 pre {
   margin: 0;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   line-height: 1.55;
   color: var(--texte-terminal);
   background: var(--terminal);
@@ -81,7 +81,7 @@ pre {
 pre.propos {
   padding: 0;
   font-family: var(--police-interface);
-  font-size: 13px;
+  font-size: var(--taille-corps);
   line-height: 1.45;
   color: var(--texte-doux);
   background: none;
@@ -111,8 +111,8 @@ pre.propos {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 12px 0;
+  gap: var(--pas-3);
+  padding: var(--pas-3) 0;
   overflow-y: auto;
   background: var(--barre);
   border-right: 1px solid var(--trait-doux);
@@ -121,18 +121,18 @@ pre.propos {
   position: relative;
   flex: 0 0 44px;
   width: 44px;
-  font-size: 13px;
+  font-size: var(--taille-corps);
   font-weight: 700;
   color: var(--texte-doux);
   background: var(--case);
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--rayon-carte);
 }
 /* Le sigle d'un projet dans sa case (sigle.ts, ticket 1983) : trois signes au plus, en grand, sur une ligne — il
    tient dans la case, rien ne le coupe. La largeur de la barre ne bouge pas ; le nom entier est au survol. */
 #projets .sigle-de-case {
   display: block;
-  font-size: 18px;
+  font-size: var(--taille-titre);
   line-height: 22px;
   white-space: nowrap;
   text-align: center;
@@ -171,7 +171,7 @@ pre.propos {
   left: 2px;
   right: 2px;
   height: 3px;
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--accent);
   pointer-events: none;
 }
@@ -202,7 +202,7 @@ pre.propos {
 }
 #projets #entree-ajout {
   margin-top: auto;
-  font-size: 18px;
+  font-size: var(--taille-titre);
   color: var(--discret);
   background: none;
   border: 1px dashed var(--trait-fort);
@@ -238,29 +238,29 @@ main > header,
   flex: 0 1 auto;
   min-width: 0;
   max-width: 50%;
-  padding: 0 16px;
-  font-size: 15px;
+  padding: 0 var(--pas-4);
+  font-size: var(--taille-intertitre);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 /* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
    glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
    glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
-   Sa confirmation s'ouvre dessous, par-dessus le rail. La ligne d'un grant, dans Settings, a la même glissière. */
+   Sa confirmation s'ouvre dessous, par-dessus le rail. */
 .interrupteur-de-tete {
   position: relative;
   flex: none;
-  margin-left: 16px;
+  margin-left: var(--pas-4);
 }
 :is(.interrupteur-de-tete, #etat .reglage) .bascule {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px 4px 6px;
+  gap: var(--pas-2);
+  padding: var(--pas-1) var(--pas-3) var(--pas-1) var(--pas-2);
   font-weight: 600;
   background: var(--bouton);
   border: 1px solid var(--trait);
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
 }
 :is(.interrupteur-de-tete, #etat .reglage) .bascule:hover:not(:disabled) {
   border-color: var(--trait-fort);
@@ -270,7 +270,7 @@ main > header,
   width: 30px;
   height: 16px;
   background: var(--trait-fort);
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
 }
 :is(.interrupteur-de-tete, #etat .reglage) .glissiere::after {
   content: "";
@@ -313,16 +313,15 @@ main > header,
 }
 /* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
    la largeur, ils défilent. */
-/* Les deux onglets du projet (ticket 1184), Rail et Cooks, entre son nom et Settings : les mêmes onglets, soulignés de
+/* Les onglets du projet (ticket 1184, 2921), Rail et Stations, entre son nom et Settings : les mêmes onglets, soulignés de
    son accent quand ils sont montrés. Un trait les sépare de Settings, qui s'ouvre par-dessus. */
-#onglets-du-projet,
-#onglets-cuisine {
+#onglets-du-projet {
   flex: none;
   align-self: stretch;
   display: flex;
-  gap: 2px;
-  margin-right: 8px;
-  padding-right: 8px;
+  gap: var(--pas-1);
+  margin-right: var(--pas-2);
+  padding-right: var(--pas-2);
   border-right: 1px solid var(--trait);
 }
 /* Les onglets des terminaux : le bandeau de la colonne de droite — le second, les shells, « + shell ». */
@@ -330,38 +329,34 @@ main > header,
   flex: 1;
   align-self: stretch;
   display: flex;
-  gap: 2px;
+  gap: var(--pas-1);
   min-width: 0;
   overflow-x: auto;
 }
 #onglets-du-projet button,
-#onglets-cuisine button,
 #terminaux button {
-  padding: 10px 14px;
+  padding: var(--pas-3) var(--pas-4);
   font-weight: 600;
   color: var(--discret);
   white-space: nowrap;
   border-bottom: 2px solid transparent;
 }
 #onglets-du-projet button:hover,
-#onglets-cuisine button:hover,
 #terminaux button:hover {
   color: var(--texte-doux);
 }
 #onglets-du-projet button:focus-visible,
-#onglets-cuisine button:focus-visible,
 #terminaux button:focus-visible {
   outline-offset: -2px;
 }
 #onglets-du-projet button[aria-selected="true"],
-#onglets-cuisine button[aria-selected="true"],
 #terminaux button[aria-selected="true"] {
   color: var(--texte);
   border-bottom-color: var(--accent);
 }
 #note {
   margin: 0;
-  padding: 6px 16px;
+  padding: var(--pas-2) var(--pas-4);
   min-height: 30px;
   color: var(--discret);
   border-bottom: 1px solid var(--trait-doux);
@@ -372,8 +367,8 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
 #stations-du-projet p {
@@ -381,101 +376,31 @@ main > header,
 }
 /* Le temps de l'ajout au premier ticket servi (ticket 1401) : une ligne douce ; verte une fois figé. */
 #delai-du-projet {
-  padding: 8px 16px;
+  padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
 #delai-du-projet .delai {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
   margin: 0;
   color: var(--texte-doux);
 }
 #delai-du-projet .delai[data-delai="fige"] {
   color: var(--texte);
 }
-/* Les temps des derniers tickets (ticket 2346) : une carte ; la médiane en grand, le plus lent dessous, le partage en
-   cinq phases. Passé le plafond, la carte vire au rouge et le dit en toutes lettres — pas seulement par la couleur. */
-#temps-ticket-du-projet {
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--trait-doux);
-}
-#temps-ticket-du-projet .temps-ticket {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px;
-  background: var(--carte);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
-}
-#temps-ticket-du-projet p,
-#temps-ticket-du-projet ul {
-  margin: 0;
-  padding: 0;
-}
-#temps-ticket-du-projet .temps-tete {
-  display: flex;
-  justify-content: space-between;
-  color: var(--discret);
-}
-#temps-ticket-du-projet .temps-mediane {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-#temps-ticket-du-projet .temps-valeur {
-  font-size: 22px;
-  color: var(--texte);
-}
-#temps-ticket-du-projet .temps-legende,
-#temps-ticket-du-projet .temps-lent,
-#temps-ticket-du-projet .temps-vide {
-  color: var(--texte-doux);
-}
-#temps-ticket-du-projet .temps-barre {
-  display: flex;
-  gap: 2px;
-  height: 8px;
-}
-#temps-ticket-du-projet .temps-part {
-  flex-basis: 0;
-  min-width: 2px;
-  border-radius: 4px;
-  background: var(--bleu);
-}
-#temps-ticket-du-projet .temps-part:nth-child(2) { background: var(--jaune); }
-#temps-ticket-du-projet .temps-part:nth-child(3) { background: var(--vert); }
-#temps-ticket-du-projet .temps-part:nth-child(4) { background: var(--orange); }
-#temps-ticket-du-projet .temps-part:nth-child(5) { background: var(--gris); }
-#temps-ticket-du-projet .temps-phases {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  list-style: none;
-}
-#temps-ticket-du-projet .temps-phase {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--texte-doux);
-}
-#temps-ticket-du-projet .temps-duree {
-  color: var(--texte);
-}
 /* Ce qui bloque le projet (ticket 1399) : une carte, une ligne par blocage. Ce qui est bloqué en tête, en clair ;
    pourquoi dessous, en texte doux ; le bouton du geste, puis le lien qui nomme la page où le faire ; ce qu'une
    commande a dit, replié derrière « details », en second. */
 #blocages-du-projet {
-  padding: 8px 16px;
+  padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
 #blocages-du-projet .blocages {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-left: 3px solid var(--rouge);
@@ -496,8 +421,8 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 8px 0;
+  gap: var(--pas-1);
+  padding: var(--pas-2) 0;
 }
 #blocages-du-projet .blocage + .blocage {
   border-top: 1px solid var(--trait-doux);
@@ -518,8 +443,8 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-top: 2px;
+  gap: var(--pas-3);
+  margin-top: var(--pas-1);
 }
 #blocages-du-projet .lien-du-blocage {
   color: var(--accent);
@@ -531,23 +456,23 @@ main > header,
 }
 #blocages-du-projet summary {
   width: fit-content;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   cursor: pointer;
 }
 #blocages-du-projet details pre {
-  margin-top: 4px;
+  margin-top: var(--pas-1);
 }
 /* Ce qui manque à sa station pour ses tests (ticket 1400) : une carte par besoin, au-dessus des blocages. Ce qui
    manque en tête, pourquoi dessous en texte doux ; puis ses issues côte à côte, chacune son bouton et, sous lui, ce
    qui en suit. Un choix à faire, pas une panne : le bord est celui de l'attente, pas le rouge. */
 #choix-du-projet {
-  padding: 8px 16px;
+  padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
 #choix-du-projet .choix-a-faire {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #choix-du-projet h3 {
   font-weight: 600;
@@ -556,8 +481,8 @@ main > header,
 #choix-du-projet .choix {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px 12px;
+  gap: var(--pas-1);
+  padding: var(--pas-3) var(--pas-4) var(--pas-3);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-left: 3px solid var(--jaune);
@@ -581,8 +506,8 @@ main > header,
 #choix-du-projet .issues {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin: 8px 0 0;
+  gap: var(--pas-3);
+  margin: var(--pas-2) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -590,33 +515,33 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #choix-du-projet .marque-recommande {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   font-weight: 600;
   color: var(--accent);
 }
 #choix-du-projet .consequence {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   line-height: 1.45;
   color: var(--texte-doux);
 }
 #choix-du-projet .refus-du-choix {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   color: var(--rouge-clair);
 }
 #stations-du-projet .station-du-projet {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #stations-du-projet .station-et-gestes {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 /* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
    discret que le nom ; un déménagement en route, de même. */
@@ -631,10 +556,10 @@ main > header,
   display: flex;
   flex-direction: column;
   flex-basis: 100%;
-  gap: 10px;
+  gap: var(--pas-3);
   max-width: 640px;
-  margin: 6px 0 10px;
-  padding: 14px 18px;
+  margin: var(--pas-2) 0 var(--pas-3);
+  padding: var(--pas-4) var(--pas-4);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
   background: var(--carte);
@@ -646,7 +571,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #stations-du-projet .demenagement .prix {
   color: var(--discret);
@@ -655,7 +580,7 @@ main > header,
   flex-basis: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   color: var(--texte-doux);
 }
 #stations-du-projet .demenagement-dit.refus {
@@ -679,21 +604,21 @@ main > header,
 #stations-du-projet .parcours {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--pas-3);
   max-width: 640px;
-  margin: 6px 0 10px;
-  padding: 16px 20px;
+  margin: var(--pas-2) 0 var(--pas-3);
+  padding: var(--pas-4) var(--pas-5);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
 #stations-du-projet .parcours .attendu {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   font-weight: 700;
 }
 #stations-du-projet .parcours .etapes {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--pas-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -701,11 +626,11 @@ main > header,
 #stations-du-projet .parcours .etape {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 #stations-du-projet .parcours .etape.courante {
-  margin-left: -12px;
-  padding-left: 8px;
+  margin-left: calc(-1 * var(--pas-3));
+  padding-left: var(--pas-2);
   border-left: 4px solid var(--accent);
 }
 #stations-du-projet .parcours .etape[data-etat="faite"] .titre .etat {
@@ -717,13 +642,13 @@ main > header,
 #stations-du-projet .parcours .corps {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-1);
   min-width: 0;
 }
 #stations-du-projet .parcours .titre {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #stations-du-projet .parcours .titre .etat,
 #stations-du-projet .parcours .geste .ou {
@@ -743,7 +668,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #stations-du-projet .parcours .dit.avertissement {
   color: var(--texte);
@@ -756,8 +681,8 @@ main > header,
 #stations-du-projet .parcours .echec {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px;
+  gap: var(--pas-1);
+  padding: var(--pas-2) var(--pas-3);
   color: var(--rouge-clair);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
@@ -766,7 +691,7 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 /* Le remède du refus (ticket 1205) : son bouton porte sa phrase entière, qui passe à la ligne plutôt que
    d'être coupée. Pourquoi il n'y a pas de bouton, la demande en route et ce que la station a répondu se
@@ -796,17 +721,17 @@ main > header,
   display: flex;
   flex-direction: column;
   flex-basis: 100%;
-  gap: 18px;
+  gap: var(--pas-4);
   max-width: 640px;
-  margin: 6px 0 10px;
-  padding: 20px 22px;
+  margin: var(--pas-2) 0 var(--pas-3);
+  padding: var(--pas-5) var(--pas-5);
 }
 .confiance h3 {
-  font-size: 18px;
+  font-size: var(--taille-titre);
   font-weight: 700;
 }
 #stations-du-projet .confiance > .aide {
-  margin-top: -12px;
+  margin-top: calc(-1 * var(--pas-3));
   color: var(--texte-doux);
 }
 .confiance fieldset .aide {
@@ -815,30 +740,30 @@ main > header,
 .confiance fieldset {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 .confiance legend {
-  margin-bottom: 8px;
+  margin-bottom: var(--pas-2);
   padding: 0;
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   font-weight: 700;
   color: var(--texte);
 }
 .confiance .machines {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 .confiance .machine {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 2px 12px;
-  padding: 10px 14px;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-3) var(--pas-4);
   background: var(--case);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
@@ -863,12 +788,12 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: var(--pas-2);
+  font-size: var(--taille-intertitre);
 }
 .confiance .nom-de-machine .pilule {
-  padding: 1px 8px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -876,7 +801,7 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 .confiance .champ label,
 .confiance .calibre span {
@@ -888,7 +813,7 @@ main > header,
 }
 .confiance input:not([type="radio"], [type="checkbox"]),
 .confiance select {
-  padding: 7px 10px;
+  padding: var(--pas-2) var(--pas-3);
   font: inherit;
   color: var(--texte);
   background: var(--fond);
@@ -914,14 +839,14 @@ main > header,
 .confiance .capacites {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 8px;
+  gap: var(--pas-2);
 }
 .confiance .capacite {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 2px 10px;
-  padding: 8px 12px;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) var(--pas-3);
   background: var(--case);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
@@ -939,26 +864,26 @@ main > header,
 }
 .confiance .avances {
   border-top: 1px dashed var(--trait);
-  padding-top: 14px;
+  padding-top: var(--pas-4);
 }
 .confiance summary {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 12px;
+  gap: var(--pas-1) var(--pas-3);
   font-weight: 600;
   cursor: pointer;
   user-select: none;
 }
 .confiance summary .valeurs {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 400;
   color: var(--discret);
 }
 .confiance .avances[open] {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 .confiance .avances p {
   margin: 0;
@@ -967,7 +892,7 @@ main > header,
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 .confiance .refus p {
   color: var(--rouge-clair);
@@ -979,7 +904,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 /* Le centre : le rail, et par-dessus lui la page ouverte, qui le couvre entier. Le rail reste
    posé dessous — sa hauteur, son défilement — et revient tel quel quand la page se ferme. */
@@ -990,10 +915,34 @@ main > header,
   display: flex;
   flex-direction: column;
 }
+/* Le bandeau de santé de la cuisine (ticket 2921), au-dessus du rail : en vue, ses chiffres côte à côte ; derrière une
+   ligne, ce qui se règle. Il ne prend jamais plus des deux cinquièmes du centre, et défile au-delà, que le rail garde sa
+   hauteur. */
+#bandeau-sante {
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
+  padding: var(--pas-2) var(--pas-4);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#bandeau-sante[hidden] {
+  display: none;
+}
+#bandeau-sante .chiffres-de-sante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2) var(--pas-6);
+}
+#bandeau-sante .chiffres-de-sante > .bloc-du-projet {
+  flex: 1 1 280px;
+}
+#bandeau-sante > details {
+  margin-top: var(--pas-2);
+}
 #message {
   flex: 1;
-  padding: 24px;
-  font-size: 13px;
+  padding: var(--pas-5);
+  font-size: var(--taille-corps);
   line-height: 1.6;
   color: var(--texte);
   background: none;
@@ -1021,11 +970,80 @@ main > header,
 /* Les terminaux : à droite, en permanence, sur toute la hauteur — leurs onglets, la note du
    terminal montré, et ce terminal. Aucune page ne les couvre. */
 #second {
-  flex: 0 0 32%;
+  position: relative;
+  flex: 0 0 var(--largeur-du-second, 360px);
   min-width: 0;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--trait);
+}
+/* Son bord gauche se tire pour changer sa largeur (ticket 2923) : une poignée à cheval sur le trait, par-dessus le rail. */
+#bord-du-second {
+  position: absolute;
+  left: -5px;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 10px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+#bord-du-second > span {
+  width: 3px;
+  height: 36px;
+  border-radius: var(--rayon-pastille);
+  background: var(--trait);
+}
+#bord-du-second:is(:hover, :focus-visible) > span,
+#second[data-tire] #bord-du-second > span {
+  background: var(--accent);
+}
+#cadre:has(#second[data-tire]) {
+  cursor: col-resize;
+  user-select: none;
+}
+/* Le bouton qui le replie et le déplie, un discret de la famille : au bout de sa tête, un chevron vers la droite ouvert, vers la gauche replié. */
+#replier-second {
+  flex: none;
+  margin-left: auto;
+  margin-right: var(--pas-1);
+}
+#replier-second svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--texte-doux);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+#replier-second:hover svg {
+  stroke: var(--texte);
+}
+#fermer-shell:not([hidden]) + #replier-second {
+  margin-left: 0;
+}
+/* Replié, il ne garde que ce bouton, en tête d'une bande étroite ; ses terminaux restent tels quels, cachés. */
+#second[data-replie] {
+  flex: 0 0 auto;
+}
+#second[data-replie] > :not(header),
+#second[data-replie] > header > :not(#replier-second) {
+  display: none;
+}
+#second[data-replie] > header {
+  padding: 0 var(--pas-1);
+}
+#second[data-replie] #replier-second {
+  margin: 0;
+}
+#second[data-replie] #replier-second svg {
+  transform: scaleX(-1);
 }
 /* Fermer le shell montré, pour de bon : au bout du bandeau des terminaux. */
 #fermer-shell {
@@ -1036,8 +1054,8 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
 #machines > span {
@@ -1045,14 +1063,14 @@ main > header,
 }
 #bandeau {
   margin: 0;
-  padding: 6px 16px;
+  padding: var(--pas-2) var(--pas-4);
   font-weight: 700;
   color: var(--fond);
   background: var(--accent);
 }
 #note-second {
   margin: 0;
-  padding: 6px 16px;
+  padding: var(--pas-2) var(--pas-4);
   min-height: 30px;
   color: var(--discret);
   border-bottom: 1px solid var(--trait-doux);
@@ -1062,19 +1080,18 @@ main > header,
 #fil {
   flex: 1;
   min-height: 0;
-  padding: 8px 0 0 8px;
+  padding: var(--pas-2) 0 0 var(--pas-2);
   background: var(--terminal);
 }
 #fil > div {
   height: 100%;
 }
-#lu-onglet,
-#lu-cuisine {
+#lu-onglet {
   position: sticky;
   top: 0;
   z-index: 1;
-  margin: 12px 0 0;
-  padding: 8px 16px;
+  margin: var(--pas-3) 0 0;
+  padding: var(--pas-2) var(--pas-4);
   min-height: 34px;
   font-weight: 600;
   background: var(--bandeau);
@@ -1088,63 +1105,63 @@ main > header,
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #cout .retour {
   align-self: flex-start;
 }
 .tete-cout h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 .tete-cout .chiffres {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--pas-3);
 }
 .tete-cout .chiffre {
   min-width: 0;
-  padding: 12px 14px;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
 .tete-cout .chiffre h3 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 .tete-cout .total {
-  margin: 2px 0 10px;
-  font-size: 26px;
+  margin: var(--pas-1) 0 var(--pas-3);
+  font-size: var(--taille-chiffre);
   font-weight: 700;
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
 .tete-cout .total.sans {
-  font-size: 16px;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
   line-height: 2.04;
   color: var(--discret);
 }
 .tete-cout .parts {
   display: grid;
-  gap: 4px;
+  gap: var(--pas-1);
   list-style: none;
   margin: 0;
-  padding: 8px 0 0;
+  padding: var(--pas-2) 0 0;
   border-top: 1px dashed var(--trait);
 }
 .tete-cout .parts li {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto 3.2em;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--pas-2);
+  font-size: var(--taille-corps);
 }
 .tete-cout .teinte {
   width: 8px;
@@ -1156,14 +1173,10 @@ main > header,
   overflow-wrap: anywhere;
   color: var(--texte-doux);
 }
-/* Sur la page des coûts, le nom d'un projet l'ouvre : il se lit comme un nom, et se souligne au survol. */
+/* Sur la page des coûts, le nom d'un projet l'ouvre : un bouton discret de la famille, calé à gauche de sa colonne. */
 .tete-cout button.projet {
-  padding: 0;
+  justify-content: flex-start;
   text-align: left;
-}
-.tete-cout button.projet:hover {
-  color: var(--texte);
-  text-decoration: underline;
 }
 .tete-cout :is(.tokens, .part) {
   text-align: right;
@@ -1176,8 +1189,8 @@ main > header,
   color: var(--discret);
 }
 .tete-cout .quota {
-  margin: 10px 0 0;
-  font-size: 12px;
+  margin: var(--pas-3) 0 0;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 /* La page des ratios de tous les projets (ticket 1682), à la place de l'accueil comme celle des coûts : le retour
@@ -1187,14 +1200,14 @@ main > header,
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #ratios .retour {
   align-self: flex-start;
 }
 .tendances h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
@@ -1203,7 +1216,7 @@ main > header,
   gap: 0;
   list-style: none;
   margin: 0;
-  padding: 4px 14px;
+  padding: var(--pas-1) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
@@ -1212,9 +1225,9 @@ main > header,
   display: grid;
   grid-template-columns: 8px minmax(7em, 12em) minmax(0, 1fr) minmax(0, 1.6fr);
   align-items: baseline;
-  gap: 12px;
-  padding: 10px 0;
-  font-size: 13px;
+  gap: var(--pas-3);
+  padding: var(--pas-3) 0;
+  font-size: var(--taille-corps);
 }
 .tendances .projets-tendance li + li {
   border-top: 1px solid var(--trait-doux);
@@ -1226,35 +1239,30 @@ main > header,
   background: var(--teinte);
 }
 .tendances button.projet {
-  padding: 0;
+  justify-content: flex-start;
   text-align: left;
   overflow-wrap: anywhere;
-  font-weight: 600;
-  color: var(--texte);
-}
-.tendances button.projet:hover {
-  text-decoration: underline;
 }
 .tendances :is(.actuel, .tendance) {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
+  gap: var(--pas-1) var(--pas-3);
   min-width: 0;
 }
 .tendances .rapport {
-  font-size: 20px;
+  font-size: var(--taille-titre);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
 .tendances .rapport.sans {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   font-weight: 400;
   color: var(--discret);
 }
 .tendances :is(.precise, .valeurs) {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-variant-numeric: tabular-nums;
   color: var(--discret);
 }
@@ -1278,40 +1286,40 @@ main > header,
 .tendances .indisponible {
   grid-column: 3 / -1;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .tendances .sans {
-  margin: 8px 0 0;
-  font-size: 14px;
+  margin: var(--pas-2) 0 0;
+  font-size: var(--taille-intertitre);
   color: var(--discret);
 }
 /* La courbe de la page des coûts, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
    sa pastille. Le tracé s'étire à la largeur de l'onglet ; ses jours et son plus haut sont du texte
    posé autour, qui ne s'étire pas. */
 .courbe-cout {
-  margin: 14px 0 0;
-  padding: 12px 14px;
+  margin: var(--pas-4) 0 0;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
 .courbe-cout h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 .courbe-cout .trace {
   position: relative;
-  margin: 0 8px;
-  padding: 16px 0 0;
+  margin: 0 var(--pas-2);
+  padding: var(--pas-4) 0 0;
 }
 .courbe-cout .haut {
   position: absolute;
   top: 0;
   left: 0;
-  font-size: 11px;
+  font-size: var(--taille-meta);
   font-variant-numeric: tabular-nums;
   color: var(--discret);
 }
@@ -1346,29 +1354,29 @@ main > header,
 .courbe-cout .jours {
   position: relative;
   height: 16px;
-  margin: 6px 8px 0;
+  margin: var(--pas-2) var(--pas-2) 0;
 }
 .courbe-cout .jours span {
   position: absolute;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: var(--taille-meta);
   white-space: nowrap;
   color: var(--discret);
 }
 .courbe-cout .legende {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: var(--pas-1) var(--pas-4);
   list-style: none;
-  margin: 10px 0 0;
-  padding: 8px 0 0;
+  margin: var(--pas-3) 0 0;
+  padding: var(--pas-2) 0 0;
   border-top: 1px dashed var(--trait);
 }
 .courbe-cout .legende li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--pas-2);
+  font-size: var(--taille-corps);
 }
 .courbe-cout .teinte {
   width: 8px;
@@ -1381,26 +1389,24 @@ main > header,
 }
 .courbe-cout .sans {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .courbe-cout p.sans {
-  font-size: 16px;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
 }
 /* Ce qui se lit : une commande, puis ce qu'elle a rendu — l'une sous l'autre. */
-#lecture-onglet,
-#lecture-cuisine {
+#lecture-onglet {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px 24px;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4) var(--pas-5);
 }
 #lecture-onglet h3,
-#lecture-cuisine h3,
 #tous h3 {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--discret);
   overflow-wrap: anywhere;
 }
@@ -1409,8 +1415,8 @@ main > header,
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: var(--pas-4);
+  padding: var(--pas-4);
   overflow-y: auto;
   user-select: text;
 }
@@ -1419,10 +1425,10 @@ main > header,
 .bloc-de-l-accueil {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--pas-4);
 }
 .bloc-de-l-accueil > h2 {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--discret);
@@ -1431,21 +1437,21 @@ main > header,
   flex: none;
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: var(--pas-1);
 }
 #tous .liste > p,
 #toutes-les-stations > div > p {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--pas-2) var(--pas-3);
   color: var(--discret);
 }
 /* Une ligne : toute la ligne s'ouvre d'un clic — pastille, nom, ce qui s'y passe, et la flèche. */
 :is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--pas-3);
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--pas-2) var(--pas-3);
   text-align: left;
   border-radius: var(--rayon-bouton);
 }
@@ -1476,20 +1482,20 @@ main > header,
 .premier-lancement {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--pas-4);
   max-width: 640px;
 }
 /* La phrase des stations, sous le parcours : un titre de section, pas celui des sections de « Tous les projets ». */
 #tous .premier-lancement > .tete-des-stations {
-  margin-top: 6px;
-  font-size: 15px;
+  margin-top: var(--pas-2);
+  font-size: var(--taille-intertitre);
   font-weight: 700;
   color: var(--texte);
 }
 .premier-lancement .tete-de-station {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--pas-3);
   color: var(--texte-doux);
 }
 .premier-lancement .tete-de-station .pastille {
@@ -1499,7 +1505,7 @@ main > header,
   color: var(--texte);
 }
 .premier-lancement .gestes {
-  gap: 8px;
+  gap: var(--pas-2);
   padding: 0;
 }
 .premier-lancement .ouverture {
@@ -1514,36 +1520,36 @@ main > header,
   color: var(--texte-doux);
 }
 .premier-lancement .code-de-connexion strong {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   color: var(--texte);
 }
 .premier-lancement > .gestes:last-child {
-  margin-top: 6px;
+  margin-top: var(--pas-2);
 }
 .premier-lancement :is(h3, .refus) .survol {
-  margin-left: 6px;
+  margin-left: var(--pas-2);
 }
 /* Le parcours d'ajout d'un projet (ticket 2475) : le même au premier lancement et sur l'écran d'ajout, une carte. En
    tête « Add a project » — précédé, au premier lancement, de sa phrase d'accueil —, puis ses étapes numérotées, chacune
    avec son état ; la courante sous un trait de l'accent, comme le parcours d'un projet neuf, celles à venir discrètes. */
 .parcours-projet.carte {
-  gap: 12px;
+  gap: var(--pas-3);
   max-width: 640px;
-  padding: 18px 22px;
+  padding: var(--pas-4) var(--pas-5);
 }
 .parcours-projet > .bienvenue {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   color: var(--texte-doux);
 }
 .parcours-projet h2 {
-  font-size: 18px;
+  font-size: var(--taille-titre);
   font-weight: 700;
   color: var(--texte);
 }
 .parcours-projet .etapes-du-parcours {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--pas-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1551,9 +1557,9 @@ main > header,
 .parcours-projet .etape-du-parcours {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-left: -12px;
-  padding-left: 8px;
+  gap: var(--pas-2);
+  margin-left: calc(-1 * var(--pas-3));
+  padding-left: var(--pas-2);
   border-left: 4px solid transparent;
 }
 .parcours-projet .etape-du-parcours.courante {
@@ -1562,7 +1568,7 @@ main > header,
 .parcours-projet .titre-d-etape {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
   margin: 0;
   color: var(--texte);
 }
@@ -1576,7 +1582,7 @@ main > header,
 .parcours-projet .corps-d-etape {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   min-width: 0;
 }
 .parcours-projet .corps-d-etape p {
@@ -1590,22 +1596,22 @@ main > header,
   color: var(--texte);
 }
 .parcours-projet .code-de-connexion strong {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
 }
 .parcours-projet .refus {
   color: var(--rouge-clair);
   overflow-wrap: anywhere;
 }
 .parcours-projet .refus .survol {
-  margin-left: 6px;
+  margin-left: var(--pas-2);
 }
 .parcours-projet .gestes {
-  gap: 8px;
+  gap: var(--pas-2);
   padding: 0;
 }
 /* Sur l'écran d'ajout, le parcours d'abord ; l'ajout par un dossier dessous. */
 #parcours-de-l-ajout {
-  margin-bottom: 16px;
+  margin-bottom: var(--pas-4);
 }
 #parcours-de-l-ajout > .parcours-projet {
   max-width: 604px;
@@ -1613,14 +1619,14 @@ main > header,
 /* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
 #toutes-les-stations .ajout-de-station {
   align-self: flex-end;
-  margin: 4px 8px;
+  margin: var(--pas-1) var(--pas-2);
 }
 #toutes-les-stations form {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-3);
 }
 #toutes-les-stations input {
   flex: 0 1 22em;
@@ -1639,8 +1645,8 @@ main > header,
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
 }
 #station .retour {
   align-self: flex-start;
@@ -1648,18 +1654,18 @@ main > header,
 #station header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 #station h2 {
-  font-size: 18px;
+  font-size: var(--taille-titre);
   font-weight: 700;
 }
 #station header .phrase {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   color: var(--texte-doux);
 }
 #station h3 {
-  margin: 6px 0 0;
+  margin: var(--pas-2) 0 0;
 }
 #station p {
   margin: 0;
@@ -1667,20 +1673,20 @@ main > header,
 #station form {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 /* Ses sections (ticket 2641) : identité, connexions, dossiers et bac à sable, capacités, cooks — chacune sous son
    titre, séparée de la précédente par un filet ; une section pas encore livrée le dit en une ligne discrète. */
 #station .page-de-station {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-1);
 }
 #station .section-de-station {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 0;
+  gap: var(--pas-1);
+  padding: var(--pas-2) 0;
   border-top: 1px solid var(--trait-doux);
 }
 #station .section-de-station > h3 {
@@ -1690,10 +1696,10 @@ main > header,
 #station .dossiers-et-bac-a-sable .reglage {
   display: grid;
   grid-template-columns: 200px 1fr auto;
-  gap: 4px 12px;
+  gap: var(--pas-1) var(--pas-3);
   align-items: center;
   margin: 0;
-  padding: 3px 0;
+  padding: var(--pas-1) 0;
 }
 #station .dossiers-et-bac-a-sable .reglage p {
   margin: 0;
@@ -1702,18 +1708,18 @@ main > header,
   grid-column: 2 / 4;
 }
 #station .dossiers-et-bac-a-sable .hote {
-  margin-right: 12px;
+  margin-right: var(--pas-3);
 }
 #station .section-de-station .a-venir {
-  font-size: 13px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 /* Les projets que la station porte : une ligne chacun, comme sur l'accueil, et sa marque — « main »
    en accent, « secondary » discret. Sous un projet ajouté depuis l'app, ses gestes, alignés sur son nom. */
 #station .ligne span.pilule {
   flex: none;
-  padding: 1px 8px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #station .projet-de-station {
@@ -1722,25 +1728,25 @@ main > header,
 }
 #station .projet-de-station > p {
   display: flex;
-  gap: 8px;
-  padding: 0 12px 4px 32px;
+  gap: var(--pas-2);
+  padding: 0 var(--pas-3) var(--pas-1) var(--pas-6);
 }
 /* « + add a project », sous la liste : comme « + station » sur l'accueil ; le parcours s'ouvre à sa place. */
 #station .ajout-de-projet {
   align-self: flex-start;
-  margin: 4px 0;
+  margin: var(--pas-1) 0;
 }
 /* Une panne, sur la page de sa station : en alerte, son bouton à la suite, et ce qu'il a rendu. */
 #station .panne {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
   color: var(--jaune);
 }
 /* Le plafond de cooks de la page d'une station : ce que sa box en dit, ce qui la retient — en alerte, comme une
    panne —, et le champ qui le règle, avec ses boutons à la suite. */
 #station .plafond-de-station p {
-  margin: 4px 0;
+  margin: var(--pas-1) 0;
 }
 #station .plafond-de-station .retenue,
 #station .plafond-de-station .indisponible {
@@ -1752,7 +1758,7 @@ main > header,
 /* La ligne de mise à jour de la page d'une station, discrète, sous son en-tête ; « remove the station »
    tout en bas, à l'écart, et sa confirmation sous lui. */
 #station .version-de-station {
-  margin: 4px 0;
+  margin: var(--pas-1) 0;
   color: var(--discret);
 }
 #station .version-de-station:empty {
@@ -1760,15 +1766,15 @@ main > header,
 }
 /* Les appels de la box à GitHub (ticket 1418) : une ligne douce, comme la mise à jour ; le tiret, sans chiffre, plus discret encore. */
 #station .appels-de-la-station {
-  margin: 4px 0;
+  margin: var(--pas-1) 0;
   color: var(--texte-doux);
 }
 #station .appels-de-la-station[data-appels="absents"] {
   color: var(--discret);
 }
 #station .retrait-de-station {
-  margin-top: 16px;
-  padding-top: 8px;
+  margin-top: var(--pas-4);
+  padding-top: var(--pas-2);
   border-top: 1px solid var(--trait);
 }
 /* Au bout de la ligne d'une station sur l'accueil, le bouton de la raison d'une station qui ne cuit pas encore
@@ -1782,7 +1788,7 @@ main > header,
   top: 50%;
   right: 8px;
   display: flex;
-  gap: 8px;
+  gap: var(--pas-2);
   transform: translateY(-50%);
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
@@ -1791,35 +1797,30 @@ main > header,
 [data-etat] {
   border-left: 4px solid transparent;
 }
-#lu-onglet[data-etat],
-#lu-cuisine[data-etat] {
-  padding-left: 12px;
+#lu-onglet[data-etat] {
+  padding-left: var(--pas-3);
 }
 /* Les trois états de pilotage portent chacun leur forme, avant leur couleur : pilotable, un
    disque plein ; joint mais plus pilotable — ou sans le droit, ou sans commande —, un losange ;
    pas joint, un carré. Ton et forme sont posés par la vue (data-ton, data-forme) ; le mot reste
    le texte de la ligne. */
-#lu-onglet[data-forme]::before,
-#lu-cuisine[data-forme]::before {
+#lu-onglet[data-forme]::before {
   content: "";
   display: inline-block;
   width: 10px;
   height: 10px;
-  margin-right: 8px;
+  margin-right: var(--pas-2);
   background: var(--ton);
   border: 1px solid var(--ton);
 }
-#lu-onglet[data-forme="disque"]::before,
-#lu-cuisine[data-forme="disque"]::before {
+#lu-onglet[data-forme="disque"]::before {
   border-radius: 50%;
 }
-#lu-onglet[data-forme="carre"]::before,
-#lu-cuisine[data-forme="carre"]::before {
-  border-radius: 1px;
+#lu-onglet[data-forme="carre"]::before {
+  border-radius: 0;
 }
-#lu-onglet[data-forme="losange"]::before,
-#lu-cuisine[data-forme="losange"]::before {
-  border-radius: 1px;
+#lu-onglet[data-forme="losange"]::before {
+  border-radius: 0;
   transform: rotate(45deg) scale(0.85);
 }
 [data-etat="pilotable"] {
@@ -1870,14 +1871,14 @@ main > header,
 .attend {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
   background: var(--attend);
   border: 1px solid var(--attend-trait);
   border-radius: var(--rayon-carte);
 }
 .attend pre {
-  padding: 6px 0 0;
+  padding: var(--pas-2) 0 0;
   color: var(--texte);
   background: none;
   border: 0;
@@ -1891,18 +1892,18 @@ main > header,
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 24px;
+  padding: var(--pas-5);
   user-select: text;
 }
 #formulaire {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   max-width: 604px;
-  padding: 20px 22px;
+  padding: var(--pas-5) var(--pas-5);
 }
 #formulaire h3 {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   font-weight: 700;
 }
 #formulaire p {
@@ -1910,7 +1911,7 @@ main > header,
 }
 #formulaire label,
 #formulaire div {
-  margin-top: 12px;
+  margin-top: var(--pas-3);
   font-weight: 600;
 }
 #formulaire div label {
@@ -1922,8 +1923,8 @@ main > header,
 }
 #formulaire input,
 #formulaire select {
-  padding: 7px 10px;
-  font-size: 13px;
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -1941,20 +1942,20 @@ main > header,
 #formulaire div button,
 #formulaire div input,
 #formulaire div select {
-  margin: 0 0 0 8px;
+  margin: 0 0 0 var(--pas-2);
 }
 #formulaire div input,
 #formulaire div select {
   font-weight: 400;
 }
 #choisi {
-  margin-left: 8px;
-  font-size: 12px;
+  margin-left: var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 400;
   overflow-wrap: anywhere;
 }
 #formulaire button[type="submit"] {
-  margin-top: 12px;
+  margin-top: var(--pas-3);
 }
 /* Un champ signalé : rien n'est parti tant qu'il l'est. */
 #formulaire .refus-champ {
@@ -1967,8 +1968,8 @@ main > header,
 #issue-ajout {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--pas-2);
+  margin-top: var(--pas-3);
 }
 #issue-ajout:empty {
   display: none;
@@ -1983,8 +1984,8 @@ main > header,
   max-height: 40%;
   overflow-y: auto;
   margin: 0;
-  padding: 8px 16px;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-4);
+  font-size: var(--taille-corps);
   line-height: 1.55;
   color: var(--jaune);
   background: var(--bandeau);
@@ -2000,10 +2001,10 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   margin: 0;
-  padding: 8px 16px;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-4);
+  font-size: var(--taille-corps);
   color: var(--discret);
   user-select: none;
 }
@@ -2013,22 +2014,22 @@ main > header,
    leurs rangées (projet/reglages.js), sans second cadre ni second titre : le groupe les porte. Sur un écran étroit,
    le nom, la valeur et le contrôle passent l'un sous l'autre. */
 #etat {
-  padding-bottom: 16px;
+  padding-bottom: var(--pas-4);
 }
 #etat > .groupe {
-  margin: 12px 16px 0;
-  padding: 10px 16px 4px;
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-3) var(--pas-4) var(--pas-1);
 }
 #etat .niveau-du-groupe {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  font-size: 13px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-corps);
   font-weight: 700;
 }
 #etat .groupe > .vide {
-  margin: 0 0 6px;
+  margin: 0 0 var(--pas-2);
   color: var(--discret);
 }
 #etat .groupe > :is(div, section) > .reglage,
@@ -2036,8 +2037,8 @@ main > header,
   display: grid;
   grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
-  gap: 2px 12px;
-  padding: 7px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
   border-top: 1px solid var(--trait-doux);
 }
 #etat .reglage > .nom {
@@ -2047,7 +2048,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -2055,13 +2056,13 @@ main > header,
   font-weight: 600;
 }
 #etat .reglage > .valeur small {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #etat .reglage > p.dit,
 #etat .reglage > .confirmation {
   grid-column: 2 / -1;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #etat .reglage > p.dit.refus {
@@ -2096,8 +2097,8 @@ main > header,
   display: grid;
   grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
-  gap: 2px 12px;
-  padding: 7px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
   border-top: 1px solid var(--trait-doux);
 }
 #etat .apps-github > .reglage.tete > .valeur {
@@ -2116,18 +2117,18 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #etat .apps-github :is(.champ-id, .champ-cle, .gestes-du-role) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   width: 100%;
 }
 #etat .apps-github :is(.app-id, .cle) {
-  padding: 3px 8px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -2151,14 +2152,14 @@ main > header,
 #etat .apps-github .champ p.dit {
   flex-basis: 100%;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 #etat .apps-github .champ p.dit.refus,
 #etat .apps-github .reglage > p.dit.refus {
   color: var(--jaune);
 }
 #etat .apps-github .fichier {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 /* Les projets que sert la station de cet ordinateur (ticket 2359, projets-servis/) : la même ligne que les autres
@@ -2167,8 +2168,8 @@ main > header,
   display: grid;
   grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
-  gap: 2px 12px;
-  padding: 7px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
   border-top: 1px solid var(--trait-doux);
 }
 #etat .projets-servis > .reglage.tete > .valeur {
@@ -2178,11 +2179,11 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 8px;
+  gap: var(--pas-1) var(--pas-2);
   overflow-wrap: anywhere;
 }
 #etat .projets-servis .depot {
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 #etat .projets-servis .aucun {
   color: var(--jaune);
@@ -2203,7 +2204,7 @@ main > header,
 /* Le champ du sigle : trois signes, en mono comme la case qui les écrit (la vue lui pose `mono`). */
 #sigle input {
   width: 64px;
-  padding: 3px 8px;
+  padding: var(--pas-1) var(--pas-2);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -2213,7 +2214,7 @@ main > header,
   color: var(--discret);
 }
 #sigle .champ button {
-  margin-left: 8px;
+  margin-left: var(--pas-2);
   white-space: nowrap;
 }
 /* Les couleurs du projet : une pastille ronde par couleur de la palette, sur la ligne de chaque rôle. Celle que le
@@ -2222,8 +2223,8 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: var(--pas-2);
+  padding: var(--pas-1) 0;
 }
 #couleurs button.teinte {
   width: 22px;
@@ -2244,8 +2245,8 @@ main > header,
 #couleurs label.libre {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-left: 4px;
+  gap: var(--pas-2);
+  margin-left: var(--pas-1);
   color: var(--discret);
   cursor: pointer;
 }
@@ -2259,7 +2260,7 @@ main > header,
   cursor: pointer;
 }
 #couleurs label.libre input::-webkit-color-swatch-wrapper {
-  padding: 3px;
+  padding: var(--pas-1);
 }
 #couleurs label.libre input::-webkit-color-swatch {
   border: none;
@@ -2274,7 +2275,7 @@ main > header,
   max-width: min(520px, calc(100% - 32px));
   max-height: calc(100% - 64px);
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--bleu);
   border-radius: var(--rayon-carte);
@@ -2282,12 +2283,12 @@ main > header,
   user-select: text;
 }
 #avis p {
-  margin: 6px 0 0;
+  margin: var(--pas-2) 0 0;
   color: var(--texte-doux);
   overflow-wrap: anywhere;
 }
 #avis button {
-  margin-top: 8px;
+  margin-top: var(--pas-2);
 }
 /* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
    fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
@@ -2324,11 +2325,11 @@ main > header,
 /* La forme porte l'information, la couleur la renforce : en niveaux de gris, un disque plein,
    un losange, un carré, un anneau creux et un triangle ne se confondent pas. */
 .pastille[data-forme="losange"] {
-  border-radius: 1px;
+  border-radius: 0;
   transform: rotate(45deg) scale(0.85);
 }
 .pastille[data-forme="carre"] {
-  border-radius: 1px;
+  border-radius: 0;
 }
 .pastille[data-forme="anneau"] {
   background: transparent;
@@ -2338,7 +2339,7 @@ main > header,
   border: 0;
   border-radius: 0;
   width: 3px;
-  margin-right: 13px;
+  margin-right: var(--pas-3);
   background: var(--ton);
   box-shadow: 5px 0 0 var(--ton);
 }
@@ -2351,10 +2352,10 @@ main > header,
 .pilule {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: var(--pas-2);
+  padding: var(--pas-1) var(--pas-3);
   border: 1px solid var(--trait);
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
   white-space: nowrap;
 }
 .pilule[data-ton] {
@@ -2366,7 +2367,7 @@ main > header,
   position: absolute;
   right: -3px;
   bottom: -3px;
-  font-size: 9px;
+  font-size: var(--taille-meta);
   font-weight: 700;
   line-height: 8px;
   text-align: center;
@@ -2386,11 +2387,11 @@ main > header,
   top: -4px;
   right: -4px;
   min-width: 14px;
-  font-size: 10px;
+  font-size: var(--taille-meta);
   font-weight: 700;
   line-height: 14px;
   text-align: center;
-  border-radius: 7px;
+  border-radius: var(--rayon-bouton);
   box-shadow: 0 0 0 2px var(--barre);
   cursor: pointer;
 }
@@ -2422,32 +2423,18 @@ main > header,
 .carte {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: var(--pas-3);
+  padding: var(--pas-4) var(--pas-4);
 }
 .carte > p {
   margin: 0;
   font-weight: 400;
   color: var(--discret);
 }
-.carte .etat-projet {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--texte);
-}
-.carte .etat-projet small {
-  color: var(--discret);
-}
-.carte .sans-faits {
-  font-weight: 600;
-  color: var(--jaune);
-}
 .carte dl {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
+  gap: var(--pas-2) var(--pas-2);
   margin: 0;
 }
 .carte dl div {
@@ -2455,44 +2442,13 @@ main > header,
 }
 .carte dd {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--taille-titre);
   font-weight: 700;
   line-height: 1.2;
   color: var(--texte);
 }
 .carte dt {
-  font-size: 11px;
-  color: var(--discret);
-}
-/* Les cooks en cours : un par ligne — son ticket, son titre en entier, qui passe à la ligne s'il
-   ne tient pas, sa station. */
-:is(.carte, .confirmation) .cooks {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  list-style: none;
-  margin: 0;
-  padding: 10px 0 0;
-  border-top: 1px dashed var(--trait);
-}
-:is(.carte, .confirmation) .cooks li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-:is(.carte, .confirmation) .cooks strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-:is(.carte, .confirmation) .cooks span {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--discret);
-}
-:is(.carte, .confirmation) .cooks small {
-  flex: none;
-  font-size: 12px;
+  font-size: var(--taille-meta);
   color: var(--discret);
 }
 /* Le rail : la vue principale, au centre de l'espace. Il a toute sa hauteur, et défile dans la
@@ -2514,8 +2470,8 @@ main > header,
   min-height: 320px;
 }
 #rail h3 {
-  padding: 12px 16px 0;
-  font-size: 12px;
+  padding: var(--pas-3) var(--pas-4) 0;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #rail p {
@@ -2523,14 +2479,14 @@ main > header,
 }
 /* La seule mention du haut du rail : une lecture vieille, dite à voix basse, en jaune. */
 #rail .fraicheur {
-  padding: 8px 16px 0;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-4) 0;
+  font-size: var(--taille-corps);
   color: var(--jaune);
 }
 /* L'âge du rail montré (ticket 2054) : toujours là, à voix basse. */
 #rail .age-du-rail {
-  padding: 8px 16px 0;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-4) 0;
+  font-size: var(--taille-corps);
   color: var(--gris);
 }
 /* Hors ligne (ticket 1818) : le rail lu en dernier reste, atténué, et un seul signe, à voix basse, dit depuis quand. */
@@ -2538,8 +2494,8 @@ main > header,
   opacity: 0.55;
 }
 #rail .hors-ligne {
-  padding: 8px 16px 0;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-4) 0;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 /* Une lecture des faits en cours — la première, ou une relecture demandée — : le haut du rail bat doucement, sans
@@ -2557,27 +2513,27 @@ main > header,
 }
 /* Les tickets `fire` que GitHub dit encore, quand la station ne répond pas : repliés, puis lisibles comme le reste. */
 #rail .feu {
-  padding: 8px 16px 0;
+  padding: var(--pas-2) var(--pas-4) 0;
 }
 #rail .feu summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--texte-doux);
 }
 #rail .feu ol {
-  margin: 8px 0 0;
+  margin: var(--pas-2) 0 0;
   padding: 0;
   list-style: none;
 }
 #rail .feu li {
   display: flex;
-  gap: 8px;
+  gap: var(--pas-2);
   align-items: baseline;
-  padding: 2px 0;
+  padding: var(--pas-1) 0;
 }
 #rail .feu li button {
   display: flex;
-  gap: 8px;
+  gap: var(--pas-2);
   align-items: baseline;
   padding: 0;
   font-weight: 600;
@@ -2585,7 +2541,7 @@ main > header,
   overflow-wrap: anywhere;
 }
 #rail .feu li small {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   color: var(--discret);
 }
 /* La bande du haut de l'onglet Rail (#2486) : une seule ligne mince — le temps d'un ticket, les cooks en cours, le
@@ -2596,10 +2552,10 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  row-gap: 4px;
+  row-gap: var(--pas-1);
   min-height: 36px;
-  padding: 4px 16px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-4);
+  font-size: var(--taille-corps);
   color: var(--discret);
   white-space: nowrap;
   border-bottom: 1px solid var(--trait-doux);
@@ -2609,14 +2565,14 @@ main > header,
 }
 /* Un trait après chaque part, sauf la dernière et celle que suit l'âge : passée à la ligne, une part commence au bord. */
 #rail .bande-rail > :not(:last-child, :has(+ .age-du-rail)) {
-  margin-right: 14px;
-  padding-right: 14px;
+  margin-right: var(--pas-4);
+  padding-right: var(--pas-4);
   border-right: 1px solid var(--trait-doux);
 }
 #rail .bande-rail .bande-part {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 /* Une part qui a un détail le dit au survol : le pointeur le signale. */
 #rail .bande-rail .survol > .bande-part {
@@ -2633,7 +2589,7 @@ main > header,
 #rail .bande-rail .bande-chiffre {
   display: inline-flex;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--pas-1);
 }
 #rail .bande-rail .bande-chiffre[data-depasse="oui"] .bande-valeur {
   color: var(--rouge-clair);
@@ -2641,14 +2597,14 @@ main > header,
 /* L'âge du rail, au bout de la bande. */
 #rail .bande-rail .age-du-rail {
   margin-left: auto;
-  padding: 0 0 0 14px;
+  padding: 0 0 0 var(--pas-4);
 }
 /* Dans la bande, ce qui est avant le rail (#1836) : une petite barre empilée, qui déplie la colonne Backlog, son total, et
    l'histogramme des 24 heures. */
 #rail .amont {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--pas-3);
 }
 
 /* La barre : de largeur fixe, haute de quelques pixels, une part par état — sa longueur, la part de son compte dans le
@@ -2660,7 +2616,7 @@ main > header,
 #rail .amont .avant-le-rail {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
   padding: 0;
   font: inherit;
   color: var(--texte);
@@ -2672,12 +2628,12 @@ main > header,
 }
 #rail .amont .avant-le-rail .piste {
   display: flex;
-  gap: 1px;
+  gap: var(--pas-1);
   width: 120px;
   height: 12px;
   background: var(--case);
   border: 1px solid var(--trait-fort);
-  border-radius: 3px;
+  border-radius: 0;
 }
 #rail .amont .avant-le-rail:hover .piste,
 #rail .amont .avant-le-rail[aria-expanded="true"] .piste {
@@ -2719,7 +2675,7 @@ main > header,
   display: inline-flex;
   align-self: center;
   align-items: stretch;
-  gap: 1px;
+  gap: var(--pas-1);
   height: 24px;
 }
 #rail .amont .cadence > .survol {
@@ -2751,9 +2707,9 @@ main > header,
 #rail .panne-du-rail {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 8px 16px 0;
-  padding: 8px 12px;
+  gap: var(--pas-3);
+  margin: var(--pas-2) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-3);
   background: var(--attend);
   border: 1px solid var(--rouge);
   border-left-width: 6px;
@@ -2764,13 +2720,13 @@ main > header,
 }
 #rail .panne-du-rail .marque {
   flex: none;
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--fond);
   background: var(--rouge);
-  border-radius: 3px;
+  border-radius: 0;
 }
 /* La ligne du disjoncteur, en tête de TODO (ticket 2140) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
    de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol, puis son seul
@@ -2778,9 +2734,9 @@ main > header,
 #rail .ligne-disjoncteur {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0 0 8px;
-  padding: 8px 10px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-2);
+  padding: var(--pas-2) var(--pas-3);
   background: var(--attend);
   border: 1px solid var(--rouge);
   border-left-width: 6px;
@@ -2789,7 +2745,7 @@ main > header,
 #rail .ligne-disjoncteur p.dit {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
   margin: 0;
 }
 #rail .ligne-disjoncteur p.dit strong {
@@ -2801,18 +2757,18 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #rail .ligne-disjoncteur .en-route {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #rail .ligne-disjoncteur .reprise-demandee,
 #rail .ligne-disjoncteur .refus {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: var(--pas-2);
+  font-size: var(--taille-corps);
 }
 #rail .ligne-disjoncteur .reprise-demandee {
   color: var(--vert);
@@ -2825,9 +2781,9 @@ main > header,
 #rail .arret-manager {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 8px 16px 0;
-  padding: 6px 12px;
+  gap: var(--pas-2);
+  margin: var(--pas-2) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-3);
   color: var(--texte-doux);
   background-color: var(--bandeau);
   background-image: repeating-linear-gradient(135deg, transparent 0 8px, var(--case) 8px 16px);
@@ -2840,15 +2796,15 @@ main > header,
   margin-left: auto;
 }
 #rail .backlog .groupe + .groupe {
-  margin-top: 14px;
+  margin-top: var(--pas-4);
 }
 #rail .backlog h5 {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
-  margin: 0 0 6px;
-  font-size: 12px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--texte-doux);
 }
@@ -2857,8 +2813,8 @@ main > header,
   display: inline-block;
   width: 10px;
   height: 6px;
-  margin-right: 8px;
-  border-radius: 1px;
+  margin-right: var(--pas-2);
+  border-radius: 0;
 }
 #rail .backlog h5 span:last-child {
   font-weight: 400;
@@ -2877,8 +2833,8 @@ main > header,
   grid-auto-columns: minmax(250px, 1fr);
   /* Chaque colonne descend jusqu'en bas du rail, sous la bande (#2486) : aucun vide sous une colonne courte. */
   align-items: stretch;
-  gap: 8px;
-  padding: 8px 16px 16px;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-4) var(--pas-4);
   /* Une seule rangée, jamais empilée : trop étroite, la rangée défile de côté — aucune colonne ne passe dessous, aucune n'est
      écrasée (ticket 1556). Elle défile aussi de haut en bas, pour que les têtes (collantes) restent en vue. */
   overflow-x: auto;
@@ -2888,7 +2844,7 @@ main > header,
    aucune. Chacune a la largeur plancher ci-dessus, où un titre de ticket tient sur deux lignes au plus (ticket 1556). */
 /* Sur Cooks : la carte du projet, quand ses faits ne se dessinent pas, en tête. */
 #rail > .carte {
-  margin: 12px 16px 0;
+  margin: var(--pas-3) var(--pas-4) 0;
 }
 /* Cooks dans l'ordre de sa revue (ticket 1456). En tête du bloc des stations, la ligne de la cuisine du projet — la carte
    du projet y est fondue : son état en pilule, son dernier événement en discret. */
@@ -2896,9 +2852,9 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  margin: 0 0 4px;
-  font-size: 12px;
+  gap: var(--pas-1) var(--pas-2);
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #rail .etat-de-la-cuisine small {
@@ -2906,84 +2862,69 @@ main > header,
 }
 #rail .stations-de-cuisson .rien-ne-cuit,
 #rail > .rien-ne-cuit {
-  margin: 0 0 4px;
+  margin: 0 0 var(--pas-1);
   font-weight: 600;
 }
 #rail > .etat-de-la-cuisine {
-  margin: 12px 16px 0;
+  margin: var(--pas-3) var(--pas-4) 0;
 }
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
-#rail .replie,
-#rail .rien-appris {
-  margin: 12px 16px 0;
-  padding: 8px 16px;
+:is(#rail, #bandeau-sante) .replie {
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-4);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-#rail .replie > summary,
+:is(#rail, #bandeau-sante) .replie > summary,
 #rail .une-ligne {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
+  gap: var(--pas-1) var(--pas-3);
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--texte);
 }
-#rail .replie > summary {
+:is(#rail, #bandeau-sante) .replie > summary {
   list-style: none;
   cursor: pointer;
   user-select: none;
 }
 /* La flèche dit qu'il s'ouvre, et s'il l'est. */
-#rail .replie > summary::before {
+:is(#rail, #bandeau-sante) .replie > summary::before {
   content: "";
   flex: none;
   border-left: 6px solid var(--discret);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
 }
-#rail .replie[open] > summary::before {
+:is(#rail, #bandeau-sante) .replie[open] > summary::before {
   transform: rotate(90deg);
 }
-#rail .replie > summary strong,
+:is(#rail, #bandeau-sante) .replie > summary strong,
 #rail .une-ligne strong {
   font-weight: 600;
   color: var(--discret);
 }
-#rail .replie > summary .resume,
+:is(#rail, #bandeau-sante) .replie > summary .resume,
 #rail .une-ligne .resume {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-/* Ce que les cooks ont appris, sans leçon ni profil : sa ligne dans le même cadre que les blocs repliés. */
-#rail .une-ligne.rien-appris {
-  margin: 12px 16px 0;
-}
-#rail .replie[open] > summary {
-  margin-bottom: 8px;
+:is(#rail, #bandeau-sante) .replie[open] > summary {
+  margin-bottom: var(--pas-2);
 }
 /* Ouvert, le bloc montre son contenu sans en répéter le cadre ni le titre : la ligne le porte déjà. */
-#rail .replie > :is(section, div) {
+:is(#rail, #bandeau-sante) .replie > :is(section, div) {
   margin: 0;
   padding: 0;
   background: none;
   border: 0;
 }
-#rail .replie > :is(section, div) > :is(h2, h3, h4):first-child {
+:is(#rail, #bandeau-sante) .replie > :is(section, div) > :is(h2, h3, h4):first-child {
   display: none;
-}
-#rail .lecture-de-la-cuisine #lu-cuisine {
-  position: static;
-  margin: 0;
-}
-#rail .lecture-de-la-cuisine #lecture-cuisine {
-  padding: 8px 0 0;
-}
-#rail #lecture-cuisine h3 {
-  padding: 0;
 }
 /* Ce que chaque station déclarée fournit, sous les stations (ticket 1509) : une ligne chacune — son nom et où elle
    tourne, son plafond de cooks, ses capacités en étiquettes. Où elle tourne a trois mots, chacun sa couleur. */
@@ -2991,8 +2932,8 @@ main > header,
   display: none;
 }
 #rail .stations-declarees {
-  margin: 12px 16px 0;
-  padding: 8px 16px 10px;
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-4) var(--pas-3);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
@@ -3000,9 +2941,9 @@ main > header,
 #rail .stations-declarees h4 {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  font-size: 12px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
@@ -3015,9 +2956,9 @@ main > header,
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 110px minmax(200px, 2fr) auto;
   align-items: center;
-  gap: 4px 16px;
-  padding: 6px 0;
-  font-size: 13px;
+  gap: var(--pas-1) var(--pas-4);
+  padding: var(--pas-2) 0;
+  font-size: var(--taille-corps);
   border-top: 1px solid var(--trait-doux);
 }
 #rail .station-declaree:first-child {
@@ -3026,12 +2967,12 @@ main > header,
 #rail .station-declaree .qui {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
   min-width: 0;
 }
 #rail :is(.station-declaree, .station-de-cuisson, .station-reglee) .ou {
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;
@@ -3054,14 +2995,14 @@ main > header,
 #rail :is(.station-declaree, .station-de-cuisson) .capacites {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--pas-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 #rail :is(.station-declaree, .station-de-cuisson) .capacite {
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   line-height: 18px;
   color: var(--texte-doux);
   background: var(--case);
@@ -3083,9 +3024,9 @@ main > header,
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 6px 0 4px;
-  padding: 12px 14px;
+  gap: var(--pas-3);
+  margin: var(--pas-2) 0 var(--pas-1);
+  padding: var(--pas-3) var(--pas-4);
   background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -3093,12 +3034,12 @@ main > header,
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .champ {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
   font-weight: 600;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) input[type="number"] {
   width: 8ch;
-  padding: 5px 8px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
   font-weight: 400;
   color: var(--texte);
@@ -3112,22 +3053,22 @@ main > header,
   border: 0;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) legend {
-  margin-bottom: 8px;
+  margin-bottom: var(--pas-2);
   padding: 0;
   font-weight: 600;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacites {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 2px 10px;
-  padding: 6px 12px;
-  font-size: 13px;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   line-height: inherit;
   color: var(--texte);
   background: var(--case);
@@ -3144,7 +3085,7 @@ main > header,
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite small {
   grid-column: 2;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 /* Sous les cases, une capacité hors de ces cases (ticket 1959) : un champ, « Add » et son aide au survol ; un refus
@@ -3152,18 +3093,18 @@ main > header,
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
+  gap: var(--pas-2);
+  margin-top: var(--pas-2);
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre .saisie {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre input[type="text"] {
   width: 34ch;
-  padding: 5px 8px;
-  font-size: 13px;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -3176,7 +3117,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes .retrait {
   margin-left: auto;
@@ -3184,7 +3125,7 @@ main > header,
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation {
   flex-flow: row wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: var(--pas-2) var(--pas-2);
   margin: 0;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .confirmation > p {
@@ -3201,7 +3142,7 @@ main > header,
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .indisponible {
   grid-column: 1 / -1;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 #rail :is(.station-declaree, .station-de-cuisson) .fait {
   color: var(--discret);
@@ -3212,14 +3153,14 @@ main > header,
   display: none;
 }
 #rail .stations-de-cuisson {
-  margin: 12px 16px 0;
-  padding: 10px 16px;
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
 #rail .stations-de-cuisson h3 {
-  padding: 0 0 4px;
+  padding: 0 0 var(--pas-1);
 }
 #rail .stations-de-cuisson > ol {
   gap: 0;
@@ -3228,33 +3169,33 @@ main > header,
   display: grid;
   grid-template-columns: minmax(150px, 1fr) minmax(200px, 1.5fr) minmax(200px, 2fr) 150px;
   align-items: center;
-  gap: 4px 16px;
-  padding: 8px 0;
+  gap: var(--pas-1) var(--pas-4);
+  padding: var(--pas-2) 0;
   border-top: 1px dashed var(--trait);
 }
 #rail .station-de-cuisson:first-child {
   border-top: 0;
 }
 #rail .station-de-cuisson .nom small {
-  margin-left: 8px;
-  font-size: 11px;
+  margin-left: var(--pas-2);
+  font-size: var(--taille-meta);
   color: var(--discret);
 }
 #rail .station-de-cuisson .etat {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   min-width: 0;
 }
 #rail .station-de-cuisson .etat small {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #rail .station-de-cuisson .cooks {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--pas-1);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -3263,12 +3204,12 @@ main > header,
 #rail .station-de-cuisson .cooks li {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
   min-width: 0;
 }
 #rail .station-de-cuisson .cooks strong {
   flex: none;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 600;
 }
 #rail .station-de-cuisson .cooks span {
@@ -3277,87 +3218,18 @@ main > header,
   color: var(--discret);
 }
 #rail .station-de-cuisson .cooks.vide li {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #rail .station-de-cuisson .dit.refus {
   color: var(--jaune);
 }
-/* Sur un écran large, chaque station est un bloc (ticket 1270) : en tête son nom, son état et son geste ; dessous,
-   les cartes de ses tickets en cours — celles du kanban de Rail, en ligne. */
-#rail .stations-de-cuisson[data-cartes] > ol {
-  gap: 8px;
-}
-#rail .stations-de-cuisson[data-cartes] .station-de-cuisson {
-  grid-template-columns: minmax(150px, 1fr) minmax(200px, 3fr) 180px;
-  padding: 10px 12px;
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .station-de-cuisson > :is(.cartes, .aucun-cook) {
-  grid-column: 1 / -1;
-}
-#rail .station-de-cuisson .cartes {
-  flex-flow: row wrap;
-  padding-top: 4px;
-}
-#rail .station-de-cuisson .cartes .bon {
-  flex: 0 1 260px;
-}
-#rail .station-de-cuisson .aucun-cook {
-  margin: 0;
-  font-size: 12px;
-  color: var(--discret);
-}
-/* Ce que la station fait tourner hors de ses cooks (ticket 1971) — la pass, le manager, le triage, le closer : une carte
-   chacun, avant celles des cooks. Pas du papier comme le bon d'un cook : le sombre de la cuisine, un trait pointillé et,
-   à gauche, la teinte de son rôle — d'un regard, une pass n'est pas un cook. Son rôle, l'étiquette de sa station, son
-   ticket, ce qu'il fait et depuis quand ; rien n'est coupé, ce qui est long passe à la ligne. */
-#rail .station-de-cuisson .carte-agent {
-  display: flex;
-  flex: 0 1 260px;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 8px;
-  background: var(--bandeau);
-  border: 1px dashed var(--trait-fort);
-  border-left: 3px solid var(--jaune);
-  border-radius: var(--rayon-bon);
-}
-#rail .station-de-cuisson .carte-agent[data-role="manager"],
-#rail .station-de-cuisson .carte-agent[data-role="triage"] {
-  border-left-color: var(--bleu);
-}
-#rail .station-de-cuisson .carte-agent[data-role="closer"] {
-  border-left-color: var(--gris);
-}
-#rail .station-de-cuisson .carte-agent > p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 8px;
-  min-width: 0;
-  margin: 0;
-}
-#rail .station-de-cuisson :is(.carte-agent, .agent) .agent-role {
-  font-size: 11px;
+#rail .station-de-cuisson .agent .agent-role {
+  font-size: var(--taille-meta);
   font-weight: 600;
 }
-#rail .station-de-cuisson .carte-agent .etiquette-de-station {
-  padding: 0 6px;
-  font-size: 11px;
-  color: var(--discret);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bon);
-}
-#rail .station-de-cuisson .carte-agent .agent-ticket {
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-#rail .station-de-cuisson :is(.carte-agent, .agent) .agent-fait {
-  font-size: 12px;
+#rail .station-de-cuisson .agent .agent-fait {
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 /* Chaque station du projet dit si elle est atteinte, ce qu'elle fournit et, quand elle ne cuit pas, pourquoi
@@ -3367,7 +3239,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   min-width: 0;
 }
 #rail .station-de-cuisson .nom small {
@@ -3378,9 +3250,9 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 #rail .station-de-cuisson .retenue-de-cuisson .pourquoi {
   font-weight: 600;
@@ -3399,53 +3271,14 @@ main > header,
 #rail .station-de-cuisson .ouvre-l-edition button {
   white-space: nowrap;
 }
-/* Sous les stations, sur Cooks, le plafond de calibrage du projet (ticket 1284) : sa valeur, d'où elle vient, et son
-   réglage — deux listes et un bouton, sur une ligne. */
-#plafond-du-projet:empty {
-  display: none;
-}
-#rail .plafond-de-calibrage {
-  margin: 12px 16px 0;
-  padding: 10px 16px;
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .plafond-de-calibrage h3 {
-  padding: 0 0 4px;
-}
-#rail .plafond-de-calibrage p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin: 4px 0 0;
-}
-#rail .plafond-de-calibrage .valeur strong {
-  font-weight: 600;
-}
-#rail .plafond-de-calibrage .valeur small {
-  font-size: 12px;
-  color: var(--discret);
-}
-#rail .plafond-de-calibrage .action > button {
-  white-space: nowrap;
-}
-#rail .plafond-de-calibrage .dit {
-  font-size: 12px;
-  color: var(--discret);
-}
-#rail .plafond-de-calibrage .dit.refus {
-  color: var(--jaune);
-}
 /* Sur Rail, en tête, la ligne qui dit ce qui, du côté des cooks, demande un geste (ticket 1185) : une seule ligne,
    et de quoi ouvrir Cooks, à droite. */
 #rail .alerte-de-cuisine {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 12px 16px 0;
-  padding: 6px 8px 6px 12px;
+  gap: var(--pas-3);
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-2) var(--pas-2) var(--pas-3);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-left: 3px solid var(--jaune);
@@ -3457,15 +3290,10 @@ main > header,
 }
 #rail .alerte-de-cuisine > .lien {
   flex: none;
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
 }
 #rail .colonne {
   min-width: 0;
-  padding: 8px;
+  padding: var(--pas-2);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
@@ -3474,10 +3302,10 @@ main > header,
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
-  margin: 0 0 8px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-2);
   font-weight: 700;
-  padding: 0 0 4px;
+  padding: 0 0 var(--pas-1);
 }
 /* La tête d'une colonne reste en haut de la rangée quand ses cartes défilent (ticket 1556). Elle seule : un titre de
    section (Cooks, gates…) collé au haut du rail flotterait sur le reste de la page (ticket 1701). */
@@ -3492,16 +3320,16 @@ main > header,
   display: inline-block;
   width: 8px;
   height: 8px;
-  margin-right: 8px;
+  margin-right: var(--pas-2);
   border-radius: 50%;
   background: var(--ton);
 }
 #rail .colonne[data-forme="losange"] h4 span:first-child::before {
-  border-radius: 1px;
+  border-radius: 0;
   transform: rotate(45deg) scale(0.85);
 }
 #rail .colonne[data-forme="carre"] h4 span:first-child::before {
-  border-radius: 1px;
+  border-radius: 0;
 }
 #rail .colonne[data-forme="anneau"] h4 span:first-child::before {
   background: transparent;
@@ -3511,7 +3339,7 @@ main > header,
 #rail .colonne[data-forme="pause"] h4 span:first-child::before {
   border-radius: 0;
   width: 3px;
-  margin-right: 13px;
+  margin-right: var(--pas-3);
   background: var(--ton);
   box-shadow: 5px 0 0 var(--ton);
 }
@@ -3521,14 +3349,14 @@ main > header,
 }
 #rail h4 span:last-child,
 #rail .colonne > p {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 400;
   color: var(--discret);
 }
 #rail ol {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -3542,7 +3370,7 @@ main > header,
 /* Les tickets hors colonnes : la même carte, en ligne sous la grille. */
 #rail > ol {
   flex-flow: row wrap;
-  padding: 8px 16px 16px;
+  padding: var(--pas-2) var(--pas-4) var(--pas-4);
 }
 #rail > ol .bon {
   flex: 0 1 240px;
@@ -3554,13 +3382,13 @@ main > header,
 #rail .bon {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-2);
   min-width: 0;
-  padding: 8px;
+  padding: var(--pas-3);
   color: var(--bon-encre);
   background: var(--bon);
   border-radius: var(--rayon-bon);
-  box-shadow: 0 1px 0 var(--ombre);
+  box-shadow: 0 2px 8px var(--ombre);
   overflow-wrap: anywhere;
   cursor: pointer;
 }
@@ -3569,15 +3397,15 @@ main > header,
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
-  gap: 0 8px;
+  gap: 0 var(--pas-2);
 }
 #rail .bon strong {
   font-weight: 600;
   line-height: 1.35;
 }
 #rail .bon p {
-  padding-top: 4px;
-  font-size: 11px;
+  padding-top: var(--pas-1);
+  font-size: var(--taille-meta);
   line-height: 1.5;
   color: var(--bon-discret);
   border-top: 1px dashed var(--bon-trait);
@@ -3588,16 +3416,16 @@ main > header,
 .bon .etiquettes {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--pas-1);
+  margin-top: var(--pas-1);
 }
 .bon .etiquette {
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   line-height: 16px;
   color: var(--bon-discret);
   border: 1px solid var(--bon-trait);
-  border-radius: 8px;
+  border-radius: var(--rayon-bouton);
 }
 .bon .etiquette-capacite {
   border-style: dashed;
@@ -3629,18 +3457,18 @@ main > header,
 #rail .porte {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--pas-1);
   margin: 0;
-  padding: 4px 0 0;
+  padding: var(--pas-1) 0 0;
   list-style: none;
-  font-size: 11px;
+  font-size: var(--taille-meta);
   line-height: 1.45;
   border-top: 1px dashed var(--bon-trait);
 }
 #rail .porte li {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 6px;
+  gap: 0 var(--pas-2);
 }
 #rail .porte span {
   color: var(--bon-discret);
@@ -3651,7 +3479,7 @@ main > header,
 #rail .bon p.livraison {
   padding-top: 0;
   font-family: var(--police-interface);
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--bon-encre);
   border-top: 0;
   overflow-wrap: break-word;
@@ -3659,7 +3487,7 @@ main > header,
 /* Sur la fiche, le même résumé : en prose, tout le texte, rien de coupé. */
 #fiche .details p.livraison {
   font-family: var(--police-interface);
-  font-size: 12px;
+  font-size: var(--taille-corps);
   overflow-wrap: break-word;
 }
 /* Les captures d'un ticket d'interface : l'écran avant et après, côte à côte, chacun sous sa légende.
@@ -3668,13 +3496,13 @@ main > header,
 #rail .bon div.captures {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: var(--pas-2);
   align-items: start;
 }
 #rail .captures figure {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--pas-1);
   min-width: 0;
   margin: 0;
 }
@@ -3683,21 +3511,21 @@ main > header,
   width: 100%;
   height: auto;
   border: 1px solid var(--bon-trait);
-  border-radius: 2px;
+  border-radius: 0;
 }
 #rail .captures .place {
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 16 / 10;
-  font-size: 11px;
+  font-size: var(--taille-meta);
   font-style: italic;
   color: var(--bon-discret);
   border: 1px dashed var(--bon-trait);
-  border-radius: 2px;
+  border-radius: 0;
 }
 #rail .captures figcaption {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   line-height: 1.35;
   color: var(--bon-discret);
 }
@@ -3714,15 +3542,15 @@ main > header,
 #rail .bon .carte-todo {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 4px 0 0 8px;
+  gap: var(--pas-2);
+  padding: var(--pas-1) 0 0 var(--pas-2);
   border-left: 3px solid var(--accent);
   cursor: auto;
 }
 #rail .bon .carte-todo p.question-carte {
   padding-top: 0;
   font-family: var(--police-interface);
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--bon-encre);
   border-top: 0;
@@ -3733,12 +3561,12 @@ main > header,
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 4px;
+  gap: var(--pas-1);
 }
 #rail .bon .carte-todo .action {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--pas-1);
 }
 #rail .bon .carte-todo .action > button {
   flex: 1;
@@ -3748,9 +3576,9 @@ main > header,
 }
 #rail .bon .carte-todo textarea {
   min-width: 0;
-  padding: 4px 6px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--bon-encre);
   background: var(--bon);
   border: 1px solid var(--bon-trait);
@@ -3773,7 +3601,7 @@ main > header,
   cursor: default;
 }
 #rail .bon .carte-todo .en-route {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   color: var(--bon-discret);
 }
 /* Répondue (ticket 1841) : la réponse rappelée, à l'encre douce, puis où elle en est, à voix basse, le détail au survol.
@@ -3782,7 +3610,7 @@ main > header,
 #rail .bon .carte-todo p.reponse-envoyee {
   padding-top: 0;
   font-family: var(--police-interface);
-  font-size: 12px;
+  font-size: var(--taille-corps);
   line-height: 1.4;
   color: var(--bon-encre);
   border-top: 0;
@@ -3791,10 +3619,10 @@ main > header,
 #rail .bon .carte-todo p.ou-en-est {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   padding-top: 0;
   font-family: var(--police-interface);
-  font-size: 11px;
+  font-size: var(--taille-meta);
   color: var(--bon-discret);
   border-top: 0;
 }
@@ -3812,7 +3640,7 @@ main > header,
 #rail .bon .carte-todo p.refus {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   padding-top: 0;
   color: var(--rouge);
   border-top: 0;
@@ -3824,7 +3652,7 @@ main > header,
 #rail .bon .carte-todo p.resume-carte {
   padding-top: 0;
   font-family: var(--police-interface);
-  font-size: 12px;
+  font-size: var(--taille-corps);
   line-height: 1.4;
   color: var(--bon-encre);
   border-top: 0;
@@ -3837,36 +3665,13 @@ main > header,
 #rail .bon .carte-todo p.secondaire {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: var(--pas-2);
   padding-top: 0;
   border-top: 0;
 }
-#rail .bon .carte-todo p.secondaire > button.demander {
-  padding: 0;
-  font-family: var(--police-interface);
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--bon-discret);
-  background: none;
-  border: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-#rail .bon .carte-todo p.secondaire > button.demander:not(:disabled):hover {
-  color: var(--bon-encre);
-}
-#rail .bon .carte-todo p.secondaire > button.demander:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-#rail .bon .carte-todo p.secondaire > button.demander:disabled {
-  text-decoration: none;
-  cursor: default;
-}
 #rail .bon .carte-todo p.secondaire > span {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   color: var(--bon-discret);
 }
 #rail .bon .carte-todo p.secondaire > span.refus {
@@ -3876,9 +3681,9 @@ main > header,
   flex-direction: column;
   align-items: stretch;
   margin: 0;
-  padding: 6px 0 2px 8px;
+  padding: var(--pas-2) 0 var(--pas-1) var(--pas-2);
   font-family: var(--police-interface);
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--bon-encre);
   background: none;
   border-left: 3px solid var(--jaune);
@@ -3886,7 +3691,7 @@ main > header,
 }
 #rail .bon .confirmation > p {
   padding-top: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--bon-encre);
   border-top: 0;
 }
@@ -3901,7 +3706,7 @@ main > header,
 }
 #rail .bon .confirmation textarea {
   min-width: 0;
-  padding: 4px 6px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
   color: var(--bon-encre);
   background: var(--bon);
@@ -3916,7 +3721,7 @@ main > header,
 /* Ses remarques, sous leur nombre : un clic les déplie sur la fiche, un autre les replie. */
 #rail .remarques,
 #fiche .remarques {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   line-height: 1.45;
 }
 #rail .remarques summary,
@@ -3929,31 +3734,31 @@ main > header,
 #fiche .remarques ol {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 4px 0 0;
-  padding-left: 18px;
+  gap: var(--pas-1);
+  margin: var(--pas-1) 0 0;
+  padding-left: var(--pas-4);
   list-style: decimal;
 }
 #rail .remarques li strong,
 #fiche .remarques li strong {
-  margin-right: 6px;
+  margin-right: var(--pas-2);
   font-weight: 700;
 }
 #rail .remarques code,
 #fiche .remarques code {
-  margin-right: 6px;
+  margin-right: var(--pas-2);
   color: var(--bon-discret);
 }
 /* Ce qu'elle ne dit pas : écrit, en italique — les mots de l'app, pas ceux de la box. */
 #rail .bon small {
-  font-size: 11px;
+  font-size: var(--taille-meta);
   font-style: italic;
   line-height: 1.45;
   color: var(--bon-discret);
 }
 #rail .ticket {
   padding: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 700;
   text-align: left;
 }
@@ -3963,8 +3768,8 @@ main > header,
 #rail .etat-ticket {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
+  gap: var(--pas-1);
+  font-size: var(--taille-meta);
   font-weight: 600;
   color: var(--bon-discret);
 }
@@ -3980,11 +3785,11 @@ main > header,
   background: var(--ton);
 }
 #rail .etat-ticket[data-forme="losange"]::before {
-  border-radius: 1px;
+  border-radius: 0;
   transform: rotate(45deg) scale(0.85);
 }
 #rail .etat-ticket[data-forme="carre"]::before {
-  border-radius: 1px;
+  border-radius: 0;
 }
 #rail .etat-ticket[data-forme="anneau"]::before {
   background: transparent;
@@ -3994,7 +3799,7 @@ main > header,
   border: 0;
   border-radius: 0;
   width: 3px;
-  margin-right: 13px;
+  margin-right: var(--pas-3);
   background: var(--ton);
   box-shadow: 5px 0 0 var(--ton);
 }
@@ -4002,17 +3807,83 @@ main > header,
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
+/* Dans Awaiting you, le ticket n'est pas un bon mais la carte chaude (ticket 2922, maquette Project.dc.html) : le fond
+   « ce qui t'attend », son trait, l'arrondi d'une carte ; son titre à voix douce, sa question en grand, la réponse
+   recommandée pleine d'accent, les autres choix en boutons ordinaires, « answer in my own words » discret. */
+#rail .colonne[data-attend] .bon {
+  gap: var(--pas-2);
+  padding: var(--pas-3);
+  color: var(--texte);
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-carte);
+  box-shadow: none;
+}
+#rail .colonne[data-attend] .bon strong {
+  font-weight: 400;
+  color: var(--texte-doux);
+}
+#rail .colonne[data-attend] .bon p,
+#rail .colonne[data-attend] .bon .etat-ticket,
+#rail .colonne[data-attend] .bon > .prio,
+#rail .colonne[data-attend] .bon .etiquette,
+#rail .colonne[data-attend] .bon small {
+  color: var(--texte-doux);
+  border-color: var(--attend-trait);
+}
+#rail .colonne[data-attend] .bon p.ligne-carte {
+  color: var(--texte-doux);
+  border-top-color: var(--attend-trait-doux);
+}
+#rail .colonne[data-attend] .bon .carte-todo {
+  gap: var(--pas-2);
+  padding: 0;
+  border-left: 0;
+}
+#rail .colonne[data-attend] .bon .carte-todo[data-envoi="attente"] {
+  padding-left: var(--pas-2);
+  border-left: 3px solid var(--accent);
+}
+#rail .colonne[data-attend] .bon .carte-todo p.question-carte {
+  font-size: var(--taille-intertitre);
+  line-height: 1.35;
+  color: var(--texte);
+}
+#rail .colonne[data-attend] .bon .carte-todo :is(p.resume-carte, p.reponse-envoyee) {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+#rail .colonne[data-attend] .bon .carte-todo textarea:disabled {
+  color: var(--discret);
+  background: none;
+}
+#rail .colonne[data-attend] .bon .carte-todo textarea {
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--case);
+  border-color: var(--trait-fort);
+}
+#rail .colonne[data-attend] .bon .carte-todo :is(.en-route, p.ou-en-est, p.secondaire > span) {
+  color: var(--discret);
+}
+#rail .bon .carte-todo button.en-mes-mots {
+  align-self: flex-start;
+}
+/* Le champ replié, et le bouton qui l'ouvre une fois ouvert : `#rail .bon div` ne les remet pas en flex. */
+#rail .bon .carte-todo [hidden] {
+  display: none;
+}
 /* Sur une carte de Taken ou de Pass, depuis combien de temps elle y est (#1811), au bout de sa ligne d'état ; l'âge
    exact au survol. Bien plus longtemps que d'ordinaire, l'âge passe au rouge, et la carte porte un trait rouge à
    gauche : elle se voit d'un coup d'œil dans sa colonne. */
 #rail .bon .age {
   margin-left: auto;
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   font-weight: 600;
   color: var(--bon-discret);
   border: 1px solid var(--bon-trait);
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
 }
 #rail .bon .age[data-longue] {
   color: var(--bon-encre);
@@ -4023,8 +3894,8 @@ main > header,
    plein. La raison de l'arrêt est au survol du point. */
 #rail .bon .essais {
   display: inline-flex;
-  gap: 3px;
-  margin-left: 4px;
+  gap: var(--pas-1);
+  margin-left: var(--pas-1);
   align-items: center;
 }
 #rail .bon .essai {
@@ -4042,13 +3913,13 @@ main > header,
 }
 /* « t'attend » : la pilule du ticket qui attend le chef, à côté de son état. */
 #rail .etat-ticket.attendu {
-  padding: 1px 8px;
+  padding: var(--pas-1) var(--pas-2);
   border: 1px solid var(--ton);
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
 }
 #rail .pr {
   align-self: flex-start;
-  margin-top: 2px;
+  margin-top: var(--pas-1);
 }
 /* Un bon s'ouvre sur sa fiche d'un clic : il se voit quand il a le clavier. */
 #rail .bon:focus-visible {
@@ -4058,12 +3929,12 @@ main > header,
 /* Sa priorité, sous son numéro : une étiquette à l'encre discrète. */
 #rail .bon > .prio {
   align-self: flex-start;
-  padding: 0 6px;
-  font-size: 10px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   line-height: 16px;
   color: var(--bon-discret);
   border: 1px solid var(--bon-trait);
-  border-radius: 999px;
+  border-radius: var(--rayon-pastille);
 }
 /* La fiche d'un ticket, par-dessus le rail : un popup de lecture au centre, sur un voile qui laisse le
    rail visible, atténué ; le panneau défile dans sa hauteur, un clic sur le voile la ferme. Son titre est entier : il passe à la
@@ -4075,7 +3946,7 @@ main > header,
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--pas-5);
   background: var(--ombre);
   user-select: text;
   overflow-wrap: anywhere;
@@ -4087,14 +3958,14 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--pas-3);
   width: min(720px, 100%);
   max-height: 100%;
-  padding: 16px 24px;
+  padding: var(--pas-4) var(--pas-5);
   overflow-y: auto;
   background: var(--fond);
   border: 1px solid var(--discret);
-  border-radius: 8px;
+  border-radius: var(--rayon-bouton);
   box-shadow: 0 8px 32px var(--ombre);
 }
 #fiche:focus {
@@ -4105,15 +3976,15 @@ main > header,
   align-self: stretch;
   justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #fiche header span {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   font-weight: 700;
 }
 #fiche h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--taille-titre);
   font-weight: 600;
   line-height: 1.35;
   overflow-wrap: break-word;
@@ -4126,7 +3997,7 @@ main > header,
 #fiche dl {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 6px 16px;
+  gap: var(--pas-2) var(--pas-4);
   margin: 0;
 }
 #fiche dl div {
@@ -4142,17 +4013,17 @@ main > header,
 #fiche .details {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .details p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   white-space: pre-wrap;
 }
 #fiche .porte {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--pas-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4160,7 +4031,7 @@ main > header,
 #fiche .porte li {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 8px;
+  gap: 0 var(--pas-2);
 }
 #fiche .porte span {
   color: var(--discret);
@@ -4176,7 +4047,7 @@ main > header,
 #fiche .situation {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .histoire ol {
   margin: 0;
@@ -4186,7 +4057,7 @@ main > header,
 #fiche .histoire li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
-  gap: 2px 16px;
+  gap: var(--pas-1) var(--pas-4);
 }
 #fiche .histoire li[data-ton] > span {
   color: var(--ton);
@@ -4202,7 +4073,7 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .activite-du-cook > p {
   margin: 0;
@@ -4212,7 +4083,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
+  gap: var(--pas-1) var(--pas-3);
 }
 #fiche .activite-du-cook small {
   color: var(--discret);
@@ -4226,7 +4097,7 @@ main > header,
 #fiche .activite-du-cook .etapes li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
-  gap: 2px 16px;
+  gap: var(--pas-1) var(--pas-4);
   color: var(--texte-doux);
 }
 /* La rétro du ticket servi : ses leçons, chacune sa pastille « provisional » comme dans ce que les
@@ -4234,11 +4105,11 @@ main > header,
 #fiche .retro {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .retro ul {
   display: grid;
-  gap: 4px;
+  gap: var(--pas-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4246,7 +4117,7 @@ main > header,
 #fiche .retro li {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--pas-3);
   min-width: 0;
 }
 #fiche .retro li > .survol {
@@ -4254,7 +4125,7 @@ main > header,
 }
 #fiche .retro .id {
   flex: none;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #fiche .retro .texte {
@@ -4264,7 +4135,7 @@ main > header,
 }
 #fiche .retro .reprise {
   flex: none;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-style: italic;
   color: var(--discret);
 }
@@ -4273,13 +4144,13 @@ main > header,
 #fiche .gestes-fiche {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .gestes-fiche ul {
   display: flex;
   flex-flow: row wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4288,7 +4159,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 /* L'issue, repliée d'un clic sous les gestes : son titre est celui du pli. */
 #fiche details.issue-repliee > summary {
@@ -4303,7 +4174,7 @@ main > header,
 }
 #fiche .prix {
   color: var(--discret);
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 #fiche .gestes-fiche button.mono {
   overflow-wrap: anywhere;
@@ -4324,8 +4195,8 @@ main > header,
   display: flex;
   flex-direction: column;
   align-self: stretch;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-3);
   background: var(--carte);
   border-left: 4px solid var(--accent);
 }
@@ -4344,16 +4215,16 @@ main > header,
 #fiche .question .depuis {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
   margin: 0;
-  padding: 0 0 0 10px;
+  padding: 0 0 0 var(--pas-3);
   list-style: none;
   border-left: 1px solid var(--trait);
 }
 #fiche .question .reponse {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .question .reponse:empty {
   display: none;
@@ -4364,14 +4235,14 @@ main > header,
 #fiche .question .phrase {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .question textarea {
   flex: 1;
   min-width: 0;
-  padding: 4px 8px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -4402,18 +4273,18 @@ main > header,
   display: flex;
   flex-direction: column;
   align-self: stretch;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #fiche .discussion > ol {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--pas-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 #fiche .discussion > ol > li {
-  padding: 6px 0 6px 10px;
+  padding: var(--pas-2) 0 var(--pas-2) var(--pas-3);
   border-left: 2px solid var(--trait);
 }
 #fiche .discussion > ol > li.corps {
@@ -4423,9 +4294,9 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
-  gap: 0 6px;
+  gap: 0 var(--pas-2);
   color: var(--discret);
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 #fiche .discussion > ol > li > header strong {
   color: var(--texte);
@@ -4433,35 +4304,35 @@ main > header,
 #fiche .rendu {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
+  gap: var(--pas-2);
+  margin-top: var(--pas-1);
   line-height: 1.45;
 }
 #fiche .rendu :is(h1, h2, h3, h4, h5, h6) {
-  margin: 4px 0 0;
+  margin: var(--pas-1) 0 0;
   font-weight: 600;
   line-height: 1.3;
 }
 #fiche .rendu h1 {
-  font-size: 17px;
+  font-size: var(--taille-intertitre);
 }
 #fiche .rendu h2 {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
 }
 #fiche .rendu :is(h3, h4, h5, h6) {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
 }
 #fiche .rendu :is(p, ul, ol, blockquote, table, details) {
   margin: 0;
 }
 #fiche .rendu :is(ul, ol) {
-  padding-left: 20px;
+  padding-left: var(--pas-5);
 }
 #fiche .rendu li > p + :is(ul, ol, p) {
-  margin-top: 2px;
+  margin-top: var(--pas-1);
 }
 #fiche .rendu blockquote {
-  padding-left: 10px;
+  padding-left: var(--pas-3);
   color: var(--texte-doux);
   border-left: 3px solid var(--trait-fort);
 }
@@ -4469,7 +4340,7 @@ main > header,
   border-collapse: collapse;
 }
 #fiche .rendu :is(th, td) {
-  padding: 2px 8px;
+  padding: var(--pas-1) var(--pas-2);
   text-align: left;
   border: 1px solid var(--trait);
 }
@@ -4490,14 +4361,14 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #fiche .discussion textarea {
   flex: 1 1 100%;
   min-width: 0;
-  padding: 4px 8px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -4529,23 +4400,23 @@ main > header,
 #rail .bon .gestes {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding-top: 4px;
+  gap: var(--pas-1);
+  padding-top: var(--pas-1);
   border-top: 1px dashed var(--bon-trait);
 }
 #rail .bon form.attente {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-top: 4px;
-  font-size: 11px;
+  gap: var(--pas-1);
+  padding-top: var(--pas-1);
+  font-size: var(--taille-meta);
   border-top: 1px dashed var(--bon-trait);
   cursor: auto;
 }
 #rail .bon form.attente label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--pas-1);
 }
 #rail .bon form.attente input {
   min-width: 0;
@@ -4558,7 +4429,7 @@ main > header,
    une ligne — en route, posté (le commentaire au survol), ou ce qui l'a refusé, en rouge. */
 #rail .bon p.arrivee {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--taille-meta);
   color: var(--bon-discret);
   border-top: 0;
 }
@@ -4572,10 +4443,10 @@ main > header,
   flex: 1 1 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
   min-width: 0;
-  margin: 4px 0;
-  padding: 8px 10px;
+  margin: var(--pas-1) 0;
+  padding: var(--pas-2) var(--pas-3);
   color: var(--texte);
   background: var(--bandeau);
   border-left: 4px solid var(--jaune);
@@ -4642,13 +4513,13 @@ main > header,
   outline-offset: -2px;
 }
 #alertes .urgent {
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--fond);
   background: var(--rouge);
-  border-radius: 3px;
+  border-radius: 0;
 }
 #alertes .alerte[data-verifie="non"] {
   border-left-style: dotted;
@@ -4656,10 +4527,10 @@ main > header,
 #alertes .alerte > .ligne {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
   min-height: 36px;
   margin: 0;
-  padding: 4px 16px;
+  padding: var(--pas-1) var(--pas-4);
 }
 #alertes .ligne > strong {
   flex: 1 1 auto;
@@ -4670,27 +4541,27 @@ main > header,
 }
 /* « detail » : un mot discret, pas un geste — le contrôle de la ligne reste le seul bouton marqué. */
 #alertes .alerte > .detail {
-  padding: 0 16px 8px 34px;
+  padding: 0 var(--pas-4) var(--pas-2) var(--pas-6);
   color: var(--texte-doux);
 }
 #alertes .alerte > .detail > p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--pas-1);
 }
 #alertes .alerte > .detail pre {
-  margin: 0 0 4px;
+  margin: 0 0 var(--pas-1);
   overflow-x: auto;
 }
 #alertes .alerte > .consignes {
   margin: 0;
-  padding: 0 16px 8px 34px;
+  padding: 0 var(--pas-4) var(--pas-2) var(--pas-6);
   color: var(--texte-doux);
 }
 #alertes .alerte > .confirmation {
-  margin: 0 16px 8px;
+  margin: 0 var(--pas-4) var(--pas-2);
 }
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {
-  padding: 8px 0 0;
+  padding: var(--pas-2) 0 0;
   color: var(--rouge-clair);
   background: var(--bandeau);
   border-bottom: 1px solid var(--rouge);
@@ -4699,7 +4570,7 @@ main > header,
 #arret > p:not(.gestes) {
   display: block;
   margin: 0;
-  padding: 0 16px 4px;
+  padding: 0 var(--pas-4) var(--pas-1);
 }
 #arret > p:not(.gestes) {
   color: var(--texte);
@@ -4718,7 +4589,7 @@ main > header,
   z-index: 10;
   max-width: 28em;
   width: max-content;
-  padding: 6px 10px;
+  padding: var(--pas-2) var(--pas-3);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
   background: var(--carte);
@@ -4730,7 +4601,7 @@ main > header,
 }
 .action {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--pas-2);
   align-items: center;
 }
 /* L'étape « station » du parcours d'ajout (ticket 2477, parcours-projet/etape-station.js) : la question en tête, cet
@@ -4739,7 +4610,7 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 .etape-station > p {
   margin: 0;
@@ -4748,14 +4619,14 @@ main > header,
   display: none;
 }
 .etape-station .attendu {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
 }
 .etape-station .ici,
 .etape-station .station {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 .etape-station .aide,
 .etape-station .autres,
@@ -4766,7 +4637,7 @@ main > header,
 .etape-station .stations {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4786,19 +4657,19 @@ main > header,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 .etape-recap > p {
   margin: 0;
 }
 .etape-recap .attendu {
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
 }
 .etape-recap .ligne-recap {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 .etape-recap .etiquette {
   color: var(--discret);
@@ -4808,17 +4679,17 @@ main > header,
 }
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
-  margin: 14px 0 0;
+  margin: var(--pas-4) 0 0;
 }
 .chers-cout h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 .chers-cout .chers {
   display: grid;
-  gap: 4px;
+  gap: var(--pas-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4827,10 +4698,10 @@ main > header,
   display: grid;
   grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 6em;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
   width: 100%;
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: var(--pas-2) var(--pas-4);
+  font-size: var(--taille-corps);
   text-align: left;
   color: var(--texte-doux);
   background: var(--carte);
@@ -4863,36 +4734,31 @@ main > header,
 }
 /* Les tokens perdus — de la page des coûts, ou du projet sous sa fiabilité : un chiffre, et derrière lui la liste des cooks perdus. */
 .perdus-cout {
-  margin: 14px 0 0;
+  margin: var(--pas-4) 0 0;
 }
 .perdus-cout h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
-.perdus-cout .perdus-total {
+/* Le chiffre : seul, un paragraphe ; avec des lignes à déplier, le `span` d'un bouton discret de la famille. */
+.perdus-cout p.perdus-total,
+.perdus-cout .perdus-total > .chiffre-perdu {
   margin: 0;
-  padding: 0;
-  font-size: 22px;
+  font-size: var(--taille-titre);
   font-variant-numeric: tabular-nums;
-  text-align: left;
   color: var(--texte);
-  background: none;
-  border: 0;
 }
-.perdus-cout button.perdus-total {
-  cursor: pointer;
-  border-bottom: 1px dashed var(--trait-fort);
-}
-.perdus-cout .perdus-total.sans {
-  font-size: 14px;
+.perdus-cout p.perdus-total.sans,
+.perdus-cout .perdus-total.sans > .chiffre-perdu {
+  font-size: var(--taille-intertitre);
   color: var(--discret);
 }
 .perdus-cout .perdus {
   display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
+  gap: var(--pas-1);
+  margin: var(--pas-2) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -4900,9 +4766,9 @@ main > header,
   display: grid;
   grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 8em;
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px;
-  font-size: 12px;
+  gap: var(--pas-3);
+  padding: var(--pas-2) var(--pas-4);
+  font-size: var(--taille-corps);
   color: var(--texte-doux);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
@@ -4937,7 +4803,7 @@ main > header,
   color: var(--discret);
 }
 .perdus-cout .perdus-fermer {
-  margin: 8px 0 0;
+  margin: var(--pas-2) 0 0;
 }
 /* Un dépassement de seuil (#912), sur la page des coûts comme sur celle du projet : le ticket le plus cher ou le chiffre perdu passe en rouge, avec sa ligne de geste dessous. */
 .chers-cout .ticket-cher.depasse {
@@ -4948,16 +4814,14 @@ main > header,
   color: var(--rouge-clair);
   font-weight: 600;
 }
-.perdus-cout .perdus-total.depasse {
+.perdus-cout p.perdus-total.depasse,
+.perdus-cout .perdus-total.depasse > .chiffre-perdu {
   color: var(--rouge-clair);
 }
-.perdus-cout button.perdus-total.depasse {
-  border-bottom-color: var(--rouge);
-}
 .alerte-cout {
-  margin: 8px 0 0;
-  padding: 0 0 0 10px;
-  font-size: 12px;
+  margin: var(--pas-2) 0 0;
+  padding: 0 0 0 var(--pas-3);
+  font-size: var(--taille-corps);
   color: var(--rouge-clair);
   border-left: 3px solid var(--rouge);
 }
@@ -4966,397 +4830,96 @@ main > header,
   border-left-color: var(--trait-fort);
 }
 .alerte-cout .alerte-geste {
-  margin: 0 0 0 10px;
-}
-/* La fiabilité des cooks du projet (#987), section de Cooks sous ses tickets (#1699) — trois chiffres face à leurs
-   seuils, puis les causes d'échec qui reviennent le plus. Un chiffre au-delà de son seuil passe en rouge, comme pour
-   ses coûts. Et son closer (#990), sous ses gates : un bloc comme les autres de Cooks. */
-#fiabilite-du-projet:empty,
-#closer-du-projet:empty {
-  display: none;
-}
-#rail :is(#fiabilite-du-projet, #closer-du-projet) {
-  margin: 12px 16px 0;
-  padding: 8px 16px 12px;
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-/* Les titres du rail (#rail h3, #rail h4) n'ont pas cours dans ces sections : leurs chiffres ont les leurs. */
-#rail :is(#fiabilite-du-projet, #closer-du-projet) h3 {
-  padding: 0;
-}
-#rail :is(#fiabilite-du-projet, #closer-du-projet) h4 {
-  justify-content: flex-start;
-  position: static;
-  padding: 0;
-  background: none;
-}
-#rail .tete-fiabilite h2,
-#rail .causes-fiabilite h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .tete-fiabilite .chiffres {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-#rail .tete-fiabilite .chiffre {
-  min-width: 0;
-  padding: 12px 14px;
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .tete-fiabilite .chiffre h3 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .tete-fiabilite .total {
-  margin: 2px 0 6px;
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.25;
-  font-variant-numeric: tabular-nums;
-  color: var(--texte);
-}
-#rail .tete-fiabilite .seuil {
-  margin: 0;
-  font-size: 12px;
-  color: var(--discret);
-}
-#rail .tete-fiabilite .chiffre.depasse {
-  border-color: var(--rouge);
-}
-#rail .tete-fiabilite .chiffre.depasse :is(.total, .seuil) {
-  color: var(--rouge-clair);
-}
-#rail .tete-fiabilite .portee,
-#rail .causes-fiabilite .portee {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--discret);
-}
-#rail .tete-fiabilite :is(.sans, .pas-assez),
-#rail .causes-fiabilite .sans {
-  margin: 0;
-  font-size: 14px;
-  color: var(--discret);
-}
-#rail .causes-fiabilite {
-  margin: 14px 0 0;
-}
-#rail .causes-fiabilite .causes {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .causes-fiabilite .causes li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 7em 3.5em auto;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: var(--texte-doux);
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .causes-fiabilite .titre {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--texte);
-}
-#rail .causes-fiabilite :is(.essais, .part) {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-#rail .causes-fiabilite .part {
-  color: var(--discret);
-}
-#rail .causes-fiabilite .tickets {
-  display: flex;
-  gap: 6px;
-}
-/* Sous les causes corrigées, ce que les cooks ont appris au projet (ticket 1058) : ses leçons, une ligne
-   chacune — son statut en pastille, promue dans le ton de l'accent, son texte, puis sa date, ses tickets, ses
-   cooks et, promue, le lien vers sa ligne du carnet —, et ses profils, leur domaine, leur carnet et leurs
-   tickets. Sans rien d'appris, une phrase discrète. */
-.apprentissage-fiabilite {
-  margin: 14px 0 0;
-}
-.apprentissage-fiabilite h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-}
-/* Sur Cooks (ticket 1273), à la marge des autres blocs de l'onglet. */
-#appris-du-projet:empty {
-  display: none;
-}
-#rail .apprentissage-fiabilite {
-  margin: 12px 16px 0;
-}
-.apprentissage-fiabilite .rien-appris {
-  margin: 0;
-  font-size: 14px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .partie + .partie {
-  margin: 12px 0 0;
-}
-.apprentissage-fiabilite h3 {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--texte-doux);
-}
-.apprentissage-fiabilite .sans {
-  margin: 0;
-  font-size: 12px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite ol {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.apprentissage-fiabilite :is(.lecon, .profil-appris) {
-  padding: 10px 14px;
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-.apprentissage-fiabilite .profil-appris .contenu {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-  font-size: 12px;
-}
-.apprentissage-fiabilite .profil-appris .ligne-contenu {
-  display: flex;
-  margin: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-  color: var(--texte-doux);
-}
-.apprentissage-fiabilite .profil-appris .libelle {
-  min-width: 72px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .profil-appris .contenu .mono {
-  color: var(--texte);
-}
-.apprentissage-fiabilite .profil-appris .aucune {
-  color: var(--discret);
-}
-.apprentissage-fiabilite .tete-lecon {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-}
-.apprentissage-fiabilite .tete-lecon > .survol {
-  flex: none;
-}
-.apprentissage-fiabilite .statut,
-#fiche .retro .statut {
-  padding: 1px 8px;
-  cursor: help;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
-}
-.apprentissage-fiabilite .lecon.promue .statut {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.apprentissage-fiabilite .id {
-  flex: none;
-  font-size: 12px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .texte {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  color: var(--texte);
-}
-.apprentissage-fiabilite .nom {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--texte);
-}
-.apprentissage-fiabilite .domaine {
-  font-size: 12px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .domaine code {
-  color: var(--texte-doux);
-}
-.apprentissage-fiabilite .details {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .tickets {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.apprentissage-fiabilite .lien {
-  margin-left: auto;
-  padding: 2px 10px;
-  font-size: 12px;
-  color: var(--texte);
-  background: var(--bouton);
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
-  cursor: pointer;
-}
-.apprentissage-fiabilite .lien:disabled {
-  color: var(--discret);
-  cursor: default;
-}
-.apprentissage-fiabilite .carnet {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .carnet .libelle {
-  margin-right: 6px;
-}
-.apprentissage-fiabilite .carnet ul {
-  display: grid;
-  gap: 2px;
-  margin: 4px 0 0;
-  padding: 0 0 0 12px;
-  list-style: none;
-  border-left: 2px solid var(--trait);
-}
-.apprentissage-fiabilite .carnet li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  color: var(--texte-doux);
-}
-.apprentissage-fiabilite .carnet li.sortie {
-  color: var(--discret);
-}
-.apprentissage-fiabilite .carnet .etat {
-  font-style: italic;
-}
-.apprentissage-fiabilite .aucun {
-  color: var(--discret);
+  margin: 0 0 0 var(--pas-3);
 }
 /* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
    ou, sans closer réglé, le message, et le modèle et l'effort à choisir devant le bouton qui les écrit.
    Les mêmes chiffres que la fiabilité, à côté d'elle sur Cooks (#1699). */
 #rail .tete-closer h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 #rail .tete-closer .calibrage {
-  margin: 0 0 0 6px;
+  margin: 0 0 0 var(--pas-2);
   font-weight: 400;
 }
 #rail .tete-closer .chiffres {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--pas-3);
 }
 #rail .tete-closer .chiffre {
   min-width: 0;
-  padding: 12px 14px;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
 #rail .tete-closer .chiffre h3 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 #rail .tete-closer .total {
-  margin: 2px 0 6px;
-  font-size: 26px;
+  margin: var(--pas-1) 0 var(--pas-2);
+  font-size: var(--taille-chiffre);
   font-weight: 700;
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
 #rail .tete-closer .total.sans {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   font-weight: 400;
   color: var(--discret);
 }
 #rail .tete-closer .precise {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-variant-numeric: tabular-nums;
   color: var(--discret);
 }
 #rail .tete-closer :is(.sans, .indisponible) {
-  margin: 8px 0 0;
-  font-size: 14px;
+  margin: var(--pas-2) 0 0;
+  font-size: var(--taille-intertitre);
 }
 #rail .tete-closer .attendu {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
   color: var(--texte);
 }
 #rail .tete-closer .reglage-closer {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--pas-2);
   align-items: center;
-  margin: 10px 0 0;
+  margin: var(--pas-3) 0 0;
 }
 /* Tant que le modèle et l'effort ne sont pas choisis tous deux, le bouton n'agit pas, et le montre. */
 #rail .tete-closer .reglage-closer select {
-  padding: 3px 8px;
-  font-size: 12px;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--bouton);
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
 #rail .closer-trouvailles {
-  margin: 14px 0 0;
+  margin: var(--pas-4) 0 0;
 }
 #rail .closer-trouvailles .sans {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   color: var(--discret);
 }
 #rail .closer-trouvailles .trouvailles {
   display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
+  gap: var(--pas-1);
+  margin: var(--pas-2) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -5364,9 +4927,9 @@ main > header,
   display: grid;
   grid-template-columns: 3em minmax(0, 1fr) minmax(0, 1.4fr);
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px;
-  font-size: 12px;
+  gap: var(--pas-3);
+  padding: var(--pas-2) var(--pas-4);
+  font-size: var(--taille-corps);
   color: var(--texte-doux);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
@@ -5386,49 +4949,24 @@ main > header,
 #rail .closer-lancement {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: var(--pas-2) var(--pas-3);
   align-items: center;
-  margin: 14px 0 0;
+  margin: var(--pas-4) 0 0;
 }
 #rail .closer-lancement:empty {
   display: none;
 }
-/* La proposition de la dérive franchie (#993), en tête de la place : une phrase, et le bouton qui mène à
-   la même confirmation que « Launch a cleanup… » — elle ne lance rien. */
-#rail .closer-derive {
-  display: flex;
-  flex-basis: 100%;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  align-items: center;
-}
-#rail .closer-derive .attendu {
-  margin: 0;
-  font-size: 14px;
-  color: var(--texte);
-}
 #rail .closer-lancement .etat {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--pas-2);
   align-items: center;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   color: var(--texte);
 }
 #rail .closer-lancement .etat.retenue {
-  padding-left: 8px;
+  padding-left: var(--pas-2);
   border-left: 3px solid var(--jaune);
-}
-#rail .closer-lancement .etat.cours {
-  padding-left: 8px;
-  border-left: 3px solid var(--vert);
-}
-#rail .closer-lancement .etat.refusee {
-  padding-left: 8px;
-  border-left: 3px solid var(--rouge);
-}
-#rail .closer-lancement .etat:is(.sans, .finie, .indisponible) {
-  color: var(--discret);
 }
 #rail .closer-lancement .confirmation {
   margin: 0;
@@ -5437,119 +4975,9 @@ main > header,
   margin: 0;
   font-weight: 600;
 }
-#rail .closer-lancement .confirmation .reponses {
-  display: flex;
-  gap: 8px;
-  margin: 4px 0 0;
-}
-/* Le bilan de la dernière passe finie (ticket 992), sous le lancement : ce qu'elle a retiré, une ligne par
-   candidat, et la PR qu'elle a ouverte, en lien. Vide, la place ne prend rien. */
-#rail .closer-bilan {
-  margin: 14px 0 0;
-}
-#rail .closer-bilan:empty {
-  display: none;
-}
-#rail .closer-bilan .bilan h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
-}
-#rail .closer-bilan .bilan h4 {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--texte-doux);
-}
-#rail .closer-bilan .sans {
-  margin: 4px 0 0;
-  font-size: 14px;
-  color: var(--discret);
-}
-#rail .closer-bilan .retraits {
-  display: grid;
-  gap: 4px;
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .closer-bilan .retraits li {
-  display: grid;
-  grid-template-columns: 3em minmax(0, 1fr);
-  gap: 10px;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: var(--texte-doux);
-  background: var(--carte);
-  border-radius: var(--rayon-bouton);
-}
-#rail .closer-bilan .retraits .nom {
-  color: var(--texte);
-}
-#rail .closer-bilan .retraits .quoi {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-#rail .closer-bilan .bilan-pr {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: var(--texte);
-}
-#rail .closer-bilan .bilan-pr a {
-  color: var(--accent);
-  cursor: pointer;
-  text-decoration: underline;
-}
-#rail .closer-lancement .confirmation .fera .quoi {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .closer-lancement .confirmation .fera ul {
-  margin: 4px 0 0;
-  padding-left: 18px;
-  font-size: 13px;
-  color: var(--texte-doux);
-}
 #rail .closer-lancement .confirmation .maintenant {
   margin: 0;
-  font-size: 13px;
-}
-#rail .closer-lancement .confirmation .maintenant.ferme {
-  color: var(--rouge-clair);
-}
-.apprentissage-fiabilite .progres {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
-  font-size: 12px;
-}
-.apprentissage-fiabilite .mesure {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 16px;
-  margin: 0;
-  color: var(--discret);
-}
-.apprentissage-fiabilite .mesure .libelle {
-  min-width: 150px;
-}
-.apprentissage-fiabilite .cote {
-  display: inline-flex;
-  gap: 6px;
-}
-.apprentissage-fiabilite .cote .valeur {
-  color: var(--texte-doux);
-}
-.apprentissage-fiabilite .cote.absent .valeur {
-  color: var(--discret);
-  font-style: italic;
+  font-size: var(--taille-corps);
 }
 /* Un écran étroit — le téléphone (ticket 1186) : trois colonnes n'y tiennent pas. La barre passe en haut, en une rangée
    qui défile ; la page du projet prend toute la largeur, et le second, quand son onglet est ouvert, prend la place du
@@ -5558,8 +4986,8 @@ main > header,
 @media (max-width: 720px) {
   /* Settings (ticket 1700) : les groupes serrés, et le nom, la valeur et le contrôle d'un réglage l'un sous l'autre. */
   #etat > .groupe {
-    margin: 8px 8px 0;
-    padding: 8px 12px 2px;
+    margin: var(--pas-2) var(--pas-2) 0;
+    padding: var(--pas-2) var(--pas-3) var(--pas-1);
   }
   #etat .groupe > :is(div, section) > .reglage,
   #etat .reglages-du-projet .reglage,
@@ -5577,7 +5005,7 @@ main > header,
   #projets {
     flex: none;
     flex-direction: row;
-    padding: 8px 12px;
+    padding: var(--pas-2) var(--pas-3);
     overflow-x: auto;
     overflow-y: hidden;
     border-right: 0;
@@ -5642,9 +5070,9 @@ main > header,
 #nouvelle-version .bandeau-mise-a-jour {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
   min-height: 32px;
-  padding: 4px 8px 4px 12px;
+  padding: var(--pas-1) var(--pas-2) var(--pas-1) var(--pas-3);
   border-left: 3px solid var(--accent);
 }
 #nouvelle-version .phrase {
@@ -5669,21 +5097,21 @@ main > header,
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px 16px;
+  padding: var(--pas-5) var(--pas-4);
 }
 #connexion-github.fait {
   flex: none;
-  padding: 8px 12px;
+  padding: var(--pas-2) var(--pas-3);
   background: var(--bandeau);
   border-bottom: 1px solid var(--trait);
 }
 #connexion-github .connexion-github {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   max-width: 604px;
   margin: 0 auto;
-  padding: 20px 22px;
+  padding: var(--pas-5) var(--pas-5);
   background: var(--carte);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -5691,8 +5119,8 @@ main > header,
 #connexion-github h2 {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 18px;
+  gap: var(--pas-2);
+  font-size: var(--taille-titre);
   font-weight: 700;
 }
 #connexion-github p {
@@ -5704,20 +5132,20 @@ main > header,
 #connexion-github .suite-de-connexion {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
+  gap: var(--pas-3);
+  margin-top: var(--pas-3);
 }
 #connexion-github .gestes {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--pas-3);
   padding: 0;
 }
 #connexion-github .code-de-connexion {
   color: var(--texte-doux);
 }
 #connexion-github .code-de-connexion strong {
-  font-size: 18px;
+  font-size: var(--taille-titre);
   letter-spacing: 0.06em;
   color: var(--texte);
 }
@@ -5726,7 +5154,7 @@ main > header,
 }
 #connexion-github .refus .survol,
 #connexion-github .connecte .survol {
-  margin-left: 6px;
+  margin-left: var(--pas-2);
   vertical-align: middle;
 }
 /* Le plafond du projet sous une ligne de station de Cooks (ticket 1292). */
@@ -5739,86 +5167,34 @@ main > header,
 .station-de-cuisson .regle-le-plafond-de-station {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--pas-2);
   align-items: center;
 }
 .station-de-cuisson .regle-le-plafond-de-station input {
   width: 8em;
 }
 
-/* Sur Cooks, le budget des appels GitHub du projet (budget-appels.js). */
-#gates-du-projet:empty {
-  display: none;
-}
-/* Le triage, jour par jour (ticket 1283), en tête de la file : une ligne par jour, le plus récent d'abord, les deux
-   comptes côte à côte pour qu'un jour se lise contre le suivant. Compact : il ne prend que sa hauteur de lignes. */
-#rail .triage {
-  margin: 8px 16px 0;
-  padding: 8px 12px;
-  background: var(--case);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .triage h4 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .triage ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .triage li {
-  display: grid;
-  grid-template-columns: 6em repeat(2, 12em);
-  align-items: baseline;
-  gap: 8px;
-  padding: 2px 0;
-  font-size: 12px;
-  color: var(--texte-doux);
-}
-#rail .triage .jour-triage {
-  color: var(--discret);
-}
-#rail .triage .compte-triage {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-#rail .triage .chiffre {
-  min-width: 2ch;
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--texte);
-  text-align: right;
-}
 /* Le rail qu'une station publie sur GitHub, sur un ordinateur qui ne sert pas le projet (ticket 1435) : sa phrase de tête,
    à hauteur de texte — d'où il vient, ou pourquoi il ne se lit pas —, ses gestes dessous, puis les colonnes du rail. */
 #rail > h3.attendu {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
   color: var(--texte);
 }
 #rail > h3.attendu .survol {
-  margin-left: 6px;
+  margin-left: var(--pas-2);
 }
 #rail > .gestes {
-  gap: 8px;
-  padding: 10px 16px 0;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4) 0;
 }
 /* Sur le téléphone, la file que la station n'a pas rendue (ticket 1414) : ce qui a été obtenu, en une ligne sous le titre. */
 #rail > .indisponible {
-  padding: 4px 16px 0;
+  padding: var(--pas-1) var(--pas-4) 0;
 }
 #rail > .code-de-connexion,
 #rail > .refus {
-  padding: 8px 16px 0;
+  padding: var(--pas-2) var(--pas-4) 0;
 }
 #rail > .refus {
   color: var(--rouge-clair);
@@ -5829,7 +5205,7 @@ main > header,
 /* Le second qui ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque — son
    nom, ce qui l'obtient, le bouton de sa page —, et « try again ». Empêché, il tient la place du terminal. */
 #outils-du-second {
-  padding: 10px 16px;
+  padding: var(--pas-3) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
   overflow-y: auto;
   user-select: text;
@@ -5844,30 +5220,30 @@ main > header,
 .outils-du-second ul {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--pas-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .outils-du-second > p {
-  margin: 0 0 10px;
+  margin: 0 0 var(--pas-3);
   color: var(--texte-doux);
 }
 .outil-manquant {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
 }
 .outil-manquant strong {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
   color: var(--texte);
 }
 .outils-du-second .gestes {
-  padding: 14px 0 0;
+  padding: var(--pas-4) 0 0;
 }
 .outil-manquant .gestes {
-  gap: 8px;
+  gap: var(--pas-2);
   padding: 0;
 }
 /* Les choix du second, sous son terminal (ticket 1520) : ce qu'on attend du chef, puis un bouton par choix — sa valeur,
@@ -5875,7 +5251,7 @@ main > header,
 #choix-du-second {
   max-height: 40%;
   overflow-y: auto;
-  padding: 10px 16px 12px;
+  padding: var(--pas-3) var(--pas-4) var(--pas-3);
   border-top: 1px solid var(--trait);
   user-select: none;
 }
@@ -5883,15 +5259,15 @@ main > header,
 .geste-du-second .attendu {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 8px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-2);
   font-weight: 600;
   color: var(--texte);
 }
 .choix-du-second ul {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -5900,7 +5276,7 @@ main > header,
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
   width: 100%;
   text-align: left;
 }
@@ -5928,7 +5304,7 @@ main > header,
   text-align: left;
 }
 .geste-du-second .commande {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   white-space: pre-wrap;
 }
 .geste-du-second .commande .mot {
@@ -5937,7 +5313,7 @@ main > header,
   overflow-wrap: anywhere;
 }
 .geste-du-second .confirmation {
-  margin: 8px 0 0;
+  margin: var(--pas-2) 0 0;
 }
 .geste-du-second .confirmation > p.titre {
   font-weight: 600;
@@ -5946,7 +5322,7 @@ main > header,
   cursor: pointer;
 }
 .geste-du-second .replie > summary .resume {
-  margin-left: 8px;
+  margin-left: var(--pas-2);
   color: var(--discret);
 }
 .geste-du-second .confirmation > button {
@@ -5956,10 +5332,10 @@ main > header,
    elle vient, son champ et « propose » —, puis ce que le dernier clic a rendu, à côté du champ. Sur Cooks, le plafond
    de calibrage est la même rangée, sous sa ligne repliée. */
 #reglages-du-projet {
-  margin: 12px 16px 0;
+  margin: var(--pas-3) var(--pas-4) 0;
 }
 .reglages-du-projet {
-  padding: 10px 16px;
+  padding: var(--pas-3) var(--pas-4);
   background: var(--carte);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -5967,16 +5343,16 @@ main > header,
 .reglages-du-projet h3 {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 6px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-2);
   font-weight: 600;
 }
 .reglages-du-projet .reglage {
   display: grid;
   grid-template-columns: 220px 220px 1fr;
   align-items: center;
-  gap: 2px 12px;
-  padding: 6px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
 }
 .reglages-du-projet .reglage + .reglage {
   border-top: 1px solid var(--trait-doux);
@@ -5988,14 +5364,14 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   margin: 0;
 }
 .reglages-du-projet .valeur strong {
   font-weight: 600;
 }
 .reglages-du-projet .valeur small {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .reglages-du-projet .champ input[type="text"] {
@@ -6007,38 +5383,21 @@ main > header,
 .reglages-du-projet .reglage p.dit {
   display: block;
   grid-column: 2 / -1;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .reglages-du-projet .reglage p.dit.refus {
   color: var(--jaune);
 }
 .reglages-du-projet .dit > span + * {
-  margin-left: 8px;
+  margin-left: var(--pas-2);
 }
-/* Sur Cooks, sous sa ligne repliée, le plafond n'a ni second cadre ni second nom : sa ligne le porte. */
-#rail .plafond-de-calibrage.reglages-du-projet {
-  border: 0;
-  background: none;
-  margin: 0;
-  padding: 0;
-}
-#rail .plafond-de-calibrage .reglage {
-  grid-template-columns: 220px 1fr;
-}
-#rail .plafond-de-calibrage .reglage .nom {
-  display: none;
-}
-#rail .plafond-de-calibrage .reglage p.dit {
-  grid-column: 1 / -1;
-}
-
 /* Le niveau d'un réglage (ticket 1310) : une petite étiquette à côté de son nom — project, this machine ou you. */
 .niveau {
   display: inline-block;
-  margin-left: 8px;
-  padding: 0 6px;
-  font-size: 11px;
+  margin-left: var(--pas-2);
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
   font-weight: 500;
   line-height: 16px;
   color: var(--discret);
@@ -6051,7 +5410,7 @@ main > header,
 .premier-lancement .formulaire-du-premier {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 .premier-lancement .formulaire-du-premier label {
   color: var(--texte-doux);
@@ -6061,8 +5420,8 @@ main > header,
   color: var(--rouge-clair);
 }
 .premier-lancement .formulaire-du-premier input {
-  padding: 7px 10px;
-  font-size: 13px;
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -6078,30 +5437,30 @@ main > header,
 #toutes-les-stations .stations-du-compte {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-top: 2px;
+  gap: var(--pas-1);
+  padding-top: var(--pas-1);
 }
 #toutes-les-stations .stations-du-compte[hidden] {
   display: none;
 }
 #toutes-les-stations .stations-du-compte > p {
   margin: 0;
-  padding: 4px 12px;
+  padding: var(--pas-1) var(--pas-3);
   color: var(--texte-doux);
 }
 #toutes-les-stations .stations-du-compte > p.indisponible {
   color: var(--discret);
 }
 #toutes-les-stations .stations-du-compte .attendu .survol {
-  margin-left: 6px;
+  margin-left: var(--pas-2);
 }
 #station .projets-de-la-station {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   min-width: 0;
-  margin: 2px 12px 10px;
-  padding: 10px 14px;
+  margin: var(--pas-1) var(--pas-3) var(--pas-3);
+  padding: var(--pas-3) var(--pas-4);
   background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -6114,20 +5473,20 @@ main > header,
 }
 #station .projets-de-la-station p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #station .projets-de-la-station .capacites {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #station .projets-de-la-station .capacite {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  font-size: 13px;
+  gap: var(--pas-3);
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   background: var(--case);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
@@ -6146,25 +5505,21 @@ main > header,
 #station .projets-de-la-station .capacite small {
   min-width: 0;
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
   overflow-wrap: anywhere;
-}
-#station .projets-de-la-station .capacite.refusee small,
-#station .projets-de-la-station p.refus {
-  color: var(--rouge-clair);
 }
 /* Sous les projets du chef, le champ qui cherche parmi les autres dépôts du compte (ticket 1780), et ce qu'il trouve :
    une rangée par dépôt, son nom et « add » — rien tant que le champ est vide. */
 #station .projets-de-la-station .recherche {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #station .projets-de-la-station .recherche input[type="search"] {
   max-width: 440px;
-  padding: 6px 10px;
-  font-size: 13px;
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -6176,14 +5531,14 @@ main > header,
 #station .projets-de-la-station .trouves {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-1);
   max-width: 440px;
 }
 #station .projets-de-la-station .trouve {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--pas-3);
   text-align: left;
 }
 #station .projets-de-la-station .trouve .ajouter {
@@ -6194,7 +5549,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
+  gap: var(--pas-1) var(--pas-3);
 }
 #toutes-les-stations .stations-du-compte .installer > span:first-child {
   flex: 0 0 11em;
@@ -6218,8 +5573,8 @@ main > header,
    où elle mène. Une station hors ligne se tient en retrait. */
 #toutes-les-stations .ligne {
   align-items: center;
-  gap: 14px;
-  padding: 11px 14px;
+  gap: var(--pas-4);
+  padding: var(--pas-3) var(--pas-4);
   cursor: pointer;
 }
 #toutes-les-stations .ligne strong {
@@ -6231,11 +5586,11 @@ main > header,
 }
 #toutes-les-stations .ligne span.pourquoi {
   flex: 0 1 16em;
-  font-size: 13px;
+  font-size: var(--taille-corps);
 }
 #toutes-les-stations .ligne span.ouvrir {
   flex: none;
-  font-size: 16px;
+  font-size: var(--taille-intertitre);
   line-height: 1;
 }
 #toutes-les-stations .ligne:hover .ouvrir {
@@ -6259,27 +5614,27 @@ main > header,
   position: static;
   flex: 0 0 19em;
   justify-content: flex-end;
-  padding-right: 8px;
+  padding-right: var(--pas-2);
   transform: none;
 }
 #toutes-les-stations .ajout-de-station {
-  margin: 8px 8px 4px;
+  margin: var(--pas-2) var(--pas-2) var(--pas-1);
 }
 /* Sans station : la phrase se lit d'abord, les deux commandes sont deux cartes alignées sur les mêmes colonnes. */
 #toutes-les-stations .stations-du-compte {
-  gap: 8px;
-  padding: 10px 14px 6px;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4) var(--pas-2);
 }
 #toutes-les-stations .stations-du-compte > p.attendu {
-  padding: 0 0 4px;
-  font-size: 15px;
+  padding: 0 0 var(--pas-1);
+  font-size: var(--taille-intertitre);
   color: var(--texte);
 }
 #toutes-les-stations .stations-du-compte .installer {
   flex-wrap: nowrap;
   align-items: center;
-  gap: 14px;
-  padding: 8px 12px;
+  gap: var(--pas-4);
+  padding: var(--pas-2) var(--pas-3);
   background: var(--fond);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-bouton);
@@ -6288,7 +5643,7 @@ main > header,
   flex: 0 0 11em;
 }
 #toutes-les-stations .stations-du-compte .installer code {
-  font-size: 12.5px;
+  font-size: var(--taille-corps);
 }
 #toutes-les-stations .stations-du-compte .gestes {
   padding-left: 0;
@@ -6299,29 +5654,29 @@ main > header,
   display: none;
 }
 #station header {
-  padding-bottom: 6px;
+  padding-bottom: var(--pas-2);
 }
 #station .projets-de-la-station {
-  margin: 8px 0 10px;
-  padding: 14px 16px;
-  gap: 12px;
+  margin: var(--pas-2) 0 var(--pas-3);
+  padding: var(--pas-4) var(--pas-4);
+  gap: var(--pas-3);
 }
 #station .projets-de-la-station legend {
-  font-size: 14px;
+  font-size: var(--taille-intertitre);
 }
 #station .projets-de-la-station .capacites {
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #station .projets-de-la-station .capacite {
-  padding: 9px 12px;
+  padding: var(--pas-2) var(--pas-3);
   overflow-wrap: anywhere;
 }
 #station .projets-de-la-station .capacite:has(input:checked) {
   border-color: var(--accent);
 }
 #station .projets-de-la-station .recherche {
-  padding-top: 10px;
+  padding-top: var(--pas-3);
   border-top: 1px solid var(--trait-doux);
 }
 /* « report to brigade », à la suite de chaque panne (ticket 1977) : un bouton discret — il ne passe
@@ -6330,7 +5685,7 @@ main > header,
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 .signaler .signaler-a-brigade {
   white-space: nowrap;
@@ -6338,13 +5693,13 @@ main > header,
 .signaler .signale,
 .signaler .indisponible {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--taille-meta);
   color: var(--discret);
 }
 /* Sur la carte, sur son papier clair, sous ce qu'elle dit. */
 #rail .bon .signaler {
   display: flex;
-  margin-top: 6px;
+  margin-top: var(--pas-2);
 }
 #rail .bon .signaler :is(.signale, .indisponible) {
   color: var(--bon-discret);
@@ -6354,67 +5709,15 @@ main > header,
   margin-left: auto;
 }
 
-/* Le budget d'appels GitHub de chaque projet (ticket 2197), sous les gates : par projet, les lectures puis les écritures
-   utilisées face à leur budget de l'heure. Un projet au-delà prend le bord rouge, la marque « over budget » et les
-   catégories qui ont consommé les appels ; en deçà, rien ne se signale. */
-.budget-des-appels {
-  margin: 8px 16px 0;
-  padding: 8px 12px;
-  background: var(--case);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-.budget-des-appels[data-hors-budget] {
-  border-color: var(--rouge);
-}
-.budget-des-appels h4 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--discret);
-}
-.budget-des-appels .budget-du-projet {
-  padding: 4px 0;
-  font-size: 12px;
-  color: var(--texte-doux);
-}
-.budget-des-appels .budget-du-projet[data-hors-budget] {
-  padding-left: 8px;
-  border-left: 3px solid var(--rouge);
-}
-.budget-des-appels .budget-du-projet strong {
-  color: var(--texte);
-}
-.budget-des-appels .budget-du-projet p {
-  margin: 2px 0 0;
-  font-variant-numeric: tabular-nums;
-}
-.budget-des-appels .budget-du-projet p[data-hors-budget] {
-  color: var(--rouge-clair);
-}
-.budget-des-appels .hors-budget {
-  padding: 1px 8px;
-  font-weight: 600;
-  color: var(--rouge-clair);
-  border: 1px solid var(--rouge);
-  border-radius: var(--rayon-bouton);
-}
-.budget-des-appels .categories-des-appels {
-  color: var(--discret);
-}
-
 /* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
    dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
 #toutes-les-stations .versions-des-stations {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 28px;
-  padding: 8px 14px;
-  font-size: 13px;
+  gap: var(--pas-2) var(--pas-6);
+  padding: var(--pas-2) var(--pas-4);
+  font-size: var(--taille-corps);
   color: var(--texte-doux);
 }
 #toutes-les-stations .versions-des-stations > .titre {
@@ -6424,7 +5727,7 @@ main > header,
 #toutes-les-stations .version-d-une-station {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #toutes-les-stations .version-d-une-station[data-ton="jaune"] .phrase {
   color: var(--jaune);
@@ -6432,7 +5735,7 @@ main > header,
 
 /* Les blocs de Stations, de Health et de Cooks (ticket 2485) : chacun son titre, en attendant son contenu. */
 .bloc-du-projet {
-  padding: 12px 16px;
+  padding: var(--pas-3) var(--pas-4);
   border-bottom: 1px solid var(--trait);
 }
 .bloc-du-projet:empty {
@@ -6440,51 +5743,18 @@ main > header,
 }
 .bloc-du-projet h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
 
-/* Kitchen > Cooks (ticket 2493) : le cahier de leçons du projet, en lecture seule — chaque entrée son identifiant, son texte, sa date. */
-[data-bloc="cahier"] {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-[data-bloc="cahier"] .cahier-vide {
-  color: var(--texte-doux);
-}
-[data-bloc="cahier"] .cahier-entrees {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-[data-bloc="cahier"] .cahier-entree {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-}
-[data-bloc="cahier"] .cahier-entree .id {
-  color: var(--discret);
-}
-[data-bloc="cahier"] .cahier-entree .texte {
-  flex: 1 1 24ch;
-}
-[data-bloc="cahier"] .cahier-entree .depuis {
-  color: var(--discret);
-}
-
-/* Kitchen > Health (ticket 2490) : le temps des tickets en détail, puis les plafonds de durée. Les couleurs sont celles
-   de la carte des temps de Cooks : le ticket en bleu, sa pass en jaune, le plafond et ce qui le passe en rouge. */
+/* Le bandeau de santé (ticket 2490, 2921) : le temps des tickets en détail, puis les plafonds de durée. Les couleurs sont celles
+   de l ancienne carte des temps : le ticket en bleu, sa pass en jaune, le plafond et ce qui le passe en rouge. */
 .bloc-du-projet h3,
 #rail .bloc-du-projet h3 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   padding: 0;
 }
 .bloc-du-projet[data-bloc="temps-tickets"],
@@ -6494,7 +5764,7 @@ main > header,
 .bloc-du-projet[data-bloc="de-tous-les-projets"] {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--pas-3);
 }
 .bloc-du-projet :is(p, table) {
   margin: 0;
@@ -6505,15 +5775,15 @@ main > header,
 [data-bloc="temps-tickets"] .temps-chiffres {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 32px;
+  gap: var(--pas-2) var(--pas-6);
 }
 [data-bloc="temps-tickets"] .temps-chiffre {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 [data-bloc="temps-tickets"] .temps-valeur {
-  font-size: 22px;
+  font-size: var(--taille-titre);
   font-weight: 400;
   color: var(--texte);
 }
@@ -6523,10 +5793,10 @@ main > header,
 [data-bloc="bloque-sans-question"] .sans-question-ligne {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 [data-bloc="bloque-sans-question"] .sans-question-valeur {
-  font-size: 22px;
+  font-size: var(--taille-titre);
   font-weight: 400;
   color: var(--texte);
 }
@@ -6536,7 +5806,7 @@ main > header,
 }
 [data-bloc="bloque-sans-question"][data-sans-question="alerte"] {
   border-left: 3px solid var(--rouge-clair);
-  padding-left: 10px;
+  padding-left: var(--pas-3);
 }
 [data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur,
 [data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-legende {
@@ -6554,15 +5824,15 @@ main > header,
 [data-bloc="temps-tickets"] .temps-courbe {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-1);
 }
 [data-bloc="temps-tickets"] .temps-colonnes {
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  gap: var(--pas-1);
   height: 120px;
-  padding: 0 2px;
+  padding: 0 var(--pas-1);
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
@@ -6576,15 +5846,15 @@ main > header,
 }
 [data-bloc="temps-tickets"] .temps-ticket-part {
   background: var(--bleu);
-  border-radius: 3px 3px 0 0;
+  border-radius: 0;
 }
 [data-bloc="temps-tickets"] .temps-pass-part {
   background: var(--jaune);
 }
 [data-bloc="temps-tickets"] :is(.temps-axe, .temps-cles) {
   display: flex;
-  gap: 16px;
-  font-size: 12px;
+  gap: var(--pas-4);
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 [data-bloc="temps-tickets"] .temps-axe {
@@ -6595,9 +5865,9 @@ main > header,
   display: inline-block;
   width: 10px;
   height: 10px;
-  margin-right: 6px;
+  margin-right: var(--pas-2);
   vertical-align: -1px;
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--bleu);
 }
 [data-bloc="temps-tickets"] .temps-cle.pass::before {
@@ -6609,21 +5879,21 @@ main > header,
   max-width: 640px;
 }
 [data-bloc="temps-tickets"] .temps-par-ticket :is(th, td) {
-  padding: 4px 24px 4px 0;
+  padding: var(--pas-1) var(--pas-5) var(--pas-1) 0;
   text-align: left;
   border-bottom: 1px solid var(--trait-doux);
 }
 [data-bloc="temps-tickets"] .temps-par-ticket th {
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond {
   display: grid;
   grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
-  gap: 2px 12px;
-  padding: 6px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
   border-top: 1px solid var(--trait-doux);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .nom {
@@ -6633,7 +5903,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .valeur strong {
   font-weight: 600;
@@ -6642,12 +5912,12 @@ main > header,
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .champ :is(.unite),
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > .champ.fige,
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond input[type="text"] {
   width: 10ch;
-  padding: 4px 8px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
   color: var(--texte);
   background: var(--fond);
@@ -6659,15 +5929,15 @@ main > header,
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p.dit {
   grid-column: 2 / -1;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond > p.dit.refus {
   color: var(--jaune);
 }
-#rail :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie {
+:is(#rail, #bandeau-sante) :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie {
   margin: 0;
-  padding: 6px 0 0;
+  padding: var(--pas-2) 0 0;
   background: none;
   border: 0;
   border-top: 1px solid var(--trait-doux);
@@ -6676,10 +5946,10 @@ main > header,
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary {
   display: flex;
   align-items: center;
-  gap: 4px 10px;
+  gap: var(--pas-1) var(--pas-3);
   list-style: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary::before {
   content: "";
@@ -6703,18 +5973,18 @@ main > header,
 .closer-partie {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-top: 10px;
+  gap: var(--pas-1);
+  padding-top: var(--pas-3);
 }
 .closer-partie > h4,
 #rail .closer-partie > h4 {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
   margin: 0;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--discret);
 }
@@ -6729,31 +5999,21 @@ main > header,
   color: var(--texte-doux);
 }
 [data-bloc="closer"] small {
-  font-size: 12px;
-}
-[data-bloc="closer"] button.lien {
-  padding: 0;
-  font: inherit;
-  color: var(--texte);
-  text-decoration: underline;
-  text-decoration-color: var(--trait-fort);
-  background: none;
-  border: 0;
-  cursor: pointer;
+  font-size: var(--taille-corps);
 }
 [data-bloc="closer"] .passe {
   display: grid;
   grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
-  gap: 2px 12px;
-  padding: 6px 0;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
   border-top: 1px solid var(--trait-doux);
 }
 [data-bloc="closer"] .passe > p {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
+  gap: var(--pas-1) var(--pas-3);
 }
 [data-bloc="closer"] .passe > .retire strong {
   font-weight: 600;
@@ -6768,8 +6028,8 @@ main > header,
   grid-template-columns: 220px auto 1fr;
   align-items: center;
   justify-items: start;
-  gap: 0 12px;
-  padding: 4px 0;
+  gap: 0 var(--pas-3);
+  padding: var(--pas-1) 0;
   color: var(--texte);
   border-top: 1px solid var(--trait-doux);
 }
@@ -6779,16 +6039,16 @@ main > header,
 [data-bloc="closer"] ol.candidats {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 6px 0 0;
+  gap: var(--pas-1);
+  margin: var(--pas-2) 0 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--taille-corps);
 }
 [data-bloc="closer"] ol.candidats li {
   display: grid;
   grid-template-columns: 4ch 1fr;
-  gap: 8px;
+  gap: var(--pas-2);
   color: var(--texte-doux);
   overflow-wrap: anywhere;
 }
@@ -6803,20 +6063,20 @@ main > header,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--pas-3);
   max-width: 640px;
-  padding: 4px 0;
+  padding: var(--pas-1) 0;
   border-top: 1px solid var(--trait-doux);
 }
 [data-bloc="closer"] .champ.ajouter {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
   max-width: 640px;
-  padding-top: 4px;
+  padding-top: var(--pas-1);
 }
 [data-bloc="closer"] :is(.champ.ajouter input[type="text"], .plafond select) {
-  padding: 4px 8px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
   color: var(--texte);
   background: var(--fond);
@@ -6833,7 +6093,7 @@ main > header,
   white-space: nowrap;
 }
 [data-bloc="closer"] .closer-partie > p.dit {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 [data-bloc="closer"] .closer-partie > p.dit.refus {
@@ -6847,56 +6107,49 @@ main > header,
    sur la liste. Les titres des blocs de l'onglet gardent le retrait des titres du rail, que Health retire aux siens
    (ticket 2490) : ils restent alignés sur la liste, et celui de la liste reste celui de Cooks. */
 #rail[data-onglet="stations"] > .bloc-du-projet > h3 {
-  padding: 12px 16px 0;
+  padding: var(--pas-3) var(--pas-4) 0;
 }
 #rail[data-onglet="stations"] .bloc-du-projet .stations-de-cuisson h3 {
-  padding: 0 0 4px;
+  padding: 0 0 var(--pas-1);
 }
 #rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) {
-  margin: 12px 16px 0;
+  margin: var(--pas-3) var(--pas-4) 0;
 }
 #rail .bloc-du-projet :is(.ajouter-une-station, .etape-station .gestes) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--pas-3);
   padding: 0;
 }
 #rail .bloc-du-projet .etape-station {
-  padding: 12px 16px;
+  padding: var(--pas-3) var(--pas-4);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
 #rail .bloc-du-projet .etape-station .attendu {
-  margin: 0 0 10px;
+  margin: 0 0 var(--pas-3);
   font-weight: 600;
   color: var(--texte);
 }
 #rail .bloc-du-projet .etape-station .choix-de-station {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0 0 12px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-3);
   padding: 0;
   list-style: none;
 }
 #rail .bloc-du-projet .etape-station .choix-de-station li {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) .dit,
-#rail .bloc-du-projet .etape-station .aucune {
-  color: var(--texte-doux);
-}
-#rail .bloc-du-projet .etape-station .aucune {
-  margin: 0 0 12px;
+  gap: var(--pas-2);
 }
 #rail .bloc-du-projet .etape-station .refus {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 12px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-3);
   color: var(--rouge-clair);
 }
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
@@ -6906,31 +6159,31 @@ main > header,
 .reglages-station h3 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 .reglages-station > .vide {
-  margin: 6px 16px 0;
+  margin: var(--pas-2) var(--pas-4) 0;
   font-style: italic;
   color: var(--discret);
 }
 /* La carte a l'allure du panneau « edit » de Cooks (plus haut) ; ici, sa marge l'aligne sur la liste. */
 #rail .reglages-station > .station-reglee {
-  margin: 10px 16px 0;
+  margin: var(--pas-3) var(--pas-4) 0;
 }
 #rail .station-reglee h4 {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 4px;
-  font-size: 13px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-corps);
 }
 #rail .station-reglee > .reglage {
   display: grid;
   grid-template-columns: 200px minmax(0, 220px) minmax(0, 1fr);
   align-items: center;
-  gap: 4px 12px;
-  padding: 7px 0;
-  font-size: 13px;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
+  font-size: var(--taille-corps);
   border-top: 1px solid var(--trait-doux);
 }
 #rail .station-reglee > .reglage > .nom {
@@ -6940,7 +6193,7 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -6966,144 +6219,50 @@ main > header,
 #rail .station-reglee > .reglage .capacites {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 #rail .station-reglee > .reglage .capacite {
-  padding: 3px 10px;
+  padding: var(--pas-1) var(--pas-3);
 }
 #rail .station-reglee > .reglage .capacite-libre {
-  margin-top: 6px;
+  margin-top: var(--pas-2);
 }
-#rail .station-reglee > .gestes {
-  padding: 0 0 8px calc(200px + 220px + 24px);
+/* Le pied se range sur la grille des réglages : son bouton tombe sous la colonne des cases. Le parent dans le sélecteur
+   le fait passer devant le `display: flex` des pieds d'édition, plus haut. */
+#rail .reglages-station > .station-reglee > .gestes {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 220px) minmax(0, 1fr);
+  column-gap: var(--pas-3);
+  padding: 0 0 var(--pas-2);
+}
+#rail .reglages-station > .station-reglee > .gestes > * {
+  grid-column: 3;
+  justify-self: start;
 }
 #rail .station-reglee > :is(.fait, .indisponible) {
-  margin: 4px 0 0;
-  font-size: 12px;
+  margin: var(--pas-1) 0 0;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
-/* Les spécialisations, sur Kitchen > Cooks (ticket 2492) : une ligne par cook — son nom et ce qu'il cuisine, son modèle,
-   son effort, ses capacités, ce qui n'est pas posé en discret —, puis « Add a specialization » et son formulaire, qui
-   s'ouvre sur place comme l'étape d'« Add a station ». */
-.bloc-du-projet[data-bloc="specialisations"] {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-[data-bloc="specialisations"] .liste-des-specialisations {
-  width: 100%;
-  border-collapse: collapse;
-}
-[data-bloc="specialisations"] .liste-des-specialisations th {
-  padding: 0 12px 4px 0;
-  font-size: 12px;
-  font-weight: 400;
-  text-align: left;
-  color: var(--discret);
-}
-[data-bloc="specialisations"] .liste-des-specialisations td {
-  padding: 6px 12px 6px 0;
-  vertical-align: top;
-  border-top: 1px solid var(--trait-doux);
-}
-[data-bloc="specialisations"] .liste-des-specialisations .qui {
-  width: 50%;
-}
-[data-bloc="specialisations"] .qui strong {
-  font-weight: 600;
-}
-[data-bloc="specialisations"] .qui .description {
-  display: block;
-  font-size: 12px;
-  color: var(--texte-doux);
-}
-[data-bloc="specialisations"] :is(.par-ticket, .aucune, .specialisations-aucune, .specialisations-lecture) {
-  color: var(--discret);
-}
-[data-bloc="specialisations"] .capacite {
-  display: inline-block;
-  margin: 0 4px 2px 0;
-  padding: 1px 6px;
-  font-size: 12px;
-  background: var(--case);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bon);
-}
-[data-bloc="specialisations"] :is(.ajouter-une-specialisation, .ajout-de-specialisation .gestes) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-}
-[data-bloc="specialisations"] .ajouter-une-specialisation .dit {
-  color: var(--texte-doux);
-}
-[data-bloc="specialisations"] .ajout-de-specialisation {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 16px;
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-[data-bloc="specialisations"] .ajout-de-specialisation .attendu {
-  margin: 0;
-  padding: 0;
-  font-weight: 600;
-  color: var(--texte);
-}
-[data-bloc="specialisations"] .ajout-de-specialisation .champs {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 2fr) 110px 110px minmax(0, 1fr);
-  gap: 10px;
-}
-[data-bloc="specialisations"] .ajout-de-specialisation .champ {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--discret);
-}
-[data-bloc="specialisations"] .ajout-de-specialisation :is(input, select) {
-  min-width: 0;
-  padding: 4px 8px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-[data-bloc="specialisations"] .ajout-de-specialisation .refus {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  color: var(--rouge-clair);
-}
-
 /* La station locale (ticket 2489) : son nom à côté du titre, puis chaque réglage en une ligne, la même que dans Settings —
    son nom et l'étiquette de son niveau, sa valeur, son contrôle, et dessous ce que le contrôle a rendu. */
 .bloc-du-projet[data-bloc="station-locale"] h3 small {
-  margin-left: 8px;
-  font-size: 12px;
+  margin-left: var(--pas-2);
+  font-size: var(--taille-corps);
   font-weight: 400;
 }
 .bloc-du-projet[data-bloc="station-locale"] h3,
 #rail .bloc-du-projet[data-bloc="station-locale"] h3 {
-  padding-bottom: 6px;
+  padding-bottom: var(--pas-2);
 }
 .bloc-du-projet[data-bloc="station-locale"] > .vide {
-  margin: 6px 0 0 16px;
+  margin: var(--pas-2) 0 0 var(--pas-4);
   color: var(--discret);
 }
 /* La carte a l'allure de celles de « Station settings », au-dessus (ticket 2488), alignée comme elles sur la liste. */
 .bloc-du-projet[data-bloc="station-locale"] > .carte {
-  margin: 10px 16px 0;
-  padding: 4px 14px;
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-1) var(--pas-4);
   background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -7112,9 +6271,9 @@ main > header,
   display: grid;
   grid-template-columns: 240px minmax(0, 440px) minmax(0, 1fr);
   align-items: center;
-  gap: 2px 12px;
-  padding: 9px 0;
-  font-size: 13px;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) 0;
+  font-size: var(--taille-corps);
   border-top: 1px solid var(--trait-doux);
 }
 .bloc-du-projet[data-bloc="station-locale"] .carte > .reglage:first-child {
@@ -7130,13 +6289,13 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--pas-1) var(--pas-2);
   margin: 0;
   overflow-wrap: anywhere;
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit {
   grid-column: 2 / -1;
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage > p.dit.refus {
@@ -7144,7 +6303,7 @@ main > header,
 }
 .bloc-du-projet[data-bloc="station-locale"] .reglage input[type="number"] {
   width: 8ch;
-  padding: 5px 8px;
+  padding: var(--pas-1) var(--pas-2);
   font: inherit;
   color: var(--texte);
   background: var(--fond);
@@ -7170,7 +6329,7 @@ main > header,
 .etape-projet {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pas-2);
   max-width: 440px;
 }
 .etape-projet .attendu {
@@ -7178,8 +6337,8 @@ main > header,
   color: var(--texte);
 }
 .etape-projet input {
-  padding: 6px 10px;
-  font-size: 13px;
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
@@ -7191,7 +6350,7 @@ main > header,
 .etape-projet .depots {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-1);
   max-height: 260px;
   margin: 0;
   padding: 0;
@@ -7200,11 +6359,11 @@ main > header,
 }
 .etape-projet .aucun {
   color: var(--discret);
-  font-size: 13px;
+  font-size: var(--taille-corps);
 }
 .etape-projet .coller {
   display: flex;
-  gap: 6px;
+  gap: var(--pas-2);
 }
 .etape-projet .colle {
   flex: 1;
@@ -7212,7 +6371,7 @@ main > header,
 .etape-projet .erreur {
   margin: 0;
   color: var(--rouge-clair);
-  font-size: 13px;
+  font-size: var(--taille-corps);
 }
 .etape-projet .erreur:empty {
   display: none;
@@ -7223,15 +6382,15 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
-  font-size: 13px;
+  gap: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
 }
 .installation-du-depot .dit {
   margin: 0;
   color: var(--texte);
 }
 .installation-du-depot .dit .survol {
-  margin-left: 6px;
+  margin-left: var(--pas-2);
 }
 .installation-du-depot[data-etat="verification"] .dit,
 .installation-du-depot[data-etat="en-cours"] .dit {
@@ -7249,9 +6408,9 @@ main > header,
 .avis-depot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0 0 8px;
-  padding: 8px 10px;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-2);
+  padding: var(--pas-2) var(--pas-3);
   background: var(--attend);
   border: 1px solid var(--trait);
   border-left-width: 6px;
@@ -7260,7 +6419,7 @@ main > header,
 .avis-depot p.dit {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--pas-2);
   margin: 0;
 }
 .avis-depot p.dit strong {
@@ -7271,10 +6430,10 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 .avis-depot .en-route {
-  font-size: 12px;
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 .avis-depot .refus {
@@ -7286,12 +6445,12 @@ main > header,
 #station .identite {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pas-1);
 }
 #station .identite .reglage {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--pas-2);
 }
 #station .identite .reglage > strong {
   min-width: 72px;
@@ -7302,14 +6461,14 @@ main > header,
 
 /* La note sur place (ticket 2646) : à la place du geste d'un réglage qui ne se change que sur la machine, vu d'une autre station. */
 .note-sur-place {
-  margin-left: 8px;
-  font-size: 12px;
+  margin-left: var(--pas-2);
+  font-size: var(--taille-corps);
   font-style: italic;
   color: var(--discret);
 }
 /* La section « Connections » de la page d'une station (ticket 2643) : une rangée par réglage, son nom, son niveau, sa valeur, son geste. */
-.connexions .reglage { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.25rem 0; }
+.connexions .reglage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pas-2); padding: var(--pas-1) 0; }
 .connexions .reglage .nom { min-width: 11rem; }
-.connexions .reglage .valeur { display: inline-flex; align-items: center; gap: 0.4rem; }
+.connexions .reglage .valeur { display: inline-flex; align-items: center; gap: var(--pas-2); }
 .connexions .reglage .geste-dit { flex-basis: 100%; margin: 0; }
-.connexions .ailleurs { margin: 0.4rem 0 0; opacity: 0.7; }
+.connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }

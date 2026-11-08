@@ -15,9 +15,8 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { heureHM } from "../src/format.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
@@ -36,7 +35,7 @@ const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ no
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -71,7 +70,7 @@ const FAITS: Faits = {
 };
 // Ce que le bloc dit de #12 : une entrée longue, puis ce qui la précise sur plusieurs lignes —
 // des blancs en tête, en fin et au milieu, une tabulation, ce qui ressemble à du HTML.
-const LONGUE = `depuis 2 j  ${"livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31 ; ".repeat(30)}fin de l'entrée  `;
+const LONGUE = `depuis 2 j  ${"livraison verte, non mergée — à merger à la main :   gh pr merge 31 ; ".repeat(30)}fin de l'entrée  `;
 const SUITE = ["      │ une ligne de suite,   avec ses blancs  ", "      │ \tune tabulation, puis <b>pas du HTML</b> &amp; « des accents » → ✓", `      │ ${"x".repeat(900)}`, "      │ la dernière"];
 const STATUS = [
   "projet     parade",
@@ -108,11 +107,9 @@ const recevoir = (vue: Jouee, recue: Dessinable = dessinable()) => vue.dire("sur
 
 const colonnes = (vue: Jouee) => vue.element("rail").dessous("section");
 const bons = (ou: Faux) => ou.dessous("li").filter((li) => li.className === "bon");
-// Les colonnes sont partagées entre les deux onglets du projet (#1184) : Taken et Pass sur Cooks, les autres sur Rail.
-const montrerOnglet = (vue: Jouee, titre: "Rail" | "Cooks") => {
-  // Cooks est un sous-onglet de Kitchen (#2485).
-  if (titre === "Cooks") (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === "Kitchen") ?? assert.fail("pas d'onglet Kitchen")).click();
-  (vue.element(titre === "Cooks" ? "onglets-cuisine" : "onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
+// Les onglets du projet (#1184, #2921) : Rail porte toutes les colonnes ; Stations, la liste de ses stations.
+const montrerOnglet = (vue: Jouee, titre: "Rail" | "Stations") => {
+  (vue.element("onglets-du-projet").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`)).click();
 };
 const bonDe = (vue: Jouee, numero: number): Faux => carteDuTicket(vue, numero) ?? assert.fail(`pas de bon #${numero}`);
 // Ce qu'un bon dit de la file : chaque fait, son libellé puis sa valeur.
@@ -181,7 +178,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
     // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris.
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Todo", "1"], ["Waiting", "0"], ["Served", "1"]];
+    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Awaiting you", "1"], ["Waiting", "0"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -189,7 +186,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.equal(vue.element("rail").hidden, false);
     assert.deepEqual(cinq(), ATTENDU);
 
-    // Une page par-dessus : toutes, sauf Cooks, qui est un onglet et non plus une page.
+    // Une page par-dessus : toutes, sauf Cooks, qui n'est plus ni un onglet ni une page.
     for (const { titre } of ONGLETS.filter(({ id }) => id !== "cooks")) {
       await ouvrirLecture(vue, titre);
       assert.equal(vue.element("contenu").hidden, false, titre);
@@ -206,7 +203,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Todo", "0"], ["Waiting", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Awaiting you", "0"], ["Waiting", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet qu'aucune station ne sert n'en a pas — rien n'est lu de lui", async () => {
@@ -234,7 +231,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"],
+      ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"],
     );
   });
 
@@ -282,7 +279,7 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
 const HORS_LIGNE = "2026-10-13T13:35:36.000Z";
 const horsLigne = (a = HORS_LIGNE): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a, erreur: "GitHub could not be reached to read the Kitchen board of benomite/parade: fetch failed.", atteinte: true, cas: null, duTableau: true, horsLigne: true });
 const signes = (vue: Jouee) => vue.element("rail").dessous("p").filter(({ className }) => className === "hors-ligne");
-// L'espace du projet : sa bande, et son rail — la carte du projet y est, sur Cooks.
+// L'espace du projet : sa bande, et son rail.
 const ESPACE = ["alertes", "rail"];
 const ALARMES = /not verified|not drawn|not read|open Settings|could not be reached|NOT READ|tried at/;
 
@@ -304,13 +301,13 @@ describe("hors ligne (#1818)", () => {
       [`offline since ${new Date(HORS_LIGNE).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`],
     );
     for (const id of ESPACE) assert.doesNotMatch(vue.element(id).textContent, ALARMES, id);
-    // Sur Cooks aussi, un seul signe.
-    montrerOnglet(vue, "Cooks");
+    // Un détour par Stations, et le retour sur Rail : toujours un seul signe.
+    montrerOnglet(vue, "Stations");
+    await repos();
+    montrerOnglet(vue, "Rail");
     await repos();
     assert.equal(signes(vue).length, 1);
     assert.doesNotMatch(vue.element("rail").textContent, /not verified|not drawn|NOT READ|tried at/);
-    montrerOnglet(vue, "Rail");
-    await repos();
 
     recevoir(vue);
     assert.deepEqual(signes(vue), []);
@@ -325,7 +322,9 @@ describe("hors ligne (#1818)", () => {
     assert.equal(signes(vue).length, 1);
     assert.match(vue.element("rail").textContent, /^offline since /);
     for (const id of ESPACE) assert.doesNotMatch(vue.element(id).textContent, /first read|not verified|not drawn|tried at|NOT READ/, id);
-    montrerOnglet(vue, "Cooks");
+    montrerOnglet(vue, "Stations");
+    await repos();
+    montrerOnglet(vue, "Rail");
     await repos();
     assert.equal(signes(vue).length, 1);
     assert.doesNotMatch(vue.element("rail").textContent, /facts: first read|not verified|not drawn|NOT READ|tried at/);
@@ -469,7 +468,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
       recevoir(vue, dessinable(FAITS, status));
       const ou = colonnes(vue).filter((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === "#12")).map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
-      assert.deepEqual(ou, ["Todo"]);
+      assert.deepEqual(ou, ["Awaiting you"]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
       const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.className.split(" ").includes("attendu")));
@@ -511,7 +510,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.deepEqual(autres, []);
     assert.equal(demander?.dataset.geste, "demande");
     fermer(vue);
-    await ouvrirLecture(vue, "Grants");
+    await ouvrirLecture(vue, "Settings");
     // Un clic sur la carte, un clic sur le geste : la même demande qu'avant.
     bonDe(vue, 12).click();
     await repos();
@@ -522,7 +521,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.equal(vue.element("note-second").textContent, "demande écrite dans le second, sans Entrée");
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
-    // Le centre n'a pas changé : la page Grants est toujours celle qui est ouverte.
+    // Le centre n'a pas changé : la page Settings est toujours celle qui est ouverte.
     assert.equal(onglet(vue, "Settings").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(relayes(bonDe(vue, 12)), []);
@@ -561,7 +560,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
       attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "Un ticket retenu", url: "https://github.com/benomite/parade/issues/40", miseDeCote: { label: "blocked-on-human", raison, liens: [{ numero: 2326, url: "https://github.com/benomite/parade/issues/2326" }] } }],
     };
     recevoir(vue, dessinable(misDeCote, PAS_LU));
-    const todo = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Todo") ?? assert.fail("pas de colonne Todo");
+    const todo = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne Todo");
     const bon = bons(todo).find((pose) => pose.children[0]?.children[0]?.textContent === "#40") ?? assert.fail("#40 n'est pas dans Todo");
     assert.equal(ligneDe(bon), raison);
     const lien = bon.dessous("button").find((pose) => pose.className === "lien-de-ligne mono") ?? assert.fail("pas de lien sur la ligne");
@@ -759,7 +758,7 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
     await repos();
 
     assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 60]);
-    assert.equal(colonneDe(vue, 60), "Todo");
+    assert.equal(colonneDe(vue, 60), "Awaiting you");
     const bon = bonDe(vue, 60);
     assert.equal(bon.dessous("p").find((pose) => pose.className === "question-courte")?.textContent, "Le popup remplace-t-il la fiche ?");
     assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);
@@ -842,7 +841,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const relus: NonNullable<Faits["livres"]> = [
       { ...LIVRES[0]!, relecture: { resume: RESUME, constats } },
       { ...LIVRES[1]!, relecture: null },
-      { ticket: 201, titre: "Les grants sous plafond", url: null, livre: "2026-10-13T09:00:00.000Z", station: null, pr: null, relecture: { resume: "Seul.", constats: [] } },
+      { ticket: 201, titre: "Les accès sous plafond", url: null, livre: "2026-10-13T09:00:00.000Z", station: null, pr: null, relecture: { resume: "Seul.", constats: [] } },
     ];
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 3 }, livres: relus }, PAS_LU));

@@ -111,7 +111,7 @@ test("l'arrêt total part du dernier mouvement de la cuisine quand il suit la d�
   noter({ type: "ticket.passing", payload: { station: STATION } }, 540, `station:${STATION}`);
   noter({ type: "pass.started", payload: { run: "540-aa", pr: pr(540), number: 540, sha: "sha-540" } }, 540, "pass");
   a("09:25:00");
-  retenir(540, "no-grant");
+  retenir(540);
 
   const urgence = lire("10:00:00").faits.urgence;
   assert.equal(urgence?.decision, "#535");
@@ -205,7 +205,7 @@ test("deux décisions qui, à elles deux, retiennent tout : l'urgence nomme cell
   a("08:30:00");
   retenir(535);
   a("08:40:00");
-  retenir(540, "no-grant");
+  retenir(540);
 
   const { faits: lus, texte } = lire("10:00:00");
   assert.equal(lus.urgence?.decision, "#540");

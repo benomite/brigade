@@ -1,5 +1,5 @@
 // « Cook it on a station that has it » (#1511, épique #1506), sur la carte d'un besoin que la station n'a pas : le clic
-// n'écrit pas le choix, il ouvre sur Cooks le formulaire d'une station de ce poste (#1510) avec la capacité qui manque
+// n'écrit pas le choix, il ouvre sur Stations le formulaire d'une station de ce poste (#1510) avec la capacité qui manque
 // déjà cochée, en plus de celles que la station déclare. Les cartes sont écrites par le runtime lui-même, relues comme
 // l'app relit le suivi d'une station ; les stations déclarées sont lues par `lireStations` ; la vue est jouée contre le
 // faux pont (aides/fausse-vue.ts).
@@ -13,9 +13,8 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../src/grants.ts";
+import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireSuivi } from "../../src/projets/demande.ts";
@@ -56,6 +55,17 @@ const guide = (stations: typeof DECLAREES | undefined): Guide => ({
   ...(stations === undefined ? {} : { controle: { a: A, stations } }),
 });
 
+const FAITS: Faits = {
+  etat: "ouverte",
+  lu: "2026-10-23T10:04:11.000Z",
+  dernierTick: "2026-10-23T10:04:02.000Z",
+  compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
+  dernierEvenement: null,
+  rail: [],
+  cooks: [],
+  attend: [],
+};
+
 const besoin = (id: string) => besoinNomme(id) ?? assert.fail(`aucun besoin « ${id} » au catalogue`);
 const enAttente = (id: string) => ({ ...choixPour({ besoin: besoin(id), preuves: ["the repository asks for it"] }, { projet: "parade", station: "box", ailleurs: [] }), status: "pending" as const });
 
@@ -84,7 +94,7 @@ async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLA
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -101,6 +111,10 @@ async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLA
     },
   });
   (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
+  for (let tour = 0; tour < 5; tour++) await repos();
+  // Les lignes de station (et leur formulaire) se posent d'après la lecture de la cuisine : `facts` y porte ses stations.
+  const recue = tenirFaits().recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
+  jouee.dire("surFaits", { ...recue, demande: jouee.dernier("faits")[0] as number });
   for (let tour = 0; tour < 5; tour++) await repos();
   return { jouee, envoyes };
 }

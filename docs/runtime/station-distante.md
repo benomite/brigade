@@ -126,7 +126,7 @@ would merely start serving the project beside the one it was to replace. The res
 
 The values `acceptee`, `refusee`, `remise` and `recue` of `bascule.etape` stay French.
 
-**What follows the project: its whole log** (tickets and rail, grants, the chef's decisions, history);
+**What follows the project: its whole log** (tickets and rail, the chef's decisions, history);
 the move adds only `kitchen.moved`. **A ticket in progress is not lost**: its cook is stopped
 (`cook.exited`, `outcome: stop`, `cause: move` — no failure, nothing for the breaker), the ticket goes
 back to the rail, and the station that takes over takes it up.

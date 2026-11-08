@@ -10,8 +10,8 @@
 // - **Ce qu'il vérifie en premier** : ce que la dernière passe lui a remis, lu dans le corps de son issue — le code mort
 //   et les doublons repérés sur la base, la dérive des derniers merges, le temps des tickets.
 // - **Ce qu'il vérifie en plus** : une ligne par vérification, dans `.claude/brigade/closer-checks.md` du dépôt. Le
-//   runtime ne les met pas encore dans l'issue d'une passe : elles attendent dans le dépôt, comme une spécialisation
-//   qu'il ne route pas encore (specialisations.ts).
+//   runtime ne les met pas encore dans l'issue d'une passe : elles attendent
+//   dans le dépôt.
 // - **Ses réglages** : `closer.*` de `.claude/brigade/projet.json` (runtime/src/reglages-projet/reglages.ts) — son
 //   calibrage, sa condition de départ, ses plafonds ; le runtime les relit à chaque rapatriement. Sur GitHub, seuls le
 //   calibrage et le plafond des lignes retirées sont lus (docs/reglages.md) : la page le dit.

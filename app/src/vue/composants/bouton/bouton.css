@@ -4,13 +4,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--pas-2);
   box-sizing: border-box;
   min-height: 32px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 var(--pas-4);
   font-family: var(--police-interface);
-  font-size: 13px;
+  font-size: var(--taille-corps);
   font-weight: 500;
   line-height: 1.3;
   text-align: center;
@@ -35,7 +35,7 @@
 }
 /* Le discret : renoncer, fermer, replier — sans cadre. */
 [data-bouton="discret"] {
-  padding: 0 10px;
+  padding: 0 var(--pas-3);
   color: var(--texte-doux);
   background: transparent;
   border-color: transparent;
@@ -67,14 +67,14 @@
 [data-bouton][data-taille="grand"],
 [data-boutons="grands"] [data-bouton] {
   min-height: 44px;
-  padding: 0 20px;
-  font-size: 15px;
+  padding: 0 var(--pas-5);
+  font-size: var(--taille-intertitre);
 }
 /* À la largeur d'un téléphone, le même seuil que vue.css (`ECRAN_ETROIT`) : chaque bouton est le grand. */
 @media (max-width: 720px) {
   [data-bouton] {
     min-height: 44px;
-    padding: 0 20px;
-    font-size: 15px;
+    padding: 0 var(--pas-5);
+    font-size: var(--taille-intertitre);
   }
 }

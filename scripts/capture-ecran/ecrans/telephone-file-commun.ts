@@ -9,8 +9,6 @@ import { FACTS, STATUS } from "./file-ou-cuit.ts";
 
 // La case de `parade` dans la barre, en haut sur un téléphone : son espace s'ouvre sur Rail.
 export const OUVRIR_PARADE: Etape = { cliquer: '#projets > button[title^="parade — "]' };
-// L'onglet Cooks de son espace : Rail, Cooks, Second.
-export const OUVRIR_COOKS: Etape = { cliquer: "#onglets-du-projet > button:nth-child(2)" };
 
 export const FAITS: Faits = { ...FACTS, stations: (FACTS.stations ?? []).map((station) => ({ ...station, cuisson: "cooking", arreteeDepuis: null, refus: null })) };
 

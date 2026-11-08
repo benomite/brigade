@@ -26,11 +26,14 @@ const BLOCS = [...settings.matchAll(/<div id="([\w-]+)"/g)].map((trouve) => trou
 // bloc aussi. `reglages-du-projet` porte une ligne par clé de `setting` (CLES) : toutes dans projet.json.
 const STOCKAGE: Record<string, string> = {
   "reglages-du-projet": PROJET_JSON,
-  grants: STATION,
+  // Les humains du projet (#2930) : la clé `humans`, changée par une PR.
+  "humains-du-projet": PROJET_JSON,
   "arreter-cuisine": STATION,
   sigle: FICHIER_DES_PROJETS,
   couleurs: FICHIER_DES_PROJETS,
   retrait: FICHIER_DES_PROJETS,
+  // Les stations contributrices que le chef refuse (#2936) : une liste que garde la station, dans son répertoire d'état.
+  "stations-contributrices": STATION,
 };
 
 describe("Settings : les réglages du projet seulement", () => {
@@ -56,10 +59,10 @@ describe("Settings : les réglages du projet seulement", () => {
   });
 
   // Le critère « tout est dans projet.json » ne tient pas encore : le sigle, les couleurs et le retrait sont gardés par
-  // l'app, la cuisine et les grants par la station. Ce test les nomme pour que le jour où ils rejoignent projet.json,
+  // l'app, la cuisine par la station. Ce test les nomme pour que le jour où ils rejoignent projet.json,
   // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
   test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
     const dehors = BLOCS.filter((id) => STOCKAGE[id] !== PROJET_JSON).sort();
-    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "grants", "retrait", "sigle"]);
+    assert.deepEqual(dehors, ["arreter-cuisine", "couleurs", "retrait", "sigle", "stations-contributrices"]);
   });
 });

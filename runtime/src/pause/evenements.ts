@@ -19,15 +19,14 @@ export type EnVol = { ticket: number; state: "taken" | "pass" };
 export type Deplacement = [from: string, to: string];
 
 // Why a rename played inside the pause (`pause/renommage.ts`) failed, in one
-// word: `grant`, the `merge` grant is not active, nothing was played; `setup`,
-// the worktree's setup failed; `tool`, the rename tool failed or renamed
+// word: `setup`, the worktree's setup failed; `tool`, the rename tool failed or renamed
 // nothing; `delivery`, its branch or its PR did not leave; `gates`, `conflict`,
 // `verdict`: the pass judged it red — red gates, a branch that no longer
 // merges into the base, the reviewer or the CI; `unjudged`, the pass could not
 // judge it; `held`, the pass stopped short of merging it; `closed`, its PR was
 // closed without merge; `timeout`, the pause reached its limit; `interrupted`,
 // the runtime stopped while the tool ran.
-export const CAUSES_D_ECHEC = ["grant", "setup", "tool", "delivery", "gates", "conflict", "verdict", "unjudged", "held", "closed", "timeout", "interrupted"] as const;
+export const CAUSES_D_ECHEC = ["setup", "tool", "delivery", "gates", "conflict", "verdict", "unjudged", "held", "closed", "timeout", "interrupted"] as const;
 export type CauseDEchec = (typeof CAUSES_D_ECHEC)[number];
 
 export type FaitPause =

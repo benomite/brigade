@@ -16,7 +16,7 @@ const PARADE = { nom: "parade", dossier: "/projets/parade" };
 
 // Un faux `node` : un script sh, dans le répertoire du test. `$D` y est ce
 // répertoire ; `$1` est le point d'entrée du geste, `$2` le nom du projet, le reste la commande.
-const PROJET = ["status", "grant"];
+const PROJET = ["status", "manager"];
 const TOUS = ["status", "station"];
 
 function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number; delaiMs?: number; node?: string } = {}) {
@@ -58,10 +58,10 @@ function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number;
   return { veille, lectures, jusqua, racine, lu, cuisine };
 }
 
-// Répond à `status`, `grant` et `station` comme le runtime, à une ligne près.
+// Répond à `status`, `manager` et `station` comme le runtime, à une ligne près.
 const REPOND = `case "$*" in
   *" status") printf 'projet     brigade\\nattend     1 décision attend le chef depuis 2 j\\n' ;;
-  *" grant") printf 'grant merge           ABSENT — jamais donné\\n' ;;
+  *" manager") printf 'manager               ALLUMÉ depuis le 2026-10-13T09:25:21.838Z (par chef)\\n' ;;
   *" station") printf 'machine                 tient\\nquota                   disponible\\n' ;;
 esac`;
 
@@ -84,7 +84,7 @@ async function morts(ecrits: string): Promise<void> {
 }
 
 describe("la veille des cuisines", { concurrency: 8 }, () => {
-  test("regarder un projet lance `status` et `grant` par le geste de la station et le nom du projet — et rend ce qu'elles disent mot pour mot", { skip: SANS_POSIX }, async (t) => {
+  test("regarder un projet lance `status` et `manager` par le geste de la station et le nom du projet — et rend ce qu'elles disent mot pour mot", { skip: SANS_POSIX }, async (t) => {
     const { veille, jusqua, lu } = essai(t, `echo "$2 $3" >>"$D/appels"\n${REPOND}`);
     const avant = Date.now();
 
@@ -92,7 +92,7 @@ describe("la veille des cuisines", { concurrency: 8 }, () => {
     const lecture = await jusqua(() => true);
 
     // L'une après l'autre : un projet ne lance jamais qu'une commande à la fois.
-    assert.deepEqual(lu("appels").trim().split("\n"), ["brigade status", "brigade grant"]);
+    assert.deepEqual(lu("appels").trim().split("\n"), ["brigade status", "brigade manager"]);
     assert.deepEqual(lecture, {
       projet: "brigade",
       // La demande à laquelle elle répond : la vue n'affiche que celle de l'écran qu'elle montre.
@@ -100,7 +100,7 @@ describe("la veille des cuisines", { concurrency: 8 }, () => {
       a: lecture.a,
       sorties: [
         { commande: "status", texte: "projet     brigade\nattend     1 décision attend le chef depuis 2 j\n" },
-        { commande: "grant", texte: "grant merge           ABSENT — jamais donné\n" },
+        { commande: "manager", texte: "manager               ALLUMÉ depuis le 2026-10-13T09:25:21.838Z (par chef)\n" },
       ],
     });
     // L'heure de la lecture est le seul fait que l'app ajoute.

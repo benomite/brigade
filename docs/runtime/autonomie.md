@@ -10,7 +10,7 @@ from [`glossary.md`](../glossary.md).
 | Row | What it covers |
 |---|---|
 | **Screens** | Validating the captures of an interface change before merge |
-| **Merge** | Merging a green delivery: the `merge` grant (see below) |
+| **Merge** | Merging a green delivery |
 | **Specification** | Adjusting a ticket's criteria, splitting it again, closing a ticket judged useless |
 | **Priorities** | Changing ticket priorities, posing tickets born in the kitchen |
 | **Cost** | Raising a ticket's calibration, relaunching it beyond its resends, the share of the Max quota |
@@ -32,9 +32,8 @@ delivery to the runtime: **Production** (any action on it), **Secrets** (reading
 ## What a row holds without a choice
 
 A project with no table behaves as before it existed. A never-set row holds what the kitchen does
-today: brigade decides for Screens, Specification, Cost, Publishing; I decide for Priorities and
-Dependencies; Merge follows the grant (`I decide` without an active grant, `brigade decides` with
-one). A row on its default is not shown as chosen; the router sends its decisions down the old path
+today: brigade decides for Screens, Merge, Specification, Cost, Publishing; I decide for Priorities and
+Dependencies. A row on its default is not shown as chosen; the router sends its decisions down the old path
 and writes nothing. The first time the chef sets the row, even to the same position, it is written.
 
 ## The three profiles
@@ -52,17 +51,6 @@ every row can still be changed alone.
 
 Applying a profile writes one `autonomy.changed` per row it moves, naming the profile. A row already
 at its profile's position is not rewritten; a row still on its default is.
-
-## The Merge row and the `merge` grant
-
-The grant stays the store: nothing is migrated and `brigade <project> grant` keeps working.
-
-- **Reading.** Without an active grant, `I decide`. With one, the last `brigade` position set on the
-  row since the grant was enabled, else `brigade decides`. A grant enabled, lapsed or revoked before
-  the table existed reads as the matching position; no entry is rewritten.
-- **Setting.** `I decide` revokes the grant. A `brigade` position enables it if not active, with no
-  deadline. A lapsed grant is first written as lapsed, then the position applied.
-- **Telling.** The last `autonomy.changed` of the Merge row since the grant was enabled.
 
 ## How a change takes effect, and who made it
 

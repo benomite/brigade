@@ -35,7 +35,7 @@ export const STATUS = [
   "kitchen    open",
   "",
   "attend     2 décisions attendent le chef depuis 2 j",
-  "  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : gh pr merge 31",
+  "  #12  depuis 2 j  livraison verte, non mergée — à merger à la main : gh pr merge 31",
   "  #22  depuis 1 h  revenu de WAITING, repris par le chef (il attendait le client : « sa validation écrite du devis »)",
   "fin attend",
   "",

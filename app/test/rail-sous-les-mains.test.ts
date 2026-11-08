@@ -14,8 +14,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { RailDuProjet } from "../../runtime/src/appairage/rail-du-projet.ts";
@@ -59,7 +58,7 @@ const demarrage = (servi: boolean) => () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -185,7 +184,7 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
     assert.equal(resolue(bon), "resolved meanwhile: #21 is now in Taken — your text is kept here, nothing was sent");
 
     carteTodo(bon).declencher("focusout", { relatedTarget: null });
-    const [taken, todo] = ["Taken", "Todo"].map((nom) => colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === nom) ?? assert.fail(`pas de colonne ${nom}`));
+    const [taken, todo] = ["Taken", "Awaiting you"].map((nom) => colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === nom) ?? assert.fail(`pas de colonne ${nom}`));
     assert.ok(taken?.dessous("li").some((li) => li.children[0]?.children[0]?.textContent === "#21"));
     const gardee = todo?.dessous("li").find((li) => li.children[0]?.children[0]?.textContent === "#21") ?? assert.fail("la réponse du chef n'est plus dans TODO");
     assert.equal(champ(gardee).value, "One per project");
@@ -194,7 +193,7 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
 
     // Une lecture de plus ne l'emporte pas.
     recevoir(vue, lu(TRANCHE, 2));
-    assert.ok(colonnes(vue).some((colonne) => colonne.children[0]?.children[0]?.textContent === "Todo" && colonne.dessous("textarea").some(({ value }) => value === "One per project")));
+    assert.ok(colonnes(vue).some((colonne) => colonne.children[0]?.children[0]?.textContent === "Awaiting you" && colonne.dessous("textarea").some(({ value }) => value === "One per project")));
 
     (gardee.dessous("button").find(({ textContent }) => textContent === "dismiss") ?? assert.fail("pas de « dismiss »")).click();
     assert.deepEqual(vue.element("rail").dessous("textarea").filter(({ value }) => value === "One per project"), []);

@@ -80,48 +80,6 @@ function cuisine(t: TestContext) {
   };
 }
 
-test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l'instant — pas « faute de grant »", (t) => {
-  const { a, livrer, noter, bloc } = cuisine(t);
-  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
-  livrer(17);
-  noter({ type: "pass.held", payload: { reason: "no-grant", expired: `${JOUR_HORLOGE}T08:30:00.000Z` } }, 17, "pass");
-
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "awaiting   1 decision awaits the chef — for 1 h 00",
-    `  #17  for 1 h 00  green delivery, not merged: the \`merge\` grant lapsed on its own on ${JOUR_HORLOGE}T08:30:00.000Z — merge by hand: ${pr(17)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 17`,
-    "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
-  ]);
-});
-
-test("`status` dit sans qu'on le demande qu'un grant est actif et jusqu'à quand ; à moins d'une heure ou au dernier usage, il le marque ; éteint seul, il le dit ; absent ou révoqué, il se tait", (t) => {
-  const { a, noter, journal } = cuisine(t);
-  const grant = (heure: string) => {
-    const maintenant = new Date(`${JOUR_HORLOGE}T${heure}.000Z`);
-    return decrireEtat(lireEtat(journal, maintenant), maintenant).filter((ligne) => ligne.startsWith("grant"));
-  };
-  const chef = (fait: Fait) => noter(fait, null, "chef");
-  a(`${JOUR_HORLOGE}T10:00:00.000Z`);
-  noter({ type: "runtime.started", payload: { pid: 1, host: "box" } } as Fait);
-  assert.deepEqual(grant("10:00:00"), []);
-
-  chef({ type: "grant.activated", payload: { action: "merge" } });
-  assert.deepEqual(grant("12:00:00"), ["grant      merge ACTIVE, no deadline, since 2 h 00 ago — a green pass is merged without you"]);
-  chef({ type: "grant.revoked", payload: { action: "merge" } });
-  assert.deepEqual(grant("12:00:00"), []);
-
-  chef({ type: "grant.activated", payload: { action: "merge", until: `${JOUR_HORLOGE}T14:00:00.000Z`, uses: 5 } });
-  assert.deepEqual(grant("11:00:00"), [`grant      merge ACTIVE 3 h 00 left (until 8 Oct 14:00 UTC) · 5 uses left — a green pass is merged without you`]);
-  assert.deepEqual(grant("13:20:00"), [`grant      merge ACTIVE, EXPIRING SOON: 40 min left (until 8 Oct 14:00 UTC) · 5 uses left — a green pass is merged without you`]);
-  // L'heure passée, il est éteint pour qui lit — que le runtime l'ait écrit ou non.
-  const eteint = ["grant      merge LAPSED 30 min ago — its deadline has passed: the pass stops at the open PR, nothing is merged without you any more"];
-  assert.deepEqual(grant("14:30:00"), eteint);
-  noter({ type: "grant.expired", payload: { action: "merge", cause: "until", since: `${JOUR_HORLOGE}T14:00:00.000Z` } }, null, "pass");
-  assert.deepEqual(grant("14:30:00"), eteint);
-
-  chef({ type: "grant.activated", payload: { action: "merge", uses: 1 } });
-  assert.deepEqual(grant("15:00:00"), ["grant      merge ACTIVE, EXPIRING SOON: 1 use left — a green pass is merged without you"]);
-});
-
 test("rien n'attend le chef : le bloc le dit, même avec un rail qui travaille", (t) => {
   const { arriver, livrer, noter, bloc } = cuisine(t);
   arriver(14);
@@ -136,7 +94,7 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
   const { a, arriver, livrer, retenir, remonter, noter, bloc } = cuisine(t);
   a(`${jourDecale(-3)}T10:00:00.000Z`);
   livrer(17);
-  retenir(17, "no-grant");
+  retenir(17, "merge-refused");
   a(`${JOUR_HORLOGE}T08:00:00.000Z`);
   livrer(18);
   remonter(18, "secrets-unavailable");
@@ -153,12 +111,10 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   4 decisions await the chef — the oldest for 3 d",
-    `  #17  for 3 d  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 17`,
+    `  #17  for 3 d  green delivery, merge refused by GitHub (?) — merge by hand, once what it refuses is lifted: ${pr(17)}  Ticket 17`,
     `  #18  for 2 h 00  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(18)} by hand, or remove \`fire\`  Ticket 18`,
     `  #20  for 2 min  green delivery that touches its judges — review and merge by hand: ${pr(20)}  Ticket 20`,
     `  #22  for 2 min  green delivery that touches what the project opens up (.claude/brigade/reseau) — review and merge by hand: ${pr(22)}  Ticket 22`,
-    // Le chiffre sur lequel accorder le grant : seule #17 est arrêtée faute de grant.
-    "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
   ]);
 });
 
@@ -206,7 +162,7 @@ test("une remontée technique n'attend pas le chef — du manager sans carte ou 
 test("`faits` donne la décision attendue de chaque ticket : sa sorte, son motif, ce qui le précise, sa PR", (t) => {
   const { livrer, retenir, remonter, noter, arriver, journal } = cuisine(t);
   livrer(17);
-  retenir(17, "no-grant");
+  retenir(17, "merge-refused");
   livrer(18);
   remonter(18, "secrets-unavailable");
   arriver(19);
@@ -218,7 +174,7 @@ test("`faits` donne la décision attendue de chaque ticket : sa sorte, son motif
   const maintenant = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
   const decisions = Object.fromEntries(faits(lireEtat(journal, maintenant), maintenant).attend.map(({ ticket, decision }) => [ticket, decision]));
   assert.deepEqual(decisions, {
-    17: { quoi: "merge", motif: "no-grant", cause: null, pr: pr(17) },
+    17: { quoi: "merge", motif: "merge-refused", cause: null, pr: pr(17) },
     18: { quoi: "remontee", motif: "unjudged", cause: "secrets-unavailable", pr: pr(18) },
   });
   // Mis de côté par sa station, ou attendant un ticket fermé sans service : rien n'attend le chef (#1834).
@@ -229,15 +185,13 @@ test("une livraison verte quitte la file dès que la décision est prise : merg�
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
   for (const ticket of [17, 18, 19]) {
     livrer(ticket);
-    retenir(ticket, "no-grant");
+    retenir(ticket, "merge-refused");
   }
   assert.deepEqual(attendus(), ["#17", "#18", "#19"]);
 
   // Le chef merge sur GitHub : la pass le constate.
   noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
   assert.deepEqual(attendus(), ["#18", "#19"]);
-  // Et le bilan des arrêts faute de grant le compte : il a mergé ce que la pass aurait mergé.
-  assert.equal(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1), "  without a grant, 3 green deliveries stopped: 1 merged by hand, 0 closed without merge — no disagreement —, 2 still open");
 
   // Le chef ferme l'issue.
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 18, "github");
@@ -253,22 +207,20 @@ test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce q
   const { a, livrer, retenir, remonter, noter, bloc } = cuisine(t);
   const fermer = (ticket: number) => noter({ type: "pass.pr-closed", payload: { pr: pr(ticket) } }, ticket, "pass");
   for (const ticket of [17, 18, 19, 20]) livrer(ticket);
-  retenir(17, "no-grant");
+  retenir(17, "merge-refused");
   remonter(18, "returns-exhausted");
   // Redécoupé : fermer sa PR est la suite attendue, et n'attend personne.
   remonter(19, "manager-split", "manager:split");
-  retenir(20, "no-grant");
+  retenir(20, "merge-refused");
   a(`${JOUR_HORLOGE}T10:03:00.000Z`);
   for (const ticket of [17, 18, 19]) fermer(ticket);
 
   // Constatée, la fermeture date la ligne : c'est d'elle que l'attente se compte.
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
     "awaiting   3 decisions await the chef — the oldest for 5 min",
-    `  #20  for 5 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(20)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 20`,
+    `  #20  for 5 min  green delivery, merge refused by GitHub (?) — merge by hand, once what it refuses is lifted: ${pr(20)}  Ticket 20`,
     `  #17  for 2 min  PR closed without merge: ${pr(17)} — to decide: remove \`fire\`, or close the issue  Ticket 17`,
     `  #18  for 2 min  PR closed without merge: ${pr(18)} — to decide: remove \`fire\`, or close the issue  Ticket 18`,
-    // #17 était arrêtée faute de grant, et sa PR est fermée : le désaccord se compte.
-    "  without a grant, 2 green deliveries stopped: 0 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open",
   ]);
 
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
@@ -386,7 +338,7 @@ test("la file ne garde rien : relue d'un journal rouvert en lecture seule, elle 
   noter({ type: "ticket.arrived", payload: { title: "Ticket 17", priority: null, createdAt: "2026-10-01T00:00:17Z", url: "https://exemple.test/17" } }, 17, "github");
   noter({ type: "cook.launched", payload: { run: "17-aa", limits: LIMITES, stream: "runs/17-aa.jsonl", branch: "cook/17-aa", worktree: "worktrees/17-aa" } }, 17);
   noter({ type: "pass.started", payload: { run: "17-aa", pr: pr(17), number: 17, sha: "sha-17" } }, 17, "pass");
-  noter({ type: "pass.held", payload: { reason: "no-grant" } }, 17, "pass");
+  noter({ type: "pass.held", payload: { reason: "merge-refused" } }, 17, "pass");
   const avant = ecrit.dernierSeq();
   ecrit.fermer();
 
@@ -431,7 +383,7 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
   noter({ type: "manager.failed", payload: { run: "juge-31", fingerprint: "e31", reason: "réponse sans verdict" } }, 31, "manager");
   a(`${JOUR_HORLOGE}T09:20:00.000Z`);
   livrer(17);
-  retenir(17, "no-grant");
+  retenir(17, "merge-refused");
   a(`${JOUR_HORLOGE}T09:30:00.000Z`);
   noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
   a(`${JOUR_HORLOGE}T09:40:00.000Z`);
@@ -443,12 +395,11 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
     "awaiting   7 decisions await the chef — the oldest for 1 h 00",
     "  #30  for 1 h 00  set aside by the manager, it carries `question` — to decide: answer it then remove the label, the manager judges it; or close the issue",
     "  #31  for 50 min  manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue",
-    `  #17  for 40 min  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Ticket 17`,
+    `  #17  for 40 min  green delivery, merge refused by GitHub (?) — merge by hand, once what it refuses is lifted: ${pr(17)}  Ticket 17`,
     "  #32  for 30 min  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
     "  #33  for 20 min  set aside by the manager, it carries `decision` — to decide: decide then remove the label, the manager judges it; or close the issue",
     "  #34  for 20 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
     "  #35  for 20 min  manager's split unreadable — to redo: edit the epic, the manager splits it again; or close the issue",
-    "  without a grant, 1 green delivery stopped: 0 merged by hand, 0 closed without merge — no disagreement —, 1 still open",
   ]);
 });
 
@@ -568,7 +519,7 @@ test("une connexion Max expirée en cours de route se dit expirée, et se range 
   const { a, noter, livrer, retenir, bloc } = cuisine(t);
   a(`${JOUR_HORLOGE}T08:00:00.000Z`);
   livrer(17);
-  retenir(17, "no-grant");
+  retenir(17, "merge-refused");
   a(`${JOUR_HORLOGE}T09:00:00.000Z`);
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: "17-aa" } }, 17, `station:${STATION}`);
 
@@ -578,7 +529,7 @@ test("une connexion Max expirée en cours de route se dit expirée, et se range 
   assert.match(lignes[2] ?? "", new RegExp(`^  ${STATION}  for 1 h 00  Max connection expired \\(authentication_failed\\) — to restore`));
 });
 
-test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bilan des arrêts faute de grant", (t) => {
+test("quand rien n'attend, le bloc reste là et le dit : deux lignes", (t) => {
   const { a, livrer, retenir, noter, journal } = cuisine(t);
   const lire = (heure: string) => decrireEtat(lireEtat(journal, new Date(heure)), new Date(heure));
   // Un journal où rien n'a jamais attendu.
@@ -586,10 +537,10 @@ test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bi
   const debut = calme.indexOf("awaiting   nothing awaits the chef");
   assert.deepEqual(calme.slice(debut - 1, debut + 4), ["", "awaiting   nothing awaits the chef", "end awaiting", "", "rail       empty"]);
 
-  // Une livraison arrêtée faute de grant, puis mergée à la main : la file se vide, le bilan reste à `run pass`.
+  // Une livraison arrêtée, puis mergée à la main : la file se vide.
   a(`${JOUR_HORLOGE}T09:00:00.000Z`);
   livrer(17);
-  retenir(17, "no-grant");
+  retenir(17, "merge-refused");
   noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
   assert.deepEqual(blocAttend(lire(`${JOUR_HORLOGE}T10:00:00.000Z`)), RIEN);
 });

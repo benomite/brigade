@@ -39,7 +39,7 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
     case "roadmap":
       return { motif: "it is the project's roadmap", geste: null };
     case "untrusted-author":
-      return { motif: "its author has no write access to the repository", geste: "a member with write access puts `fire` or a `prio:` label on it: it is judged on the next wake-up" };
+      return { motif: "its author has no write access to the repository", geste: "a member with write access puts `fire` or a `prio:` label on it, or the project's product human answers `on the rail` on its TODO card: it is judged on the next wake-up" };
     default:
       return { motif: issue.reason, geste: null };
   }

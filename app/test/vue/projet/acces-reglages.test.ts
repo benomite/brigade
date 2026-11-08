@@ -11,8 +11,7 @@ import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
 import { BANNIERE } from "../../../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../../../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../../../src/grants.ts";
+import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
@@ -28,7 +27,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -43,12 +42,10 @@ async function ouvrir(): Promise<Jouee> {
 }
 
 // Les onglets du menu, et le chemin de clics qui y mène depuis la page du projet : Rail est ouvert d'office.
-type Onglet = "Rail" | "Stations" | "Health" | "Cooks" | "Settings";
-const CHEMINS: Readonly<Record<Onglet, readonly ("Kitchen" | Onglet)[]>> = {
+type Onglet = "Rail" | "Stations" | "Settings";
+const CHEMINS: Readonly<Record<Onglet, readonly Onglet[]>> = {
   Rail: [],
   Stations: ["Stations"],
-  Health: ["Kitchen", "Health"],
-  Cooks: ["Kitchen", "Cooks"],
   Settings: ["Settings"],
 };
 // Marche le menu comme le chef — un clic par entrée — et dit combien de clics il a fallu.
@@ -74,8 +71,8 @@ const GROUPES = (() => {
 // Ce que la page Settings montre, avec le niveau du groupe qui le porte.
 const deSettings = (vue: Jouee): { niveau: string; pose: Faux }[] =>
   vue.element("etat").hidden ? [] : GROUPES.flatMap(({ niveau, ids }) => ids.map((id) => ({ niveau, pose: vue.element(id) }))).filter(({ pose }) => montre(pose));
-// Les éléments où chercher un réglage dans un onglet.
-const racines = (vue: Jouee, onglet: Onglet): Faux[] => (onglet === "Settings" ? deSettings(vue).map(({ pose }) => pose) : [vue.element("rail")]);
+// Les éléments où chercher un réglage dans un onglet (sur Rail, le bandeau de santé au-dessus du rail en fait partie).
+const racines = (vue: Jouee, onglet: Onglet): Faux[] => (onglet === "Settings" ? deSettings(vue).map(({ pose }) => pose) : [vue.element("rail"), vue.element("bandeau-sante")]);
 
 // Un élément se montre quand lui et tous ses parents le font.
 function montre(pose: Faux): boolean {
@@ -91,8 +88,6 @@ const REGLAGES: readonly Reglage[] = [
   { nom: "local station settings", bloc: "station-locale" },
   { nom: "duration caps", bloc: "plafonds-duree" },
   { nom: "closer settings", bloc: "closer" },
-  { nom: "specializations", bloc: "specialisations" },
-  { nom: "notebook", bloc: "cahier" },
   { nom: "project colors", cle: "couleurs" },
   { nom: "project label", cle: "sigle" },
 ];

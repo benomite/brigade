@@ -13,6 +13,7 @@ import { configCloison } from "../../src/cloison.ts";
 import { poserDecision, suivreDecisions, type ReglagesSuivis } from "../../src/decisions.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
+import type { Humain } from "../../src/aiguillage-humains/aiguillage.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
@@ -247,8 +248,9 @@ export function fauxGitHub(...issues: Issue[]) {
     garantir: (numero: number, labels: string[]) => void garants.set(numero, labels),
     decrire: (numero: number, description: { body?: string; association?: string }) => void corps.set(numero, description),
     // Ce que le chef écrit sous une issue.
-    repondre: (numero: number, body: string, association = "OWNER") =>
-      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author: "chef", association, createdAt: "2026-10-08T09:30:00Z" }]),
+    // `author` : un autre compte que le chef — un humain déclaré du projet.
+    repondre: (numero: number, body: string, association = "OWNER", author = "chef") =>
+      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author, association, createdAt: "2026-10-08T09:30:00Z" }]),
     // Remplace les commentaires d'une issue par ceux-ci — ce qui, sur GitHub, la modifie.
     ficher(numero: number, updatedAt: string, ...corps: string[]) {
       poses.set(numero, corps.map((body) => ({ body, author: "chef", association: "OWNER", createdAt: updatedAt })));
@@ -348,6 +350,10 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
       }
       rangees.set(nom, { commits: 1, date: statSync(poussee).mtimeMs, recoltes: [], poussee: true });
       return true;
+    },
+    // Sans git, pas de fork à rapatrier (#2933).
+    async recevoirPR(_run, numero) {
+      throw new Error(`no outside PR #${numero} in a clone without git`);
     },
     retirer(worktree, nom) {
       const sienne = de(worktree);
@@ -452,7 +458,7 @@ export type Options = {
   // `station` : le nom sous lequel il prend son travail sur GitHub (#2568) ;
   // sans lui, il se croit seul.
   // `surLeRail` : appelé quand le manager rend un ticket prenable (#2796).
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void };
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; humains?: () => Humain[] };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -552,6 +558,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         avertir: (message) => void avertissements.push(message),
         station: options.manager.station ?? null,
         ...(options.manager.surLeRail === undefined ? {} : { surLeRail: options.manager.surLeRail }),
+        ...(options.manager.humains === undefined ? {} : { humains: options.manager.humains }),
       })
     : garde;
   aArreter = runtime;
@@ -579,14 +586,10 @@ export function cuisine(t: TestContext, options: Options = {}) {
 // Ce que ferait la CLI depuis son propre process : une autre connexion.
 export function chef(
   repertoire: string,
-  type: "kitchen.stopped" | "kitchen.resumed" | "grant.activated" | "grant.revoked" | "manager.enabled" | "manager.disabled" | "base.recheck-requested",
-  // L'échéance d'un grant accordé : jusqu'à quand, pour combien d'usages.
-  echeance: { until?: string; uses?: number } = {},
+  type: "kitchen.stopped" | "kitchen.resumed" | "manager.enabled" | "manager.disabled" | "base.recheck-requested",
 ) {
   const journal = ouvrirJournal(repertoire);
-  if (type !== "grant.activated" && type !== "grant.revoked") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
-  else if (type === "grant.activated") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: { action: "merge", ...echeance } });
-  else journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: { action: "merge" } });
+  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
   journal.fermer();
 }
 

@@ -20,7 +20,7 @@ Most of what lands on `main` was cooked by the kitchen, not typed by a person.
 
 - Of 1,191 pull requests merged in this repo, 1,016 (85%) come from a `cook/<n>-…` branch, the branch a kitchen cook works on.
 - Source: `git log --merges --format=%s | grep -c 'Merge pull request'` gives 1,191; the same output filtered with `grep -c '/cook/'` gives 1,016. Window: 2026-10-02 (PR #2) to 2026-11-07.
-- Limit: the branch name shows who cooked, not who clicked merge. Merging without the chef is a separate claim, proved by the `merge` grant in [`docs/runtime/pass-merge.md`](../runtime/pass-merge.md) (automatic merge exists only under a grant, which can be time- and use-limited).
+- Limit: the branch name shows who cooked, not who clicked merge. Merging without the chef is a separate claim: a delivery is merged once its verdict is approved and its CI is green ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)); the brakes are the `stop` that halts every cook and the second judge that reads any delivery changing what judges it ([`docs/runtime/pass.md`](../runtime/pass.md)).
 
 ### 2. It does not need babysitting: it stops itself and heals itself
 
@@ -48,5 +48,5 @@ The point of leaving the computer is that Brigade comes to you with a question, 
 ## What it is not
 
 - **Not an agent you babysit.** You do not watch it, prompt it step by step, or restart it. Proof: arguments 1 and 2 (guardrails, autonomy table).
-- **Not a pile of PRs to review.** Technical merges with a green CI are the kitchen's call, not a queue for you; only reviews that need a human come to you. Proof: [`CLAUDE.md`](../../CLAUDE.md) first section, and the grant in [`docs/runtime/pass-merge.md`](../runtime/pass-merge.md).
+- **Not a pile of PRs to review.** Technical merges with a green CI are the kitchen's call, not a queue for you; only reviews that need a human come to you. Proof: [`CLAUDE.md`](../../CLAUDE.md) first section, and the merge rule in [`docs/runtime/pass-merge.md`](../runtime/pass-merge.md).
 - **Not unbounded.** It runs inside caps and a stop you control (argument 2).

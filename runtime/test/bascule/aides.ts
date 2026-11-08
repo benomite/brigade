@@ -141,7 +141,6 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
     mkdirSync(join(etat(projet.nom), "runs"), { recursive: true });
     const journal = ouvrirJournal(etat(projet.nom));
     for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: projet.nom, ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
-    journal.ajouter({ project: projet.nom, ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
     journal.fermer();
     const depot = join(etat(projet.nom), "depot");
     mkdirSync(depot, { recursive: true });

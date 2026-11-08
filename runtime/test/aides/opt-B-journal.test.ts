@@ -14,10 +14,10 @@ for (const garder of [true, false]) {
     try {
       const ecrivain = ouvrirJournal(repertoire);
       const types = () => lecteur.lire(repertoire, "types", (journal) => journal.tout().map((e) => e.type));
-      ecrivain.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-      assert.deepEqual(types(), ["grant.activated"]);
-      ecrivain.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.revoked", payload: { action: "merge" } });
-      assert.deepEqual(types(), ["grant.activated", "grant.revoked"]);
+      ecrivain.ajouter({ project: "brigade", ticket: null, author: "chef", type: "kitchen.stopped", payload: {} });
+      assert.deepEqual(types(), ["kitchen.stopped"]);
+      ecrivain.ajouter({ project: "brigade", ticket: null, author: "chef", type: "kitchen.resumed", payload: {} });
+      assert.deepEqual(types(), ["kitchen.stopped", "kitchen.resumed"]);
       ecrivain.fermer();
       if (!garder) {
         // Rien n'est gardé ouvert : sous Windows aussi, le répertoire s'efface avant `fermer`.

@@ -100,11 +100,15 @@ describe("sa feuille", () => {
 
   test("une règle d'écran qui vise un bouton le place, et ne le dessine pas — sauf ce qui n'est pas un bouton de la famille", () => {
     // Ce qui est un `<button>` sans être un bouton de la famille, et garde sa forme : la remise à zéro de la page, les
-    // cases de la barre, les onglets, les pastilles de couleur, les positions de la table d'autonomie (un sélecteur à
-    // segments), les rangées et les liens qui ouvrent une page.
-    const autres = /^(button(:focus-visible)?|#projets button.*|#(onglets-du-projet|onglets-cuisine|terminaux) button.*|\.(tete-cout|tendances) button\.projet.*|#couleurs button\.teinte.*|#rail \.feu li button|#rail \.bon p\.ligne-carte button\.lien-de-ligne|#rail \.bon \.carte-todo p\.secondaire > button\.demander.*|#rail button\.ticket|\.perdus-cout button\.perdus-total.*|\[data-bloc="closer"\] button\.lien|\.autonomie( \.verrouillee)? \.positions > button.*)$/;
+    // cases de la barre, les onglets, les pastilles de couleur, et un numéro de ticket qui ouvre son issue — la rangée
+    // d'un ticket `fire`, un `#N` dans la phrase d'un bon. Rien d'autre : un geste, un lien vers une page, un chiffre qui
+    // déplie sa liste ou une position d'autonomie est un bouton de la famille.
+    const autres = /^(button(:focus-visible)?|#projets button.*|#(onglets-du-projet|terminaux) button.*|#couleurs button\.teinte.*|#rail \.feu li button|#rail \.bon p\.ligne-carte button\.lien-de-ligne)$/;
     const dessin = /^(padding(-\w+)?|font(-size|-weight)?|line-height|color|background(-color)?|border(-[\w-]+)?|min-height|height|opacity|box-shadow)$/;
-    for (const fichier of ["vue.css", "autonomie/autonomie.css"]) {
+    // Toutes les feuilles de la vue, sous-dossiers compris, sauf celle du bouton et les jetons.
+    const feuilles = (readdirSync(VUE, { recursive: true }) as string[]).filter((fichier) => fichier.endsWith(".css") && !fichier.endsWith("bouton.css") && fichier !== "jetons.css");
+    assert.ok(["vue.css", join("autonomie", "autonomie.css"), join("settings-humans", "humains.css")].every((fichier) => feuilles.includes(fichier)), feuilles.join(", "));
+    for (const fichier of feuilles) {
       for (const [, tete = "", corps = ""] of lire(fichier).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
         const selecteurs = tete.split(/,(?![^(]*\))/).map((selecteur) => selecteur.trim().replace(/\s+/g, " ")).filter((selecteur) => /\bbutton\b/.test(selecteur) && !autres.test(selecteur));
         if (selecteurs.length === 0) continue;

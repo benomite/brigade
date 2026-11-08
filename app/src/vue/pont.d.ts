@@ -8,12 +8,9 @@ import type { Lecture } from "../box.ts";
 import type { PALETTE, Role } from "../couleurs.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
-import type { Vu as VuDeLaFiabilite } from "../fiabilite.ts";
-import type { Action, Rendu as RenduDuCloser } from "../closer-lancement.ts";
 import type { Confirmation } from "../confirmation.ts";
-import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
+import type { CONFIRMES, DIRECTS } from "../gestes.ts";
 import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
-import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
 import type { Issue, Lu, Saisie } from "../ajout.ts";
 import type { Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
@@ -37,7 +34,7 @@ import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -110,11 +107,6 @@ export type Pont = {
   shell(projet: string, machine: string): Promise<Terminal | { refus: string }>;
   // Ferme un shell pour de bon : sa session est détruite — ou la raison, quand elle n'a pas pu l'être.
   fermerShell(id: number): Promise<{ ferme: true } | { refus: string }>;
-  // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée — le
-  // chef la complète. Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne
-  // l'a été, sans toucher au second. Rien, pour un projet sans box. `valeurs` : celles que le geste
-  // attend de la page — le modèle et l'effort du closer, pour « regler-closer » (boutons.ts).
-  inscrire(projet: string, bouton: string, valeurs: readonly string[]): Promise<Terminal | { refus: string } | undefined>;
   // Une carte de T'attend (demande.ts) : une demande en prose est écrite dans le second, sans Entrée,
   // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
   // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.
@@ -171,14 +163,13 @@ export type Pont = {
   demanderAlerte(projet: string, sujet: string, dit: string): Promise<Terminal | { refus: string } | undefined>;
   // Un geste du socle (gestes.ts) : sa commande part dans le second du projet. Rend le second, dont
   // la note dit ce qui est parti — ou pourquoi rien ne l'est, sans y toucher, quand il n'est pas dit
-  // libre (occupé, devant un dialogue, saisie entamée). Rien, pour un projet sans box. `grant` :
-  // celui sur lequel porte un geste de grant, par son nom. Un geste confirmé (`gestes.confirmes`, au
+  // libre (occupé, devant un dialogue, saisie entamée). Rien, pour un projet sans box. Un geste confirmé (`gestes.confirmes`, au
   // démarrage) ne part qu'avec `oui` à `true` — la vue ne le passe qu'au « oui » du chef, devant sa
   // confirmation : sans lui, rien n'est écrit, et le refus le dit.
-  geste(projet: string, id: string, grant?: string, oui?: true): Promise<Terminal | { refus: string } | undefined>;
+  geste(projet: string, id: string, oui?: true): Promise<Terminal | { refus: string } | undefined>;
   // Ce qu'un geste confirmé coûte, à dire avant son « oui » (confirmation.ts) : tiré des derniers
   // faits lus du projet. Rien ne part. Rien, pour un geste qui ne se confirme pas.
-  confirmer(projet: string, id: string, grant?: string): Promise<Confirmation | { refus: string } | undefined>;
+  confirmer(projet: string, id: string): Promise<Confirmation | { refus: string } | undefined>;
   // Un geste de WAITING (attente.ts), sur la carte d'un ticket : sa commande part dans le second du
   // projet, comme un geste du socle. `saisie` : ce que le chef a rempli pour « waiting for… » — ce
   // qu'il attend, de qui, le jour de la relance. Rend le second, ou pourquoi rien n'est parti.
@@ -281,14 +272,22 @@ export type Pont = {
   // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la
   // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
   panne(id: string, cle: string): Promise<RenduDePanne>;
-  // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : un modèle et un effort, ou « defaut »
-  // — le retour au défaut. Part là où sa cuisine tourne (plafond-de-calibrage.ts) ; le plafond neuf arrive par la relecture.
-  reglerLePlafondDeCalibrage(projet: string, choix: import("../plafond-de-calibrage.ts").ChoixDuPlafond): Promise<import("../plafond-de-calibrage.ts").RenduDuPlafond>;
   // Les réglages du projet sur sa page (ticket 1309) : lus là où sa cuisine tourne (`setting`), et changés par une PR sur
   // son dépôt — rien ne se pose sur la box (reglages-du-projet.ts). La PR rendue s'ouvre par `ouvrirLaProposition`.
   reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
   proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
   ouvrirLaProposition(url: string): Promise<boolean>;
+  // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
+  // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humains.js, humains-du-projet.ts).
+  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.
+  listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
+  enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
+  retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
+  // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
+  listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;
+  refuserUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
+  accepterUneStationContributrice?(projet: string, station: string): Promise<import("../stations-contributrices.ts").EcritureDUneStation>;
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
   // (`.claude/brigade/projet.json`), lus et écrits sur sa branche d'intégration, sur GitHub (plafonds-duree.ts).
   plafondsDuree(projet: string): Promise<import("../plafonds-duree.ts").LectureDesPlafonds>;
@@ -299,10 +298,6 @@ export type Pont = {
   closerDeSante(projet: string): Promise<import("../closer-sante.ts").LectureDuCloser>;
   changerReglageDuCloser(projet: string, cle: string, saisie: string | { model: string; effort: string }): Promise<import("../closer-sante.ts").RenduDuReglage>;
   changerVerificationDuCloser(projet: string, geste: "ajouter" | "retirer", saisie: string): Promise<import("../closer-sante.ts").RenduDesVerifications>;
-  // Les spécialisations des cooks du projet, sur Kitchen > Cooks (ticket 2492) : les `agents/cook-<nom>.md` de son dépôt,
-  // lus et ajoutés sur sa branche d'intégration, sur GitHub (specialisations.ts).
-  specialisations(projet: string): Promise<import("../specialisations.ts").LectureDesSpecialisations>;
-  ajouterSpecialisation(projet: string, demande: import("../specialisations.ts").DemandeDeSpecialisation): Promise<import("../specialisations.ts").RenduDeLaSpecialisation>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —
@@ -345,11 +340,6 @@ export type Pont = {
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
   compter(projet: string): Promise<Compte | undefined>;
-  // Un geste de la partie closer (closer-lancement.ts), lancé une fois sur la box du projet : l'aperçu
-  // d'un nettoyage, sa demande — qui ne part qu'avec `oui` à `true`, que la vue ne passe qu'au « oui »
-  // du chef, devant ce qu'il coûte —, ou son annulation. Rend ce que le runtime a répondu, ou pourquoi
-  // rien ne l'a été. Rien, pour un projet sans box.
-  closer(projet: string, action: Action, oui?: true): Promise<RenduDuCloser | undefined>;
   // La réponse du chef à la carte de TODO d'un ticket (carte-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(projet: string, ticket: number, reponse: import("../carte-todo.ts").Reponse): Promise<import("../carte-todo.ts").Rendu | undefined>;
   // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
@@ -357,10 +347,6 @@ export type Pont = {
   // projet que l'app ne connaît plus.
   reprendreLeDisjoncteur(projet: string): Promise<import("../github/breaker-resume.ts").RenduDeLaReprise | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
-  // La ligne d'une leçon promue dans le carnet du projet, sur GitHub, ouverte dans le navigateur du poste
-  // (apprentissage.ts) : la vue nomme le projet et la leçon, l'adresse est celle que ses derniers faits lus
-  // portent. Rien n'est créé — ni branche, ni PR. Rend si elle a été ouverte.
-  ouvrirLecon(projet: string, id: string): Promise<boolean>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;
@@ -400,9 +386,7 @@ export type Pont = {
   surActivites(recevoir: (publiees: import("./activite-du-cook.js").Publiees) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
-  // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts). `fiabilite` : dans
-  // l'onglet Cooks, la fiabilité des cooks, lue dans `station` et `measures` (fiabilite.ts, ticket 1699).
-  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined, fiabilite?: VuDeLaFiabilite) => void): void;
+  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :

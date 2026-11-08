@@ -44,8 +44,8 @@ nothing blocking".** Not "a human reread it", never "green on its own branch". J
 unstable test are left out of "nothing".
 
 A delivery can reach the pass **off the rail** (the PR of a closing pass, of an accepted correction
-to the instructions, or of the lessons notebook, [`carnet-lecons.md`](carnet-lecons.md)). Same judges
-and grant; nothing that belongs to a ticket happens ([`fermeture.md`](fermeture.md)).
+to the instructions, or of the lessons notebook, [`carnet-lecons.md`](carnet-lecons.md)). Same judges;
+nothing that belongs to a ticket happens ([`fermeture.md`](fermeture.md)).
 
 ### The gates' duration cap is not judged by the pass
 
@@ -117,7 +117,7 @@ the project's calibration (`station reviewer-modele` and `reviewer-effort`, no d
 
 Each review leaves a « Reviewer — … » comment on the issue. **A delivery that was read is not read
 again** (`pass.reviewed`; several on one `sha` only after unreadable answers); a send-back is another
-delivery. **A green reviewer lifts no other rule**: neither the stop without a grant, nor
+delivery. **A green reviewer lifts no other rule**: not
 `review-required`.
 
 A review is in the log **like a cook** (station `reviewer`, run `review-<ticket>-…`) and goes through
@@ -145,8 +145,8 @@ the delivery changes in its judges** (`change`, optional): a few plain words fol
 the Windows tests on v2 too`), no code or file name. The verdict is in the log
 (`pass.second-judged`) and **on the PR** as a comment (« Second juge — … »). Then:
 
-- **`not weakened`**: the delivery follows the ordinary path: under the `merge` grant the pass merges
-  it (`grant.used`, `merge.done`), no card; with no grant, it stops at `no-grant`.
+- **`not weakened`**: the delivery follows the ordinary path: the pass merges it once its CI is green
+  (`merge.done`), no card.
 - **`weakened` or `cannot establish`**: it stays stopped, and a **`gesture` card** (`todo.entered`,
   author `pass`) is placed before the chef in three lines: what is weakened (the second judge's
   reason), where (the judges' files with lines, and the PR), and the gesture expected: reread the PR,
@@ -178,7 +178,7 @@ rereads that deliverable alone against the ticket.
 
 | The reviewer says | What happens |
 |---|---|
-| nothing blocking | **served without a merge** (`pass.served`), issue closed, **with no grant** |
+| nothing blocking | **served without a merge** (`pass.served`), issue closed |
 | a blocking finding | red: back to a cook, same branch, within two send-backs |
 | unreadable | asked again, twice at most; then escalated (`unjudged`, cause `review-unreadable`) |
 | nothing ("stop", breaker, quota, connection) | the ticket **waits in pass** |
@@ -190,17 +190,16 @@ for code goes to the pass as "with no diff"; the reviewer must say so.
 
 ### What the pass decides
 
-| Verdict | `merge` grant | What happens |
-|---|---|---|
-| green | **active** | the runtime checks **the base is still the one of the verdict** (else it judges again), then **merges the PR itself**; ticket **served**, issue closed |
-| green | absent, revoked or off | the PR stays open, **the pass stops there** (`pass.held`, `no-grant`) |
-| green, but it touches its judges | no matter | **not merged on the pass's verdict alone** (`review-required`, cause `judge-modified`): it goes before **the second judge** (above) |
-| green, but it touches `.claude/brigade/reseau` or `.claude/brigade/secrets` | no matter | **never merged by the pass** (`review-required`, cause `declaration-modified: <files>`): once merged, the declaration opens a host or hands over a secret to the next cooks. The issue comment says what to reread |
-| green, ticket with no diff | no matter | **served without a merge**, issue closed |
-| none, **base red** | no matter | the delivery **waits** (`pass.waiting`, `base-red`) and leaves by itself when the base is repaired or replayed green. Only the repair ticket for that red is judged and merged despite it |
-| red: gates on the merge, conflict, CI, or blocking finding | n/a | the **findings go back to a cook**, same branch. Nothing is merged |
-| red a second time, **manager on** | n/a | **hands over to the manager** (`pass.deferred`; see "It reacts to a failure") |
-| red a third time, manager off | n/a | two send-backs used up: **escalates to you** (`still-red`). It goes **86** |
+| Verdict | What happens |
+|---|---|
+| green | the runtime checks **the base is still the one of the verdict** (else it judges again), then **merges the PR itself**; ticket **served**, issue closed |
+| green, but it touches its judges | **not merged on the pass's verdict alone** (`review-required`, cause `judge-modified`): it goes before **the second judge** (above) |
+| green, but it touches `.claude/brigade/reseau` or `.claude/brigade/secrets` | **never merged by the pass** (`review-required`, cause `declaration-modified: <files>`): once merged, the declaration opens a host or hands over a secret to the next cooks. The issue comment says what to reread |
+| green, ticket with no diff | **served without a merge**, issue closed |
+| none, **base red** | the delivery **waits** (`pass.waiting`, `base-red`) and leaves by itself when the base is repaired or replayed green. Only the repair ticket for that red is judged and merged despite it |
+| red: gates on the merge, conflict, CI, or blocking finding | the **findings go back to a cook**, same branch. Nothing is merged |
+| red a second time, **manager on** | **hands over to the manager** (`pass.deferred`; see "It reacts to a failure") |
+| red a third time, manager off | two send-backs used up: **escalates to you** (`still-red`). It goes **86** |
 
 Only a red verdict uses up a send-back; a send-back cook that fails without delivering uses none (the
 breaker bounds it). Each decision is commented on the issue, saying what the verdict covered:
@@ -226,8 +225,7 @@ shows both, `(unjudged : ci-silent)`, and the queue in `status` writes the gestu
 
 | Fact | Reason | What it is | Your gesture |
 |---|---|---|---|
-| `pass.held` | `no-grant` | green, no active grant (`expired`: lapsed on its own) | merge by hand; or, for the next ones, `npm --prefix runtime run grant -- enable merge` |
-| `pass.held` | `review-required` | green, but it touches its judges or a declaration (above). No grant makes it merge | reread, then merge by hand |
+| `pass.held` | `review-required` | green, but it touches its judges or a declaration (above). The pass does not merge it | reread, then merge by hand |
 | `pass.held` | `merge-refused` | green, and GitHub refused the merge (cause: what it said). Not retried | lift what it refuses, then merge by hand |
 | `pass.escalated` | `still-red` | red, and send-backs will not fix it: used up (`returns-exhausted`), the manager escalates (`manager-escalated`), or the PR of a closing pass, off the rail, which no one picks up (`off-rail`) | none: the kitchen takes it up (below), except the manager's escalation with a card (the card's question) and the off-rail PR: merge it by hand, or close it |
 | `pass.escalated` | `unjudged` | the pass could not judge; the cause says why | none: the kitchen takes it up, except `secrets-unavailable`: set the secrets, then remove and put back `fire`; or merge by hand; or remove `fire` |
@@ -283,13 +281,6 @@ never a gesture for the chef. Merging the PR by hand, or removing `fire`, still 
 Only `secrets-unavailable`, the manager's escalation with a card, the off-rail PR of a closing pass
 and the abandoned code rename stay out of the kitchen. `CAUSES_DU_CHEF` and `QUI_ATTEND`
 (`runtime/src/attend.ts`) list what may still enter the chef's queue.
-
-**Without a grant, the stop comment says what the pass would have done.** **The figure on which to
-grant** is read in `pass`, `grant` and the `awaiting` block of `status`: `without a grant, 3 green
-deliveries stopped: 1 merged by hand, 1 closed without merge — 1 disagreement —, 1 still open`. Closing
-a delivery without merging is the disagreement. A delivery the pass merged itself, the grant having been
-given since, is counted apart (`merged by the pass`). `review-required` and `merge-refused` do not
-count.
 
 #### Getting a stopped or escalated ticket out
 
@@ -366,7 +357,7 @@ exceeded delay) falls with nothing opened. **If the red holds**, it **opens a re
 (`base.repair-opening` then `base.repair-opened`) naming the base, the commit and what
 fails. It carries `fire`, `model:opus`,
 `effort:medium` (like the manager's table, #2575) and **`prio:0`, which goes ahead of the whole rail**. **It is the only ticket that
-leaves from a red base**: the pass judges it merged with the red base and merges it under grant, its
+leaves from a red base**: the pass judges it merged with the red base and merges it, its
 green gates saying it repairs it. Merged, the base's gates are replayed, and at green everything
 restarts by itself.
 **One at a time**: no second while the first is in progress, nor more than one per red. Its
