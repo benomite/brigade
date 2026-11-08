@@ -25,11 +25,12 @@ function cuire(corps: string) {
   git(worktree, "init", "-q");
   git(worktree, "commit", "-q", "--allow-empty", "-m", "base");
   const args = dansLeBacASableLocal(BAC, argumentsClaude("go", { model: "sonnet", effort: "low" }), worktree, [], livreSousBrigade(corps));
-  const cook = spawnSync(process.execPath, [FAUX_COOK, ...args], { cwd: worktree, encoding: "utf8", env: { ...process.env, FAUX_COOK: "ecrit-brigade" } });
+  const identite = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  const cook = spawnSync(process.execPath, [FAUX_COOK, ...args], { cwd: worktree, encoding: "utf8", env: { ...process.env, ...identite, FAUX_COOK: "ecrit-brigade" } });
   return { cook, worktree, commits: git(worktree, "log", "--format=%s").stdout.trim().split("\n"), suivis: git(worktree, "ls-files").stdout.trim() };
 }
 
-test("un ticket de setup qui ne livre que `.claude/brigade/` : son cook y écrit `reseau`, et c'est commité (#2855)", { skip: !posixOnly }, () => {
+test("un ticket de setup qui ne livre que `.claude/brigade/` : son cook y écrit `reseau`, et c'est commité (#2855)", { skip: posixOnly("the fake cook is a POSIX script and the sandbox is a Mac's") }, () => {
   const { cook, worktree, commits, suivis } = cuire("Write `.claude/brigade/reseau` and `.claude/brigade/gates.sh`.");
   assert.equal(cook.status, 0, cook.stderr);
   assert.ok(existsSync(join(worktree, ".claude/brigade/reseau")));
@@ -37,7 +38,7 @@ test("un ticket de setup qui ne livre que `.claude/brigade/` : son cook y écrit
   assert.equal(commits[0], "la liste réseau");
 });
 
-test("un ticket ordinaire : la même écriture est refusée, rien n'est commité (#2855)", { skip: !posixOnly }, () => {
+test("un ticket ordinaire : la même écriture est refusée, rien n'est commité (#2855)", { skip: posixOnly("the fake cook is a POSIX script and the sandbox is a Mac's") }, () => {
   for (const corps of ["Edit `runtime/src/x.ts`.", "Edit `.claude/brigade/gates.sh` and `runtime/src/x.ts`.", "No file named."]) {
     const { cook, worktree, commits, suivis } = cuire(corps);
     assert.match(cook.stdout, /Permission to use Write has been denied because Claude Code is running in don't ask mode/);
