@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
+import { brancheDuTicket } from "./brigade-github.ts";
 import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
 import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
@@ -415,7 +416,14 @@ export function ouvrirDecoupage(atelier: Atelier) {
     const lue = await github.issue(numero);
     if (lue === null || lue.pr === true) return null;
     if (lue.state === "open") return ouvert(numero, lue.title);
-    const pr = await github.prQuiFerme(numero);
+    // Servi par une PR mergée : celle que GitHub dit avoir fermé l'issue
+    // (`Closes #n`), sinon celle mergée depuis la branche du cook, même sans
+    // ligne `Closes`.
+    let pr = await github.prQuiFerme(numero);
+    if (!pr?.merged) {
+      const debranche = await github.prDeBranche(brancheDuTicket(numero));
+      pr = debranche?.merged ? debranche : pr;
+    }
     const title = lue.title;
     const ligne: LigneLue = pr?.merged ? { ticket: numero, title, state: "servi", served: true, ferme: true, pr: pr.url } : { ticket: numero, title, state: "abandonné", served: false, ferme: true, pr: null };
     fermes.set(numero, ligne);
