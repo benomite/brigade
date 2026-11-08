@@ -1121,11 +1121,92 @@ main > header,
 /* Les terminaux : à droite, en permanence, sur toute la hauteur — leurs onglets, la note du
    terminal montré, et ce terminal. Aucune page ne les couvre. */
 #second {
-  flex: 0 0 32%;
+  position: relative;
+  flex: 0 0 var(--largeur-du-second, 360px);
   min-width: 0;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--trait);
+}
+/* Son bord gauche se tire pour changer sa largeur (ticket 2923) : une poignée à cheval sur le trait, par-dessus le rail. */
+#bord-du-second {
+  position: absolute;
+  left: -5px;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 10px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+#bord-du-second > span {
+  width: 3px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--trait);
+}
+#bord-du-second:is(:hover, :focus-visible) > span,
+#second[data-tire] #bord-du-second > span {
+  background: var(--accent);
+}
+#cadre:has(#second[data-tire]) {
+  cursor: col-resize;
+  user-select: none;
+}
+/* Le bouton qui le replie et le déplie : au bout de sa tête, un chevron vers la droite ouvert, vers la gauche replié. */
+#replier-second {
+  margin-left: auto;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+#replier-second svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--texte-doux);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+#replier-second:hover {
+  border-color: var(--trait);
+}
+#replier-second:hover svg {
+  stroke: var(--texte);
+}
+#fermer-shell:not([hidden]) + #replier-second {
+  margin-left: 0;
+}
+/* Replié, il ne garde que ce bouton, en tête d'une bande étroite ; ses terminaux restent tels quels, cachés. */
+#second[data-replie] {
+  flex: 0 0 auto;
+}
+#second[data-replie] > :not(header),
+#second[data-replie] > header > :not(#replier-second) {
+  display: none;
+}
+#second[data-replie] > header {
+  padding: 0 4px;
+}
+#second[data-replie] #replier-second {
+  margin: 0;
+}
+#second[data-replie] #replier-second svg {
+  transform: scaleX(-1);
 }
 /* Fermer le shell montré, pour de bon : au bout du bandeau des terminaux. */
 #fermer-shell {
