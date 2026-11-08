@@ -29,6 +29,7 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
+import { brancherLeChef } from "./chef/chef.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
@@ -234,7 +235,9 @@ try {
   brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
   runtime = brancherRepriseParGitHub(alertee, { github: githubs.rail });
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
-  brancherMentionDuChef(runtime, { github: githubs.station, chef: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef ?? null, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
+  // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
+  const { chef } = brancherLeChef(runtime, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat });
+  brancherMentionDuChef(runtime, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

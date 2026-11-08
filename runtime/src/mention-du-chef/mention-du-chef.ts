@@ -4,9 +4,10 @@
 // question de la carte en une ligne. GitHub Mobile notifie un compte mentionné :
 // c'est le premier pas des notifications, sans rien d'autre à installer.
 //
-// Le compte du chef est celui que les réglages du projet nomment (`chef`, dans
-// `.claude/brigade/projet.json`), relu à chaque passe : jamais écrit en dur.
-// Sans lui, rien n'est mentionné, et la cuisine le dit une fois.
+// Le compte du chef est celui que le résolveur rend (chef/chef.ts, #2928) : `chef`
+// des réglages du projet, relu à chaque passe, sinon le propriétaire du dépôt
+// ou l'auteur de son `/brigade:init` — jamais écrit en dur. Sans chef résolu,
+// rien n'est mentionné, et la cuisine le dit une fois.
 //
 // Seule la file du chef mentionne : la prise, les renvois, les verdicts et les
 // merges n'y entrent pas, et rien d'autre n'appelle ce module.
@@ -92,8 +93,8 @@ export async function mentionner(github: GitHubDeLaMention, chef: string, carte:
 
 export type OptionsDeLaMention = {
   github: GitHubDeLaMention;
-  // Le compte GitHub du chef, relu des réglages du projet ; nul s'ils n'en nomment aucun.
-  chef: () => string | null;
+  // Le compte GitHub du chef, résolu à chaque passe (chef/chef.ts) ; nul sans chef.
+  chef: () => string | null | Promise<string | null>;
   // La configuration du projet, relue à chaque passe : ses humains (`humans`) reçoivent les cartes de leur rôle (#2760).
   projet?: () => unknown;
   avertir?: (ligne: string) => void;
@@ -119,25 +120,25 @@ export function mentionneurDuChef(base: Base, options: OptionsDeLaMention) {
     if (enVol !== null) return enVol;
     const cartes = cartesAMentionner(base, options.maintenant?.() ?? new Date()).filter(({ ticket, cle }) => !vues.has(`${ticket}:${cle}`));
     if (cartes.length === 0) return Promise.resolve();
-    let chef: string | null;
-    try {
-      chef = options.chef()?.trim() || null;
-    } catch (erreur) {
-      direUneFois(`brigade : chef not mentioned on GitHub — the project settings do not read: ${message(erreur)}`);
-      return Promise.resolve();
-    }
-    if (chef === null) {
-      direUneFois("brigade : chef not mentioned on GitHub — the project settings name no chef: set `chef` to the chef's GitHub login in `.claude/brigade/projet.json`");
-      return Promise.resolve();
-    }
-    const login = chef;
-    let humains: Humain[] = [];
-    try {
-      humains = humainsDuProjet(options.projet?.());
-    } catch (erreur) {
-      direUneFois(`brigade : TODO cards go to the chef — the project's humans do not read: ${message(erreur)}`);
-    }
     const courante = (async () => {
+      let chef: string | null;
+      try {
+        chef = (await options.chef())?.trim() || null;
+      } catch (erreur) {
+        direUneFois(`brigade : chef not mentioned on GitHub — the project settings do not read: ${message(erreur)}`);
+        return;
+      }
+      if (chef === null) {
+        direUneFois("brigade : chef not mentioned on GitHub — no chef resolved (`status` says why): set `chef` to the chef's GitHub login in `.claude/brigade/projet.json`");
+        return;
+      }
+      const login = chef;
+      let humains: Humain[] = [];
+      try {
+        humains = humainsDuProjet(options.projet?.());
+      } catch (erreur) {
+        direUneFois(`brigade : TODO cards go to the chef — the project's humans do not read: ${message(erreur)}`);
+      }
       for (const carte of cartes) {
         try {
           await mentionner(options.github, login, carte, humains);
