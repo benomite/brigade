@@ -8,7 +8,8 @@
 // jamais rien : seul le « run it » du chef écrit dans le terminal. Lancé, ou le second passé à autre chose, le bouton
 // part. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { confirmationDeGeste, replie, survol } from "../briques.js";
+import { replie, survol } from "../briques.js";
+import { confirmationDeGeste } from "../composants/confirmation/confirmation.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */

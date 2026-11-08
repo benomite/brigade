@@ -14,7 +14,8 @@
 // Tout est écrit par le process principal : ce module reçoit `servirIci` et `choisir`, ne touche pas `document` — il
 // reçoit de quoi créer un élément (briques.js) — et rend des éléments.
 
-import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { boutonAction, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { refusDit } from "../projets-servis/projets-servis.js";
 import { uneLigneParMachine } from "../stations-du-compte.js";
 
@@ -91,9 +92,7 @@ export function poserEtapeStation(doc, { depot, ici, locale, stations, servirIci
 
   const etat = cree(doc, "p");
   etat.className = "etat";
-  const erreur = cree(doc, "p");
-  erreur.className = "erreur";
-  erreur.role = "alert";
+  const erreur = ligneErreur(doc, "", "", { classe: "erreur", alerte: true });
   // Un refus : sa ligne, son détail au survol. Rien : la place est vide.
   const dire = (/** @type {string} */ ligne, /** @type {string} */ detail = "") => {
     erreur.replaceChildren(...(ligne === "" ? [] : [cree(doc, "span", ligne)]), ...(detail.trim() === "" ? [] : [survol(doc, detail)]));
@@ -137,7 +136,7 @@ export function poserEtapeStation(doc, { depot, ici, locale, stations, servirIci
     lecture.className = "lecture";
     racine.append(lecture);
   }
-  else if (!Array.isArray(stations)) racine.append(lectureIndisponible(doc, ILLISIBLES, /** @type {{ refus: string }} */ (stations).refus));
+  else if (!Array.isArray(stations)) racine.append(ligneErreur(doc, ILLISIBLES, /** @type {{ refus: string }} */ (stations).refus));
   else {
     const proposees = stationsProposees(/** @type {readonly Station[]} */ (stations), locale);
     if (proposees.length > 0) {

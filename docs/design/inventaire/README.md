@@ -177,6 +177,8 @@ Cards that draw a block on a dark background (`--carte`, `--case`) differ by bor
 
 #### Empty states
 
+> Since #2919 the lines below are one component: `app/src/vue/composants/ligne-vide/` draws every empty state (a single line, `data-ligne="vide"`), `composants/ligne-erreur/` every error (a single line, its detail on hover, `data-ligne="erreur"`) and `composants/confirmation/` every inline confirmation. The class names stay in the markup as hooks only; `vue.css` holds no rule for them. The table is the state before.
+
 The rules below each draw a « nothing here » line, under ten different class names (`.vide`, `.sans`, `.aucun`, `.aucune`, `.aucun-cook`, `.sans-geste`, `.sans-faits`, `.rien-ne-cuit`, `.rien-appris`, `.specialisations-aucune`); the list is not exhaustive. What they draw:
 
 | Rule | Style | Capture |

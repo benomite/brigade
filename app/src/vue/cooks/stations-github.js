@@ -9,6 +9,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 import { lignesDeCooks, TITRE } from "../stations-de-cuisson.js";
 import { RETENUE } from "../stations-du-compte.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../cuisson.ts").LigneDeStation} Ligne */
@@ -61,14 +62,12 @@ export function poserLesStationsSurGithub(doc, { cuisson, pastille, tete = [] })
   section.ariaLabel = TITRE;
   const dessous = [];
   if (cuisson.surGithub.illisible !== null) {
-    const illisible = cree(doc, "p", SIGNES_ILLISIBLES);
-    illisible.className = "rien-ne-cuit";
+    const illisible = ligneVide(doc, SIGNES_ILLISIBLES, { classe: "rien-ne-cuit" });
     illisible.title = cuisson.surGithub.illisible;
     dessous.push(illisible);
   }
   if (cuisson.lignes.length === 0) {
-    const aucune = cree(doc, "p", AUCUNE);
-    aucune.className = "rien-ne-cuit";
+    const aucune = ligneVide(doc, AUCUNE, { classe: "rien-ne-cuit" });
     dessous.push(aucune);
   }
   const liste = cree(doc, "ol");

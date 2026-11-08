@@ -7,7 +7,8 @@
 // son rapatriement suivant. Vide, le seuil se retire du dépôt. Le seuil du temps perdu ne s'écrit pas encore d'ici :
 // sa ligne le dit, la raison au survol. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-import { boutonAction, lectureIndisponible, replie, survol } from "../../briques.js";
+import { boutonAction, replie, survol } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../plafonds-duree.ts").PlafondLu} Plafond */
@@ -101,11 +102,9 @@ export function poserUnPlafond(doc, { plafond, etat, choisir, changer }) {
 
   const dit = etat?.dit;
   if (dit !== undefined) {
-    const rendu = cree(doc, "p");
+    let rendu = cree(doc, "p");
     if ("refus" in dit) {
-      rendu.className = "dit refus";
-      rendu.append(cree(doc, "span", dit.refus));
-      if ((dit.detail ?? "").trim() !== "") rendu.append(survol(doc, dit.detail ?? ""));
+      rendu = ligneErreur(doc, dit.refus, dit.detail, { classe: "dit refus" });
     } else {
       rendu.className = "dit fait";
       rendu.textContent = dit.fait;
@@ -159,7 +158,7 @@ export function poserBlocPlafondsDuree(doc, { lecture, lostTimeMaxMin, etats = n
     return bloc;
   }
   if ("sans" in lecture) {
-    bloc.append(lectureIndisponible(doc, lecture.sans, lecture.detail ?? ""));
+    bloc.append(ligneErreur(doc, lecture.sans, lecture.detail ?? ""));
     return bloc;
   }
   /** @param {Plafond} plafond */

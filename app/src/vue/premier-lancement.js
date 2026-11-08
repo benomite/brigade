@@ -19,6 +19,8 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcour
 import { SE_CONNECTER } from "./parcours-projet/compte.js";
 import { poserParcoursProjet } from "./parcours-projet/parcours.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
+import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
 export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDetail, ROUVRIR_LA_PAGE, tapeLeCode } from "./parcours-projet/connexion.js";
@@ -110,8 +112,7 @@ function ouvertureDite(doc, ouverture, etat, geste) {
     return [dit];
   }
   const { echec } = ouverture;
-  const refus = phraseEtDetail(doc, "p", echec.reason, echec.detail);
-  refus.className = "refus";
+  const refus = ligneErreur(doc, phrase(doc, "span", echec.reason), echec.detail, { classe: "refus" });
   const lien = "link" in echec ? echec.link : undefined;
   return [
     refus,
@@ -148,8 +149,7 @@ function stationDite(doc, station, etat, geste) {
   const { ouverture } = etat;
   const enCours = ouverture !== undefined && ouverture.echec === undefined;
   if (station.projects.length === 0) {
-    const vide = cree(doc, "p", SANS_PROJET);
-    vide.className = "vide";
+    const vide = ligneVide(doc, SANS_PROJET);
     carte.append(vide);
     return carte;
   }
@@ -193,8 +193,7 @@ function formulaireDuProjet(doc, etat, geste) {
     entree.addEventListener("input", () => void (saisie[cle] = entree.value));
     return [nom, entree];
   };
-  const refus = cree(doc, "p");
-  refus.className = "refus-champ";
+  const refus = ligneErreur(doc, "", "", { classe: "refus-champ" });
   refus.ariaLive = "polite";
   const ouvrir = () => {
     const lu = lireLeProjet(compte, saisie.projet);
@@ -255,8 +254,7 @@ export function poserPremierLancement(doc, etat, geste) {
     racine.append(enTete(OUVRIR_UN_PROJET(etat.poste)), formulaire(), ...stations.stations.map((station) => stationDite(doc, station, etat, geste)));
     if (stations.unreadable.length > 0) {
       const combien = stations.unreadable.length;
-      const illisibles = phraseEtDetail(doc, "p", `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n"));
-      illisibles.className = "indisponible";
+      const illisibles = ligneErreur(doc, `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n"));
       racine.append(illisibles);
     }
   }

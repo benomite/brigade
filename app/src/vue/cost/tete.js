@@ -17,6 +17,7 @@
 /** @typedef {{ dit: string, total: Tokens, partiel: boolean, parts: Part[] }} Chiffre */
 
 import { bouton } from "../composants/bouton/bouton.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 export const NON_COMMUNIQUE = "not communicated";
 export const LECTURE = "reading…";
@@ -120,9 +121,9 @@ function cree(doc, balise, texte) {
 // Un nombre de tokens, ou ce qui en tient lieu — moins appuyé.
 /** @param {Fabrique} doc @param {Tokens} tokens */
 function tokensPoses(doc, tokens) {
+  if (typeof tokens !== "number") return ligneVide(doc, tokensDits(tokens), { classe: "tokens sans", balise: "span" });
   const pose = cree(doc, "span", tokensDits(tokens));
   pose.className = "tokens";
-  if (typeof tokens !== "number") pose.className = "tokens sans";
   return pose;
 }
 
@@ -132,9 +133,9 @@ function tokensPoses(doc, tokens) {
 function poserChiffre(doc, { dit, total, partiel, parts }, ouvrir) {
   const bloc = cree(doc, "div");
   bloc.className = "chiffre";
-  const valeur = cree(doc, "p", `${partiel ? "≥ " : ""}${tokensDits(total)}`);
-  valeur.className = "total";
-  if (typeof total !== "number") valeur.className = "total sans";
+  const valeurDite = `${partiel ? "≥ " : ""}${tokensDits(total)}`;
+  const valeur = typeof total === "number" ? cree(doc, "p", valeurDite) : ligneVide(doc, valeurDite, { classe: "total sans" });
+  if (typeof total === "number") valeur.className = "total";
   const liste = cree(doc, "ul");
   liste.className = "parts";
   for (const { projet, tokens, part } of parts) {

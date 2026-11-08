@@ -10,7 +10,9 @@
 // retire un ; chaque écriture rend le lien de la PR, ou un refus d'une ligne. Ce module ne touche pas `document` : il
 // reçoit de quoi créer un élément (briques.js), et le conteneur où se poser.
 
-import { boutonAction, caseACocher, lectureIndisponible, survol } from "../briques.js";
+import { boutonAction, caseACocher, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {"product" | "design" | "review" | "client-contact"} Role */
@@ -154,12 +156,7 @@ export function poserUnHumain(doc, { rangee, gestes }) {
   racine.append(champ);
 
   if (rangee.refus !== undefined) {
-    const refus = cree(doc, "p");
-    refus.className = "refus";
-    refus.role = "alert";
-    refus.append(cree(doc, "span", rangee.refus.ligne));
-    if (rangee.refus.detail.trim() !== "") refus.append(survol(doc, rangee.refus.detail));
-    racine.append(refus);
+    racine.append(ligneErreur(doc, rangee.refus.ligne, rangee.refus.detail, { classe: "refus", alerte: true }));
   }
   return racine;
 }
@@ -183,15 +180,16 @@ export function poserLesHumains(doc, { etat, gestes }) {
   tete.append(titre);
   section.append(tete);
   if (etat.lecture === "refus") {
-    section.append(lectureIndisponible(doc, etat.ligne, etat.detail));
+    section.append(ligneErreur(doc, etat.ligne, etat.detail));
     return section;
   }
   if (etat.rangees.length === 0) {
-    const vide = cree(doc, "p");
+    const vide = cree(doc, "div");
     vide.className = "aucun";
+    vide.append(ligneVide(doc, MOTS.vide, { classe: "", balise: "span" }));
     const premier = boutonAction(doc, MOTS.premier, gestes.ajouter, { recommande: true });
     premier.className = "action ajouter";
-    vide.append(cree(doc, "span", MOTS.vide), premier);
+    vide.append(premier);
     section.append(vide);
     return section;
   }

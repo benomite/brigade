@@ -1,10 +1,10 @@
 /* Les stations contributrices sous Settings (ticket 2936) : une rangée par station, la même grille que les humains — son
-   nom, son compte, « refused » si elle l'est, et le bouton du geste ; le refus du dernier geste dessous, en une ligne. Ni
+   nom, son compte, « refused » si elle l'est, et le bouton du geste ; le refus du dernier geste dessous, en une ligne (composants/ligne-erreur). Ni
    cadre ni titre de plus : le groupe du projet les porte. */
 #etat #stations-contributrices {
   margin: 0;
 }
-#etat .stations-contributrices > :is(.tete, .station-contributrice, .aucune, .indisponible) {
+#etat .stations-contributrices > :is(.tete, .station-contributrice) {
   display: grid;
   grid-template-columns: 220px minmax(0, 180px) minmax(0, 1fr) auto;
   align-items: center;
@@ -17,9 +17,6 @@
   display: flex;
   align-items: center;
   gap: var(--pas-2);
-  color: var(--discret);
-}
-#etat .stations-contributrices > .aucune {
   color: var(--discret);
 }
 #etat .stations-contributrices .station-contributrice > .nom {
@@ -36,36 +33,11 @@
 #etat .stations-contributrices .action > button {
   white-space: nowrap;
 }
-#etat .stations-contributrices .station-contributrice > .refus {
+#etat .stations-contributrices .station-contributrice > [data-ligne="erreur"] {
   grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0;
-  font-size: var(--taille-corps);
-  color: var(--rouge-clair);
-}
-#etat .stations-contributrices .station-contributrice > .refus > span {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#etat .stations-contributrices .station-contributrice > .refus::before {
-  content: "!";
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 12px;
-  height: 12px;
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  color: var(--rouge);
-  border: 1.5px solid var(--rouge);
-  border-radius: var(--rayon-pastille);
 }
 @media (max-width: 720px) {
-  #etat .stations-contributrices > :is(.tete, .station-contributrice, .aucune, .indisponible) {
+  #etat .stations-contributrices > :is(.tete, .station-contributrice) {
     grid-template-columns: minmax(0, 1fr);
   }
 }

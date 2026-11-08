@@ -11,7 +11,8 @@
 // Il ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), l'installation, les étapes des
 // premiers réglages et l'ouverture d'une page de station.
 
-import { boutonAction, lectureIndisponible } from "../../briques.js";
+import { boutonAction } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {{ id: string, nom: string, phrase: string }} UneStation */
@@ -138,7 +139,7 @@ export function tenirBlocDeLaStation(doc, gestes) {
       ),
     );
     rendu.append(enTete, avec(doc, "p", dit), actions);
-    if (refusDeLEtape !== undefined) rendu.append(lectureIndisponible(doc, refusDeLEtape.refus, refusDeLEtape.detail ?? ""));
+    if (refusDeLEtape !== undefined) rendu.append(ligneErreur(doc, refusDeLEtape.refus, refusDeLEtape.detail ?? ""));
     return rendu;
   }
 
@@ -169,7 +170,7 @@ export function tenirBlocDeLaStation(doc, gestes) {
   function sansStation() {
     const bouton = boutonAction(doc, INSTALLER, installer, { recommande: true });
     const rendu = [bouton];
-    if (refus !== undefined) rendu.push(lectureIndisponible(doc, REFUS, [refus.refus, refus.detail ?? ""].filter(Boolean).join(" — ")));
+    if (refus !== undefined) rendu.push(ligneErreur(doc, REFUS, [refus.refus, refus.detail ?? ""].filter(Boolean).join(" — ")));
     return rendu;
   }
 

@@ -12,9 +12,12 @@
 // pose, elle n'en déduit rien d'autre.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
-import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, survol } from "./briques.js";
+import { boutonAction, caseACocher, survol } from "./briques.js";
+import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { casesDuFormulaire, champDeCapaciteLibre } from "./capacite-libre/capacite-libre.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
+import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../service.ts").StationsLues} StationsLues */
@@ -160,7 +163,7 @@ function formulaireDe(doc, station, editee, editer, { seule, projet }) {
     );
   }
   const rendu = editee.rendu;
-  if (rendu !== undefined) forme.append("refus" in rendu ? lectureIndisponible(doc, rendu.refus, rendu.detail ?? "") : uneLigneFaite(doc, rendu.fait));
+  if (rendu !== undefined) forme.append("refus" in rendu ? ligneErreur(doc, rendu.refus, rendu.detail ?? "") : uneLigneFaite(doc, rendu.fait));
   return forme;
 }
 
@@ -215,7 +218,7 @@ export function ceQuElleFournit(doc, station, projet) {
   capacites.ariaLabel = `what ${station.nom} provides`;
   if (station.fournit.length === 0) {
     capacites.className = "capacites vide";
-    capacites.append(cree(doc, "li", "provides nothing"));
+    capacites.append(ligneVide(doc, "provides nothing", { balise: "li", classe: "" }));
   } else {
     capacites.className = "capacites";
     capacites.append(
@@ -255,8 +258,7 @@ export function poserLesDeclarees(doc, { stations, ici = false, projet: nom, edi
   tete.append(survol(doc, AIDE));
   section.append(tete);
   if (stations === undefined || stations.declarees.length === 0) {
-    const vide = cree(doc, "p", stations === undefined ? PAS_LUE : AUCUNE);
-    vide.className = "vide";
+    const vide = ligneVide(doc, stations === undefined ? PAS_LUE : AUCUNE);
     section.append(vide);
     return section;
   }

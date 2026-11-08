@@ -17,6 +17,7 @@
 // rend des éléments. La vue tient l'état, projet par projet.
 
 import { boutonAction, survol } from "./briques.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../github/breaker-resume.ts").RenduDeLaReprise} RenduDeLaReprise */
@@ -80,12 +81,7 @@ export function poserReprise(doc, etat, reprendre) {
     return [groupe, part];
   }
   if (etat.etape === "refus") {
-    const refus = cree(doc, "span");
-    refus.className = "refus";
-    refus.role = "alert";
-    refus.append(cree(doc, "span", etat.dit));
-    if (etat.detail.trim() !== "") refus.append(survol(doc, etat.detail));
-    return [groupe, refus];
+    return [groupe, ligneErreur(doc, etat.dit, etat.detail, { classe: "refus", balise: "span", alerte: true })];
   }
   return [groupe];
 }

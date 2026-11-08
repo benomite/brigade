@@ -5,7 +5,7 @@
 #etat #humains-du-projet {
   margin: 0;
 }
-#etat .humains-du-projet > :is(.tete, .humain, .aucun, .indisponible) {
+#etat .humains-du-projet > :is(.tete, .humain, .aucun) {
   display: grid;
   /* La colonne du milieu est plus étroite que celle d'un réglage : les quatre rôles et « remove » tiennent sur une
      ligne à côté du second. */
@@ -25,9 +25,6 @@
 #etat .humains-du-projet .tete > .ajouter {
   grid-column: 3;
   justify-self: start;
-}
-#etat .humains-du-projet > .aucun {
-  color: var(--discret);
 }
 #etat .humains-du-projet > .aucun > span {
   grid-column: 1 / 3;
@@ -96,40 +93,15 @@
   margin: 0;
   accent-color: var(--accent);
 }
-#etat .humains-du-projet .humain > .refus {
+#etat .humains-du-projet .humain > [data-ligne="erreur"] {
   grid-column: 2 / -1;
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0;
-  font-size: var(--taille-corps);
-  color: var(--rouge-clair);
-}
-#etat .humains-du-projet .humain > .refus > span {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#etat .humains-du-projet .humain > .refus::before {
-  content: "!";
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 12px;
-  height: 12px;
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  color: var(--rouge);
-  border: 1.5px solid var(--rouge);
-  border-radius: var(--rayon-pastille);
 }
 @media (max-width: 720px) {
-  #etat .humains-du-projet > :is(.tete, .humain, .aucun, .indisponible) {
+  #etat .humains-du-projet > :is(.tete, .humain, .aucun) {
     grid-template-columns: minmax(0, 1fr);
   }
   #etat .humains-du-projet .tete > .ajouter,
-  #etat .humains-du-projet .humain > .refus {
+  #etat .humains-du-projet .humain > [data-ligne="erreur"] {
     grid-column: 1;
   }
 }

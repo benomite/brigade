@@ -9,6 +9,7 @@
 
 import { survol } from "../briques.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "../composants/bouton/bouton.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../projets/demande.ts").Choix} Choix */
@@ -85,11 +86,7 @@ function carte(doc, choix, { choisir, enCours, refus }) {
   } else {
     const rate = refus.get(choix.id);
     if (rate !== undefined) {
-      const ligne = cree(doc, "p");
-      ligne.className = "refus-du-choix";
-      ligne.append(cree(doc, "span", rate.refus));
-      if (rate.detail !== undefined && rate.detail.trim() !== "") ligne.append(survol(doc, rate.detail));
-      pose.append(ligne);
+      pose.append(ligneErreur(doc, rate.refus, rate.detail, { classe: "refus-du-choix" }));
     }
   }
   return pose;

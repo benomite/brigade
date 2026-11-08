@@ -26,6 +26,7 @@ import { boutonAction } from "./briques.js";
 import { niveauDe } from "./niveaux.js";
 import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
 import { bouton } from "./composants/bouton/bouton.js";
+import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
@@ -137,7 +138,7 @@ export function lignesDeCooks(doc, siens, agents) {
       return ligne;
     }),
     ...(siens.length === 0 && agents.length === 0
-      ? [cree(doc, "li", RIEN_NE_TOURNE)]
+      ? [ligneVide(doc, RIEN_NE_TOURNE, { classe: "", balise: "li" })]
       : siens.map(({ ticket, titre }) => {
           const cook = cree(doc, "li");
           const numero = cree(doc, "strong", `#${ticket}`);

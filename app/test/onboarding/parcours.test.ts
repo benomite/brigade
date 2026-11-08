@@ -165,7 +165,10 @@ describe("le parcours, posé", () => {
     assert.equal(une(preparation, "etat-de-preparation").textContent, ETATS_DE_PREPARATION["en-echec"]);
     const echec = une(preparation, "echec");
     const heure = new Date("2026-10-13T10:14:00.000Z").toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    assert.deepEqual(echec.dessous("p").map(({ textContent }) => textContent), ["The worktree setup of the project fails.", `Next retry at ${heure}, in 10 min.`]);
+    // Une ligne d'erreur : la raison en une phrase, l'heure du prochain essai au survol.
+    assert.equal(echec.dataset.ligne, "erreur");
+    assert.equal(echec.children[0]?.textContent, "The worktree setup of the project fails.");
+    assert.equal(echec.dessous("button")[0]?.ariaLabel, `Next retry at ${heure}, in 10 min.`);
     // La phrase de l'étape ne redit pas l'échec au-dessus de lui.
     assert.equal(classe(preparation, "dit").length, 0);
     bouton(preparation, "#433");
@@ -176,7 +179,7 @@ describe("le parcours, posé", () => {
     assert.equal(prochainEssaiDit("2026-10-13T10:14:00.000Z", Date.parse("2026-10-13T10:13:30.000Z")).endsWith(", in 1 min."), true);
     assert.equal(prochainEssaiDit(null, MAINTENANT), "It is not retried by itself.");
     const passe = pose(lu(EN_ECHEC), Date.parse("2026-10-13T11:00:00.000Z")).section ?? assert.fail();
-    assert.match(une(passe, "echec").textContent, /Its retry is due now\.$/);
+    assert.equal(une(passe, "echec").dessous("button")[0]?.ariaLabel, "Its retry is due now.");
     assert.doesNotMatch(passe.textContent, /Next retry|in \d+ min/);
     const sansEssai = pose(lu({ ...EN_ECHEC, preparation: { ...(EN_ECHEC.preparation ?? assert.fail()), prochainEssai: null } })).section ?? assert.fail();
     assert.equal(une(sansEssai, "attendu").textContent, "The preparation of mirrorlab failed: it is not retried by itself.");

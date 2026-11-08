@@ -8,9 +8,11 @@
 // sa valeur et d'où elle vient, un champ et « save ». Ce module ne touche pas `document` : il reçoit de quoi créer un
 // élément.
 
-import { boutonAction, lectureIndisponible, replie, survol } from "../../briques.js";
+import { boutonAction, replie, survol } from "../../briques.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { poserUnPlafond } from "./PlafondsDuree.js";
 import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../closer-sante.ts").LectureDuCloser} Lecture */
@@ -96,11 +98,10 @@ function ligneDePasse(doc, passe, ouvrir) {
   qui.className = "qui";
   qui.append(lien(doc, `#${passe.numero}`, passe.url, ouvrir), cree(doc, "small", jour(passe.ouverteLe)));
   const retire = ceQuElleARetire(passe);
-  const quoi = cree(doc, "p");
-  quoi.className = "retire";
+  const quoi = retire.retire ? cree(doc, "p") : ligneVide(doc, "", { classe: "retire sans" });
+  if (retire.retire) quoi.className = "retire";
   const dit = cree(doc, "strong", retire.dit);
   if (retire.retire) dit.className = "mono";
-  else quoi.className = "retire sans";
   quoi.append(dit);
   if (retire.precise !== "") quoi.append(cree(doc, "small", retire.precise));
   const sur = cree(doc, "p");
@@ -117,10 +118,9 @@ function ceQuIlAFait(doc, passes, ouvrir) {
   const pose = partie(doc, FAIT);
   pose.dataset.partie = "passes";
   if (passes === undefined) pose.append(cree(doc, "p", "reading the closer's passes…"));
-  else if ("sans" in passes) pose.append(lectureIndisponible(doc, passes.sans, passes.detail ?? ""));
+  else if ("sans" in passes) pose.append(ligneErreur(doc, passes.sans, passes.detail ?? ""));
   else if (passes.liste.length === 0) {
-    const vide = cree(doc, "p", SANS_PASSE);
-    vide.className = "sans";
+    const vide = ligneVide(doc, SANS_PASSE, { classe: "sans" });
     vide.append(survol(doc, SANS_PASSE_POURQUOI));
     pose.append(vide);
   } else pose.append(...passes.liste.map((passe) => ligneDePasse(doc, passe, ouvrir)));
@@ -159,8 +159,7 @@ function ceQuIlVerifie(doc, passes, { ouverts, basculer }) {
   pose.dataset.partie = "en-premier";
   const derniere = passes !== undefined && !("sans" in passes) ? passes.liste[0] : undefined;
   if (derniere === undefined) {
-    const dit = cree(doc, "p", passes === undefined ? "reading…" : "its own checks — dead code, duplicates, drift, ticket times — once a pass is opened");
-    dit.className = "sans";
+    const dit = ligneVide(doc, passes === undefined ? "reading…" : "its own checks — dead code, duplicates, drift, ticket times — once a pass is opened", { classe: "sans" });
     pose.append(dit);
     return pose;
   }
@@ -194,15 +193,10 @@ function ceQuIlVerifie(doc, passes, { ouverts, basculer }) {
 
 /** @param {Fabrique} doc @param {{ fait: string } | { refus: string, detail?: string }} dit */
 function rendu(doc, dit) {
+  if ("refus" in dit) return ligneErreur(doc, dit.refus, dit.detail, { classe: "dit refus" });
   const pose = cree(doc, "p");
-  if ("refus" in dit) {
-    pose.className = "dit refus";
-    pose.append(cree(doc, "span", dit.refus));
-    if ((dit.detail ?? "").trim() !== "") pose.append(survol(doc, dit.detail ?? ""));
-  } else {
-    pose.className = "dit fait";
-    pose.textContent = dit.fait;
-  }
+  pose.className = "dit fait";
+  pose.textContent = dit.fait;
   return pose;
 }
 
@@ -218,13 +212,12 @@ function ceQuIlVerifieEnPlus(doc, verifications, etat, { taper, changer }) {
     return pose;
   }
   if ("sans" in verifications) {
-    pose.append(lectureIndisponible(doc, verifications.sans, verifications.detail ?? ""));
+    pose.append(ligneErreur(doc, verifications.sans, verifications.detail ?? ""));
     return pose;
   }
   const occupe = etat.enCours !== undefined;
   if (verifications.liste.length === 0) {
-    const vide = cree(doc, "p", "none yet: the closer checks only its own");
-    vide.className = "sans";
+    const vide = ligneVide(doc, "none yet: the closer checks only its own", { classe: "sans" });
     pose.append(vide);
   } else {
     const liste = cree(doc, "ul");
@@ -368,7 +361,7 @@ function sesReglages(doc, reglages, { etats, valeurs, choisir, changer }) {
     return pose;
   }
   if ("sans" in reglages) {
-    pose.append(lectureIndisponible(doc, reglages.sans, reglages.detail ?? ""));
+    pose.append(ligneErreur(doc, reglages.sans, reglages.detail ?? ""));
     return pose;
   }
   for (const reglage of reglages.liste) {

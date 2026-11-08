@@ -8,6 +8,7 @@
 
 import { NON_COMMUNIQUE } from "./tete.js";
 import { bouton } from "../composants/bouton/bouton.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ticket: number | null, perdus: number | null }} Seuils */
@@ -59,12 +60,8 @@ const nombre = (valeur) => valeur.toLocaleString("en-US");
  *  @param {string} libelle @param {(bouton: any) => void} ouvrir */
 export function poserAlerte(doc, depasse, connu, libelle, ouvrir) {
   if (depasse === undefined && connu) return null;
+  if (depasse === undefined) return ligneVide(doc, `ceiling: ${NON_COMMUNIQUE}`, { classe: "alerte-cout sans" });
   const ligne = doc.createElement("p");
-  if (depasse === undefined) {
-    ligne.className = "alerte-cout sans";
-    ligne.textContent = `ceiling: ${NON_COMMUNIQUE}`;
-    return ligne;
-  }
   ligne.className = "alerte-cout";
   ligne.role = "alert";
   ligne.textContent = `${depasse.projet} · over its ceiling of ${nombre(depasse.seuil)}`;

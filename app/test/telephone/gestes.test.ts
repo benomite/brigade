@@ -134,7 +134,14 @@ async function confirmer(vue: Jouee, id: string): Promise<void> {
   await repos();
 }
 // Ce que la fiche dit sous ses gestes : sa ligne, sa classe, et son survol.
-const issueDuGeste = (vue: Jouee) => gestes(vue).children.filter((pose) => pose.balise === "p").map((pose) => ({ classe: pose.className, dit: pose.textContent, survol: pose.title }));
+// Une ligne d'erreur dit sa phrase dans son premier `span` et garde son détail au survol de son « ? » ; une autre ligne, dans son `title`.
+const issueDuGeste = (vue: Jouee) =>
+  gestes(vue)
+    .children.filter((pose) => pose.balise === "p")
+    .map((pose) => {
+      const erreur = pose.dataset.ligne === "erreur";
+      return { classe: pose.className, dit: erreur ? (pose.children[0]?.textContent ?? "") : pose.textContent, survol: erreur ? (pose.dessous("button")[0]?.ariaLabel ?? "") : pose.title };
+    });
 
 describe("depuis le téléphone, un geste en vol", () => {
   test("tant que la station n'a pas répondu, la fiche le dit et ses gestes attendent : rien ne part deux fois", async () => {

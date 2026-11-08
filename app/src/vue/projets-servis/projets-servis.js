@@ -15,8 +15,10 @@
 // `tenirLesProjetsServis` garde l'état de l'écran et ses gestes ; `poserLesProjetsServis` le dessine. Ni l'un ni
 // l'autre ne touche `document` : la vue leur donne une fabrique (briques.js).
 
-import { lectureIndisponible, survol } from "../briques.js";
+import { survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { rangee } from "../identites-github.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ depots: string[] } | { refus: string }} LectureDesProjetsServis */
@@ -152,10 +154,9 @@ export function poserLesProjetsServis(doc, { etat, projets, ici }, gestes) {
   /** @type {any[]} */
   let valeur;
   if (lue === undefined) valeur = [cree(doc, "span", "reading…")];
-  else if (depots === undefined) valeur = [lectureIndisponible(doc, ILLISIBLE, "refus" in lue ? lue.refus : "")];
+  else if (depots === undefined) valeur = [ligneErreur(doc, ILLISIBLE, "refus" in lue ? lue.refus : "")];
   else if (depots.length === 0) {
-    const aucun = cree(doc, "strong", AUCUN(ici));
-    aucun.className = "aucun";
+    const aucun = ligneVide(doc, AUCUN(ici), { classe: "aucun", balise: "strong" });
     valeur = [aucun, survol(doc, AIDE(ici))];
   } else valeur = [cree(doc, "span", SERT(depots.length)), survol(doc, AIDE(ici))];
   const tete = rangee(doc, [TITRE(ici)], valeur, []);
@@ -194,10 +195,7 @@ export function poserLesProjetsServis(doc, { etat, projets, ici }, gestes) {
     const dessous = [];
     const refus = etat.refus;
     if (refus !== undefined && depot !== null && refus.depot === cle(depot)) {
-      const dit = cree(doc, "p", refus.ligne);
-      dit.className = "dit refus";
-      if (refus.detail !== "") dit.append(survol(doc, refus.detail));
-      dessous.push(dit);
+      dessous.push(ligneErreur(doc, refus.ligne, refus.detail, { classe: "dit refus" }));
     }
     const rang = rangee(doc, nom, vaut, [coche], dessous);
     rang.dataset.projet = ligne.nom;

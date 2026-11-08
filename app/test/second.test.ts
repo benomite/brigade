@@ -403,13 +403,13 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
 
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
-    const ouverte = vue.element("alertes").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    const ouverte = vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
     assert.match(ouverte.textContent, /resume the kitchen/);
     assert.equal(vue.element("note-second").textContent, "fil repris");
 
     // « non » la referme : rien ne part.
     await cliquer(vue, ouverte, "no, leave it stopped");
-    assert.equal(vue.element("alertes").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    assert.equal(vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation"), undefined);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
 
     // Rouverte, son « oui » le fait partir dans le second ; Settings reste ouvert.
@@ -420,7 +420,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
       [["parade", "reprendre", true]],
     );
     assert.equal(vue.element("note-second").textContent, parti.note);
-    assert.equal(vue.element("alertes").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    assert.equal(vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation"), undefined);
   });
 });
 

@@ -17,9 +17,11 @@
 // (premier-lancement.js) ; une lecture qui échoue, une ligne, son détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { boutonAction, caseACocher, lectureIndisponible, survol } from "./briques.js";
+import { boutonAction, caseACocher, survol } from "./briques.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcours-projet/connexion.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
+import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-du-compte.ts").StationsDuCompte} StationsDuCompte */
@@ -342,18 +344,16 @@ export function projetsDe(doc, station, etat, geste) {
   }
   const { depots } = etat;
   if (depots === undefined) {
-    const lecture = cree(doc, "p", LECTURE_DES_DEPOTS);
-    lecture.className = "vide";
+    const lecture = ligneVide(doc, LECTURE_DES_DEPOTS);
     choix.append(lecture);
   } else if ("refus" in depots) {
-    choix.append(lectureIndisponible(doc, DEPOTS_ILLISIBLES, depots.refus));
+    choix.append(ligneErreur(doc, DEPOTS_ILLISIBLES, depots.refus));
   }
   const atteints = depots !== undefined && "depots" in depots ? depots.depots.map(({ depot }) => depot) : [];
   const cases = casesDe(atteints, station.selection, connusDe(etat));
   const enRoute = etat.envoi === station.id;
   if (cases.length === 0 && depots !== undefined && "depots" in depots) {
-    const vide = cree(doc, "p", atteints.length === 0 ? SANS_DEPOT : SANS_PROJET);
-    vide.className = "vide";
+    const vide = ligneVide(doc, atteints.length === 0 ? SANS_DEPOT : SANS_PROJET);
     choix.append(vide);
   }
   if (cases.length > 0) {
@@ -375,10 +375,7 @@ export function projetsDe(doc, station, etat, geste) {
     }
     choix.append(liste);
     for (const phrase of refus) {
-      const dit = cree(doc, "p", phrase);
-      dit.className = "refus";
-      dit.role = "alert";
-      choix.append(dit);
+      choix.append(ligneErreur(doc, phrase, "", { classe: "refus", alerte: true }));
     }
   }
   if (atteints.length > 0) choix.append(rechercheDe(doc, station, atteints, cases, etat, geste));
@@ -388,7 +385,7 @@ export function projetsDe(doc, station, etat, geste) {
     envoi.role = "status";
     choix.append(envoi);
   }
-  if (etat.refus?.id === station.id) choix.append(lectureIndisponible(doc, etat.refus.refus, etat.refus.detail ?? ""));
+  if (etat.refus?.id === station.id) choix.append(ligneErreur(doc, etat.refus.refus, etat.refus.detail ?? ""));
   return choix;
 }
 
@@ -484,14 +481,14 @@ export function lectureDuCompte(doc, etat, geste, vide) {
   if (stations.state === "unavailable") {
     const lien = stations.link;
     return [
-      lectureIndisponible(doc, ILLISIBLES, [stations.reason, stations.detail ?? ""].filter((morceau) => morceau.trim() !== "").join("\n")),
+      ligneErreur(doc, ILLISIBLES, [stations.reason, stations.detail ?? ""].filter((morceau) => morceau.trim() !== "").join("\n")),
       gestes(doc, [...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: true })]), boutonAction(doc, RELIRE, geste.relire, { recommande: lien === undefined })]),
     ];
   }
   if (stations.unreadable.length > 0) {
     const combien = stations.unreadable.length;
     return [
-      lectureIndisponible(doc, `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n")),
+      ligneErreur(doc, `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n")),
       gestes(doc, [boutonAction(doc, RELIRE, geste.relire)]),
     ];
   }

@@ -15,7 +15,8 @@
 // `tenirLesIdentites` garde l'état de l'écran et ses gestes ; `poserLesIdentites` le dessine. Ni l'un ni l'autre ne
 // touche `document` : la vue leur donne une fabrique (briques.js).
 
-import { boutonAction, lectureIndisponible, survol } from "./briques.js";
+import { boutonAction, survol } from "./briques.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {"cook" | "pass" | "manager"} Role */
@@ -217,9 +218,7 @@ function cree(doc, balise, texte) {
 
 /** @param {Fabrique} doc @param {string} texte */
 function erreurSous(doc, texte) {
-  const dit = cree(doc, "p", texte);
-  dit.className = "dit refus";
-  return dit;
+  return ligneErreur(doc, texte, "", { classe: "dit refus" });
 }
 
 // Une ligne de réglage, la même que les autres de Settings : son nom, sa valeur, son contrôle — puis, sous elle, ce
@@ -331,17 +330,14 @@ export function poserLesIdentites(doc, etat, gestes) {
   const garde = cree(doc, "span", GARDE);
   garde.className = "garde";
   const lue = etat.lecture;
-  const tete = rangee(doc, [TITRE], [garde, survol(doc, AIDE)], lue !== undefined && "refus" in lue ? [lectureIndisponible(doc, ILLISIBLE, lue.refus)] : []);
+  const tete = rangee(doc, [TITRE], [garde, survol(doc, AIDE)], lue !== undefined && "refus" in lue ? [ligneErreur(doc, ILLISIBLE, lue.refus)] : []);
   tete.className = "reglage tete";
   racine.append(tete);
   for (const role of ROLES) {
     const saisie = etat.saisies[role];
     const dessous = [];
     if (saisie.refus !== undefined) {
-      const dit = cree(doc, "p", saisie.refus.ligne);
-      dit.className = "dit refus";
-      if (saisie.refus.detail !== "") dit.append(survol(doc, saisie.refus.detail));
-      dessous.push(dit);
+      dessous.push(ligneErreur(doc, saisie.refus.ligne, saisie.refus.detail, { classe: "dit refus" }));
     } else if (saisie.rangee) {
       const dit = cree(doc, "p", RANGEE);
       dit.className = "dit";

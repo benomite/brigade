@@ -5,7 +5,8 @@
 // changent, d'un champ et d'un bouton ; sur une autre station (`lectureSeule`), la section montre sans offrir de changer.
 // La section ne touche ni `document` ni le pont : la coque lui donne une fabrique et `contexte.reglages`, qui lit et écrit.
 
-import { boutonAction, lectureIndisponible, survol } from "../../../briques.js";
+import { boutonAction, survol } from "../../../briques.js";
+import { ligneErreur } from "../../../composants/ligne-erreur/ligne-erreur.js";
 import { niveauDe } from "../../../niveaux.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
@@ -56,7 +57,7 @@ function rangee(doc, { nom, cle, niveau, valeur, controle = [], dessous = "" }) 
   champ.className = "champ";
   champ.append(...controle);
   pose.append(nomme, vaut, champ);
-  if (dessous !== "") pose.append(avec(doc, "p", dessous, "dit refus"));
+  if (dessous !== "") pose.append(ligneErreur(doc, dessous, "", { classe: "dit refus" }));
   return pose;
 }
 
@@ -70,7 +71,7 @@ export function poserSection(doc, contexte) {
 
   const lire = async () => {
     const lus = contexte.lectureSeule ? { refus: AUTRE_STATION, detail: SUR_SON_ORDINATEUR } : port === undefined ? { refus: INDISPONIBLE, detail: SANS_LECTURE } : await port.lire().catch((/** @type {unknown} */ e) => ({ refus: INDISPONIBLE, detail: e instanceof Error ? e.message : String(e) }));
-    if ("refus" in lus) return racine.replaceChildren(lectureIndisponible(doc, lus.refus, lus.detail ?? ""));
+    if ("refus" in lus) return racine.replaceChildren(ligneErreur(doc, lus.refus, lus.detail ?? ""));
     racine.replaceChildren(...lignes(lus));
   };
 

@@ -9,7 +9,8 @@
 // Ce que le chef a tapé et ajouté est gardé avec le formulaire ouvert (`Edition`) : un bloc reposé le redonne tel quel.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
-import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { boutonAction, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-declarees.js").Edition} Edition */
@@ -87,7 +88,7 @@ export function champDeCapaciteLibre(doc, edition, station, poserLaCase) {
   let refus;
   const dire = () => {
     refus?.remove();
-    refus = saisie.refus === undefined ? undefined : lectureIndisponible(doc, saisie.refus, "");
+    refus = saisie.refus === undefined ? undefined : ligneErreur(doc, saisie.refus, "");
     if (refus !== undefined) racine.append(refus);
   };
   const ajouter = () => {

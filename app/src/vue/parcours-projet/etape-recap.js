@@ -6,6 +6,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
@@ -70,8 +71,7 @@ export function poserEtapeRecap(doc, { projet, station, retour }) {
   racine.append(attendu);
   if (projet !== undefined) racine.append(ligne(doc, PROJET, projet, "projet"));
   if (projet === undefined || station === undefined || station.trim() === "") {
-    const manque = cree(doc, "p", SANS_STATION);
-    manque.className = "erreur";
+    const manque = ligneErreur(doc, SANS_STATION, "", { classe: "erreur" });
     racine.append(manque, ...(retour === undefined ? [] : [boutonAction(doc, CHOISIR_UNE_STATION, retour, { recommande: true })]));
     return racine;
   }

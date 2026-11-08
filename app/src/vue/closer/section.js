@@ -14,8 +14,10 @@
 // L'app ne recompte rien : chaque chiffre est celui que la box écrit. Ce module ne touche pas
 // `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { lectureIndisponible, survol } from "../briques.js";
+import { survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../box.ts").Lecture} Lecture */
@@ -128,7 +130,7 @@ function chiffres(doc, observation) {
   const merges = chiffre(doc, MERGES, nombre(observation.mergesSinceCleanup));
   if (!observation.readable) {
     ligne.append(merges, chiffre(doc, RATIO, NON_COMMUNIQUE), chiffre(doc, DOUBLONS, NON_COMMUNIQUE), chiffre(doc, MORTS, NON_COMMUNIQUE));
-    return [ligne, lectureIndisponible(doc, BRANCHE_ILLISIBLE, observation.error)];
+    return [ligne, ligneErreur(doc, BRANCHE_ILLISIBLE, observation.error)];
   }
   ligne.append(merges, rapport(doc, observation.ratio), chiffre(doc, DOUBLONS, nombre(observation.duplicates)), chiffre(doc, MORTS, nombre(observation.deadExports)));
   return [ligne];
@@ -170,8 +172,7 @@ function lesTrouvailles(doc, trouvailles, ouvert, basculer) {
   const bloc = cree(doc, "div");
   bloc.className = "closer-trouvailles";
   if (trouvailles.length === 0) {
-    const vide = cree(doc, "p", AUCUNE);
-    vide.className = "sans";
+    const vide = ligneVide(doc, AUCUNE, { classe: "sans" });
     bloc.append(vide);
     return bloc;
   }
@@ -268,13 +269,12 @@ export function poserCloser(doc, lu, { ouvert = false, basculer = () => {}, vale
   const titre = cree(doc, "h2", TITRE);
   tete.append(titre);
   if (lu === undefined) {
-    const lecture = cree(doc, "p", LECTURE);
-    lecture.className = "sans";
+    const lecture = ligneVide(doc, LECTURE, { classe: "sans" });
     tete.append(lecture);
     return [tete];
   }
   if ("erreur" in lu) {
-    tete.append(lectureIndisponible(doc, ILLISIBLE, lu.erreur));
+    tete.append(ligneErreur(doc, ILLISIBLE, lu.erreur));
     return [tete];
   }
   const { fermeture } = lu;

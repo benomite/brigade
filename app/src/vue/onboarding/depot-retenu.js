@@ -8,7 +8,10 @@
 // (projets/demande.ts) ; le runtime efface l'état dès que le geste est fait, et la page, relue, revient
 // à son message. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { boutonAction, confirmationDeGeste } from "../briques.js";
+import { boutonAction } from "../briques.js";
+import { confirmationDeGeste } from "../composants/confirmation/confirmation.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { phrase, prochainEssaiDit } from "./parcours.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -73,8 +76,7 @@ export const NON = "cancel";
 /** @param {Fabrique} doc @param {Refus} refus @param {GestesDuRemede} gestes */
 function refusDit(doc, refus, { etat, ouvrir, lancer, renoncer }) {
   const pose = cree(doc, "div");
-  const pourquoi = cree(doc, "p", refus.message);
-  pourquoi.title = refus.code;
+  const pourquoi = ligneErreur(doc, refus.message, refus.code);
   const action = cree(doc, "p", refus.action);
   action.className = "refus-action";
   pose.append(pourquoi, action);
@@ -82,9 +84,7 @@ function refusDit(doc, refus, { etat, ouvrir, lancer, renoncer }) {
   if (remede === undefined) {
     // Sans remède, la consigne écrite reste, et la raison de l'absence de bouton la suit.
     if (refus.noRemedy !== undefined) {
-      const sans = cree(doc, "p", refus.noRemedy);
-      sans.className = "sans-remede";
-      pose.append(sans);
+      pose.append(ligneVide(doc, refus.noRemedy, { classe: "sans-remede" }));
     }
     return pose;
   }

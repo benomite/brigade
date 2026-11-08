@@ -97,7 +97,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
 
 const bascule = (vue: Jouee): Faux => vue.element("interrupteur-projet").dessous("button").find(({ className }) => className === "bascule") ?? assert.fail("pas d'interrupteur");
 const teteDuRail = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("p").find(({ className }) => className === "arret-manager");
-const confirmation = (vue: Jouee): Faux | undefined => vue.element("interrupteur-projet").dessous("div").find(({ className }) => className === "confirmation");
+const confirmation = (vue: Jouee): Faux | undefined => vue.element("interrupteur-projet").dessous("section").find(({ className }) => className === "confirmation");
 const gestesPartis = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args);
 
 describe("la bande porte l'état de l'interrupteur du projet", () => {

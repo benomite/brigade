@@ -9,7 +9,8 @@
 // Ce module ne touche pas `document` et ne joint rien : il reçoit de quoi créer un élément (briques.js) et le pont, et
 // rend la carte qu'il tient.
 
-import { boutonAction, lectureIndisponible, survol } from "./briques.js";
+import { boutonAction, survol } from "./briques.js";
+import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { connexionDite } from "./premier-lancement.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
@@ -117,12 +118,12 @@ export function poserLaListeGitHub(doc, { liste }, projets, reconnecter) {
   if (liste === undefined) return projets > 0 ? [] : [phrase("Your projects on GitHub: first read in progress…")];
   if (liste.lue) return projets > 0 ? [] : [phrase("None of your stations serves a project yet: a project is added from a computer.")];
   if (liste.reason === "oublie") {
-    const ligne = lectureIndisponible(doc, "GitHub no longer accepts this phone's sign-in.", `${liste.said} — the access was revoked on GitHub, or it expired.`);
+    const ligne = ligneErreur(doc, "GitHub no longer accepts this phone's sign-in.", `${liste.said} — the access was revoked on GitHub, or it expired.`);
     ligne.dataset.etat = "oublie";
     ligne.append(boutonAction(doc, "sign in again", reconnecter, { recommande: true }));
     return [ligne];
   }
-  const ligne = lectureIndisponible(doc, liste.reason === "injoignable" ? "This phone cannot reach GitHub." : "GitHub did not give your projects.", `${liste.said}. This phone tries again every 30 s.`);
+  const ligne = ligneErreur(doc, liste.reason === "injoignable" ? "This phone cannot reach GitHub." : "GitHub did not give your projects.", `${liste.said}. This phone tries again every 30 s.`);
   ligne.dataset.etat = "injoignable";
   return [ligne];
 }

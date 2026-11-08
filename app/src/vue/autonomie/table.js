@@ -13,7 +13,8 @@
 //
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et l'élément où se poser.
 
-import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { boutonAction, survol } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -176,7 +177,7 @@ export function poserLaTableDAutonomie(doc, { lecture, enCours, refus, poser, ap
   attendu.className = "attendu";
   section.append(titre, attendu);
   if ("sans" in lecture) {
-    section.append(lectureIndisponible(doc, lecture.sans, lecture.detail ?? ""));
+    section.append(ligneErreur(doc, lecture.sans, lecture.detail ?? ""));
     return section;
   }
   section.ariaBusy = String(enCours !== undefined);
@@ -218,11 +219,7 @@ export function poserLaTableDAutonomie(doc, { lecture, enCours, refus, poser, ap
 
   section.append(profils, rangees);
   if (refus !== undefined) {
-    const rendu = cree(doc, "p");
-    rendu.className = "dit refus";
-    rendu.append(cree(doc, "span", refus.refus));
-    if ((refus.detail ?? "").trim() !== "") rendu.append(survol(doc, refus.detail ?? ""));
-    section.append(rendu);
+    section.append(ligneErreur(doc, refus.refus, refus.detail, { classe: "dit refus" }));
   }
   section.append(fixes);
   return section;

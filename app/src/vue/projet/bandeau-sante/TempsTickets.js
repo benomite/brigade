@@ -8,6 +8,7 @@
 // `document` : il reçoit de quoi créer un élément (briques.js) et rend le bloc.
 
 import { replie, survol } from "../../briques.js";
+import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 import { aUnDepassement, enMinutes, lireLeResume, lireLesChiffres, pesentLePlus, SANS_MESURE, SANS_MESURE_DETAIL, surCombien } from "../../temps-ticket/resume.js";
 import { dureeEnClair, mediane, total } from "../../temps-ticket/temps-ticket.js";
 
@@ -93,9 +94,7 @@ export function poserBlocTempsTickets(doc, temps, detail = {}) {
   const quatre = lireLesChiffres(temps);
   if (resume === null && quatre === null) {
     bloc.dataset.temps = "vide";
-    const vide = noeud(doc, "p", "temps-vide", SANS_MESURE);
-    vide.append(survol(doc, SANS_MESURE_DETAIL));
-    bloc.append(vide);
+    bloc.append(ligneVide(doc, SANS_MESURE, { classe: "temps-vide", detail: SANS_MESURE_DETAIL }));
   } else {
     bloc.dataset.temps = aUnDepassement(quatre) ? "depasse" : "normal";
     const chiffres = noeud(doc, "div", "temps-chiffres");

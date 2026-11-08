@@ -8,7 +8,8 @@
 // `document` — il reçoit de quoi créer un élément (briques.js) — et rend des éléments.
 
 import { poserInstallationDuDepot } from "../ajout-projet/installation-du-depot.js";
-import { boutonAction, lectureIndisponible } from "../briques.js";
+import { boutonAction } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ depot: string, base: string }} Depot */
@@ -75,11 +76,9 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante, ver
   const attendu = cree(doc, "p", ATTENDU);
   attendu.className = "attendu";
 
-  const erreur = cree(doc, "p");
-  erreur.className = "erreur";
-  erreur.role = "alert";
+  const erreur = ligneErreur(doc, "", "", { classe: "erreur", alerte: true });
   const dire = (/** @type {string} */ ligne) => {
-    erreur.textContent = ligne;
+    erreur.replaceChildren(...(ligne === "" ? [] : [cree(doc, "span", ligne)]));
   };
 
   // Ce que la vérification du dépôt choisi dit, sous l'attendu : prêt, ce qui lui manque, sa préparation.
@@ -156,7 +155,7 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante, ver
     );
   };
   recherche.addEventListener("input", poserListe);
-  if ("refus" in depots) racine.append(attendu, lectureIndisponible(doc, "repositories unavailable", depots.refus));
+  if ("refus" in depots) racine.append(attendu, ligneErreur(doc, "repositories unavailable", depots.refus));
   else {
     poserListe();
     racine.append(attendu, recherche, liste);
