@@ -7,6 +7,10 @@
 //
 // FAUX_COOK : son scénario.
 //   - « livre » : commite un fichier dans son répertoire, puis conclut.
+//   - « ecrit-brigade » : écrit `.claude/brigade/reseau` puis le commite — si la
+//     règle `Write(...)` des `--settings` qu'il a reçus le lui permet, comme
+//     `claude` en mode `dontAsk` ; sinon il est refusé, ne commite rien et
+//     conclut sans livrable.
 //   - « attend » : lance un enfant, qui lance un petit-enfant, dit un tour et
 //     vit — jusqu'à ce qu'on l'arrête. Sous Windows, chaque étage lance le
 //     suivant détaché : sinon Node le range dans un job qui meurt avec lui, et
@@ -18,8 +22,8 @@
 // FAUX_COOK_PIDS : un répertoire, qui existe, où chaque étage de l'arbre
 //   (« attend ») écrit son pid.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const dire = (objet: unknown) => process.stdout.write(`${JSON.stringify(objet)}\n`);
 const git = (...args: string[]) => spawnSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
@@ -66,6 +70,30 @@ if (premier === "--etage") {
       }
     }
     const texte = "J'ai ajouté `travail.txt`.\n\n<livrable>\nJ'ai ajouté `travail.txt`, commité sur ma branche.\n</livrable>";
+    dire({ type: "assistant", message: { id: "msg_1", role: "assistant", usage: { input_tokens: 3, output_tokens: 7 }, content: [{ type: "text", text: texte }] } });
+    dire({ type: "result", subtype: "success", is_error: false, num_turns: 1, result: texte });
+  } else if (scenario === "ecrit-brigade") {
+    const fichier = join(process.cwd(), ".claude/brigade/reseau");
+    const reglages = JSON.parse(process.argv[process.argv.indexOf("--settings") + 1] ?? "{}") as { permissions?: { allow?: string[] } };
+    const permis = (reglages.permissions?.allow ?? []).some((regle) => {
+      const dossier = /^Write\(\/(.*)\/\*\*\)$/.exec(regle)?.[1];
+      return dossier !== undefined && fichier.startsWith(`${dossier}/`);
+    });
+    let texte: string;
+    if (permis) {
+      mkdirSync(dirname(fichier), { recursive: true });
+      writeFileSync(fichier, "registry.npmjs.org\n");
+      for (const args of [["add", ".claude/brigade/reseau"], ["commit", "-q", "-m", "la liste réseau"]]) {
+        const fait = git("-c", "commit.gpgsign=false", ...args);
+        if (fait.status !== 0) {
+          console.error(`faux cook : git ${args[0]} — ${fait.stderr}`);
+          process.exit(1);
+        }
+      }
+      texte = "J'ai ajouté `.claude/brigade/reseau`.\n\n<livrable>\nJ'ai ajouté `.claude/brigade/reseau`, commité sur ma branche.\n</livrable>";
+    } else {
+      texte = "Permission to use Write has been denied because Claude Code is running in don't ask mode.";
+    }
     dire({ type: "assistant", message: { id: "msg_1", role: "assistant", usage: { input_tokens: 3, output_tokens: 7 }, content: [{ type: "text", text: texte }] } });
     dire({ type: "result", subtype: "success", is_error: false, num_turns: 1, result: texte });
   } else if (scenario === "attend") {

@@ -450,4 +450,4 @@ for none.
   other: the list of what no grant authorizes (`runtime/src/grant.ts`) stays, and `grant -- enable
   acces-prod` is refused.
 
-A ticket whose files all live under `.claude/brigade/` is never launched to a cook (#2729): a cook's session cannot write there. The station labels it `blocked-on-human` with a question for the second or the chef. Tickets the station opened itself (body starting with `<!-- brigade:`) are exempt.
+A ticket whose files all live under `.claude/brigade/` (a repository setup ticket: gates, worktree setup, network list) goes to a cook like any other (#2855). On a Mac's sandbox (`dontAsk` mode), only that cook gets the `Write` and `Edit` rules for `<worktree>/.claude/brigade/**`; the cook of any other ticket is refused there.
