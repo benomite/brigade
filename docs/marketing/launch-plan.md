@@ -14,6 +14,19 @@ Links used in every post: site https://benomite.github.io/brigade/ and repo http
 4. **Turn Pages on, once** (#2872): in the repo, Settings → Pages → Source: **GitHub Actions**. Until then `.github/workflows/pages.yml` builds but the site is not served; then re-run it (Actions → pages → Run workflow) or push to `site/`, and open https://benomite.github.io/brigade/ to check it shows the landing page.
 5. **Read each place's rules in a browser** (next section) and apply the checklist.
 
+## Repo card: description, topics, social preview
+
+The chef runs this once, by hand, before the first post (it changes the repo's public settings, so nothing here runs on its own).
+
+- **Description** (English, 111 characters, limit 119): `AI agents work your GitHub tickets while you're away from your computer. Open source, runs on your Claude plan.`
+- **Topics**: `claude-code`, `ai-agents`, `github`, `automation`, `developer-tools`, `desktop-app`.
+
+```
+gh repo edit benomite/brigade --description "AI agents work your GitHub tickets while you're away from your computer. Open source, runs on your Claude plan." --add-topic claude-code --add-topic ai-agents --add-topic github --add-topic automation --add-topic developer-tools --add-topic desktop-app
+```
+
+**Social preview (chef):** upload `docs/marketing/social-preview.png` in Settings > Social preview. That file does not exist yet: it waits for the app capture (`docs/marketing/assets/app-capture.png` or `.gif`, #2873), which is not in the repo, and no substitute is made up. Once the capture is added, the image is composed from the logo `docs/logo/brigade-logo-clair.svg` and that capture.
+
 ## Rules: what is verified and what is not
 
 **Acceptance criterion 1 is not fully met, on purpose.** The station tried again on 2026-11-07 through a fetch tool: `news.ycombinator.com` (showhn.html, newsguidelines.html) answered "proxy refused the connection", and `www.reddit.com` / `old.reddit.com` (`about/rules.json` for r/ClaudeAI, r/ClaudeCode, r/SideProject) answered "unable to fetch". No rule text was readable, so none is quoted; inventing one from memory would be worse than a gap. **Decision for the chef**: open the links below in a browser and paste the exact sentences into the "Rule quoted" lines, or paste them to a cook to fold in. Until then the criterion is open.

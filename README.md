@@ -8,6 +8,10 @@
 
 Presentation and downloads: **[benomite.github.io/brigade](https://benomite.github.io/brigade/)**.
 
+Brigade works through everything it can do while you are away from your computer, and calls you on your phone only for the choices that are yours.
+
+Brigade is open source (MIT) and free. The agents run on your own Claude subscription. Ready to try it? Jump to **[Try it](#try-it)**.
+
 You write a ticket and put the label `fire` on it. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
 
 ![The brigade app: your stations, and the cooks working on them](docs/captures/1598/accueil-stations-apres.png)
