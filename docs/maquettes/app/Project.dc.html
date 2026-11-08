@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brigade — project rail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#121418}
+a{color:#ece9e3}a:hover{color:#f2994a}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #121418; color: #ece9e3; font-family: Archivo, system-ui, sans-serif; display: flex; flex-wrap: wrap">
+
+  <div style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #23272d; background: #16181c">
+      <span style="font: 700 15px 'JetBrains Mono', monospace; color: #f2994a">brigade</span>
+      <nav aria-label="Project" style="display: flex; gap: 4px; align-self: stretch">
+        <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: #ece9e3; text-decoration: none; border-bottom: 2px solid #f2994a">Rail</a>
+        <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Stations</a>
+        <a href="Settings.dc.html" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Settings</a>
+      </nav>
+      <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><span style="width: 8px; height: 8px; border-radius: 999px; background: #6cc28a"></span>kitchen open</span>
+      <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #ee6b5b; background: transparent; color: #ffb4a8; font: 600 13px Archivo, sans-serif">Stop the kitchen</button>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 10px 24px; border-bottom: 1px solid #23272d; font-size: 13px; color: #c9c4bc">
+      <span>Ticket time <strong style="color: #ece9e3">5.6 min</strong> median</span>
+      <span>First try <strong style="color: #ece9e3">57%</strong> · goal 70%</span>
+      <span>Cooks <strong style="color: #ece9e3">2</strong> running on box/claude</span>
+      <span>Last merge <strong style="color: #ece9e3">4 min</strong> ago</span>
+    </div>
+
+    <div style="overflow-x: auto; padding: 16px 24px">
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 12px; min-width: 1240px">
+        <sc-for list="{{columns}}" as="c" hint-placeholder-count="6">
+          <section style="background: #16181c; border: 1px solid #23272d; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 640px">
+            <h2 style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="{{c.path}}" fill="{{c.color}}"></path></svg>{{c.title}}<span style="margin-left: auto; font: 500 11px 'JetBrains Mono', monospace; color: #a3a7ae">{{c.count}}</span></h2>
+            <sc-if value="{{c.empty}}" hint-placeholder-val="{{ false }}">
+              <p style="margin: 0; font-size: 13px; color: #a3a7ae">{{c.emptyLine}}</p>
+            </sc-if>
+            <sc-for list="{{c.cards}}" as="t" hint-placeholder-count="2">
+              <sc-if value="{{t.awaiting}}" hint-placeholder-val="{{ false }}">
+                <article style="background: #1f1b17; border: 1px solid #5c4630; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+                  <a href="#" style="font: 600 13px 'JetBrains Mono', monospace; color: #ece9e3">{{t.num}}</a>
+                  <div style="font-size: 13px; color: #c9c4bc">{{t.title}}</div>
+                  <div style="font-size: 15px; font-weight: 600">{{t.question}}</div>
+                  <button type="button" style="min-height: 32px; padding: 6px 12px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 13px Archivo, sans-serif; text-align: left">{{t.reco}}</button>
+                  <button type="button" style="min-height: 32px; padding: 6px 12px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif; text-align: left">{{t.other}}</button>
+                  <button type="button" style="align-self: flex-start; height: 28px; padding: 0 4px; border: 0; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif; text-decoration: underline">Answer in my own words</button>
+                </article>
+              </sc-if>
+              <sc-if value="{{t.voucher}}" hint-placeholder-val="{{ true }}">
+                <article style="background: #f3efe6; color: #1b1c1e; border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px #0006">
+                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+                    <a href="#" style="font: 600 13px 'JetBrains Mono', monospace; color: #1b1c1e">{{t.num}}</a>
+                    <span style="font-size: 11px; color: #4a4640">{{t.meta}}</span>
+                  </div>
+                  <div style="font-size: 13px; font-weight: 600; line-height: 1.35">{{t.title}}</div>
+                  <div style="display: flex; gap: 6px; flex-wrap: wrap">
+                    <span style="height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid #bdb4a3; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center">{{t.prio}}</span>
+                  </div>
+                </article>
+              </sc-if>
+            </sc-for>
+          </section>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <aside aria-label="The second" style="position: relative; flex: 0 0 360px; min-width: 280px; border-left: 1px solid #23272d; background: #0c0d10; display: flex; flex-direction: column">
+    <button type="button" aria-label="Resize the second's panel (drag; its width is kept)" title="Drag to resize — the width is kept" style="position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; padding: 0; border: 0; background: transparent; cursor: col-resize; display: flex; align-items: center; justify-content: center"><span aria-hidden="true" style="width: 3px; height: 36px; border-radius: 999px; background: #3a3f47"></span></button>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; min-height: 52px; border-bottom: 1px solid #23272d; background: #16181c">
+      <span style="font-size: 13px; font-weight: 600">Second</span>
+      <span style="font-size: 11px; color: #a3a7ae">claude · brigade</span>
+      <button type="button" aria-label="Fold the second's panel" style="margin-left: auto; width: 32px; height: 32px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #c9c4bc"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 L11 8 L6 13" fill="none" stroke="#c9c4bc" stroke-width="1.5" stroke-linecap="round"></path></svg></button>
+    </div>
+    <div style="padding: 16px; font: 400 13px/1.6 'JetBrains Mono', monospace; color: #d8d4cc; display: flex; flex-direction: column; gap: 12px">
+      <div style="color: #a3a7ae">awaiting   1 card</div>
+      <div>#2771 asks which angle leads the launch. I recommend "You are no longer at your computer".</div>
+      <div style="color: #f2994a">&gt; <span style="color: #d8d4cc">_</span></div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const v = (num, title, meta, prio) => ({ voucher: true, awaiting: false, num, title, meta, prio });
+    return {
+      columns: [
+        { title: 'On the rail', count: 2, color: '#7a808a', path: 'M5 1.5 A3.5 3.5 0 1 1 4.99 1.5 Z', empty: false, emptyLine: '', cards: [
+          v('#2872', 'Publish site/ to GitHub Pages with an Actions workflow', 'queued 3 min', 'prio:1'),
+          v('#2905', 'The epic-done comment lists merged tickets as abandoned', 'queued 9 min', 'prio:2') ] },
+        { title: 'Taken', count: 2, color: '#7fb2f0', path: 'M5 1 L9 9 L1 9 Z', empty: false, emptyLine: '', cards: [
+          v('#2894', 'A cook’s technical block goes to the manager first', 'box/claude · 6 min', 'prio:0'),
+          v('#2873', 'Social preview image and a README first screen', 'box/claude · 2 min', 'prio:1') ] },
+        { title: 'Pass', count: 1, color: '#e9c46a', path: 'M5 0.5 L9.5 5 L5 9.5 L0.5 5 Z', empty: false, emptyLine: '', cards: [
+          v('#2875', 'Demo video sources: real captures of each scene', 'review in progress', 'prio:1') ] },
+        { title: 'Awaiting you', count: 1, color: '#ee6b5b', path: 'M1.5 1.5 H8.5 V8.5 H1.5 Z', empty: false, emptyLine: '', cards: [
+          { voucher: false, awaiting: true, num: '#2771', title: 'Marketing: write the positioning', question: 'Which angle leads the launch?', reco: 'You are no longer at your computer', other: 'An AI dev team on your GitHub' } ] },
+        { title: 'Waiting', count: 0, color: '#f2994a', path: 'M2 1.5 H4 V8.5 H2 Z M6 1.5 H8 V8.5 H6 Z', empty: true, emptyLine: 'No ticket waits for a third party yet.', cards: [] },
+        { title: 'Served', count: 3, color: '#6cc28a', path: 'M5 1 A4 4 0 1 1 4.99 1 Z', empty: false, emptyLine: '', cards: [
+          v('#2868', 'Quality tickets wait for 20 new merged tickets', 'merged 12 min ago', 'prio:0'),
+          v('#2749', 'Write Brigade’s product vision', 'merged 1 h ago', 'prio:1'),
+          v('#2746', 'Mention the chef on GitHub on each TODO card', 'merged 2 h ago', 'prio:1') ] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

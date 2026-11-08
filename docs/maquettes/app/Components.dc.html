@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brigade — components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#121418}
+a{color:#f2994a}a:hover{color:#ffb4a8}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1640px; box-sizing: border-box; padding: 56px 64px; background: #121418; color: #ece9e3; font-family: Archivo, system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px">
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #a3a7ae; font-weight: 600">Brigade app · components</div>
+    <h1 style="margin: 0; font-size: 28px; font-weight: 700">One of each — every screen builds from these</h1>
+    <p style="margin: 0; font-size: 15px; color: #c9c4bc; max-width: 900px">Fourteen button styles become one family. Nine pill rules become one. Ten "nothing here" classes become one empty line.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px">
+
+    <section style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">Buttons</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+        <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 13px Archivo, sans-serif">Run the closing pass</button>
+        <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif">Add a station</button>
+        <button type="button" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif">Cancel</button>
+        <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #ee6b5b; background: transparent; color: #ffb4a8; font: 600 13px Archivo, sans-serif">Stop the kitchen</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; font-size: 11px; color: #a3a7ae">
+        <span>Recommended — filled accent, one per place</span><span>Secondary — every other gesture</span><span>Quiet — Cancel, close, fold</span><span>Danger — stop, remove</span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center; border-top: 1px solid #23272d; padding-top: 16px">
+        <button type="button" style="height: 44px; padding: 0 20px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 15px Archivo, sans-serif">Sign in with GitHub</button>
+        <span style="font-size: 13px; color: #c9c4bc">Large, 44 px: first run and the phone.</span>
+      </div>
+    </section>
+
+    <section style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">State pills <span style="color: #a3a7ae; font-weight: 400">— one shape and one color per state, everywhere</span></h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px">
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="#7a808a" stroke-width="1.5"></circle></svg>queued</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1 L9 9 L1 9 Z" fill="#7fb2f0"></path></svg>taken</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0.5 L9.5 5 L5 9.5 L0.5 5 Z" fill="#e9c46a"></path></svg>in pass</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #5c4630; background: #1f1b17; font-size: 11px; font-weight: 600; color: #ffb4a8"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1.5" width="7" height="7" fill="#ee6b5b"></rect></svg>awaiting you</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="2" y="1.5" width="2" height="7" fill="#f2994a"></rect><rect x="6" y="1.5" width="2" height="7" fill="#f2994a"></rect></svg>waiting</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="#6cc28a"></circle></svg>served</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 1px solid #23272d; padding-top: 16px">
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="#6cc28a"></circle></svg>kitchen open</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="#7a808a" stroke-width="1.5"></circle></svg>station stopped</span>
+        <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid #bdb4a3; background: #f3efe6; font-size: 11px; font-weight: 600; color: #1b1c1e">prio:1</span>
+        <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid #bdb4a3; background: #f3efe6; font-size: 11px; color: #4a4640">12 min</span>
+        <span style="font-size: 11px; color: #a3a7ae">Labels on a voucher: the same pill, on paper.</span>
+      </div>
+    </section>
+
+    <section style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">Ticket voucher <span style="color: #a3a7ae; font-weight: 400">— the only paper on screen</span></h2>
+      <div style="display: flex; gap: 16px; align-items: flex-start">
+        <article style="width: 260px; background: #f3efe6; color: #1b1c1e; border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 8px #0006">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <a href="#" style="font: 600 13px 'JetBrains Mono', monospace; color: #1b1c1e">#2746</a>
+            <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #1b1c1e"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1 L9 9 L1 9 Z" fill="#3f76c4"></path></svg>taken</span>
+          </div>
+          <div style="font-size: 13px; font-weight: 600; line-height: 1.35">Mention the chef on GitHub on each TODO card</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <span style="height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid #bdb4a3; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center">prio:1</span>
+            <span style="height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid #bdb4a3; font-size: 11px; color: #4a4640; display: inline-flex; align-items: center">box/claude · 4 min</span>
+          </div>
+        </article>
+        <p style="margin: 0; font-size: 13px; color: #c9c4bc; flex: 1">Number in mono, title on two lines at most, state top right, then labels as pills. No second line of raw state ("in the kitchen", "…").</p>
+      </div>
+    </section>
+
+    <section style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">Awaiting-you card <span style="color: #a3a7ae; font-weight: 400">— a question, its options, one recommended</span></h2>
+      <article style="background: #1f1b17; border: 1px solid #5c4630; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <span style="font: 600 13px 'JetBrains Mono', monospace; color: #ece9e3">#2771 <span style="font-family: Archivo, sans-serif; font-weight: 500; color: #c9c4bc">· brigade</span></span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #5c4630; font-size: 11px; font-weight: 600; color: #ffb4a8"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1.5" width="7" height="7" fill="#ee6b5b"></rect></svg>awaiting you</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 600">Which angle leads the launch?</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 13px Archivo, sans-serif">You are no longer at your computer</button>
+          <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif">An AI dev team on your GitHub</button>
+          <button type="button" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif">Answer in my own words</button>
+        </div>
+        <div style="font-size: 11px; color: #a3a7ae">Recommended by the second: it is the vision, and it sets Brigade apart.</div>
+      </article>
+    </section>
+
+    <section style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">Inline confirmation <span style="color: #a3a7ae; font-weight: 400">— under the gesture, never a dialog</span></h2>
+      <div style="background: #1e2126; border: 1px solid #3a3f47; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 13px; font-weight: 600">Run the closing pass on brigade?</div>
+        <div style="font-size: 13px; color: #c9c4bc">One cook, about 15 minutes of the Max plan.</div>
+        <div style="display: flex; gap: 8px">
+          <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 13px Archivo, sans-serif">Yes, run it</button>
+          <button type="button" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif">Cancel</button>
+        </div>
+      </div>
+      <h2 style="margin: 8px 0 0; font-size: 15px; font-weight: 600">Empty line</h2>
+      <p style="margin: 0; font-size: 13px; color: #a3a7ae">No ticket waits for a third party yet.</p>
+    </section>
+
+    <section style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">Settings row <span style="color: #a3a7ae; font-weight: 400">— the control applies on change, no Save</span></h2>
+      <div style="display: grid; grid-template-columns: 220px 1fr auto; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #23272d">
+        <label for="c-ref" style="font-size: 13px; color: #c9c4bc">Reviewer's calibration</label>
+        <span style="font-size: 11px; color: #a3a7ae">from the repository</span>
+        <select id="c-ref" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px 'JetBrains Mono', monospace"><option>sonnet / medium</option></select>
+      </div>
+      <div style="display: grid; grid-template-columns: 220px 1fr auto; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #23272d">
+        <label for="c-tok" style="font-size: 13px; color: #c9c4bc">Closer's tokens cap</label>
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #c9c4bc"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0.5 L9.5 5 L5 9.5 L0.5 5 Z" fill="#e9c46a"></path></svg>proposed in PR #2912</span>
+        <input id="c-tok" value="200000" style="width: 120px; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px 'JetBrains Mono', monospace">
+      </div>
+      <h2 style="margin: 8px 0 0; font-size: 15px; font-weight: 600">Error line <span style="color: #a3a7ae; font-weight: 400">— one line, the detail on hover</span></h2>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #ffb4a8"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#ee6b5b" stroke-width="1.5"></circle><path d="M6 3.2 V6.6 M6 8.4 V8.8" stroke="#ee6b5b" stroke-width="1.5" stroke-linecap="round"></path></svg>GitHub not reached. <button type="button" style="height: 24px; padding: 0 8px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 11px Archivo, sans-serif">Try again</button></span>
+        <div style="align-self: flex-start; margin-left: 20px; background: #0e1013; border: 1px solid #3a3f47; border-radius: 8px; padding: 8px 10px; font: 400 11px 'JetBrains Mono', monospace; color: #c9c4bc">gh api repos/benomite/brigade/issues — HTTP 502, 21:14</div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
