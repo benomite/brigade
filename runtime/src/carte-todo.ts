@@ -35,6 +35,7 @@
 import type { Base } from "./base.ts";
 import { capturesManquantes, lireCaptures, type Captures } from "./captures.ts";
 import { GESTES, uneQuestion, validerCarte } from "./carte-todo/forme.ts";
+import { refuserDemandeTechnique } from "./garde-todo/garde.ts";
 import type { Journal } from "./journal.ts";
 
 // Les deux sortes de cartes qui entrent dans TODO.
@@ -95,6 +96,8 @@ export { uneQuestion };
 // ensuite la règle de la forme unique (carte-todo/forme.ts), qui refuse une
 // carte sans résumé, ou au résumé de plus de deux phrases.
 export function jugerCarte({ type, resume, enonce, choix }: Proposition, captures: Captures | null = null): Jugement {
+  const technique = refuserDemandeTechnique({ enonce });
+  if (technique !== null) return { admise: false, raison: technique };
   const mot = type?.trim().toLowerCase() ?? "";
   if (mot === "") return { admise: false, raison: "no kind: a TODO card is a product choice (product) or a design validation (design)" };
   if (!estType(mot)) return { admise: false, raison: `“${type?.trim()}” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef` };
