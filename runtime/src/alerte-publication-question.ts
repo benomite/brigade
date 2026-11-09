@@ -16,7 +16,7 @@
 // récente de la même série porte le changement qui avait échoué (le run suivant
 // publie depuis le dernier tag). Un clone illisible n'en dit rien (`null`) : la
 // question reste au chef, rien n'est caché sur une lecture manquée.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "./sans-invite.ts";
 import type { Choix } from "./carte-todo.ts";
 
 // Le titre que le job `alerter` donne à son issue : le workflow, puis
