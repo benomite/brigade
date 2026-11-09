@@ -121,21 +121,20 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
 });
 
 describe("la palette est celle de la maquette", () => {
-  // Les trois écrans qui font foi : `Commis.dc.html` est au parking (docs/maquettes/app/README.md).
-  const maquette = ["Main.dc.html", "Espace.dc.html", "Brigade.dc.html"].map((ecran) => readFileSync(join(MAQUETTES, ecran), "utf8").toLowerCase()).join("\n");
+  // Les six planches du 2026-11-08 (#2907) font foi : docs/maquettes/app/README.md.
+  const maquette = readdirSync(MAQUETTES).filter((f) => f.endsWith(".dc.html")).map((planche) => readFileSync(join(MAQUETTES, planche), "utf8").toLowerCase()).join("\n");
+  // Un jeton de l'ancienne maquette que les planches n'ont pas repris : #2909 réaligne les jetons sur elles.
+  const AVANT_2909 = new Set(["--attend-trait-doux"]);
 
   test("chaque couleur de jetons.css est une couleur que la maquette écrit — aucune n'est inventée", () => {
-    for (const [nom, valeur] of couleurs) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucun des trois écrans de la maquette`);
+    for (const [nom, valeur] of couleurs) if (!AVANT_2909.has(nom)) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucune planche de la maquette`);
   });
 
   test("les rôles sont les siens : le fond, la barre, la carte, le trait, le texte, l'accent, les quatre états", () => {
-    // Relus dans la maquette, là où elle les pose.
+    // Relus dans les planches, là où elles les posent.
     assert.match(maquette, /body\{margin:0;background:#121418\}/);
-    assert.match(maquette, /\.card\{background:#1a1d22;border:1px solid #2e333b;border-radius:10px\}/);
-    assert.match(maquette, /<nav aria-label="espaces" style="[^"]*background: #0e1013; border-right: 1px solid #23272d;/);
-    assert.match(maquette, /color: #ece9e3; font-family: 'archivo', system-ui, sans-serif;/);
-    assert.match(maquette, /const ok = '#6cc28a', warn = '#e9c46a', bad = '#ee6b5b', acc = '#f2994a', blue = '#7fb2f0'/);
-    assert.match(maquette, /\.ticket\{background:#f3efe6;color:#1b1c1e;border-radius:4px;/);
+    assert.match(maquette, /color: #ece9e3; font-family: archivo, system-ui, sans-serif/);
+    assert.match(maquette, /background: #f3efe6; color: #1b1c1e; border-radius: 4px;/);
     const roles = { "--fond": "#121418", "--carte": "#1a1d22", "--trait": "#2e333b", "--barre": "#0e1013", "--trait-doux": "#23272d", "--texte": "#ece9e3", "--vert": "#6cc28a", "--jaune": "#e9c46a", "--rouge": "#ee6b5b", "--accent": "#f2994a", "--bleu": "#7fb2f0", "--bon": "#f3efe6", "--bon-encre": "#1b1c1e" };
     for (const [nom, valeur] of Object.entries(roles)) assert.equal(jetons.get(nom), valeur, nom);
     assert.equal(jetons.get("--rayon-carte"), "10px");
@@ -483,15 +482,12 @@ describe("le monospace est une information, pas un style", () => {
 });
 
 describe("rien de ce qui est au parking n'apparaît", () => {
-  // docs/maquettes/app/README.md, « Ce qui est dessiné mais ne doit pas être construit ». Les cook
-  // profiles et le carnet en sont sortis avec l'épique #1033, qui les construit.
+  // Ce que l'ancienne maquette dessinait sans qu'on le construise ; les planches du 2026-11-08 (#2907)
+  // ne le dessinent plus. Les cook profiles et le carnet en sont sortis avec l'épique #1033, qui les construit.
   const PARKING = /codex|openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
 
   test("ni dans les fichiers de la vue, ni dans ce qu'elle pose", async () => {
     for (const fichier of fichiers) assert.doesNotMatch(lire(fichier), PARKING, fichier);
-    // Le README nomme bien ce que ce test cherche : la liste n'est pas la sienne propre.
-    const parking = readFileSync(join(MAQUETTES, "README.md"), "utf8");
-    for (const dessine of ["box/codex", "mac/chrome", "chrome-connecté", "revue-humaine", "accès-prod", "depuis ton Mac", "en preprod", "toutes les brigades", "jauge chiffrée", "expire dans 2 j"]) assert.ok(parking.includes(dessine), `le README des maquettes ne nomme plus « ${dessine} »`);
 
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });

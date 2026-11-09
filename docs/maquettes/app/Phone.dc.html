@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brigade — phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#121418}
+a{color:#ece9e3}a:hover{color:#f2994a}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #121418; color: #ece9e3; font-family: Archivo, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+  <header style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid #23272d; background: #16181c">
+    <sc-if value="{{showBack}}" hint-placeholder-val="{{ false }}">
+      <button type="button" aria-label="Back to the list" onClick="{{toList}}" style="width: 44px; height: 44px; margin-left: -10px; border-radius: 8px; border: 0; background: transparent"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 3 L5 9 L11 15" fill="none" stroke="#ece9e3" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+    </sc-if>
+    <span style="font-size: 20px; font-weight: 700">Awaiting you</span>
+    <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #5c4630; background: #1f1b17; font-size: 11px; font-weight: 600; color: #ffb4a8">{{countLabel}}</span>
+  </header>
+
+  <sc-if value="{{isList}}" hint-placeholder-val="{{ true }}">
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px">
+      <p style="margin: 0; font-size: 15px; color: #c9c4bc">The kitchen works on. These are the only choices that need you.</p>
+      <sc-for list="{{cards}}" as="c" hint-placeholder-count="2">
+        <button type="button" onClick="{{c.open}}" style="text-align: left; background: #1f1b17; border: 1px solid #5c4630; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; color: #ece9e3; font-family: Archivo, sans-serif">
+          <span style="display: flex; justify-content: space-between; width: 100%; font-size: 11px; color: #c9c4bc"><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #ece9e3">{{c.num}} · {{c.project}}</span><span>{{c.age}}</span></span>
+          <span style="font-size: 15px; font-weight: 600; line-height: 1.35">{{c.question}}</span>
+          <span style="font-size: 13px; color: #c9c4bc">{{c.kind}}</span>
+        </button>
+      </sc-for>
+      <p style="margin: 8px 0 0; font-size: 13px; color: #a3a7ae">Elsewhere: 3 projects cooking, 5 tickets served today.</p>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isCard}}" hint-placeholder-val="{{ false }}">
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px">
+      <span style="font: 600 13px 'JetBrains Mono', monospace; color: #c9c4bc">#2771 · brigade</span>
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3">Which angle leads the launch?</h1>
+      <p style="margin: 0; font-size: 15px; color: #c9c4bc; line-height: 1.45">The site, the demo and the posts will all carry it.</p>
+      <button type="button" onClick="{{send}}" style="min-height: 52px; padding: 10px 16px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 15px Archivo, sans-serif; text-align: left">You are no longer at your computer<span style="display: block; font-size: 11px; font-weight: 500">Recommended by the second</span></button>
+      <button type="button" onClick="{{send}}" style="min-height: 52px; padding: 10px 16px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 15px Archivo, sans-serif; text-align: left">An AI dev team on your GitHub</button>
+      <label for="own" style="font-size: 13px; color: #c9c4bc; margin-top: 4px">Or answer in your own words</label>
+      <textarea id="own" rows="3" style="border-radius: 8px; border: 1px solid #3a3f47; background: #1e2126; color: #ece9e3; padding: 10px; font: 400 15px Archivo, sans-serif; resize: none"></textarea>
+      <button type="button" onClick="{{send}}" style="align-self: flex-end; height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 600 15px Archivo, sans-serif">Send</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isSent}}" hint-placeholder-val="{{ false }}">
+    <div style="padding: 32px 16px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start">
+      <svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="Sent"><circle cx="20" cy="20" r="18" fill="none" stroke="#6cc28a" stroke-width="2.5"></circle><path d="M12 20 L18 26 L28 14" fill="none" stroke="#6cc28a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700">Sent to the kitchen.</h1>
+      <p style="margin: 0; font-size: 15px; color: #c9c4bc; line-height: 1.45">#2771 is back on the rail. Nothing else awaits you on brigade.</p>
+      <button type="button" onClick="{{toList}}" style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 600 15px Archivo, sans-serif">Back to the list</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { screen: 'list', sent: false }; }
+  renderVals() {
+    const screen = this.state.screen;
+    const open = () => this.setState({ screen: 'card' });
+    const all = [
+      { num: '#2771', project: 'brigade', age: '12 min', question: 'Which angle leads the launch?', kind: 'Product choice · 2 options', open },
+      { num: '#41', project: 'baloo', age: '1 h', question: 'Merge the export of the accounts as one file per year?', kind: 'Review only you can make', open }
+    ];
+    const cards = this.state.sent ? all.slice(1) : all;
+    return {
+      isList: screen === 'list', isCard: screen === 'card', isSent: screen === 'sent',
+      showBack: screen !== 'list',
+      cards,
+      countLabel: cards.length + (cards.length === 1 ? ' card' : ' cards'),
+      toList: () => this.setState({ screen: 'list' }),
+      send: () => this.setState({ screen: 'sent', sent: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

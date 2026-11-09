@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brigade — settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#121418}
+a{color:#ece9e3}a:hover{color:#f2994a}
+</style>
+</helmet>
+<div style="min-height: 1180px; background: #121418; color: #ece9e3; font-family: Archivo, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #23272d; background: #16181c">
+    <span style="font: 700 15px 'JetBrains Mono', monospace; color: #f2994a">brigade</span>
+    <nav aria-label="Project" style="display: flex; gap: 4px; align-self: stretch">
+      <a href="Project.dc.html" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Rail</a>
+      <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Stations</a>
+      <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: #ece9e3; text-decoration: none; border-bottom: 2px solid #f2994a">Settings</a>
+    </nav>
+  </header>
+
+  <main style="padding: 24px; display: flex; flex-direction: column; gap: 32px; max-width: 960px; box-sizing: border-box; width: 100%">
+
+    <section style="display: flex; flex-direction: column; gap: 8px">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700">Project</h1>
+      <p style="margin: 0; font-size: 13px; color: #a3a7ae">A change applies as soon as you make it. A setting kept in the repository is proposed as a pull request, and the row says so.</p>
+      <div style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 0 16px">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #23272d">
+            <label for="{{r.id}}" style="flex: 1 1 220px; font-size: 13px; color: #c9c4bc">{{r.label}}</label>
+            <span style="flex: 1 1 200px; font-size: 11px; color: #a3a7ae">{{r.source}}</span>
+            <sc-if value="{{r.select}}" hint-placeholder-val="{{ true }}">
+              <select id="{{r.id}}" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px 'JetBrains Mono', monospace"><option>{{r.value}}</option></select>
+            </sc-if>
+            <sc-if value="{{r.input}}" hint-placeholder-val="{{ false }}">
+              <input id="{{r.id}}" value="{{r.value}}" style="width: 160px; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px 'JetBrains Mono', monospace">
+            </sc-if>
+          </div>
+        </sc-for>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 0">
+          <span style="flex: 1 1 220px; font-size: 13px; color: #c9c4bc">Color</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <sc-for list="{{tints}}" as="t" hint-placeholder-count="8">
+              <button type="button" aria-label="{{t.name}}" style="width: 28px; height: 28px; border-radius: 999px; border: 2px solid {{t.ring}}; background: {{t.hex}}"></button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 700">Stations</h2>
+        <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif">Add a station</button>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #a3a7ae">Every station serving brigade opens its kitchen and cooks. Edit and Remove live on the station's row, nowhere else.</p>
+      <div style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 0 16px">
+        <sc-for list="{{stations}}" as="s" hint-placeholder-count="2">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid #23272d">
+            <span style="flex: 1 1 200px; font: 600 13px 'JetBrains Mono', monospace">{{s.name}}</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><span style="width: 8px; height: 8px; border-radius: 999px; background: {{s.dot}}"></span>{{s.state}}</span>
+            <span style="flex: 1 1 220px; font-size: 13px; color: #c9c4bc">{{s.now}}</span>
+            <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #c9c4bc"><input type="checkbox" checked="{{s.on}}"> Serves brigade</label>
+            <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif">Edit</button>
+            <button type="button" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #ffb4a8; font: 500 13px Archivo, sans-serif">Remove</button>
+          </div>
+        </sc-for>
+        <div style="padding: 14px 0; display: flex; flex-direction: column; gap: 10px">
+          <div style="font-size: 13px; font-weight: 600">Remove macbook-air-de-benoit from brigade?</div>
+          <div style="font-size: 13px; color: #c9c4bc">It finishes its current ticket, then takes no new one. Its own settings are kept.</div>
+          <div style="display: flex; gap: 8px">
+            <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #ee6b5b; background: transparent; color: #ffb4a8; font: 600 13px Archivo, sans-serif">Yes, remove it</button>
+            <button type="button" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 8px">
+      <h2 style="margin: 0; font-size: 20px; font-weight: 700">Kitchen</h2>
+      <div style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 0 16px">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #23272d">
+          <span style="flex: 1 1 220px; font-size: 13px; color: #c9c4bc">Closing pass</span>
+          <span style="flex: 1 1 200px; font-size: 11px; color: #a3a7ae">last run 2 days ago · 340 lines removed</span>
+          <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif">Run the closing pass</button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 0">
+          <span style="flex: 1 1 220px; font-size: 13px; color: #c9c4bc">Kitchen</span>
+          <span style="flex: 1 1 200px; font-size: 11px; color: #a3a7ae">open · 2 cooks running</span>
+          <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #ee6b5b; background: transparent; color: #ffb4a8; font: 600 13px Archivo, sans-serif">Stop the kitchen</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sel = (id, label, source, value) => ({ id, label, source, value, select: true, input: false });
+    const inp = (id, label, source, value) => ({ id, label, source, value, select: false, input: true });
+    return {
+      rows: [
+        inp('s-branch', 'Integration branch', 'from the repository', 'main'),
+        sel('s-man', 'Manager’s calibration', 'from the repository', 'opus / high'),
+        sel('s-rev', 'Reviewer’s calibration', 'set on this station', 'sonnet / medium'),
+        sel('s-ceil', 'Calibration ceiling', 'proposed in PR #2912', 'opus / high'),
+        inp('s-tok', 'Closer’s tokens cap', 'from the repository', '200000'),
+        inp('s-label', 'Label in the bar', 'from its name', 'BR')
+      ],
+      tints: [
+        { name: 'Orange', hex: '#f2994a', ring: '#ece9e3' }, { name: 'Blue', hex: '#7fb2f0', ring: 'transparent' },
+        { name: 'Green', hex: '#6cc28a', ring: 'transparent' }, { name: 'Purple', hex: '#c792ea', ring: 'transparent' },
+        { name: 'Teal', hex: '#4fb6b0', ring: 'transparent' }, { name: 'Pink', hex: '#e87ca8', ring: 'transparent' },
+        { name: 'Sand', hex: '#d9b98c', ring: 'transparent' }, { name: 'Grey', hex: '#a3a7ae', ring: 'transparent' }
+      ],
+      stations: [
+        { name: 'box/claude', state: 'cooking', dot: '#6cc28a', now: '#2894 · 6 min', on: true },
+        { name: 'macbook-air-de-benoit/claude', state: 'idle', dot: '#7a808a', now: 'No ticket taken yet.', on: true }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

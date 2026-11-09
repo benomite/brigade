@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brigade — home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#121418}
+a{color:#ece9e3;text-decoration:none}a:hover{color:#f2994a}
+</style>
+</helmet>
+<div style="min-height: 860px; background: #121418; color: #ece9e3; font-family: Archivo, system-ui, sans-serif; display: flex; flex-wrap: wrap">
+
+  <nav aria-label="Projects" style="flex: 1 1 64px; max-width: 64px; min-width: 64px; background: #0e1013; border-right: 1px solid #23272d; padding: 12px 0; display: flex; flex-direction: column; align-items: center; gap: 10px">
+    <a href="#" aria-label="Home" style="width: 40px; height: 40px; border-radius: 10px; background: #f2994a; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9 L10 3 L17 9 V17 H3 Z" fill="none" stroke="#121418" stroke-width="2" stroke-linejoin="round"></path></svg></a>
+    <sc-for list="{{projects}}" as="p" hint-placeholder-count="4">
+      <a href="#" aria-label="{{p.name}}" style="position: relative; width: 40px; height: 40px; border-radius: 10px; border: 1px solid {{p.tint}}; color: {{p.tint}}; display: flex; align-items: center; justify-content: center; font: 600 13px 'JetBrains Mono', monospace">{{p.mono}}<sc-if value="{{p.awaits}}" hint-placeholder-val="{{ true }}"><span style="position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: #ee6b5b; color: #121418; font: 700 11px Archivo, sans-serif; display: flex; align-items: center; justify-content: center">{{p.awaitCount}}</span></sc-if></a>
+    </sc-for>
+    <button type="button" aria-label="Add a project" style="margin-top: auto; width: 40px; height: 40px; border-radius: 10px; border: 1px dashed #3a3f47; background: transparent; color: #c9c4bc; font: 500 18px Archivo, sans-serif">+</button>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px; max-width: 1100px">
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 700">Projects</h1>
+        <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif">Add a project</button>
+      </div>
+      <div style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; overflow: hidden">
+        <sc-for list="{{projects}}" as="p" hint-placeholder-count="4">
+          <a href="Project.dc.html" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px; border-bottom: 1px solid #23272d">
+            <span style="width: 8px; height: 28px; border-radius: 4px; background: {{p.tint}}"></span>
+            <span style="width: 140px; font: 600 15px 'JetBrains Mono', monospace">{{p.name}}</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><span style="width: 8px; height: 8px; border-radius: 999px; background: {{p.dot}}"></span>{{p.kitchen}}</span>
+            <span style="flex: 1 1 240px; font-size: 13px; color: #c9c4bc">{{p.now}}</span>
+            <sc-if value="{{p.awaits}}" hint-placeholder-val="{{ true }}">
+              <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #5c4630; background: #1f1b17; font-size: 11px; font-weight: 600; color: #ffb4a8"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1.5" width="7" height="7" fill="#ee6b5b"></rect></svg>{{p.awaitLabel}}</span>
+            </sc-if>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 L11 8 L6 13" fill="none" stroke="#a3a7ae" stroke-width="1.5" stroke-linecap="round"></path></svg>
+          </a>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600">This computer's station</h2>
+      <div style="background: #1a1d22; border: 1px solid #2e333b; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px">
+          <span style="font: 600 15px 'JetBrains Mono', monospace">macbook-air-de-benoit</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><span style="width: 8px; height: 8px; border-radius: 999px; background: #6cc28a"></span>running</span>
+          <span style="font-size: 13px; color: #c9c4bc">serves baloo · 1 cook on #41</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-top: 1px solid #23272d; padding-top: 14px">
+          <span style="font-size: 13px; color: #c9c4bc">Version 1.0.152 · 1.0.153 is ready.</span>
+          <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 13px Archivo, sans-serif">Update now</button>
+          <a href="Settings.dc.html" style="font-size: 13px; color: #c9c4bc; text-decoration: underline">Station settings</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      projects: [
+        { name: 'brigade', mono: 'BR', tint: '#f2994a', dot: '#6cc28a', kitchen: 'kitchen open', now: '2 cooks · #2746 in pass · last merge 4 min ago', awaits: true, awaitCount: 1, awaitLabel: '1 awaiting you' },
+        { name: 'espace', mono: 'ES', tint: '#7fb2f0', dot: '#6cc28a', kitchen: 'kitchen open', now: 'Rail empty · 3 tickets waiting for the client', awaits: false, awaitCount: 0, awaitLabel: '' },
+        { name: 'mirrorlab', mono: 'ML', tint: '#c792ea', dot: '#6cc28a', kitchen: 'kitchen open', now: '1 cook · #655 taken', awaits: false, awaitCount: 0, awaitLabel: '' },
+        { name: 'baloo', mono: 'BA', tint: '#6cc28a', dot: '#7a808a', kitchen: 'kitchen held', now: 'Held until a review is answered', awaits: true, awaitCount: 1, awaitLabel: '1 awaiting you' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
