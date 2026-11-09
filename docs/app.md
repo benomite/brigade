@@ -396,7 +396,7 @@ and the account's stations), `app/src/connexion-github.ts` (`lireLeCompteGitHub`
 
 ### The age of the rail is always on screen (#2054)
 
-The Rail tab reads the project's GitHub repository every 30 seconds, with no gesture. At the end of the band at the top
+The Rail tab reads the project's GitHub repository at most once a minute (#3007), with no gesture. At the end of the band at the top
 of the tab (#2486, below), quietly, it says how old the rail shown is — `rail as GitHub said it less than a minute ago,
 at 7:35 AM`. Since #2061 the
 rail is read from GitHub itself, so that age is counted from the app's own reading. When GitHub cannot be read again,
@@ -596,8 +596,16 @@ sheet of a TODO ticket whose decision is known, offering its gestures).
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail and Cooks tabs are drawn from
-the project's repository alone — nothing comes from a box —, every 30 seconds, with this computer's `gh` token
-(`app/src/tableau/lecture.ts`). Every read is conditional: a 304 costs nothing.
+the project's repository alone — nothing comes from a box —, at most once a minute per project, with this computer's
+`gh` token (`app/src/tableau/lecture.ts`). Every read is conditional: a 304 costs nothing.
+
+That token's hourly budget (5,000 requests) is shared with the chef's own `gh`, so the app keeps its own reads far below
+it (#3007, `app/src/budget-github.ts`): when GitHub says less than 20% of the budget is left (`x-ratelimit-remaining`),
+or refuses a read for going over the rate limit, the app sends no read for any project until the time GitHub gives
+(`x-ratelimit-reset`, or `retry-after`; one minute when it gives none). Each project keeps its last rail meanwhile; one
+never read says the reads are paused and until when. In `app/test/budget-github.test.ts`, six projects that each change
+every three minutes, polled for eight simulated hours against a fake GitHub, cost at most 894 counted requests (every
+answer but a 304) in any hour, under the 1,000 the test allows.
 
 - **Rail**: every open issue labelled `fire`, all pages, in the column of the state its labels (`taken`, `in-pass`,
   `waiting`), its open pull request and the base's check-runs give (`etatDuTicket`, as the stations read it): On the
@@ -697,7 +705,7 @@ read as is): one line that says what the kind asks of the chef, then the comment
 the issue on GitHub. An issue with the label whose question cannot be read — no marked comment, or one without text — is
 not in Todo (#2455): the second is told, in the `awaiting` block, which issue it is and why, so the question gets written on
 the ticket, or the label taken off if it is technical. The chef lifts the label on GitHub, and the card leaves Todo at the
-next reading (thirty seconds, or after a gesture).
+next reading (within a minute, or after a gesture).
 *Code: `app/src/tableau/attente-du-chef.ts`, used by `lireLeTableau` (`app/src/main.ts`, `avecCeQuiAttendLeChef`) and
 `app/src/second/file.ts`. Tests: `app/test/tableau/attente-du-chef.test.ts`, `app/test/second/file.test.ts`.*
 

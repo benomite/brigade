@@ -12,7 +12,11 @@ export const DELAI_MS = 30_000;
 
 // Ce que GitHub a rendu : son code, et son corps — lu en JSON quand il en est, sinon le texte tel quel.
 // `etag` : celui que GitHub donne, pour relire sans coût tant que rien n'a changé (`If-None-Match`, réponse 304).
-export type ReponseGitHub = { status: number; data: unknown; etag?: string };
+// `limite` : ce que GitHub dit du budget horaire du jeton (`x-ratelimit-*`) — ce qu'il en reste, sur combien, et l'heure
+// (en ms) où il se remplit ; `reessayerApresMs` : son `retry-after`. Absents quand GitHub ne les donne pas
+// (budget-github.ts les lit).
+export type ReponseGitHub = { status: number; data: unknown; etag?: string; limite?: LimiteGitHub; reessayerApresMs?: number };
+export type LimiteGitHub = { restant: number; total: number; repriseLe: number };
 // Un `GET` à l'API de GitHub, sur ce chemin (`/repos/…`). Lève quand rien n'a répondu.
 // `entetes` : ceux que la demande ajoute (`If-None-Match`).
 export type AppelGitHub = (chemin: string, entetes?: Record<string, string>) => Promise<ReponseGitHub>;
@@ -44,6 +48,16 @@ export function corpsLu(texte: string): unknown {
   }
 }
 
+// Un en-tête qui est un entier positif ou nul ; nul sinon — absent ou illisible, il ne dit rien.
+const entier = (valeur: string | null | undefined): number | null => (valeur != null && /^\d+$/.test(valeur.trim()) ? Number(valeur.trim()) : null);
+// Le budget horaire que les en-têtes `x-ratelimit-*` disent ; nul s'il en manque un, ou qu'un ne se lit pas.
+function limiteDe(entetes: { get(nom: string): string | null } | undefined): LimiteGitHub | null {
+  const restant = entier(entetes?.get("x-ratelimit-remaining"));
+  const total = entier(entetes?.get("x-ratelimit-limit"));
+  const reprise = entier(entetes?.get("x-ratelimit-reset"));
+  return restant === null || total === null || total === 0 || reprise === null ? null : { restant, total, repriseLe: reprise * 1000 };
+}
+
 // L'envoi par `fetch` — celui de Node sur le desktop. Abandonné passé `delaiMs`.
 export function parFetch(options: { fetch?: typeof fetch; delaiMs?: number } = {}): Envoi {
   const appeler = options.fetch ?? fetch;
@@ -53,7 +67,9 @@ export function parFetch(options: { fetch?: typeof fetch; delaiMs?: number } = {
     try {
       const reponse = await appeler(adresse, { headers: entetes, signal: abandon.signal });
       const etag = reponse.headers?.get("etag");
-      return { status: reponse.status, data: corpsLu(await reponse.text()), ...(etag == null ? {} : { etag }) };
+      const limite = limiteDe(reponse.headers);
+      const apres = entier(reponse.headers?.get("retry-after"));
+      return { status: reponse.status, data: corpsLu(await reponse.text()), ...(etag == null ? {} : { etag }), ...(limite === null ? {} : { limite }), ...(apres === null ? {} : { reessayerApresMs: apres * 1000 }) };
     } catch (erreur) {
       throw abandon.signal.aborted && abandon.signal.reason instanceof Error ? abandon.signal.reason : erreur;
     } finally {
