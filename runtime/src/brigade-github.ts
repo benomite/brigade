@@ -145,6 +145,8 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // L'issue, son état et son corps : ce qu'il faut pour fermer une épique
     // finie (#2757). Absente, la guérison ne ferme aucune épique.
     issue?: GitHub["issue"];
+    // Ferme une PR sans toucher à sa branche (#3097). Absente, la station n'en ferme aucune.
+    fermerPR?: GitHub["fermerPR"];
     // Les PR externes ouvertes — depuis un fork (#2933) —, et ce que leur
     // service écrit de plus : la fin de son travail sur une tête, l'humain
     // `review` assigné à sa carte. Absentes, la station ne les sert pas.
@@ -155,6 +157,21 @@ export type GitHubDuTour = GitHubDeLaFusion &
     etapesEnEchec?: GitHub["etapesEnEchec"];
     assigner?: GitHub["assigner"];
   } & GitHubDeLaRelance;
+
+// La fermeture du ticket d'une branche `cook/<n>-…` : son numéro et sa date,
+// ou null si la branche n'a pas de numéro, si le ticket est ouvert, si le
+// client ne lit pas les issues ou si la lecture manque (#3096) : on ne sait
+// pas, le ticket compte pour ouvert.
+type Fermeture = { numero: number; date: string | null };
+async function fermetureDuTicket(lire: GitHub["issue"] | undefined, branche: string): Promise<Fermeture | null> {
+  const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+  if (numero === undefined || lire === undefined) return null;
+  const rang = Number(numero);
+  const issue = await lire(rang).catch(() => null);
+  if (issue?.state !== "closed") return null;
+  const date = issue.closedAt === undefined ? NaN : Date.parse(issue.closedAt);
+  return { numero: rang, date: Number.isNaN(date) ? null : new Date(date).toISOString().slice(0, 10) };
+}
 
 const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
 
@@ -394,6 +411,8 @@ export const RATTRAPAGE_PAR_MERGE = 10;
 
 // Des gates qui n'ont pas pu se jouer sur une tête se retentent au plus tôt
 // après ce délai (#2456).
+// Le délai entre deux balayages des PR ouvertes dont le ticket est fermé (#3097).
+export const BALAYAGE_DES_PR_MS = 10 * 60_000;
 export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
@@ -616,6 +635,43 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           const { enregistrements } = lesTempsDesTickets(clone);
           return qualiteEnDefaut(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(clone))) ? null : alerteDeLaCuisson();
         };
+  // Une PR ouverte dont le ticket est fermé, reste du circuit d'avant, ne sera
+  // plus servie par personne : la station la ferme, d'un commentaire, et garde
+  // sa branche (#3097). Le commentaire se lit avant d'être posé, pour qu'une
+  // fermeture ratée après lui ne le double pas au tour suivant. Une PR externe
+  // n'est jamais fermée ; une lecture ou un geste qui échoue attend le tour suivant.
+  // Une fois tous les BALAYAGE_DES_PR_MS : un reste du circuit d'avant n'urge pas, et la
+  // lecture des PR coûte un point de débit à chaque tour. Rend les PR ouvertes lues, ou
+  // null si le balayage n'a pas lieu à ce tour.
+  let dernierBalayage = Number.NEGATIVE_INFINITY;
+  const fermerLesPRDesTicketsFermes = async (ouverts: ReadonlySet<number>) => {
+    const { fermerPR } = github;
+    if (fermerPR === undefined || github.issue === undefined || instant() - dernierBalayage < BALAYAGE_DES_PR_MS) return null;
+    dernierBalayage = instant();
+    const externes = new Set((await github.prsExternes?.())?.map(({ number }) => number));
+    const ouvertes = await github.prsOuvertes();
+    for (const pr of ouvertes) {
+      if (pr.number === undefined || externes.has(pr.number)) continue;
+      // Un ticket que le tour a lu ouvert (il porte `fire`) n'a pas à être relu.
+      if (ouverts.has(Number(/^cook\/(\d+)-/.exec(pr.branche)?.[1]))) continue;
+      try {
+        const fermeture = await fermetureDuTicket(github.issue.bind(github), pr.branche);
+        if (fermeture === null) continue;
+        if (fermeture.date === null) {
+          avertir(`brigade : PR #${pr.number} on ${nom} has a closed ticket #${fermeture.numero} but GitHub does not say when it was closed — the PR stays open`);
+          continue;
+        }
+        const texte = `its ticket #${fermeture.numero} was closed on ${fermeture.date}; nothing serves this PR any more`;
+        if (!(await github.commentaires(pr.number)).some(({ body }) => body === texte)) await github.commenter(pr.number, texte);
+        await fermerPR.call(github, pr.number);
+      } catch (echec) {
+        avertir(`brigade : PR #${pr.number} on ${nom} could not be closed after its ticket was — ${message(echec)}`);
+      }
+    }
+    // Lue une fois par tour : la porte de zone ne la relit pas.
+    return ouvertes;
+  };
+
   // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
   // `in-pass`. GitHub ne ferme pas toujours l'issue par le `Closes #N` de la PR
   // (#2467) ; la fermeture passe d'abord, pour qu'un retrait réussi sur une
@@ -1199,7 +1255,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
-    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
+    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = await fermerLesPRDesTicketsFermes(new Set(lus.map(({ number }) => number))).catch((echec) => {
+      avertir(`brigade : the open PRs of closed tickets could not be listed on ${nom} — ${message(echec)}`);
+      return null;
+    });
+
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
@@ -1474,18 +1534,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le ticket d'une branche `cook/<n>-…` est fermé. Une branche sans numéro,
     // une issue que le client ne lit pas ou que la lecture manque : on ne sait
     // pas, la PR continue de tenir sa zone.
-    const fermes = new Map<number, Promise<boolean>>();
-    const ticketFerme = async (branche: string): Promise<boolean> => {
-      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
-      if (numero === undefined || github.issue === undefined) return false;
-      const rang = Number(numero);
-      let lu = fermes.get(rang);
+    const fermes = new Map<string, Promise<boolean>>();
+    const ticketFerme = (branche: string): Promise<boolean> => {
+      let lu = fermes.get(branche);
       if (lu === undefined) {
-        lu = github
-          .issue(rang)
-          .then((issue) => issue?.state === "closed")
-          .catch(() => false);
-        fermes.set(rang, lu);
+        lu = fermetureDuTicket(github.issue?.bind(github), branche).then((fermeture) => fermeture !== null);
+        fermes.set(branche, lu);
       }
       return lu;
     };
@@ -1817,6 +1871,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     issuesDepuis: (instant) => github.issuesDepuis(instant),
     creerIssue: (issue) => github.creerIssue(issue),
     fermerIssue: (numero) => github.fermerIssue(numero),
+    ...(github.fermerPR === undefined ? {} : { fermerPR: github.fermerPR.bind(github) }),
     journalDuCheck: (check) => github.journalDuCheck(check),
     ...(github.etapesEnEchec === undefined ? {} : { etapesEnEchec: github.etapesEnEchec.bind(github) }),
     ci: async (sha) => {

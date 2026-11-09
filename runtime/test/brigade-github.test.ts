@@ -10,7 +10,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, cheminsDuDepot, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type Lancer, type OptionsDuDepot, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, BALAYAGE_DES_PR_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, cheminsDuDepot, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type Lancer, type OptionsDuDepot, type StationGitHub } from "../src/brigade-github.ts";
 import { ConsigneIllisible } from "../src/second-juge.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -2057,6 +2057,60 @@ test("an open PR whose ticket is closed holds no zone: the tickets touching its 
   assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [42, 666, 669]);
 });
 
+test("a tour closes an open PR whose ticket is closed with one comment, keeps its branch, and does not comment twice (#3097)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(412, CALIBRE);
+  faux.ticket(412).state = "closed";
+  faux.ticket(412).fermeLe = "2026-10-23T14:05:00Z";
+  faux.feu(413, CALIBRE.filter((label) => label !== "fire"));
+  const fermee = faux.prOuverte(["runtime/src/a.ts"], "cook/412-645045df");
+  const ouverte = faux.prOuverte(["runtime/src/b.ts"], "cook/413-645045df");
+  let maintenant = new Date("2026-11-10T08:00:00Z");
+  const a = faux.station("A", { maintenant: () => maintenant });
+  await a.tour();
+  await a.calme();
+  maintenant = new Date(maintenant.getTime() + BALAYAGE_DES_PR_MS);
+  await a.tour();
+  await a.calme();
+  assert.equal(fermee.state, "closed");
+  assert.equal(fermee.branche, "cook/412-645045df");
+  assert.deepEqual(
+    (faux.commentaires.get(fermee.number) ?? []).map(({ body }) => body),
+    ["its ticket #412 was closed on 2026-10-23; nothing serves this PR any more"],
+  );
+  assert.equal(ouverte.state, "open");
+  assert.equal(faux.commentaires.get(ouverte.number), undefined);
+});
+
+test("a PR whose closing failed after its comment is closed on the next tour without a second comment (#3097)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(412, CALIBRE.filter((label) => label !== "fire"));
+  faux.ticket(412).state = "closed";
+  faux.ticket(412).fermeLe = "2026-10-24T01:00:00Z";
+  const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/412-645045df");
+  const avertis: string[] = [];
+  let maintenant = new Date("2026-11-10T08:00:00Z");
+  const a = faux.station("A", { avertir: (texte) => avertis.push(texte), maintenant: () => maintenant });
+  let refus = true;
+  Object.defineProperty(pr, "state", {
+    configurable: true,
+    get: () => "open",
+    set: (valeur: string) => {
+      if (refus) throw new Error("HTTP 502");
+      Object.defineProperty(pr, "state", { configurable: true, writable: true, value: valeur });
+    },
+  });
+  await a.tour();
+  await a.calme();
+  assert.ok(avertis.some((texte) => texte.includes(`PR #${pr.number}`) && texte.includes("HTTP 502")), avertis.join("\n"));
+  refus = false;
+  maintenant = new Date(maintenant.getTime() + BALAYAGE_DES_PR_MS);
+  await a.tour();
+  await a.calme();
+  assert.equal(pr.state, "closed");
+  assert.equal((faux.commentaires.get(pr.number) ?? []).length, 1);
+});
+
 test("an open PR whose ticket is still open keeps holding its zone: 'zone held by #N' (#3096)", async () => {
   const faux = new FauxGitHub();
   faux.feu(412, CALIBRE.filter((label) => label !== "fire"));
@@ -2086,13 +2140,13 @@ test("a free zone is claimed, a zone inside or around a changed folder is held, 
   assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [1, 4, 5]);
 });
 
-test("the open PRs are read only when a ticket has a zone (#2188)", async () => {
+test("the open PRs are read once, by the sweep of closed tickets, and not again for a ticket without a zone (#2188)", async () => {
   const faux = new FauxGitHub();
   faux.feu(1);
   const a = faux.station("A");
   await a.tour();
   await a.calme();
-  assert.ok(!faux.appels.some((appel) => appel.quoi === "prsOuvertes"));
+  assert.equal(faux.appels.filter((appel) => appel.quoi === "prsOuvertes").length, 1);
   assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
 });
 

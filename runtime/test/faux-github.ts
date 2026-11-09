@@ -9,7 +9,7 @@ import type { LieuDesGates } from "../src/github-etat/gates-de-la-tete.ts";
 
 export const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
-export type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
+export type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string; fermeLe?: string };
 export type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; conflitDeContenu?: boolean; mergeePar: string | null; fichiers: string[] };
 
 export type OptionsDuFaux = {
@@ -139,11 +139,15 @@ export class FauxGitHub {
       },
       issue: async (numero) => {
         const ticket = this.tickets.get(numero);
-        return ticket === undefined ? null : { number: numero, title: ticket.title, labels: [...ticket.labels], state: ticket.state, createdAt: "", updatedAt: "", url: "", body: ticket.corps };
+        return ticket === undefined ? null : { number: numero, title: ticket.title, labels: [...ticket.labels], state: ticket.state, createdAt: "", updatedAt: "", url: "", body: ticket.corps, ...(ticket.state === "closed" ? { closedAt: ticket.fermeLe ?? "2026-10-23T00:00:00Z" } : {}) };
+      },
+      fermerPR: async (numero) => {
+        await noter("fermerPR");
+        this.pr(numero).state = "closed";
       },
       prsOuvertes: async () => {
         await noter("prsOuvertes");
-        return this.prs.filter((p) => p.state === "open").map((p) => ({ branche: p.branche, fichiers: [...p.fichiers] }));
+        return this.prs.filter((p) => p.state === "open").map((p) => ({ number: p.number, branche: p.branche, fichiers: [...p.fichiers] }));
       },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
@@ -342,10 +346,13 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
     teteDeLaBase: async () => faux.teteDeLaBase,
-    prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
+    prsOuvertes: async () => faux.prs.filter((p) => p.state === "open").map((p) => ({ number: p.number, branche: p.branche, fichiers: [...p.fichiers] })),
+    fermerPR: async (numero) => {
+      faux.pr(numero).state = "closed";
+    },
     issue: async (numero) => {
       const ticket = faux.tickets.get(numero);
-      return ticket === undefined ? null : { ...ticket, labels: [...ticket.labels], createdAt: "", updatedAt: "", url: "", body: ticket.corps };
+      return ticket === undefined ? null : { ...ticket, labels: [...ticket.labels], createdAt: "", updatedAt: "", url: "", body: ticket.corps, ...(ticket.state === "closed" ? { closedAt: ticket.fermeLe ?? "2026-10-23T00:00:00Z" } : {}) };
     },
   };
   return client as GitHub;

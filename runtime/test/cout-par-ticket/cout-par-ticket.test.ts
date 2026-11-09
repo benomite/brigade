@@ -22,8 +22,9 @@ import { FauxGitHub, type Appel } from "./faux-github.ts";
 
 const DEPOT = "faux/cout";
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
-// Le budget d'un ticket servi, de sa prise à son merge.
-const BUDGET = 30;
+// Le budget d'un ticket servi, de sa prise à son merge : trente appels, et la
+// lecture des PR ouvertes que le balayage des tickets fermés ajoute (#3097).
+const BUDGET = 31;
 // L'intervalle entre deux tours de la station GitHub seul.
 const TOUR_MS = 30_000;
 const HEURE_MS = 60 * 60_000;
@@ -89,7 +90,7 @@ function station(t: TestContext, faux: FauxGitHub, cuisson: () => Promise<void> 
   return ouverte;
 }
 
-test("a ticket served end to end, from taken to merged, costs at most 30 counted GitHub calls — the tours while it cooks and after its merge cost none", async (t) => {
+test("a ticket served end to end, from taken to merged, costs at most 31 counted GitHub calls — the tours while it cooks and after its merge cost none", async (t) => {
   const faux = new FauxGitHub(DEPOT);
   faux.feu(42, CALIBRE);
   let servir = () => {};
