@@ -176,7 +176,7 @@ main section { padding: 3.5rem 0; }
 .terms dd { margin: 0; }
 @media (max-width: 30rem) { .terms { grid-template-columns: 1fr; gap: 0; } .terms dd { margin-bottom: .6rem; } }
 .next.taped { margin-bottom: 1.5rem; }
-@media (min-width: 44rem) { .next.taped { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 44rem) { .next.taped, .three.taped { grid-template-columns: repeat(3, 1fr); } }
 
 .shot { margin: 3rem 0 0; }
 .shot img { width: 100%; height: auto; display: block; border: 10px solid #2a3035; border-radius: 6px; }
