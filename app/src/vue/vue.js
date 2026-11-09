@@ -231,6 +231,7 @@ const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const interrupteurProjet = element("interrupteur-projet");
 const arreterCuisine = element("arreter-cuisine");
+const sectionCuisine = element("reglages-cuisine");
 const note = element("note");
 const ongletsTerminaux = element("terminaux");
 const fermerShell = element("fermer-shell");
@@ -311,6 +312,7 @@ function reposerLOngletStations() {
   if (courant !== undefined && ongletDe(courant) === STATIONS) poserRail(courant);
 }
 const reglagesDuProjet = element("reglages-du-projet");
+const reglagesEnPlus = element("reglages-du-projet-en-plus");
 const avis = element("avis");
 // Les stations du projet, sur Stations (tickets 1185, 1456, 2487) : une ligne chacune, son état, ses cooks ; et, en tête de l'onglet Rail, la ligne qui dit ce qui, du côté des cooks, demande un geste —
 // avec de quoi ouvrir Stations. poserCuisson les remplit ; poserRail les pose.
@@ -2479,7 +2481,7 @@ function poserSigle(projet) {
   const controle = projet.sigle === undefined ? [champ] : [champ, bouton("back to its name", () => void siglerProjet(projet, null))];
   const vaut = bloc("span", projet.etiquette);
   vaut.className = "mono";
-  sigle.replaceChildren(rangeeDeReglage("label, in the bar", [vaut, ` · ${projet.sigle === undefined ? "from its name" : "yours"}`], controle, refusDeReglage(sigleRefuse.refus), { cle: "sigle", niveau: niveauDe(document, "sigle") }));
+  sigle.replaceChildren(rangeeDeReglage("Label in the bar", [vaut, ` · ${projet.sigle === undefined ? "from its name" : "yours"}`], controle, refusDeReglage(sigleRefuse.refus), { cle: "sigle", niveau: niveauDe(document, "sigle") }));
 }
 
 // Un sigle écrit : le process principal l'écrit dans le fichier des projets, et il revient par `surConfiguration` — la
@@ -2542,15 +2544,19 @@ function gestesDuReglage(projet, cle) {
 function poserLesReglagesDuProjet(projet) {
   const etats = etatsDesReglages.get(projet.nom) ?? new Map();
   etatsDesReglages.set(projet.nom, etats);
-  const pose = poserLesReglages(document, {
+  const options = {
     lecture: reglagesLus.get(projet.nom),
     etats,
-    choisir: (cle, choisi) => gestesDuReglage(projet, cle).choisir(choisi),
-    proposer: (choix, dit) => void proposerUnReglage(projet, choix, dit),
-    ouvrir: (url) => void brigade.ouvrirLaProposition(url),
-  });
-  reglagesDuProjet.hidden = pose === null;
-  reglagesDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+    choisir: (/** @type {import("../reglages-du-projet.ts").Cle} */ cle, /** @type {string | { modele: string, effort: string }} */ choisi) => gestesDuReglage(projet, cle).choisir(choisi),
+    proposer: (/** @type {import("../reglages-du-projet.ts").ChoixDeReglage} */ choix, /** @type {string} */ dit) => void proposerUnReglage(projet, choix, dit),
+    ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaProposition(url),
+  };
+  // Les rangées de l'artboard d'abord ; celles qu'il ne dessine pas suivent, sous le sigle et la couleur.
+  for (const [conteneur, groupe] of /** @type {const} */ ([[reglagesDuProjet, "dessines"], [reglagesEnPlus, "en-plus"]])) {
+    const pose = poserLesReglages(document, { ...options, groupe });
+    conteneur.hidden = pose === null;
+    conteneur.replaceChildren(...(pose === null ? [] : [pose]));
+  }
 }
 
 // Un réglage du projet changé : le changement part par le process principal (reglages-du-projet.ts), qui attend que le
@@ -4225,6 +4231,7 @@ setInterval(() => {
 function poserArreter(projet, arretee) {
   const geste = GESTES_DE_LA_CUISINE.find(({ id }) => id === (arretee ? "reprendre" : "stop"));
   arreterCuisine.hidden = geste === undefined;
+  sectionCuisine.hidden = geste === undefined;
   if (geste === undefined) {
     arreterCuisine.replaceChildren();
     return poserLesGroupes();
@@ -4234,7 +4241,7 @@ function poserArreter(projet, arretee) {
     declencheur.dataset.arret = "";
     sorteDuBouton(declencheur, "danger");
   }
-  arreterCuisine.replaceChildren(rangeeDeReglage("kitchen", [bloc("span", arretee ? "stopped" : "running")], declencheur === undefined ? [] : [declencheur], dessous));
+  arreterCuisine.replaceChildren(rangeeDeReglage("Kitchen", [bloc("span", arretee ? "stopped" : "running")], declencheur === undefined ? [] : [declencheur], dessous));
   poserLesGroupes();
 }
 
@@ -4607,6 +4614,7 @@ function poserLeRail(projet) {
   delete rail.dataset.horsLigne;
   marquerLecture(projet);
   arreterCuisine.hidden = true;
+  sectionCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();

@@ -187,7 +187,7 @@ describe("le sigle dans la vue", () => {
     await ouvrirReglages(vue, "mirrorlab");
     assert.equal(vue.element("sigle").hidden, false);
     assert.equal(ligne(vue).dataset.cle, "sigle");
-    assert.match(ligne(vue).textContent, /^label, in the bar.*ML · from its name/);
+    assert.match(ligne(vue).textContent, /^Label in the bar.*ML · from its name/);
     const champ = ligne(vue).dessous("input")[0] ?? assert.fail("pas de champ");
     assert.equal(champ.value, "");
     assert.equal(champ.placeholder, "ML");

@@ -25,6 +25,10 @@ import { niveauDe } from "../niveaux.js";
 // qu'elle a rendu.
 /** @typedef {{ choisi?: string | { modele: string, effort: string }, enCours?: boolean, dit?: Dit }} Etat */
 
+// Les rangées que l'artboard `Settings.dc.html` dessine, dans son ordre (« Label in the bar » est celle du sigle, posée
+// à part) ; les autres réglages, réels eux aussi, suivent plus bas, sous la couleur.
+/** @type {readonly Cle[]} */
+const DESSINES = ["branche", "manager", "reviewer", "plafond", "closer-tokens"];
 export const TITRE = "Project settings";
 export const AIDE =
   "Kept in the project's repository (.claude/brigade/projet.json), for everyone who clones it. A change is proposed as a pull request, held for you: it applies once merged. Nothing is saved on the box.";
@@ -135,22 +139,29 @@ export function poserUnReglage(doc, { vu, modeles, efforts, etat, choisir, propo
 // La section des réglages, ou null tant que rien n'est lu. Une lecture ratée tient en une ligne, son détail au survol.
 /**
  * @param {Fabrique} doc
- * @param {{ lecture: Lecture | undefined, etats: ReadonlyMap<Cle, Etat>, choisir: (cle: Cle, choisi: string | { modele: string, effort: string }) => void, proposer: (choix: Choix, dit: string) => void, ouvrir: (url: string) => void }} options
+ * @param {{ lecture: Lecture | undefined, etats: ReadonlyMap<Cle, Etat>, choisir: (cle: Cle, choisi: string | { modele: string, effort: string }) => void, proposer: (choix: Choix, dit: string) => void, ouvrir: (url: string) => void, groupe?: "dessines" | "en-plus" }} options
  */
-export function poserLesReglages(doc, { lecture, etats, choisir, proposer, ouvrir }) {
+export function poserLesReglages(doc, { lecture, etats, choisir, proposer, ouvrir, groupe = "dessines" }) {
   if (lecture === undefined) return null;
+  const enPlus = groupe === "en-plus";
+  if (enPlus && "sans" in lecture) return null;
   const section = cree(doc, "section");
   section.className = "reglages-du-projet";
   section.ariaLabel = TITRE;
   // Sa tête est une rangée sans contrôle : son titre, où ses réglages sont gardés au survol.
-  const titre = rangeeDeReglage(doc, { nom: TITRE, classe: "tete" });
-  titre.children[0]?.append(survol(doc, AIDE));
-  section.append(titre);
+  if (!enPlus) {
+    const titre = rangeeDeReglage(doc, { nom: TITRE, classe: "tete" });
+    titre.children[0]?.append(survol(doc, AIDE));
+    section.append(titre);
+  }
   if ("sans" in lecture) {
     section.append(ligneErreur(doc, lecture.sans, lecture.detail ?? ""));
     return section;
   }
-  const { reglages, modeles, efforts } = lecture.vus;
+  const { modeles, efforts } = lecture.vus;
+  const reglages = lecture.vus.reglages.filter((vu) => DESSINES.includes(vu.cle) !== enPlus);
+  // L'ordre de l'artboard, non celui de la lecture.
+  if (!enPlus) reglages.sort((a, b) => DESSINES.indexOf(a.cle) - DESSINES.indexOf(b.cle));
   section.append(
     ...reglages.map((vu) => poserUnReglage(doc, { vu, modeles, efforts, etat: etats.get(vu.cle), choisir: (choisi) => choisir(vu.cle, choisi), proposer, ouvrir })),
   );

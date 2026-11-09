@@ -130,12 +130,17 @@
             <h2 id="niveau-project" class="niveau-du-groupe"></h2>
             <p id="vide-project" class="vide" hidden></p>
             <div id="reglages-du-projet" aria-live="polite" hidden></div>
-            <div id="humains-du-projet" aria-live="polite" hidden></div>
-            <div id="stations-contributrices" aria-live="polite" hidden></div>
-            <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
             <div id="sigle" aria-label="The project's label in the bar" hidden></div>
             <div id="couleurs" aria-label="The project colors" hidden></div>
+            <div id="reglages-du-projet-en-plus" aria-live="polite" hidden></div>
+            <div id="humains-du-projet" aria-live="polite" hidden></div>
+            <div id="stations-contributrices" aria-live="polite" hidden></div>
             <div id="retrait" aria-label="Remove this project from the app's sidebar" hidden></div>
+          </section>
+          <!-- La cuisine, sa section à elle comme dans l'artboard `Settings.dc.html` : sa seule rangée n'est pas entre des réglages. -->
+          <section id="reglages-cuisine" class="groupe" aria-label="Kitchen" hidden>
+            <h2 id="titre-cuisine" class="niveau-du-groupe">Kitchen</h2>
+            <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
           </section>
         </section>
         <!-- Ce qui était sous « This machine » (ticket 2494) n'est plus dans Settings, qui ne tient que les réglages du
