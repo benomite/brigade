@@ -1,6 +1,6 @@
 // Les GitHub Apps de la station, dans Settings (#2317) : une ligne par rôle — cook, pass, manager —, chacune avec son
 // état (`not configured`, `configured`), son App ID et sa clé, sans « save » : c'est la rangée de réglage (#2920), qui
-// s'applique au `change` d'un des deux champs une fois la clé écrite ; la ligne d'en-tête dit que les clés restent sur
+// s'applique au `change` d'un des deux champs — un App ID changé sans sa clé dit qu'il l'attend ; la ligne d'en-tête dit que les clés restent sur
 // la station. Rangée, une clé quitte l'écran : son champ se vide et rien ne la redit. Un App ID vide ou une clé qui
 // n'est pas PEM se disent sous leur champ, et rien ne part. L'écran est joué devant un faux document ; derrière son
 // pont, la station range pour de bon, par `rangerApp` du runtime, dans un répertoire du test.
@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { AppRefusee, appsRangees, rangerApp } from "../../../runtime/src/identites-stations.ts";
 import {
+  CLE_ATTENDUE,
   CONFIGURE,
   GARDE,
   ILLISIBLE,
@@ -227,6 +228,29 @@ describe("configured", () => {
     await repos();
     assert.equal(readFileSync(join(jeu.station, "apps-github", "pass.pem"), "utf8"), AUTRE_CLE);
     assert.ok(ligne(jeu.ecran(), "pass").textContent.includes("App 1203459"));
+  });
+
+  test("seul l'App ID changé sur un rôle déjà configuré ne range rien sans sa clé, et la ligne le dit ; l'ID déjà rangé ne dit rien", async () => {
+    const jeu = joue();
+    rangerApp({ station: jeu.station, role: "pass", id: "1203457", cle: CLE, env: {} });
+    await jeu.tenue.lire();
+    ecrire(champId(ligne(jeu.ecran(), "pass")), "1203459");
+    await repos();
+    assert.deepEqual(jeu.appels, [], "sans clé, rien ne part vers la station");
+    assert.equal(readFileSync(join(jeu.station, "apps-github", "pass.id"), "utf8"), "1203457\n");
+    let pass = ligne(jeu.ecran(), "pass");
+    assert.ok(pass.textContent.includes(CLE_ATTENDUE), "le changement sans effet se dit");
+    assert.deepEqual(erreurs(pass), []);
+    // Revenu à l'ID que la station a, il n'y a plus rien qui attend.
+    ecrire(champId(pass), "1203457");
+    pass = ligne(jeu.ecran(), "pass");
+    assert.equal(pass.textContent.includes(CLE_ATTENDUE), false);
+    // La clé donnée ensuite range l'App avec l'ID changé.
+    taper(champId(pass), "1203459");
+    ecrire(champCle(pass), AUTRE_CLE);
+    await repos();
+    assert.equal(readFileSync(join(jeu.station, "apps-github", "pass.id"), "utf8"), "1203459\n");
+    assert.equal(ligne(jeu.ecran(), "pass").textContent.includes(CLE_ATTENDUE), false);
   });
 });
 

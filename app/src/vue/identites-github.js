@@ -40,7 +40,7 @@ import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 /**
  * Ce que le chef a saisi pour un rôle. `fichier` : le nom du .pem dont la clé a été lue ; `erreurId`, `erreurCle` :
  * ce qui est dit sous chaque champ ; `refus` : ce que la station a refusé ; `rangee` : elle vient de la ranger.
- * @typedef {{ id: string, cle: string, fichier?: string, erreurId?: string, erreurCle?: string, refus?: { ligne: string, detail: string }, enCours: boolean, rangee: boolean }} Saisie
+ * @typedef {{ id: string, cle: string, fichier?: string, erreurId?: string, erreurCle?: string, refus?: { ligne: string, detail: string }, attendCle?: boolean, enCours: boolean, rangee: boolean }} Saisie
  */
 /** @typedef {{ lecture?: LectureDesApps, saisies: Record<Role, Saisie> }} EtatDesIdentites */
 /**
@@ -77,6 +77,7 @@ export const CHOISIR = "choose the .pem file";
 export const CHOISI = (/** @type {string} */ fichier) => `${fichier} chosen`;
 export const ENREGISTREMENT = "saving…";
 export const RANGEE = "stored: its key is not shown again";
+export const CLE_ATTENDUE = "not applied yet: an App ID is stored with its private key — paste it, or choose its .pem file";
 export const SANS_ID = "nothing was written: enter the App's ID";
 export const PAS_UN_ID = "nothing was written: an App ID is the number on the App's page (or its Client ID)";
 export const PAS_UNE_CLE = "nothing was written: this is not a private key — give the .pem file downloaded from the App's page";
@@ -177,6 +178,13 @@ export function tenirLesIdentites({ pont, rendre }) {
         const saisie = etat.saisies[role];
         if (saisie.enCours) return;
         const id = saisie.id.trim();
+        // Sans clé, rien ne se range : un App ID qui n'est pas celui que la station a déjà le dit sous la ligne, plutôt
+        // que de rester sans effet en silence ; un champ vidé n'a rien à ranger.
+        if (saisie.cle.trim() === "") {
+          saisie.attendCle = id !== "" && id !== (appDe(etat.lecture, role)?.id ?? "");
+          return rendre();
+        }
+        delete saisie.attendCle;
         delete saisie.refus;
         saisie.rangee = false;
         if (id === "") saisie.erreurId = SANS_ID;
@@ -247,12 +255,10 @@ function etatDuRole(doc, lecture, role) {
 }
 
 // Le contrôle d'un rôle : l'App ID, la clé — collée, ou lue du .pem choisi — ; chaque erreur sous son champ. Il
-// s'applique à son `change` une fois la clé écrite : `enregistrer` juge l'App ID et la clé, et range l'App.
+// s'applique à son `change` : `enregistrer` juge l'App ID et la clé, et range l'App — sans clé, il dit qu'elle manque.
 /** @param {Fabrique} doc @param {Role} role @param {Saisie} saisie @param {GestesDesIdentites} gestes */
 function formulaire(doc, role, saisie, gestes) {
-  const appliquer = () => {
-    if (saisie.cle.trim() !== "") gestes.enregistrer(role);
-  };
+  const appliquer = () => gestes.enregistrer(role);
   const id = cree(doc, "input");
   id.className = "mono app-id";
   id.type = "text";
@@ -336,6 +342,7 @@ export function poserLesIdentites(doc, etat, gestes) {
     let dit;
     if (saisie.enCours) dit = { enCours: ENREGISTREMENT };
     else if (saisie.refus !== undefined) dit = { refus: saisie.refus.ligne, detail: saisie.refus.detail };
+    else if (saisie.attendCle === true) dit = { enCours: CLE_ATTENDUE };
     else if (saisie.rangee) dit = { fait: RANGEE };
     const ligne = rangeeDeReglage(doc, { nom: NOM(role), valeur: etatDuRole(doc, lue, role), controle: formulaire(doc, role, saisie, gestes), dessous: ditDuReglage(doc, dit) });
     ligne.dataset.role = role;

@@ -16,13 +16,14 @@ const PROJET = { version: 1, integrationBranch: "main", defaultCalibrations: { m
 // Un GitHub en mémoire, ses branches : `main` porte le fichier (ou rien), une branche créée part de la tête d'une autre et
 // en copie les fichiers, le `sha` d'un fichier change à chaque écriture ; les PR ouvertes sont gardées. Chaque demande est
 // notée — et, pour une étape nommée, la réponse qu'il rend à la place.
-type Etape = "lecture" | "depot" | "tete" | "branche" | "fichier" | "pr";
+type Etape = "lecture" | "depot" | "tete" | "branche" | "fichier" | "pr" | "retrait";
 function github(fichier: unknown | null, refus: Partial<Record<Etape, ReponseGitHub>> = {}) {
   const branches = new Map<string, { texte: string | null; sha: number }>([["main", { texte: fichier === null ? null : `${JSON.stringify(fichier, null, 2)}\n`, sha: 1 }]]);
   const demandes: string[] = [];
   const ecrits: Record<string, unknown>[] = [];
   const crees: Record<string, unknown>[] = [];
   const prs: Record<string, unknown>[] = [];
+  const retirees: string[] = [];
   const client: ClientDeLaPriorite = {
     lire: async (chemin) => {
       demandes.push(`GET ${chemin}`);
@@ -41,6 +42,13 @@ function github(fichier: unknown | null, refus: Partial<Record<Etape, ReponseGit
     ecrire: async (methode, chemin, corps) => {
       demandes.push(`${methode} ${chemin}`);
       const recu = corps as Record<string, unknown>;
+      const retiree = methode === "DELETE" ? /\/git\/refs\/heads\/(.+)$/.exec(chemin)?.[1] : undefined;
+      if (retiree !== undefined) {
+        if (refus.retrait !== undefined) return refus.retrait;
+        if (!branches.delete(retiree)) return { status: 422, data: { message: "Reference does not exist" } };
+        retirees.push(retiree);
+        return { status: 204, data: null };
+      }
       if (chemin === `/repos/${DEPOT}/git/refs`) {
         if (refus.branche !== undefined) return refus.branche;
         crees.push(recu);
@@ -68,7 +76,7 @@ function github(fichier: unknown | null, refus: Partial<Record<Etape, ReponseGit
   };
   // `texte(branche)` : le fichier sur une branche — `main` par défaut, la branche de la dernière PR avec `"pr"`.
   const texte = (branche = "main") => branches.get(branche === "pr" ? String(prs.at(-1)?.head) : branche)?.texte ?? null;
-  return { client, demandes, ecrits, crees, prs, texte };
+  return { client, demandes, ecrits, crees, prs, retirees, branches, texte };
 }
 
 const valeur = (lecture: Awaited<ReturnType<typeof lireLesPlafonds>>, cle: string) => ("plafonds" in lecture ? lecture.plafonds.find((plafond) => plafond.cle === cle)?.valeur : assert.fail(`non lus : ${JSON.stringify(lecture)}`));
@@ -194,11 +202,31 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
       assert.ok(rendu.detail?.startsWith(`GitHub refused ${quoi}`) && rendu.detail.includes("(HTTP 422): Refused here"), `${etape}: ${rendu.detail}`);
       assert.equal(depot.texte(), `${JSON.stringify(PROJET, null, 2)}\n`, `${etape} : main n'a pas bougé`);
       if (etape !== "pr") assert.equal(depot.prs.length, 0, etape);
+      // La branche créée avant l'échec est retirée : le dépôt n'a plus que main.
+      assert.deepEqual([...depot.branches.keys()], ["main"], `${etape} : aucune branche orpheline`);
+      assert.equal(depot.retirees.length, etape === "fichier" || etape === "pr" ? 1 : 0, etape);
     }
     // La lecture du fichier refusée : rien n'a changé, avant même la branche.
     const illisible = github(PROJET, { lecture: { status: 403, data: { message: "Resource not accessible" } } });
     const rendu = await changerLePlafond({ depot: DEPOT, branche: "main", cle: "gatesSeconds", saisie: "150", client: illisible.client });
     assert.deepEqual(rendu, { refus: `nothing was changed: ${FICHIER} was not read on GitHub`, detail: `GitHub refused the reading of ${FICHIER} (HTTP 403): Resource not accessible` });
     assert.equal(illisible.crees.length, 0);
+  });
+
+  test("une PR refusée dont la branche ne se retire pas : l'échec reste dit, et la branche restée s'y ajoute", async () => {
+    const depot = github(PROJET, { pr: { status: 422, data: { message: "Refused here" } }, retrait: { status: 403, data: { message: "Forbidden" } } });
+    const rendu = await changerLePlafond({ depot: DEPOT, branche: "main", cle: "gatesSeconds", saisie: "150", client: depot.client });
+    assert.ok("refus" in rendu);
+    assert.equal(rendu.refus, `nothing was proposed: GitHub did not open the pull request of ${FICHIER}`);
+    const neuve = String(depot.crees[0]?.ref).replace("refs/heads/", "");
+    assert.equal(rendu.detail, `GitHub refused the pull request of ${neuve} (HTTP 422): Refused here; GitHub refused the removal of ${neuve} (HTTP 403): Forbidden, it stays on ${DEPOT}`);
+    assert.equal(depot.demandes.at(-1), `DELETE /repos/${DEPOT}/git/refs/heads/${neuve}`);
+  });
+
+  test("une PR ouverte garde sa branche", async () => {
+    const depot = github(PROJET);
+    await changerLePlafond({ depot: DEPOT, branche: "main", cle: "gatesSeconds", saisie: "150", client: depot.client });
+    assert.deepEqual(depot.retirees, []);
+    assert.equal(depot.branches.size, 2);
   });
 });

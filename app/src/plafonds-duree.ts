@@ -108,21 +108,32 @@ export async function proposerLeFichier(
   const neuve = `brigade/setting-${dit.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}-${Date.now().toString(36)}`;
   const creee = await client.ecrire("POST", `/repos/${depot}/git/refs`, { ref: `refs/heads/${neuve}`, sha: objet });
   if (creee.status !== 201) throw refusDe(`the branch ${neuve}`, creee);
-  const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${chemin}`, {
-    message: `brigade: ${dit} (from the app, ${ou})`,
-    content: Buffer.from(texte, "utf8").toString("base64"),
-    ...(sha === null ? {} : { sha }),
-    branch: neuve,
-  });
-  if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${chemin}`, ecrit);
-  const ouverte = await client.ecrire("POST", `/repos/${depot}/pulls`, {
-    title: `brigade: ${dit}`,
-    head: neuve,
-    base,
-    body: `Proposed from the app (${ou}): ${dit} in \`${chemin}\`. It applies once merged, at the station's next fetch.`,
-  });
-  if (ouverte.status !== 201) throw refusDe(`the pull request of ${neuve}`, ouverte);
-  const { number, html_url } = estObjet(ouverte.data) ? ouverte.data : {};
+  // La branche créée, un échec du fichier ou de la PR la retire : chaque essai raté n'en laisse pas une de plus sur le
+  // dépôt. Un retrait refusé ne cache pas l'échec : il s'ajoute à son détail, le nom de la branche restée. Une PR
+  // ouverte garde sa branche.
+  let ouverteLue: unknown;
+  try {
+    const ecrit = await client.ecrire("PUT", `/repos/${depot}/contents/${chemin}`, {
+      message: `brigade: ${dit} (from the app, ${ou})`,
+      content: Buffer.from(texte, "utf8").toString("base64"),
+      ...(sha === null ? {} : { sha }),
+      branch: neuve,
+    });
+    if (ecrit.status !== 200 && ecrit.status !== 201) throw refusDe(`the change of ${chemin}`, ecrit);
+    const ouverte = await client.ecrire("POST", `/repos/${depot}/pulls`, {
+      title: `brigade: ${dit}`,
+      head: neuve,
+      base,
+      body: `Proposed from the app (${ou}): ${dit} in \`${chemin}\`. It applies once merged, at the station's next fetch.`,
+    });
+    if (ouverte.status !== 201) throw refusDe(`the pull request of ${neuve}`, ouverte);
+    ouverteLue = ouverte.data;
+  } catch (erreur) {
+    const retiree = await client.ecrire("DELETE", `/repos/${depot}/git/refs/heads/${neuve}`).catch((raison: unknown) => ({ status: 0, data: { message: message(raison) } }));
+    if (retiree.status === 204) throw erreur;
+    throw new Error(`${message(erreur)}; ${refusDe(`the removal of ${neuve}`, retiree).message}, it stays on ${depot}`);
+  }
+  const { number, html_url } = estObjet(ouverteLue) ? ouverteLue : {};
   if (typeof number !== "number" || typeof html_url !== "string") throw new Error(`GitHub opened the pull request of ${neuve} without its number`);
   return { pr: html_url, numero: number };
 }
