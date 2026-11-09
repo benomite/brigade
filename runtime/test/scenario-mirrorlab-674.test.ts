@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
 import { configurer } from "../src/bac-a-sable/configuration.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
@@ -48,16 +48,20 @@ function station(t: TestContext, faux: FauxGitHub, nom: string, complet: boolean
     writeFileSync(join(worktree, "node_modules", dep, "package.json"), JSON.stringify({ name: dep }));
   });
   installer(complet ? [...PRESENTES, ...MANQUANTES] : PRESENTES);
-  const reglees = configurer({ worktree, caches: [], hotes: [], home }).reglages.sandbox.filesystem.allowWrite;
-  const interdits = droitsDInstallation(home);
+  // Les règles du bac à sable sont des chemins POSIX (celles de macOS) : on les
+  // construit et on les interroge sur des chemins virtuels, quel que soit l'OS.
+  const homeVirtuel = "/Users/cook";
+  const worktreeVirtuel = "/work/wt";
+  const reglees = configurer({ worktree: worktreeVirtuel, caches: [], hotes: [], home: homeVirtuel }).reglages.sandbox.filesystem.allowWrite;
+  const interdits = droitsDInstallation(homeVirtuel);
   const ouvertes = droits === "sans" ? reglees.filter((racineOuverte) => !interdits.includes(racineOuverte)) : reglees;
   const ouvert = (lieu: string) => ouvertes.some((o) => lieu === o || lieu.startsWith(`${o}/`));
   // Le cook rejoue `pnpm install` : le magasin d'abord, puis chaque paquet manquant.
   const reinstaller = (): string | null => {
     if (dependances(worktree)) return null;
-    const magasin = join(home, "Library", "pnpm", "store", "v10");
+    const magasin = posix.join(homeVirtuel, "Library", "pnpm", "store", "v10");
     if (!ouvert(magasin)) return "ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR Operation not permitted";
-    for (const dep of MANQUANTES) if (!ouvert(join(worktree, "node_modules", dep))) return "Operation not permitted";
+    for (const dep of MANQUANTES) if (!ouvert(posix.join(worktreeVirtuel, "node_modules", dep))) return "Operation not permitted";
     installer(MANQUANTES);
     return null;
   };
