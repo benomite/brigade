@@ -34,6 +34,7 @@
 import { posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Regle } from "../reseau.ts";
+import { droitsDInstallation } from "../sandbox/installation.ts";
 
 // Ce que le chef garde sous son répertoire et qu'aucun cook ne lit : ses clés,
 // ses identifiants, ses accès. Relatif à `~`.
@@ -151,7 +152,8 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
   const home = chemin(cook.home, cook.home, "répertoire du compte");
   const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod"))]);
-  const ecrits = unique([chemin(cook.worktree, home, "worktree"), ...cook.caches.map((cache) => chemin(cache, home, "cache du projet"))]);
+  const worktree = chemin(cook.worktree, home, "worktree");
+  const ecrits = unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(worktree, home)]);
   for (const lieu of ecrits) {
     // Écrire au-dessus du compte, c'est écrire partout dessous : ses fichiers
     // de démarrage, ses clés.

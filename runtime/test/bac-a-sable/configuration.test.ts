@@ -12,6 +12,7 @@ import { delimiter, join, posix } from "node:path";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { estUneVerification, viseUneVerification } from "../../src/bac-a-sable/verification.ts";
+import { droitsDInstallation } from "../../src/sandbox/installation.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
 import { CACHE_DE_COMPILATION } from "../outils.ts";
 
@@ -19,16 +20,17 @@ const HOME = "/Users/chef";
 const WORKTREE = "/Users/chef/brigade-wt/850-bac-a-sable";
 const CACHES = ["/Users/chef/.npm", "/Users/chef/Library/Caches/pnpm"];
 const projet = (hotes: string[] = []): Cook => ({ worktree: WORKTREE, caches: CACHES, hotes: reglesDuProjet(hotes), home: HOME });
+const INSTALLATION = droitsDInstallation(WORKTREE, HOME);
 const projetBrigade = (): Cook => ({ ...projet(), brigade: true });
 const projetSeul = (hotes: Regle[]): Cook => ({ ...projet(), hotes });
 
 test("l'écriture n'est ouverte que dans le worktree et les caches du projet — au bac à sable comme aux outils de `claude`", () => {
   const { modeDePermission, reglages } = configurer(projet());
   const { sandbox, permissions } = reglages;
-  assert.deepEqual(sandbox.filesystem.allowWrite, [WORKTREE, ...CACHES]);
+  assert.deepEqual(sandbox.filesystem.allowWrite, [...new Set([WORKTREE, ...CACHES, ...INSTALLATION])]);
   assert.deepEqual(
     permissions.allow.filter((regle) => regle.startsWith("Edit(")),
-    [...[WORKTREE, ...CACHES].map((lieu) => `Edit(/${lieu}/**)`)],
+    [...[...new Set([WORKTREE, ...CACHES, ...INSTALLATION])].map((lieu) => `Edit(/${lieu}/**)`)],
   );
   // Rien d'autre n'ouvre l'écriture : ni répertoire ajouté, ni commande hors
   // du bac à sable, ni repli à nu quand une commande y échoue ou qu'il manque.
@@ -82,9 +84,9 @@ test("un ticket qui ne livre pas que `.claude/brigade/` part en `dontAsk`, sans 
 
 test("un autre worktree, d'autres caches : la configuration n'ouvre que ceux-là, chemins nettoyés et sans doublon", () => {
   const { reglages } = configurer({ ...projet(), worktree: "/Users/chef/wt/12-autre/", caches: ["~/.cargo/registry", "/Users/chef/wt/12-autre"] });
-  assert.deepEqual(reglages.sandbox.filesystem.allowWrite, ["/Users/chef/wt/12-autre", "/Users/chef/.cargo/registry"]);
+  assert.deepEqual(reglages.sandbox.filesystem.allowWrite, ["/Users/chef/wt/12-autre", "/Users/chef/.cargo/registry", ...droitsDInstallation("/Users/chef/wt/12-autre", HOME)]);
   assert.equal(JSON.stringify(reglages).includes(WORKTREE), false);
-  assert.deepEqual(configurer({ ...projet(), caches: [] }).reglages.sandbox.filesystem.allowWrite, [WORKTREE]);
+  assert.deepEqual(configurer({ ...projet(), caches: [] }).reglages.sandbox.filesystem.allowWrite, [WORKTREE, ...INSTALLATION]);
 });
 
 test("un lieu d'écriture qui ouvrirait le compte ou un accès interdit est refusé, en le disant", () => {
