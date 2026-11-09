@@ -55,6 +55,11 @@
 // alors que des tickets attendent : une seule ligne par retenue, qui dit sa
 // cause et le geste qui la lève, et qui tombe quand la cuisine sert de nouveau
 // (retenue/).
+// L'alerte d'une publication ratée (#3090) — l'issue du job `alerter` des
+// workflows de publication — n'y entre que si la cuisine a renoncé (abandonnée,
+// ou remontée pour une cause du chef) et que la release n'est pas déjà publiée
+// d'après les tags du clone ; elle y entre alors en question, ses voies dites
+// (alerte-publication-question.ts).
 import { SANS_ISSUE_MS } from "./events/closing.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { abandonsAuChef, pourquoi as pourquoiDeLAbandon, pourquoiEn as pourquoiDeLAbandonEn, type Voie } from "./abandon-au-chef.ts";
@@ -79,6 +84,7 @@ import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { cartesEnTodo, cartesRetenues, direCarte, direCarteEn, type CarteDeTodo, type CarteRetenue } from "./carte-todo.ts";
 import { aLaCuisine } from "./remontee-a-la-cuisine.ts";
+import { etiquetteDeLAlerte, publieeDansLeClone, questionDeLAlerte, questionDuTicket, type EssaisDeLaCuisine } from "./alerte-publication-question.ts";
 import type { EnVol } from "./pause/evenements.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
 import { INTRANSPOSABLE, pourquoiIntransposable } from "./pause/reprise.ts";
@@ -304,9 +310,18 @@ function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attent
 }
 
 // Ce qui attend le chef, le plus ancien d'abord. `rail` : le rail tel que lu ;
-// `maintenant` : l'heure à laquelle l'échéance de la session se compte.
-export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new Date()): Attente[] {
+// `maintenant` : l'heure à laquelle l'échéance de la session se compte ;
+// `publiee` : si la release d'une alerte de publication est publiée (nul : on
+// ne le sait pas) — lue des tags du clone de la station.
+export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new Date(), publiee: (etiquette: string) => boolean | null = publieeDansLeClone(process.env.BRIGADE_REPO_DIR)): Attente[] {
   const tickets = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
+  // L'alerte d'une publication ratée (#3090) n'attend le chef que si la cuisine
+  // a renoncé et que la release n'est pas publiée : sinon, rien pour lui. Tout
+  // autre ticket, `null` : la file en décide comme d'habitude.
+  const auChef = (titre: string | null, essais: EssaisDeLaCuisine): boolean | null => {
+    const etiquette = etiquetteDeLAlerte(titre);
+    return etiquette === null ? null : questionDeLAlerte({ etiquette, essais, publiee: publiee(etiquette) }).pour === "chef";
+  };
 
   // Le manager qui remonte un ticket rouge avec une carte : la carte parle au
   // chef, la remontée nue ferait doublon.
@@ -330,7 +345,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
       if (pass.cause === DU_MANAGER && avecCarte.has(pass.ticket)) return [];
       // Une remontée technique est à la cuisine, pas au chef (#1826) : sa
       // carte sur le rail dit ce qu'elle en fait.
-      if (aLaCuisine(base, pass.ticket, pass.reason ?? "", pass.cause)) return [];
+      const reprise = aLaCuisine(base, pass.ticket, pass.reason ?? "", pass.cause);
+      if (auChef(ticket.title, reprise ? "at-work" : "gave-up") === false) return [];
+      if (reprise) return [];
       const why = pass.cause === INTRANSPOSABLE ? pourquoiIntransposable(base, pass.ticket) : null;
       const nonVu = feuNonVu(base, pass.ticket);
       return [{ ...commun, quoi: "remontee", ...(why === null ? {} : { why }), ...(nonVu === null ? {} : { nonVu }) }];
@@ -384,7 +401,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   // Sorti du rail : tant qu'il y est encore, sa carte du rail parle pour lui.
   const abandons = abandonsAuChef(base).flatMap(({ ticket, since, voie, cause, root, title }): AttenteDeTicket[] =>
-    tickets.has(ticket) ? [] : [{ ticket, title, since, quoi: "abandon", voie, cause, root }],
+    tickets.has(ticket) || auChef(title, "gave-up") === false ? [] : [{ ticket, title, since, quoi: "abandon", voie, cause, root }],
   );
 
   // La pause du renommage attend le « oui » du chef ; acceptée, elle n'attend
@@ -573,6 +590,10 @@ const enMinuscule = (phrase: string) => `${phrase.charAt(0).toLowerCase()}${phra
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
 // de connu. En anglais : c'est la ligne du bloc `awaiting`.
 export function direAttenteEn(attente: Attente): string {
+  // L'alerte d'une publication que la cuisine n'a pas su réparer : sa question
+  // et ses voies (#3090).
+  const publication = attente.quoi === "remontee" || attente.quoi === "abandon" ? questionDuTicket(attente.title) : null;
+  if (publication !== null) return `${publication.question} ${publication.choix.map(({ texte }) => texte).join("; or ")}`;
   switch (attente.quoi) {
     case "merge": {
       const ou = attente.pr === null ? "" : `: ${attente.pr}`;
