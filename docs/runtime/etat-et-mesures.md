@@ -472,7 +472,7 @@ ahead of the whole rail, looking for a cause the previous one had just fixed. A 
 merge holds nothing back. For a served project, the correction is filed on `benomite/brigade` (#2783) and its
 merge is never in the project's times: it is served when its issue on the brigade is closed (its `closed_at`),
 and a project ticket bearing the same number is not it (#2809) — before, no correction of a served project was
-ever on trial, and each one reopened as soon as the previous one closed, on the tickets claimed before its fix. The rule holds only once the station runs it: #2580 opened two minutes after #2577
+ever on trial, and each one reopened as soon as the previous one closed, on the tickets claimed before its fix. On the station's own repository, the times hold only the tickets this station merged: a served ticket that another station merged is not in them, and it is served when its issue is closed, too, unless GitHub says it was closed as not planned (#2979) — before, #2963, merged by another station, waited for nothing, and #2979 reopened on the nine conflict send-backs #2963 had counted and fixed. The rule holds only once the station runs it: #2580 opened two minutes after #2577
 merged, from a station still on the code before it, whose update comes much later; the same turn on the
 code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
 and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that
