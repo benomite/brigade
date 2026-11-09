@@ -38,7 +38,9 @@ base, the stale-branch pruning).
   `blocked-on-human` itself, with or without commits: its question goes to the manager first (next item), `taken` is
   released, and no station takes a ticket carrying `blocked-on-human` until the chef removes it. What it
   committed stays on its branch, pushed; with no PR yet, the branch head is marked as saved work (#2586), so the cook
-  that resumes after the answer starts from it instead of the pass judging it as a delivery. Since #2061 the station
+  that resumes after the answer starts from it instead of the pass judging it as a delivery. That cook may deliver the
+  saved head as is, with its deliverable — the manager's answer when the blocked cook's work was done: it goes to the
+  pass, and does not count as a failed cook "added nothing since its last delivery", as it did on #3036. Since #2061 the station
   never read `<bloque>`: the partial work of a blocked cook went to review, came back red, and the next cook blocked
   again — 6 of the 13 blocking reviews on BOBL-tech/espace (#798 four times, #755 twice) (#2805).
 - **The manager answers a technical block; only a product or design decision reaches the chef.** The station runs the

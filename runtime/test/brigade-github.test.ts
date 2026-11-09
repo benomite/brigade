@@ -4,6 +4,7 @@
 // L'état des tickets, la relecture et le merge sont les vrais modules de
 // l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
 // `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
+import { SUJET_DE_SAUVEGARDE } from "../src/mise-a-jour/attente/attente.ts";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1580,14 +1581,14 @@ test("a ticket whose branch a previous cook left in the clone is resumed from th
 
 // Une station dont le cook reprend la branche que le clone porte déjà, conclut
 // « done », et laisse sa tête telle quelle — ou la fait avancer (#2372).
-async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date, poussee: boolean | "locale" = false, pushes: string[] = [], refus?: Error) {
+async function repriseQui(t: TestContext, avance: boolean, enConflit = false, turns = 12, faux = new FauxGitHub(), maintenant?: () => Date, poussee: boolean | "locale" = false, pushes: string[] = [], refus?: Error, sujet?: string, message = "done") {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   if (faux.tickets.size === 0) faux.feu(14);
   if (enConflit) faux.prs.push({ number: 99, issue: 14, branche: "cook/14-github", sha: "c".repeat(40), state: "open", merged: false, enRetard: false, enConflit: true, mergeePar: null, fichiers: [] });
   let tete = "a".repeat(40);
   const lancer: Lancer = ({ flux }) => {
-    writeFileSync(flux, fluxQuiConclut("done"));
+    writeFileSync(flux, fluxQuiConclut(message));
     if (avance) tete = "b".repeat(40);
     return { fin: Promise.resolve({ code: 0, signal: null, turns, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
@@ -1611,6 +1612,7 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
       changes: () => [],
       diff: () => "",
       tete: () => tete,
+      ...(sujet === undefined ? {} : { sujet: () => sujet }),
       ...(poussee === "locale" ? { livree: (branche: string) => branche } : poussee ? { livree: (branche: string) => `origin/${branche}` } : {}),
     },
     ...reglagesDuFauxClaude(repertoire, lancer),
@@ -1626,6 +1628,20 @@ async function repriseQui(t: TestContext, avance: boolean, enConflit = false, tu
 
 test("a cook that resumes a branch and adds nothing to it delivers nothing: it counts as a failed cook, and the ticket is not put back in pass (#2372)", async (t) => {
   const faux = await repriseQui(t, false);
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
+  assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
+});
+
+// #3036, 2026-11-09 : le cook bloqué avait commité son travail ; le manager répond « livre-le tel quel », le cook suivant le livre sans y ajouter rien, et la station le comptait pour un cook raté.
+test("a cook that delivers a saved branch as is, with its deliverable, delivers it: the ticket goes to the pass and no failure counts (#2586, #3036)", async (t) => {
+  const faux = await repriseQui(t, false, false, 6, new FauxGitHub(), undefined, false, [], undefined, SUJET_DE_SAUVEGARDE, "<livrable>The saved commit is the delivery.</livrable>");
+  assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), true);
+  assert.ok(faux.prs.some((pr) => pr.branche === "cook/14-github" && pr.state === "open"));
+  assert.doesNotMatch((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec/);
+});
+
+test("a cook that adds nothing to a saved branch and writes no deliverable still counts as a failed cook (#2372, #3036)", async (t) => {
+  const faux = await repriseQui(t, false, false, 12, new FauxGitHub(), undefined, false, [], undefined, SUJET_DE_SAUVEGARDE);
   assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
   assert.match((faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n"), /brigade:echec n=1[\s\S]*the cook added nothing since its last delivery/);
 });

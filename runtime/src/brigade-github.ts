@@ -2175,7 +2175,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (prOuverte !== null && reponse !== null && tete !== undefined) {
       await options.github.commenter(prOuverte, corpsDeLaReponse(tete, reponse)).catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the cook's reply could not be posted on PR #${prOuverte}: ${message(erreur)}`));
     }
-    if (avant !== null && tete === avant) {
+    // Une tête sauvée (#2586) n'est jamais allée en pass : le cook qui la livre
+    // telle quelle, avec son livrable — ce que le manager répond au blocage
+    // d'un cook dont le travail est fait —, livre. Sans quoi son essai comptait
+    // pour un cook raté, « added nothing since its last delivery », sur #3036.
+    const livreLaSauvegarde = sauvee && prOuverte === null && lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte !== null;
+    if (avant !== null && tete === avant && !livreLaSauvegarde) {
       if (resteAFaire !== null) return { reste: resteAFaire };
       // Il a répondu sur la PR depuis le renvoi : un désaccord, pas un échec —
       // la livraison repart en pass, qui juge sa réponse (#2592).
