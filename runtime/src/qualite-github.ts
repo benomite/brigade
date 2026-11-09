@@ -18,6 +18,8 @@ import type { Essai, Parcours } from "./renvois.ts";
 // Les marques des commentaires de la station (`brigade-github.ts`), qui les écrit avec ces constantes.
 export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 export const MARQUE_D_ECHEC = "<!-- brigade:echec";
+// Un arrêt que le cook n'a pas causé — quota, limite GitHub, station relancée — : le ticket attend, puis repart (#2508).
+export const MARQUE_D_ATTENTE = "<!-- brigade:attente";
 
 // Le début de la raison de chaque renvoi, que la station écrit avec ces
 // constantes (`renvoyer`) : la cause se lit de là, et un texte changé ici

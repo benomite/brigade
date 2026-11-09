@@ -12,7 +12,9 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { mesurerQualite, type QualiteDuTicket } from "../src/mesure-qualite.ts";
 import { avecLaPreuve, preuveDeMesure, TITRE_PREUVE, type GitHubDeLaPreuve } from "../src/preuve-mesure.ts";
 import type { GitHubDeLaBrigade } from "../src/routage-temps-perdu.ts";
-import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
+import { corpsDeLAttente } from "../src/attente-ticket/attente-ticket.ts";
+import { corpsDeLaReponseAuBlocage } from "../src/blocage-au-manager.ts";
+import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
 import { MARQUE_CORRECTION, ticketDeCorrection } from "../src/temps-max/correction.ts";
 import type { TempsTicket } from "../src/temps-ticket/ligne-status.ts";
 import type { DepotDuTicket } from "../src/temps-ticket/mesure.ts";
@@ -115,6 +117,45 @@ test("a lost-time ticket body built from a fixture gives, per measured ticket, i
   assert.match(corps, /- 2026-11-07T09:30:00.000Z `station.held` station=box\/a reason=quota\n- 2026-11-07T10:10:00.000Z `station.released` station=box\/a/);
   // Ni l'événement d'avant la fenêtre, ni le battement du runtime.
   assert.doesNotMatch(corps, /box\/before|runtime\.ticked/);
+});
+
+// BOBL-tech/mirrorlab#670 (#3036) : son cook s'est arrêté bloqué, le manager a
+// répondu, et un cook suivant a livré. La mesure comptait 5 min de cook raté ;
+// la preuve disait « first try », sans la question du cook.
+test("a lost-time ticket's evidence names every cook stopped without a delivery that is not counted as a try, with the cook's words, and the quality evidence still says first try", async (t) => {
+  const enregistrements = temps().map((e) => (e.ticket === 103 ? { ...e, perdu: { attente: 20 * 60, ratees: 5 * 60, renvois: 0 } } : e));
+  const reponse = corpsDeLaReponseAuBlocage({
+    station: "box/a",
+    n: 1,
+    question: "Which fixture should the new screen read?\nThe ticket names none.",
+    avis: { issue: "technique", reponse: "The one under test/fixtures.", decision: "Read test/fixtures/ecran.json." },
+    ecrite: false,
+  });
+  const attente = corpsDeLAttente({ station: "box/a", attendus: [101], question: "This builds on #101, not yet merged." });
+  const subi = `${MARQUE_D_ATTENTE} until=0 -->\nStation \`box/a\`: the cook stopped without a delivery — the Max quota is spent`;
+  const commentaires: Record<number, { body: string; association: string }[]> = {
+    ...COMMENTAIRES,
+    103: [
+      { body: reponse, association: "OWNER" },
+      { body: attente, association: "OWNER" },
+      { body: subi, association: "OWNER" },
+      // Un inconnu qui imite la marque ne compte pas.
+      { body: reponse.replace("Which fixture", "Not a station"), association: "NONE" },
+    ],
+  };
+  const github: GitHubDeLaPreuve = { commentaires: async (numero) => commentaires[numero] ?? [], depotDuTicket: async (numero) => DEPOTS[numero] ?? null };
+  const corps = await preuveDeMesure({ github, repertoireEtat: journalDeLaStation(t), projetMesure: "BOBL-tech/mirrorlab" })("temps-perdu", enregistrements, QUALITES);
+  assert.match(
+    corps,
+    /- BOBL-tech\/mirrorlab#103: 3 failed cooks — lost 25 min of 60 min \(claim wait 20 min, failed cooks 5 min, send-backs 0 min\)\n.*\n {2}- failed cook, not counted as a try: blocked, answered by the manager: Which fixture should the new screen read\? The ticket names none\.\n {2}- failed cook, not counted as a try: stopped on an open ticket: This builds on #101, not yet merged\.\n {2}- failed cook, not counted as a try: stopped, not the cook's doing: the Max quota is spent\n/,
+  );
+  assert.doesNotMatch(corps, /mirrorlab#103: first try|Not a station/);
+  // 102 garde son cook raté compté pour un essai, sans arrêt de plus.
+  assert.match(corps, /mirrorlab#102: 1 failed cook — /);
+  // La qualité ne compte pas ces arrêts pour un essai : 103 y reste du premier coup.
+  const qualite = await preuveDeMesure({ github })("qualite", enregistrements, QUALITES);
+  assert.match(qualite, /- #103: first try\n/);
+  assert.doesNotMatch(qualite, /not counted as a try/);
 });
 
 test("a read that fails names its error in the evidence and invents nothing: comments, filing, journal", async (t) => {

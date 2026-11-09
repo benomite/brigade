@@ -73,7 +73,7 @@ import { preuveDeMesure } from "./preuve-mesure.ts";
 import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
-import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
+import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { PRIO_REPARATION } from "./reparation.ts";
@@ -422,7 +422,6 @@ export const TOURS_POUR_TRAVAILLER = 3;
 // l'heure où le quota revient si le flux la donne, au plus `ATTENTE_MAX_MS` (#2508).
 export const ATTENTE_MS = 30 * 60_000;
 export const ATTENTE_MAX_MS = 6 * 60 * 60_000;
-const MARQUE_D_ATTENTE = "<!-- brigade:attente";
 
 /** Le terme (ms) de la dernière attente d'après un arrêt, s'il n'est pas passé ; sinon null. La porte de prise et la cuisine inerte le lisent d'ici (#2975). */
 export function termeDeLAttente(commentaires: readonly { body: string }[], instant: number): number | null {
