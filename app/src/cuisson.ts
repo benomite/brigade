@@ -92,8 +92,9 @@ function aRegler(ligne: LigneDeStation): string | undefined {
 export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates", "review in progress", "judging", "merging"]);
 
 // Ce qui tourne hors des cooks de ticket : ce que le runtime en dit (`agents`) ; d'un runtime d'avant ce champ, la pass
-// seule, d'après les tickets en pass du rail — elle tourne sur la principale, sans nom de station.
-function agentsDe(agents: readonly AgentLu[] | undefined, rail: Faits["rail"]): AgentLu[] {
+// seule, d'après les tickets en pass du rail — elle tourne sur la principale, sans nom de station. Les tickets au travail
+// (faits.ts, `auTravail`, #2984) se lisent ici aussi.
+export function agentsDe(agents: readonly AgentLu[] | undefined, rail: Faits["rail"]): AgentLu[] {
   if (agents !== undefined) return [...agents];
   return rail.flatMap(({ ticket, etat, activite }) =>
     etat === "en pass" && activite?.faitEn !== undefined && PASS_A_L_OUVRAGE.has(activite.faitEn) ? [{ role: "pass", station: null, ticket, fait: activite.faitEn, depuis: activite.depuis }] : [],

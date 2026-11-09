@@ -28,6 +28,7 @@ import { ceQuElleFournit, champDuPlafond, ditDe, motDuLieu } from "./stations-de
 import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 import { bouton } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { poele } from "./composants/poele/poele.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
@@ -121,10 +122,17 @@ function motDuRole(doc, role) {
   return mot;
 }
 
+// Les mots d'une station dont les cooks et les agents tournent (cuisson.ts) : elle cuit, ou sa machine est pleine et ses
+// cooks continuent. Arrêtée, ses cooks finissent ; absente, tue, ou d'un mot que l'app ne connaît pas, elle ne dit pas
+// qu'ils tournent : pas de poêle (ticket 2984).
+export const CUISENT = new Set(["cooking", "saturated"]);
+
 // Les cooks en cours d'une station, une ligne chacun : son ticket et son titre (l'écran étroit) — après ce qu'elle fait
-// tourner d'autre, une ligne chacun : son rôle, son ticket, ce qu'il fait.
-/** @param {Fabrique} doc @param {readonly Cook[]} siens @param {readonly Agent[]} agents */
-export function lignesDeCooks(doc, siens, agents) {
+// tourner d'autre, une ligne chacun : son rôle, son ticket, ce qu'il fait. `cuit` : la lecture dit encore vrai et la
+// station cuit — chaque ligne porte alors, à son bout, la poêle qui grésille (ticket 2984).
+/** @param {import("./composants/poele/poele.js").Fabrique} doc @param {readonly Cook[]} siens @param {readonly Agent[]} agents @param {boolean} [cuit] */
+export function lignesDeCooks(doc, siens, agents, cuit = false) {
+  const enCuisson = () => (cuit ? [poele(doc)] : []);
   const cooks = cree(doc, "ul");
   cooks.className = "cooks";
   if (siens.length === 0 && agents.length === 0) cooks.className = "cooks vide";
@@ -135,7 +143,7 @@ export function lignesDeCooks(doc, siens, agents) {
       ligne.dataset.role = agent.role;
       const numero = agent.ticket === null ? [] : [cree(doc, "strong", `#${agent.ticket}`)];
       for (const fort of numero) fort.className = "mono";
-      ligne.append(motDuRole(doc, agent.role), ...numero, ceQuIlFait(doc, agent));
+      ligne.append(motDuRole(doc, agent.role), ...numero, ceQuIlFait(doc, agent), ...enCuisson());
       return ligne;
     }),
     ...(siens.length === 0 && agents.length === 0
@@ -146,7 +154,7 @@ export function lignesDeCooks(doc, siens, agents) {
           numero.className = "mono";
           const dit = cree(doc, "span", titre);
           dit.title = titre;
-          cook.append(numero, dit);
+          cook.append(numero, dit, ...enCuisson());
           return cook;
         })),
   );
@@ -319,12 +327,14 @@ function fournitDe(doc, rang, lieu, declarees) {
 // avant les stations — la ligne de la cuisine du projet, où sa carte est fondue (ticket 1456).
 // `declarees` : les stations que le journal déclare (installation stations --json) ; `appairees` : celles que l'app
 // connaît par GitHub ; `lieu` : où elles tournent, et de quoi les éditer ;
-// `relire`, `autoriser` : les gestes d'une station ajoutée qui ne cuit pas encore (ticket 1786).
+// `relire`, `autoriser` : les gestes d'une station ajoutée qui ne cuit pas encore (ticket 1786). `enCuisson` : la lecture
+// dit encore vrai — ni hors ligne, ni périmée, ni la cuisine arrêtée — : ce qui tourne sur une station qui cuit porte la
+// poêle (ticket 2984).
 /**
- * @param {Fabrique} doc
- * @param {{ lignes: readonly Ligne[] | undefined, pastille: (mot: string, ton: string | undefined) => any, plafonds?: Readonly<Record<string, Plafonds>>, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
+ * @param {import("./composants/poele/poele.js").Fabrique} doc
+ * @param {{ lignes: readonly Ligne[] | undefined, pastille: (mot: string, ton: string | undefined) => any, enCuisson?: boolean, plafonds?: Readonly<Record<string, Plafonds>>, tete?: readonly any[], declarees?: readonly StationDeclaree[], appairees?: readonly Appairee[], lieu?: Lieu, relire?: (id: string) => unknown, autoriser?: (url: string) => void }} options
  */
-export function poserLesStations(doc, { lignes, pastille, plafonds, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
+export function poserLesStations(doc, { lignes, pastille, enCuisson = false, plafonds, tete = [], declarees = [], appairees = [], lieu, relire, autoriser }) {
   if (lignes === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
@@ -363,7 +373,7 @@ export function poserLesStations(doc, { lignes, pastille, plafonds, tete = [], d
         etat.append(pilule, ...(ligne.dit === "" ? [] : [cree(doc, "small", ligne.dit)]));
       }
       // Ses cooks en cours : arrêtée, ce sont ceux qui finissent — et ce qu'elle fait tourner d'autre.
-      pose.append(nom, etat, lignesDeCooks(doc, ligne?.cooks ?? [], ligne?.agents ?? []));
+      pose.append(nom, etat, lignesDeCooks(doc, ligne?.cooks ?? [], ligne?.agents ?? [], enCuisson && ligne !== undefined && CUISENT.has(ligne.etat)));
       // Pourquoi elle ne cuit pas, en une ligne.
       const retenue = retenueDe(rang);
       if (retenue !== undefined) pose.append(ligneDeRetenue(doc, rang, retenue, { ...(relire === undefined ? {} : { relire }), ...(autoriser === undefined ? {} : { autoriser }) }));

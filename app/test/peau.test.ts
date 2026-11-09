@@ -498,8 +498,9 @@ describe("rien de ce qui est au parking n'apparaît", () => {
   });
 
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {
-    // La seule requête admise est la largeur de la page étroite (#1186) : elle change la mise en page, jamais le thème.
-    const sansLaPageEtroite = (texte: string) => texte.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("window.matchMedia?.(ECRAN_ETROIT)", "");
+    // Les seules requêtes admises sont la largeur de la page étroite (#1186), qui change la mise en page, et « reduce
+    // motion », qui fige la poêle (#2984) : ni l'une ni l'autre ne change le thème.
+    const sansLaPageEtroite = (texte: string) => texte.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("@media (prefers-reduced-motion: reduce)", "").replaceAll("window.matchMedia?.(ECRAN_ETROIT)", "");
     for (const fichier of fichiers) assert.doesNotMatch(sansLaPageEtroite(lire(fichier)), /@media|color-scheme:(?!\s*dark;)|data-theme|matchMedia|prefers-color-scheme/, fichier);
   });
 
