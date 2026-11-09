@@ -347,6 +347,7 @@ describe("hors ligne (#1818)", () => {
     const vue = await ouvrir();
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM GITHUB", erreur: "The Kitchen board of benomite/parade (issue 7) cannot be read: no machine block.", atteinte: true, cas: null, duTableau: true });
     assert.match(vue.element("rail").textContent, /^the rail is not drawn: NOT READ FROM GITHUB — tried at /);
+    assert.doesNotMatch(vue.element("rail").textContent, /panel|on the right/);
     assert.deepEqual(signes(vue), []);
   });
 });
