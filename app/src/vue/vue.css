@@ -1372,9 +1372,9 @@ main > header,
 #tous .ligne span.attend {
   flex: none;
   padding: 0 var(--pas-2);
-  border: 1px solid #5c4630;
+  border: 1px solid var(--attend-trait);
   border-radius: var(--rayon-pastille);
-  background: #1f1b17;
+  background: var(--attend);
   color: var(--rouge-clair);
   font-size: var(--taille-meta);
   font-weight: 600;

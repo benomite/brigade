@@ -4,7 +4,7 @@
 //  - cet ordinateur n'a pas de station : un seul bouton, « Install this computer's station », et aucun autre réglage ;
 //  - le bouton a été pressé : l'installation tourne, puis les premiers réglages se déroulent un à un, jusqu'à ce que la
 //    station soit prête (un refus de l'installation se dit en une ligne, son détail au survol, et le bouton revient) ;
-//  - la station est installée : sa carte (Home.dc.html, #2912) — son nom, sa phrase, puis une seconde rangée avec « Station
+//  - la station est installée : sa carte (Home.dc.html, ticket 2912) — son nom, sa phrase, puis une seconde rangée avec « Station
 //    settings », qui ouvre sa page — pas de bouton d'installation —, puis les autres stations du chef, chacune avec le sien.
 // Vide de lecture, le bloc dit qu'il lit.
 //
