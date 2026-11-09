@@ -36,7 +36,7 @@ const MONDE: Record<number, Issue> = {
 
 // Un faux GitHub : les issues au label `chef-todo`, leurs commentaires, et `projet.json` — `reglages` : son contenu, `null`
 // quand le dépôt ne l'a pas.
-function github(monde: Record<number, Issue>, reglages: Record<string, unknown> | null = { chef: CHEF }): AppelGitHub {
+function github(monde: Record<number, Issue>, reglages: Record<string, unknown> | null = { chef: CHEF }, proprietaire = "User"): AppelGitHub {
   const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
   return async (chemin) => {
     if (chemin.includes("/contents/.claude/brigade/projet.json")) return reglages === null ? { status: 404, data: { message: "Not Found" } } : ok({ content: Buffer.from(JSON.stringify(reglages)).toString("base64") });
@@ -60,14 +60,15 @@ function github(monde: Record<number, Issue>, reglages: Record<string, unknown> 
       return ok(issue === undefined ? [] : [{ body: question(issue.question), created_at: issue.le, author_association: "OWNER" }]);
     }
     if (chemin.includes("/pulls?")) return ok([]);
+    if (chemin === `/repos/${DEPOT}`) return ok({ owner: { login: DEPOT.split("/")[0], type: proprietaire } });
     return ok([]);
   };
 }
 
 // La lecture de l'app (main.ts, `lireLeTableau`) pour le compte `login`, puis les cartes de sa colonne Todo, celles
 // qu'elle replie sous « Awaiting others », et celles que le rail pose hors des colonnes.
-async function todoDe(login: string | null, monde: Record<number, Issue> = MONDE, reglages?: Record<string, unknown> | null) {
-  const appeler = github(monde, reglages);
+async function todoDe(login: string | null, monde: Record<number, Issue> = MONDE, reglages?: Record<string, unknown> | null, proprietaire = "User") {
+  const appeler = github(monde, reglages, proprietaire);
   const lu = await avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant }), appeler, partageDesCartesAssignees({ appeler, depot: DEPOT, login: async () => login }));
   assert.ok(lu.lu, !lu.lu ? lu.raison : "");
   const status = statusDuTableau(lu);
@@ -120,6 +121,22 @@ describe("un humain voit les cartes qui lui sont assignées, et elles seules", (
     const parBob = await todoDe("bob", MONDE, null);
     assert.deepEqual(parBob.tickets, [22]);
     assert.deepEqual(parBob.autres?.find(({ ticket }) => ticket === 23)?.qui, ["acme"]);
+  });
+
+  test("sur un dépôt d'organisation sans `chef`, la carte sans assigné reste au compte connecté, et nul n'attend l'organisation (#3052)", async () => {
+    for (const reglages of [{}, null]) {
+      const parPY = await todoDe("py", MONDE, reglages, "Organization");
+      assert.ok(parPY.tickets.includes(23));
+      assert.ok(!parPY.autres?.some(({ qui }) => qui.includes("acme")));
+    }
+    // les cartes assignées à un autre humain se replient toujours sous « Awaiting others »
+    const parPYsansChef = await todoDe("py", MONDE, {}, "Organization");
+    assert.ok(!parPYsansChef.tickets.includes(22));
+    assert.deepEqual(parPYsansChef.autres?.find(({ ticket }) => ticket === 22)?.qui, ["bob"]);
+    // un `chef` nommé décide, sur une organisation aussi
+    assert.deepEqual((await todoDe("py", MONDE, { chef: "py" }, "Organization")).tickets.includes(23), true);
+    const parBob = await todoDe("bob", MONDE, { chef: "py" }, "Organization");
+    assert.deepEqual(parBob.autres?.find(({ ticket }) => ticket === 23)?.qui, ["py"]);
   });
 });
 
@@ -202,6 +219,7 @@ describe("la règle, seule", () => {
     assert.equal(await lireLeChef(async () => ({ status: 500, data: {} }), DEPOT), null);
     assert.equal(await lireLeChef(async () => ({ status: 200, data: { content: Buffer.from("{").toString("base64") } }), DEPOT), null);
     assert.equal(await lireLeChef(async () => assert.fail("offline"), DEPOT), null);
+    assert.equal(await lireLeChef(async (chemin) => (chemin.includes("/contents/") ? { status: 404, data: {} } : { status: 500, data: {} }), DEPOT), null);
   });
 
   test("le compte se relit au plus toutes les cinq minutes, et sur-le-champ après un échec ou une connexion", async () => {
