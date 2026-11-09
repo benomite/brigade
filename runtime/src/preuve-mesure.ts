@@ -13,6 +13,14 @@
 // première prise, lus sur GitHub ; puis les événements du journal de la
 // station sur la fenêtre mesurée (`station.held`, `station.released`…).
 //
+// Le temps perdu compte en cook raté tout cook rendu sans livraison, pas
+// seulement ceux que la qualité compte pour un essai : un blocage auquel le
+// manager a répondu, une attente d'un ticket ouvert, un arrêt que le cook n'a
+// pas causé. Sans eux, la preuve de BOBL-tech/mirrorlab#670 disait « first
+// try » sous 5 min de cooks ratés, sans un mot de la question du cook qui les
+// avait coûtées : la cause ne se lisait nulle part (#3036). Chacun y est donc
+// nommé, avec les mots du cook.
+//
 // Projet mesuré autre que celui où le ticket se dépose (#2840) : le cook du
 // ticket n'a alors ni ses issues, ni son état sur la station. La station copie
 // en toutes lettres, dans le corps, ses tickets (numéros, raisons), ses
@@ -24,9 +32,11 @@
 // Une lecture qui échoue ne fait tomber ni la section ni le dépôt du ticket :
 // la ligne qui en dépend le dit, avec l'erreur, et rien n'est inventé à sa place.
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { MARQUE_D_ATTENTE_DE_TICKET } from "./attente-ticket/attente-ticket.ts";
+import { MARQUE_DE_REPONSE } from "./blocage-au-manager.ts";
 import { ouvrirJournal } from "./journal.ts";
 import type { QualiteDuTicket } from "./mesure-qualite.ts";
-import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "./qualite-github.ts";
+import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "./qualite-github.ts";
 import { dureeDuTicket, pertesDuTicket, tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
 import type { TempsTicket } from "./temps-ticket/ligne-status.ts";
 import type { DepotDuTicket } from "./temps-ticket/mesure.ts";
@@ -45,17 +55,20 @@ const LECTURES_EN_PARALLELE = 4;
 // Les événements du journal qui ne disent rien de la fenêtre : le battement du runtime et le suivi des sessions.
 const BRUIT = ["runtime.ticked", "session.observed", "token.observed", "cook.progressed"];
 
-// Ce que la preuve sait d'un ticket mesuré. `raisons` : celles de ses renvois et
-// de ses cooks sans livraison, lues sur l'issue — une erreur si elle ne se lit
-// pas. `qualite` : celle que le fichier des temps a gardée à son merge.
+// Ce que la preuve sait d'un ticket mesuré. `raisons` : celles de ses renvois,
+// de ses cooks sans livraison comptés pour un essai (`echecs`) et des autres
+// (`arrets`, que seul le temps perdu cite), lues sur l'issue — une erreur si
+// elle ne se lit pas. `qualite` : celle que le fichier des temps a gardée à son merge.
 // `depot` (temps perdu) : son dépôt, son `fire` et sa première prise lus sur
 // GitHub — une erreur si GitHub ne les rend pas.
 export type PreuveDuTicket = {
   temps: TempsTicket;
   qualite: QualiteDuTicket | null;
-  raisons: { renvois: string[]; echecs: string[] } | { erreur: string };
+  raisons: RaisonsLues | { erreur: string };
   depot?: DepotDuTicket | { erreur: string };
 };
+
+export type RaisonsLues = { renvois: string[]; echecs: string[]; arrets?: string[] };
 
 export type EvenementDuJournal = { at: string; type: string; ticket: number | null; payload: unknown };
 // Les événements de la fenêtre, ou pourquoi ils ne se lisent pas.
@@ -71,19 +84,44 @@ const fois = (n: number, nom: string) => `${n} ${nom}${n === 1 ? "" : "s"}`;
 // La raison qu'un commentaire de la station donne, après son « — » (`brigade-github.ts`).
 const raisonDe = (corps: string) => court(/— ([^\n]*)/.exec(corps)?.[1]?.trim() || "no reason written");
 
+// Les mots du cook que la station cite sous « The cook's question: » ou « The
+// cook's words: », sur une ligne ; sans eux, la raison après le « — ».
+const motsDuCook = (corps: string) => {
+  const cites = /^The cook's (?:question|words):\n\n((?:>.*(?:\n|$))+)/m.exec(corps)?.[1];
+  const mots = cites
+    ?.split("\n")
+    .map((ligne) => ligne.replace(/^> ?/, "").trim())
+    .filter(Boolean)
+    .join(" ");
+  return mots ? court(mots) : raisonDe(corps);
+};
+
+// Les cooks rendus sans livraison que la qualité ne compte pas pour un essai,
+// et ce qui les a arrêtés : la marque de leur commentaire, et ce qu'elle dit de l'arrêt.
+const ARRETS: readonly (readonly [string, string, (corps: string) => string])[] = [
+  [MARQUE_DE_REPONSE, "blocked, answered by the manager", motsDuCook],
+  [MARQUE_D_ATTENTE_DE_TICKET, "stopped on an open ticket", motsDuCook],
+  [MARQUE_D_ATTENTE, "stopped, not the cook's doing", raisonDe],
+];
+
 // Les raisons des renvois et des cooks sans livraison, des commentaires de
-// confiance — ceux que `qualiteDeLIssue` compte.
-export function raisonsDesCommentaires(commentaires: readonly { body: string; association: string }[]): { renvois: string[]; echecs: string[] } {
+// confiance — ceux que `qualiteDeLIssue` compte, puis les autres arrêts.
+export function raisonsDesCommentaires(commentaires: readonly { body: string; association: string }[]): Required<RaisonsLues> {
   const siens = commentaires.filter(({ association }) => DE_CONFIANCE.includes(association));
   return {
     renvois: siens.filter(({ body }) => body.startsWith(MARQUE_DE_RENVOI)).map(({ body }) => raisonDe(body)),
     echecs: siens.filter(({ body }) => body.startsWith(MARQUE_D_ECHEC)).map(({ body }) => raisonDe(body)),
+    arrets: siens.flatMap(({ body }) => {
+      const arret = ARRETS.find(([marque]) => body.startsWith(marque));
+      return arret === undefined ? [] : [`${arret[1]}: ${arret[2](body)}`];
+    }),
   };
 }
 
 // Les lignes des raisons d'un ticket. Sans commentaires lisibles, ce que le
 // fichier des temps a gardé : la cause de chaque renvoi et le nombre de cooks ratés.
-function lignesDesRaisons(p: PreuveDuTicket): string[] {
+// `arrets` : les cooks sans livraison qui ne comptent pas pour un essai y sont aussi.
+function lignesDesRaisons(p: PreuveDuTicket, arrets = false): string[] {
   const reparation = p.qualite?.reparation === undefined ? [] : [`  - repairs main${p.qualite.reparation.length === 0 ? "" : `, broken checks: ${p.qualite.reparation.join(", ")}`}`];
   if ("erreur" in p.raisons) {
     const q = p.qualite;
@@ -94,12 +132,14 @@ function lignesDesRaisons(p: PreuveDuTicket): string[] {
       ...reparation,
     ];
   }
-  return [...p.raisons.renvois.map((r) => `  - send-back: ${r}`), ...p.raisons.echecs.map((r) => `  - failed cook: ${r}`), ...reparation];
+  const autres = arrets ? (p.raisons.arrets ?? []).map((r) => `  - failed cook, not counted as a try: ${r}`) : [];
+  return [...p.raisons.renvois.map((r) => `  - send-back: ${r}`), ...p.raisons.echecs.map((r) => `  - failed cook: ${r}`), ...autres, ...reparation];
 }
 
-const resume = (p: PreuveDuTicket): string => {
+const resume = (p: PreuveDuTicket, arrets = false): string => {
   if ("erreur" in p.raisons) return p.qualite === null ? "quality unknown" : "comments unreadable";
-  const { renvois, echecs } = p.raisons;
+  const { renvois } = p.raisons;
+  const echecs = [...p.raisons.echecs, ...(arrets ? (p.raisons.arrets ?? []) : [])];
   if (renvois.length === 0 && echecs.length === 0) return p.qualite?.reparation === undefined ? "first try" : "first try, a repair of main";
   return [...(renvois.length > 0 ? [fois(renvois.length, "send-back")] : []), ...(echecs.length > 0 ? [fois(echecs.length, "failed cook")] : [])].join(", ");
 };
@@ -130,7 +170,7 @@ function lignesDuTemps(p: PreuveDuTicket, projet?: string): string[] {
     depot === undefined || "erreur" in depot
       ? `filed, fire and first claim not read on GitHub${depot === undefined ? "" : ` (${court(depot.erreur)})`}; recorded start ${instant(t.depuis, "none")}, recorded first claim ${instant(t.priseAt, "none")}`
       : `filed ${depot.deposeAt}, fire ${instant(depot.fireAt, "none on GitHub")}, first claim ${instant(depot.priseAt, "none on GitHub")}`;
-  return [`- ${nomme(t.ticket, projet)}: ${resume(p)} — ${perdu}`, `  - ${quand}, merged ${instant(t.mergedAt, "unknown")}`, ...lignesDesRaisons(p)];
+  return [`- ${nomme(t.ticket, projet)}: ${resume(p, true)} — ${perdu}`, `  - ${quand}, merged ${instant(t.mergedAt, "unknown")}`, ...lignesDesRaisons(p, true)];
 }
 
 const payloadCite = (payload: unknown) => {
