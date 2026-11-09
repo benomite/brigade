@@ -175,6 +175,12 @@ export type GitHub = {
   // (#2545). Aucune si le check n'est pas un job, ou que GitHub ne les rend pas.
   // Facultatif : seul le client réel le porte.
   annotationsDuCheck?(check: Check): Promise<AnnotationDeCheck[]>;
+  // Les étapes en échec du job d'un check de GitHub Actions, par leur nom, dans
+  // leur ordre (#3028) : un job qui joue plusieurs étapes — `Lint + Format +
+  // Typecheck + Tests` — ne dit pas, par son nom, laquelle est rouge. Aucune si
+  // le check n'est pas un job, ou que GitHub ne les rend pas.
+  // Facultatif : seul le client réel le porte.
+  etapesEnEchec?(check: { name: string; url?: string | null }): Promise<string[]>;
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
   // La tentative en cours d'un run de GitHub Actions (1 tant qu'il n'a pas été
@@ -804,6 +810,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       return lues
         .filter((lue) => lue.annotation_level === "failure")
         .map((lue) => ({ chemin: lue.path === undefined || lue.path === ".github" ? null : lue.path, ligne: lue.path === ".github" ? null : (lue.start_line ?? null), titre: lue.title ?? "", message: lue.message ?? "" }));
+    },
+    async etapesEnEchec({ name, url }) {
+      const job = jobDuCheck({ name, outcome: "red", conclusion: "failure", url: url ?? null })?.job;
+      if (job === undefined) return [];
+      const reponse = await appeler([`repos/${depot}/actions/jobs/${job}`]);
+      if (reponse.statut !== 200) return [];
+      const { steps = [] } = JSON.parse(reponse.corps) as { steps?: Array<{ name?: string; conclusion?: string | null }> };
+      return steps.filter((etape) => etape.conclusion === "failure" && typeof etape.name === "string").map((etape) => etape.name as string);
     },
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;

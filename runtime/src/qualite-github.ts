@@ -29,6 +29,15 @@ export const RAISONS_DE_RENVOI = {
   relecture: "the review requested changes",
 } as const;
 
+// Un check rouge tel qu'un renvoi le nomme : son nom, et les étapes en échec de
+// son job quand GitHub les rend (#3028). Le nom seul d'un job qui joue
+// plusieurs étapes — `Lint + Format + Typecheck + Tests` — ne dit pas laquelle
+// est rouge.
+export const checkRougeDit = (nom: string, etapes: readonly string[]) => (etapes.length === 0 ? nom : `${nom} (failed step${etapes.length === 1 ? "" : "s"}: ${etapes.join(", ")})`);
+// Les étapes en échec qu'un renvoi nomme remplacent le nom de leur check, que
+// ses parenthèses peuvent couper d'une virgule : `tests (ubuntu, 26)`.
+const ETAPES_D_UN_CHECK = /(^|, )(?:[^,(]|\([^)]*\))*?\(failed steps?: ([^)]*)\)/g;
+
 // Ce que la qualité lit d'une issue : son corps, ses labels et ses commentaires.
 export type IssueLue = { corps: string; labels: readonly string[]; commentaires: readonly { body: string; association: string }[] };
 
@@ -42,9 +51,10 @@ export function causeDuRenvoi(corps: string): Cause {
   if (raison.startsWith(RAISONS_DE_RENVOI.relecture) || raison.startsWith(RAISONS_DE_RENVOI.second)) return "relecture";
   if (raison.startsWith(RAISONS_DE_RENVOI.conflit)) return "conflit";
   if (raison.startsWith(RAISONS_DE_RENVOI.ci)) {
-    const checks = raison.split(":").slice(1).join(":");
+    // Un check dont le renvoi nomme les étapes en échec se lit par elles seules (#3028).
+    const checks = raison.split(":").slice(1).join(":").replace(ETAPES_D_UN_CHECK, "$1$2");
     if (/types?/i.test(checks)) return "gates-types";
-    if (/app/i.test(checks)) return "gates-app";
+    if (/\bapp\b/i.test(checks)) return "gates-app";
     if (/runtime|tests/i.test(checks)) return "gates-runtime";
   }
   return "autre";

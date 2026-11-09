@@ -119,6 +119,11 @@ base, the stale-branch pruning).
   by the API where a job's log is not readable from the box — and adds them to the brief, under "What the CI says is
   red", check by check (`runtime/src/github-seul/ci-rouge/`). A check with no annotation is named with its address.
   Bounded: 12 checks read, 3,000 characters per message, 24,000 in all; the rest only named.
+  The send-back comment names each red check with the failed steps of its GitHub Actions job, read by the API
+  (`etapesEnEchec`, `runtime/src/github.ts`, #3028): `Lint + Format + Typecheck + Tests (failed step: Format)`.
+  A job that runs several steps does not say by its name which one is red. A check that is not a job, or whose
+  steps GitHub does not return, is named alone, as before; a read that fails is said in the station's warnings,
+  and the send-back still goes.
 - **A delivery that changes what judges it** (`.claude/brigade/`, `.github/workflows/`, or the second judge's own
   brief, `JUGES` in `runtime/src/brigade-github.ts`) is not merged on the reviewer's approval alone: a cook must not
   turn itself green by weakening its own judge (#2555). Once the reviewer approves, and once its branch is up to date
