@@ -54,7 +54,7 @@ async function cuisinerLe6Novembre(t: TestContext, message: string, passages: nu
 test("#2557 on 2026-11-06: sent back, the cook stops after 6 turns having replied on the PR — the comment carries its last message, 6 turns and the exit code, and the ticket stays in the kitchen", async (t) => {
   const { faux, corps } = await cuisinerLe6Novembre(t, `${DERNIER_MESSAGE}\n<reponse-pr>${REPONSE}</reponse-pr>`, 1);
   assert.ok(corps(PR).some((c) => c.includes("brigade:reponse-cook") && c.includes(REPONSE)), "the reply is posted on the PR");
-  assert.equal(faux.ticket(TICKET).labels.has("hors-cuisine"), false);
+  assert.equal(faux.ticket(TICKET).labels.has("served-elsewhere"), false);
   // Le code livré ne poste aucun commentaire d'arrêt sur le ticket quand le cook a répondu sur la PR : le désaccord repart en pass.
   assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec")).length, 0);
 });
@@ -66,10 +66,10 @@ test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure 
   assert.ok(echec.includes(DERNIER_MESSAGE));
   assert.match(echec, /6 turns/);
   assert.match(echec, /exit code 0/);
-  assert.equal(faux.ticket(TICKET).labels.has("hors-cuisine"), false, "one failure does not take the ticket off the kitchen");
+  assert.equal(faux.ticket(TICKET).labels.has("served-elsewhere"), false, "one failure does not take the ticket off the kitchen");
 });
 
-test("#2557 on 2026-11-06: the same stop without a reply, with the same reason twice in a row, ends in hors-cuisine", async (t) => {
+test("#2557 on 2026-11-06: the same stop without a reply, with the same reason twice in a row, ends in served-elsewhere", async (t) => {
   const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 16);
   const echecs = corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec"));
   // Mis de côté, le ticket est relancé deux fois par la guérison (#2757) —
@@ -78,5 +78,5 @@ test("#2557 on 2026-11-06: the same stop without a reply, with the same reason t
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
   assert.match(echecs[1] ?? "", /Taken off the kitchen/);
   assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 2);
-  assert.ok(faux.ticket(TICKET).labels.has("hors-cuisine"));
+  assert.ok(faux.ticket(TICKET).labels.has("served-elsewhere"));
 });

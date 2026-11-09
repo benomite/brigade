@@ -54,7 +54,7 @@ export function commanderInterrupteur(journal: Journal, commande: "on" | "off"):
     if (commande === "on") {
       if (etat?.on) return `project already on since ${etat.since}`;
       ajouter({ type: "project.switched-on", payload: {} });
-      return `project on: ${CE_QUE_FAIT_ALLUME}. The deliveries that were waiting are merged; an issue carrying \`blocked-on-human\` or \`hors-cuisine\` is never judged${absent}`;
+      return `project on: ${CE_QUE_FAIT_ALLUME}. The deliveries that were waiting are merged; an issue carrying \`blocked-on-human\` or \`served-elsewhere\` is never judged${absent}`;
     }
     if (etat?.on === false) return `nothing to switch off: the project is off since ${etat.since}`;
     ajouter({ type: "project.switched-off", payload: {} });

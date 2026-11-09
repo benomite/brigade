@@ -11,7 +11,7 @@
 //   du ticket, et le ticket attend ce `fix` (`waiting`).
 // - Ce qui ne peut plus monter — calibrage au plafond, ticket qui est lui-même
 //   un `fix` de la cuisine, ticket déjà remis une fois — sort de la cuisine
-//   (`hors-cuisine`) : un humain décide, et l'issue dit pourquoi.
+//   (`served-elsewhere`) : un humain décide, et l'issue dit pourquoi.
 //
 // Rien n'est tenu ici : le compte des renvois se relit des commentaires de
 // l'issue, à chaque appel, et survit à l'arrêt de la station comme au passage
@@ -87,12 +87,12 @@ export type Refus = { genre: "ci-rouge" | "relecture"; pr: number; sha: string }
 
 // Ce que les renvois ont fait. `renvoi` : le ticket repart chez un cook, au
 // renvoi `n`. `au-manager` : remis au manager, son `fix` ouvert au calibrage
-// monté. `hors-cuisine` : un humain décide, pour `raison`. `rien` : rien à
+// monté. `served-elsewhere` : un humain décide, pour `raison`. `rien` : rien à
 // renvoyer — la CI n'est pas rouge, la relecture n'a pas refusé cette tête.
 export type Coup =
   | { coup: "renvoi"; n: number; raison: string }
   | { coup: "au-manager"; n: number; raison: string; fix: number; de: Calibrage; vers: Calibrage }
-  | { coup: "hors-cuisine"; n: number; raison: string }
+  | { coup: "served-elsewhere"; n: number; raison: string }
   | { coup: "rien"; raison: string };
 
 type Renvoi = { n: number; sha: string | null; id: number };
@@ -238,7 +238,7 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
     await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): ${pourquoi}. A human decides.`);
     await github.labelliser(issue, [HORS_CUISINE]);
     await libere();
-    return { coup: "hors-cuisine", n, raison: pourquoi };
+    return { coup: "served-elsewhere", n, raison: pourquoi };
   }
   // `waiting` d'abord : entre la création du `fix` et son commentaire, aucune
   // station ne relit le ticket en pass ni ne le reprend.

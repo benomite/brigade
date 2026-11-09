@@ -1,11 +1,11 @@
-// Le ticket de temps perdu resté `hors-cuisine` (`refile-hors-cuisine.ts`,
+// Le ticket de temps perdu resté `served-elsewhere` (`refile-served-elsewhere.ts`,
 // #2786), repris par le tour de la station sur un faux GitHub : commenté,
 // fermé, redéposé une fois sur brigade avec un lien vers l'original.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stationGitHub } from "../src/brigade-github.ts";
 import { HORS_CUISINE } from "../src/github.ts";
-import { DEPOT_DE_BRIGADE, MARQUE_DU_COMMENTAIRE, redeposerHorsCuisine, type GitHubDeBrigade } from "../src/refile-hors-cuisine.ts";
+import { DEPOT_DE_BRIGADE, MARQUE_DU_COMMENTAIRE, redeposerHorsCuisine, type GitHubDeBrigade } from "../src/refile-served-elsewhere.ts";
 import { MARQUE_CORRECTION } from "../src/temps-max/correction.ts";
 import { CALIBRE, FauxGitHub } from "./faux-github.ts";
 
@@ -47,7 +47,7 @@ function horsCuisine(faux: FauxGitHub, numero: number, titre: string, corps: str
   faux.ticket(numero).title = titre;
 }
 
-test("a hors-cuisine lost-time ticket is explained, closed and re-filed once on brigade; another hors-cuisine ticket is left untouched", async () => {
+test("a served-elsewhere lost-time ticket is explained, closed and re-filed once on brigade; another served-elsewhere ticket is left untouched", async () => {
   const faux = new FauxGitHub();
   const brigade = fauxBrigade();
   horsCuisine(faux, 824, TITRE, `${MARQUE_CORRECTION}\n\n## Context\n\nthe median lost time`);

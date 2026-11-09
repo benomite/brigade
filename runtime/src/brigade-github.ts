@@ -64,13 +64,13 @@ import { motifArretCook } from "./motif-arret-cook.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
-import { horsCuisine } from "./seuil-hors-cuisine.ts";
+import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { attentesDeLaDecision, noterLesAttentes } from "./attente-des-tickets.ts";
 import { correctionDuTemps, ticketDeCorrection } from "./temps-max/correction.ts";
 import { DEPOT_BRIGADE, routerLeTempsPerdu, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
 import { preuveDeMesure } from "./preuve-mesure.ts";
-import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
+import { redeposerHorsCuisine } from "./refile-served-elsewhere.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
@@ -291,8 +291,8 @@ export type OptionsDeStation = {
   // projet sans CI sur ses PR est jugé par elles. Absent, la station ne les
   // joue pas, et une autre le fera.
   gates?: (ticket: TicketLu, pr: PRAFusionner) => Promise<LieuDesGates>;
-  // Les tickets `hors-cuisine` du tour, que le redépôt reprend sans humain
-  // (`refile-hors-cuisine.ts`, #2786). Absent, rien ne les reprend.
+  // Les tickets `served-elsewhere` du tour, que le redépôt reprend sans humain
+  // (`refile-served-elsewhere.ts`, #2786). Absent, rien ne les reprend.
   redeposer?: (tickets: readonly TicketLu[]) => Promise<unknown>;
   // Les fichiers suivis de la base (#2826) : la zone d'un ticket sans zone
   // déclarée ne garde que les chemins de son corps qui nomment le dépôt
@@ -407,7 +407,7 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
 const MARQUE_DE_CONFLIT = " conflit";
 
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
-// dernier retrait de `hors-cuisine`, que GitHub date pour toutes les stations
+// dernier retrait de `served-elsewhere`, que GitHub date pour toutes les stations
 // (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
 // livraison. Des retraits illisibles ne remettent rien à zéro.
 const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
@@ -674,7 +674,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
     const issue = ticket.number;
     const premiereLigne = question.trim().split("\n")[0] ?? "";
-    // Les réponses techniques qu'il a déjà données, depuis le dernier retrait de `hors-cuisine`.
+    // Les réponses techniques qu'il a déjà données, depuis le dernier retrait de `served-elsewhere`.
     const lus = await github.commentaires(issue).catch(() => null);
     const reponses = lus === null ? null : (await depuisLeRelancement(github, issue, lus, MARQUE_DE_REPONSE)).map((c) => c.body);
     const lu: ReponseDuManager =
@@ -826,7 +826,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Un constat écrit, que les critères du ticket admettent pour tout
       // livrable, le sert (#2854) : il est posté sur l'issue, qui est fermée.
-      // Compté pour un échec, chaque cook juste le menait à `hors-cuisine`.
+      // Compté pour un échec, chaque cook juste le menait à `served-elsewhere`.
       if ("constat" in fait) {
         avertir(`brigade : #${issue} sur ${nom} — the cook committed nothing and delivered a written finding, which the ticket's acceptance criteria accept: it is posted and the ticket is closed`);
         await github.commenter(issue, `${MARQUE_DE_CONSTAT} -->\nStation \`${nom}\`: the cook committed nothing and delivered a written finding, which this ticket's acceptance criteria accept as its outcome. The ticket is closed with it; reopen it if the finding does not answer it.\n\n${fait.constat}`);
@@ -848,7 +848,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // un cook raté : le travail reste, le ticket est rendu sans compter (#2454).
       // Un arrêt que le cook n'a pas causé — quota, limite GitHub, station
       // relancée, process tué — n'est pas un de ses essais non plus : le ticket
-      // attend, puis repart, sans `hors-cuisine` (#2508).
+      // attend, puis repart, sans `served-elsewhere` (#2508).
       if ("reste" in fait || "subi" in fait) {
         // Sa station s'arrête — une mise à jour la relance — et le cook meurt
         // avec elle. Rien n'est à attendre : la station relancée, ou une autre,
@@ -875,7 +875,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le même ticket qui rate cook après cook ne repart pas sans fin : à
       // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
-      // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
+      // Compté depuis le dernier retrait de `served-elsewhere` (#2430).
       const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
       const echecs = precedents.length + 1;
       // Hors cuisine après `ECHECS_MAX` arrêts de suite, ou dès que deux de suite ont le même motif (#2729).
@@ -905,7 +905,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Renvoie au cook une livraison rouge ou refusée : la raison s'écrit sur
   // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
   // la station qui le prend reprend sa branche, sous sa PR. Au-delà de
-  // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
+  // `RENVOIS_MAX`, il sort de la cuisine (`served-elsewhere`) : un humain décide.
   // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
   const renvoyes = new Set<number>();
   // La tête de chaque PR en conflit dont la station a déjà tenté la synchro (#2726).
@@ -919,7 +919,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // une dernière fois (`resynchroniser`) — seul un vrai conflit de contenu sort (#2726).
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
     const tous = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
-    // Compté depuis le dernier retrait de `hors-cuisine` (#2430).
+    // Compté depuis le dernier retrait de `served-elsewhere` (#2430).
     const tousRenvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
     const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
     const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
@@ -1125,7 +1125,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const tenusAvant = tenusDuTour;
     tenusDuTour = new Set();
     const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()), tenusAvant);
-    await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a hors-cuisine lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
+    await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a served-elsewhere lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
     if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
     await Promise.all([
@@ -1428,7 +1428,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return null;
     };
     // Le premier des tickets que la fiche du ticket attend qui soit mis de côté
-    // (`hors-cuisine`, `blocked-on-human`), avec la ligne de raison de son départ.
+    // (`served-elsewhere`, `blocked-on-human`), avec la ligne de raison de son départ.
     const attenduMisDeCote = async (ticket: TicketLu): Promise<{ attendu: number; raison: string } | null> => {
       const commentaires = await github.commentaires(ticket.number);
       for (const attendu of fiche(commentaires.map(({ body }) => body))?.waitsFor ?? []) {
@@ -2046,7 +2046,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Une tête poussée sans PR est une livraison coupée entre son push et sa PR
     // — la station arrêtée là, GitHub qui refuse la PR. Elle part en pass telle
     // quelle : un cook relancé dessus la trouvait finie, n'y ajoutait rien, et
-    // son essai comptait pour un échec, trois fois jusqu'à `hors-cuisine` (#2577).
+    // son essai comptait pour un échec, trois fois jusqu'à `served-elsewhere` (#2577).
     // Une tête qui sauve le travail d'un cook coupé par une relance n'est pas
     // une livraison : un cook la reprend (#2586).
     const sauvee = reprise && estUneSauvegarde(depot.sujet?.(branche));
@@ -2186,7 +2186,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     await depot.ranger(worktree, branche);
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
-    // motif nommé, qui ne compte pas vers `hors-cuisine` (#2738).
+    // motif nommé, qui ne compte pas vers `served-elsewhere` (#2738).
     const refusee = lireLeFlux(lance.flux ?? flux).ecritureRefusee;
     if (depot.commits(branche) === 0 && refusee !== null) return { subi: `write refused by sandbox: ${refusee} (the cook committed nothing)` };
     if (depot.commits(branche) === 0) {

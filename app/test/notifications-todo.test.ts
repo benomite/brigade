@@ -72,7 +72,7 @@ describe("la notification d'une carte de TODO", () => {
     parade[2] = { labels: ["fire", "in-pass"], commentaires: ["Station `box/claude`: taken"] };
     parade[1]!.commentaires.push("a comment");
     parade[1]!.labels.push("prio:1", "waiting");
-    parade[3] = { labels: ["fire", "hors-cuisine"], commentaires: ["<!-- brigade:renvoi n=1 -->\nnothing to ask"] };
+    parade[3] = { labels: ["fire", "served-elsewhere"], commentaires: ["<!-- brigade:renvoi n=1 -->\nnothing to ask"] };
     parade[4] = { labels: ["chef-todo"], commentaires: ["a label without a marked question"] };
     delete parade[2];
     assert.deepEqual(await sonde(), { lu: true, notifiees: 0, retirees: 0 });

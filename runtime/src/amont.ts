@@ -20,7 +20,7 @@ import { nomAbandonEn } from "./rail.ts";
 // Ce qui arrive à une issue hors du rail — le premier vrai l'emporte, dans cet ordre :
 //   `attend`    le manager attend ta réponse : elle est dans le bloc `attend`, comme dans T'attend
 //   `en-route`  elle va entrer sur le rail : elle porte `fire`, le manager l'y a mise, ou elle est née d'un découpage
-//   `sortie`    elle a quitté le rail sans être servie (`fire` retiré, `hors-cuisine` posé), et rien ne s'est décidé depuis
+//   `sortie`    elle a quitté le rail sans être servie (`fire` retiré, `served-elsewhere` posé), et rien ne s'est décidé depuis
 //   `servie`    servie, et son issue est encore ouverte
 //   `decoupee`  une épique découpée : ses tickets portent le travail
 //   `epique`    une épique pas encore découpée, ou dont le découpage est en cours
@@ -80,7 +80,7 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
 
   if (remiseDe(base, ticket) !== null) return { etat: "non-lue", dit: "returned to the manager, not rejudged yet" };
   // Mise sur le rail par le manager, puis dite hors cuisine avant d'y entrer : il ne l'a pas relue depuis.
-  if (decision !== null) return { etat: "non-lue", dit: "it has carried `hors-cuisine` since the manager put it on the rail: it has not read it again yet" };
+  if (decision !== null) return { etat: "non-lue", dit: "it has carried `served-elsewhere` since the manager put it on the rail: it has not read it again yet" };
   return { etat: "non-lue", dit: "the manager has not judged it yet" };
 }
 
@@ -114,9 +114,9 @@ export function enAmont(base: Base, ouvertes: readonly Issue[]): IssueAmont[] {
 //   `incomplete`   le manager l'a refusée : un ticket incomplet, que le second doit réécrire
 //   `epique`       une épique pas encore découpée — `epic` posé, jugée telle, ou son découpage en cours
 //   `prete`        calibrée (`model:` et `effort:`, ou mise sur le rail par le manager), sans `fire`
-//   `mise-de-cote` hors de la cuisine : `hors-cuisine` posé, ou retenue par le manager pour le chef
+//   `mise-de-cote` hors de la cuisine : `served-elsewhere` posé, ou retenue par le manager pour le chef
 //                  (une question, une issue de décision, `blocked-on-human`, la roadmap…)
-// `hors-cuisine` l'emporte sur tout le reste, comme pour le manager : le chef a
+// `served-elsewhere` l'emporte sur tout le reste, comme pour le manager : le chef a
 // dit que la cuisine ne la sert pas. Puis l'épique, le refus, le calibrage, la
 // mise de côté par le manager ; sans rien de cela, elle n'est pas lue.
 // `dit` : ce qui la retient, en une ligne — celle de `enAmont`.

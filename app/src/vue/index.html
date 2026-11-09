@@ -27,6 +27,7 @@
     <link rel="stylesheet" href="composants/interrupteur/interrupteur.css" />
     <!-- La rangée de réglage (ticket 2920) : une seule pour chaque réglage de chaque écran, avant la peau. -->
     <link rel="stylesheet" href="composants/reglage/reglage.css" />
+    <link rel="stylesheet" href="cartes-du-chef/cartes-du-chef.css" />
     <link rel="stylesheet" href="vue.css" />
     <link rel="stylesheet" href="settings-humans/humains.css" />
     <link rel="stylesheet" href="identites-github.css" />
@@ -54,6 +55,8 @@
     <div id="cadre">
     <nav id="projets" aria-label="Projects"></nav>
     <section id="tous" aria-label="All projects" hidden></section>
+    <!-- Les cartes qui attendent le chef, à la largeur d'un téléphone (ticket 2915) : elles prennent la place de « All projects ». -->
+    <section id="cartes-du-chef" aria-label="Cards awaiting you" hidden></section>
     <section id="ajout" aria-label="Add a project" hidden>
       <!-- Le parcours d'ajout d'un projet (ticket 2475, parcours-projet/) : le même que le premier lancement monte. -->
       <div id="parcours-de-l-ajout"></div>

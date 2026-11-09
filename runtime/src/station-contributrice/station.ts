@@ -7,7 +7,7 @@
 // renouvelées, puis, tant qu'elle a des places, un ticket prenable pris
 // (`reclamation.ts`) et son cook lancé, sans l'attendre. Prenable : sur le
 // rail (`fire`), ni épique, ni tenu par une station du dépôt (`taken`,
-// `in-pass`), ni en attente (`waiting`, `blocked-on-human`, `hors-cuisine`),
+// `in-pass`), ni en attente (`waiting`, `blocked-on-human`, `served-elsewhere`),
 // calibré, sans dépendance ouverte, sans PR ouverte de sa branche, et que
 // personne ne tient. Un cook qui ne livre pas lâche le ticket — la station ne
 // le reprend plus s'il était bloqué, ni après `ECHECS_MAX` cooks sans

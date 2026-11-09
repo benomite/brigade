@@ -32,8 +32,8 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
     case "decision":
     case "epic":
       return label(issue.reason);
-    case "hors-cuisine":
-      return { motif: "`hors-cuisine` — this ticket is not served on this box; the why is on the issue", geste: "remove `hors-cuisine` if the box should take it: it is judged on the next wake-up" };
+    case "served-elsewhere":
+      return { motif: "`served-elsewhere` — this ticket is not served on this box; the why is on the issue", geste: "remove `served-elsewhere` if the box should take it: it is judged on the next wake-up" };
     case "already-split":
       return { motif: "its body already lists the tickets of an epic, split by hand", geste: "remove that list from its body: the epic is split on the next wake-up" };
     case "roadmap":
@@ -48,6 +48,6 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
 export const decrireEcart = (issue: IssueDuManager): string => {
   const { motif, geste } = ecart(issue);
   // Pas une attente du chef : rien à `return`, le ticket est servi ailleurs.
-  if (issue.reason === ("hors-cuisine" satisfies Ecart)) return motif;
+  if (issue.reason === ("served-elsewhere" satisfies Ecart)) return motif;
   return `${motif} — ${geste === null ? "nothing returns it to the manager" : `to return it to the manager: ${geste}`}`;
 };

@@ -1,8 +1,8 @@
 // La relance d'un ticket mis de côté pour une raison qu'un cook sait réparer
 // (épique #2745, ticket #2750). Un ticket que la station sort de la cuisine
-// (`hors-cuisine`) attendait qu'un humain le relance, même quand rien ne
+// (`served-elsewhere`) attendait qu'un humain le relance, même quand rien ne
 // demandait un humain : #2707 et #2709 sont restés une heure de côté, le rail
-// vide. Ici, la cuisine le relance seule — le label `hors-cuisine` tombe,
+// vide. Ici, la cuisine le relance seule — le label `served-elsewhere` tombe,
 // `fire` reste — et dit sur l'issue ce que le cook doit réparer :
 // - la PR en conflit avec la base : la rebaser sur la base ;
 // - un check rouge sur la tête de la PR : le check, par son nom ;

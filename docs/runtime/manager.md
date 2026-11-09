@@ -72,7 +72,7 @@ equal priority. Each has `ticket`, `titre`, `url`, `priorite` (its `prio:` label
 - `attend`: awaits your answer (it is in the `awaiting` block of `status`);
 - `en-route`: about to enter the rail (it carries `fire`, the manager put it there without `fire` being
   there yet, or it was born from a split);
-- `sortie`: left the rail unserved (`fire` removed, `hors-cuisine` set), nothing decided since;
+- `sortie`: left the rail unserved (`fire` removed, `served-elsewhere` set), nothing decided since;
 - `servie`: served, its issue still open;
 - `decoupee`: a split epic; `dit` says how many tickets are served and names those that will not be
   without the chef. An epic whose tickets are **all** closed is no longer listed: the manager closes it,
@@ -96,7 +96,7 @@ without spending anything:
 | is written by someone with no hand on the repository, and is not a station's measure ticket (one carries a `brigade:projet` / `brigade:famille` mark *and* is written by an account of the project's `humans`: the mark alone is text a stranger can paste, so it proves nothing; such a ticket goes to the manager like the kitchen's own, #3012) |and carries no `brigade:projet` / `brigade:famille` mark from a declared `humans` account (a station's measure ticket does: it goes to the manager like the kitchen's own, #3012) | **Triaged** by the LLM, once: one comment proposes `duplicate of #N`, `out of scope`, or `ticket` with a `prio:` value; then a `product-question` TODO card, assigned to the project's `product` human (the chef without one): what the issue asks and who opened it (a stranger, or a declared human when the author is in the project's `humans`), then two buttons — the recommendation first (`rail` with the proposed `prio:`, else `close`), the other choice second — and the free answer; a click plays the choice at once (the app puts the `prio:` label, or closes the issue). Nothing reaches the rail until that human (or an account with write access) answers on the issue: `on the rail` puts the proposed `prio:` — or the one the answer writes, `on the rail prio:N`; `fire` when there is none — and the issue is judged on the next wake-up like one a member prioritised (#2619); `close` closes it (#2934, `runtime/src/issue-etrangere/`) | `manager.set-aside` (`untrusted-author`) |
 | is the roadmap (`BRIGADE_ROADMAP_ISSUE`) | Nothing | `manager.set-aside` (`roadmap`) |
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
-| carries `hors-cuisine` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`hors-cuisine`) |
+| carries `served-elsewhere` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`served-elsewhere`) |
 | carries `blocked-on-human` | **Reread** by the LLM once per state, for the decision it awaits. Stated in the issue: stays held. Absent but a real question derives: a `product`, `design` or `gesture` card is proposed and goes to the triage; the issue stays held, the card leaves with the label. Absent, no question: the kitchen takes the ticket back, the label is removed, the issue judged in the same turn. The comment says which | `manager.requalified` (`stated`, `card`, `taken-back`, `unreadable`), then `manager.set-aside` unless taken back |
 | carries `question` or `decision` | Nothing | `manager.set-aside` (the label) |
 | already lists an epic's tickets in its body, unsplit by it | Nothing: split by hand | `manager.set-aside` (`already-split`) |
@@ -154,8 +154,8 @@ by a completion or a card is not followed twice.
 **Each deviation has its gesture, and `run manager` says it** (the `set aside` section, ten most recent).
 `chef-changed` (you removed a `fire`, `model:` or `effort:` it set): `npm --prefix runtime run manager --
 return <n°>`. `blocked-on-human`, `question`, `decision`: remove the label, judged at the next wake-up.
-`already-split`: remove the list from the body. `hors-cuisine`, roadmap, author with no hand on the
-repository: nothing to hand back (remove `hors-cuisine` if the box must take the issue).
+`already-split`: remove the list from the body. `served-elsewhere`, roadmap, author with no hand on the
+repository: nothing to hand back (remove `served-elsewhere` if the box must take the issue).
 
 `return` forces only `chef-changed`: on an issue held by a label it names the right gesture and exits
 with 1. **Removing `fire` or a calibration it set, without replacing it**, sets it aside. Replacing a

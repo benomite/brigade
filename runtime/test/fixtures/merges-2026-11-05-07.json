@@ -64,7 +64,7 @@
   {"ticket": 2601, "pr": 2601, "mergedAt": "2026-11-06T14:17:51Z", "title": "Write the reason in the ticket comment when a cook ends without a delivery"},
   {"ticket": 2602, "pr": 2602, "mergedAt": "2026-11-06T14:45:01Z", "title": "Keep taking tickets while an update waits; restart when no cook is in flight or at the batch deadline, with the cooks' work saved on their branch"},
   {"ticket": 2603, "pr": 2603, "mergedAt": "2026-11-06T14:45:06Z", "title": "Give a cook sent back after review or red CI the full remarks, failing checks and previous diff in its brief"},
-  {"ticket": 2605, "pr": 2605, "mergedAt": "2026-11-06T14:49:43Z", "title": "Take a ticket off the kitchen (hors-cuisine) only after the same reason three times, never for a disagreement"},
+  {"ticket": 2605, "pr": 2605, "mergedAt": "2026-11-06T14:49:43Z", "title": "Take a ticket off the kitchen (served-elsewhere) only after the same reason three times, never for a disagreement"},
   {"ticket": 2604, "pr": 2604, "mergedAt": "2026-11-06T14:49:47Z", "title": "Let a cook reply on the PR when it judges review remarks addressed or wrong, and judge that reply instead of counting a failure"},
   {"ticket": 2607, "pr": 2607, "mergedAt": "2026-11-06T14:54:01Z", "title": "The rail's Served column stays empty: on the GitHub-only path the app reads only open tickets"},
   {"ticket": 2609, "pr": 2609, "mergedAt": "2026-11-06T15:02:13Z", "title": "Repair `main`, red on 4656fa0: windows app tests"},

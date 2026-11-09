@@ -63,8 +63,8 @@ const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 const LABEL_EPIQUE = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
 // Dans chaque commentaire de station qui sort un ticket de la cuisine (renvois, échecs).
-const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`hors-cuisine`)";
-const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "hors-cuisine", ...LABELS_ECARTES];
+const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`served-elsewhere`)";
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", ...LABELS_ECARTES];
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
@@ -146,7 +146,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   question: "elle porte le label `question`",
   decision: "elle porte le label `decision`",
   "blocked-on-human": "elle porte le label `blocked-on-human`",
-  "hors-cuisine": "elle porte le label `hors-cuisine` : elle ne se sert pas sur cette box",
+  "served-elsewhere": "elle porte le label `served-elsewhere` : elle ne se sert pas sur cette box",
   "already-split": "c'est une épique dont le corps liste déjà les tickets",
 };
 
@@ -228,7 +228,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const fired = issue.labels.includes(LABEL);
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
     // `fire` posé, calibrage complet compris.
-    if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "hors-cuisine", fired };
+    if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "served-elsewhere", fired };
     // Une épique découpée ne se rejuge plus ; il peut rester à finir ce que le
     // découpage a commencé.
     const decoupee = decoupageDe(base, issue.number);
@@ -434,19 +434,19 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   const direEcart = (connue: IssueDuManager, parLaStation = false): string =>
-    connue.reason === ("hors-cuisine" satisfies Ecart)
+    connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation
         ? [
             MARQUEUR_MANAGER,
-            `**Manager — \`hors-cuisine\` : la station a mis ce ticket de côté.**${connue.fired ? " `fire` y est posé, et `hors-cuisine` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} C'est le compteur d'échecs de la station, pas un ticket servi par une autre box : personne ne le sert.`,
+            `**Manager — \`served-elsewhere\` : la station a mis ce ticket de côté.**${connue.fired ? " `fire` y est posé, et `served-elsewhere` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} C'est le compteur d'échecs de la station, pas un ticket servi par une autre box : personne ne le sert.`,
             "",
-            "Le pourquoi est dans le dernier commentaire de la station. Retire `hors-cuisine` pour relancer le ticket.",
+            "Le pourquoi est dans le dernier commentaire de la station. Retire `served-elsewhere` pour relancer le ticket.",
           ].join("\n")
         : [
           MARQUEUR_MANAGER,
-          `**Manager — \`hors-cuisine\` : ce ticket ne se sert pas sur cette box.**${connue.fired ? " `fire` y est posé, et `hors-cuisine` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} Le pourquoi est sur l'issue, de celui qui a posé le label.`,
+          `**Manager — \`served-elsewhere\` : ce ticket ne se sert pas sur cette box.**${connue.fired ? " `fire` y est posé, et `served-elsewhere` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} Le pourquoi est sur l'issue, de celui qui a posé le label.`,
           "",
-          "Ce n'est pas une attente du chef : le ticket est servi ailleurs. Retire `hors-cuisine` si la box doit le prendre.",
+          "Ce n'est pas une attente du chef : le ticket est servi ailleurs. Retire `served-elsewhere` si la box doit le prendre.",
         ].join("\n")
       : [
       MARQUEUR_MANAGER,
@@ -516,8 +516,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Un écart se décide par le code, sur chaque station : une seule le dit.
     if (connue.decision === "aside" && !(await tenir(issue.number))) return false;
     try {
-      // `hors-cuisine` posé par le compteur de la station n'est pas un ticket servi ailleurs.
-      const parLaStation = connue.decision === "aside" && connue.reason === ("hors-cuisine" satisfies Ecart) && (await github.commentaires(issue.number)).some((c) => c.body.includes(MARQUE_STATION_HORS_CUISINE));
+      // `served-elsewhere` posé par le compteur de la station n'est pas un ticket servi ailleurs.
+      const parLaStation = connue.decision === "aside" && connue.reason === ("served-elsewhere" satisfies Ecart) && (await github.commentaires(issue.number)).some((c) => c.body.includes(MARQUE_STATION_HORS_CUISINE));
       await github.commenter(issue.number, dire(issue, connue, parLaStation));
     } catch (erreur) {
       if (!arrete) avertir(`brigade : décision du manager non commentée sur l'issue #${issue.number} — ${message(erreur)}`);

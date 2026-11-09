@@ -102,7 +102,7 @@ async function claimPerime(p: Projet) {
 
 function assertGueri(p: Projet) {
   const dit = `${p.depot}: ${p.avertis.join("\n")}`;
-  // Le ticket en conflit est relancé : `hors-cuisine` tombe, et le commentaire dit de rebaser.
+  // Le ticket en conflit est relancé : `served-elsewhere` tombe, et le commentaire dit de rebaser.
   assert.ok(commentairesDe(p, CONFLIT).some((c) => c.startsWith("<!-- brigade:relance cause=conflict n=1")), dit);
   assert.ok(p.faux.cuissons.some((c) => c.issue === CONFLIT) || !p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE), dit);
   // Le claim périmé est libéré.

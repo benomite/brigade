@@ -1,4 +1,4 @@
-// Le seuil du `hors-cuisine` : un ticket sort de la cuisine après trois arrêts de suite,
+// Le seuil du `served-elsewhere` : un ticket sort de la cuisine après trois arrêts de suite,
 // quel qu'en soit le motif, ou dès que deux arrêts de suite ont le même motif (#2729).
 // Jamais pour un désaccord avec la relecture (#2593).
 

@@ -77,7 +77,7 @@ base, the stale-branch pruning).
 - **A red cook PR held for the chef goes back to a cook.** At each turn's healing, an open PR on a `cook/<n>-github`
   branch whose head has a red check, and whose ticket is on the rail and held for the chef (`blocked-on-human`,
   `chef-todo`) with no cook on it — not cooking on this station, not `taken`, not `in-pass` (the pass sends its own
-  red back), not `hors-cuisine` (the relaunch's), not `waiting` —, is sent back: the hold labels are removed, then a
+  red back), not `served-elsewhere` (the relaunch's), not `waiting` —, is sent back: the hold labels are removed, then a
   `brigade:renvoi … sha=<sha> ci-rouge` comment names the red checks, and the ticket is free for a cook from its
   branch (`runtime/src/ci-rouge/ci-rouge.ts`). A head is sent back once by this path; the send-back counts among the
   ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
@@ -111,7 +111,7 @@ base, the stale-branch pruning).
 - **A delivery cut before its PR.** A branch the station pushed but that never had a PR (the station stopped between
   the push and the PR, or GitHub refused the PR) goes to the pass as it is, with no cook: its PR opens and it takes
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a
-  failure, until `hors-cuisine` (#2577: two cooks of 7 and 10 turns on a delivery whose PR never opened). The
+  failure, until `served-elsewhere` (#2577: two cooks of 7 and 10 turns on a delivery whose PR never opened). The
   branch must be what the origin carries: a head that was never pushed, or a branch that already had a PR (sent back,
   closed), still gets a cook.
 - **What a red CI says, handed to the cook.** The cook has no access to GitHub: told only that the CI of its PR is red,

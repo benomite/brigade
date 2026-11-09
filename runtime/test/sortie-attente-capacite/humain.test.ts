@@ -74,18 +74,18 @@ function atelier(t: TestContext) {
 }
 
 describe("« It is a human's job » : le ticket quitte le rail pour TODO", () => {
-  test("le ticket sort du rail, son issue perd `fire` et prend `hors-cuisine`, et sa tâche est dans TODO, pour le chef, avec le titre, le contexte et les critères de sa carte", async (t) => {
+  test("le ticket sort du rail, son issue perd `fire` et prend `served-elsewhere`, et sa tâche est dans TODO, pour le chef, avec le titre, le contexte et les critères de sa carte", async (t) => {
     const c = atelier(t);
     assert.equal(c.lire().rail.find(({ ticket }) => ticket === 22)?.etat, "WAITING");
 
     const resultat = await c.confier(22);
 
     assert.equal(resultat.done, true);
-    assert.match(resultat.price, /^the ticket leaves the rail and is not cooked — its issue loses `fire` and carries `hors-cuisine`, so no kitchen takes it again; it waits in TODO as the chef's task/);
+    assert.match(resultat.price, /^the ticket leaves the rail and is not cooked — its issue loses `fire` and carries `served-elsewhere`, so no kitchen takes it again; it waits in TODO as the chef's task/);
     // Hors du rail, et pour de bon : GitHub ne le rendrait pas.
     assert.equal(ticketDuRail(c.journal.base, 22), null);
     assert.deepEqual(c.gh.lire(22)?.labels, [HORS_CUISINE]);
-    assert.equal(c.journal.duTicket(22).findLast((e) => e.type === "ticket.left")?.payload.reason, "hors-cuisine");
+    assert.equal(c.journal.duTicket(22).findLast((e) => e.type === "ticket.left")?.payload.reason, "served-elsewhere");
     // Dans TODO : une carte de la forme unique, et la tâche que `facts` donne avec elle.
     const [carte] = cartesEnTodo(c.journal.base);
     assert.equal(carte?.ticket, 22);

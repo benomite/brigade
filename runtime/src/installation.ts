@@ -16,7 +16,7 @@ import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync
 import { homedir, userInfo } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
-import { EFFORTS, MODELES } from "./calibrage.ts";
+import { ETIQUETTES, NOMS_DES_LABELS_DU_RAIL, planDesLabels, type Etiquette, type EtiquetteLue } from "./etiquettes.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
 import { configJeton, environnementClaude } from "./jeton-claude.ts";
 import { configCloison } from "./cloison.ts";
@@ -27,7 +27,6 @@ import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
-import { LABEL } from "./github.ts";
 import { POSABLES } from "./poser-decisions.ts";
 import { ETAPES } from "./etapes.ts";
 import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions, type Decision } from "./decisions.ts";
@@ -53,17 +52,6 @@ export const VARIABLES = [
 ] as const;
 
 export type Label = { name: string; color: string; description: string };
-
-// Les labels par lesquels le chef parle au rail : l'entrée, l'ordre de
-// service, et le calibrage sans lequel aucun cook ne part.
-export const LABELS: Label[] = [
-  { name: LABEL, color: "D93F0B", description: "brigade : à servir — l'issue entre sur le rail" },
-  { name: "prio:1", color: "000000", description: "À faire en premier" },
-  { name: "prio:2", color: "555555", description: "Important, pas bloquant" },
-  { name: "prio:3", color: "AAAAAA", description: "Souhaitable, plus tard" },
-  ...MODELES.map((modele) => ({ name: `model:${modele}`, color: "5319E7", description: `brigade : le cook de ce ticket tourne sur ${modele}` })),
-  ...EFFORTS.map((effort) => ({ name: `effort:${effort}`, color: "1D76DB", description: `brigade : le cook de ce ticket tourne à l'effort ${effort}` })),
-];
 
 // `manque` : aucun cook ne doit partir tant que ce n'est pas réglé. `note` :
 // à savoir, sans rien retenir. `geste` : ce qui le règle. `etape` : l'étape
@@ -142,15 +130,15 @@ const cheminDesLabels = (depot: string) => `repos/${depot}/labels?per_page=100`;
 
 // Les noms des labels du dépôt, page après page — en minuscules : GitHub ne
 // distingue pas la casse d'un label, `Fire` y est `fire`.
-async function labelsDuDepot(bin: string, env: NodeJS.ProcessEnv, depot: string): Promise<string[]> {
-  const noms: string[] = [];
+async function labelsDuDepot(bin: string, env: NodeJS.ProcessEnv, depot: string): Promise<EtiquetteLue[]> {
+  const lus: EtiquetteLue[] = [];
   for (let chemin: string | null = cheminDesLabels(depot); chemin; ) {
     const page: Reponse = await appelerGh(bin, env, [chemin]);
     if (page.statut !== 200) throw new Error(`HTTP ${page.statut}`);
-    noms.push(...(JSON.parse(page.corps) as Array<{ name: string }>).map(({ name }) => name.toLowerCase()));
+    lus.push(...(JSON.parse(page.corps) as Array<{ name: string; description?: string | null }>).map(({ name, description }) => ({ name, description: description ?? null })));
     chemin = page.suivant;
   }
-  return noms;
+  return lus;
 }
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -856,9 +844,9 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
           DOC_DU_PROJET,
         );
       }
-      const presents = await labelsDuDepot(gh, env, depot);
-      const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom.toLowerCase()));
-      if (absents.length === 0) noter("github", "ok", `labels: all ${LABELS.length} are there`);
+      const presents = (await labelsDuDepot(gh, env, depot)).map(({ name }) => name.toLowerCase());
+      const absents = NOMS_DES_LABELS_DU_RAIL.filter((nom) => !presents.includes(nom.toLowerCase()));
+      if (absents.length === 0) noter("github", "ok", `labels: all ${NOMS_DES_LABELS_DU_RAIL.length} of the rail are there`);
       else {
         noter("github", "manque", `labels missing from the repository: ${absents.join(", ")}`, "the same command, followed by `labels`", undefined, {
           simple: `the repository lacks ${absents.length > 1 ? `${absents.length} of the labels` : "one of the labels"} through which you talk to brigade`,
@@ -886,25 +874,37 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   return constats;
 }
 
-// Crée sur le dépôt les labels qui y manquent. Rejouable : un label présent
-// n'est ni recréé ni retouché — sa couleur et sa description sont au projet.
-export async function poserLabels(env: NodeJS.ProcessEnv): Promise<{ crees: string[]; presents: string[] }> {
+// Met les labels du dépôt d'après le catalogue : renomme ceux qui ont changé
+// de nom (GitHub reporte le nouveau nom sur chaque issue qui portait l'ancien),
+// crée ceux qui manquent, corrige la description de ceux qui l'ont autre. Rejouable :
+// un label déjà conforme n'est pas touché, et la couleur d'un label présent est
+// au projet.
+export type BilanDesLabels = { crees: string[]; presents: string[]; renommes: string[]; corriges: string[] };
+
+export async function poserLabels(env: NodeJS.ProcessEnv): Promise<BilanDesLabels> {
   const { depot, gh } = configRail(env);
-  const existants = await labelsDuDepot(gh, env, depot);
+  const plan = planDesLabels(await labelsDuDepot(gh, env, depot));
+  const champs = (label: Etiquette) => Object.entries(label).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]);
   const crees: string[] = [];
-  const presents: string[] = [];
-  for (const label of LABELS) {
-    if (existants.includes(label.name.toLowerCase())) {
-      presents.push(label.name);
-      continue;
-    }
-    const champs = Object.entries(label).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]);
-    const { statut } = await appelerGh(gh, env, ["-X", "POST", ...champs, `repos/${depot}/labels`]);
+  const renommes: string[] = [];
+  const corriges: string[] = [];
+  for (const { de, vers } of plan.renommer) {
+    const { statut } = await appelerGh(gh, env, ["-X", "PATCH", "-f", `new_name=${vers.name}`, "-f", `color=${vers.color}`, "-f", `description=${vers.description}`, `repos/${depot}/labels/${encodeURIComponent(de)}`]);
+    if (statut !== 200) throw new Error(`label \`${de}\` could not be renamed \`${vers.name}\` on ${depot}: HTTP ${statut}`);
+    renommes.push(vers.name);
+  }
+  for (const label of plan.creer) {
+    const { statut } = await appelerGh(gh, env, ["-X", "POST", ...champs(label), `repos/${depot}/labels`]);
     // 422 : il existe déjà — créé entre la lecture et ce geste.
     if (statut === 201) crees.push(label.name);
     else if (statut !== 422) throw new Error(`label \`${label.name}\` refused by GitHub on ${depot}: HTTP ${statut}`);
   }
-  return { crees, presents };
+  for (const label of plan.corriger) {
+    const { statut } = await appelerGh(gh, env, ["-X", "PATCH", "-f", `description=${label.description}`, `repos/${depot}/labels/${encodeURIComponent(label.name)}`]);
+    if (statut !== 200) throw new Error(`description of label \`${label.name}\` refused by GitHub on ${depot}: HTTP ${statut}`);
+    corriges.push(label.name);
+  }
+  return { crees, presents: ETIQUETTES.map(({ name }) => name).filter((nom) => !crees.includes(nom) && !renommes.includes(nom)), renommes, corriges };
 }
 
 // Le worktree de sonde : un essai jetable, sous un nom qu'aucun run ne porte.

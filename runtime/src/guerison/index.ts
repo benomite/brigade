@@ -63,7 +63,7 @@ export type OptionsDeLaGuerison = {
 export type Geste = "relance" | "claim" | "ci-rouge" | "in-pass" | "epique" | "inertie";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
-// tels que la guérison les laisse — un ticket relancé sans `hors-cuisine`, un
+// tels que la guérison les laisse — un ticket relancé sans `served-elsewhere`, un
 // claim libéré sans `taken`, une PR rouge renvoyée sans ce qui la tenait pour
 // le chef, une PR prête avec `in-pass`, une épique fermée
 // hors de la liste —, pour que le tour ne lise pas des labels périmés.

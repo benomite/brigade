@@ -1,19 +1,19 @@
-// Le seuil du `hors-cuisine` : trois arrêts de suite, ou deux du même motif, jamais pour un désaccord.
+// Le seuil du `served-elsewhere` : trois arrêts de suite, ou deux du même motif, jamais pour un désaccord.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { horsCuisine, type Arret } from "../src/seuil-hors-cuisine.ts";
+import { horsCuisine, type Arret } from "../src/seuil-served-elsewhere.ts";
 
 const echec = (motif: string): Arret => ({ motif, desaccord: false });
 
 describe("horsCuisine", () => {
-  test("three identical failure reasons in a row give hors-cuisine", () => {
+  test("three identical failure reasons in a row give served-elsewhere", () => {
     assert.equal(horsCuisine([echec("ci red"), echec("ci red"), echec("ci red")]), true);
   });
-  test("two identical reasons in a row give hors-cuisine at once", () => {
+  test("two identical reasons in a row give served-elsewhere at once", () => {
     assert.equal(horsCuisine([echec("ci red"), echec("ci red")]), true);
     assert.equal(horsCuisine([echec("timeout"), echec("ci  RED"), echec("ci red")]), true);
   });
-  test("three different reasons in a row give hors-cuisine", () => {
+  test("three different reasons in a row give served-elsewhere", () => {
     assert.equal(horsCuisine([echec("a"), echec("b"), echec("c")]), true);
   });
   test("two different reasons do not", () => {
@@ -26,7 +26,7 @@ describe("horsCuisine", () => {
       assert.equal(horsCuisine(arrets), false);
     }
   });
-  test("fewer than two stops never give hors-cuisine", () => {
+  test("fewer than two stops never give served-elsewhere", () => {
     assert.equal(horsCuisine([]), false);
     assert.equal(horsCuisine([echec("a")]), false);
   });
