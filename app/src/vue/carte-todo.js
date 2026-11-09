@@ -22,7 +22,7 @@
 // `Etat` — et ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), les
 // captures déjà posées et ce que chaque geste appelle, et rend un élément.
 
-import { boutonAction, survol } from "./briques.js";
+import { boutonAction, prixDit, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
@@ -66,6 +66,8 @@ export const EN_ATTENTE = "sent, waiting for the kitchen";
 export const EN_ATTENTE_DETAIL = "your answer is posted on the ticket's issue on GitHub: the station reads it at its next tick, and answers under it";
 export const JOUEE = "played by the kitchen";
 export const PAS_JOUEE = "not played by the kitchen";
+export const RECOMMANDEE = "Recommended";
+export const DETAILS = "details";
 export const VOTRE_REPONSE = "your answer";
 // Le bouton discret qui ouvre le champ d'une carte qui a ses choix (ticket 2922).
 export const EN_MES_MOTS = "answer in my own words";
@@ -108,6 +110,16 @@ export function vuDeLaCarte(carte, etat) {
   return envoi === undefined ? { vu: "repos" } : vuDuTableau(envoi);
 }
 
+// Tout ce que la carte ne dit pas à première vue, derrière un seul pli fermé : le commentaire en entier, avec ses paragraphes.
+/** @param {Fabrique} doc @param {string} texte */
+export function detailsDeCarte(doc, texte) {
+  const pli = doc.createElement("details");
+  pli.className = "details-carte";
+  pli.append(cree(doc, "summary", DETAILS));
+  for (const paragraphe of texte.split(/\n{2,}/)) pli.append(cree(doc, "p", paragraphe));
+  return pli;
+}
+
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
   const pose = doc.createElement(balise);
@@ -136,7 +148,9 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   if (vu.vu === "attente" || vu.vu === "jouee") racine.dataset.envoi = vu.vu;
   racine.ariaLabel = question === null ? `what #${ticket} awaits from you` : `the question #${ticket} asks you`;
 
-  // En tête, ce qui se passe ; puis la question — aucune sur une carte à un seul geste.
+  // À première vue, dans cet ordre et rien de plus (ticket 3086) : ce qui se passe, en une ligne ; la question, la plus forte ; la
+  // réponse recommandée, en une ligne ; puis les boutons. Tout le reste — ce que le commentaire dit d'autre — est derrière
+  // « details », fermé. Aucune question sur une carte à un seul geste.
   const tete = [];
   if (resume !== undefined) {
     const dit = cree(doc, "p", resume);
@@ -148,24 +162,27 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     posee.className = "question-carte";
     tete.push(posee);
   }
-  // Ce qu'une carte du chef lue de GitHub dit après sa question (ticket 2434), sous elle.
-  if (carte.contexte !== undefined) {
-    const precise = cree(doc, "p", carte.contexte);
-    precise.className = "resume-carte";
-    tete.push(precise);
+  const [premier] = carte.choix;
+  if (question !== null && premier !== undefined) {
+    const conseille = cree(doc, "p", `${RECOMMANDEE}: ${premier.texte}`);
+    conseille.className = "recommandation-carte";
+    tete.push(conseille);
   }
+  const reste = carte.contexte === undefined ? [] : [detailsDeCarte(doc, carte.contexte)];
 
   const choix = cree(doc, "div");
   choix.className = "choix-carte";
   // La réponse recommandée est le premier choix (ticket 2922, maquette Project.dc.html) : plein d'accent, au-dessus des
-  // autres, qui restent des boutons ordinaires. Une réponse trop longue tient sur une ligne, coupée, entière au survol : le
-  // bouton garde ses 32 px, 44 sur un téléphone (ticket 2916).
+  // autres. Chaque libellé se lit entier, sur autant de lignes qu'il lui faut ; ce que le bouton fait est au survol, sans
+  // pictogramme à déchiffrer à côté (ticket 3086).
   carte.choix.forEach(({ texte, prix }, rang) => {
-    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { prix, recommande: rang === 0, coupe: true });
+    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { recommande: rang === 0 });
     const bouton = groupe.children?.[0];
     if (bouton !== undefined) {
       bouton.className = "choix";
       bouton.disabled = enRoute;
+      const cout = prixDit(prix);
+      if (cout !== "") bouton.title = cout;
     }
     choix.append(groupe);
   });
@@ -208,8 +225,8 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     const ou = cree(doc, "p");
     ou.className = "ou-en-est";
     ou.append(cree(doc, "span", vu.vu === "attente" ? EN_ATTENTE : JOUEE), survol(doc, vu.vu === "attente" ? EN_ATTENTE_DETAIL : vu.dit));
-    racine.append(...tete, ...captures, rappel, ou);
-  } else racine.append(...tete, ...captures, choix, ouvrir, phrase);
+    racine.append(...tete, ...captures, rappel, ou, ...reste);
+  } else racine.append(...tete, ...captures, choix, ouvrir, phrase, ...reste);
   if (enRoute) {
     const envoi = cree(doc, "span", EN_ROUTE);
     envoi.className = "en-route";

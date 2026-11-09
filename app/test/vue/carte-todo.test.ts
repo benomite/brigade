@@ -13,7 +13,7 @@ import { describe, test } from "node:test";
 import type { CarteVue } from "../../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { carteDeTodo, carteLue, type EnvoiVu, type Rendu } from "../../src/carte-todo.ts";
+import { carteDeTodo, carteDuChefDeTodo, carteLue, type EnvoiVu, type Rendu } from "../../src/carte-todo.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -161,23 +161,25 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "A product choice is yours: answer its question."));
   });
 
-  test("chaque choix tient sur une ligne, coupé, sa réponse entière au survol et pour un lecteur d'écran (ticket 2916)", async () => {
+  test("chaque choix se lit entier, sans coupe ni « ? » à déchiffrer : son libellé est celui du bouton, son prix au survol du bouton (#3086)", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const poses = choix(carte(vue, 21));
     assert.deepEqual(
-      poses.map((pose) => [pose.title, pose.ariaLabel, pose.dessous("span").find((span) => span.className === "coupe")?.textContent]),
-      PRODUIT.choix.map(({ texte }) => [texte, texte, texte]),
+      poses.map((pose) => pose.textContent),
+      PRODUIT.choix.map(({ texte }) => texte),
     );
+    assert.ok(poses.every((pose) => pose.dessous("span").every((span) => span.className !== "coupe")), "aucun libellé coupé");
+    assert.ok(poses.every((pose) => (pose.title ?? "") !== ""), "chaque bouton dit ce qu'il fait");
+    assert.deepEqual(poses.flatMap((pose) => pose.parentElement?.dessous("button").filter((autre) => autre.className === "aide") ?? []), [], "aucun « ? » sur les choix");
     assert.equal(poses[0]?.dataset.bouton, "recommande");
   });
 
-  test("le prix d'un choix est au survol, jamais écrit sous le bouton : un merge le dit", async () => {
+  test("le prix d'un choix est au survol de son bouton, jamais écrit sous lui : un merge le dit", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const [merge] = choix(carte(vue, 12));
-    const aide = merge?.parentElement?.dessous("button").find((pose) => pose.className === "aide");
-    assert.match(aide?.ariaLabel ?? "", /merged into the integration branch/);
+    assert.match(merge?.title ?? "", /merged into the integration branch/);
     assert.doesNotMatch(carte(vue, 12).dessous("p").map((pose) => pose.textContent).join("\n"), /merged/);
   });
 
@@ -290,6 +292,28 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.equal(ouEnEst(posee), undefined);
   });
 
+  test("une carte du chef à première vue : situation, question, recommandation, boutons — le reste derrière un seul « details », fermé (#3086)", () => {
+    const doc = { createElement: (balise: string) => new Faux(balise) };
+    const rien = { repondre: () => {}, ecrire: () => {}, demander: () => {} };
+    const carteDuChef = carteDuChefDeTodo({
+      sorte: "blocked",
+      texte: "Should the release run of app 1.0.185 be retried?\n- [resume] Retry it: the failure looks transient\n- [close] Close it\n\nThe release run of app 1.0.185 failed. Opened by a stranger.\n\nManager triage: a long note that must not show at first sight.",
+    }) ?? assert.fail("pas de carte");
+    const posee = (poserCarteDeTodo(doc, 3084, carteDuChef, REPOS, { captures: [], brouillon: "", cle: "p#3084" }, rien) as Faux[])[0] ?? assert.fail("rien de posé");
+    assert.deepEqual(
+      posee.children.map((pose) => pose.className),
+      ["resume-carte", "question-carte", "recommandation-carte", "choix-carte", "en-mes-mots", "phrase", "details-carte", "secondaire"],
+    );
+    assert.equal(posee.children[0]?.textContent, "The release run of app 1.0.185 failed.");
+    assert.equal(posee.children[2]?.textContent, "Recommended: Retry it: the failure looks transient");
+    const pli = posee.children.find((pose) => pose.className === "details-carte") ?? assert.fail("pas de pli");
+    assert.notEqual((pli as unknown as { open?: boolean }).open, true, "fermé par défaut");
+    assert.equal(pli.children[0]?.textContent, "details");
+    assert.match(pli.textContent, /Manager triage: a long note/);
+    assert.equal(posee.dessous("details").length, 1);
+    assert.ok(!posee.children.filter((pose) => pose !== pli).some((pose) => /Manager triage/.test(pose.textContent)));
+  });
+
   test("les états d'une réponse lue, sur la carte : envoyée et en attente de la cuisine, puis jouée — ou pas jouée et pourquoi", () => {
     const doc = { createElement: (balise: string) => new Faux(balise) };
     const rien = { repondre: () => {}, ecrire: () => {}, demander: () => {} };
@@ -315,7 +339,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
     recevoir(vue, FORME);
     const posee = carte(vue, 21);
     const ordre = posee.children.map((pose) => pose.className);
-    assert.deepEqual(ordre, ["resume-carte", "question-carte", "choix-carte", "en-mes-mots", "phrase", "secondaire"]);
+    assert.deepEqual(ordre, ["resume-carte", "question-carte", "recommandation-carte", "choix-carte", "en-mes-mots", "phrase", "secondaire"]);
     assert.equal(posee.children[0]?.textContent, PRODUIT_EN_FORME.resume);
     assert.equal(posee.children[1]?.textContent, PRODUIT_EN_FORME.question);
     assert.deepEqual(
@@ -329,7 +353,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
     await repos();
     assert.deepEqual(
       carte(vue, 12).children.map((pose) => pose.className),
-      ["resume-carte", "question-carte", "captures", "choix-carte", "en-mes-mots", "phrase", "secondaire"],
+      ["resume-carte", "question-carte", "recommandation-carte", "captures", "choix-carte", "en-mes-mots", "phrase", "secondaire"],
     );
   });
 
@@ -365,7 +389,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
       ["Merge the PR"],
     );
     // Son prix — un merge ne se défait pas — est au survol de son bouton.
-    assert.match(choix(posee)[0]?.parentElement?.dessous("button").find((pose) => pose.className === "aide")?.ariaLabel ?? "", /not undone/);
+    assert.match(choix(posee)[0]?.title ?? "", /not undone/);
   });
 
   test("un clic sur le bouton d'un choix joue son geste : la réponse part pour ce choix, sur la question montrée — nulle sur une carte à un seul geste", async () => {

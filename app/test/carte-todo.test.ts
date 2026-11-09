@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { CarteVue } from "../../runtime/src/etat.ts";
-import { CHANGEE, carteDeTodo, carteLue, INCONNUE, PRIX_DU_TEXTE, reponseLue, VIDE } from "../src/carte-todo.ts";
+import { CHANGEE, carteDeTodo, carteDuChefDeTodo, carteLue, INCONNUE, PRIX_DU_TEXTE, reponseLue, VIDE } from "../src/carte-todo.ts";
 import { comprendre, tenirFaits, type Faits } from "../src/faits.ts";
 
 const ISSUE = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
@@ -160,3 +160,18 @@ describe("la réponse du chef, lue avant de partir", () => {
 
 // Les faits d'un runtime qui porte des cartes de TODO : le type de la forme les tient.
 void (FAITS satisfies Faits);
+
+describe("la situation d'une carte du chef (#3086)", () => {
+  test("c'est la première phrase de ce que le commentaire dit après la question, entière ; le commentaire entier reste en `contexte`", () => {
+    const texte = "Retry the release?\n- [resume] Retry it\n\nThe release run of app 1.0.185 failed. A second sentence.\n\nTriage: more.";
+    const carte = carteDuChefDeTodo({ sorte: "blocked", texte });
+    assert.equal(carte?.resume, "The release run of app 1.0.185 failed.");
+    assert.equal(carte?.contexte, "The release run of app 1.0.185 failed. A second sentence.\n\nTriage: more.");
+  });
+
+  test("sans rien après la question, pas de situation : la ligne de sa sorte parle", () => {
+    const carte = carteDuChefDeTodo({ sorte: "blocked", texte: "Retry the release?\n- [resume] Retry it" });
+    assert.equal(carte?.resume, undefined);
+    assert.equal(carte?.contexte, undefined);
+  });
+});

@@ -10,13 +10,14 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
+import { poserLaCarte } from "../../src/vue/cartes-du-chef/cartes-du-chef.js";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { FauxEcran, type Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, FauxEcran, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
@@ -111,7 +112,7 @@ describe("à la largeur d'un téléphone, l'app s'ouvre sur les cartes qui atten
 });
 
 describe("la carte ouverte d'un toucher", () => {
-  test("elle montre sa question, ce qui se passe, le choix recommandé d'abord — plein d'accent, « Recommended by the second » —, le champ et « Send » inactif tant qu'il est vide", async () => {
+  test("elle montre sa question, ce qui se passe, le choix recommandé d'abord — plein d'accent, « Recommended: … » —, le champ et « Send » inactif tant qu'il est vide", async () => {
     const vue = await ouvrir(true);
     await toucher(carteALouvrir(vue));
     const texte = cartes(vue).textContent;
@@ -119,7 +120,7 @@ describe("la carte ouverte d'un toucher", () => {
     assert.match(texte, /The site, the demo and the posts will all carry it\./);
     assert.match(texte, /Or answer in your own words/);
     assert.equal(choix(vue, 0)?.className.split(" ").includes("recommande"), true);
-    assert.match(choix(vue, 0)?.textContent ?? "", /Recommended by the second/);
+    assert.match(texte, new RegExp(`Recommended: ${PREMIER}`));
     assert.equal(choix(vue, 1)?.className.split(" ").includes("recommande"), false);
     assert.equal(boutons(vue).find((bouton) => bouton.textContent === "Send")?.disabled, true);
   });
@@ -182,5 +183,20 @@ describe("sa peau, lue : chaque cible fait 44 px, rien ne défile de côté", ()
     assert.match(regle("#cartes-du-chef .choix-du-chef"), /min-height: 52px/);
     assert.match(regle("#cartes-du-chef .saisie-du-chef"), /width: 100%/);
     assert.match(regle("#cartes-du-chef"), /overflow-x: hidden/);
+  });
+});
+
+describe("la carte ouverte d'un toucher — à première vue (#3086)", () => {
+  test("situation, question, recommandation, boutons ; ce que le commentaire dit d'autre est derrière un seul « details », fermé", () => {
+    const doc = { createElement: (balise: string) => new Faux(balise) };
+    const todo = { sorte: "blocked", resume: "The release run failed.", question: "Retry it?", contexte: "First paragraph.\n\nManager note.", choix: [{ texte: "Retry it", prix: "p" }, { texte: "Close it", prix: "p" }], prixDuTexte: "p" };
+    const [, corps] = poserLaCarte(doc, { carte: { projet: "parade", ticket: 3084, age: "1 h", todo }, total: 1, brouillon: "", enRoute: false, retour: () => {}, ecrire: () => {}, repondre: () => {} }) as unknown as Faux[];
+    const ordre = (corps as Faux).children.map((pose) => pose.textContent);
+    assert.deepEqual(ordre.slice(0, 4), ["#3084 · parade", "The release run failed.", "Retry it?", "Recommended: Retry it"]);
+    const plis = (corps as Faux).dessous("details");
+    assert.equal(plis.length, 1);
+    assert.equal(plis[0]?.children[0]?.textContent, "details");
+    assert.notEqual((plis[0] as unknown as { open?: boolean }).open, true);
+    assert.ok(!ordre.some((texte, rang) => rang < ordre.length && /Manager note/.test(texte) && !plis[0]?.textContent.includes(texte)));
   });
 });

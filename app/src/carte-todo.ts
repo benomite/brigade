@@ -65,14 +65,24 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
   rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
 };
 
+// La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,
+// entière — jamais coupée en son milieu. Le reste du commentaire est derrière « details ». Rien quand il ne dit rien.
+function situationDe(contexte: string): string | undefined {
+  const ligne = contexte.split("\n").find((une) => une.trim() !== "")?.trim();
+  if (ligne === undefined) return undefined;
+  return ligne.split(/(?<=[.!?])\s+/)[0];
+}
+
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
 // libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
 // commentaire vide : il n'y a rien à quoi répondre.
 export function carteDuChefDeTodo({ sorte, texte }: CarteDuChef): CarteDeTodo | undefined {
   const { question, choix, contexte } = formeDuChef(texte);
   if (question === null) return undefined;
+  const situation = situationDe(contexte);
   return {
     sorte,
+    ...(situation === undefined ? {} : { resume: situation }),
     question,
     ...(contexte === "" ? {} : { contexte }),
     choix: choix.map(({ texte: libelle, suite }) => ({ texte: libelle, prix: PRIX_SUR_GITHUB[suite] as string })),
