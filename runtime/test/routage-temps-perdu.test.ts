@@ -157,7 +157,8 @@ function brigadeLue(issues: { number: number; body: string; closedAt?: string }[
   return { github, lectures, creees };
 }
 const mesurerSurLaBrigade = (brigade: ReturnType<typeof brigadeLue>, enregistrements: TempsTicket[]) =>
-  correctionDuTemps({ echantillonMin: 1,
+  correctionDuTemps({
+    echantillonMin: 1,
     github: routerLeTempsPerdu({ github: brigade.github, servi: DEPOT_BRIGADE, dansLesTemps: (numero) => enregistrements.some((t) => t.ticket === numero) }),
     lire: () => ({ enregistrements, lostTimeMaxMin: 60, qualites: renvoyes(enregistrements) }),
     maintenant: () => new Date(DEBUT_2979 + 24 * 60 * 60_000),
@@ -211,7 +212,7 @@ test("#2979: GitHub is asked once who closed a measure ticket; when it does not 
 test("#3012: a station whose GitHub author has no write access files its measure once while it is open", async () => {
   const projet = fauxDepot();
   const brigade = fauxDepot();
-  const lue: GitHubDeLaBrigade = { ...brigade.github, issuesDepuis: async () => brigade.issues.map(({ number, corps, state }) => ({ number, body: corps, association: "NONE", state })) };
+  const lue: GitHubDeLaBrigade = { ...brigade.github, droits: async () => ({ login: "pierreyvesbobl", ecriture: false }), issuesDepuis: async () => brigade.issues.map(({ number, corps, state }) => ({ number, body: corps, association: "NONE", author: "pierreyvesbobl", state })) };
   const ouvrirEtranger = () => correctionDuTemps({ echantillonMin: 1, github: routerLeTempsPerdu({ github: projet.github, servi: "pierreyvesbobl/os-perso", brigade: lue }), lire: () => ({ enregistrements: temps(), lostTimeMaxMin: 2 }) })();
   const premiere = await ouvrirEtranger();
   assert.equal(premiere.issue, "ouverte");
@@ -229,4 +230,15 @@ test("#3012: no lost-time ticket is filed from fewer than 20 merged tickets; wit
   assert.equal((await corriger(19)).issue, "sous-le-seuil");
   assert.equal(depot.issues.length, 0);
   assert.equal((await corriger(20)).issue, "ouverte");
+});
+
+test("#3012: a stranger's issue carrying a family mark silences no station", async () => {
+  const projet = fauxDepot();
+  const brigade = fauxDepot();
+  const lue: GitHubDeLaBrigade = { ...brigade.github, droits: async () => ({ login: "pierreyvesbobl", ecriture: false }), issuesDepuis: async () => brigade.issues.map(({ number, corps, state }) => ({ number, body: corps, association: "NONE", author: "intrus", state })) };
+  const ouvrirEtranger = () => correctionDuTemps({ echantillonMin: 1, github: routerLeTempsPerdu({ github: projet.github, servi: "pierreyvesbobl/os-perso", brigade: lue }), lire: () => ({ enregistrements: temps(), lostTimeMaxMin: 2 }) })();
+  assert.equal((await ouvrirEtranger()).issue, "ouverte");
+  // Le ticket déposé est celui d'un autre compte que la station : il ne couvre rien, le suivant se dépose.
+  assert.equal((await ouvrirEtranger()).issue, "ouverte");
+  assert.equal(brigade.issues.length, 2);
 });

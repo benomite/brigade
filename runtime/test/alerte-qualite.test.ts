@@ -184,7 +184,8 @@ const station = (github: GitHubDuTour, depot: string, avertis: string[]) =>
     juger: async () => ({ verdict: "approve", motif: "" }),
     clone: depot,
     avertir: (texte) => avertis.push(texte),
-    maintenant: MAINTENANT, echantillonMin: 1,
+    maintenant: MAINTENANT,
+    echantillonMin: 1,
   });
 
 test("the station's turn reads the quality from the ticket times of its clone and its threshold from projet.json: 60% first try opens the quality ticket, once, and neither time alert opens its own", async (t) => {

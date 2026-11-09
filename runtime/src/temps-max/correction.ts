@@ -57,7 +57,7 @@ export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
 // projet servi (`routage-temps-perdu.ts`) — ; son merge n'est pas dans ces
 // temps, et elle est servie quand elle est fermée (null : fermée sans date lue).
 export type GitHubDeLaCorrection = {
-  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt">> & { servieLe?: string | null })[]>;
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt" | "author">> & { servieLe?: string | null })[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
 };

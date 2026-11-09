@@ -180,8 +180,8 @@ export function porteDeQualite({ github, echantillonMin = TICKETS_A_ATTENDRE, ma
       ticket = mesure;
       causes = mesure.causes;
     }
-    // Une mesure sur moins de 20 tickets mergés ne dit rien (#3012) : rien ne s'ouvre.
-    if ((suite?.temps.length ?? qualite.tickets.length) < echantillonMin) return null;
+    // Une mesure sur moins de 20 tickets dont la qualité est connue ne dit rien (#3012) : rien ne s'ouvre.
+    if (qualite.mesures < echantillonMin) return null;
     // Les tickets de qualité mergés ont compté ces tickets : sans renvoi plus récent, rien à ouvrir.
     const comptes = new Set(toutes.flatMap((issue) => comptesDe(issue.body)));
     // Un ticket ouvert avant la marque (#2813) a compté les fautifs déjà mergés à son

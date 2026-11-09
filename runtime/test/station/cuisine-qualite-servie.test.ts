@@ -44,6 +44,8 @@ function ouvrir(t: TestContext, precedent: boolean) {
   // Le compte de la machine écrit sur le dépôt : la station GitHub seul sert le projet, pas la contributrice (#2935).
   gh.repondre("user", { corps: { login: "chef" } });
   gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, owner: { login: "acme", type: "Organization" }, permissions: { push: true } } });
+  // Le compte sous lequel la station dépose sur la brigade, qu'elle lit pour reconnaître son propre ticket (#3012).
+  gh.repondre(`repos/${BRIGADE}`, { corps: { full_name: BRIGADE, owner: { login: "benomite", type: "User" }, permissions: { push: false } } });
   gh.issues([issueGitHub(7, { labels: ["fire", "model:sonnet", "effort:low"] })]);
   gh.repondre(`repos/${DEPOT}/issues/7/events?per_page=100`, { corps: [] });
   gh.repondre(`repos/${DEPOT}/pulls?head=${DEPOT.split("/")[0]}:${brancheDuTicket(7)}&state=all&per_page=1`, { corps: [] });

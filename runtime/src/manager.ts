@@ -203,9 +203,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Les issues d'un inconnu qu'un membre de confiance a lancées ou priorisées :
   // le manager lit qui a posé le label, pas qui a écrit l'issue (#2619).
   const garanties = new Set<number>();
+  // Les comptes que le projet déclare (`humans`) : seuls ils font d'une marque de station celle d'une station (#3012).
+  const declares = () => (options.humains?.() ?? []).map(({ login }) => login);
   const garantir = async (issue: IssueOuverte) => {
     garanties.delete(issue.number);
-    if (!auteurSansEcriture(issue) || !github.labelsPosesParDeConfiance) return;
+    if (!auteurSansEcriture(issue, declares()) || !github.labelsPosesParDeConfiance) return;
     if (!issue.labels.some((label) => label === LABEL || priorite([label]) !== null)) return;
     try {
       const posees = await github.labelsPosesParDeConfiance(issue.number);
@@ -237,7 +239,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
-    if (auteurSansEcriture(issue) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
+    if (auteurSansEcriture(issue, declares()) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
     if (issue.number === options.roadmap) return { quoi: "ecart", raison: "roadmap", fired };
     const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
     if (label) return { quoi: "ecart", raison: label, fired };

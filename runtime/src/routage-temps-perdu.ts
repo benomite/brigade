@@ -14,6 +14,7 @@
 // brigade elle-même, les tickets restent sur son dépôt ; un ticket de mesure
 // qu'une autre station a mergé y est servi à sa fermeture (#2979, la règle dans
 // `docs/runtime/etat-et-mesures.md`).
+import { DE_CONFIANCE } from "./alimenter.ts";
 import { MARQUE_QUALITE } from "./alerte-qualite.ts";
 import type { GitHub } from "./github.ts";
 import { MARQUE_CORRECTION, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
@@ -44,15 +45,18 @@ export const marqueDeLaFamille = (metrique: string, titre: string) => `<!-- brig
 // Le ticket qui couvre déjà ce dépôt : un de la famille encore ouvert, mergé
 // depuis moins de `DELAI_FAMILLE_MS`, ou mergé dont la mesure n'a pas changé
 // depuis. Sinon null : la mesure a changé après le merge, ou il n'y en a pas.
-// Quel que soit l'auteur (#3012) : la marque dit qu'une station l'a déposé ; une station sans l'écriture
-// sur la brigade ne verrait sinon jamais son ticket, et le redéposerait à chaque tour.
+// Les issues de confiance, et celles du compte `moi` sous lequel cette station dépose (#3012) : une
+// station sans l'écriture sur la brigade voit ainsi son propre ticket, et ne le redépose pas à chaque
+// tour ; l'issue d'un inconnu ne fait toujours taire personne.
 export function familleCouverte(
-  issues: readonly { number: number; body: string; association: string; state?: string; closedAt?: string }[],
+  issues: readonly { number: number; body: string; association: string; author?: string; state?: string; closedAt?: string }[],
   metrique: string,
   valeur: string,
   maintenant: Date,
+  moi: string | null = null,
 ): number | null {
   const famille = issues
+    .filter((issue) => DE_CONFIANCE.includes(issue.association) || (moi !== null && issue.author !== undefined && issue.author.toLowerCase() === moi.toLowerCase()))
     .flatMap((issue) => {
       const marque = MARQUE_FAMILLE.exec(issue.body);
       return marque?.[1] === metrique ? [{ issue, valeur: marque[2] }] : [];
@@ -69,7 +73,7 @@ export function familleCouverte(
 
 // Le GitHub de la brigade tel que le routage le lit : ses issues fermées
 // disent quand (`closedAt`), si GitHub le dit.
-export type GitHubDeLaBrigade = Omit<GitHubDeLaCorrection, "issuesDepuis"> & {
+export type GitHubDeLaBrigade = Omit<GitHubDeLaCorrection, "issuesDepuis"> & Partial<Pick<GitHub, "droits">> & {
   issuesDepuis(instant: string): Promise<(Awaited<ReturnType<GitHubDeLaCorrection["issuesDepuis"]>>[number] & { closedAt?: string })[]>;
 };
 
@@ -125,11 +129,14 @@ export function routerLeTempsPerdu({ github, servi, brigade, dansLesTemps, maint
       if (metrique !== null) {
         const debut = new Date(maintenant().getTime() - FENETRE_FAMILLE_MS);
         debut.setUTCHours(0, 0, 0, 0);
+        // Le compte de cette station ; une lecture qui échoue fait échouer le tour, qui ne dépose rien.
+        const moi = (await brigade.droits?.())?.login ?? null;
         const couvert = familleCouverte(
           (await brigade.issuesDepuis(debut.toISOString())).filter((issue) => issue.body.includes(marque)),
           metrique,
           sansParenthese(titre),
           maintenant(),
+          moi,
         );
         if (couvert !== null) return couvert;
       }
